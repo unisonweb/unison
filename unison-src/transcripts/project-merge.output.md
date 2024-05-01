@@ -128,7 +128,7 @@ bar/main> branch /topic
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison

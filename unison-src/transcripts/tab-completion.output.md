@@ -198,7 +198,7 @@ myproject/main> branch mybranch
   Done. I've created the mybranch branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /mybranch`
+       `switch /main` then `merge /mybranch`.
 
 myproject/main> debug.tab-complete branch.delete /mybr
 

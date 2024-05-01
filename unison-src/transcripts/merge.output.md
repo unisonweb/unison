@@ -12,7 +12,7 @@ contains both additions.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -29,9 +29,9 @@ foo = "alices foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -39,13 +39,13 @@ foo = "alices foo"
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -62,9 +62,9 @@ bar = "bobs bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
 
 ```
@@ -72,7 +72,7 @@ bar = "bobs bar"
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
 
 project/alice> merge /bob
@@ -83,7 +83,7 @@ project/alice> view foo bar
 
   bar : Text
   bar = "bobs bar"
-
+  
   foo : Text
   foo = "alices foo"
 
@@ -96,7 +96,7 @@ If Alice and Bob also happen to add the same thing, that's not a conflict.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -113,9 +113,9 @@ foo = "alice and bobs foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -123,13 +123,13 @@ foo = "alice and bobs foo"
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -149,9 +149,9 @@ bar = "bobs bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
       foo : Text
 
@@ -160,7 +160,7 @@ bar = "bobs bar"
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
     foo : Text
 
@@ -172,7 +172,7 @@ project/alice> view foo bar
 
   bar : Text
   bar = "bobs bar"
-
+  
   foo : Text
   foo = "alice and bobs foo"
 
@@ -195,9 +195,9 @@ foo = "old foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -205,13 +205,13 @@ foo = "old foo"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -228,10 +228,10 @@ foo = "new foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       foo : Text
 
 ```
@@ -246,7 +246,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -263,9 +263,9 @@ bar = foo ++ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
 
 ```
@@ -273,7 +273,7 @@ bar = foo ++ foo
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
 
 project/alice> merge /bob
@@ -286,7 +286,7 @@ project/alice> view foo bar
   bar =
     use Text ++
     foo ++ foo
-
+  
   foo : Text
   foo = "new foo"
 
@@ -318,9 +318,9 @@ baz = "old baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
       baz : Text
       foo : Text
@@ -330,7 +330,7 @@ baz = "old baz"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
     baz : Text
     foo : Text
@@ -338,7 +338,7 @@ project/main> add
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -355,10 +355,10 @@ bar = "alices bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       bar : Text
 
 ```
@@ -377,7 +377,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -394,10 +394,10 @@ baz = "bobs baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       baz : Text
 
 ```
@@ -421,10 +421,10 @@ project/alice> view foo bar baz
 
   bar : Text
   bar = "alices bar"
-
+  
   baz : Text
   baz = "bobs baz"
-
+  
   foo : Text
   foo =
     use Text ++
@@ -456,9 +456,9 @@ baz = "old baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
       baz : Text
       foo : Text
@@ -468,7 +468,7 @@ baz = "old baz"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
     baz : Text
     foo : Text
@@ -476,7 +476,7 @@ project/main> add
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -493,10 +493,10 @@ baz = "alices baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       baz : Text
 
 ```
@@ -515,7 +515,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -532,10 +532,10 @@ bar = "bobs bar" ++ baz
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       bar : Text
 
 ```
@@ -561,10 +561,10 @@ project/alice> view foo bar baz
   bar =
     use Text ++
     "bobs bar" ++ baz
-
+  
   baz : Text
   baz = "alices baz"
-
+  
   foo : Text
   foo =
     use Text ++
@@ -587,9 +587,9 @@ foo = "old foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -597,13 +597,13 @@ foo = "old foo"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -620,10 +620,10 @@ foo = "alices foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       foo : Text
 
 ```
@@ -638,7 +638,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -665,7 +665,7 @@ name but different hashes, then the merge algorithm makes up two fresh names.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -688,9 +688,9 @@ lib.bothDifferent.baz = 19
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       lib.alice.foo         : Nat
       lib.bothDifferent.baz : Nat
       lib.bothSame.bar      : Nat
@@ -700,7 +700,7 @@ lib.bothDifferent.baz = 19
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     lib.alice.foo         : Nat
     lib.bothDifferent.baz : Nat
     lib.bothSame.bar      : Nat
@@ -708,7 +708,7 @@ project/alice> add
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -731,9 +731,9 @@ lib.bothDifferent.baz = 21
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       lib.bob.foo           : Nat
       lib.bothDifferent.baz : Nat
       lib.bothSame.bar      : Nat
@@ -743,7 +743,7 @@ lib.bothDifferent.baz = 21
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     lib.bob.foo           : Nat
     lib.bothDifferent.baz : Nat
     lib.bothSame.bar      : Nat
@@ -756,16 +756,16 @@ project/alice> view foo bar baz
 
   lib.alice.foo : Nat
   lib.alice.foo = 17
-
+  
   lib.bob.foo : Nat
   lib.bob.foo = 20
-
+  
   lib.bothDifferent__0.baz : Nat
   lib.bothDifferent__0.baz = 19
-
+  
   lib.bothDifferent__1.baz : Nat
   lib.bothDifferent__1.baz = 21
-
+  
   lib.bothSame.bar : Nat
   lib.bothSame.bar = 18
 
@@ -778,21 +778,21 @@ If Bob is equals Alice, then merging Bob into Alice looks like this.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
 project/alice> merge /bob
 
   😶
-
+  
   project/alice was already up-to-date with project/bob.
 
 ```
@@ -804,14 +804,14 @@ If Bob is behind Alice, then merging Bob into Alice looks like this.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -828,9 +828,9 @@ foo = "foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -838,13 +838,13 @@ foo = "foo"
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/alice> merge /bob
 
   😶
-
+  
   project/alice was already up-to-date with project/bob.
 
 ```
@@ -856,14 +856,14 @@ If Bob is ahead of Alice, then merging Bob into Alice looks like this.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -880,9 +880,9 @@ foo = "foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -890,7 +890,7 @@ foo = "foo"
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/alice> merge /bob
@@ -918,9 +918,9 @@ foo = "foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -928,13 +928,13 @@ foo = "foo"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -945,7 +945,7 @@ project/alice> delete.term foo
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -962,9 +962,9 @@ bar = foo ++ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
 
 ```
@@ -972,7 +972,7 @@ bar = foo ++ foo
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
 
 project/alice> merge /bob
@@ -1013,9 +1013,9 @@ foo = "foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : Text
 
 ```
@@ -1023,13 +1023,13 @@ foo = "foo"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     foo : Text
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1046,10 +1046,10 @@ foo = 100
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       foo : Nat
 
 ```
@@ -1064,7 +1064,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1081,9 +1081,9 @@ bar = foo ++ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
 
 ```
@@ -1134,9 +1134,9 @@ bar = "old bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Text
       foo : Text
 
@@ -1145,14 +1145,14 @@ bar = "old bar"
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Text
     foo : Text
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1175,14 +1175,14 @@ qux = "alices qux depends on alices foo" ++ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       qux : Text
-
+    
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       bar : Text
       foo : Text
 
@@ -1198,7 +1198,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1218,14 +1218,14 @@ baz = "bobs baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       baz : Text
-
+    
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       foo : Text
 
 ```
@@ -1269,7 +1269,7 @@ project/merge-bob-into-alice> view bar baz
 
   bar : Text
   bar = "alices bar"
-
+  
   baz : Text
   baz = "bobs baz"
 
@@ -1291,9 +1291,9 @@ unique type Foo = MkFoo Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -1301,13 +1301,13 @@ unique type Foo = MkFoo Nat
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1323,10 +1323,10 @@ unique type Foo = MkFoo Nat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       type Foo
 
 ```
@@ -1341,7 +1341,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1357,10 +1357,10 @@ unique type Foo = MkFoo Nat Text
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       type Foo
 
 ```
@@ -1405,9 +1405,9 @@ unique type Foo = Baz Nat | Qux Text
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -1415,13 +1415,13 @@ unique type Foo = Baz Nat | Qux Text
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1437,10 +1437,10 @@ unique type Foo = Baz Nat Nat | Qux Text
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       type Foo
 
 ```
@@ -1455,7 +1455,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1512,9 +1512,9 @@ unique type Foo = Baz Nat | Qux Text
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -1522,13 +1522,13 @@ unique type Foo = Baz Nat | Qux Text
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1539,7 +1539,7 @@ project/alice> move.term Foo.Baz Foo.Alice
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1574,7 +1574,7 @@ It's possible for a term conflict to involve a constructor on one side and a not
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1591,9 +1591,9 @@ my.cool.thing = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       my.cool.thing : Nat
 
 ```
@@ -1601,13 +1601,13 @@ my.cool.thing = 17
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     my.cool.thing : Nat
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1624,9 +1624,9 @@ unique ability my.cool where
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       ability my.cool
 
 ```
@@ -1634,7 +1634,7 @@ unique ability my.cool where
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     ability my.cool
 
 ```
@@ -1680,9 +1680,9 @@ Foo.Bar = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       Foo.Bar : Nat
 
 ```
@@ -1690,13 +1690,13 @@ Foo.Bar = 17
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     Foo.Bar : Nat
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1712,9 +1712,9 @@ unique type Foo = Alice Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -1722,13 +1722,13 @@ unique type Foo = Alice Nat
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1748,9 +1748,9 @@ unique type Foo = Bar Nat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -1758,7 +1758,7 @@ unique type Foo = Bar Nat Nat
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 ```
@@ -1804,9 +1804,9 @@ Foo.Bar.Hello = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
       Foo.Bar.Hello : Nat
 
@@ -1815,7 +1815,7 @@ Foo.Bar.Hello = 17
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
     Foo.Bar.Hello : Nat
 
@@ -1826,7 +1826,7 @@ Alice deletes this type entirely, and repurposes its constructor names for other
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1861,15 +1861,15 @@ Foo.Bar.Hello = 18
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       Foo.Bar.Baz : Nat
       Foo.Bar.Qux : Nat
-
+    
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       Foo.Bar.Hello : Nat
 
 ```
@@ -1889,7 +1889,7 @@ constructor's name doesn't actually change. The other constructor takes the name
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -1946,7 +1946,7 @@ which is a parse error.
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -1965,9 +1965,9 @@ alice _ = 18
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
       alice : Foo -> Nat
 
@@ -1976,14 +1976,14 @@ alice _ = 18
 project/alice> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
     alice : Foo -> Nat
 
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -2002,9 +2002,9 @@ bob _ = 19
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
       bob : Foo -> Nat
 
@@ -2013,7 +2013,7 @@ bob _ = 19
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
     bob : Foo -> Nat
 
@@ -2072,9 +2072,9 @@ bar = 100
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       bar : Nat
       foo : Nat
 
@@ -2083,14 +2083,14 @@ bar = 100
 project/main> add
 
   ⍟ I've added these definitions:
-
+  
     bar : Nat
     foo : Nat
 
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
@@ -2110,10 +2110,10 @@ bar = 300
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       bar : Nat
         (The old definition is also named foo.)
       foo : Nat
@@ -2131,7 +2131,7 @@ project/alice> update
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
@@ -2148,9 +2148,9 @@ baz = "baz"
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       baz : Text
 
 ```
@@ -2158,7 +2158,7 @@ baz = "baz"
 project/bob> add
 
   ⍟ I've added these definitions:
-
+  
     baz : Text
 
 project/alice> merge /bob
@@ -2175,7 +2175,7 @@ conflict involving a builtin, we can't perform a merge.
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2195,9 +2195,9 @@ unique type MyNat = MyNat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type MyNat
 
 ```
@@ -2205,7 +2205,7 @@ unique type MyNat = MyNat Nat
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     type MyNat
 
 project/main> merge /topic
@@ -2223,7 +2223,7 @@ Each naming of a decl may not have more than one name for each constructor under
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2239,9 +2239,9 @@ unique type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -2249,7 +2249,7 @@ unique type Foo = Bar
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/topic> alias.term Foo.Bar Foo.some.other.Alias
@@ -2271,7 +2271,7 @@ Each naming of a decl may not have zero names for a constructor underneath the d
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2287,9 +2287,9 @@ unique type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -2297,7 +2297,7 @@ unique type Foo = Bar
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/topic> delete.term Foo.Bar
@@ -2317,7 +2317,7 @@ Decl aliases must be disjoint in a namespace: one cannot contain another.
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2334,9 +2334,9 @@ structural type A.inner.X = Y Nat | Z Nat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       structural type A
       structural type A.inner.X
 
@@ -2345,7 +2345,7 @@ structural type A.inner.X = Y Nat | Z Nat Nat
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     structural type A
     structural type A.inner.X
 
@@ -2362,7 +2362,7 @@ Each naming of a constructor must be underneath its decl's namespace.
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2378,9 +2378,9 @@ unique type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
 
 ```
@@ -2388,7 +2388,7 @@ unique type Foo = Bar
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     type Foo
 
 project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
@@ -2409,7 +2409,7 @@ A bit of an odd one, but we have a convention that `lib` contains only namespace
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
@@ -2426,9 +2426,9 @@ lib.foo = 1
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       lib.foo : Nat
 
 ```
@@ -2436,7 +2436,7 @@ lib.foo = 1
 project/topic> add
 
   ⍟ I've added these definitions:
-
+  
     lib.foo : Nat
 
 project/main> merge /topic

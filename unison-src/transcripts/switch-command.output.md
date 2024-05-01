@@ -31,14 +31,14 @@ foo/main> branch bar
   Done. I've created the bar branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /bar`
+       `switch /main` then `merge /bar`.
 
 foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge2 /topic`
+       `switch /main` then `merge /topic`.
 
 ```
 Now, the demo. When unambiguous, `switch` switches to either a project or a branch in the current project. A branch in
