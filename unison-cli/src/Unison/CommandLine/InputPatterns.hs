@@ -105,9 +105,14 @@ mergeBuiltins =
     "builtins.merge"
     []
     I.Hidden
-    []
-    "Adds the builtins to `builtins.` in the current namespace (excluding `io` and misc)."
-    (const . pure $ Input.MergeBuiltinsI)
+    [("namespace", Optional, namespaceArg)]
+    "Adds the builtins (excluding `io` and misc) to the specified namespace. Defaults to `builtin.`"
+    \case
+      [] -> pure . Input.MergeBuiltinsI $ Nothing
+      [p] -> first P.text do
+        p <- Path.parsePath p
+        pure . Input.MergeBuiltinsI $ Just p
+      _ -> Left (I.help mergeBuiltins)
 
 mergeIOBuiltins :: InputPattern
 mergeIOBuiltins =
@@ -115,16 +120,21 @@ mergeIOBuiltins =
     "builtins.mergeio"
     []
     I.Hidden
-    []
-    "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
-    (const . pure $ Input.MergeIOBuiltinsI)
+    [("namespace", Optional, namespaceArg)]
+    "Adds all the builtins, including `io` and misc., to the specified namespace. Defaults to `builtin.`"
+    \case
+      [] -> pure . Input.MergeIOBuiltinsI $ Nothing
+      [p] -> first P.text do
+        p <- Path.parsePath p
+        pure . Input.MergeIOBuiltinsI $ Just p
+      _ -> Left (I.help mergeBuiltins)
 
 updateBuiltins :: InputPattern
 updateBuiltins =
   InputPattern
     "builtins.update"
     []
-    I.Visible
+    I.Hidden
     []
     ( "Adds all the builtins that are missing from this namespace, "
         <> "and deprecate the ones that don't exist in this version of Unison."
@@ -531,7 +541,7 @@ sfind :: InputPattern
 sfind =
   InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
   where
-    parse [q] = Input.StructuredFindI Input.FindLocal <$> parseHashQualifiedName q
+    parse [q] = Input.StructuredFindI (Input.FindLocal Path.empty) <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
     msg =
       P.lines
@@ -589,13 +599,67 @@ sfindReplace =
         ]
 
 find :: InputPattern
-find = find' "find" Input.FindLocal
+find = find' "find" (Input.FindLocal Path.empty)
 
 findAll :: InputPattern
-findAll = find' "find.all" Input.FindLocalAndDeps
+findAll = find' "find.all" (Input.FindLocalAndDeps Path.empty)
 
 findGlobal :: InputPattern
 findGlobal = find' "find.global" Input.FindGlobal
+
+findIn, findInAll :: InputPattern
+findIn = findIn' "find-in" Input.FindLocal
+findInAll = findIn' "find-in.all" Input.FindLocalAndDeps
+
+findIn' :: String -> (Path.Path -> Input.FindScope) -> InputPattern
+findIn' cmd mkfscope =
+  InputPattern
+    cmd
+    []
+    I.Visible
+    [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
+    findHelp
+    \case
+      p : args -> first P.text do
+        p <- Path.parsePath p
+        pure (Input.FindI False (mkfscope p) args)
+      _ -> Left findHelp
+
+findHelp :: P.Pretty CT.ColorText
+findHelp =
+  ( P.wrapColumn2
+      [ ("`find`", "lists all definitions in the current namespace."),
+        ( "`find foo`",
+          "lists all definitions with a name similar to 'foo' in the current "
+            <> "namespace (excluding those under 'lib')."
+        ),
+        ( "`find foo bar`",
+          "lists all definitions with a name similar to 'foo' or 'bar' in the "
+            <> "current namespace (excluding those under 'lib')."
+        ),
+        ( "`find-in namespace`",
+          "lists all definitions in the specified subnamespace."
+        ),
+        ( "`find-in namespace foo bar`",
+          "lists all definitions with a name similar to 'foo' or 'bar' in the "
+            <> "specified subnamespace."
+        ),
+        ( "find.all foo",
+          "lists all definitions with a name similar to 'foo' in the current "
+            <> "namespace (including one level of 'lib')."
+        ),
+        ( "`find-in.all namespace`",
+          "lists all definitions in the specified subnamespace (including one level of its 'lib')."
+        ),
+        ( "`find-in.all namespace foo bar`",
+          "lists all definitions with a name similar to 'foo' or 'bar' in the "
+            <> "specified subnamespace (including one level of its 'lib')."
+        ),
+        ( "find.global foo",
+          "lists all definitions with a name similar to 'foo' in any namespace"
+        )
+      ]
+  )
 
 find' :: String -> Input.FindScope -> InputPattern
 find' cmd fscope =
@@ -604,25 +668,7 @@ find' cmd fscope =
     []
     I.Visible
     [("query", ZeroPlus, exactDefinitionArg)]
-    ( P.wrapColumn2
-        [ ("`find`", "lists all definitions in the current namespace."),
-          ( "`find foo`",
-            "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace (excluding those under 'lib')."
-          ),
-          ( "`find foo bar`",
-            "lists all definitions with a name similar to 'foo' or 'bar' in the "
-              <> "current namespace (excluding those under 'lib')."
-          ),
-          ( "find.all foo",
-            "lists all definitions with a name similar to 'foo' in the current "
-              <> "namespace (including one level of 'lib')."
-          ),
-          ( "find.global foo",
-            "lists all definitions with a name similar to 'foo' in any namespace"
-          )
-        ]
-    )
+    findHelp
     (pure . Input.FindI False fscope)
 
 findShallow :: InputPattern
@@ -656,7 +702,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.FindLocal)
+    (pure . Input.FindI True (Input.FindLocal Path.empty))
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -668,7 +714,7 @@ findVerboseAll =
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True Input.FindLocalAndDeps)
+    (pure . Input.FindI True (Input.FindLocalAndDeps Path.empty))
 
 findPatch :: InputPattern
 findPatch =
@@ -968,11 +1014,11 @@ aliasMany =
 up :: InputPattern
 up =
   InputPattern
-    "up"
+    "deprecated.up"
     []
-    I.Visible
+    I.Hidden
     []
-    (P.wrapColumn2 [(makeExample up [], "move current path up one level")])
+    (P.wrapColumn2 [(makeExample up [], "move current path up one level (deprecated)")])
     ( \case
         [] -> Right Input.UpI
         _ -> Left (I.help up)
@@ -981,12 +1027,12 @@ up =
 cd :: InputPattern
 cd =
   InputPattern
-    "namespace"
-    ["cd", "j"]
+    "deprecated.cd"
+    ["deprecated.namespace"]
     I.Visible
     [("namespace", Required, namespaceArg)]
     ( P.lines
-        [ "Moves your perspective to a different namespace.",
+        [ "Moves your perspective to a different namespace. Deprecated for now because too many important things depend on your perspective selection.",
           "",
           P.wrapColumn2
             [ ( makeExample cd ["foo.bar"],
@@ -1020,7 +1066,7 @@ back =
     []
     ( P.wrapColumn2
         [ ( makeExample back [],
-            "undoes the last" <> makeExample' cd <> "command."
+            "undoes the last" <> makeExample' projectSwitch <> "command."
           )
         ]
     )
@@ -1233,15 +1279,18 @@ resetRoot =
   InputPattern
     "reset-root"
     []
-    I.Visible
+    I.Hidden
     [("namespace or hash to reset to", Required, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample resetRoot [".foo"],
-            "Reset the root namespace (along with its history) to that of the `.foo` namespace."
-          ),
-          ( makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
-            "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`."
-          )
+    ( P.lines
+        [ "Deprecated because it's incompatible with projects. ⚠️ Warning, this command can cause codebase corruption.",
+          P.wrapColumn2
+            [ ( makeExample resetRoot [".foo"],
+                "Reset the root namespace (along with its history) to that of the `.foo` namespace. Deprecated"
+              ),
+              ( makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
+                "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`."
+              )
+            ]
         ]
     )
     \case
@@ -2998,7 +3047,9 @@ validInputs =
       editNamespace,
       execute,
       find,
+      findIn,
       findAll,
+      findInAll,
       findGlobal,
       findPatch,
       findShallow,

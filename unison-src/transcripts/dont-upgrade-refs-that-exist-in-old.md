@@ -3,8 +3,7 @@ If `foo#old` exists in old, and `foo#new` exists in new, you might think `upgrad
 
 ```ucm:hide
 .> project.create-empty foo
-foo/main> builtins.merge
-foo/main> move.namespace builtin lib.builtin
+foo/main> builtins.merge lib.builtin
 ```
 
 ```unison

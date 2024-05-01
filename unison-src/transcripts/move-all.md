@@ -1,7 +1,7 @@
 # Tests for `move`
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 ```
 
 ## Happy Path - namespace, term, and type

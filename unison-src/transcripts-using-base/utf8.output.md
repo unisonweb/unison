@@ -71,13 +71,13 @@ greek = "ΑΒΓΔΕ"
           0xsce91ce92ce93ce94ce95
 
 ```
-We can check that encoding and then decoding should give us back the same `Text` we started with 
+We can check that encoding and then decoding should give us back the same `Text` we started with
 
 ```unison
 checkRoundTrip: Text -> [Result]
-checkRoundTrip t = 
+checkRoundTrip t =
   bytes = toUtf8 t
-  match fromUtf8.impl bytes with 
+  match fromUtf8.impl bytes with
     Left e -> [Result.Fail "could not decode"]
     Right t' -> if t == t' then [Result.Ok "Passed"] else [Result.Fail ("Got: " ++ t' ++ " Expected: " ++ t)]
 

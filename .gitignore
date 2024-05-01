@@ -11,6 +11,7 @@ interpreter-tests.md
 
 # Stack
 .stack-work
+.stack-work-hls
 
 # Cabal
 dist-newstyle

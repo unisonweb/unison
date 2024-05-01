@@ -2,10 +2,6 @@
 
 https://github.com/unisonweb/unison/issues/2195
 
-```ucm:hide
-.> builtins.merge
-```
-
 We add a simple definition.
 
 ```unison:hide

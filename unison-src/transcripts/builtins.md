@@ -2,7 +2,6 @@
 
 ```ucm:hide
 .> builtins.mergeio
-.> cd builtin
 .> load unison-src/transcripts-using-base/base.u
 .> add
 ```
@@ -276,8 +275,8 @@ test> Text.tests.indexOf =
      Text.indexOf needle8 haystack == None,
      Text.indexOf needle9 haystack == Some 0,
    ]
-   
-test> Text.tests.indexOfEmoji = 
+
+test> Text.tests.indexOfEmoji =
   haystack = "clap 👏 your 👏 hands 👏 if 👏 you 👏 love 👏 unison"
   needle1 = "👏"
   needle2 = "👏 "

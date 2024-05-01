@@ -22,7 +22,6 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 .a> add
 .a> alias.term b aaa.but.more.segments
 .a> view a
-.> cd .
 ```
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
@@ -94,4 +93,3 @@ other.num = 20
 -- because `deeply.nested.num` is nearby to the term being viewed.
 .biasing> view deeply.nested.term
 ```
-

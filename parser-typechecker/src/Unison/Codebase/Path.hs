@@ -24,6 +24,7 @@ module Unison.Codebase.Path
     prefix,
     unprefix,
     prefixName,
+    prefixName2,
     unprefixName,
     HQSplit,
     Split,
@@ -192,6 +193,11 @@ prefix (Absolute (Path prefix)) = \case
   AbsolutePath' abs -> unabsolute abs
   RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
 
+prefix2 :: Path -> Path' -> Path
+prefix2 (Path prefix) = \case
+  AbsolutePath' abs -> unabsolute abs
+  RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
+
 -- | Finds the longest shared path prefix of two paths.
 -- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
 --
@@ -272,6 +278,9 @@ unprefixName prefix = toName . unprefix prefix . fromName'
 
 prefixName :: Absolute -> Name -> Name
 prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
+
+prefixName2 :: Path -> Name -> Name
+prefixName2 p n = fromMaybe n . toName . prefix2 p . fromName' $ n
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]

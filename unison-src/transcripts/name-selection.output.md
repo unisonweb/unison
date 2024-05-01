@@ -30,8 +30,6 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
     use Nat +
     b + 1
 
-.> cd .
-
 ```
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 

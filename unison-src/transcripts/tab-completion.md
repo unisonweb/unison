@@ -44,9 +44,9 @@ unique type subnamespace.AType = A | B
 
 ```ucm
 -- Should tab complete namespaces
-.> debug.tab-complete cd sub
-.> debug.tab-complete cd subnamespace
-.> debug.tab-complete cd subnamespace.
+.> debug.tab-complete find-in sub
+.> debug.tab-complete find-in subnamespace
+.> debug.tab-complete find-in subnamespace.
 .> debug.tab-complete io.test sub
 .> debug.tab-complete io.test subnamespace
 .> debug.tab-complete io.test subnamespace.
@@ -86,4 +86,3 @@ mybranchsubnamespace.term = 1
 myproject/main> add
 myproject/main> debug.tab-complete merge mybr
 ```
-

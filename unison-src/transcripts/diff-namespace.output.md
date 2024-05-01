@@ -137,8 +137,6 @@ structural ability X a1 a2 where x : ()
 
   Done.
 
-.ns1> cd .
-
 ```
 Here's what we've done so far:
 

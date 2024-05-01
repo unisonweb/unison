@@ -1,4 +1,4 @@
-Ensure that Records keep their syntax after being added to the codebase 
+Ensure that Records keep their syntax after being added to the codebase
 
 ## Record with 1 field
 
@@ -39,7 +39,7 @@ unique type Record3 = { a : Text, b : Int, c : Nat }
 ## Record with many fields
 
 ```unison
-unique type Record4 = 
+unique type Record4 =
   { a : Text
   , b : Int
   , c : Nat
@@ -142,8 +142,8 @@ If you `view` or `edit` it, it _should_ be treated as a record type, but it does
 Trailing commas are allowed.
 
 ```unison
-unique type Record5 = 
-  { a : Text, 
+unique type Record5 =
+  { a : Text,
     b : Int,
   }
 ```

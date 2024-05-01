@@ -1,7 +1,3 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
 ```unison
 l1 = [1.0,2.0,3.0]
 l2 = [+1,+2,+3]

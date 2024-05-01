@@ -1,10 +1,5 @@
 # Hashing and HMAC builtins
 
-```ucm:hide
-.> builtins.merge
-.> cd builtin
-```
-
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ```ucm
@@ -48,8 +43,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 And here's the full API:
 
 ```ucm
-.builtin.crypto> find
-.> cd .
+.> find-in builtin.crypto
 ```
 
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
@@ -263,4 +257,3 @@ test> md5.tests.ex3 =
 ```ucm
 .> test
 ```
-
