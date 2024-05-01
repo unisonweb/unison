@@ -13,12 +13,12 @@ import Unison.Reference qualified as Reference
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
-  { datasId :: Map v [(Reference.Id, DataDeclaration v a)],
+  { datasId :: Map v (Reference.Id, DataDeclaration v a),
     -- Effect declaration name to hash and its fully resolved form
-    effectsId :: Map v [(Reference.Id, EffectDeclaration v a)],
+    effectsId :: Map v (Reference.Id, EffectDeclaration v a),
     -- Naming environment
     names :: Names
   }
 
-datas :: Env v a -> Map v [(Reference, DataDeclaration v a)]
-datas = (fmap . fmap) (first Reference.DerivedId) . datasId
+datas :: Env v a -> Map v (Reference, DataDeclaration v a)
+datas = fmap (first Reference.DerivedId) . datasId

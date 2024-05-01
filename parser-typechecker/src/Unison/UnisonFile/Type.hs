@@ -1,11 +1,8 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.UnisonFile.Type where
 
 import Control.Lens
-import Data.Function (on)
-import Data.Map.Strict qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.Prelude
@@ -17,39 +14,13 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.WatchKind (WatchKind)
 
-data UnisonFile' f v a = UnisonFileId
-  { dataDeclarationsId :: Map v (f (TypeReferenceId, DataDeclaration v a)),
-    effectDeclarationsId :: Map v (f (TypeReferenceId, EffectDeclaration v a)),
-    terms :: Map v (f (a {- ann for whole binding -}, Term v a)),
+data UnisonFile v a = UnisonFileId
+  { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
+    effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
+    terms :: Map v (a {- ann for whole binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
-  deriving (Generic)
-
-deriving instance (forall x. Show x => Show (f x), Show v, Show a) => Show (UnisonFile' f v a)
-
-instance ((forall x. Semigroup (f x)), Ord v) => Monoid (UnisonFile' f v a) where
-  mempty =
-    UnisonFileId
-      { dataDeclarationsId = Map.empty,
-        effectDeclarationsId = Map.empty,
-        terms = Map.empty,
-        watches = Map.empty
-      }
-
-instance ((forall x. Semigroup (f x)), Ord v) => Semigroup (UnisonFile' f v a) where
-  lhs <> rhs =
-    UnisonFileId
-      { dataDeclarationsId = smush dataDeclarationsId,
-        effectDeclarationsId = smush effectDeclarationsId,
-        terms = smush terms,
-        watches = on (Map.unionWith (++)) watches lhs rhs
-      }
-    where
-      smush :: forall x. (UnisonFile' f v a -> Map v (f x)) -> Map v (f x)
-      smush pluck =
-        on (Map.unionWith (<>)) pluck lhs rhs
-
-type UnisonFile = UnisonFile' Identity
+  deriving stock (Generic, Show)
 
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
@@ -59,9 +30,9 @@ pattern UnisonFile ::
   UnisonFile v a
 pattern UnisonFile ds es tms ws <-
   UnisonFileId
-    (fmap (first Reference.DerivedId) . coerce -> ds)
-    (fmap (first Reference.DerivedId) . coerce -> es)
-    (coerce -> tms)
+    (fmap (first Reference.DerivedId) -> ds)
+    (fmap (first Reference.DerivedId) -> es)
+    tms
     ws
 
 {-# COMPLETE UnisonFile #-}

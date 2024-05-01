@@ -82,9 +82,7 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
               fileNames = UF.typecheckedToNames tf
             }
   (Just uf@(UF.UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches}), _) ->
-    let trms =
-          let f sym (ann, trm) = (Map.singleton sym (ann, Nothing, trm, Nothing))
-          in ifoldMapOf (itraversed <. _Wrapping Identity) f terms
+    let trms = (\(ann, trm) -> (ann, Nothing, trm, Nothing)) <$> terms
         (testWatches, exprWatches) =
           watches & ifoldMap \wk tms ->
             tms & foldMap \(v, ann, trm) ->
@@ -93,10 +91,10 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
                 _ -> (mempty, [(ann, assertUserSym v, Nothing, trm, Nothing, Just wk)])
      in Just $
           FileSummary
-            { dataDeclsBySymbol = coerce dataDeclarationsId,
-              dataDeclsByReference = declsRefMap (coerce dataDeclarationsId),
-              effectDeclsBySymbol = coerce effectDeclarationsId,
-              effectDeclsByReference = declsRefMap (coerce effectDeclarationsId),
+            { dataDeclsBySymbol = dataDeclarationsId,
+              dataDeclsByReference = declsRefMap dataDeclarationsId,
+              effectDeclsBySymbol = effectDeclarationsId,
+              effectDeclsByReference = declsRefMap effectDeclarationsId,
               termsBySymbol = trms,
               termsByReference = termsRefMap trms,
               testWatchSummary = testWatches,
@@ -121,7 +119,7 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
     getUserTypeAnnotation :: Symbol -> Maybe (Type Symbol Ann)
     getUserTypeAnnotation v = do
       UF.UnisonFileId {terms, watches} <- parsed
-      trm <- terms ^? ix v . _Wrapping Identity . _2 <|> watches ^? folded . folded . filteredBy (_1 . only v) . _3
+      trm <- terms ^? ix v . _2 <|> watches ^? folded . folded . filteredBy (_1 . only v) . _3
       typ <- Term.getTypeAnnotation trm
       pure typ
 

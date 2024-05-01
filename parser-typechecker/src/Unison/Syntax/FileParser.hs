@@ -29,7 +29,7 @@ import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
-import Unison.UnisonFile (UnisonFile, UnisonFile' (..))
+import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
@@ -38,6 +38,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
+import qualified Data.List as List
 
 resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v m x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
@@ -57,7 +58,7 @@ file = do
       accessors =
         [ generateRecordAccessors Var.namespaced Ann.GeneratedFrom (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors,
-            (r, _) <- fromMaybe [] (Map.lookup (L.payload typ) (UF.datas env))
+            Just (r, _) <- [Map.lookup (L.payload typ) (UF.datas env)]
         ]
       toPair (tok, typ) = (L.payload tok, ann tok <> ann typ)
   let importNames = [(Name.unsafeParseVar v, Name.unsafeParseVar v2) | (v, v2) <- imports]
@@ -118,12 +119,13 @@ file = do
           UnisonFileId
             (UF.datasId env)
             (UF.effectsId env)
-            (foldl' (\acc (a, b, c) -> Map.insertWith (++) a [(b, c)] acc) Map.empty (terms <> join accessors))
+            (List.foldl' (\acc (a, b, c) -> Map.insert a (b, c) acc) Map.empty (terms <> join accessors))
             (List.multimap watches)
     validateUnisonFile uf
+    pure uf
 
 -- | Final validations and sanity checks to perform before finishing parsing.
-validateUnisonFile :: (Var v) => UnisonFile' [] v Ann -> P v m (UnisonFile v Ann)
+validateUnisonFile :: (Var v) => UnisonFile v Ann -> P v m ()
 validateUnisonFile uf =
   checkForDuplicateTermsAndConstructors uf
 
@@ -133,9 +135,8 @@ validateUnisonFile uf =
 checkForDuplicateTermsAndConstructors ::
   forall m v.
   Ord v =>
-  Show v =>
-  UnisonFile' [] v Ann ->
-  P v m (UnisonFile v Ann)
+  UnisonFile v Ann ->
+  P v m ()
 checkForDuplicateTermsAndConstructors uf = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
@@ -144,19 +145,11 @@ checkForDuplicateTermsAndConstructors uf = do
             & fmap Set.toList
             & Map.toList
     P.customFailure (DuplicateTermNames dupeList)
-  when (not . null $ duplicateTypes) $ do
-    let dupeList :: [(v, [Ann])]
-        dupeList =
-          duplicateTypes
-            & fmap Set.toList
-            & Map.toList
-    P.customFailure (DuplicateTypeNames dupeList)
-  pure (UF.mapF extractSingle uf)
   where
     effectDecls :: [DataDeclaration v Ann]
-    effectDecls = map (DD.toDataDecl . snd) . concat $ Map.elems (effectDeclarationsId uf)
+    effectDecls = Map.elems . fmap (DD.toDataDecl . snd) $ effectDeclarationsId uf
     dataDecls :: [DataDeclaration v Ann]
-    dataDecls = map snd . concat $ Map.elems (dataDeclarationsId uf)
+    dataDecls = fmap snd $ Map.elems (dataDeclarationsId uf)
     allConstructors :: [(v, Ann)]
     allConstructors =
       (dataDecls <> effectDecls)
@@ -164,17 +157,7 @@ checkForDuplicateTermsAndConstructors uf = do
         & fmap (\(ann, v, _typ) -> (v, ann))
     allTerms :: [(v, Ann)]
     allTerms =
-      Map.foldrWithKey (\k vs b -> map (\(ann, _) -> (k, ann)) vs ++ b) [] (UF.terms uf)
-
-    duplicateTypes :: Map v (Set Ann)
-    duplicateTypes =
-      Map.filter
-        ((> 1) . Set.size)
-        ( Map.unionWith
-            (<>)
-            (Set.fromList . map (DD.annotation . DD.toDataDecl . snd) <$> effectDeclarationsId uf)
-            (Set.fromList . map (DD.annotation . snd) <$> dataDeclarationsId uf)
-        )
+      Map.foldrWithKey (\v (ann, _term) -> ((v, ann) :)) [] (UF.terms uf)
 
     mergedTerms :: Map v (Set Ann)
     mergedTerms =
@@ -185,12 +168,6 @@ checkForDuplicateTermsAndConstructors uf = do
     duplicates =
       -- Any vars with multiple annotations are duplicates.
       Map.filter ((> 1) . Set.size) mergedTerms
-
-    extractSingle :: forall k v. Show k => k -> [v] -> Identity v
-    extractSingle k = \case
-      [] -> error ("[extractSingle] impossible: empty list at " <> show k)
-      [v] -> Identity v
-      _ -> error ("[extractSingle] impossible: duplicates found at " <> show k)
 
 -- A stanza is either a watch expression like:
 --   > 1 + x

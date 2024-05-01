@@ -21,18 +21,18 @@ import Unison.Term qualified as Term
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env (Env (..))
 import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile, UnisonFile' (UnisonFileId))
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
-toNames :: (Var v, Foldable f) => UnisonFile' f v a -> Names
+toNames :: Var v => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
-    datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf) >>= sequenceA . fmap toList)
-    effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeParseVar) (Map.toList (UF.effectDeclarationsId uf) >>= sequenceA . fmap toList)
+    datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf))
+    effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeParseVar) (Map.toList (UF.effectDeclarationsId uf))
 
 addNamesFromUnisonFile :: (Var v) => UnisonFile v a -> Names -> Names
 addNamesFromUnisonFile unisonFile names = Names.shadowing (toNames unisonFile) names
@@ -84,9 +84,9 @@ bindNames names (UnisonFileId d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
-  let termVarsSet = (Map.keysSet ts) <> Set.fromList (Map.elems ws >>= map (view _1))
+  let termVarsSet = Map.keysSet ts <> Set.fromList (Map.elems ws >>= map (view _1))
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- (traverse . traverse) (\(a, t) -> (a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t) ts
+  ts' <- traverse (\(a, t) -> (a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t) ts
   ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 
@@ -161,5 +161,5 @@ environmentFor names dataDecls0 effectDecls0 = do
                 ]
   pure $
     if null overlaps && null unknownTypeRefs
-      then pure $ Env ((:[]) <$> dataDecls') ((:[]) <$> effectDecls') names'
+      then pure $ Env dataDecls' effectDecls' names'
       else Left (unknownTypeRefs ++ overlaps)

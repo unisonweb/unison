@@ -406,13 +406,13 @@ prettyLabeledDependencies ppe lds =
       LD.TermReferent r -> prettyHashQualified (PPE.termNameOrHashOnly ppe r)
       LD.TypeReference r -> "type " <> prettyHashQualified (PPE.typeNameOrHashOnly ppe r)
 
-prettyUnisonFile :: forall f v a. (Foldable f, Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile' f v a -> P.Pretty P.ColorText
+prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
   P.sep "\n\n" (map snd . sortOn fst $ prettyEffects <> prettyDatas <> catMaybes prettyTerms <> prettyWatches)
   where
-    prettyEffects = map prettyEffectDecl (Map.toList effects >>= sequenceA . fmap toList)
-    (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas >>= sequenceA . fmap toList)
-    prettyTerms = map (prettyTerm accessorNames) (Map.toList terms >>= sequenceA . fmap toList)
+    prettyEffects = map prettyEffectDecl (Map.toList effects)
+    (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
+    prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
     prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
@@ -421,8 +421,8 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
       (DD.annotation dt,) . st <$> DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt)
-    prettyTerm :: Set AccessorName -> (v, (a, Term v a)) -> Maybe (a, P.Pretty P.ColorText)
-    prettyTerm skip (n, (a, tm)) =
+    prettyTerm :: Set AccessorName -> v -> (a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
+    prettyTerm skip n (a, tm) =
       if traceMember isMember then Nothing else Just (a, pb hq tm)
       where
         traceMember =

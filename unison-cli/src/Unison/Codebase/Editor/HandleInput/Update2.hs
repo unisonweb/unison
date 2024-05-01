@@ -15,11 +15,10 @@ module Unison.Codebase.Editor.HandleInput.Update2
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
     makeComplicatedPPE,
-    getExistingReferencesNamed,
   )
 where
 
-import Control.Lens (over, (.~))
+import Control.Lens (over, (%~), (.~))
 import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Bifoldable (bifoldMap)
@@ -87,6 +86,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
+import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
@@ -124,7 +124,7 @@ handleUpdate2 = do
         codebase
         (findCtorNames Output.UOUUpdate namesExcludingLibdeps ctorNames)
         dependents
-        (UF.invalidate $ UF.discardTypes tuf)
+        (UF.discardTypes tuf)
     pure (makeComplicatedPPE hashLen namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents, bigUf)
 
   -- If the new-unison-file-to-typecheck is the same as old-unison-file-that-we-already-typechecked, then don't bother
@@ -156,8 +156,7 @@ handleUpdate2 = do
 
 -- TODO: find a better module for this function, as it's used in a couple places
 prettyParseTypecheck ::
-  Foldable f =>
-  UF.UnisonFile' f Symbol Ann ->
+  UnisonFile Symbol Ann ->
   PrettyPrintEnvDecl ->
   Parser.ParsingEnv Transaction ->
   Cli (Either (Pretty Pretty.ColorText) (TypecheckedUnisonFile Symbol Ann))
@@ -334,66 +333,56 @@ makeUnisonFile ::
   Codebase IO Symbol Ann ->
   (Maybe Int -> Name -> Either Output.Output [Name]) ->
   DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
-  Transaction (UF.UnisonFile' [] Symbol Ann)
+  Transaction (UnisonFile Symbol Ann)
 makeUnisonFile abort codebase doFindCtorNames defns = do
   file <- foldM addTermComponent UF.emptyUnisonFile (Set.map Reference.idToHash (Relation.ran defns.terms))
   foldM addDeclComponent file (Set.map Reference.idToHash (Relation.ran defns.types))
   where
-    addTermComponent :: UF.UnisonFile' [] Symbol Ann -> Hash -> Transaction (UF.UnisonFile' [] Symbol Ann)
+    addTermComponent :: UnisonFile Symbol Ann -> Hash -> Transaction (UnisonFile Symbol Ann)
     addTermComponent uf h = do
       termComponent <- Codebase.unsafeGetTermComponent codebase h
       pure $ foldl' addTermElement uf (zip termComponent [0 ..])
       where
-        addTermElement :: UF.UnisonFile' [] Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UF.UnisonFile' [] Symbol Ann
+        addTermElement :: UnisonFile Symbol Ann -> ((Term Symbol Ann, Type Symbol Ann), Reference.Pos) -> UnisonFile Symbol Ann
         addTermElement uf ((tm, tp), i) = do
           let termNames = Relation.lookupRan (Reference.Id h i) defns.terms
           foldl' (addDefinition tm tp) uf termNames
-        addDefinition :: Term Symbol Ann -> Type Symbol Ann -> UF.UnisonFile' [] Symbol Ann -> Name -> UF.UnisonFile' [] Symbol Ann
+        addDefinition :: Term Symbol Ann -> Type Symbol Ann -> UnisonFile Symbol Ann -> Name -> UnisonFile Symbol Ann
         addDefinition tm tp uf (Name.toVar -> v) =
           let prependTerm to = (v, Ann.External, tm) : to
            in if isTest tp
                 then uf & #watches . Lens.at WK.TestWatch . Lens.non [] Lens.%~ prependTerm
-                else uf & #terms Lens.%~ Map.insertWith (++) v [(Ann.External, tm)]
+                else uf & #terms Lens.%~ Map.insert v (Ann.External, tm)
 
     isTest = Typechecker.isEqual (Decls.testResultListType mempty)
 
     -- given a dependent hash, include that component in the scratch file
     -- todo: wundefined: cut off constructor name prefixes
-    addDeclComponent :: UF.UnisonFile' [] Symbol Ann -> Hash -> Transaction (UF.UnisonFile' [] Symbol Ann)
+    addDeclComponent :: UnisonFile Symbol Ann -> Hash -> Transaction (UnisonFile Symbol Ann)
     addDeclComponent uf h = do
       declComponent <- fromJust <$> Codebase.getDeclComponent h
       foldM addDeclElement uf (zip declComponent [0 ..])
       where
         -- for each name a decl has, update its constructor names according to what exists in the namespace
-        addDeclElement :: UF.UnisonFile' [] Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UF.UnisonFile' [] Symbol Ann)
+        addDeclElement :: UnisonFile Symbol Ann -> (Decl Symbol Ann, Reference.Pos) -> Transaction (UnisonFile Symbol Ann)
         addDeclElement uf (decl, i) = do
           let declNames = Relation.lookupRan (Reference.Id h i) defns.types
           -- look up names for this decl's constructor based on the decl's name, and embed them in the decl definition.
           foldM (addRebuiltDefinition decl) uf declNames
           where
             -- skip any definitions that already have names, we don't want to overwrite what the user has supplied
-            addRebuiltDefinition :: (Decl Symbol Ann) -> UF.UnisonFile' [] Symbol Ann -> Name -> Transaction (UF.UnisonFile' [] Symbol Ann)
+            addRebuiltDefinition :: Decl Symbol Ann -> UnisonFile Symbol Ann -> Name -> Transaction (UnisonFile Symbol Ann)
             addRebuiltDefinition decl uf name = case decl of
               Left ed ->
                 overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
                   uf
-                    { UF.effectDeclarationsId =
-                        Map.insertWith
-                          (++)
-                          (Name.toVar name)
-                          [(Reference.Id h i, Decl.EffectDeclaration ed')]
-                          uf.effectDeclarationsId
-                    }
+                    & #effectDeclarationsId
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
               Right dd ->
                 overwriteConstructorNames name dd <&> \dd' ->
                   uf
-                    { UF.dataDeclarationsId =
-                        Map.insertWith
-                          (++)
-                          (Name.toVar name)
-                          [(Reference.Id h i, dd')]
-                          uf.dataDeclarationsId
-                    }
+                    & #dataDeclarationsId
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
@@ -427,8 +416,8 @@ addDefinitionsToUnisonFile ::
   Codebase IO Symbol Ann ->
   (Maybe Int -> Name -> Either Output.Output [Name]) ->
   DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
-  UF.UnisonFile' [] Symbol Ann ->
-  Transaction (UF.UnisonFile' [] Symbol Ann)
+  UnisonFile Symbol Ann ->
+  Transaction (UnisonFile Symbol Ann)
 addDefinitionsToUnisonFile abort codebase doFindCtorNames newDefns oldUF = do
   newUF <- makeUnisonFile abort codebase doFindCtorNames newDefns
   pure (oldUF `UF.leftBiasedMerge` newUF)

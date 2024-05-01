@@ -56,7 +56,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
-import Unison.UnisonFile (UnisonFile' (..))
+import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
@@ -548,12 +548,7 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  ( componentMap
-                      <&>
-                        ( \(_ref, tm, _) ->
-                            Identity (External, tm)
-                        )
-                  )
+                  (componentMap <&> (\(_ref, tm, _) -> (External, tm)))
                   mempty
           typecheckingEnv <- Cli.computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] file
           let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file

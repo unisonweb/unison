@@ -500,8 +500,8 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh1 = fresh3 + 4
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
-                  terms =  
-                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v,term) -> (v, Identity (External, term)),
+                  terms =
+                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v,term) -> (v, (External, term)),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty

@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.UnisonFile
   ( -- * UnisonFile
-    UnisonFile' (..),
-    UnisonFile,
+    UnisonFile (..),
     pattern UnisonFile,
     emptyUnisonFile,
     allWatches,
@@ -18,10 +16,7 @@ module Unison.UnisonFile
     typecheckingTerm,
     watchesOfKind,
     definitionLocation,
-    traverseTerms,
     termBindings,
-    mapF,
-    invalidate,
     leftBiasedMerge,
 
     -- * TypecheckedUnisonFile
@@ -67,14 +62,14 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup qualified as TL
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile, UnisonFile' (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind, pattern TestWatch)
 
 -- | An empty Unison file.
-emptyUnisonFile :: UnisonFile' f v a
+emptyUnisonFile :: UnisonFile v a
 emptyUnisonFile =
   UnisonFileId
     { dataDeclarationsId = Map.empty,
@@ -83,19 +78,7 @@ emptyUnisonFile =
       watches = Map.empty
     }
 
-mapF :: forall f g v a. (forall x. v -> f x -> g x) -> UnisonFile' f v a -> UnisonFile' g v a
-mapF phi UnisonFileId {dataDeclarationsId, effectDeclarationsId, terms, watches} =
-  UnisonFileId
-    { dataDeclarationsId = Map.mapWithKey phi dataDeclarationsId,
-      effectDeclarationsId = Map.mapWithKey phi effectDeclarationsId,
-      terms = Map.mapWithKey phi terms,
-      watches = watches
-    }
-
-invalidate :: UnisonFile v a -> UnisonFile' [] v a
-invalidate = mapF (\_ (Identity x) -> [x])
-
-leftBiasedMerge :: forall f v a. Ord v => UnisonFile' f v a -> UnisonFile' f v a -> UnisonFile' f v a
+leftBiasedMerge :: forall v a. Ord v => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
 leftBiasedMerge lhs rhs =
   let mergedTerms = Map.foldlWithKey' (addNotIn lhsTermNames) (terms lhs) (terms rhs)
       mergedWatches = Map.foldlWithKey' addWatch (watches lhs) (watches rhs)
@@ -127,10 +110,10 @@ leftBiasedMerge lhs rhs =
       v -> Map.insertWith (++) k v b
 
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
-dataDeclarations = fmap (first Reference.DerivedId) . coerce . dataDeclarationsId
+dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
 effectDeclarations :: UnisonFile v a -> Map v (Reference, EffectDeclaration v a)
-effectDeclarations = fmap (first Reference.DerivedId) . coerce . effectDeclarationsId
+effectDeclarations = fmap (first Reference.DerivedId) . effectDeclarationsId
 
 watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, a, Term v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
@@ -145,7 +128,7 @@ allWatches = join . Map.elems . watches
 -- | Get the location of a given definition in the file.
 definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
 definitionLocation v uf =
-  terms uf ^? ix v . _Wrapping Identity . _1
+  terms uf ^? ix v . _1
     <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
     <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
     <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
@@ -164,7 +147,8 @@ typecheckingTerm uf =
     testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 termBindings :: UnisonFile v a -> [(v, a, Term v a)]
-termBindings uf = Map.foldrWithKey (\k (Identity (a, t)) b -> (k, a, t) : b) [] (terms uf)
+termBindings uf =
+  Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] (terms uf)
 
 -- backwards compatibility with the old data type
 dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration v a)
@@ -176,21 +160,12 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
-traverseTerms ::
-  Applicative f =>
-  Traversable t =>
-  ((v, a, Term v a) -> f (a, Term v a)) ->
-  UnisonFile' t v a ->
-  f (UnisonFile' t v a)
-traverseTerms f uf =
-  uf & #terms . itraversed <. traverse %%@~ (\k (a, t) -> f (k, a, t))
-
-mapTerms :: Functor f => (Term v a -> Term v a) -> UnisonFile' f v a -> UnisonFile' f v a
+mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
 mapTerms f (UnisonFileId datas effects terms watches) =
   UnisonFileId datas effects terms' watches'
   where
-    terms' = terms & mapped . mapped . _2 %~ f
-    watches' = fmap (over _3 f) <$> watches
+    terms' = over (mapped . _2) f terms
+    watches' = over (mapped . mapped . _3) f watches
 
 -- | This function should be called in preparation for a call to
 -- UnisonFile.rewrite. It prevents the possibility of accidental
@@ -266,7 +241,7 @@ rewrite leaveAlone rewriteFn uf@(UnisonFileId datas effects _terms watches) =
         f v tm | Set.member v leaveAlone = [Left tm]
         f _ tm = maybe [Left tm] (pure . Right) (rewriteFn tm)
     rewritten = [v | (v, _, Right _) <- terms' <> join (toList watches')]
-    unEitherTerms = fmap (\(v, a, e) -> (v, Identity (a, either id id e)))
+    unEitherTerms = fmap (\(v, a, e) -> (v, (a, either id id e)))
     unEither = fmap (\(v, a, e) -> (v, a, either id id e))
 
 typecheckedUnisonFile ::
@@ -369,7 +344,7 @@ discardTypes :: Ord v => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
-   in UnisonFileId (coerce datas) (coerce effects) (Map.fromList [(v, Identity (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
+   in UnisonFileId (coerce datas) (coerce effects) (Map.fromList [(v, (a, trm)) | (v, a, trm, _typ) <- join terms]) watches'
 
 declsToTypeLookup :: (Var v) => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf =

@@ -446,7 +446,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
       symbolsWithoutTypeSigs =
         Map.toList (UF.terms parsedFile)
           & mapMaybe
-            ( \(v, Identity (ann, trm)) -> do
+            ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
                 guard (isNothing $ Term.getTypeAnnotation trm)
                 pure (v, ann)
