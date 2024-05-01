@@ -76,11 +76,11 @@
           (right (bytes->chunked-bytes (subbytes buffer 0 read))))))))
 
 
-(define (UDP.UDPSocket.send.impl.v1 data) ; bytes -> ()
+(define (UDP.UDPSocket.send.impl.v1 socket data) ; socket -> bytes -> ()
   (handle-errors
     (lambda ()
       (begin
-        (udp-send (chunked-bytes->bytes data)
+        (udp-send socket (chunked-bytes->bytes data)
         (right none))))))
 
 ;    UDP.UDPSocket.socket.impl.v1
