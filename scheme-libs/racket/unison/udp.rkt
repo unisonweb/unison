@@ -15,7 +15,6 @@
    UDP.clientSocket.impl.v1
    UDP.UDPSocket.recv.impl.v1
    UDP.UDPSocket.send.impl.v1
-  ;  UDP.UDPSocket.socket.impl.v1
    UDP.UDPSocket.close.impl.v1
    UDP.ListenSocket.close.impl.v1
    UDP.UDPSocket.toText.impl.v1
@@ -23,7 +22,6 @@
    UDP.ListenSocket.toText.impl.v1
    UDP.ListenSocket.recvFrom.impl.v1
    UDP.ClientSockAddr.toText.v1
-   ;  UDP.ListenSocket.socket.impl.v1
    UDP.ListenSocket.sendTo.impl.v1)))
 
 (struct client-sock-addr (host port))
