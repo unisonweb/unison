@@ -138,5 +138,3 @@
       (begin
         (udp-send socket (chunked-bytes->bytes data) (client-sock-addr-host addr) (client-sock-addr-port addr))
         (right none)))))
-
-;    UDP.ListenSocket.socket.impl.v1
