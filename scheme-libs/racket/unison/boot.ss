@@ -27,9 +27,6 @@
   builtin-promise:typelink
   builtin-sequence:typelink
   builtin-socket:typelink
-  builtin-udpsocket:typelink
-  builtin-listensocket:typelink
-  builtin-clientsockaddr:typelink
   builtin-tls:typelink
   builtin-timespec:typelink
   builtin-threadid:typelink
@@ -49,6 +46,10 @@
   builtin-tls.serverconfig:typelink
   builtin-tls.signedcert:typelink
   builtin-tls.version:typelink
+
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
 
   bytevector
   bytes
