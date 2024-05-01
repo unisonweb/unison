@@ -5,13 +5,14 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
-import Unison.DataDeclaration (DataDeclaration)
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
@@ -21,6 +22,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
+import Unison.Reference (TypeReferenceId)
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
@@ -30,15 +32,14 @@ import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (UnisonFile (..))
-import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
-import qualified Data.List as List
 
 resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v m x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
@@ -115,19 +116,28 @@ file = do
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    let uf =
-          UnisonFileId
-            (UF.datasId env)
-            (UF.effectsId env)
-            (List.foldl' (\acc (a, b, c) -> Map.insert a (b, c) acc) Map.empty (terms <> join accessors))
-            (List.multimap watches)
-    validateUnisonFile uf
-    pure uf
+    -- let uf =
+    --       UnisonFileId
+    --         (UF.datasId env)
+    --         (UF.effectsId env)
+    --         (List.foldl' (\acc (a, b, c) -> Map.insert a (b, c) acc) Map.empty (terms <> join accessors))
+    --         (List.multimap watches)
+    validateUnisonFile
+      (UF.datasId env)
+      (UF.effectsId env)
+      (terms <> join accessors)
+      (List.multimap watches)
 
 -- | Final validations and sanity checks to perform before finishing parsing.
-validateUnisonFile :: (Var v) => UnisonFile v Ann -> P v m ()
-validateUnisonFile uf =
-  checkForDuplicateTermsAndConstructors uf
+validateUnisonFile ::
+  Ord v =>
+  Map v (TypeReferenceId, DataDeclaration v Ann) ->
+  Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  [(v, Ann, Term v Ann)] ->
+  Map WatchKind [(v, Ann, Term v Ann)] ->
+  P v m (UnisonFile v Ann)
+validateUnisonFile datas effects terms watches =
+  checkForDuplicateTermsAndConstructors datas effects terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -135,9 +145,12 @@ validateUnisonFile uf =
 checkForDuplicateTermsAndConstructors ::
   forall m v.
   Ord v =>
-  UnisonFile v Ann ->
-  P v m ()
-checkForDuplicateTermsAndConstructors uf = do
+  Map v (TypeReferenceId, DataDeclaration v Ann) ->
+  Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  [(v, Ann, Term v Ann)] ->
+  Map WatchKind [(v, Ann, Term v Ann)] ->
+  P v m (UnisonFile v Ann)
+checkForDuplicateTermsAndConstructors datas effects terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -145,11 +158,18 @@ checkForDuplicateTermsAndConstructors uf = do
             & fmap Set.toList
             & Map.toList
     P.customFailure (DuplicateTermNames dupeList)
+  pure
+    UnisonFileId
+      { dataDeclarationsId = datas,
+        effectDeclarationsId = effects,
+        terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
+        watches
+      }
   where
     effectDecls :: [DataDeclaration v Ann]
-    effectDecls = Map.elems . fmap (DD.toDataDecl . snd) $ effectDeclarationsId uf
+    effectDecls = Map.elems . fmap (DD.toDataDecl . snd) $ effects
     dataDecls :: [DataDeclaration v Ann]
-    dataDecls = fmap snd $ Map.elems (dataDeclarationsId uf)
+    dataDecls = fmap snd $ Map.elems datas
     allConstructors :: [(v, Ann)]
     allConstructors =
       (dataDecls <> effectDecls)
@@ -157,13 +177,13 @@ checkForDuplicateTermsAndConstructors uf = do
         & fmap (\(ann, v, _typ) -> (v, ann))
     allTerms :: [(v, Ann)]
     allTerms =
-      Map.foldrWithKey (\v (ann, _term) -> ((v, ann) :)) [] (UF.terms uf)
+      map (\(v, ann, _term) -> (v, ann)) terms
 
     mergedTerms :: Map v (Set Ann)
     mergedTerms =
       (allConstructors <> allTerms)
         & (fmap . fmap) Set.singleton
-        & Map.fromListWith (<>)
+        & Map.fromListWith Set.union
     duplicates :: Map v (Set Ann)
     duplicates =
       -- Any vars with multiple annotations are duplicates.
