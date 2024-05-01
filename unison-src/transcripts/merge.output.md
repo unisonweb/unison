@@ -1822,6 +1822,117 @@ type Foo.Bar = Hello Nat Nat | Baz Nat
 
 ```
 
+## Merge algorithm quirk: add/add unique types
+
+Currently, two unique types created by Alice and Bob will be considered in conflict, even if they "look the same".
+The result may be confusing to a user – a file containing two identical-looking copies of a unique type is rendered,
+which is a parse error.
+
+```ucm
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+```
+```unison
+unique type Foo = Bar
+
+alice : Foo -> Nat
+alice _ = 18
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+      alice : Foo -> Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+    alice : Foo -> Nat
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+unique type Foo = Bar
+
+bob : Foo -> Nat
+bob _ = 19
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+      bob : Foo -> Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+    bob : Foo -> Nat
+
+```
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge bob into alice. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+type Foo
+  = Bar
+
+-- project/bob
+type Foo
+  = Bar
+
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
+alice : Foo -> Nat
+alice _ = 18
+
+bob : Foo -> Nat
+bob _ = 19
+
+
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the

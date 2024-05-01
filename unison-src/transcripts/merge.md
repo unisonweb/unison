@@ -768,6 +768,52 @@ project/alice> merge bob
 .> project.delete project
 ```
 
+## Merge algorithm quirk: add/add unique types
+
+Currently, two unique types created by Alice and Bob will be considered in conflict, even if they "look the same".
+The result may be confusing to a user – a file containing two identical-looking copies of a unique type is rendered,
+which is a parse error.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```ucm
+project/main> branch alice
+```
+
+```unison
+unique type Foo = Bar
+
+alice : Foo -> Nat
+alice _ = 18
+```
+
+```ucm
+project/alice> add
+project/main> branch bob
+```
+
+```unison
+unique type Foo = Bar
+
+bob : Foo -> Nat
+bob _ = 19
+```
+
+```ucm
+project/bob> add
+```
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## Precondition violations
 
 Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the
