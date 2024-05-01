@@ -79,10 +79,8 @@
   (handle-errors
     (lambda ()
       (begin
-        (udp-send socket (chunked-bytes->bytes data)
-        (right none))))))
-
-;    UDP.UDPSocket.socket.impl.v1
+        (udp-send socket (chunked-bytes->bytes data))
+        (right none)))))
 
 ;    UDP.UDPSocket.close.impl.v1
 (define (UDP.UDPSocket.close.impl.v1 socket)
