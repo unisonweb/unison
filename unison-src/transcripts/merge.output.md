@@ -2306,7 +2306,8 @@ project/topic> delete.term Foo.Bar
 
 project/main> merge /topic
 
-  Missing constructor name.
+  The type Foo is missing a name for one of its constructors.
+  Please add one before merging.
 
 ```
 ### Nested decl alias
@@ -2351,7 +2352,8 @@ project/topic> add
 
 project/main> merge /topic
 
-  Nested decl alias.
+  The type A.inner.X is an alias of A. Type aliases cannot be
+  nested. Please make them disjoint before merging.
 
 ```
 ### Stray constructor alias
@@ -2397,7 +2399,9 @@ project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
 
 project/main> merge /topic
 
-  Stray constructor.
+  The constructor AliasOutsideFooNamespace is not in a
+  subnamespace of a name of its type. Please either delete it or
+  rename it before merging.
 
 ```
 ### Term or type in `lib`
@@ -2441,6 +2445,8 @@ project/topic> add
 
 project/main> merge /topic
 
-  Defns in lib
+  There's a type or term directly in the `lib` namespace, but I
+  expected only library dependencies to be in there. Please
+  remove it before merging.
 
 ```

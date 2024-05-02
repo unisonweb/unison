@@ -121,7 +121,11 @@ data IncoherentDeclReason
     --   Foo.Some.Other.Name.For.Bar#Foo#0
     IncoherentDeclReason'ConstructorAlias !Name !Name
   | IncoherentDeclReason'MissingConstructorName !Name
-  | IncoherentDeclReason'NestedDeclAlias !Name
+  | -- | A second naming of a decl was discovered underneath its name, e.g.
+    --
+    --   Foo#Foo
+    --   Foo.Bar#Foo
+    IncoherentDeclReason'NestedDeclAlias !Name !Name -- shorter name, longer name
   | IncoherentDeclReason'StrayConstructor !Name
 
 checkDeclCoherency ::
@@ -147,16 +151,19 @@ checkDeclCoherency loadDeclNumConstructors =
           expectedConstructors1 <- lift (Except.except (Map.upsertF f typeRef expectedConstructors))
           #expectedConstructors .= expectedConstructors1
           where
-            f :: Maybe (IntMap MaybeConstructorName) -> Either IncoherentDeclReason (IntMap MaybeConstructorName)
+            f ::
+              Maybe (Name, IntMap MaybeConstructorName) ->
+              Either IncoherentDeclReason (Name, IntMap MaybeConstructorName)
             f = \case
               Nothing -> Left (IncoherentDeclReason'StrayConstructor (fullName name))
-              Just expected -> IntMap.alterF g (fromIntegral @Word64 @Int conId) expected
+              Just (typeName, expected) -> (typeName,) <$> IntMap.alterF g (fromIntegral @Word64 @Int conId) expected
                 where
                   g :: Maybe MaybeConstructorName -> Either IncoherentDeclReason (Maybe MaybeConstructorName)
                   g = \case
                     Nothing -> error "didnt put expected constructor id"
                     Just NoConstructorNameYet -> Right (Just (YesConstructorName (fullName name)))
-                    Just (YesConstructorName firstName) -> Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
+                    Just (YesConstructorName firstName) ->
+                      Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
 
       childrenWeWentInto <-
         forMaybe (Map.toList types) \case
@@ -165,15 +172,15 @@ checkDeclCoherency loadDeclNumConstructors =
             DeclCoherencyCheckState {expectedConstructors} <- State.get
             whatHappened <- do
               let recordNewDecl ::
-                    Maybe (IntMap MaybeConstructorName) ->
-                    Compose (ExceptT IncoherentDeclReason Transaction) WhatHappened (IntMap MaybeConstructorName)
+                    Maybe (Name, IntMap MaybeConstructorName) ->
+                    Compose (ExceptT IncoherentDeclReason Transaction) WhatHappened (Name, IntMap MaybeConstructorName)
                   recordNewDecl =
                     Compose . \case
-                      Just _ -> Except.throwError (IncoherentDeclReason'NestedDeclAlias typeName)
+                      Just (shorterTypeName, _) -> Except.throwError (IncoherentDeclReason'NestedDeclAlias shorterTypeName typeName)
                       Nothing ->
                         lift (loadDeclNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
-                          n -> InhabitedDecl (IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
+                          n -> InhabitedDecl (typeName, IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
               lift (getCompose (Map.upsertF recordNewDecl typeRef expectedConstructors))
             case whatHappened of
               UninhabitedDecl -> do
@@ -187,7 +194,7 @@ checkDeclCoherency loadDeclNumConstructors =
                 go (name : prefix) child
                 DeclCoherencyCheckState {expectedConstructors} <- State.get
                 -- fromJust is safe here because we upserted `typeRef` key above
-                let (fromJust -> maybeConstructorNames, expectedConstructors1) =
+                let (fromJust -> (_typeName, maybeConstructorNames), expectedConstructors1) =
                       Map.deleteLookup typeRef expectedConstructors
                 constructorNames <-
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
@@ -213,7 +220,7 @@ checkDeclCoherency loadDeclNumConstructors =
           Name.fromReverseSegments (name :| prefix)
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
-  { expectedConstructors :: !(Map TypeReferenceId (IntMap MaybeConstructorName)),
+  { expectedConstructors :: !(Map TypeReferenceId (Name, IntMap MaybeConstructorName)),
     declNameLookup :: !DeclNameLookup
   }
   deriving stock (Generic)

@@ -1653,8 +1653,12 @@ notifyUser dir = \case
         <> "and"
         <> prettyName name2
         <> "are not aliases, but they used to be."
-  MergeConflictedTermName _name _refs -> pure "Conflicted term name."
-  MergeConflictedTypeName _name _refs -> pure "Conflicted type name."
+  MergeConflictedTermName name _refs ->
+    pure . P.wrap $
+      "The term name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
+  MergeConflictedTypeName name _refs ->
+    pure . P.wrap $
+      "The type name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
   MergeConflictInvolvingBuiltin name ->
     pure . P.wrap $
       "There's a merge conflict on"
@@ -1670,10 +1674,28 @@ notifyUser dir = \case
         <> "and"
         <> prettyName name2
         <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib -> pure "Defns in lib"
-  MergeMissingConstructorName _name -> pure "Missing constructor name."
-  MergeNestedDeclAlias _name -> pure "Nested decl alias."
-  MergeStrayConstructor _name -> pure "Stray constructor."
+  MergeDefnsInLib ->
+    pure . P.wrap $
+      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
+        <> "Please remove it before merging."
+  MergeMissingConstructorName name ->
+    pure . P.wrap $
+      "The type"
+        <> prettyName name
+        <> "is missing a name for one of its constructors. Please add one before merging."
+  MergeNestedDeclAlias shorterName longerName ->
+    pure . P.wrap $
+      "The type"
+        <> prettyName longerName
+        <> "is an alias of"
+        <> P.group (prettyName shorterName <> ".")
+        <> "Type aliases cannot be nested. Please make them disjoint before merging."
+  MergeStrayConstructor name ->
+    pure . P.wrap $
+      "The constructor"
+        <> prettyName name
+        <> "is not in a subnamespace of a name of its type."
+        <> "Please either delete it or rename it before merging."
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $

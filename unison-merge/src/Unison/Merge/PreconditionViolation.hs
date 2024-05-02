@@ -31,7 +31,9 @@ data PreconditionViolation
     ConstructorAlias !(Maybe ProjectBranchName) !Name !Name -- first name we found, second name we found
   | -- | There were some definitions at the top level of lib.*, which we don't like
     DefnsInLib
-  | MissingConstructorName !Name
-  | NestedDeclAlias !Name
+  | -- | This type name is missing a name for one of its constructors.
+    MissingConstructorName !Name
+  | -- | This type name is a nested alias, e.g. "Foo.Bar.Baz" which is an alias of "Foo" or "Foo.Bar".
+    NestedDeclAlias !Name !Name -- shorter name, longer name
   | StrayConstructor !Name
   deriving stock (Show)

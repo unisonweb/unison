@@ -844,7 +844,7 @@ mergePreconditionViolationToOutput = \case
   Merge.ConstructorAlias maybeBranch name1 name2 -> Output.MergeConstructorAlias maybeBranch name1 name2
   Merge.DefnsInLib -> Output.MergeDefnsInLib
   Merge.MissingConstructorName name -> Output.MergeMissingConstructorName name
-  Merge.NestedDeclAlias name -> Output.MergeNestedDeclAlias name
+  Merge.NestedDeclAlias shorterName longerName -> Output.MergeNestedDeclAlias shorterName longerName
   Merge.StrayConstructor name -> Output.MergeStrayConstructor name
 
 -- Assert that a namespace satisfies a few preconditions.
@@ -882,7 +882,7 @@ assertNamespaceSatisfiesPreconditions db abort maybeBranchName branch defns = do
       IncoherentDeclReason'ConstructorAlias firstName secondName ->
         Merge.ConstructorAlias maybeBranchName firstName secondName
       IncoherentDeclReason'MissingConstructorName name -> Merge.MissingConstructorName name
-      IncoherentDeclReason'NestedDeclAlias name -> Merge.NestedDeclAlias name
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName -> Merge.NestedDeclAlias shorterName longerName
       IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
 
 findOneConflictedAlias ::
