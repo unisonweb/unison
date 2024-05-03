@@ -1,4 +1,4 @@
 #lang racket/base
-(require udp)
+(require unison/udp)
 
 (provide (all-from-out))
