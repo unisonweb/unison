@@ -566,6 +566,10 @@
     unison-FOp-IO.UDP.ListenSocket.toText.impl.v1
     unison-FOp-IO.UDP.ListenSocket.recvFrom.impl.v1
     unison-FOp-IO.UDP.ClientSockAddr.toText.v1
+    client-sock-addr
+    client-sock-addr-host
+    client-sock-addr-port
+    buffer-size
     unison-FOp-IO.UDP.ListenSocket.sendTo.impl.v1
     unison-FOp-Tls.ClientConfig.default
     unison-FOp-Tls.ClientConfig.certificates.set
@@ -982,8 +986,6 @@
     (define (unison-FOp-Handle.toText h)
       (string->chunked-string (describe-value h)))
     (define (unison-FOp-Socket.toText s)
-      (string->chunked-string (describe-value s)))
-    (define (unison-FOp-IO.UDP.ClientSockAddr.toText.v1 s)
       (string->chunked-string (describe-value s)))
     (define (unison-FOp-ThreadId.toText tid)
       (string->chunked-string (describe-value tid)))
