@@ -493,8 +493,8 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
         let unisonFile :: UnisonFile Symbol Ann
             unisonFile =
               UF.UnisonFileId
-                { dataDeclarationsId = coerce $ UF.dataDeclarationsId' (Slurp.originalFile slurp0),
-                  effectDeclarationsId = coerce $ UF.effectDeclarationsId' (Slurp.originalFile slurp0),
+                { dataDeclarationsId = UF.dataDeclarationsId' (Slurp.originalFile slurp0),
+                  effectDeclarationsId = UF.effectDeclarationsId' (Slurp.originalFile slurp0),
                   -- Running example:
                   --
                   --   fresh1 = fresh3 + 4
