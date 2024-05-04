@@ -37,20 +37,7 @@
       ClientSockAddr.toText.v1:termlink
       ListenSocket.sendTo.impl.v1
       ListenSocket.sendTo.impl.v1:termlink)))
-  ; (prefix-out
-  ;   unison-FOp-IO.
-  ;   (combine-out
-  ;   UDP.clientSocket.impl.v1
-  ;   UDP.UDPSocket.recv.impl.v1
-  ;   UDP.UDPSocket.send.impl.v1
-  ;   UDP.UDPSocket.close.impl.v1
-  ;   UDP.ListenSocket.close.impl.v1
-  ;   UDP.UDPSocket.toText.impl.v1
-  ;   UDP.serverSocket.impl.v1
-  ;   UDP.ListenSocket.toText.impl.v1
-  ;   UDP.ListenSocket.recvFrom.impl.v1
-  ;   UDP.ClientSockAddr.toText.v1
-  ;   UDP.ListenSocket.sendTo.impl.v1))))
+ 
 
 (struct client-sock-addr (host port))
 
@@ -109,16 +96,50 @@
       (1 ()
         (ref-either-right ref-unit-unit)))))
 
+(define ; {exn} a -> ref-either ref-failure a
+  (wrap-in-either a)
+  (sum-case a
+    (0 (type msg meta)
+      (ref-either-left (ref-failure-failure type msg (unison-any-any meta))))
+    (1 (data) (ref-either-right data))))
+
 (define-unison
-  (serverSocket.impl.v1 x0 x1)
-    (let* ([x2 (UDP.serverSocket.impl.v1 x0 x1)])
-      (sum-case x2
-        (0 (x3 x4 x5)
-          (let* ([x6 (data builtin-any:typelink 0 x5)]
-                 [x7 (data ref-failure:typelink 0 x3 x4 x6)])
-            (data ref-either:typelink 1 x7)))
-        (1 (x3)
-          (data ref-either:typelink 0 x3)))))
+  (serverSocket.impl.v1 ip port)
+    (let
+      ([result (handle-errors (lambda()
+        (let* ([iip (chunked-string->string ip)]
+              [pport (string->number (chunked-string->string port))]
+              [sock (udp-open-socket iip pport)])
+          (begin
+            (udp-bind! sock iip pport)
+            (right sock)))))])
+      (wrap-in-either result)))
+
+; (define-unison
+;   (serverSocket.impl.v1 ip port)
+;   (define rv (handle-errors (lambda()
+;       (let* ([iip (chunked-string->string ip)]
+;              [pport (string->number (chunked-string->string port))]
+;              [sock (udp-open-socket iip pport)])
+;             (begin
+;               (udp-bind! sock iip pport)
+;               (right sock)))))
+;       (sum-case rv
+;         (0 (err code msg)
+;           (ref-either-left (ref-failure-failure err code (data builtin-any:typelink 0 msg))))
+;         (1 (sock)
+;           (ref-either-right sock)))))
+
+; (define-unison
+;   (serverSocket.impl.v1 x0 x1)
+;     (let* ([x2 (UDP.serverSocket.impl.v1 x0 x1)])
+;       (sum-case x2
+;         (0 (x3 x4 x5)
+;           (let* ([x6 (data builtin-any:typelink 0 x5)]
+;                  [x7 (data ref-failure:typelink 0 x3 x4 x6)])
+;             (data ref-either:typelink 1 x7)))
+;         (1 (x3)
+;           (data ref-either:typelink 0 x3)))))
 
 (define-unison
   (ListenSocket.recvFrom.impl.v1 socket)
@@ -280,15 +301,15 @@
 ;       (string->chunked-string rv))
 
 ;    UDP.serverSocket.impl.v1
-(define (UDP.serverSocket.impl.v1 ip port) ; string string -> socket
-  (handle-errors
-   (lambda ()
-     (define iip (chunked-string->string ip))
-      (define pport (string->number (chunked-string->string port)))
-      (begin
-        (let* ([sock (udp-open-socket iip pport)]
-              [_ (udp-bind! sock iip pport)])
-          (right sock))))))
+; (define (UDP.serverSocket.impl.v1 ip port) ; string string -> socket
+;   (handle-errors
+;    (lambda ()
+;      (define iip (chunked-string->string ip))
+;       (define pport (string->number (chunked-string->string port)))
+;       (begin
+;         (let* ([sock (udp-open-socket iip pport)]
+;               [_ (udp-bind! sock iip pport)])
+;           (right sock))))))
 
 (define 
   (format-socket socket)
