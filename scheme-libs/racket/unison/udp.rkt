@@ -8,37 +8,255 @@
          unison/data
          unison/data-info
          unison/chunked-seq
+         (only-in unison/boot sum-case)
          unison/core)
 
 (provide
- (combine-out
-  client-sock-addr
-  client-sock-addr-host
-  client-sock-addr-port
-  buffer-size
   (prefix-out
-    unison-FOp-IO.
+    builtin-IO.UDP.
     (combine-out
-    UDP.clientSocket.impl.v1
-    UDP.UDPSocket.recv.impl.v1
-    UDP.UDPSocket.send.impl.v1
-    UDP.UDPSocket.close.impl.v1
-    UDP.ListenSocket.close.impl.v1
-    UDP.UDPSocket.toText.impl.v1
-    UDP.serverSocket.impl.v1
-    UDP.ListenSocket.toText.impl.v1
-    UDP.ListenSocket.recvFrom.impl.v1
-    UDP.ClientSockAddr.toText.v1
-    UDP.ListenSocket.sendTo.impl.v1))))
+      clientSocket.impl.v1
+      clientSocket.impl.v1:termlink
+      UDPSocket.recv.impl.v1
+      UDPSocket.recv.impl.v1:termlink
+      UDPSocket.send.impl.v1
+      UDPSocket.send.impl.v1:termlink
+      UDPSocket.close.impl.v1
+      UDPSocket.close.impl.v1:termlink
+      ListenSocket.close.impl.v1
+      ListenSocket.close.impl.v1:termlink
+      UDPSocket.toText.impl.v1
+      UDPSocket.toText.impl.v1:termlink
+      serverSocket.impl.v1
+      serverSocket.impl.v1:termlink
+      ListenSocket.toText.impl.v1
+      ListenSocket.toText.impl.v1:termlink
+      ListenSocket.recvFrom.impl.v1
+      ListenSocket.recvFrom.impl.v1:termlink
+      ClientSockAddr.toText.v1
+      ClientSockAddr.toText.v1:termlink
+      ListenSocket.sendTo.impl.v1
+      ListenSocket.sendTo.impl.v1:termlink)))
+  ; (prefix-out
+  ;   unison-FOp-IO.
+  ;   (combine-out
+  ;   UDP.clientSocket.impl.v1
+  ;   UDP.UDPSocket.recv.impl.v1
+  ;   UDP.UDPSocket.send.impl.v1
+  ;   UDP.UDPSocket.close.impl.v1
+  ;   UDP.ListenSocket.close.impl.v1
+  ;   UDP.UDPSocket.toText.impl.v1
+  ;   UDP.serverSocket.impl.v1
+  ;   UDP.ListenSocket.toText.impl.v1
+  ;   UDP.ListenSocket.recvFrom.impl.v1
+  ;   UDP.ClientSockAddr.toText.v1
+  ;   UDP.ListenSocket.sendTo.impl.v1))))
 
 (struct client-sock-addr (host port))
 
-;;; define the termlink builtins ;;;
-; (define builtin-IO.UDP.ListenSocket.recvFrom.impl.v1:termlink
-  ; (unison-termlink-builtin "IO.UDP.ListenSocket.recvFrom.impl.v1"))
-
 ; Haskell's Network.UDP choice of buffer size is 2048, so mirror that here
 (define buffer-size 2048)
+
+;; define termlink builtins
+(define clientSocket.impl.v1:termlink 
+  (unison-termlink-builtin "IO.UDP.clientSocket.impl.v1"))
+(define UDPSocket.recv.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.UDPSocket.recv.impl.v1"))
+(define UDPSocket.send.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.UDPSocket.send.impl.v1"))
+(define UDPSocket.close.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.UDPSocket.close.impl.v1"))
+(define ListenSocket.close.impl.v1:termlink 
+  (unison-termlink-builtin "IO.UDP.ListenSocket.close.impl.v1"))
+(define UDPSocket.toText.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.UDPSocket.toText.impl.v1"))
+(define serverSocket.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.serverSocket.impl.v1"))
+(define ListenSocket.toText.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.ListenSocket.toText.impl.v1"))
+(define ListenSocket.recvFrom.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.ListenSocket.recvFrom.impl.v1"))
+(define ClientSockAddr.toText.v1:termlink
+  (unison-termlink-builtin "IO.UDP.ClientSockAddr.toText.v1"))
+(define ListenSocket.sendTo.impl.v1:termlink
+  (unison-termlink-builtin "IO.UDP.ListenSocket.sendTo.impl.v1"))
+
+; (define
+;   (wrap-in-either x)
+;   (lambda (x) 
+;     (sum-case x
+;       (0 (typelink msg a)
+;         (let* ([any (unison-any-any a)]
+;               [failure (ref-failure-failure typelink msg any)])
+;           (ref-either-left failure)))
+;       (1 (result)
+;         (ref-either-right result)))))
+
+; (define (wrap-in-either a)
+;   (lambda () 
+;     (let* 
+;       ([x 1])
+;       (sum-case a
+;         (0 (typelink msg meta)
+;           (ref-either-left (ref-failure-failure typelink msg (unison-any-any meta))))
+;         (1 (result)
+;           (ref-either-right result))))))
+
+;; define builtins
+; (define-unison
+;   (clientSocket.impl.v1 host port)
+;     (let* ([pport (string->number (chunked-string->string port))]
+;            [hhost (chunked-string->string host)]
+;            [sock (udp-open-socket hhost pport)]
+;            [_ (udp-bind! sock #f 0)]
+;            [res (udp-connect! sock hhost pport)])
+;       (wrap-in-either res)))
+
+(define-unison
+  (UDPSocket.recv.impl.v1 socket)
+  (let 
+    ([rv (handle-errors (lambda() 
+      (let*-values
+        ([(buffer) (make-bytes buffer-size)]
+         [(len a b) (udp-receive! socket buffer)])
+        (right (bytes->chunked-bytes (subbytes buffer 0 len))))))])
+    (sum-case rv
+      (0 (err code msg)
+        (ref-either-left (ref-failure-failure err code (data builtin-any:typelink 0 msg))))
+      (1 (data)
+        (ref-either-right data)))))
+
+; (define-unison
+;   (UDPSocket.recv.impl.v1 x0)
+;     (let* ([x1 (UDP.UDPSocket.recv.impl.v1 x0)])
+;       (sum-case x1
+;         (0 (x2 x3 x4)
+;           (let* ([x5 (data builtin-any:typelink 0 x4)]
+;                  [x6 (data ref-failure:typelink 0 x2 x3 x5)])
+;             (data ref-either:typelink 1 x6)))
+;         (1 (x2)
+;           (data ref-either:typelink 0 x2)))))
+
+(define-unison
+  (ListenSocket.close.impl.v1 x0)
+  (let* ([x1 (UDP.ListenSocket.close.impl.v1 x0)])
+    (sum-case x1
+      (0 (x2 x3 x4)
+        (let* ([x5 (data builtin-any:typelink 0 x4)]
+               [x6 (data ref-failure:typelink 0 x2 x3 x5)])
+          (data ref-either:typelink 1 x6)))
+      (1 (x2)
+        (data ref-either:typelink 0 x2)))))
+
+(define-unison
+  (serverSocket.impl.v1 x0 x1)
+    (let* ([x2 (UDP.serverSocket.impl.v1 x0 x1)])
+      (sum-case x2
+        (0 (x3 x4 x5)
+          (let* ([x6 (data builtin-any:typelink 0 x5)]
+                 [x7 (data ref-failure:typelink 0 x3 x4 x6)])
+            (data ref-either:typelink 1 x7)))
+        (1 (x3)
+          (data ref-either:typelink 0 x3)))))
+
+(define-unison
+  (ListenSocket.recvFrom.impl.v1 socket)
+  (if (not (udp? socket))
+    (exception ref-iofailure:typelink (string->chunked-string "Not a UDP socket"))
+      (let*-values ([(buffer) (make-bytes buffer-size)]
+                    [(len host port) (udp-receive! socket buffer)]
+                    [(csa) (client-sock-addr host port)]
+                    [(tmp-host) (client-sock-addr-host csa)]
+                    [(tmp-port) (client-sock-addr-port csa)]
+                    [(bs) (subbytes buffer 0 len)]
+                    [(chunked) (bytes->chunked-bytes bs)])
+        (ref-either-right (ref-tuple-pair chunked (ref-tuple-pair csa ref-unit-unit))))))
+
+(define-unison
+  (UDPSocket.send.impl.v1 x0 x1)
+  (let* ([x2 (UDP.UDPSocket.send.impl.v1 x0 x1)])
+    (sum-case x2
+      (0 (x3 x4 x5)
+        (let* ([x6 (data builtin-any:typelink 0 x5)]
+               [x7 (data ref-failure:typelink 0 x3 x4 x6)])
+          (data ref-either:typelink 1 x7)))
+        (1 ()
+          (let* ([x3 (data ref-unit:typelink 0)])
+            (data ref-either:typelink 0 x3))))))
+
+(define-unison
+  (ListenSocket.sendTo.impl.v1 sock bytes addr)
+  (let* ([res (UDP.ListenSocket.sendTo.impl.v1 sock bytes addr)])
+    (sum-case res
+      (0 (err code msg)
+        (
+          (ref-either-left (ref-failure-failure err code (data builtin-any:typelink 0 msg)))))
+      (1 ()
+        (ref-either-right ref-unit-unit)))))
+
+(define-unison
+  (UDPSocket.toText.impl.v1 x0)
+  (UDP.UDPSocket.toText.impl.v1 x0))
+
+(define-unison
+  (ClientSockAddr.toText.v1 x0)
+  (UDP.ClientSockAddr.toText.v1 x0))
+
+(define-unison
+  (ListenSocket.toText.impl.v1 x0)
+  (UDP.ListenSocket.toText.impl.v1 x0))
+
+(define-unison
+  (UDPSocket.close.impl.v1 x0)
+  (let* ([x1 (UDP.UDPSocket.close.impl.v1 x0)])
+    (sum-case x1
+      (0 (x2 x3 x4)
+        (let* ([x5 (data builtin-any:typelink 0 x4)]
+               [x6 (ref-failure-failure x2 x3 x5)])
+          (ref-either-left x6)))
+      (1 (x2)
+        (ref-either-right x2)))))
+    ; (let* ([result (unison-FOp-IO.UDP.clientSocket.impl.v1 host port)])
+    ;   (sum-case result
+    ;     (0 (x3 x4 x5)
+    ;       (let* ([x6 (data builtin-any:typelink 0 x5)]
+    ;              [x7 (data ref-failure:typelink 0 x3 x4 x6)])
+    ;         (data ref-either:typelink 1 x7)))
+    ;     (1 (x3)
+    ;       (data ref-either:typelink 0 x3)))))
+
+; (define-unison (clientSocket.impl.v1 host port)
+;   compose (wrap-in-either (handle-errors (lambda ()
+;     (let* ([pport (string->number (chunked-string->string port))]
+;            [hhost (chunked-string->string host)]
+;            [sock (udp-open-socket hhost pport)]
+;            [_ (udp-bind! sock #f 0)]
+;            [res (udp-connect! sock hhost pport)])
+;       (right sock))))))
+
+(define-unison
+  (clientSocket.impl.v1 host port)
+  (let ([rv (handle-errors (lambda() (let* ([pport (string->number (chunked-string->string port))]
+         [hhost (chunked-string->string host)]
+         [sock (udp-open-socket hhost pport)]
+         [_ (udp-bind! sock #f 0)]
+         [res (udp-connect! sock hhost pport)]) (right sock))))])
+    (sum-case rv
+      (0 (err code msg)
+        (ref-either-left (ref-failure-failure err code (data builtin-any:typelink 0 msg))))
+      (1 (sock)
+        (ref-either-right sock)))))
+
+; (define (UDP.clientSocket.impl.v1 host port) ; string string -> socket
+;   (handle-errors
+;    (lambda ()
+;     (begin
+;      (let* ([pport (string->number (chunked-string->string port))]
+;             [hhost (chunked-string->string host)]
+;             [sock (udp-open-socket hhost pport)]
+;             [_ (udp-bind! sock #f 0)]
+;             [res (udp-connect! sock hhost pport)])
+;        (right sock))))))
 
 (define (handle-errors fn)
   (with-handlers
@@ -64,16 +282,16 @@
     (fn)))
 
 
-(define (UDP.clientSocket.impl.v1 host port) ; string string -> socket
-  (handle-errors
-   (lambda ()
-    (begin
-     (let* ([pport (string->number (chunked-string->string port))]
-            [hhost (chunked-string->string host)]
-            [sock (udp-open-socket hhost pport)]
-            [_ (udp-bind! sock #f 0)]
-            [res (udp-connect! sock hhost pport)])
-       (right sock))))))
+; (define (UDP.clientSocket.impl.v1 host port) ; string string -> socket
+;   (handle-errors
+;    (lambda ()
+;     (begin
+;      (let* ([pport (string->number (chunked-string->string port))]
+;             [hhost (chunked-string->string host)]
+;             [sock (udp-open-socket hhost pport)]
+;             [_ (udp-bind! sock #f 0)]
+;             [res (udp-connect! sock hhost pport)])
+;        (right sock))))))
 
 
 (define (UDP.UDPSocket.recv.impl.v1 socket) ; socket -> bytes
@@ -97,8 +315,9 @@
 (define (UDP.UDPSocket.close.impl.v1 socket)
   (handle-errors
     (lambda ()
-      (udp-close socket)
-      ref-unit-unit)))
+      (begin
+        (udp-close socket)
+        (right none)))))
 
 ;    UDP.ListenSocket.close.impl.v1
 (define (UDP.ListenSocket.close.impl.v1 socket)
@@ -176,9 +395,17 @@
   (string->chunked-string (format "<client-sock-addr ~a ~a>" (client-sock-addr-host addr) (client-sock-addr-port addr))))
 
 ;    UDP.ListenSocket.sendTo.impl.v1
-(define (UDP.ListenSocket.sendTo.impl.v1 socket data addr) ; socket bytes clientsockaddr -> ()
-  (handle-errors
-    (lambda ()
+; (define (UDP.ListenSocket.sendTo.impl.v1 socket data addr) ; socket bytes clientsockaddr -> ()
+;   (handle-errors
+;     (lambda ()
+;       (begin
+;         (udp-send socket (chunked-bytes->bytes data) (client-sock-addr-host addr) (client-sock-addr-port addr))
+;         (right none)))))
+(define
+  (UDP.ListenSocket.sendTo.impl.v1 socket data addr)
+    (let* ([host (client-sock-addr-host addr)]
+           [port (client-sock-addr-port addr)]
+           [bytes (chunked-bytes->bytes data)])
       (begin
-        (udp-send socket (chunked-bytes->bytes data) (client-sock-addr-host addr) (client-sock-addr-port addr))
-        (right none)))))
+        (udp-send-to socket host port bytes)
+        (right none))))
