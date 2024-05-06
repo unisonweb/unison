@@ -88,7 +88,7 @@ import Network.TLS as TLS
 import Network.UDP as UDP
   ( UDPSocket (..),
     ClientSockAddr,
-    ListenSocket (listenSocket),
+    ListenSocket,
     clientSocket,
     close,
     recv,
@@ -97,7 +97,6 @@ import Network.UDP as UDP
     sendTo,
     serverSocket,
     stop,
-    udpSocket,
   )
 
 import Network.TLS.Extra.Cipher as Cipher
