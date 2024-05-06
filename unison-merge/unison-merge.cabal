@@ -17,7 +17,6 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Merge
       Unison.Merge.CombineDiffs
       Unison.Merge.Database
       Unison.Merge.DeclCoherencyCheck

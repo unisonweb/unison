@@ -77,7 +77,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar
 
@@ -166,7 +166,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar
 
@@ -278,7 +278,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar
 
@@ -415,7 +415,7 @@ project/bob> update
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar baz
 
@@ -553,7 +553,7 @@ project/bob> update
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar baz
 
@@ -648,7 +648,7 @@ project/bob> delete.term foo
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo
 
@@ -750,7 +750,7 @@ project/bob> add
 
 project/alice> merge bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 project/alice> view foo bar baz
 
@@ -895,7 +895,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged /bob into /alice.
 
 ```
 ## Merge failure: someone deleted something

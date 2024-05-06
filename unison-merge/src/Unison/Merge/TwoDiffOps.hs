@@ -26,7 +26,7 @@ make = \case
   This alice -> one Alice alice
   That bob -> one Bob bob
   These (DiffOp'Add alice) (DiffOp'Add bob) -> TwoDiffOps'AddAdd TwoWay {alice, bob}
-  These (DiffOp'Delete alice) (DiffOp'Delete _bob) -> TwoDiffOps'DeleteDelete alice
+  These (DiffOp'Delete alice) (DiffOp'Delete _) -> TwoDiffOps'DeleteDelete alice
   These (DiffOp'Delete _) (DiffOp'Update bob) -> TwoDiffOps'DeleteUpdate bob
   These (DiffOp'Update alice) (DiffOp'Delete _) -> TwoDiffOps'UpdateDelete alice
   These (DiffOp'Update alice) (DiffOp'Update bob) ->

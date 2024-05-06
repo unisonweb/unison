@@ -1197,8 +1197,6 @@ inputDescription input =
       src <- either (pure . Text.pack . show) brp src0
       dest <- brp dest0
       pure ("fork " <> src <> " " <> dest)
-    MergeI _tgt -> do
-      pure "todo"
     MergeLocalBranchI src0 dest0 mode -> do
       src <- looseCodeOrProjectToText src0
       dest <- looseCodeOrProjectToText dest0
@@ -1378,6 +1376,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat

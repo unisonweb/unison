@@ -116,12 +116,6 @@ file = do
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    -- let uf =
-    --       UnisonFileId
-    --         (UF.datasId env)
-    --         (UF.effectsId env)
-    --         (List.foldl' (\acc (a, b, c) -> Map.insert a (b, c) acc) Map.empty (terms <> join accessors))
-    --         (List.multimap watches)
     validateUnisonFile
       (UF.datasId env)
       (UF.effectsId env)
