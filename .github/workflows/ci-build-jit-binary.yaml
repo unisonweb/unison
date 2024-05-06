@@ -87,7 +87,7 @@ jobs:
           # link libb2 if not already present/cached
           for dll in $brew_lib_dir/libb2.*.dylib; do
             file=$(basename "$dll")
-            if [ ! -e "$racket_lib_dir/$file"]; then
+            if [ ! -e "$racket_lib_dir/$file" ]; then
               ln -s "$brew_lib_dir/$file" "$racket_lib_dir/$file"
             else
               echo "$racket_lib_dir/$file" already exists.
