@@ -2356,13 +2356,6 @@ declareUdpForeigns = do
     $ \(sock :: UDPSocket, bytes :: Bytes.Bytes) ->
       UDP.send sock (Bytes.toArray bytes)
 
-  declareForeign Tracked "IO.UDP.UDPSocket.socket.impl.v1" boxToEFBox
-    . mkForeignIOF 
-    $ \(socket:: UDPSocket) -> pure $ udpSocket socket
-
-  declareForeign Tracked "IO.UDP.UDPSocket.socket.impl.v1" boxDirect
-    . mkForeign $ pure . udpSocket
-
   declareForeign Tracked "IO.UDP.UDPSocket.close.impl.v1" boxToEF0
     . mkForeignIOF
     $ \(sock :: UDPSocket) -> UDP.close sock
@@ -2399,9 +2392,6 @@ declareUdpForeigns = do
   declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v1" boxBoxBoxToEF0 .
     mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) ->
         UDP.sendTo socket (Bytes.toArray bytes) addr
-
-  declareForeign Tracked "IO.UDP.ListenSocket.socket.impl.v1" boxDirect
-    . mkForeign $ pure . listenSocket
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
