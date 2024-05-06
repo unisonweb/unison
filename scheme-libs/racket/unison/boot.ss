@@ -607,5 +607,5 @@
 (define (exn:bug->exception b)
   (raise-unison-exception
     ref-runtimefailure:typelink
-    (exn:bug-msg b)
+    (string->chunked-string (exn:bug-msg b))
     (exn:bug-val b)))

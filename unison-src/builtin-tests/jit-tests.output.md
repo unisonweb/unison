@@ -49,3 +49,18 @@ foo = do
   ()
 
 ```
+This can also only be tested by separately running this test, because
+it is exercising the protocol that ucm uses to talk to the jit during
+an exception.
+
+```ucm
+runtime-tests/selected> run.native testBug
+
+  💔💥
+  
+  I've encountered a call to builtin.bug with the following
+  value:
+  
+    "testing"
+
+```

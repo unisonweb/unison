@@ -34,3 +34,11 @@ foo = do
 .> run.native foo
 .> run.native foo
 ```
+
+This can also only be tested by separately running this test, because
+it is exercising the protocol that ucm uses to talk to the jit during
+an exception.
+
+```ucm:error
+runtime-tests/selected> run.native testBug
+```
