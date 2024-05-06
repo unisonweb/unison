@@ -13,7 +13,7 @@ ucm=("$@")
 
 # runtime_tests_version="@unison/runtime-tests/main"
 # clone @unison/runtime-tests/@aryairani/udp
-runtime_tests_version="@unison/runtime-tests/@aryairani/udp"
+runtime_tests_version="@unison/runtime-tests/@kylegoetz/udp"
 echo $runtime_tests_version
 
 codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/runtime-tests.unison
