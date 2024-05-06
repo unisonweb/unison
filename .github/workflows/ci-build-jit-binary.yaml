@@ -55,20 +55,6 @@ jobs:
           name: jit-source
           path: ${{ env.jit_src }}
       
-      - name: debug jit binary cache keys
-        run: |
-          echo ${{hashFiles(format('{0}/**.rkt',env.jit_src),format('{0}/**.ss',env.jit_src))}}
-          echo ${{format('{0}/**.rkt',env.jit_src)}}
-          echo ${{format('{0}/**.ss',env.jit_src)}}
-          find ${{format('{0}/**.rkt',env.jit_src)}} || echo no match
-          find ${{format('{0}/**.ss',env.jit_src)}} || echo no match
-          echo
-          echo ${{hashFiles(format('{0}/**/*.rkt',env.jit_src),format('{0}/**/*.ss',env.jit_src))}}
-          echo ${{format('{0}/**/*.rkt',env.jit_src)}}
-          echo ${{format('{0}/**/*.ss',env.jit_src)}}
-          find ${{format('{0}/**/*.rkt',env.jit_src)}} || echo no match
-          find ${{format('{0}/**/*.ss',env.jit_src)}} || echo no match
-
       - name: cache/restore jit binaries
         id: cache-jit-binaries
         uses: actions/cache/restore@v4
