@@ -20,4 +20,4 @@ RUN chmod 555 /usr/local/bin/ucm
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/ucm"]
-CMD ["--codebase","/unison"]
+CMD ["--codebase-create","/codebase"]
