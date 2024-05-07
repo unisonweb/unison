@@ -931,18 +931,21 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
-project/main> alias.type builtin.Nat MyNat
-project/topic>
+project/main> branch alice
+project/alice> alias.type builtin.Nat MyNat
+project/main> branch bob
 ```
 
 ```unison
 unique type MyNat = MyNat Nat
 ```
 
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/main> merge /topic
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -959,17 +962,30 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 ```
 
 ```unison
 unique type Foo = Bar
 ```
 
+```ucm
+project/alice> add
+project/alice> alias.term Foo.Bar Foo.some.other.Alias
+project/main> branch bob
+```
+
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/topic> alias.term Foo.Bar Foo.some.other.Alias
-project/main> merge /topic
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -986,17 +1002,30 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 ```
 
 ```unison
 unique type Foo = Bar
 ```
 
+```ucm
+project/alice> add
+project/alice> delete.term Foo.Bar
+project/main> branch /bob
+```
+
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/topic> delete.term Foo.Bar
-project/main> merge /topic
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -1013,7 +1042,7 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 ```
 
 ```unison
@@ -1021,9 +1050,22 @@ structural type A = B Nat | C Nat Nat
 structural type A.inner.X = Y Nat | Z Nat Nat
 ```
 
+```ucm
+project/alice> add
+project/main> branch bob
+```
+
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/main> merge /topic
+project/alice> merge /bob
 ```
 
 ```ucm:hide
@@ -1040,17 +1082,30 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 ```
 
 ```unison
 unique type Foo = Bar
 ```
 
+```ucm
+project/alice> add
+project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
+project/main> branch bob
+```
+
+```unison
+bob : Nat
+bob = 101
+```
+
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
-project/main> merge /topic
+project/alice> merge bob
 ```
 
 ```ucm:hide
@@ -1068,7 +1123,7 @@ project/main> builtins.mergeio
 ```
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 ```
 
 ```unison
@@ -1076,9 +1131,22 @@ lib.foo : Nat
 lib.foo = 1
 ```
 
+```ucm
+project/alice> add
+project/main> branch bob
+```
+
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+project/bob> add
+```
+
 ```ucm:error
-project/topic> add
-project/main> merge /topic
+project/alice> merge /bob
 ```
 
 ```ucm:hide

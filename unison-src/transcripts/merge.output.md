@@ -895,7 +895,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I fast-forward merged bob into alice.
 
 ```
 ## Merge failure: someone deleted something
@@ -1489,10 +1489,10 @@ project/alice> merge /bob
 ```
 ```unison:added-by-ucm scratch.u
 -- project/alice
-type Foo = Qux Text | Baz Nat Nat
+type Foo = Baz Nat Nat | Qux Text
 
 -- project/bob
-type Foo = BobQux Text | Baz Nat
+type Foo = Baz Nat | BobQux Text
 
 
 ```
@@ -1558,10 +1558,10 @@ project/alice> merge bob
 ```
 ```unison:added-by-ucm scratch.u
 -- project/alice
-type Foo = Alice Nat | Qux Text
+type Foo = Qux Text | Alice Nat
 
 -- project/bob
-type Foo = Baz Nat | Bob Text
+type Foo = Bob Text | Baz Nat
 
 
 ```
@@ -2172,16 +2172,23 @@ We don't have a way of rendering a builtin in a scratch file, where users resolv
 conflict involving a builtin, we can't perform a merge.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
-project/main> alias.type builtin.Nat MyNat
+project/alice> alias.type builtin.Nat MyNat
 
   Done.
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
 
 ```
 ```unison
@@ -2202,13 +2209,15 @@ unique type MyNat = MyNat Nat
 
 ```
 ```ucm
-project/topic> add
+project/bob> add
 
   ⍟ I've added these definitions:
   
     type MyNat
 
-project/main> merge /topic
+```
+```ucm
+project/alice> merge /bob
 
   There's a merge conflict on MyNat, but it's a builtin on one
   or both branches. We can't yet handle merge conflicts on
@@ -2220,12 +2229,12 @@ project/main> merge /topic
 Each naming of a decl may not have more than one name for each constructor underneath the decl's namespace.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -2246,19 +2255,54 @@ unique type Foo = Bar
 
 ```
 ```ucm
-project/topic> add
+project/alice> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-project/topic> alias.term Foo.Bar Foo.some.other.Alias
+project/alice> alias.term Foo.Bar Foo.some.other.Alias
 
   Done.
 
-project/main> merge /topic
+project/main> branch bob
 
-  On topic, Foo.Bar and Foo.some.other.Alias are aliases. Every
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+```ucm
+project/alice> merge /bob
+
+  On alice, Foo.Bar and Foo.some.other.Alias are aliases. Every
   type declaration must have exactly one name for each
   constructor.
 
@@ -2268,12 +2312,12 @@ project/main> merge /topic
 Each naming of a decl may not have zero names for a constructor underneath the decl's namespace.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -2294,17 +2338,52 @@ unique type Foo = Bar
 
 ```
 ```ucm
-project/topic> add
+project/alice> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-project/topic> delete.term Foo.Bar
+project/alice> delete.term Foo.Bar
 
   Done.
 
-project/main> merge /topic
+project/main> branch /bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+```ucm
+project/alice> merge /bob
 
   The type Foo is missing a name for one of its constructors.
   Please add one before merging.
@@ -2315,12 +2394,12 @@ project/main> merge /topic
 Decl aliases must be disjoint in a namespace: one cannot contain another.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -2343,14 +2422,49 @@ structural type A.inner.X = Y Nat | Z Nat Nat
 
 ```
 ```ucm
-project/topic> add
+project/alice> add
 
   ⍟ I've added these definitions:
   
     structural type A
     structural type A.inner.X
 
-project/main> merge /topic
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+```ucm
+project/alice> merge /bob
 
   The type A.inner.X is an alias of A. Type aliases cannot be
   nested. Please make them disjoint before merging.
@@ -2361,12 +2475,12 @@ project/main> merge /topic
 Each naming of a constructor must be underneath its decl's namespace.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -2387,17 +2501,52 @@ unique type Foo = Bar
 
 ```
 ```ucm
-project/topic> add
+project/alice> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-project/topic> alias.term Foo.Bar AliasOutsideFooNamespace
+project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 
   Done.
 
-project/main> merge /topic
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob : Nat
+bob = 101
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+```ucm
+project/alice> merge bob
 
   The constructor AliasOutsideFooNamespace is not in a
   subnamespace of a name of its type. Please either delete it or
@@ -2410,12 +2559,12 @@ A bit of an odd one, but we have a convention that `lib` contains only namespace
 `lib` namespace can always merge cleanly, so long as there aren't stray terms or types in it.
 
 ```ucm
-project/main> branch topic
+project/main> branch alice
 
-  Done. I've created the topic branch based off of main.
+  Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
+       `switch /main` then `merge /alice`.
 
 ```
 ```unison
@@ -2437,13 +2586,48 @@ lib.foo = 1
 
 ```
 ```ucm
-project/topic> add
+project/alice> add
 
   ⍟ I've added these definitions:
   
     lib.foo : Nat
 
-project/main> merge /topic
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob : Nat
+bob = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+```ucm
+project/alice> merge /bob
 
   There's a type or term directly in the `lib` namespace, but I
   expected only library dependencies to be in there. Please

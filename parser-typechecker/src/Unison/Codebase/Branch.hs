@@ -14,6 +14,7 @@ module Unison.Codebase.Branch
     branch0,
     one,
     cons,
+    mergeNode,
     uncons,
     empty,
     empty0,
@@ -99,7 +100,7 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import U.Codebase.HashTags (PatchHash (..))
+import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -473,6 +474,15 @@ stepM f = \case
 
 cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
+
+-- | Construct a two-parent merge node.
+mergeNode :: forall m. Applicative m => Branch0 m -> Branch m -> Branch m -> Branch m
+mergeNode child parent1 parent2 =
+  Branch (Causal.mergeNode child (Map.fromList [f parent1, f parent2]))
+  where
+    f :: Branch m -> (CausalHash, m (Causal m (Branch0 m)))
+    f parent =
+      (headHash parent, pure (_history parent))
 
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True

@@ -397,6 +397,7 @@ data Output
   | LooseCodePushDeprecated
   | MergeFailure !FilePath !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSuccess !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
+  | MergeSuccessFastForward !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | -- These are all merge precondition violations. See PreconditionViolation for more docs.
     MergeConflictedAliases !ProjectBranchName !Name !Name
   | MergeConflictedTermName !Name !(Set Referent)
@@ -638,6 +639,7 @@ isFailure o = case o of
   LooseCodePushDeprecated -> True
   MergeFailure {} -> True
   MergeSuccess {} -> False
+  MergeSuccessFastForward {} -> False
   MergeConflictedAliases {} -> True
   MergeConflictedTermName {} -> True
   MergeConflictedTypeName {} -> True

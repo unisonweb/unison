@@ -22,6 +22,7 @@ import Text.ANSI qualified as Text
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
+import U.Codebase.HashTags (unCausalHash)
 import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -137,10 +138,46 @@ handleMerge bobBranchName = do
   info <- loadMergeInfo bobBranchName
   let projectAndBranchNames = mergeInfoToProjectAndBranchNames info
 
+  -- Load Alice/Bob/LCA causals
+  causals <-
+    Cli.runTransaction do
+      alice <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.alice)
+      bob <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.bob)
+      lca <-
+        Operations.lca alice.causalHash bob.causalHash >>= \case
+          Nothing -> pure Nothing
+          Just lcaCausalHash -> Just <$> db.loadCausal lcaCausalHash
+      pure TwoOrThreeWay {lca, alice, bob}
+
+  -- If alice == bob, then we are done.
+  when (causals.alice == causals.bob) do
+    Cli.returnEarly $
+      Output.MergeAlreadyUpToDate
+        (Right (ProjectAndBranch info.project info.projectBranches.bob))
+        (Right (ProjectAndBranch info.project info.projectBranches.alice))
+
+  -- Otherwise, if LCA == bob, then we are ahead of bob, so we are done.
+  when (causals.lca == Just causals.bob) do
+    Cli.returnEarly $
+      Output.MergeAlreadyUpToDate
+        (Right (ProjectAndBranch info.project info.projectBranches.bob))
+        (Right (ProjectAndBranch info.project info.projectBranches.alice))
+
+  -- Otherwise, if LCA == alice, then we can fast forward to bob, and we're done.
+  when (causals.lca == Just causals.alice) do
+    bobBranch <- Cli.getBranchAt info.paths.bob
+    _ <- Cli.updateAt (textualDescriptionOfMerge info) info.paths.alice (\_aliceBranch -> bobBranch)
+    Cli.returnEarly (Output.MergeSuccessFastForward projectAndBranchNames.alice projectAndBranchNames.bob)
+
+  liftIO (debugFunctions.debugCausals causals)
+
   -- Load Alice/Bob/LCA branches
   branches <-
-    Cli.runTransactionWithRollback \abort -> do
-      loadV2Branches =<< loadV2Causals abort db info
+    Cli.runTransaction do
+      alice <- causals.alice.value
+      bob <- causals.bob.value
+      lca <- for causals.lca \causal -> causal.value
+      pure TwoOrThreeWay {lca, alice, bob}
 
   -- Load Alice/Bob/LCA definitions and decl name lookups
   (defns3, declNameLookups3) <-
@@ -257,10 +294,11 @@ handleMerge bobBranchName = do
   case maybeTypecheckedUnisonFile of
     Nothing -> do
       Cli.Env {writeSource} <- ask
-      branch <- Cli.getBranchAt info.paths.alice
+      aliceBranch <- Cli.getBranchAt info.paths.alice
+      bobBranch <- Cli.getBranchAt info.paths.bob
       _temporaryBranchId <-
         HandleInput.Branch.doCreateBranch'
-          (Branch.cons stageOneBranch branch)
+          (Branch.mergeNode stageOneBranch aliceBranch bobBranch)
           Nothing
           info.project
           (findTemporaryBranchName info)
@@ -277,8 +315,13 @@ handleMerge bobBranchName = do
           projectAndBranchNames.bob
     Just tuf -> do
       Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
+      bobBranch <- Cli.getBranchAt info.paths.bob
       let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
-      Cli.stepAt (textualDescriptionOfMerge info) (Path.unabsolute info.paths.alice, const stageTwoBranch)
+      _ <-
+        Cli.updateAt
+          (textualDescriptionOfMerge info)
+          info.paths.alice
+          (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
       Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
 
 mergeInfoToProjectAndBranchNames :: MergeInfo -> TwoWay (ProjectAndBranch ProjectName ProjectBranchName)
@@ -311,34 +354,6 @@ loadMergeInfo bobBranchName = do
         projectBranches = TwoWay aliceProjectBranch bobProjectBranch,
         project
       }
-
-loadV2Causals ::
-  (forall a. Output -> Transaction a) ->
-  MergeDatabase ->
-  MergeInfo ->
-  Transaction (TwoOrThreeWay (V2.CausalBranch Transaction))
-loadV2Causals abort db info = do
-  alice <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.alice)
-  bob <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute info.paths.bob)
-  lca <-
-    Operations.lca alice.causalHash bob.causalHash >>= \case
-      Nothing -> pure Nothing
-      Just lcaCausalHash -> do
-        -- If LCA == bob, then we are at or ahead of bob, so the merge is done.
-        when (lcaCausalHash == bob.causalHash) do
-          abort $
-            Output.MergeAlreadyUpToDate
-              (Right (ProjectAndBranch info.project info.projectBranches.bob))
-              (Right (ProjectAndBranch info.project info.projectBranches.alice))
-        Just <$> db.loadCausal lcaCausalHash
-  pure TwoOrThreeWay {lca, alice, bob}
-
-loadV2Branches :: TwoOrThreeWay (V2.CausalBranch Transaction) -> Transaction (TwoOrThreeWay (V2.Branch Transaction))
-loadV2Branches causals = do
-  alice <- causals.alice.value
-  bob <- causals.bob.value
-  lca <- for causals.lca \causal -> causal.value
-  pure TwoOrThreeWay {lca, alice, bob}
 
 loadDefns ::
   (forall a. Output -> Transaction a) ->
@@ -1002,7 +1017,8 @@ libdepsToBranch0 db libdeps = do
 -- Debugging by printing a bunch of stuff out
 
 data DebugFunctions = DebugFunctions
-  { debugDefns ::
+  { debugCausals :: TwoOrThreeWay (V2.CausalBranch Transaction) -> IO (),
+    debugDefns ::
       ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
       ThreeWay DeclNameLookup ->
       IO (),
@@ -1019,7 +1035,8 @@ data DebugFunctions = DebugFunctions
 realDebugFunctions :: DebugFunctions
 realDebugFunctions =
   DebugFunctions
-    { debugDefns = realDebugDefns,
+    { debugCausals = realDebugCausals,
+      debugDefns = realDebugDefns,
       debugDiffs = realDebugDiffs,
       debugCombinedDiff = realDebugCombinedDiff,
       debugPartitionedDiff = realDebugPartitionedDiff,
@@ -1029,7 +1046,18 @@ realDebugFunctions =
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
+
+realDebugCausals :: TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
+realDebugCausals causals = do
+  Text.putStrLn (Text.bold "\n=== Alice causal hash ===")
+  Text.putStrLn (Hash.toBase32HexText (unCausalHash causals.alice.causalHash))
+  Text.putStrLn (Text.bold "\n=== Bob causal hash ===")
+  Text.putStrLn (Hash.toBase32HexText (unCausalHash causals.bob.causalHash))
+  Text.putStrLn (Text.bold "\n=== LCA causal hash ===")
+  Text.putStrLn case causals.lca of
+    Nothing -> "Nothing"
+    Just causal -> "Just " <> Hash.toBase32HexText (unCausalHash causal.causalHash)
 
 realDebugDefns ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
