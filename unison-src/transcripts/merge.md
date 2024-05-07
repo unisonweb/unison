@@ -793,16 +793,9 @@ project/alice> merge bob
 .> project.delete project
 ```
 
-## (TODO) Merge algorithm quirk: the "not-conflict conflict"
+## Merge failure: type/type conflict with term/constructor conflict
 
-Since a conflicted type declaration must bring into the scratch file (for conflict resolution) all of its constructors,
-it's possible that an unconflicted thing gets ultimately presented as a conflict.
-
-In this example, Alice and Bob have a disagreement about what the type "Foo" refers to, so their constructors
-("Foo.Alice" and "Foo.Bob") are brought into the scratch file.
-
-But Bob updated "Foo.Bob", and Alice didn't touch it! Nonetheless, her untouched "Foo.Bar" term is considered in
-conflict with Bob's.
+Here's a subtle situation where a new type is added on each side of the merge, and an existing term is replaced with a constructor of one of the types.
 
 ```ucm:hide
 .> project.create-empty project
@@ -820,7 +813,7 @@ project/main> add
 project/main> branch alice
 ```
 
-Alice adds this type `Foo`, with the constructor `Foo.Alice`:
+Alice adds this type `Foo` with constructor `Foo.Alice`:
 ```unison:hide
 unique type Foo = Alice Nat
 ```
@@ -830,7 +823,7 @@ project/alice> add
 project/main> branch bob
 ```
 
-Bob deletes the original `Foo.Bar` and adds type `Foo` and constructor `Foo.Bar`:
+Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.Bar` term:
 ```ucm
 project/bob> delete.term Foo.Bar
 ```
@@ -843,6 +836,7 @@ unique type Foo = Bar Nat Nat
 project/bob> add
 ```
 
+These won't cleanly merge.
 ```ucm:error
 project/alice> merge bob
 ```
@@ -851,7 +845,7 @@ project/alice> merge bob
 .> project.delete project
 ```
 
-Here's a more complicated example that demonstrates the same idea.
+Here's a more involved example that demonstrates the same idea.
 
 ```ucm:hide
 .> project.create-empty project
