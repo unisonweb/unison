@@ -8,73 +8,20 @@ contains both additions.
 
 ## Basic merge: two unconflicted adds
 
-```ucm
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's adds:
 ```unison
 foo : Text
 foo = "alices foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's adds:
 ```unison
 bar : Text
 bar = "bobs bar"
 ```
 
+Merge result:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -88,52 +35,17 @@ project/alice> view foo bar
   foo = "alices foo"
 
 ```
-## Basic merge: two equal adds
+## Basic merge: two identical adds
 
-If Alice and Bob also happen to add the same thing, that's not a conflict.
+If Alice and Bob also happen to add the same definition, that's not a conflict.
 
-```ucm
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's adds:
 ```unison
 foo : Text
 foo = "alice and bobs foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's adds:
 ```unison
 foo : Text
 foo = "alice and bobs foo"
@@ -142,28 +54,8 @@ bar : Text
 bar = "bobs bar"
 ```
 
+Merge result:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-      foo : Text
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-    foo : Text
-
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -179,103 +71,34 @@ project/alice> view foo bar
 ```
 ## Simple update propagation
 
-Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new
-dependent `bar` of (the old) `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his
-`bar`.
+Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new dependent `bar` of the original `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his `bar`.
 
+Original branch:
 ```unison
 foo : Text
 foo = "old foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's updates:
 ```unison
 foo : Text
 foo = "new foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Text
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's adds:
 ```unison
 bar : Text
-bar = foo ++ foo
+bar = foo ++ " - " ++ foo
 ```
 
 ```ucm
+project/bob> display bar
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
+  "old foo - old foo"
 
 ```
+Merge result:
 ```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -285,24 +108,26 @@ project/alice> view foo bar
   bar : Text
   bar =
     use Text ++
-    foo ++ foo
+    foo ++ " - " ++ foo
   
   foo : Text
   foo = "new foo"
 
+project/alice> display bar
+
+  "old foo - old foo"
+
 ```
 ## Update propagation with common dependent
 
-We classify something as an update if its "syntactic hash" - not its normal Unison hash - differs. This allows us to
-cleanly merge unconflicted updates that were individually propagated to a common dependent.
+We classify something as an update if its "syntactic hash"—not its normal Unison hash—differs from the original definition. This allows us to cleanly merge unconflicted updates that were individually propagated to a common dependent.
 
-Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice updates `bar` (propagating to `foo`),
-and Bob updates `baz` (propagating to `foo`). When we merge their updates, both updates will be reflected in the final
-`foo`.
+Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice updates `bar` (propagating to `foo`), and Bob updates `baz` (propagating to `foo`). When we merge their updates, both updates will be reflected in the final `foo`.
 
+Original branch:
 ```unison
 foo : Text
-foo = "foo" ++ bar ++ baz
+foo = "foo" ++ " - " ++ bar ++ " - " ++ baz
 
 bar : Text
 bar = "old bar"
@@ -311,108 +136,32 @@ baz : Text
 baz = "old baz"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-      baz : Text
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-    baz : Text
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's updates:
 ```unison
 bar : Text
 bar = "alices bar"
 ```
 
 ```ucm
+project/alice> display foo
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      bar : Text
+  "foo - alices bar - old baz"
 
 ```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's updates:
 ```unison
 baz : Text
 baz = "bobs baz"
 ```
 
 ```ucm
+project/bob> display foo
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      baz : Text
+  "foo - old bar - bobs baz"
 
 ```
+Merge result:
 ```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
-  Done.
-
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -428,129 +177,61 @@ project/alice> view foo bar baz
   foo : Text
   foo =
     use Text ++
-    "foo" ++ bar ++ baz
+    "foo" ++ " - " ++ bar ++ " - " ++ baz
+
+project/alice> display foo
+
+  "foo - alices bar - bobs baz"
 
 ```
 ## Propagating an update to an update
 
-It's also (of course) possible for Alice's update to propagate to one of Bob's updates. In this example, `foo` depends
-on `bar` which depends on `baz`. Alice updates `baz`, propagating to `bar` and `foo`, while Bob updates `bar` (to
-something that still depends on `foo`), propagating to `baz`. The merged result will have Alice's update to `foo`
-incorporated into Bob's updated `bar`, and both updates will propagate to `baz`.
+Of course, it's also possible for Alice's update to propagate to one of Bob's updates. In this example, `foo` depends on `bar` which depends on `baz`. Alice updates `baz`, propagating to `bar` and `foo`, while Bob updates `bar` (to something that still depends on `foo`), propagating to `baz`. The merged result will have Alice's update to `foo` incorporated into Bob's updated `bar`, and both updates will propagate to `baz`.
 
+Original branch:
 ```unison
 foo : Text
-foo = "old foo" ++ bar
+foo = "old foo" ++ " - " ++ bar
 
 bar : Text
-bar = "old bar" ++ baz
+bar = "old bar" ++ " - " ++ baz
 
 baz : Text
 baz = "old baz"
 ```
 
 ```ucm
+project/main> display foo
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-      baz : Text
-      foo : Text
+  "old foo - old bar - old baz"
 
 ```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-    baz : Text
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's updates:
 ```unison
 baz : Text
 baz = "alices baz"
 ```
 
 ```ucm
+project/alice> display foo
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      baz : Text
+  "old foo - old bar - alices baz"
 
 ```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's updates:
 ```unison
 bar : Text
-bar = "bobs bar" ++ baz
+bar = "bobs bar" ++ " - " ++ baz
 ```
 
 ```ucm
+project/bob> display foo
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      bar : Text
+  "old foo - bobs bar - old baz"
 
 ```
+Merge result:
 ```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
-  Done.
-
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -560,7 +241,7 @@ project/alice> view foo bar baz
   bar : Text
   bar =
     use Text ++
-    "bobs bar" ++ baz
+    "bobs bar" ++ " - " ++ baz
   
   baz : Text
   baz = "alices baz"
@@ -568,84 +249,38 @@ project/alice> view foo bar baz
   foo : Text
   foo =
     use Text ++
-    "old foo" ++ bar
+    "old foo" ++ " - " ++ bar
+
+project/alice> display foo
+
+  "old foo - bobs bar - alices baz"
 
 ```
 ## Update + delete isn't (currently) a conflict
 
-We don't (yet?) consider update+delete a conflict; in this case, the delete is just ignored.
+We don't currently consider "update + delete" a conflict like Git does. In this situation, the delete is just ignored, allowing the update to proceed.
 
+Original branch:
 ```unison
 foo : Text
 foo = "old foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's updates:
 ```unison
 foo : Text
 foo = "alices foo"
 ```
 
+Bob's changes:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Text
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
 project/bob> delete.term foo
 
   Done.
 
+```
+Merge result:
+```ucm
 project/alice> merge /bob
 
   I merged bob into alice.
@@ -656,20 +291,13 @@ project/alice> view foo
   foo = "alices foo"
 
 ```
-## Library dependencies always merge cleanly
+In a future version, we'd like to give the user a warning at least.
 
-Library dependencies can't cause conflicts – they are just unioned together. If two library dependencies have the same
-name but different hashes, then the merge algorithm makes up two fresh names.
+## Library dependencies don't create merge conflicts
 
-```ucm
-project/main> branch alice
+Library dependencies don't cause merge conflicts, the library dependencies are just unioned together. If two library dependencies have the same name but different namespace hashes, then the merge algorithm makes up two fresh names.
 
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's adds:
 ```unison
 lib.alice.foo : Nat
 lib.alice.foo = 17
@@ -681,38 +309,7 @@ lib.bothDifferent.baz : Nat
 lib.bothDifferent.baz = 19
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      lib.alice.foo         : Nat
-      lib.bothDifferent.baz : Nat
-      lib.bothSame.bar      : Nat
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    lib.alice.foo         : Nat
-    lib.bothDifferent.baz : Nat
-    lib.bothSame.bar      : Nat
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's adds:
 ```unison
 lib.bob.foo : Nat
 lib.bob.foo = 20
@@ -724,30 +321,8 @@ lib.bothDifferent.baz : Nat
 lib.bothDifferent.baz = 21
 ```
 
+Merge result:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      lib.bob.foo           : Nat
-      lib.bothDifferent.baz : Nat
-      lib.bothSame.bar      : Nat
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    lib.bob.foo           : Nat
-    lib.bothDifferent.baz : Nat
-    lib.bothSame.bar      : Nat
-
 project/alice> merge bob
 
   I merged bob into alice.
@@ -816,24 +391,12 @@ project/main> branch bob
        `switch /main` then `merge /bob`.
 
 ```
+Alice's addition:
 ```unison
 foo : Text
 foo = "foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
 ```ucm
 project/alice> add
 
@@ -868,24 +431,12 @@ project/main> branch bob
        `switch /main` then `merge /bob`.
 
 ```
+Bob's addition:
 ```unison
 foo : Text
 foo = "foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
 ```ucm
 project/bob> add
 
@@ -900,74 +451,31 @@ project/alice> merge /bob
 ```
 ## Merge failure: someone deleted something
 
-If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the
-delete, as explained above), then the delete goes through. This can cause merge failures due to out-of-scope
-identifiers. The user may have to do some digging around to find what the deleted name used to refer to.
+If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the delete, as explained above), then the delete goes through.
+
+This can cause merge failures due to out-of-scope identifiers, and the user may have to do some digging around to find what the deleted name used to refer to. In a future version, we would emit a \[better\] warning at least.
 
 In this example, Alice deletes `foo`, while Bob adds a new dependent of `foo`.
 
+Original branch:
 ```unison
 foo : Text
 foo = "foo"
 ```
 
+Alice's delete:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
 project/alice> delete.term foo
 
   Done.
 
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
 ```
+Bob's new code that depends on `foo`:
 ```unison
 bar : Text
-bar = foo ++ foo
+bar = foo ++ " - " ++ foo
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-
-```
 ```ucm
 project/bob> add
 
@@ -989,112 +497,36 @@ project/alice> merge /bob
 bar : Text
 bar =
   use Text ++
-  foo ++ foo
+  foo ++ " - " ++ foo
 
 
 ```
 
 ## Merge failure: type error
 
-It may be possible to cleanly merge Alice's and Bob's changes together, yet the resulting namespace doesn't typecheck.
+It may be Alice's and Bob's changes merge together cleanly in the sense that there's no textual conflicts, yet the resulting namespace doesn't typecheck.
 
-In this example, Alice updates a `Text` to a `Nat`, while Bob adds a new dependent of the `Text`. Upon merging,
-propagating Alice's update to Bob's dependent fails to typecheck.
+In this example, Alice updates a `Text` to a `Nat`, while Bob adds a new dependent of the `Text`. Upon merging, propagating Alice's update to Bob's dependent causes a typechecking failure.
 
+Original branch:
 ```unison
 foo : Text
 foo = "foo"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's update:
 ```unison
 foo : Nat
 foo = 100
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Nat
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's new definition:
 ```unison
 bar : Text
-bar = foo ++ foo
+bar = foo ++ " - " ++ foo
 ```
 
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-
-```
-```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
@@ -1109,7 +541,7 @@ project/alice> merge /bob
 bar : Text
 bar =
   use Text ++
-  foo ++ foo
+  foo ++ " - " ++ foo
 
 
 ```
@@ -1119,6 +551,7 @@ bar =
 Alice and Bob may disagree about the definition of a term. In this case, the conflicted term and all of its dependents
 are presented to the user to resolve.
 
+Original branch:
 ```unison
 foo : Text
 foo = "old foo"
@@ -1127,36 +560,7 @@ bar : Text
 bar = "old bar"
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      bar : Text
-      foo : Text
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    bar : Text
-    foo : Text
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's changes:
 ```unison
 foo : Text
 foo = "alices foo"
@@ -1168,41 +572,8 @@ qux : Text
 qux = "alices qux depends on alices foo" ++ foo
 ```
 
-```ucm
+Bob's changes:
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      qux : Text
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      bar : Text
-      foo : Text
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
 ```unison
 foo : Text
 foo = "bobs foo"
@@ -1212,31 +583,6 @@ baz = "bobs baz"
 ```
 
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      baz : Text
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Text
-
-```
-```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
@@ -1276,102 +622,24 @@ project/merge-bob-into-alice> view bar baz
 ```
 ## Merge failure: simple type conflict
 
-Ditto for types; if the hashes don't match, it's a conflict. In this example, Alice and Bob do different things to the
-same constructor. However, any explicit changes to the same type will result in a conflict, including changes that could
-concievably be merged (e.g. Alice and Bob both add a new constructor, or edit different constructors).
+Ditto for types; if the hashes don't match, it's a conflict. In this example, Alice and Bob do different things to the same constructor. However, any explicit changes to the same type will result in a conflict, including changes that could concievably be merged (e.g. Alice and Bob both add a new constructor, or edit different constructors).
 
+Original branch:
 ```unison
 unique type Foo = MkFoo Nat
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's changes:
 ```unison
 unique type Foo = MkFoo Nat Nat
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's changes:
 ```unison
 unique type Foo = MkFoo Nat Text
 ```
 
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
-
-```
-```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
@@ -1391,95 +659,24 @@ type Foo = MkFoo Nat Text
 
 ## Merge failure: type-update + constructor-rename conflict
 
-Renaming a constructor is modeled as an update, so if Alice updates a type and Bob renames one of its constructors but
-doesn't change its hash, that's still a conflict.
+We model the renaming of a type's constructor as an update, so if Alice updates a type and Bob renames one of its constructors (even without changing its structure), we consider it a conflict.
 
+Original branch:
 ```unison
 unique type Foo = Baz Nat | Qux Text
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's changes `Baz Nat` to `Baz Nat Nat`
 ```unison
 unique type Foo = Baz Nat Nat | Qux Text
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
-
-```
-```ucm
-project/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's renames `Qux` to `BobQux`:
 ```unison
 unique type Foo = Baz Nat | BobQux Text
 ```
 
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
-
-```
-```ucm
-project/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 project/alice> merge /bob
 
   I couldn't automatically merge bob into alice. However, I've
@@ -1499,50 +696,22 @@ type Foo = Baz Nat | BobQux Text
 
 ## Merge failure: constructor-rename conflict
 
-Another example demonstrating that constructor "renames" (add + delete) are modeled as updates.
+Here is another example demonstrating that constructor renames are modeled as updates.
 
+Original branch:
 ```unison
 unique type Foo = Baz Nat | Qux Text
 ```
 
+Alice's rename:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
 project/alice> move.term Foo.Baz Foo.Alice
 
   Done.
 
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
+```
+Bob's rename:
+```ucm
 project/bob> move.term Foo.Qux Foo.Bob
 
   Done.
@@ -1566,78 +735,22 @@ type Foo = Bob Text | Baz Nat
 
 ```
 
-## Merge failure: non-constsructor/constructor conflict
+## Merge failure: non-constructor/constructor conflict
 
-It's possible for a term conflict to involve a constructor on one side and a not-a-constructor on the other.
+A constructor on one side can conflict with a regular term definition on the other.
 
-```ucm
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's additions:
 ```unison
 my.cool.thing : Nat
 my.cool.thing = 17
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      my.cool.thing : Nat
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    my.cool.thing : Nat
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's additions:
 ```unison
 unique ability my.cool where
   thing : Nat -> Nat
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      ability my.cool
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    ability my.cool
-
-```
 ```ucm
 project/alice> merge bob
 
@@ -1657,7 +770,7 @@ ability my.cool where thing : Nat ->{cool} Nat
 
 ```
 
-## Merge algorithm quirk: the "not-conflict conflict"
+## (TODO) Merge algorithm quirk: the "not-conflict conflict"
 
 Since a conflicted type declaration must bring into the scratch file (for conflict resolution) all of its constructors,
 it's possible that an unconflicted thing gets ultimately presented as a conflict.
@@ -1668,70 +781,19 @@ In this example, Alice and Bob have a disagreement about what the type "Foo" ref
 But Bob updated "Foo.Bob", and Alice didn't touch it! Nonetheless, her untouched "Foo.Bar" term is considered in
 conflict with Bob's.
 
+Original branch:
 ```unison
 Foo.Bar : Nat
 Foo.Bar = 17
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      Foo.Bar : Nat
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    Foo.Bar : Nat
-
-project/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice adds this type `Foo`, with the constructor `Foo.Alice`:
 ```unison
 unique type Foo = Alice Nat
 ```
 
+Bob deletes the original `Foo.Bar` and adds type `Foo` and constructor `Foo.Bar`:
 ```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
 project/bob> delete.term Foo.Bar
 
   Done.
@@ -1741,27 +803,6 @@ project/bob> delete.term Foo.Bar
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-
-```
 ```ucm
 project/alice> merge bob
 
@@ -1797,121 +838,32 @@ Foo.Bar.Hello : Nat
 Foo.Bar.Hello = 17
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-      Foo.Bar.Hello : Nat
-
-```
-```ucm
-project/main> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-    Foo.Bar.Hello : Nat
-
-```
 Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
 
 ```ucm
-project/main> branch alice
+project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 
-  Done. I've created the alice branch based off of main.
+  Foo.Bar.Baz : Nat
+  Foo.Bar.Baz = 100
   
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-project/alice> delete.type Foo
-
-  Done.
-
-project/alice> delete.term Foo.Bar.Baz
-
-  Done.
-
-project/alice> delete.term Foo.Bar.Qux
-
-  Done.
+  Foo.Bar.Hello : Nat
+  Foo.Bar.Hello = 18
+  
+  Foo.Bar.Qux : Nat
+  Foo.Bar.Qux = 200
 
 ```
-```unison
-Foo.Bar.Baz : Nat
-Foo.Bar.Baz = 100
-
-Foo.Bar.Qux : Nat
-Foo.Bar.Qux = 200
-
-Foo.Bar.Hello : Nat
-Foo.Bar.Hello = 18
-```
+Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one constructor's fully qualified names doesn't actually change. The other constructor reuses the name of the deleted term.
 
 ```ucm
+project/bob> view Foo.Bar
 
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      Foo.Bar.Baz : Nat
-      Foo.Bar.Qux : Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      Foo.Bar.Hello : Nat
+  type Foo.Bar = Baz Nat | Hello Nat Nat
 
 ```
-```ucm
-project/alice> update
+At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-```
-Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one
-constructor's name doesn't actually change. The other constructor takes the name of the deleted term.
-
-```ucm
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-project/bob> delete.term Foo.Bar.Hello
-
-  Done.
-
-project/bob> move.type Foo Foo.Bar
-
-  Done.
-
-project/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
-
-  Done.
-
-```
-At this point, Bob and alice have both updated the name "Foo.Bar.Hello" in different ways, so that's a conflict.
-Therefore, Bob's entire type ("Foo.Bar" with constructors "Foo.Bar.Baz" and "Foo.Bar.Hello") gets rendered into the
-scratch file.
-
-Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it)
-is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
+Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
 
 ```ucm
 project/alice> merge bob
@@ -1942,15 +894,9 @@ Currently, two unique types created by Alice and Bob will be considered in confl
 The result may be confusing to a user – a file containing two identical-looking copies of a unique type is rendered,
 which is a parse error.
 
-```ucm
-project/main> branch alice
+We will resolve this situation automatically in a future version.
 
-  Done. I've created the alice branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
-```
+Alice's additions:
 ```unison
 unique type Foo = Bar
 
@@ -1958,36 +904,7 @@ alice : Foo -> Nat
 alice _ = 18
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-      alice : Foo -> Nat
-
-```
-```ucm
-project/alice> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-    alice : Foo -> Nat
-
-project/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
-
-```
+Bob's additions:
 ```unison
 unique type Foo = Bar
 
@@ -1995,29 +912,6 @@ bob : Foo -> Nat
 bob _ = 19
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Foo
-      bob : Foo -> Nat
-
-```
-```ucm
-project/bob> add
-
-  ⍟ I've added these definitions:
-  
-    type Foo
-    bob : Foo -> Nat
-
-```
 ```ucm
 project/alice> merge bob
 
@@ -2049,8 +943,7 @@ bob _ = 19
 
 ## Precondition violations
 
-Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the
-user will have to fix up the namespace(s) manually before attempting to merge again.
+Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
 
 ### Conflicted aliases
 
