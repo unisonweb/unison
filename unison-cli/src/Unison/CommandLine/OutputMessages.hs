@@ -2290,9 +2290,9 @@ notifyUser dir = \case
   MergeSuccess base target ->
     pure . P.wrap $
       "I merged"
-        <> prettySlashProjectBranchName (view #branch target)
+        <> prettyProjectBranchName (view #branch target)
         <> "into"
-        <> P.group (prettySlashProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
