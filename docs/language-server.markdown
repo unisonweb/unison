@@ -196,6 +196,8 @@ In Emacs 29 (or earlier, if you install the [Eglot](https://elpa.gnu.org/package
 
 This requires having either [unison-ts-mode](https://github.com/fmguerreiro/unison-ts-mode) or [unisonlang-mode](https://melpa.org/#/unisonlang-mode) installed. unison-ts-mode is newer, supported, and more complete, but isn’t in [MELPA](https://melpa.org/) yet and requires a couple commands to set up [tree-sitter-unison](https://github.com/kylegoetz/tree-sitter-unison).
 
+You can then use `M-x eglot` in a Unison scratch file buffer. You can also [configure Eglot to start automatically](https://www.gnu.org/software/emacs/manual/html_node/eglot/Starting-Eglot.html).
+
 ### Other Editors
 
 If your editor provides a mechanism for connecting to a host and port, provide a host of `127.0.0.1` and port `5757`.
