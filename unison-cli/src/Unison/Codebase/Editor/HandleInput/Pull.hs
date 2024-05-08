@@ -226,8 +226,10 @@ loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
       let preprocess = case pullMode of
             Input.PullWithHistory -> Unmodified
             Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-      Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
-        Cli.returnEarly (Output.GitError err)
+      causalHash <-
+        liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) & onLeftM \err ->
+          Cli.returnEarly (Output.GitError err)
+      liftIO (Codebase.expectBranchForHash codebase causalHash)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do
       projectBranchCausalHashJWT <- downloadShareProjectBranch (pullMode == Input.PullWithoutHistory) remoteBranch

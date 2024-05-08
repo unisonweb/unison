@@ -1351,13 +1351,6 @@ notifyUser dir = \case
             <> P.group ("(" <> P.text (Hash.toBase32HexText $ unCausalHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadGitRepo repo
-      CouldntLoadSyncedBranch ns h ->
-        P.wrap $
-          "I just finished importing the branch"
-            <> P.red (P.shown h)
-            <> "from"
-            <> P.red (prettyReadRemoteNamespaceWith absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
-            <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
           "I couldn't find the remote branch at"

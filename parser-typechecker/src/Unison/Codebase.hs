@@ -114,8 +114,6 @@ module Unison.Codebase
   )
 where
 
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
-import Control.Monad.Trans.Except (throwE)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2
@@ -133,18 +131,12 @@ import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
-import Unison.Codebase.GitError qualified as GitError
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type
-  ( Codebase (..),
-    GitError (GitCodebaseError),
-    PushGitBranchOpts (..),
-    SyncToDir,
-  )
+import Unison.Codebase.Type (Codebase (..), GitError, PushGitBranchOpts (..), SyncToDir)
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -168,7 +160,6 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Relation qualified as Rel
-import Unison.Util.Timing (time)
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
@@ -499,23 +490,19 @@ importRemoteBranch ::
   ReadGitRemoteNamespace ->
   SyncMode ->
   Preprocessing m ->
-  m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode preprocess = runExceptT $ do
-  branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
-    withStatus "Importing downloaded files into local codebase..." $ do
+  m (Either GitError CausalHash)
+importRemoteBranch codebase ns mode preprocess = do
+  viewRemoteBranch' codebase ns Git.RequireExistingBranch \(branch, cacheDir) ->
+    withStatus "Importing downloaded files into local codebase..." do
       processedBranch <- preprocessOp branch
-      time "SyncFromDirectory" $ do
-        syncFromDirectory codebase cacheDir mode processedBranch
-        pure $ Branch.headHash processedBranch
-  time "load fresh local branch after sync" $ do
-    lift (getBranchForHash codebase branchHash) >>= \case
-      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
-      Just result -> pure $ result
+      syncFromDirectory codebase cacheDir mode processedBranch
+      pure (Branch.headHash processedBranch)
   where
     preprocessOp :: Branch m -> m (Branch m)
-    preprocessOp = case preprocess of
-      Preprocessed f -> f
-      Unmodified -> pure
+    preprocessOp =
+      case preprocess of
+        Preprocessed f -> f
+        Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
