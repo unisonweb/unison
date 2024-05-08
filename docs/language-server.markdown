@@ -4,9 +4,11 @@
 
 * [Overview](#overview)
 * [Installation and setup](#installation-and-setup)
-  * [Settings](#settings)
   * [NeoVim](#neovim)
   * [VSCode](#vscode)
+  • [Helix Editor](#helix-editor)
+  * [other editors](#other-editors)
+* [Configuration](#configuration)
 
 ## Overview
 
@@ -31,7 +33,7 @@ Note for Windows users: Due to an outstanding issue with GHC's IO manager on Win
 Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
 Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
 
-If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable.
 
 You can set this persistently in powershell using:
 
@@ -40,17 +42,6 @@ You can set this persistently in powershell using:
 ```
 
 See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
-
-### Settings
-
-Supported settings and their defaults. See information for your language server client about where to provide these.
-
-```json
-{
-  // A suggestion for the formatter about how wide (in columns) to print definitions.
-  "formattingWidth": 80
-}
-```
 
 ### NeoVim
 
@@ -207,6 +198,9 @@ Supported settings and their defaults. See information for your language server 
 
 ```json
 {
+  // A suggestion for the formatter about how wide (in columns) to print definitions.
+  "formattingWidth": 80,
+
   // The number of completions the server should collect and send based on a single query.
   // Increasing this limit will provide more completion results, but at the cost of being slower to respond.
   // If explicitly set to `null` the server will return ALL completions available.
