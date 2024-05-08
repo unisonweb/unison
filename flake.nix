@@ -94,36 +94,40 @@
         assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
         assert nixpkgs-packages.hpack.version == versions.hpack;
         {
-          packages = nixpkgs-packages // {
-            default = haskell-nix-flake.defaultPackage;
-            haskell-nix = haskell-nix-flake.packages;
-            docker = import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; };
-            build-tools = pkgs.symlinkJoin {
-              name = "build-tools";
-              paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
+          packages =
+            nixpkgs-packages
+            // haskell-nix-flake.packages
+            // import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; }
+            // {
+              default = haskell-nix-flake.defaultPackage;
+              build-tools = pkgs.symlinkJoin {
+                name = "build-tools";
+                paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
+              };
+              all = pkgs.symlinkJoin {
+                name = "all";
+                paths =
+                  let
+                    all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" "build-tools" ]);
+                    devshell-inputs = builtins.concatMap
+                      (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
+                      [
+                        self.devShells."${system}".only-tools-nixpkgs
+                      ];
+                  in
+                  all-other-packages ++ devshell-inputs;
+              };
             };
-            all = pkgs.symlinkJoin {
-              name = "all";
-              paths =
-                let
-                  all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" [ "all" "build-tools" ]);
-                  devshell-inputs = builtins.concatMap
-                    (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
-                    [
-                      self.devShells."${system}".only-tools-nixpkgs
-                    ];
-                in
-                all-other-packages ++ devshell-inputs;
-            };
-          };
 
           apps = haskell-nix-flake.apps // {
             default = self.apps."${system}"."unison-cli-main:exe:unison";
           };
 
-          devShells = nixpkgs-devShells // {
-            default = self.devShells."${system}".only-tools-nixpkgs;
-            haskell-nix = haskell-nix-flake.devShells;
-          };
+          devShells =
+            nixpkgs-devShells
+            // haskell-nix-flake.devShells
+            // {
+              default = self.devShells."${system}".only-tools-nixpkgs;
+            };
         });
 }
