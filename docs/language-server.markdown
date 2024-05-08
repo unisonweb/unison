@@ -6,7 +6,8 @@
 * [Installation and setup](#installation-and-setup)
   * [NeoVim](#neovim)
   * [VSCode](#vscode)
-  • [Helix Editor](#helix-editor)
+  * [Helix Editor](#helix-editor)
+  * [Emacs](#emacs)
   * [other editors](#other-editors)
 * [Configuration](#configuration)
 
@@ -184,6 +185,16 @@ language-servers = [ "ucm" ]
 
 or follow the instructions for Unison in "[How to install the default language servers](https://github.com/helix-editor/helix/wiki/How-to-install-the-default-language-servers#unison)" wiki page.
 
+### Emacs
+
+In Emacs 29 (or earlier, if you install the [Eglot](https://elpa.gnu.org/packages/eglot.html) package), add the following to your init file:
+
+```elisp
+(push '((unison-ts-mode unisonlang-mode) "127.0.0.1" 5757)
+      eglot-server-programs)
+```
+
+This requires having either [unison-ts-mode](https://github.com/fmguerreiro/unison-ts-mode) or [unisonlang-mode](https://melpa.org/#/unisonlang-mode) installed. unison-ts-mode is newer, supported, and more complete, but isn’t in [MELPA](https://melpa.org/) yet and requires a couple commands to set up [tree-sitter-unison](https://github.com/kylegoetz/tree-sitter-unison).
 
 ### Other Editors
 
