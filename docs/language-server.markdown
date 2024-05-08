@@ -209,14 +209,14 @@ Note that some editors require passing the command and arguments as separate par
 
 Supported settings and their defaults. See information for your language server client about where to provide these.
 
+* `formattingWidth`: A suggestion for the formatter about how wide (in columns) to print definitions.
+* `maxCompletions`: The number of completions the server should collect and send based on a single query.  Increasing this limit will provide more completion results, but at the cost of being slower to respond.
+
+    If explicitly set to `null` the server will return ALL completions available.
+
 ```json
 {
-  // A suggestion for the formatter about how wide (in columns) to print definitions.
   "formattingWidth": 80,
-
-  // The number of completions the server should collect and send based on a single query.
-  // Increasing this limit will provide more completion results, but at the cost of being slower to respond.
-  // If explicitly set to `null` the server will return ALL completions available.
   "maxCompletions": 100
 }
 ```
