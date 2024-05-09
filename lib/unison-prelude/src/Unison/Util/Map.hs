@@ -61,7 +61,7 @@ swap :: (Ord b) => Map a b -> Map b a
 swap =
   Map.foldlWithKey' (\z a b -> Map.insert b a z) mempty
 
--- | Like 'Map.insert', but returns the value as well.
+-- | Like 'Map.insert', but returns the old value as well.
 insertLookup :: Ord k => k -> v -> Map k v -> (Maybe v, Map k v)
 insertLookup k v =
   upsertLookup (const v) k
