@@ -320,7 +320,8 @@
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
 
-    unison-FOp-IO.directoryContents.impl.v3
+    builtin-IO.directoryContents.impl.v3
+    builtin-IO.directoryContents.impl.v3:termlink
     unison-FOp-IO.systemTimeMicroseconds.v1
 
     unison-FOp-ImmutableArray.copyTo!
@@ -732,6 +733,7 @@
   (define-builtin-link IO.getEnv.impl.v1)
   (define-builtin-link IO.getChar.impl.v1)
   (define-builtin-link IO.getCurrentDirectory.impl.v3)
+  (define-builtin-link IO.directoryContents.impl.v3)
   (define-builtin-link IO.removeDirectory.impl.v3)
   (define-builtin-link IO.renameFile.impl.v3)
   (define-builtin-link IO.createTempDirectory.impl.v3)
@@ -1097,11 +1099,6 @@
     (define (unison-FOp-IO.getArgs.impl.v1)
       (sum 1 (cdr (command-line))))
 
-    (define (unison-FOp-IO.directoryContents.impl.v3 path)
-      (reify-exn
-        (lambda ()
-          (sum 1 (directory-contents path)))))
-
     (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
 
     ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
@@ -1465,6 +1462,7 @@
   (declare-builtin-link builtin-IO.getArgs.impl.v1)
   (declare-builtin-link builtin-IO.getEnv.impl.v1)
   (declare-builtin-link builtin-IO.getChar.impl.v1)
+  (declare-builtin-link builtin-IO.directoryContents.impl.v3)
   (declare-builtin-link builtin-IO.getCurrentDirectory.impl.v3)
   (declare-builtin-link builtin-IO.removeDirectory.impl.v3)
   (declare-builtin-link builtin-IO.renameFile.impl.v3)
