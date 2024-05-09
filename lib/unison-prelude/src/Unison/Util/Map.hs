@@ -82,7 +82,7 @@ upsertF :: (Functor f, Ord k) => (Maybe v -> f v) -> k -> Map k v -> f (Map k v)
 upsertF f =
   Map.alterF (fmap Just . f)
 
--- | Like 'upsert', but returns the value as well.
+-- | Like 'upsert', but returns the old value as well.
 upsertLookup :: Ord k => (Maybe v -> v) -> k -> Map k v -> (Maybe v, Map k v)
 upsertLookup f =
   upsertF (\v -> (v, f v))
