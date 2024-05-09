@@ -1,7 +1,6 @@
 -- | @pull@ input handler
 module Unison.Codebase.Editor.HandleInput.Pull
   ( doPullRemoteBranch,
-    loadShareLooseCodeIntoMemory,
     loadPropagateDiffDefaultPatch,
     mergeBranchAndPropagateDefaultPatch,
     propagatePatch,
@@ -17,7 +16,9 @@ import Data.List.NonEmpty qualified as Nel
 import Data.Text qualified as Text
 import Data.These
 import System.Console.Regions qualified as Console.Regions
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Causal qualified
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
@@ -63,21 +64,37 @@ import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sync.Common qualified as Common
 import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
+import qualified U.Codebase.Sqlite.Operations as Operations
+import qualified U.Codebase.Branch as V2.Branch
 
 doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
 doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
+  Cli.Env {codebase} <- ask
+
   let includeSquashed = case pullMode of
         Input.PullWithHistory -> Share.NoSquashedHead
         Input.PullWithoutHistory -> Share.IncludeSquashedHead
+
   (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
-  remoteBranchObject <- loadRemoteNamespaceIntoMemory syncMode pullMode source
-  when (Branch.isEmpty0 (Branch.head remoteBranchObject)) do
-    Cli.respond (PulledEmptyBranch source)
+
+  remoteCausalHash <- importRemoteNamespaceIntoCodebase syncMode pullMode source
+
+  remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
+
+  remoteBranchIsEmpty <-
+   Cli.runTransaction do
+      causal <- Operations.expectCausalBranchByCausalHash remoteCausalHash
+      branch <- causal.value
+      V2.Branch.isEmpty branch
+
+  when remoteBranchIsEmpty (Cli.respond (PulledEmptyBranch source))
+
   targetAbsolutePath <-
     case target of
       Left path -> Cli.resolvePath' path
       Right (ProjectAndBranch project branch) ->
         pure $ ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
+
   let description =
         Text.unwords
           [ Text.pack . InputPattern.patternName $
@@ -89,9 +106,11 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
               Left path -> Path.toText' path
               Right (ProjectAndBranch project branch) -> into @Text (ProjectAndBranch (project ^. #name) (branch ^. #name))
           ]
+
   case pullMode of
     Input.PullWithHistory -> do
       targetBranchObject <- Cli.getBranch0At targetAbsolutePath
+
       if Branch.isEmpty0 targetBranchObject
         then do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
@@ -111,6 +130,7 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
           description
           targetAbsolutePath
           (\targetBranchObject -> pure $ remoteBranchObject `Branch.consBranchSnapshot` targetBranchObject)
+
       Cli.respond
         if didUpdate
           then PullSuccessful source target
@@ -214,27 +234,24 @@ resolveImplicitTarget =
     Nothing -> Left Path.currentPath
     Just (projectAndBranch, _restPath) -> Right projectAndBranch
 
-loadRemoteNamespaceIntoMemory ::
+importRemoteNamespaceIntoCodebase ::
   SyncMode ->
   PullMode ->
   ReadRemoteNamespace Share.RemoteProjectBranch ->
-  Cli (Branch IO)
-loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
+  Cli CausalHash
+importRemoteNamespaceIntoCodebase syncMode pullMode remoteNamespace = do
   Cli.Env {codebase} <- ask
   case remoteNamespace of
     ReadRemoteNamespaceGit repo -> do
       let preprocess = case pullMode of
             Input.PullWithHistory -> Unmodified
             Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-      causalHash <-
-        liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) & onLeftM \err ->
-          Cli.returnEarly (Output.GitError err)
-      liftIO (Codebase.expectBranchForHash codebase causalHash)
-    ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
+      liftIO (Codebase.importRemoteBranch codebase repo syncMode preprocess) & onLeftM \err ->
+        Cli.returnEarly (Output.GitError err)
+    ReadShare'LooseCode repo -> importShareLooseCodeIntoCodebase repo
     ReadShare'ProjectBranch remoteBranch -> do
       projectBranchCausalHashJWT <- downloadShareProjectBranch (pullMode == Input.PullWithoutHistory) remoteBranch
-      let causalHash = Common.hash32ToCausalHash (Share.hashJWTHash projectBranchCausalHashJWT)
-      liftIO (Codebase.expectBranchForHash codebase causalHash)
+      pure (Common.hash32ToCausalHash (Share.hashJWTHash projectBranchCausalHashJWT))
 
 -- | @downloadShareProjectBranch branch@ downloads the given branch.
 downloadShareProjectBranch :: HasCallStack => Bool -> Share.RemoteProjectBranch -> Cli HashJWT
@@ -261,14 +278,13 @@ downloadShareProjectBranch useSquashedIfAvailable branch = do
     Cli.respond (Output.DownloadedEntities numDownloaded)
   pure causalHashJwt
 
-loadShareLooseCodeIntoMemory :: ReadShareLooseCode -> Cli (Branch IO)
-loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
+importShareLooseCodeIntoCodebase :: ReadShareLooseCode -> Cli CausalHash
+importShareLooseCodeIntoCodebase rrn@(ReadShareLooseCode {server, repo, path}) = do
   let codeserver = Codeserver.resolveCodeserver server
   let baseURL = codeserverBaseURL codeserver
   -- Auto-login to share if pulling from a non-public path
   when (not $ RemoteRepo.isPublic rrn) . void $ ensureAuthenticatedWithCodeserver codeserver
   let shareFlavoredPath = Share.Path (shareUserHandleToText repo Nel.:| coerce @[NameSegment] @[Text] (Path.toList path))
-  Cli.Env {codebase} <- ask
   (causalHash, numDownloaded) <-
     Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
       causalHash <-
@@ -279,7 +295,7 @@ loadShareLooseCodeIntoMemory rrn@(ReadShareLooseCode {server, repo, path}) = do
       numDownloaded <- liftIO getNumDownloaded
       pure (causalHash, numDownloaded)
   Cli.respond (Output.DownloadedEntities numDownloaded)
-  liftIO (Codebase.expectBranchForHash codebase causalHash)
+  pure causalHash
 
 -- Provide the given action a callback that display to the terminal.
 withEntitiesDownloadedProgressCallback :: ((Int -> IO (), IO Int) -> IO a) -> IO a

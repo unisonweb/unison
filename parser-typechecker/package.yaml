@@ -164,7 +164,6 @@ tests:
         other-modules: Paths_unison_parser_typechecker
 
 default-extensions:
-  - ApplicativeDo
   - BangPatterns
   - BlockArguments
   - DeriveAnyClass

@@ -606,20 +606,17 @@ modifyAt path f = runIdentity . modifyAtM path (pure . f)
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM ::
   forall n m.
-  (Functor n) =>
-  (Applicative m) => -- because `Causal.cons` uses `pure`
+  (Functor n, Applicative m) =>
   Path ->
   (Branch m -> n (Branch m)) ->
   Branch m ->
   n (Branch m)
 modifyAtM path f b = case Path.uncons path of
   Nothing -> f b
-  Just (seg, path) -> do
-    -- Functor
+  Just (seg, path) ->
     let child = getChildBranch seg (head b)
-    child' <- modifyAtM path f child
-    -- step the branch by updating its children according to fixup
-    pure $ step (setChildBranch seg child') b
+     in -- step the branch by updating its children according to fixup
+        (\child' -> step (setChildBranch seg child') b) <$> modifyAtM path f child
 
 -- | Perform updates over many locations within a branch by batching up operations on
 -- sub-branches as much as possible without affecting semantics.

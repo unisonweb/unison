@@ -196,7 +196,6 @@ library
   hs-source-dirs:
       src
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
       DeriveAnyClass
@@ -388,7 +387,6 @@ test-suite parser-typechecker-tests
   hs-source-dirs:
       tests
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
       DeriveAnyClass
