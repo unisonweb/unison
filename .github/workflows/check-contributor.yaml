@@ -1,4 +1,4 @@
-name: check CONTRIBUTORS.markdown
+name: Contributor signed CONTRIBUTORS.markdown
 
 on:
   pull_request:
@@ -10,7 +10,8 @@ jobs:
     - uses: actions/checkout@v4
       with:
           sparse-checkout: CONTRIBUTORS.markdown
-    - shell: bash
+    - name: Look for @${{github.event.pull_request.user.login}} in CONTRIBUTORS.markdown
+      shell: bash
       run: |
         echo "If this step fails, make sure you've added yourself to CONTRIBUTORS.markdown"
         echo "to acknowledge Unison's MIT license."
