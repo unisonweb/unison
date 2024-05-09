@@ -1131,13 +1131,6 @@
           (close-output-port h))
       (right none))
 
-    (define (unison-FOp-IO.openFile.impl.v3 fn mode)
-      (right (case mode
-        [(0) (open-file-input-port (chunked-string->string fn))]
-        [(1) (open-file-output-port (chunked-string->string fn))]
-        [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
-        [else (open-file-input/output-port (chunked-string->string fn))])))
-
     (define (unison-FOp-Text.repeat n t)
       (let loop ([cnt 0]
                  [acc empty-chunked-string])

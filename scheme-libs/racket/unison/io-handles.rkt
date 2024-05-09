@@ -14,6 +14,7 @@
 
 (provide
  unison-FOp-IO.stdHandle
+ unison-FOp-IO.openFile.impl.v3
  (prefix-out
   builtin-IO.
   (combine-out
@@ -203,6 +204,15 @@
               key)
             (ref-either-right
               (string->chunked-string (bytes->string/utf-8 value))))))
+
+(define (unison-FOp-IO.openFile.impl.v3 fn0 mode)
+  (define fn (chunked-string->string fn0))
+
+  (right (case mode
+    [(0) (open-input-file fn)]
+    [(1) (open-output-file fn #:exists 'truncate)]
+    [(2) (open-output-file fn #:exists 'append)]
+    [else (open-input-output-file fn #:exists 'can-update)])))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
 ;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
