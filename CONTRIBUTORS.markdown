@@ -82,3 +82,4 @@ The format for this list: name, GitHub handle
 * Kyle Goetz (@kylegoetz)
 * Ethan Morgan (@sixfourtwelve)
 * Johan Winther (@JohanWinther)
+* Upendra Upadhyay (@upendra1997)
