@@ -314,6 +314,8 @@
     unison-FOp-Clock.internals.processCPUTime.v1
     unison-FOp-Clock.internals.realtime.v1
     unison-FOp-Clock.internals.monotonic.v1
+    builtin-Clock.internals.systemTimeZone.v1
+    builtin-Clock.internals.systemTimeZone.v1:termlink
 
 
     ; unison-FOp-Value.serialize
@@ -760,6 +762,7 @@
   (define-builtin-link Char.Class.is)
   (define-builtin-link Scope.bytearrayOf)
   (define-builtin-link unsafe.coerceAbilities)
+  (define-builtin-link Clock.internals.systemTimeZone.v1)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -1488,4 +1491,5 @@
   (declare-builtin-link builtin-Char.Class.is)
   (declare-builtin-link builtin-Pattern.many.corrected)
   (declare-builtin-link builtin-unsafe.coerceAbilities)
+  (declare-builtin-link builtin-Clock.internals.systemTimeZone.v1)
   )
