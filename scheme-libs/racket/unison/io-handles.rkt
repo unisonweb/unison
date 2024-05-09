@@ -100,13 +100,23 @@
           ref-unit-unit)
         (ref-either-right char))))
 
-(define-unison (getSomeBytes.impl.v1 handle bytes)
-  (let* ([buffer (make-bytes bytes)]
+(define-unison (getSomeBytes.impl.v1 handle nbytes)
+  (let* ([buffer (make-bytes nbytes)]
          [line (read-bytes-avail! buffer handle)])
-    (if (eof-object? line)
-        (ref-either-right (bytes->chunked-bytes #""))
-        (ref-either-right (bytes->chunked-bytes buffer))
-        )))
+    (cond
+      [(eof-object? line)
+       (ref-either-right (bytes->chunked-bytes #""))]
+      [(procedure? line)
+       (Exception
+         ref-iofailure:typelink
+         "getSomeBytes.impl: special value returned"
+         ref-unit-unit)]
+      [else
+       (ref-either-right
+         (bytes->chunked-bytes
+           (if (< line nbytes)
+             (subbytes buffer 0 line)
+             buffer)))])))
 
 (define-unison (getBuffering.impl.v3 handle)
     (case (file-stream-buffer-mode handle)
