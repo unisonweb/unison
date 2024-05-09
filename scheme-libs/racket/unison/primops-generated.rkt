@@ -304,8 +304,24 @@
   (match v
     [(unison-data _ t (list rf rt bs0))
      #:when (= t ref-value-data:tag)
-     (let ([bs (map reify-value (chunked-list->list bs0))])
-       (make-data (reference->typelink rf) rt bs))]
+     (let ([bs (map reify-value (chunked-list->list bs0))]
+           [tl (reference->typelink rf)])
+       (cond
+         [(eqv? tl builtin-boolean:typelink)
+          (cond
+            [(not (null? bs))
+             (raise
+               (make-exn:bug
+                 "reify-value: boolean with arguments"
+                 bs0))]
+            [(= rt 0) #f]
+            [(= rt 1) #t]
+            [else
+             (raise
+               (make-exn:bug
+                 "reify-value: unknown boolean tag"
+                 rt))])]
+         [else (make-data tl rt bs)]))]
     [(unison-data _ t (list gr bs0))
      #:when (= t ref-value-partial:tag)
      (let ([bs (map reify-value (chunked-list->list bs0))]
@@ -316,11 +332,18 @@
      (reify-vlit vl)]
     [(unison-data _ t (list bs0 k))
      #:when (= t ref-value-cont:tag)
-     (raise "reify-value: unimplemented cont case")]
+     (raise
+       (make-exn:bug
+         "reify-value: unimplemented cont case"
+         ref-unit-unit))]
     [(unison-data r t fs)
-     (raise "reify-value: unimplemented data case")]
+     (raise
+       (make-exn:bug
+         "reify-value: unrecognized tag"
+         ref-unit-unit))]
     [else
-      (raise (format "reify-value: unknown tag"))]))
+     (raise
+       (make-exn:bug "reify-value: unrecognized value" v))]))
 
 (define (reflect-typelink tl)
   (match tl
@@ -354,6 +377,11 @@
 
 (define (reflect-value v)
   (match v
+    [(? boolean?)
+     (ref-value-data
+       (reflect-typelink builtin-boolean:typelink)
+       (if v 1 0) ; boolean pseudo-data tags
+       empty-chunked-list)]
     [(? exact-nonnegative-integer?)
      (ref-value-vlit (ref-vlit-pos v))]
     [(? exact-integer?)
