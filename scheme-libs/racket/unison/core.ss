@@ -476,19 +476,17 @@
           (next (fx1- i)))))))
 
 (define (write-exn:bug ex port mode)
-  (when mode
-    (write-string "<exn:bug " port))
+  (when mode (write-string "<exn:bug " port))
 
   (let ([recur (case mode
                  [(#t) write]
                  [(#f) display]
                  [else (lambda (v port) (print v port mode))])])
-    (recur (chunked-string->string (exn:bug-msg ex)) port)
+    (recur (exn:bug-msg ex) port)
     (if mode (write-string " " port) (newline port))
     (write-string (describe-value (exn:bug-val ex)) port))
 
-  (when mode
-    (write-string ">")))
+  (when mode (write-string ">" port)))
 
 (struct exn:bug (msg val)
   #:constructor-name make-exn:bug
