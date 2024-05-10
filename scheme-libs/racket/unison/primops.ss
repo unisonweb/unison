@@ -926,11 +926,13 @@
     (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
     (define (unison-POp-EQLU x y) (bool (universal=? x y)))
     (define (unison-POp-EROR fnm x)
-      (let-values ([(p g) (open-string-output-port)])
-        (put-string p (chunked-string->string fnm))
+      (let-values
+        ([(p g) (open-string-output-port)]
+         [(snm) (chunked-string->string fnm)])
+        (put-string p snm)
         (put-string p ": ")
         (display (describe-value x) p)
-        (raise (make-exn:bug fnm x))))
+        (raise (make-exn:bug snm x))))
     (define (unison-POp-FTOT f)
       (define base (number->string f))
       (define dotted

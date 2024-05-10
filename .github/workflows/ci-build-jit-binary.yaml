@@ -54,13 +54,13 @@ jobs:
         with:
           name: jit-source
           path: ${{ env.jit_src }}
-
+      
       - name: cache/restore jit binaries
         id: cache-jit-binaries
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**.rkt',env.jit_src),format('{0}/**.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**/*.rkt',env.jit_src),format('{0}/**/*.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: cache racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -81,8 +81,18 @@ jobs:
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'
         run: |
           brew install libb2
-          racket_lib_dir="$(dirname "$(readlink -f "$(which raco)")")/../lib"
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib "$racket_lib_dir/"
+          brew_lib_dir=$(brew --prefix)/lib
+          racket_lib_dir=$(dirname $(dirname $(readlink -f $(which raco))))/lib
+
+          # link libb2 if not already present/cached
+          for dll in $brew_lib_dir/libb2.*.dylib; do
+            file=$(basename "$dll")
+            if [ ! -e "$racket_lib_dir/$file" ]; then
+              ln -s "$brew_lib_dir/$file" "$racket_lib_dir/$file"
+            else
+              echo "$racket_lib_dir/$file" already exists.
+            fi
+          done
 
       - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -104,7 +114,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**.rkt',env.jit_src),format('{0}/**.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**/*.rkt',env.jit_src),format('{0}/**/*.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: save jit binary
         uses: actions/upload-artifact@v4
