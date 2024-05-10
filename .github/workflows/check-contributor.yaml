@@ -1,0 +1,20 @@
+name: Contributor signed CONTRIBUTORS.markdown
+
+on:
+  pull_request:
+
+jobs:
+  check-contributor:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+          sparse-checkout: CONTRIBUTORS.markdown
+    - name: Look for @${{github.event.pull_request.user.login}} in CONTRIBUTORS.markdown
+      shell: bash
+      run: |
+        echo "If this step fails, make sure you've added yourself to CONTRIBUTORS.markdown"
+        echo "to acknowledge Unison's MIT license."
+
+        egrep '\* .* \(@${{github.event.pull_request.user.login}}\)' \
+            CONTRIBUTORS.markdown
