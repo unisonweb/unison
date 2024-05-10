@@ -1758,13 +1758,27 @@ mergeInputPattern =
     { patternName = "merge",
       aliases = [],
       visibility = I.Visible,
-      args = [],
+      args =
+        [ ( "branch to merge",
+            Required,
+            projectBranchNameArg
+              ProjectBranchSuggestionsConfig
+                { showProjectCompletions = True,
+                  projectInclusion = AllProjects,
+                  branchInclusion = ExcludeCurrentBranch
+                }
+          )
+        ],
       help = P.wrap $ makeExample mergeInputPattern ["/branch"] <> "merges `branch` into the current branch",
       parse =
         \args ->
           maybeToEither (I.help mergeInputPattern) do
             [branchString] <- Just args
-            branch <- eitherToMaybe (tryInto @ProjectBranchName (Text.pack branchString))
+            branch <-
+              eitherToMaybe $
+                tryInto
+                  @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                  (Text.pack branchString)
             pure (Input.MergeI branch)
     }
 
