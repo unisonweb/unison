@@ -24,7 +24,7 @@ env:
   jit_src_scheme: unison-jit-src/scheme-libs/racket
   jit_dist: unison-jit-dist
   jit_generator_os: ubuntu-20.04
-  runtime_tests_version: "@unison/runtime-tests/@aryairani/udp"
+  runtime_tests_version: "@unison/runtime-tests/main"
   runtime_tests_codebase: "~/.cache/unisonlanguage/runtime-tests.unison"
 
   # locations of some files that will indicate whether we need to re-run certain steps
