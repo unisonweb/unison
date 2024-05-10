@@ -84,3 +84,4 @@ The format for this list: name, GitHub handle
 * Johan Winther (@JohanWinther)
 * Greg Pfeil (@sellout)
 * Upendra Upadhyay (@upendra1997)
+* Dan Doel (@dolio)
