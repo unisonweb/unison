@@ -221,10 +221,11 @@
     [(unison-termlink-builtin name)
      (string-append "builtin-" name)]
     [(unison-termlink-derived bs i)
-     (let ([hs (bytevector->base32-string bs #:alphabet 'hex)]
-           [po (if (= i 0) "" (string-append "." (number->string i)))])
+     (let* ([hs (bytevector->base32-string bs #:alphabet 'hex)]
+            [tm (string-trim hs "=" #:repeat? #t)]
+            [po (if (= i 0) "" (string-append "." (number->string i)))])
        (string->symbol
-         (string-append "ref-" (substring hs 0 8) po)))]))
+         (string-append "ref-" tm po)))]))
 
 (define (ref-bytes r)
   (sum-case (decode-ref r)
