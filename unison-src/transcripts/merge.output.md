@@ -446,7 +446,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I fast-forward merged bob into alice.
 
 ```
 ## Merge failure: someone deleted something
@@ -686,10 +686,10 @@ project/alice> merge /bob
 ```
 ```unison:added-by-ucm scratch.u
 -- project/alice
-type Foo = Qux Text | Baz Nat Nat
+type Foo = Baz Nat Nat | Qux Text
 
 -- project/bob
-type Foo = BobQux Text | Baz Nat
+type Foo = Baz Nat | BobQux Text
 
 
 ```
@@ -727,10 +727,10 @@ project/alice> merge bob
 ```
 ```unison:added-by-ucm scratch.u
 -- project/alice
-type Foo = Alice Nat | Qux Text
+type Foo = Qux Text | Alice Nat
 
 -- project/bob
-type Foo = Baz Nat | Bob Text
+type Foo = Bob Text | Baz Nat
 
 
 ```
