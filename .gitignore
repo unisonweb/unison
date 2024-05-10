@@ -26,6 +26,3 @@ dist-newstyle
 **/.DS_Store
 
 /libb2.dylib
-*.zo
-*.dep
-jit-tmp/**/*
