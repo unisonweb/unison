@@ -80,7 +80,7 @@ Should be able to move the term, type, and namespace, including its types, terms
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
-  4. builtin/ (469 terms, 74 types)
+  4. builtin/ (467 terms, 74 types)
 
 .> ls Bar
 
@@ -145,7 +145,7 @@ bonk = 5
 
 .z> ls
 
-  1. builtin/ (469 terms, 74 types)
+  1. builtin/ (467 terms, 74 types)
   2. zonk     (Nat)
 
 ```
@@ -188,7 +188,7 @@ bonk.zonk = 5
 
 .a> ls
 
-  1. builtin/ (469 terms, 74 types)
+  1. builtin/ (467 terms, 74 types)
   2. zonk/    (1 term)
 
 .a> view zonk.zonk
