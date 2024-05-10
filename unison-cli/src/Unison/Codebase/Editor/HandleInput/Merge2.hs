@@ -19,6 +19,8 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import Text.ANSI qualified as Text
+import Text.Builder qualified
+import Text.Builder qualified as Text (Builder)
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -92,7 +94,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, Semver (..), classifyProjectBranchName)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -776,9 +778,29 @@ findTemporaryBranchName info = do
     preferred =
       unsafeFrom @Text $
         "merge-"
-          <> into @Text info.projectBranches.bob.name
+          <> mangle info.projectBranches.bob.name
           <> "-into-"
-          <> into @Text info.projectBranches.alice.name
+          <> mangle info.projectBranches.alice.name
+
+    mangle :: ProjectBranchName -> Text
+    mangle =
+      Text.Builder.run . mangleB
+
+    mangleB :: ProjectBranchName -> Text.Builder
+    mangleB name =
+      case classifyProjectBranchName name of
+        ProjectBranchNameKind'Contributor user name1 -> Text.Builder.text user <> Text.Builder.char '-' <> mangleB name1
+        ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
+        ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
+        ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+
+    mangleSemver :: Semver -> Text.Builder
+    mangleSemver (Semver x y z) =
+      Text.Builder.decimal x
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal y
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal z
 
 -- Load namespace info into memory.
 --
