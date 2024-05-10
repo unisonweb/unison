@@ -85,3 +85,4 @@ The format for this list: name, GitHub handle
 * Greg Pfeil (@sellout)
 * Upendra Upadhyay (@upendra1997)
 * Dan Doel (@dolio)
+* Eric Torreborre (@etorreborre)
