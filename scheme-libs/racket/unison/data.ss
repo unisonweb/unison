@@ -80,6 +80,9 @@
   builtin-timespec:typelink
   builtin-threadid:typelink
   builtin-value:typelink
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
 
   builtin-crypto.hashalgorithm:typelink
   builtin-char.class:typelink
@@ -440,6 +443,9 @@
 (define builtin-timespec:typelink (unison-typelink-builtin "TimeSpec"))
 (define builtin-threadid:typelink (unison-typelink-builtin "ThreadId"))
 (define builtin-value:typelink (unison-typelink-builtin "Value"))
+(define builtin-udpsocket:typelink (unison-typelink-builtin "UDPSocket"))
+(define builtin-listensocket:typelink (unison-typelink-builtin "ListenSocket"))
+(define builtin-clientsockaddr:typelink (unison-typelink-builtin "ClientSockAddr"))
 
 (define builtin-crypto.hashalgorithm:typelink
   (unison-typelink-builtin "crypto.HashAlgorithm"))

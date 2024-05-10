@@ -186,6 +186,29 @@
     builtin-TypeLink.toReference
     builtin-TypeLink.toReference:termlink
 
+    builtin-IO.UDP.clientSocket.impl.v1
+    builtin-IO.UDP.clientSocket.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.recv.impl.v1
+    builtin-IO.UDP.UDPSocket.recv.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.send.impl.v1
+    builtin-IO.UDP.UDPSocket.send.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.close.impl.v1
+    builtin-IO.UDP.UDPSocket.close.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.close.impl.v1
+    builtin-IO.UDP.ListenSocket.close.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.toText.impl.v1
+    builtin-IO.UDP.UDPSocket.toText.impl.v1:termlink
+    builtin-IO.UDP.serverSocket.impl.v1
+    builtin-IO.UDP.serverSocket.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.toText.impl.v1
+    builtin-IO.UDP.ListenSocket.toText.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.recvFrom.impl.v1
+    builtin-IO.UDP.ListenSocket.recvFrom.impl.v1:termlink
+    builtin-IO.UDP.ClientSockAddr.toText.v1
+    builtin-IO.UDP.ClientSockAddr.toText.v1:termlink
+    builtin-IO.UDP.ListenSocket.sendTo.impl.v1
+    builtin-IO.UDP.ListenSocket.sendTo.impl.v1:termlink
+
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
@@ -645,6 +668,7 @@
           (unison murmurhash)
           (unison tls)
           (unison tcp)
+          (unison udp)
           (unison gzip)
           (unison zlib)
           (unison concurrent)

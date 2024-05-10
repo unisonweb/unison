@@ -60,6 +60,7 @@ dependencies:
   - http-media
   - http-types
   - IntervalMap
+  - iproute
   - lens
   - lucid
   - megaparsec
@@ -73,6 +74,7 @@ dependencies:
   - natural-transformation
   - network
   - network-simple
+  - network-udp
   - network-uri
   - nonempty-containers
   - open-browser

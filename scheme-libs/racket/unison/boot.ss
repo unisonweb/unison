@@ -47,6 +47,10 @@
   builtin-tls.signedcert:typelink
   builtin-tls.version:typelink
 
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
+
   bytevector
   bytes
   control
