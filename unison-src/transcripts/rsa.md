@@ -15,7 +15,9 @@ secret = 0xs30820276020100300d06092a864886f70d0101010500048202603082025c02010002
 
 -- | Generated with:
 --     openssl rsa -in private_key.pem -outform DER -pubout | xxd -p
-public = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010001
+publicKey = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010001
+
+incorrectPublicKey = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010002
 
 message = up ++ down ++ up ++ down ++ down ++ up ++ down ++ up
 
@@ -23,8 +25,13 @@ signature = crypto.Rsa.sign.impl secret message
 
 sigOkay = match signature with
   Left err -> Left err
-  Right sg -> crypto.Rsa.verify.impl public message sg
+  Right sg -> crypto.Rsa.verify.impl publicKey message sg
+
+sigKo = match signature with
+  Left err -> Left err
+  Right sg -> crypto.Rsa.verify.impl incorrectPublicKey message sg
 
 > signature
 > sigOkay
+> sigKo
 ```

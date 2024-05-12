@@ -10,7 +10,9 @@ secret = 0xs30820276020100300d06092a864886f70d0101010500048202603082025c02010002
 
 -- | Generated with:
 --     openssl rsa -in private_key.pem -outform DER -pubout | xxd -p
-public = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010001
+publicKey = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010001
+
+incorrectPublicKey = 0xs30819f300d06092a864886f70d010101050003818d0030818902818100a7104b2f20725896076e629ccedbcd6907b16694c6e3d8768b5e0e685670b49616e796c588e5aafb92ef986c1a42c021fed0bdc99212c969cdab98087a0ee4c2f4acd4b6049a87a96afc45668329a3cf21a86fb13b488bbe9fefa1cd5a459014f0d0101378e9661e11b73acf54c8a91141ac90309e7fb6ed69b4e63230ab29150203010002
 
 message = up ++ down ++ up ++ down ++ down ++ up ++ down ++ up
 
@@ -18,10 +20,15 @@ signature = crypto.Rsa.sign.impl secret message
 
 sigOkay = match signature with
   Left err -> Left err
-  Right sg -> crypto.Rsa.verify.impl public message sg
+  Right sg -> crypto.Rsa.verify.impl publicKey message sg
+
+sigKo = match signature with
+  Left err -> Left err
+  Right sg -> crypto.Rsa.verify.impl incorrectPublicKey message sg
 
 > signature
 > sigOkay
+> sigKo
 ```
 
 ```ucm
@@ -34,24 +41,30 @@ sigOkay = match signature with
   
     ⍟ These new definitions are ok to `add`:
     
-      down      : Bytes
-      message   : Bytes
-      public    : Bytes
-      secret    : Bytes
-      sigOkay   : Either Failure Boolean
-      signature : Either Failure Bytes
-      up        : Bytes
+      down               : Bytes
+      incorrectPublicKey : Bytes
+      message            : Bytes
+      publicKey          : Bytes
+      secret             : Bytes
+      sigKo              : Either Failure Boolean
+      sigOkay            : Either Failure Boolean
+      signature          : Either Failure Bytes
+      up                 : Bytes
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    21 | > signature
+    27 | > signature
            ⧩
            Right
              0xs84b02b6bb0e1196b65378cb12b727f7b4b38e5979f0632e8a51cfab088827f6d3da4221788029f75a0a5f4d740372cfa590462888a1189bbd9de9b084f26116640e611af5a1a17229beec7fb2570887181bbdced8f0ebfec6cad6bdd318a616ba4f01c90e1436efe44b18417d18ce712a0763be834f8c76e0c39b2119b061373
   
-    22 | > sigOkay
+    28 | > sigOkay
            ⧩
            Right true
+  
+    29 | > sigKo
+           ⧩
+           Right false
 
 ```
