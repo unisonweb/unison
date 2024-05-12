@@ -22,7 +22,7 @@ getHash() {
             if [[ -z "$name" ]]; then
                 name="${parts[i]}"
             else
-                name="$name/${parts[i]}"
+                name="$name%2F${parts[i]}"
             fi
         done
     fi
