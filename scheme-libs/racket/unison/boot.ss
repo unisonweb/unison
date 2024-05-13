@@ -47,6 +47,10 @@
   builtin-tls.signedcert:typelink
   builtin-tls.version:typelink
 
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
+
   bytevector
   bytes
   control
@@ -607,5 +611,5 @@
 (define (exn:bug->exception b)
   (raise-unison-exception
     ref-runtimefailure:typelink
-    (exn:bug-msg b)
+    (string->chunked-string (exn:bug-msg b))
     (exn:bug-val b)))

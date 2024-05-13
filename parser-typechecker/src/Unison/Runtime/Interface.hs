@@ -55,6 +55,7 @@ import System.Directory
     createDirectoryIfMissing,
     getXdgDirectory,
   )
+import System.Environment (getArgs)
 import System.Exit (ExitCode (..))
 import System.FilePath ((<.>), (</>))
 import System.Process
@@ -869,6 +870,8 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
   ensureRuntimeExists executable
   let cc = ccache ctx
   crs <- readTVarIO $ combRefs cc
+  -- Seems a bit weird, but apparently this is how we do it
+  args <- getArgs
   let bytes = serializeValue . compileValue base $ codes
 
       decodeResult (Error msg) = pure . Left $ text msg
@@ -884,8 +887,14 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
             (errs, dv) -> pure $ Right (listErrors errs, dv)
 
       comm mv (sock, _) = do
-        send sock . runPutS . putWord32be . fromIntegral $ BS.length bytes
+        let encodeNum = runPutS . putWord32be . fromIntegral
+        send sock . encodeNum $ BS.length bytes
         send sock bytes
+        send sock . encodeNum $ length args
+        for_ args $ \arg -> do
+          let bs = encodeUtf8 $ pack arg
+          send sock . encodeNum $ BS.length bs
+          send sock bs
         UnliftIO.putMVar mv =<< receiveAll sock
 
       callout _ _ _ ph = do

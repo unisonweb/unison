@@ -6,6 +6,7 @@
          unison/data
          unison/data-info
          unison/chunked-seq
+         unison/network-utils
          unison/core)
 
 (provide
@@ -24,29 +25,6 @@
    socketSend.impl.v3)))
 
 (struct socket-pair (input output))
-
-(define (handle-errors fn)
-  (with-handlers
-      [[exn:fail:network?
-         (lambda (e)
-           (exception
-             ref-iofailure:typelink
-             (exception->string e)
-             ref-unit-unit))]
-       [exn:fail:contract?
-         (lambda (e)
-           (exception
-             ref-miscfailure:typelink
-             (exception->string e)
-             ref-unit-unit))]
-       [(lambda _ #t)
-        (lambda (e)
-          (exception
-            ref-miscfailure:typelink
-            (chunked-string->string
-              (format "Unknown exception ~a" (exn->string e)))
-            ref-unit-unit))]]
-    (fn)))
 
 (define (closeSocket.impl.v3 socket)
   (handle-errors

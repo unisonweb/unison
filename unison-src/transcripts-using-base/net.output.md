@@ -1,9 +1,9 @@
 ```unison
-serverSocket = compose2 reraise serverSocket.impl
+serverSocket = compose2 reraise IO.serverSocket.impl
 socketPort = compose reraise socketPort.impl
 listen = compose reraise listen.impl
 closeSocket = compose reraise closeSocket.impl
-clientSocket = compose2 reraise clientSocket.impl
+clientSocket = compose2 reraise IO.clientSocket.impl
 socketSend = compose2 reraise socketSend.impl
 socketReceive = compose2 reraise socketReceive.impl
 socketAccept = compose reraise socketAccept.impl
@@ -34,11 +34,11 @@ stored in `/etc/services` and queried with the `getent` tool:
     # map number to name
     $ getent services 22
     ssh                   22/tcp
-    
+
     # map name to number
     $ getent services finger
     finger                79/tcp
-    
+
     # get a list of all known names
     $ getent services | head
     tcpmux                1/tcp
@@ -56,35 +56,35 @@ Below shows different examples of how we might specify the server coordinates.
 
 ```unison
 testExplicitHost : '{io2.IO} [Result]
-testExplicitHost _ = 
+testExplicitHost _ =
   test = 'let
     sock = serverSocket (Some "127.0.0.1") "1028"
     emit (Ok "successfully created socket")
     port = socketPort sock
     putBytes (stdHandle StdOut) (toUtf8 (toText port))
-    expectU "should have bound to port 1028" 1028 port 
+    expectU "should have bound to port 1028" 1028 port
 
   runTest test
 
 testDefaultHost : '{io2.IO} [Result]
-testDefaultHost _ = 
+testDefaultHost _ =
   test = 'let
     sock = serverSocket None "1028"
     emit (Ok "successfully created socket")
     port = socketPort sock
     putBytes (stdHandle StdOut) (toUtf8 (toText port))
-    expectU "should have bound to port 1028" 1028 port 
+    expectU "should have bound to port 1028" 1028 port
 
   runTest test
 
 testDefaultPort : '{io2.IO} [Result]
-testDefaultPort _ = 
+testDefaultPort _ =
   test = 'let
     sock = serverSocket None "0"
     emit (Ok "successfully created socket")
     port = socketPort sock
     putBytes (stdHandle StdOut) (toUtf8 (toText port))
-    
+
     check "port should be > 1024" (1024 < port)
     check "port should be < 65536" (65536 > port)
 
@@ -143,7 +143,7 @@ serverThread portVar toSend = 'let
     socketSend sock' (toUtf8 toSend)
     closeSocket sock'
 
-  match (toEither go) with 
+  match (toEither go) with
     Left (Failure _ t _) -> watch t ()
     _ -> ()
 
@@ -160,22 +160,22 @@ clientThread portVar resultVar = 'let
     _ -> ()
 
 testTcpConnect : '{io2.IO}[Result]
-testTcpConnect = 'let 
+testTcpConnect = 'let
   test = 'let
     portVar = !MVar.newEmpty
     resultVar = !MVar.newEmpty
-    
+
     toSend = "12345"
 
     void (forkComp (serverThread portVar toSend))
     void (forkComp (clientThread portVar resultVar))
-    
+
     received = take resultVar
 
     expectU "should have reaped what we've sown" toSend received
-    
+
   runTest test
-    
+
 ```
 
 ```ucm
