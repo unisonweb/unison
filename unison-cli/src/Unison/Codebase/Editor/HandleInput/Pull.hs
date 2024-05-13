@@ -16,9 +16,11 @@ import Data.List.NonEmpty qualified as Nel
 import Data.Text qualified as Text
 import Data.These
 import System.Console.Regions qualified as Console.Regions
-import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified
+import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
@@ -64,8 +66,6 @@ import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sync.Common qualified as Common
 import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
-import qualified U.Codebase.Sqlite.Operations as Operations
-import qualified U.Codebase.Branch as V2.Branch
 
 doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
 doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
@@ -77,12 +77,15 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
 
   (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
 
+  target1 <-
+    case target of
+      Left _ -> wundefined
+      Right target1 -> pure target1
+
   remoteCausalHash <- importRemoteNamespaceIntoCodebase syncMode pullMode source
 
-  remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
-
   remoteBranchIsEmpty <-
-   Cli.runTransaction do
+    Cli.runTransaction do
       causal <- Operations.expectCausalBranchByCausalHash remoteCausalHash
       branch <- causal.value
       V2.Branch.isEmpty branch
@@ -113,10 +116,14 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
 
       if Branch.isEmpty0 targetBranchObject
         then do
+          remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
         else do
+          remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
+
           Cli.respond AboutToMerge
+
           mergeBranchAndPropagateDefaultPatch
             Branch.RegularMerge
             description
@@ -125,6 +132,8 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
             (if Verbosity.isSilent verbosity then Nothing else Just target)
             targetAbsolutePath
     Input.PullWithoutHistory -> do
+      remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
+
       didUpdate <-
         Cli.updateAtM
           description

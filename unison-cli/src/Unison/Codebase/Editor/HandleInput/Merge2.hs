@@ -12,9 +12,12 @@ import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Semialign (align, unzip)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -22,7 +25,7 @@ import Text.ANSI qualified as Text
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
-import U.Codebase.HashTags (unCausalHash)
+import U.Codebase.HashTags (CausalHash, unCausalHash)
 import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -323,6 +326,226 @@ handleMerge bobBranchName = do
           info.paths.alice
           (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
       Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
+
+data MergeResult
+  = -- We didn't do anything because alice >= bob
+    MergeResult'AlreadyMerged
+  | -- We didn't do anything because alice < bob. The caller should set alice = bob
+    MergeResult'ShouldFastForward
+  | MergeResult'ConflictedName !CausalHash !ConflictedName
+  | MergeResult'DefnsInLib !CausalHash
+  | MergeResult'IncoherentDecl !CausalHash !IncoherentDeclReason
+  | MergeResult'ConflictedAliases !CausalHash !Name !Name
+  | MergeResult'ConflictInvolvingBuiltin !Name
+
+doBigMerge :: DebugFunctions -> TwoOrThreeWay CausalHash -> Cli MergeResult
+doBigMerge debugFunctions causalHashes = do
+  Cli.label \done -> do
+    -- If alice == bob, or LCA == bob (so alice is ahead of bob), then we are done.
+    when (causalHashes.alice == causalHashes.bob || causalHashes.lca == Just causalHashes.bob) do
+      done MergeResult'AlreadyMerged
+
+    -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
+    when (causalHashes.lca == Just causalHashes.alice) do
+      done MergeResult'ShouldFastForward
+
+    Cli.Env {codebase} <- ask
+
+    -- Create a bunch of cached database lookup functions
+    db <- makeMergeDatabase codebase
+
+    -- Load Alice/Bob/LCA causals
+    causals <- Cli.runTransaction (traverse Operations.expectCausalBranchByCausalHash causalHashes)
+
+    liftIO (debugFunctions.debugCausals causals)
+
+    -- Load Alice/Bob/LCA branches
+    branches <-
+      Cli.runTransaction do
+        alice <- causals.alice.value
+        bob <- causals.bob.value
+        lca <- for causals.lca \causal -> causal.value
+        pure TwoOrThreeWay {lca, alice, bob}
+
+    -- Assert that neither Alice nor Bob have defns in lib
+    for_ [(causalHashes.alice, branches.alice), (causalHashes.bob, branches.bob)] \(causalHash, branch) -> do
+      libdeps <-
+        case Map.lookup NameSegment.libSegment branch.children of
+          Nothing -> pure V2.Branch.empty
+          Just libdeps -> Cli.runTransaction libdeps.value
+      when (not (Map.null libdeps.terms) || not (Map.null libdeps.types)) do
+        done (MergeResult'DefnsInLib causalHash)
+
+    -- Load Alice/Bob/LCA definitions and decl name lookups
+    (defns3, declNameLookups3) <- do
+      let load = \case
+            Nothing ->
+              pure
+                ( Nametree {value = Defns Map.empty Map.empty, children = Map.empty},
+                  DeclNameLookup Map.empty Map.empty
+                )
+            Just (causalHash, branch) -> do
+              defns <-
+                Cli.runTransaction (loadNamespaceInfo_2 (referent2to1 db) branch) & onLeftM \err ->
+                  done (MergeResult'ConflictedName causalHash err)
+              declNameLookup <-
+                Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
+                  done (MergeResult'IncoherentDecl causalHash err)
+              pure (defns, declNameLookup)
+
+      (aliceDefns0, aliceDeclNameLookup) <- load (Just (causalHashes.alice, branches.alice))
+      (bobDefns0, bobDeclNameLookup) <- load (Just (causalHashes.bob, branches.bob))
+      (lcaDefns0, lcaDeclNameLookup) <- load ((,) <$> causalHashes.lca <*> branches.lca)
+
+      let flatten defns = Defns (flattenNametree (view #terms) defns) (flattenNametree (view #types) defns)
+      let defns3 = flatten <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
+      let declNameLookups3 = ThreeWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup, lca = lcaDeclNameLookup}
+
+      pure (defns3, declNameLookups3)
+
+    let defns = ThreeWay.forgetLca defns3
+    let declNameLookups = ThreeWay.forgetLca declNameLookups3
+
+    liftIO (debugFunctions.debugDefns defns3 declNameLookups3)
+
+    -- Diff LCA->Alice and LCA->Bob
+    diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups3 defns3)
+
+    liftIO (debugFunctions.debugDiffs diffs)
+
+    -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
+    do
+      let go causalHash diff =
+            whenJust (findConflictedAlias defns3.lca diff) \(name1, name2) ->
+              done (MergeResult'ConflictedAliases causalHash name1 name2)
+      go causalHashes.alice diffs.alice
+      go causalHashes.bob diffs.bob
+
+    -- Combine the LCA->Alice and LCA->Bob diffs together
+    let diff = combineDiffs diffs
+
+    liftIO (debugFunctions.debugCombinedDiff diff)
+
+    -- Partition the combined diff into the conflicted things and the unconflicted things
+    (conflicts, unconflicts) <-
+      partitionCombinedDiffs defns declNameLookups diff & onLeft \name ->
+        done (MergeResult'ConflictInvolvingBuiltin name)
+
+    liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
+
+    -- -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
+    -- -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+    -- dependents <- Cli.runTransaction (identifyDependents defns conflicts unconflicts)
+
+    -- liftIO (debugFunctions.debugDependents dependents)
+
+    -- let stageOne :: DefnsF (Map Name) Referent TypeReference
+    --     stageOne =
+    --       makeStageOne
+    --         declNameLookups
+    --         conflicts
+    --         unconflicts
+    --         dependents
+    --         (bimap BiMultimap.range BiMultimap.range defns3.lca)
+
+    -- liftIO (debugFunctions.debugStageOne stageOne)
+
+    -- -- Load and merge Alice's and Bob's libdeps
+    -- mergedLibdeps <-
+    --   Cli.runTransaction do
+    --     libdeps <- loadLibdeps branches
+    --     libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
+
+    -- -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
+    -- let mkPpes :: TwoWay Names -> Names -> TwoWay PrettyPrintEnvDecl
+    --     mkPpes defnsNames libdepsNames =
+    --       defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
+    --       where
+    --         suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
+    -- let ppes = mkPpes (defnsToNames <$> defns) (Branch.toNames mergedLibdeps)
+
+    -- hydratedThings <- do
+    --   Cli.runTransaction do
+    --     for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
+    --       let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent codebase) Operations.expectDeclComponent
+    --       in (,) <$> hydrate conflicts1 <*> hydrate dependents1
+
+    -- let (renderedConflicts, renderedDependents) =
+    --       let honk declNameLookup ppe defns =
+    --             let (types, accessorNames) =
+    --                   Writer.runWriter $
+    --                     defns.types & Map.traverseWithKey \name (ref, typ) ->
+    --                       renderTypeBinding
+    --                         -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
+    --                         -- we just delete all term names out and add back the constructors...
+    --                         -- probably no need to wipe out the suffixified side but we do it anyway
+    --                         (setPpedToConstructorNames declNameLookup name ref ppe)
+    --                         name
+    --                         ref
+    --                         typ
+    --                 terms =
+    --                   defns.terms & Map.mapMaybeWithKey \name (term, typ) ->
+    --                     if Set.member name accessorNames
+    --                       then Nothing
+    --                       else Just (renderTermBinding ppe.suffixifiedPPE name term typ)
+    --             in Defns {terms, types}
+    --       in unzip $
+    --             ( \declNameLookup (conflicts, dependents) ppe ->
+    --                 let honk1 = honk declNameLookup ppe
+    --                 in (honk1 conflicts, honk1 dependents)
+    --             )
+    --               <$> declNameLookups
+    --               <*> hydratedThings
+    --               <*> ppes
+
+    -- let prettyUnisonFile = makePrettyUnisonFile (into @Text <$> projectAndBranchNames) renderedConflicts renderedDependents
+
+    -- let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
+
+    -- maybeTypecheckedUnisonFile <-
+    --   let thisMergeHasConflicts =
+    --         -- Eh, they'd either both be null, or neither, but just check both maps anyway
+    --         not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
+    --   in if thisMergeHasConflicts
+    --         then pure Nothing
+    --         else do
+    --           currentPath <- Cli.getCurrentPath
+    --           parsingEnv <- makeParsingEnv currentPath (Branch.toNames stageOneBranch)
+    --           prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
+
+    -- case maybeTypecheckedUnisonFile of
+    --   Nothing -> do
+    --     Cli.Env {writeSource} <- ask
+    --     aliceBranch <- Cli.getBranchAt info.paths.alice
+    --     bobBranch <- Cli.getBranchAt info.paths.bob
+    --     _temporaryBranchId <-
+    --       HandleInput.Branch.doCreateBranch'
+    --         (Branch.mergeNode stageOneBranch aliceBranch bobBranch)
+    --         Nothing
+    --         info.project
+    --         (findTemporaryBranchName info)
+    --         (textualDescriptionOfMerge info)
+    --     scratchFilePath <-
+    --       Cli.getLatestFile <&> \case
+    --         Nothing -> "scratch.u"
+    --         Just (file, _) -> file
+    --     liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+    --     Cli.respond $
+    --       Output.MergeFailure
+    --         scratchFilePath
+    --         projectAndBranchNames.alice
+    --         projectAndBranchNames.bob
+    --   Just tuf -> do
+    --     Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
+    --     bobBranch <- Cli.getBranchAt info.paths.bob
+    --     let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
+    --     _ <-
+    --       Cli.updateAt
+    --         (textualDescriptionOfMerge info)
+    --         info.paths.alice
+    --         (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
+    --     Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
+    undefined
 
 mergeInfoToProjectAndBranchNames :: MergeInfo -> TwoWay (ProjectAndBranch ProjectName ProjectBranchName)
 mergeInfoToProjectAndBranchNames info =
@@ -793,6 +1016,18 @@ loadNamespaceInfo abort db branch = do
   defns <- loadNamespaceInfo0 (referent2to1 db) branch
   assertNamespaceHasNoConflictedNames defns & onLeft abort
 
+-- Load namespace info into memory.
+--
+-- Fails if:
+--   * One name is associated with more than one reference.
+loadNamespaceInfo_2 ::
+  Monad m =>
+  (V2.Referent -> m Referent) ->
+  V2.Branch m ->
+  m (Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
+loadNamespaceInfo_2 referent2to1 branch =
+  assertNamespaceHasNoConflictedNames_2 <$> loadNamespaceInfo0_2 referent2to1 branch
+
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
 loadNamespaceInfo0 ::
@@ -811,6 +1046,30 @@ loadNamespaceInfo0 referent2to1 branch = do
       childBranch <- childCausal.value
       loadNamespaceInfo0_ referent2to1 childBranch
   pure Nametree {value = Defns {terms, types}, children}
+
+-- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
+-- in the "lib" namespace.
+loadNamespaceInfo0_2 ::
+  forall m.
+  Monad m =>
+  (V2.Referent -> m Referent) ->
+  V2.Branch m ->
+  m (Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference))
+loadNamespaceInfo0_2 referent2to1 =
+  go (Map.delete NameSegment.libSegment)
+  where
+    go ::
+      (forall x. Map NameSegment x -> Map NameSegment x) ->
+      V2.Branch m ->
+      m (Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference))
+    go f branch = do
+      terms <- for branch.terms (fmap (Set.NonEmpty.fromList . List.NonEmpty.fromList) . traverse referent2to1 . Map.keys)
+      let types = Map.map (Set.NonEmpty.unsafeFromSet . Map.keysSet) branch.types
+      children <-
+        for (f branch.children) \childCausal -> do
+          child <- childCausal.value
+          go id child
+      pure Nametree {value = Defns {terms, types}, children}
 
 loadNamespaceInfo0_ ::
   (Monad m) =>
@@ -849,6 +1108,29 @@ assertNamespaceHasNoConflictedNames =
         Nothing -> Left (conflicted refs)
         Just ref -> Right ref
 
+data ConflictedName
+  = ConflictedName'Term !Name !(NESet Referent)
+  | ConflictedName'Type !Name !(NESet TypeReference)
+
+-- | Assert that there are no unconflicted names in a namespace.
+assertNamespaceHasNoConflictedNames_2 ::
+  Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference) ->
+  Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+assertNamespaceHasNoConflictedNames_2 =
+  traverseNametreeWithName \names defns -> do
+    terms <-
+      defns.terms & Map.traverseWithKey \name ->
+        assertUnconflicted (ConflictedName'Term (Name.fromReverseSegments (name :| names)))
+    types <-
+      defns.types & Map.traverseWithKey \name ->
+        assertUnconflicted (ConflictedName'Type (Name.fromReverseSegments (name :| names)))
+    pure Defns {terms, types}
+  where
+    assertUnconflicted :: (NESet ref -> ConflictedName) -> NESet ref -> Either ConflictedName ref
+    assertUnconflicted conflicted refs
+      | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
+      | otherwise = Left (conflicted refs)
+
 -- Convert a merge precondition violation to an output message.
 mergePreconditionViolationToOutput :: Merge.PreconditionViolation -> Output.Output
 mergePreconditionViolationToOutput = \case
@@ -880,6 +1162,38 @@ assertNamespaceSatisfiesPreconditions db abort maybeBranchName branch defns = do
     when (not (Map.null libdepsBranch.terms) || not (Map.null libdepsBranch.types)) do
       abort Merge.DefnsInLib
 
+  declNameLookup <-
+    checkDeclCoherency db.loadDeclNumConstructors defns
+      & onLeftM (abort . incoherentDeclReasonToMergePreconditionViolation)
+
+  pure
+    ( Defns
+        { terms = flattenNametree (view #terms) defns,
+          types = flattenNametree (view #types) defns
+        },
+      declNameLookup
+    )
+  where
+    incoherentDeclReasonToMergePreconditionViolation :: IncoherentDeclReason -> Merge.PreconditionViolation
+    incoherentDeclReasonToMergePreconditionViolation = \case
+      IncoherentDeclReason'ConstructorAlias firstName secondName ->
+        Merge.ConstructorAlias maybeBranchName firstName secondName
+      IncoherentDeclReason'MissingConstructorName name -> Merge.MissingConstructorName name
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName -> Merge.NestedDeclAlias shorterName longerName
+      IncoherentDeclReason'StrayConstructor name -> Merge.StrayConstructor name
+
+-- Assert that a namespace satisfies a few preconditions.
+--
+-- Fails if:
+--   * The "lib" namespace contains any top-level terms or decls. (Only child namespaces are expected here).
+--   * Any type declarations are "incoherent" (see `checkDeclCoherency`)
+assertNamespaceSatisfiesPreconditions_2 ::
+  MergeDatabase ->
+  (forall void. Merge.PreconditionViolation -> Transaction void) ->
+  Maybe ProjectBranchName ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
+  Transaction (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name), DeclNameLookup)
+assertNamespaceSatisfiesPreconditions_2 db abort maybeBranchName defns = do
   declNameLookup <-
     checkDeclCoherency db.loadDeclNumConstructors defns
       & onLeftM (abort . incoherentDeclReasonToMergePreconditionViolation)
@@ -934,8 +1248,9 @@ findOneConflictedAlias projectBranchNames lcaDefns diffs =
 --
 -- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
 findConflictedAlias ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference ->
+  (Ord term, Ord typ) =>
+  Defns (BiMultimap term Name) (BiMultimap typ Name) ->
+  DefnsF3 (Map Name) DiffOp Synhashed term typ ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
