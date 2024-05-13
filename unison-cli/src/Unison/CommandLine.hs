@@ -46,6 +46,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
+import Unison.Codebase.Editor.Output (NumberedArgs)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
@@ -123,7 +124,7 @@ parseInput ::
   -- | Current path from root
   Path.Absolute ->
   -- | Numbered arguments
-  [String] ->
+  NumberedArgs ->
   -- | Input Pattern Map
   Map String InputPattern ->
   -- | command:arguments
@@ -168,7 +169,7 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
           ]
 
 -- Expand a numeric argument like `1` or a range like `3-9`
-expandNumber :: [String] -> String -> [String]
+expandNumber :: NumberedArgs -> String -> [String]
 expandNumber numberedArgs s = case expandedNumber of
   Nothing -> [s]
   Just nums ->

@@ -33,7 +33,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
-import Unison.Codebase.Editor.Output (Output)
+import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
@@ -61,7 +61,7 @@ getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
   Path.Absolute ->
-  [String] ->
+  NumberedArgs ->
   IO Input
 getUserInput codebase authHTTPClient currentPath numberedArgs =
   Line.runInputT
