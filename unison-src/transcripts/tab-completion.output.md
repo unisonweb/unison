@@ -237,6 +237,6 @@ myproject/main> add
 
 myproject/main> debug.tab-complete merge mybr
 
-  
+   /mybranch
 
 ```
