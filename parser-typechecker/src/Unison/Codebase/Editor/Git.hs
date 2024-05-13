@@ -144,7 +144,7 @@ withRepo repo@(ReadGitRepo {url = uri, ref = mayGitRef}) branchBehavior action =
   throwExceptT $ checkForGit
   gitCachePath <- gitCacheDir uri
   -- Ensure we have the main branch in the cache dir no matter what
-  throwExceptT $ cloneIfMissing repo {ref = Nothing} gitCachePath
+  _ :: GitRepo <- throwExceptT $ cloneIfMissing repo {ref = Nothing} gitCachePath
   let gitCacheRepo = Bare gitCachePath
   gitRef <- case mayGitRef of
     Nothing -> fromMaybe "main" <$> getDefaultBranch gitCacheRepo

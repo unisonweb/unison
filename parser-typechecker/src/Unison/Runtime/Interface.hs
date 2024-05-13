@@ -920,7 +920,7 @@ nativeCompileCodes executable codes base path = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
         BS.hPut pin bytes
         UnliftIO.hClose pin
-        waitForProcess ph
+        _ <- waitForProcess ph
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
       ucrError (e :: IOException) =
