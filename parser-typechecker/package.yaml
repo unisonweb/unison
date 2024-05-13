@@ -23,6 +23,8 @@ dependencies:
   - NanoID
   - aeson
   - ansi-terminal
+  - asn1-encoding
+  - asn1-types
   - async
   - atomic-primops
   - base
@@ -60,6 +62,7 @@ dependencies:
   - http-media
   - http-types
   - IntervalMap
+  - iproute
   - lens
   - lucid
   - megaparsec
@@ -73,6 +76,7 @@ dependencies:
   - natural-transformation
   - network
   - network-simple
+  - network-udp
   - network-uri
   - nonempty-containers
   - open-browser
@@ -158,6 +162,7 @@ tests:
       - easytest
       - filemanip
       - split
+      - hex-text
       - unison-parser-typechecker
     when:
       - condition: false

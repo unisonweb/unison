@@ -30,17 +30,31 @@
   unison/data-info
   unison/chunked-seq
   unison/primops
+  unison/builtin
   unison/primops-generated
   unison/builtin-generated)
+
+(define (grab-num port)
+  (integer-bytes->integer (read-bytes 4 port) #f #t 0 4))
 
 ; Gets bytes using the expected input format. The format is simple:
 ;
 ;  - 4 bytes indicating how many bytes follow
 ;  - the actual payload, with size matching the above
 (define (grab-bytes port)
-  (let* ([size-bytes (read-bytes 4 port)]
-         [size (integer-bytes->integer size-bytes #f #t 0 4)])
+  (let ([size (grab-num port)])
     (read-bytes size port)))
+
+; Gets args sent after the code payload. Format is:
+;
+; - 4 bytes indicating how many arguments
+; - for each argument
+;   - 4 bytes indicating length of argument
+;   - utf-8 bytes of that length
+(define (grab-args port)
+  (let ([n (grab-num port)])
+    (for/list ([i (range n)])
+      (bytes->string/utf-8 (grab-bytes port)))))
 
 ; Reads and decodes the input. First uses `grab-bytes` to read the
 ; payload, then uses unison functions to deserialize the `Value` that
@@ -113,13 +127,15 @@
 ; input. Then uses the dynamic loading machinery to add the code to
 ; the runtime. Finally executes a specified main reference.
 (define (do-evaluate in out)
-  (let-values ([(code main-ref) (decode-input in)])
+  (let-values ([(code main-ref) (decode-input in)]
+               [(args) (list->vector (grab-args in))])
     (add-runtime-code 'unison-main code)
     (with-handlers
       ([exn:bug? (lambda (e) (encode-error e out))])
 
-      (handle [ref-exception:typelink] (eval-exn-handler out)
-              ((termlink->proc main-ref))))))
+      (parameterize ([current-command-line-arguments args])
+        (handle [ref-exception:typelink] (eval-exn-handler out)
+                ((termlink->proc main-ref)))))))
 
 ; Uses racket pretty printing machinery to instead generate a file
 ; containing the given code, and which executes the main definition on

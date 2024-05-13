@@ -13,7 +13,9 @@ import Data.IORef
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Ki qualified
+import System.Console.Haskeline (Settings (autoAddHistory))
 import System.Console.Haskeline qualified as Line
+import System.Console.Haskeline.History qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import U.Codebase.HashTags (CausalHash)
@@ -102,17 +104,27 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
           ws -> do
             liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
+                -- We still add history that failed to parse so the user can easily reload
+                -- the input and fix it.
+                Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ l
                 liftIO $ putPrettyLn msg
                 go
               Right Nothing -> do
                 -- Ctrl-c or some input cancel, re-run the prompt
                 go
               Right (Just (expandedArgs, i)) -> do
+                let expandedArgsStr = unwords expandedArgs
                 when (expandedArgs /= ws) $ do
-                  liftIO . putStrLn $ fullPrompt <> unwords expandedArgs
+                  liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ unwords expandedArgs
                 pure i
     settings :: Line.Settings IO
-    settings = Line.Settings tabComplete (Just ".unisonHistory") True
+    settings =
+      Line.Settings
+        { complete = tabComplete,
+          historyFile = Just ".unisonHistory",
+          autoAddHistory = False
+        }
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
 
 main ::

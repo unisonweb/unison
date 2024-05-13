@@ -142,6 +142,7 @@ library
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
+      Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
@@ -232,6 +233,8 @@ library
     , NanoID
     , aeson
     , ansi-terminal
+    , asn1-encoding
+    , asn1-types
     , async
     , atomic-primops
     , base
@@ -268,6 +271,7 @@ library
     , http-client
     , http-media
     , http-types
+    , iproute
     , lens
     , lucid
     , megaparsec
@@ -281,6 +285,7 @@ library
     , natural-transformation
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -370,6 +375,7 @@ test-suite parser-typechecker-tests
       Unison.Test.DataDeclaration
       Unison.Test.MCode
       Unison.Test.Referent
+      Unison.Test.Runtime.Crypto.Rsa
       Unison.Test.Syntax.FileParser
       Unison.Test.Syntax.TermParser
       Unison.Test.Syntax.TypePrinter
@@ -424,6 +430,8 @@ test-suite parser-typechecker-tests
     , NanoID
     , aeson
     , ansi-terminal
+    , asn1-encoding
+    , asn1-types
     , async
     , atomic-primops
     , base
@@ -460,9 +468,11 @@ test-suite parser-typechecker-tests
     , hashable
     , hashtables
     , haskeline
+    , hex-text
     , http-client
     , http-media
     , http-types
+    , iproute
     , lens
     , lucid
     , megaparsec
@@ -476,6 +486,7 @@ test-suite parser-typechecker-tests
     , natural-transformation
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser

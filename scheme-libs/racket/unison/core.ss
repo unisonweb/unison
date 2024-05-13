@@ -37,7 +37,6 @@
   bytevector
   bytevector-append
 
-  directory-contents
   current-microseconds
 
   decode-value
@@ -226,10 +225,6 @@
 
 (define (current-microseconds)
   (fl->fx (* 1000 (current-inexact-milliseconds))))
-
-(define (directory-contents path-str)
-  (define (extract path) (string->chunked-string (path->string path)))
-  (map extract (directory-list (chunked-string->string path-str))))
 
 (define (list-head l n)
   (let rec ([c l] [m n])
@@ -476,19 +471,17 @@
           (next (fx1- i)))))))
 
 (define (write-exn:bug ex port mode)
-  (when mode
-    (write-string "<exn:bug " port))
+  (when mode (write-string "<exn:bug " port))
 
   (let ([recur (case mode
                  [(#t) write]
                  [(#f) display]
                  [else (lambda (v port) (print v port mode))])])
-    (recur (chunked-string->string (exn:bug-msg ex)) port)
+    (recur (exn:bug-msg ex) port)
     (if mode (write-string " " port) (newline port))
     (write-string (describe-value (exn:bug-val ex)) port))
 
-  (when mode
-    (write-string ">")))
+  (when mode (write-string ">" port)))
 
 (struct exn:bug (msg val)
   #:constructor-name make-exn:bug

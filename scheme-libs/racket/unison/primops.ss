@@ -186,6 +186,29 @@
     builtin-TypeLink.toReference
     builtin-TypeLink.toReference:termlink
 
+    builtin-IO.UDP.clientSocket.impl.v1
+    builtin-IO.UDP.clientSocket.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.recv.impl.v1
+    builtin-IO.UDP.UDPSocket.recv.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.send.impl.v1
+    builtin-IO.UDP.UDPSocket.send.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.close.impl.v1
+    builtin-IO.UDP.UDPSocket.close.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.close.impl.v1
+    builtin-IO.UDP.ListenSocket.close.impl.v1:termlink
+    builtin-IO.UDP.UDPSocket.toText.impl.v1
+    builtin-IO.UDP.UDPSocket.toText.impl.v1:termlink
+    builtin-IO.UDP.serverSocket.impl.v1
+    builtin-IO.UDP.serverSocket.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.toText.impl.v1
+    builtin-IO.UDP.ListenSocket.toText.impl.v1:termlink
+    builtin-IO.UDP.ListenSocket.recvFrom.impl.v1
+    builtin-IO.UDP.ListenSocket.recvFrom.impl.v1:termlink
+    builtin-IO.UDP.ClientSockAddr.toText.v1
+    builtin-IO.UDP.ClientSockAddr.toText.v1:termlink
+    builtin-IO.UDP.ListenSocket.sendTo.impl.v1
+    builtin-IO.UDP.ListenSocket.sendTo.impl.v1:termlink
+
     unison-FOp-internal.dataTag
     unison-FOp-Char.toText
     ; unison-FOp-Code.dependencies
@@ -314,13 +337,16 @@
     unison-FOp-Clock.internals.processCPUTime.v1
     unison-FOp-Clock.internals.realtime.v1
     unison-FOp-Clock.internals.monotonic.v1
+    builtin-Clock.internals.systemTimeZone.v1
+    builtin-Clock.internals.systemTimeZone.v1:termlink
 
 
     ; unison-FOp-Value.serialize
     unison-FOp-IO.stdHandle
     unison-FOp-IO.getArgs.impl.v1
 
-    unison-FOp-IO.directoryContents.impl.v3
+    builtin-IO.directoryContents.impl.v3
+    builtin-IO.directoryContents.impl.v3:termlink
     unison-FOp-IO.systemTimeMicroseconds.v1
 
     unison-FOp-ImmutableArray.copyTo!
@@ -645,6 +671,7 @@
           (unison murmurhash)
           (unison tls)
           (unison tcp)
+          (unison udp)
           (unison gzip)
           (unison zlib)
           (unison concurrent)
@@ -732,6 +759,7 @@
   (define-builtin-link IO.getEnv.impl.v1)
   (define-builtin-link IO.getChar.impl.v1)
   (define-builtin-link IO.getCurrentDirectory.impl.v3)
+  (define-builtin-link IO.directoryContents.impl.v3)
   (define-builtin-link IO.removeDirectory.impl.v3)
   (define-builtin-link IO.renameFile.impl.v3)
   (define-builtin-link IO.createTempDirectory.impl.v3)
@@ -758,6 +786,7 @@
   (define-builtin-link Char.Class.is)
   (define-builtin-link Scope.bytearrayOf)
   (define-builtin-link unsafe.coerceAbilities)
+  (define-builtin-link Clock.internals.systemTimeZone.v1)
 
   (begin-encourage-inline
     (define-unison (builtin-Value.toBuiltin v) (unison-quote v))
@@ -902,11 +931,13 @@
     (define (unison-POp-LEQT s t) (bool (chunked-string<? s t)))
     (define (unison-POp-EQLU x y) (bool (universal=? x y)))
     (define (unison-POp-EROR fnm x)
-      (let-values ([(p g) (open-string-output-port)])
-        (put-string p (chunked-string->string fnm))
+      (let-values
+        ([(p g) (open-string-output-port)]
+         [(snm) (chunked-string->string fnm)])
+        (put-string p snm)
         (put-string p ": ")
         (display (describe-value x) p)
-        (raise (make-exn:bug fnm x))))
+        (raise (make-exn:bug snm x))))
     (define (unison-POp-FTOT f)
       (define base (number->string f))
       (define dotted
@@ -1095,11 +1126,6 @@
     (define (unison-FOp-IO.getArgs.impl.v1)
       (sum 1 (cdr (command-line))))
 
-    (define (unison-FOp-IO.directoryContents.impl.v3 path)
-      (reify-exn
-        (lambda ()
-          (sum 1 (directory-contents path)))))
-
     (define unison-FOp-IO.systemTimeMicroseconds.v1 current-microseconds)
 
     ;; TODO should we convert Bytes -> Text directly without the intermediate conversions?
@@ -1128,13 +1154,6 @@
           (close-input-port h)
           (close-output-port h))
       (right none))
-
-    (define (unison-FOp-IO.openFile.impl.v3 fn mode)
-      (right (case mode
-        [(0) (open-file-input-port (chunked-string->string fn))]
-        [(1) (open-file-output-port (chunked-string->string fn))]
-        [(2) (open-file-output-port (chunked-string->string fn) 'no-truncate)]
-        [else (open-file-input/output-port (chunked-string->string fn))])))
 
     (define (unison-FOp-Text.repeat n t)
       (let loop ([cnt 0]
@@ -1470,6 +1489,7 @@
   (declare-builtin-link builtin-IO.getArgs.impl.v1)
   (declare-builtin-link builtin-IO.getEnv.impl.v1)
   (declare-builtin-link builtin-IO.getChar.impl.v1)
+  (declare-builtin-link builtin-IO.directoryContents.impl.v3)
   (declare-builtin-link builtin-IO.getCurrentDirectory.impl.v3)
   (declare-builtin-link builtin-IO.removeDirectory.impl.v3)
   (declare-builtin-link builtin-IO.renameFile.impl.v3)
@@ -1495,4 +1515,5 @@
   (declare-builtin-link builtin-Char.Class.is)
   (declare-builtin-link builtin-Pattern.many.corrected)
   (declare-builtin-link builtin-unsafe.coerceAbilities)
+  (declare-builtin-link builtin-Clock.internals.systemTimeZone.v1)
   )

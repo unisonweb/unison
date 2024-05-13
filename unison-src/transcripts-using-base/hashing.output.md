@@ -145,6 +145,11 @@ And here's the full API:
   15. hashBytes : HashAlgorithm -> Bytes -> Bytes
   16. hmac : HashAlgorithm -> Bytes -> a -> Bytes
   17. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  18. Rsa.sign.impl : Bytes -> Bytes -> Either Failure Bytes
+  19. Rsa.verify.impl : Bytes
+                        -> Bytes
+                        -> Bytes
+                        -> Either Failure Boolean
   
 
 ```
