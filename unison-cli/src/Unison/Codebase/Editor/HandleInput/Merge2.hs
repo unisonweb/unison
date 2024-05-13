@@ -22,6 +22,8 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import Text.ANSI qualified as Text
+import Text.Builder qualified
+import Text.Builder qualified as Text (Builder)
 import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
@@ -95,7 +97,7 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, Semver (..), classifyProjectBranchName)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -125,8 +127,8 @@ import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
-handleMerge :: ProjectBranchName -> Cli ()
-handleMerge bobBranchName = do
+handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
+handleMerge bobSpecifier = do
   let debugFunctions =
         if Debug.shouldDebug Debug.Merge
           then realDebugFunctions
@@ -138,8 +140,8 @@ handleMerge bobBranchName = do
   db <- makeMergeDatabase codebase
 
   -- Load the current project branch ("Alice"), and the branch from the same project to merge in ("Bob")
-  info <- loadMergeInfo bobBranchName
-  let projectAndBranchNames = mergeInfoToProjectAndBranchNames info
+  info <- loadMergeInfo bobSpecifier
+  let projectAndBranchNames = (\x -> ProjectAndBranch x.project.name x.branch.name) <$> info.branches
 
   -- Load Alice/Bob/LCA causals
   causals <-
@@ -154,17 +156,11 @@ handleMerge bobBranchName = do
 
   -- If alice == bob, then we are done.
   when (causals.alice == causals.bob) do
-    Cli.returnEarly $
-      Output.MergeAlreadyUpToDate
-        (Right (ProjectAndBranch info.project info.projectBranches.bob))
-        (Right (ProjectAndBranch info.project info.projectBranches.alice))
+    Cli.returnEarly (Output.MergeAlreadyUpToDate (Right info.branches.bob) (Right info.branches.alice))
 
   -- Otherwise, if LCA == bob, then we are ahead of bob, so we are done.
   when (causals.lca == Just causals.bob) do
-    Cli.returnEarly $
-      Output.MergeAlreadyUpToDate
-        (Right (ProjectAndBranch info.project info.projectBranches.bob))
-        (Right (ProjectAndBranch info.project info.projectBranches.alice))
+    Cli.returnEarly (Output.MergeAlreadyUpToDate (Right info.branches.bob) (Right info.branches.alice))
 
   -- Otherwise, if LCA == alice, then we can fast forward to bob, and we're done.
   when (causals.lca == Just causals.alice) do
@@ -185,7 +181,7 @@ handleMerge bobBranchName = do
   -- Load Alice/Bob/LCA definitions and decl name lookups
   (defns3, declNameLookups3) <-
     Cli.runTransactionWithRollback \abort -> do
-      loadDefns abort db info.projectBranches branches
+      loadDefns abort db (view #branch <$> info.branches) branches
   let defns = ThreeWay.forgetLca defns3
   let declNameLookups = ThreeWay.forgetLca declNameLookups3
 
@@ -199,7 +195,7 @@ handleMerge bobBranchName = do
   liftIO (debugFunctions.debugDiffs diffs)
 
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-  whenJust (findOneConflictedAlias info.projectBranches defns3.lca diffs) \violation ->
+  whenJust (findOneConflictedAlias (view #branch <$> info.branches) defns3.lca diffs) \violation ->
     Cli.returnEarly (mergePreconditionViolationToOutput violation)
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
@@ -303,7 +299,7 @@ handleMerge bobBranchName = do
         HandleInput.Branch.doCreateBranch'
           (Branch.mergeNode stageOneBranch aliceBranch bobBranch)
           Nothing
-          info.project
+          info.branches.alice.project
           (findTemporaryBranchName info)
           (textualDescriptionOfMerge info)
       scratchFilePath <-
@@ -547,35 +543,22 @@ doBigMerge debugFunctions causalHashes = do
     --     Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
     undefined
 
-mergeInfoToProjectAndBranchNames :: MergeInfo -> TwoWay (ProjectAndBranch ProjectName ProjectBranchName)
-mergeInfoToProjectAndBranchNames info =
-  TwoWay
-    { alice =
-        ProjectAndBranch
-          { project = info.project.name,
-            branch = info.projectBranches.alice.name
-          },
-      bob =
-        ProjectAndBranch
-          { project = info.project.name,
-            branch = info.projectBranches.bob.name
-          }
-    }
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading basic info out of the database
 
-loadMergeInfo :: ProjectBranchName -> Cli MergeInfo
-loadMergeInfo bobBranchName = do
-  (ProjectAndBranch project aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
-  bobProjectBranch <- Cli.expectProjectBranchByName project bobBranchName
-  let alicePath = Cli.projectBranchPath (ProjectAndBranch project.projectId aliceProjectBranch.branchId)
-  let bobPath = Cli.projectBranchPath (ProjectAndBranch project.projectId bobProjectBranch.branchId)
+loadMergeInfo :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli MergeInfo
+loadMergeInfo (ProjectAndBranch maybeBobProjectName bobBranchName) = do
+  (aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
+  bobProjectBranch <-
+    Cli.expectProjectAndBranchByTheseNames case maybeBobProjectName of
+      Nothing -> That bobBranchName
+      Just bobProjectName -> These bobProjectName bobBranchName
+  let alicePath = Cli.projectBranchPath (ProjectAndBranch aliceProjectBranch.project.projectId aliceProjectBranch.branch.branchId)
+  let bobPath = Cli.projectBranchPath (ProjectAndBranch bobProjectBranch.project.projectId bobProjectBranch.branch.branchId)
   pure
     MergeInfo
       { paths = TwoWay alicePath bobPath,
-        projectBranches = TwoWay aliceProjectBranch bobProjectBranch,
-        project
+        branches = TwoWay aliceProjectBranch bobProjectBranch
       }
 
 loadDefns ::
@@ -863,15 +846,14 @@ nametreeToBranch0 nametree =
 
 data MergeInfo = MergeInfo
   { paths :: !(TwoWay Path.Absolute),
-    projectBranches :: !(TwoWay ProjectBranch),
-    project :: !Project
+    branches :: !(TwoWay (ProjectAndBranch Project ProjectBranch))
   }
   deriving stock (Generic)
 
 textualDescriptionOfMerge :: MergeInfo -> Text
-textualDescriptionOfMerge mergeInfo =
-  let bobBranchText = into @Text (ProjectAndBranch mergeInfo.project.name mergeInfo.projectBranches.bob.name)
-   in "merge-" <> bobBranchText
+textualDescriptionOfMerge info =
+  let bobBranchText = into @Text (ProjectAndBranch info.branches.bob.project.name info.branches.bob.branch.name)
+   in "merge " <> bobBranchText
 
 -- FIXME: let's come up with a better term for "dependencies" in the implementation of this function
 identifyDependents ::
@@ -992,16 +974,35 @@ defnsToNames defns =
 
 findTemporaryBranchName :: MergeInfo -> Transaction ProjectBranchName
 findTemporaryBranchName info = do
-  -- let currentProjectId = mergeInfo.project.projectId
-  Cli.findTemporaryBranchName info.project.projectId preferred
+  Cli.findTemporaryBranchName info.branches.alice.project.projectId preferred
   where
     preferred :: ProjectBranchName
     preferred =
       unsafeFrom @Text $
         "merge-"
-          <> into @Text info.projectBranches.bob.name
+          <> mangle info.branches.bob.branch.name
           <> "-into-"
-          <> into @Text info.projectBranches.alice.name
+          <> mangle info.branches.alice.branch.name
+
+    mangle :: ProjectBranchName -> Text
+    mangle =
+      Text.Builder.run . mangleB
+
+    mangleB :: ProjectBranchName -> Text.Builder
+    mangleB name =
+      case classifyProjectBranchName name of
+        ProjectBranchNameKind'Contributor user name1 -> Text.Builder.text user <> Text.Builder.char '-' <> mangleB name1
+        ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
+        ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
+        ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+
+    mangleSemver :: Semver -> Text.Builder
+    mangleSemver (Semver x y z) =
+      Text.Builder.decimal x
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal y
+        <> Text.Builder.char '.'
+        <> Text.Builder.decimal z
 
 -- Load namespace info into memory.
 --

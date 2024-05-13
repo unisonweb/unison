@@ -793,16 +793,9 @@ project/alice> merge bob
 .> project.delete project
 ```
 
-## (TODO) Merge algorithm quirk: the "not-conflict conflict"
+## Merge failure: type/type conflict with term/constructor conflict
 
-Since a conflicted type declaration must bring into the scratch file (for conflict resolution) all of its constructors,
-it's possible that an unconflicted thing gets ultimately presented as a conflict.
-
-In this example, Alice and Bob have a disagreement about what the type "Foo" refers to, so their constructors
-("Foo.Alice" and "Foo.Bob") are brought into the scratch file.
-
-But Bob updated "Foo.Bob", and Alice didn't touch it! Nonetheless, her untouched "Foo.Bar" term is considered in
-conflict with Bob's.
+Here's a subtle situation where a new type is added on each side of the merge, and an existing term is replaced with a constructor of one of the types.
 
 ```ucm:hide
 .> project.create-empty project
@@ -820,7 +813,7 @@ project/main> add
 project/main> branch alice
 ```
 
-Alice adds this type `Foo`, with the constructor `Foo.Alice`:
+Alice adds this type `Foo` with constructor `Foo.Alice`:
 ```unison:hide
 unique type Foo = Alice Nat
 ```
@@ -830,7 +823,7 @@ project/alice> add
 project/main> branch bob
 ```
 
-Bob deletes the original `Foo.Bar` and adds type `Foo` and constructor `Foo.Bar`:
+Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.Bar` term:
 ```ucm
 project/bob> delete.term Foo.Bar
 ```
@@ -843,6 +836,7 @@ unique type Foo = Bar Nat Nat
 project/bob> add
 ```
 
+These won't cleanly merge.
 ```ucm:error
 project/alice> merge bob
 ```
@@ -851,7 +845,7 @@ project/alice> merge bob
 .> project.delete project
 ```
 
-Here's a more complicated example that demonstrates the same idea.
+Here's a more involved example that demonstrates the same idea.
 
 ```ucm:hide
 .> project.create-empty project
@@ -977,19 +971,19 @@ project/alice> merge bob
 
 ## Precondition violations
 
-Let's see a number of merge precondition violations. These are conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
+There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
 
 ### Conflicted aliases
 
-If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to
-update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
+If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```unison
+Original branch:
+```unison:hide
 foo : Nat
 foo = 100
 
@@ -997,12 +991,13 @@ bar : Nat
 bar = 100
 ```
 
-```ucm
+```ucm:hide
 project/main> add
 project/main> branch alice
 ```
 
-```unison
+Alice's updates:
+```unison:hide
 foo : Nat
 foo = 200
 
@@ -1010,18 +1005,22 @@ bar : Nat
 bar = 300
 ```
 
-```ucm
+```ucm:hide
 project/alice> update
 project/main> branch bob
 ```
 
-```unison
+Bob's addition:
+```unison:hide
 baz : Text
 baz = "baz"
 ```
 
-```ucm:error
+```ucm:hide
 project/bob> add
+```
+
+```ucm:error
 project/alice> merge /bob
 ```
 
@@ -1034,22 +1033,32 @@ project/alice> merge /bob
 We don't have a way of rendering a builtin in a scratch file, where users resolve merge conflicts. Thus, if there is a
 conflict involving a builtin, we can't perform a merge.
 
+One way to fix this in the future would be to introduce a syntax for defining aliases in the scratch file.
+
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+```ucm:hide
 project/main> branch alice
+```
+
+Alice's branch:
+```ucm
 project/alice> alias.type builtin.Nat MyNat
+```
+
+Bob's branch:
+```ucm:hide
 project/main> branch bob
 ```
 
-```unison
+```unison:hide
 unique type MyNat = MyNat Nat
 ```
 
-```ucm
+```ucm:hide
 project/bob> add
 ```
 
@@ -1063,33 +1072,40 @@ project/alice> merge /bob
 
 ### Constructor alias
 
-Each naming of a decl may not have more than one name for each constructor underneath the decl's namespace.
+Each naming of a decl may not have more than one name for each constructor, within the decl's namespace.
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+```ucm:hide
 project/main> branch alice
 ```
 
-```unison
+Alice's branch:
+```unison:hide
 unique type Foo = Bar
 ```
 
-```ucm
+```ucm:hide
 project/alice> add
+```
+```ucm
 project/alice> alias.term Foo.Bar Foo.some.other.Alias
+```
+
+Bob's branch:
+```ucm:hide
 project/main> branch bob
 ```
 
-```unison
+```unison:hide
 bob : Nat
 bob = 100
 ```
 
-```ucm
+```ucm:hide
 project/bob> add
 ```
 
@@ -1103,33 +1119,41 @@ project/alice> merge /bob
 
 ### Missing constructor name
 
-Each naming of a decl may not have zero names for a constructor underneath the decl's namespace.
+Each naming of a decl must have a name for each constructor, within the decl's namespace.
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+Alice's branch:
+```ucm:hide
 project/main> branch alice
 ```
 
-```unison
+```unison:hide
 unique type Foo = Bar
 ```
 
-```ucm
+```ucm:hide
 project/alice> add
+```
+
+```ucm
 project/alice> delete.term Foo.Bar
+```
+
+Bob's branch:
+```ucm:hide
 project/main> branch /bob
 ```
 
-```unison
+```unison:hide
 bob : Nat
 bob = 100
 ```
 
-```ucm
+```ucm:hide
 project/bob> add
 ```
 
@@ -1143,33 +1167,42 @@ project/alice> merge /bob
 
 ### Nested decl alias
 
-Decl aliases must be disjoint in a namespace: one cannot contain another.
+A decl cannot be aliased within the namespace of another of its aliased.
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+Alice's branch:
+```ucm:hide
 project/main> branch alice
 ```
 
-```unison
+```unison:hide
 structural type A = B Nat | C Nat Nat
 structural type A.inner.X = Y Nat | Z Nat Nat
 ```
 
-```ucm
+```ucm:hide
 project/alice> add
+```
+
+```ucm
+project/alice> names A
+```
+
+Bob's branch:
+```ucm:hide
 project/main> branch bob
 ```
 
-```unison
+```unison:hide
 bob : Nat
 bob = 100
 ```
 
-```ucm
+```ucm:hide
 project/bob> add
 ```
 
@@ -1183,28 +1216,33 @@ project/alice> merge /bob
 
 ### Stray constructor alias
 
-Each naming of a constructor must be underneath its decl's namespace.
+Constructors may only exist within the corresponding decl's namespace.
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+Alice's branch:
+```ucm:hide
 project/main> branch alice
 ```
 
-```unison
+```unison:hide:all
 unique type Foo = Bar
 ```
 
 ```ucm
 project/alice> add
 project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
+```
+
+Bob's branch:
+```ucm:hide
 project/main> branch bob
 ```
 
-```unison
+```unison:hide:all
 bob : Nat
 bob = 101
 ```
@@ -1223,34 +1261,35 @@ project/alice> merge bob
 
 ### Term or type in `lib`
 
-A bit of an odd one, but we have a convention that `lib` contains only namespaces, which are dependencies. Thus, the
-`lib` namespace can always merge cleanly, so long as there aren't stray terms or types in it.
+By convention, `lib` can only namespaces; each of these represents a library dependencies. Individual terms and types are not allowed at the top level of `lib`.
 
 ```ucm:hide
 .> project.create-empty project
 project/main> builtins.mergeio
 ```
 
-```ucm
+Alice's branch:
+```ucm:hide
 project/main> branch alice
 ```
 
-```unison
+```unison:hide
 lib.foo : Nat
 lib.foo = 1
 ```
 
-```ucm
+```ucm:hide
 project/alice> add
 project/main> branch bob
 ```
 
-```unison
+Bob's branch:
+```unison:hide
 bob : Nat
 bob = 100
 ```
 
-```ucm
+```ucm:hide
 project/bob> add
 ```
 
