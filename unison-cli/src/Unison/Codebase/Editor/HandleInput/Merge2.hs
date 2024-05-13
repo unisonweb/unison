@@ -323,27 +323,46 @@ handleMerge bobSpecifier = do
           (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
       Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
 
-data MergeResult
-  = -- We didn't do anything because alice >= bob
-    MergeResult'AlreadyMerged
-  | -- We didn't do anything because alice < bob. The caller should set alice = bob
-    MergeResult'ShouldFastForward
-  | MergeResult'ConflictedName !CausalHash !ConflictedName
-  | MergeResult'DefnsInLib !CausalHash
-  | MergeResult'IncoherentDecl !CausalHash !IncoherentDeclReason
-  | MergeResult'ConflictedAliases !CausalHash !Name !Name
-  | MergeResult'ConflictInvolvingBuiltin !Name
+data MergeResult1
+  = MergeResult1'Failure !MergeResultFailure1
+  | MergeResult1'Success !MergeResultSuccess1
 
-doBigMerge :: DebugFunctions -> TwoOrThreeWay CausalHash -> Cli MergeResult
-doBigMerge debugFunctions causalHashes = do
+data MergeResultFailure1
+  = -- We couldn't attempt to merge because we found a conflicted name
+    MergeResultFailure1'ConflictedName !CausalHash !ConflictedName
+  | -- We couldn't attempt to merge because we found defs in lib
+    MergeResultFailure1'DefnsInLib !(EitherWay ())
+  | -- We couldn't attempt to merge because we found an incoherent decl
+    MergeResultFailure1'IncoherentDecl !CausalHash !IncoherentDeclReason
+  | -- We couldn't attempt to merge because we found conflicted aliases
+    MergeResultFailure1'ConflictedAliases !(EitherWay (Name, Name))
+  | -- We couldn't attempt to merge because we found a conflict involving a builtin
+    MergeResultFailure1'ConflictInvolvingBuiltin !Name
+
+data MergeResultSuccess1
+  = -- We didn't do anything because alice >= bob
+    MergeResultSuccess1'AlreadyMerged
+  | -- We didn't do anything because alice < bob. The caller should set alice = bob
+    MergeResultSuccess1'ShouldFastForward
+  | -- We got as far as diffing the namespace
+    MergeResultSuccess1'PerformedDiff
+      !MergeDatabase
+      !(TwoOrThreeWay (V2.Branch Transaction)) -- branches
+      !(ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))) -- defns
+      !(TwoWay DeclNameLookup) -- decl name lookups
+      !(TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)) -- conflicts
+      !(DefnsF Unconflicts Referent TypeReference) -- unconflicts
+
+doBigMerge1 :: DebugFunctions -> TwoWay Text -> TwoOrThreeWay CausalHash -> Cli MergeResult1
+doBigMerge1 debugFunctions authors causalHashes = do
   Cli.label \done -> do
     -- If alice == bob, or LCA == bob (so alice is ahead of bob), then we are done.
     when (causalHashes.alice == causalHashes.bob || causalHashes.lca == Just causalHashes.bob) do
-      done MergeResult'AlreadyMerged
+      done (MergeResult1'Success MergeResultSuccess1'AlreadyMerged)
 
     -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
     when (causalHashes.lca == Just causalHashes.alice) do
-      done MergeResult'ShouldFastForward
+      done (MergeResult1'Success MergeResultSuccess1'ShouldFastForward)
 
     Cli.Env {codebase} <- ask
 
@@ -364,13 +383,13 @@ doBigMerge debugFunctions causalHashes = do
         pure TwoOrThreeWay {lca, alice, bob}
 
     -- Assert that neither Alice nor Bob have defns in lib
-    for_ [(causalHashes.alice, branches.alice), (causalHashes.bob, branches.bob)] \(causalHash, branch) -> do
+    for_ [(Alice (), branches.alice), (Bob (), branches.bob)] \(who, branch) -> do
       libdeps <-
         case Map.lookup NameSegment.libSegment branch.children of
           Nothing -> pure V2.Branch.empty
           Just libdeps -> Cli.runTransaction libdeps.value
       when (not (Map.null libdeps.terms) || not (Map.null libdeps.types)) do
-        done (MergeResult'DefnsInLib causalHash)
+        done (MergeResult1'Failure (MergeResultFailure1'DefnsInLib who))
 
     -- Load Alice/Bob/LCA definitions and decl name lookups
     (defns3, declNameLookups3) <- do
@@ -383,10 +402,10 @@ doBigMerge debugFunctions causalHashes = do
             Just (causalHash, branch) -> do
               defns <-
                 Cli.runTransaction (loadNamespaceInfo_2 (referent2to1 db) branch) & onLeftM \err ->
-                  done (MergeResult'ConflictedName causalHash err)
+                  done (MergeResult1'Failure (MergeResultFailure1'ConflictedName causalHash err))
               declNameLookup <-
                 Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
-                  done (MergeResult'IncoherentDecl causalHash err)
+                  done (MergeResult1'Failure (MergeResultFailure1'IncoherentDecl causalHash err))
               pure (defns, declNameLookup)
 
       (aliceDefns0, aliceDeclNameLookup) <- load (Just (causalHashes.alice, branches.alice))
@@ -411,11 +430,11 @@ doBigMerge debugFunctions causalHashes = do
 
     -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
     do
-      let go causalHash diff =
-            whenJust (findConflictedAlias defns3.lca diff) \(name1, name2) ->
-              done (MergeResult'ConflictedAliases causalHash name1 name2)
-      go causalHashes.alice diffs.alice
-      go causalHashes.bob diffs.bob
+      let go who diff =
+            whenJust (findConflictedAlias defns3.lca diff) \names ->
+              done (MergeResult1'Failure (MergeResultFailure1'ConflictedAliases (who names)))
+      go Alice diffs.alice
+      go Bob diffs.bob
 
     -- Combine the LCA->Alice and LCA->Bob diffs together
     let diff = combineDiffs diffs
@@ -425,123 +444,148 @@ doBigMerge debugFunctions causalHashes = do
     -- Partition the combined diff into the conflicted things and the unconflicted things
     (conflicts, unconflicts) <-
       partitionCombinedDiffs defns declNameLookups diff & onLeft \name ->
-        done (MergeResult'ConflictInvolvingBuiltin name)
+        done (MergeResult1'Failure (MergeResultFailure1'ConflictInvolvingBuiltin name))
 
     liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
 
-    -- -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
-    -- -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
-    -- dependents <- Cli.runTransaction (identifyDependents defns conflicts unconflicts)
+    pure $
+      MergeResult1'Success $
+        MergeResultSuccess1'PerformedDiff
+          db
+          branches
+          defns3
+          (ThreeWay.forgetLca declNameLookups3)
+          conflicts
+          unconflicts
 
-    -- liftIO (debugFunctions.debugDependents dependents)
+doBigMerge2 ::
+  DebugFunctions ->
+  TwoWay Text ->
+  MergeDatabase ->
+  TwoOrThreeWay (V2.Branch Transaction) ->
+  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  TwoWay DeclNameLookup ->
+  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DefnsF Unconflicts Referent TypeReference ->
+  Cli ()
+doBigMerge2 debugFunctions authors db branches defns3 declNameLookups conflicts unconflicts = do
+  Cli.Env {codebase} <- ask
 
-    -- let stageOne :: DefnsF (Map Name) Referent TypeReference
-    --     stageOne =
-    --       makeStageOne
-    --         declNameLookups
-    --         conflicts
-    --         unconflicts
-    --         dependents
-    --         (bimap BiMultimap.range BiMultimap.range defns3.lca)
+  let defns = ThreeWay.forgetLca defns3
 
-    -- liftIO (debugFunctions.debugStageOne stageOne)
+  -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
+  -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+  dependents <- Cli.runTransaction (identifyDependents defns conflicts unconflicts)
 
-    -- -- Load and merge Alice's and Bob's libdeps
-    -- mergedLibdeps <-
-    --   Cli.runTransaction do
-    --     libdeps <- loadLibdeps branches
-    --     libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
+  liftIO (debugFunctions.debugDependents dependents)
 
-    -- -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
-    -- let mkPpes :: TwoWay Names -> Names -> TwoWay PrettyPrintEnvDecl
-    --     mkPpes defnsNames libdepsNames =
-    --       defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
-    --       where
-    --         suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
-    -- let ppes = mkPpes (defnsToNames <$> defns) (Branch.toNames mergedLibdeps)
+  let stageOne :: DefnsF (Map Name) Referent TypeReference
+      stageOne =
+        makeStageOne
+          declNameLookups
+          conflicts
+          unconflicts
+          dependents
+          (bimap BiMultimap.range BiMultimap.range defns3.lca)
 
-    -- hydratedThings <- do
-    --   Cli.runTransaction do
-    --     for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
-    --       let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent codebase) Operations.expectDeclComponent
-    --       in (,) <$> hydrate conflicts1 <*> hydrate dependents1
+  liftIO (debugFunctions.debugStageOne stageOne)
 
-    -- let (renderedConflicts, renderedDependents) =
-    --       let honk declNameLookup ppe defns =
-    --             let (types, accessorNames) =
-    --                   Writer.runWriter $
-    --                     defns.types & Map.traverseWithKey \name (ref, typ) ->
-    --                       renderTypeBinding
-    --                         -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
-    --                         -- we just delete all term names out and add back the constructors...
-    --                         -- probably no need to wipe out the suffixified side but we do it anyway
-    --                         (setPpedToConstructorNames declNameLookup name ref ppe)
-    --                         name
-    --                         ref
-    --                         typ
-    --                 terms =
-    --                   defns.terms & Map.mapMaybeWithKey \name (term, typ) ->
-    --                     if Set.member name accessorNames
-    --                       then Nothing
-    --                       else Just (renderTermBinding ppe.suffixifiedPPE name term typ)
-    --             in Defns {terms, types}
-    --       in unzip $
-    --             ( \declNameLookup (conflicts, dependents) ppe ->
-    --                 let honk1 = honk declNameLookup ppe
-    --                 in (honk1 conflicts, honk1 dependents)
-    --             )
-    --               <$> declNameLookups
-    --               <*> hydratedThings
-    --               <*> ppes
+  -- Load and merge Alice's and Bob's libdeps
+  mergedLibdeps <-
+    Cli.runTransaction do
+      libdeps <- loadLibdeps branches
+      libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
 
-    -- let prettyUnisonFile = makePrettyUnisonFile (into @Text <$> projectAndBranchNames) renderedConflicts renderedDependents
+  -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
+  let mkPpes :: TwoWay Names -> Names -> TwoWay PrettyPrintEnvDecl
+      mkPpes defnsNames libdepsNames =
+        defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
+        where
+          suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
+  let ppes = mkPpes (defnsToNames <$> defns) (Branch.toNames mergedLibdeps)
 
-    -- let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
+  hydratedThings <- do
+    Cli.runTransaction do
+      for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
+        let hydrate = hydrateDefns db.loadV1TermComponent db.loadV1DeclComponent
+         in (,) <$> hydrate conflicts1 <*> hydrate dependents1
 
-    -- maybeTypecheckedUnisonFile <-
-    --   let thisMergeHasConflicts =
-    --         -- Eh, they'd either both be null, or neither, but just check both maps anyway
-    --         not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
-    --   in if thisMergeHasConflicts
-    --         then pure Nothing
-    --         else do
-    --           currentPath <- Cli.getCurrentPath
-    --           parsingEnv <- makeParsingEnv currentPath (Branch.toNames stageOneBranch)
-    --           prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
+  let (renderedConflicts, renderedDependents) =
+        let honk declNameLookup ppe defns =
+              let (types, accessorNames) =
+                    Writer.runWriter $
+                      defns.types & Map.traverseWithKey \name (ref, typ) ->
+                        renderTypeBinding
+                          -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
+                          -- we just delete all term names out and add back the constructors...
+                          -- probably no need to wipe out the suffixified side but we do it anyway
+                          (setPpedToConstructorNames declNameLookup name ref ppe)
+                          name
+                          ref
+                          typ
+                  terms =
+                    defns.terms & Map.mapMaybeWithKey \name (term, typ) ->
+                      if Set.member name accessorNames
+                        then Nothing
+                        else Just (renderTermBinding ppe.suffixifiedPPE name term typ)
+               in Defns {terms, types}
+         in unzip $
+              ( \declNameLookup (conflicts, dependents) ppe ->
+                  let honk1 = honk declNameLookup ppe
+                   in (honk1 conflicts, honk1 dependents)
+              )
+                <$> declNameLookups
+                <*> hydratedThings
+                <*> ppes
 
-    -- case maybeTypecheckedUnisonFile of
-    --   Nothing -> do
-    --     Cli.Env {writeSource} <- ask
-    --     aliceBranch <- Cli.getBranchAt info.paths.alice
-    --     bobBranch <- Cli.getBranchAt info.paths.bob
-    --     _temporaryBranchId <-
-    --       HandleInput.Branch.doCreateBranch'
-    --         (Branch.mergeNode stageOneBranch aliceBranch bobBranch)
-    --         Nothing
-    --         info.project
-    --         (findTemporaryBranchName info)
-    --         (textualDescriptionOfMerge info)
-    --     scratchFilePath <-
-    --       Cli.getLatestFile <&> \case
-    --         Nothing -> "scratch.u"
-    --         Just (file, _) -> file
-    --     liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-    --     Cli.respond $
-    --       Output.MergeFailure
-    --         scratchFilePath
-    --         projectAndBranchNames.alice
-    --         projectAndBranchNames.bob
-    --   Just tuf -> do
-    --     Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
-    --     bobBranch <- Cli.getBranchAt info.paths.bob
-    --     let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
-    --     _ <-
-    --       Cli.updateAt
-    --         (textualDescriptionOfMerge info)
-    --         info.paths.alice
-    --         (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
-    --     Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
-    undefined
+  let prettyUnisonFile = makePrettyUnisonFile authors renderedConflicts renderedDependents
+
+  let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
+
+  maybeTypecheckedUnisonFile <-
+    let thisMergeHasConflicts =
+          -- Eh, they'd either both be null, or neither, but just check both maps anyway
+          not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
+     in if thisMergeHasConflicts
+          then pure Nothing
+          else do
+            currentPath <- Cli.getCurrentPath
+            parsingEnv <- makeParsingEnv currentPath (Branch.toNames stageOneBranch)
+            prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
+
+  -- case maybeTypecheckedUnisonFile of
+  --   Nothing -> do
+  --     Cli.Env {writeSource} <- ask
+  --     aliceBranch <- Cli.getBranchAt info.paths.alice
+  --     bobBranch <- Cli.getBranchAt info.paths.bob
+  --     _temporaryBranchId <-
+  --       HandleInput.Branch.doCreateBranch'
+  --         (Branch.mergeNode stageOneBranch aliceBranch bobBranch)
+  --         Nothing
+  --         info.project
+  --         (findTemporaryBranchName info)
+  --         (textualDescriptionOfMerge info)
+  --     scratchFilePath <-
+  --       Cli.getLatestFile <&> \case
+  --         Nothing -> "scratch.u"
+  --         Just (file, _) -> file
+  --     liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+  --     Cli.respond $
+  --       Output.MergeFailure
+  --         scratchFilePath
+  --         projectAndBranchNames.alice
+  --         projectAndBranchNames.bob
+  --   Just tuf -> do
+  --     Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
+  --     bobBranch <- Cli.getBranchAt info.paths.bob
+  --     let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
+  --     _ <-
+  --       Cli.updateAt
+  --         (textualDescriptionOfMerge info)
+  --         info.paths.alice
+  --         (\aliceBranch -> Branch.mergeNode stageTwoBranch aliceBranch bobBranch)
+  --     Cli.respond (Output.MergeSuccess projectAndBranchNames.alice projectAndBranchNames.bob)
+  undefined
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading basic info out of the database
@@ -724,13 +768,16 @@ makePrettyUnisonFile authors conflicts dependents =
                     bob = prettyBinding (Just (Pretty.text authors.bob))
              in bifoldMap f f
           ),
-      if TwoWay.or (not . defnsAreEmpty <$> dependents)
-        then
-          fold
-            [ "-- The definitions below are not conflicted, but they each depend on one or more\n",
-              "-- conflicted definitions above.\n\n"
-            ]
-        else mempty,
+      -- Show message that delineates where conflicts end and dependents begin only when there are both conflicts and
+      -- dependents
+      let thereAre defns = TwoWay.or (not . defnsAreEmpty <$> defns)
+       in if thereAre conflicts && thereAre dependents
+            then
+              fold
+                [ "-- The definitions below are not conflicted, but they each depend on one or more\n",
+                  "-- conflicted definitions above.\n\n"
+                ]
+            else mempty,
       dependents
         -- Merge dependents together into one map (they are disjoint)
         & TwoWay.twoWay (zipDefnsWith Map.union Map.union)
