@@ -308,7 +308,7 @@
      (let ([bs (map reify-value (chunked-list->list bs0))]
            [tl (reference->typelink rf)])
        (cond
-         [(eqv? tl builtin-boolean:typelink)
+         [(equal? tl builtin-boolean:typelink)
           (cond
             [(not (null? bs))
              (raise
