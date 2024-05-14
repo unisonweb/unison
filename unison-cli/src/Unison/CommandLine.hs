@@ -173,7 +173,7 @@ expandNumber :: NumberedArgs -> String -> [String]
 expandNumber numberedArgs s = case expandedNumber of
   Nothing -> [s]
   Just nums ->
-    [s | i <- nums, Just s <- [vargs Vector.!? (i - 1)]]
+    [Text.unpack (fst s) | i <- nums, Just s <- [vargs Vector.!? (i - 1)]]
   where
     vargs = Vector.fromList numberedArgs
     rangeRegex = "([0-9]+)-([0-9]+)" :: String
