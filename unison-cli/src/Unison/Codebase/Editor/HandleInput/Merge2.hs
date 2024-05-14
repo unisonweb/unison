@@ -1,5 +1,12 @@
 module Unison.Codebase.Editor.HandleInput.Merge2
   ( handleMerge,
+
+    -- * API exported for @pull@
+    MergeInfo (..),
+    AliceMergeInfo (..),
+    BobMergeInfo (..),
+    LcaMergeInfo (..),
+    doMerge,
   )
 where
 
@@ -126,80 +133,126 @@ import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
-data BobBranch
-  = BobBranch'ProjectAndBranchNames (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
-handleMerge bobSpecifier = do
+handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
+  -- Assert that Alice (us) is on a project branch, and grab the causal hash.
+  (ProjectAndBranch aliceProject aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
+  aliceCausalHash <- Cli.runTransaction (projectBranchToCausalHash aliceProjectBranch)
+
+  -- Resolve Bob's maybe-project-name + branch-name to the info the merge algorithm needs: the project name, branch
+  -- name, and causal hash.
+  bobProject <-
+    case maybeBobProjectName of
+      Nothing -> pure aliceProject
+      Just bobProjectName
+        | bobProjectName == aliceProject.name -> pure aliceProject
+        | otherwise -> do
+            Cli.runTransaction (Queries.loadProjectByName bobProjectName)
+              & onNothingM (Cli.returnEarly (Output.LocalProjectDoesntExist bobProjectName))
+  bobProjectBranch <- Cli.expectProjectBranchByName bobProject bobBranchName
+  bobCausalHash <- Cli.runTransaction (projectBranchToCausalHash bobProjectBranch)
+
+  -- Using Alice and Bob's causal hashes, find the LCA (if it exists)
+  lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash bobCausalHash)
+
+  -- Do the merge!
+  doMerge
+    MergeInfo
+      { alice =
+          AliceMergeInfo
+            { causalHash = aliceCausalHash,
+              project = aliceProject,
+              projectBranch = aliceProjectBranch
+            },
+        bob =
+          BobMergeInfo
+            { causalHash = bobCausalHash,
+              projectName = bobProject.name,
+              projectBranchName = bobBranchName
+            },
+        lca =
+          LcaMergeInfo
+            { causalHash = lcaCausalHash
+            },
+        description = "merge " <> into @Text (ProjectAndBranch bobProject.name bobBranchName)
+      }
+  where
+    projectBranchToCausalHash :: ProjectBranch -> Transaction CausalHash
+    projectBranchToCausalHash branch = do
+      let path = Cli.projectBranchPath (ProjectAndBranch branch.projectId branch.branchId)
+      causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
+      pure causal.causalHash
+
+---
+
+data MergeInfo = MergeInfo
+  { alice :: !AliceMergeInfo,
+    bob :: !BobMergeInfo,
+    lca :: !LcaMergeInfo,
+    -- How should we describe this merge in the reflog?
+    description :: !Text
+  }
+
+data AliceMergeInfo = AliceMergeInfo
+  { causalHash :: !CausalHash,
+    project :: !Project,
+    projectBranch :: !ProjectBranch
+  }
+
+data BobMergeInfo = BobMergeInfo
+  { causalHash :: !CausalHash,
+    -- Bob's project and branch names are just for display purposes; they don't necessarily correspond to a real local
+    -- project. For example, if we `pull @unison/base/bugfix`, then we'll use project name `@unison/base` and branch
+    -- name `bugfix`, even though we're just pulling the branch into the current one, with no relationship to any local
+    -- project/branch named `@unison/base/bugfix`.
+    projectName :: !ProjectName,
+    projectBranchName :: !ProjectBranchName
+  }
+
+newtype LcaMergeInfo = LcaMergeInfo
+  { causalHash :: Maybe CausalHash
+  }
+
+doMerge :: MergeInfo -> Cli ()
+doMerge info = do
   let debugFunctions =
         if Debug.shouldDebug Debug.Merge
           then realDebugFunctions
           else fakeDebugFunctions
 
+  let alicePath =
+        Cli.projectBranchPath (ProjectAndBranch info.alice.project.projectId info.alice.projectBranch.branchId)
+
+  let branchNames =
+        TwoWay
+          { alice = ProjectAndBranch info.alice.project.name info.alice.projectBranch.name,
+            bob = ProjectAndBranch info.bob.projectName info.bob.projectBranchName
+          }
+
   Cli.Env {codebase} <- ask
 
-  (aliceProjectAndBranch, _path) <- Cli.expectCurrentProjectBranch
-  let alicePath =
-        Cli.projectBranchPath $
-          ProjectAndBranch
-            aliceProjectAndBranch.project.projectId
-            aliceProjectAndBranch.branch.branchId
-
-  let projectAndBranchToInfo :: ProjectAndBranch Project ProjectBranch -> Cli (CausalHash, ProjectAndBranch ProjectName ProjectBranchName)
-      projectAndBranchToInfo (ProjectAndBranch project branch) = do
-        let path = Cli.projectBranchPath (ProjectAndBranch project.projectId branch.branchId)
-        causal <- Cli.runTransaction (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
-        pure (causal.causalHash, ProjectAndBranch project.name branch.name)
-
-  (aliceCausalHash, aliceBranchNames) <- projectAndBranchToInfo aliceProjectAndBranch
-
-  (bobCausalHash, bobBranchNames) <-
-    case BobBranch'ProjectAndBranchNames bobSpecifier of
-      BobBranch'ProjectAndBranchNames (ProjectAndBranch maybeBobProjectName bobBranchName) -> do
-        bobProject <-
-          case maybeBobProjectName of
-            Nothing -> pure aliceProjectAndBranch.project
-            Just bobProjectName
-              | bobProjectName == aliceProjectAndBranch.project.name -> pure aliceProjectAndBranch.project
-              | otherwise -> do
-                  Cli.runTransaction (Queries.loadProjectByName bobProjectName)
-                    & onNothingM (Cli.returnEarly (Output.LocalProjectDoesntExist bobProjectName))
-        bobProjectBranch <- Cli.expectProjectBranchByName bobProject bobBranchName
-        projectAndBranchToInfo (ProjectAndBranch bobProject bobProjectBranch)
-
-  lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash bobCausalHash)
-
-  let causalHashes :: TwoOrThreeWay CausalHash
-      causalHashes =
-        TwoOrThreeWay {alice = aliceCausalHash, bob = bobCausalHash, lca = lcaCausalHash}
-
-  let branchNames :: TwoWay (ProjectAndBranch ProjectName ProjectBranchName)
-      branchNames =
-        TwoWay {alice = aliceBranchNames, bob = bobBranchNames}
-
-  let textualDescriptionOfMerge :: Text
-      textualDescriptionOfMerge =
-        "merge " <> into @Text branchNames.bob
-
-  ---
-
   -- If alice == bob, or LCA == bob (so alice is ahead of bob), then we are done.
-  when (causalHashes.alice == causalHashes.bob || causalHashes.lca == Just causalHashes.bob) do
+  when (info.alice.causalHash == info.bob.causalHash || info.lca.causalHash == Just info.bob.causalHash) do
     Cli.returnEarly (Output.MergeAlreadyUpToDate (Right branchNames.bob) (Right branchNames.alice))
 
   -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
-  when (causalHashes.lca == Just causalHashes.alice) do
-    bobBranch <- liftIO (Codebase.expectBranchForHash codebase causalHashes.bob)
-    _ <- Cli.updateAt textualDescriptionOfMerge alicePath (\_aliceBranch -> bobBranch)
+  when (info.lca.causalHash == Just info.alice.causalHash) do
+    bobBranch <- liftIO (Codebase.expectBranchForHash codebase info.bob.causalHash)
+    _ <- Cli.updateAt info.description alicePath (\_aliceBranch -> bobBranch)
     Cli.returnEarly (Output.MergeSuccessFastForward branchNames.alice branchNames.bob)
-
-  ---
 
   -- Create a bunch of cached database lookup functions
   db <- makeMergeDatabase codebase
 
   -- Load Alice/Bob/LCA causals
-  causals <- Cli.runTransaction (traverse Operations.expectCausalBranchByCausalHash causalHashes)
+  causals <- Cli.runTransaction do
+    traverse
+      Operations.expectCausalBranchByCausalHash
+      TwoOrThreeWay
+        { alice = info.alice.causalHash,
+          bob = info.bob.causalHash,
+          lca = info.lca.causalHash
+        }
 
   liftIO (debugFunctions.debugCausals causals)
 
@@ -372,9 +425,9 @@ handleMerge bobSpecifier = do
         HandleInput.Branch.doCreateBranch'
           (Branch.mergeNode stageOneBranch parents.alice parents.bob)
           Nothing
-          aliceProjectAndBranch.project
-          (findTemporaryBranchName aliceProjectAndBranch.project.projectId (view #branch <$> branchNames))
-          textualDescriptionOfMerge
+          info.alice.project
+          (findTemporaryBranchName info.alice.project.projectId (view #branch <$> branchNames))
+          info.description
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
@@ -390,9 +443,9 @@ handleMerge bobSpecifier = do
       let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
       _ <-
         Cli.updateAt
-          textualDescriptionOfMerge
+          info.description
           alicePath
-          (\_ -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+          (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
       Cli.respond (Output.MergeSuccess branchNames.alice branchNames.bob)
 
 ------------------------------------------------------------------------------------------------------------------------
