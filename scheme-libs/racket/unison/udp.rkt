@@ -8,6 +8,7 @@
          unison/chunked-seq
          (only-in unison/boot sum-case)
          unison/network-utils
+         net/ip
          unison/core)
 
 (provide
@@ -107,9 +108,12 @@
   (serverSocket.impl.v1 ip port) ; string string -> Either Failure socket
     (let
       ([result (handle-errors (lambda()
-        (let* ([iip (chunked-string->string ip)]
-              [pport (string->number (chunked-string->string port))]
-              [sock (udp-open-socket iip pport)])
+        (let*
+          ([hn (chunked-string->string ip)]
+           [ipa (make-ip-address hn)]
+           [iip (ip-address->string ipa)]
+           [pport (string->number (chunked-string->string port))]
+           [sock (udp-open-socket iip pport)])
           (begin
             (udp-bind! sock iip pport)
             (right sock)))))])
