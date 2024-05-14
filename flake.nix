@@ -88,6 +88,10 @@
               '';
             };
           };
+
+          renameAttrs = fn: nixpkgs.lib.mapAttrs' (name: value: {
+            inherit value;
+            name = fn name;});
         in
         assert nixpkgs-packages.ormolu.version == versions.ormolu;
         assert nixpkgs-packages.hls.version == versions.hls;
@@ -96,8 +100,8 @@
         {
           packages =
             nixpkgs-packages
-            // haskell-nix-flake.packages
-            // import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; }
+            // renameAttrs (name: "component-${name}") haskell-nix-flake.packages
+            // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; })
             // {
               default = haskell-nix-flake.defaultPackage;
               build-tools = pkgs.symlinkJoin {
@@ -119,13 +123,13 @@
               };
             };
 
-          apps = haskell-nix-flake.apps // {
-            default = self.apps."${system}"."unison-cli-main:exe:unison";
+          apps = renameAttrs (name: "component-${name}") haskell-nix-flake.apps // {
+            default = self.apps."${system}"."component-unison-cli-main:exe:unison";
           };
 
           devShells =
             nixpkgs-devShells
-            // haskell-nix-flake.devShells
+            // renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
             // {
               default = self.devShells."${system}".only-tools-nixpkgs;
             };
