@@ -2393,8 +2393,10 @@ test =
       visibility = I.Visible,
       args = [("namespace", Optional, namespaceArg)],
       help =
-        case wundefined of
-          _ -> "`test` runs unit tests for the current branch.",
+        P.wrapColumn2
+          [ ("`test`", "runs unit tests for the current branch"),
+            ("`test foo`", "runts unit tests for the current branch defined in namespace `foo`")
+          ],
       parse = \args ->
         maybe (Left (I.help test)) Right do
           path <-
@@ -2529,11 +2531,11 @@ ioTestAll =
     { patternName = "io.test.all",
       aliases = ["test.io.all"],
       visibility = I.Visible,
-      args = case wundefined of { _ -> [] },
+      args = [],
       help =
         P.wrapColumn2
           [ ( "`io.test.all`",
-              "Runs all tests which use IO within the scope of the current namespace."
+              "runs unit tests for the current branch that use IO"
             )
           ],
       parse = \case
