@@ -434,8 +434,11 @@ loop e = do
               let destp = looseCodeOrProjectToPath dest0
               srcb <- Cli.expectBranchAtPath' srcp
               dest <- Cli.resolvePath' destp
-              -- todo: fixme: use project and branch names
-              let err = Just $ MergeAlreadyUpToDate src0 dest0
+              let err =
+                    Just $
+                      MergeAlreadyUpToDate
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> src0)
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> dest0)
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
