@@ -1667,9 +1667,11 @@ notifyUser dir = \case
         <> "and"
         <> prettyName name2
         <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib ->
+  MergeDefnsInLib name ->
     pure . P.wrap $
-      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
+      "On"
+        <> P.group (prettyProjectBranchName name <> ",")
+        <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
         <> "Please remove it before merging."
   MergeMissingConstructorName name ->
     pure . P.wrap $

@@ -62,7 +62,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -398,13 +398,12 @@ data Output
   | MergeFailure !FilePath !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSuccess !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSuccessFastForward !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
-  | -- These are all merge precondition violations. See PreconditionViolation for more docs.
-    MergeConflictedAliases !ProjectBranchName !Name !Name
-  | MergeConflictedTermName !Name !(Set Referent)
-  | MergeConflictedTypeName !Name !(Set Reference.TypeReference)
+  | MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeConflictedTermName !Name !(NESet Referent)
+  | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
   | MergeConstructorAlias !(Maybe ProjectBranchName) !Name !Name
-  | MergeDefnsInLib
+  | MergeDefnsInLib !ProjectBranchName
   | MergeMissingConstructorName !Name
   | MergeNestedDeclAlias !Name !Name
   | MergeStrayConstructor !Name
@@ -645,7 +644,7 @@ isFailure o = case o of
   MergeConflictedTypeName {} -> True
   MergeConflictInvolvingBuiltin {} -> True
   MergeConstructorAlias {} -> True
-  MergeDefnsInLib -> True
+  MergeDefnsInLib {} -> True
   MergeMissingConstructorName {} -> True
   MergeNestedDeclAlias {} -> True
   MergeStrayConstructor {} -> True
