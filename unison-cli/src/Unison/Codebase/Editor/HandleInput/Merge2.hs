@@ -290,10 +290,10 @@ doMerge info = do
                 Cli.returnEarly case err of
                   IncoherentDeclReason'ConstructorAlias name1 name2 ->
                     Output.MergeConstructorAlias maybeBranchName name1 name2
-                  IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName name
+                  IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName maybeBranchName name
                   IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-                    Output.MergeNestedDeclAlias shorterName longerName
-                  IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor name
+                    Output.MergeNestedDeclAlias maybeBranchName shorterName longerName
+                  IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor maybeBranchName name
             pure (defns, declNameLookup)
 
     (aliceDefns0, aliceDeclNameLookup) <- load (Just (Just branchNames.alice.branch, branches.alice))

@@ -404,9 +404,9 @@ data Output
   | MergeConflictInvolvingBuiltin !Name
   | MergeConstructorAlias !(Maybe ProjectBranchName) !Name !Name
   | MergeDefnsInLib !ProjectBranchName
-  | MergeMissingConstructorName !Name
-  | MergeNestedDeclAlias !Name !Name
-  | MergeStrayConstructor !Name
+  | MergeMissingConstructorName !(Maybe ProjectBranchName) !Name
+  | MergeNestedDeclAlias !(Maybe ProjectBranchName) !Name !Name
+  | MergeStrayConstructor !(Maybe ProjectBranchName) !Name
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 

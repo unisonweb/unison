@@ -1667,27 +1667,39 @@ notifyUser dir = \case
         <> "and"
         <> prettyName name2
         <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib name ->
+  MergeDefnsInLib branch ->
     pure . P.wrap $
       "On"
-        <> P.group (prettyProjectBranchName name <> ",")
+        <> P.group (prettyProjectBranchName branch <> ",")
         <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
         <> "Please remove it before merging."
-  MergeMissingConstructorName name ->
+  MergeMissingConstructorName maybeBranch name ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeBranch of
+          Nothing -> "the LCA,"
+          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+        <> "the type"
         <> prettyName name
         <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias shorterName longerName ->
+  MergeNestedDeclAlias maybeBranch shorterName longerName ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeBranch of
+          Nothing -> "the LCA,"
+          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+        <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
         <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor name ->
+  MergeStrayConstructor maybeBranch name ->
     pure . P.wrap $
-      "The constructor"
+      "On"
+        <> case maybeBranch of
+          Nothing -> "the LCA,"
+          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+        <> "the constructor"
         <> prettyName name
         <> "is not in a subnamespace of a name of its type."
         <> "Please either delete it or rename it before merging."

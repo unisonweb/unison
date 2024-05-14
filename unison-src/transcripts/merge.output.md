@@ -1047,8 +1047,8 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  The type Foo is missing a name for one of its constructors.
-  Please add one before merging.
+  On alice, the type Foo is missing a name for one of its
+  constructors. Please add one before merging.
 
 ```
 ### Nested decl alias
@@ -1080,8 +1080,8 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  The type A.inner.X is an alias of A. Type aliases cannot be
-  nested. Please make them disjoint before merging.
+  On alice, the type A.inner.X is an alias of A. Type aliases
+  cannot be nested. Please make them disjoint before merging.
 
 ```
 ### Stray constructor alias
@@ -1113,7 +1113,7 @@ project/bob> add
 ```ucm
 project/alice> merge bob
 
-  The constructor AliasOutsideFooNamespace is not in a
+  On alice, the constructor AliasOutsideFooNamespace is not in a
   subnamespace of a name of its type. Please either delete it or
   rename it before merging.
 
