@@ -291,8 +291,8 @@ data Output
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | MergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
   | PreviewMergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))

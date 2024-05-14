@@ -476,13 +476,18 @@ cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
 -- | Construct a two-parent merge node.
-mergeNode :: forall m. Applicative m => Branch0 m -> Branch m -> Branch m -> Branch m
+mergeNode ::
+  forall m.
+  Applicative m =>
+  Branch0 m ->
+  (CausalHash, m (Branch m)) ->
+  (CausalHash, m (Branch m)) ->
+  Branch m
 mergeNode child parent1 parent2 =
   Branch (Causal.mergeNode child (Map.fromList [f parent1, f parent2]))
   where
-    f :: Branch m -> (CausalHash, m (Causal m (Branch0 m)))
-    f parent =
-      (headHash parent, pure (_history parent))
+    f (hash, getBranch) =
+      (hash, _history <$> getBranch)
 
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True

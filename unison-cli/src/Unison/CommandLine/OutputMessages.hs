@@ -1635,9 +1635,9 @@ notifyUser dir = \case
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        either prettyPath' prettyProjectAndBranchName dest
           <> "was already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
+          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
   MergeConflictedAliases branch name1 name2 ->
     pure . P.wrap $
       "On"
