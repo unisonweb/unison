@@ -2395,7 +2395,7 @@ test =
       help =
         P.wrapColumn2
           [ ("`test`", "runs unit tests for the current branch"),
-            ("`test foo`", "runts unit tests for the current branch defined in namespace `foo`")
+            ("`test foo`", "runs unit tests for the current branch defined in namespace `foo`")
           ],
       parse = \args ->
         maybe (Left (I.help test)) Right do
