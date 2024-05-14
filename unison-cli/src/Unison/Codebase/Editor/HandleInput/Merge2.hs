@@ -183,13 +183,11 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
       causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
       pure causal.causalHash
 
----
-
 data MergeInfo = MergeInfo
   { alice :: !AliceMergeInfo,
     bob :: !BobMergeInfo,
     lca :: !LcaMergeInfo,
-    -- How should we describe this merge in the reflog?
+    -- | How should we describe this merge in the reflog?
     description :: !Text
   }
 
@@ -201,7 +199,7 @@ data AliceMergeInfo = AliceMergeInfo
 
 data BobMergeInfo = BobMergeInfo
   { causalHash :: !CausalHash,
-    -- Bob's project and branch names are just for display purposes; they don't necessarily correspond to a real local
+    -- | Bob's project and branch names are just for display purposes; they don't necessarily correspond to a real local
     -- project. For example, if we `pull @unison/base/bugfix`, then we'll use project name `@unison/base` and branch
     -- name `bugfix`, even though we're just pulling the branch into the current one, with no relationship to any local
     -- project/branch named `@unison/base/bugfix`.

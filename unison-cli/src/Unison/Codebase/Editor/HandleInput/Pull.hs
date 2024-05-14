@@ -10,7 +10,6 @@ module Unison.Codebase.Editor.HandleInput.Pull
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.List.NonEmpty qualified as Nel
 import Data.Text qualified as Text
@@ -20,8 +19,8 @@ import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
-import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project (..))
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -35,6 +34,7 @@ import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
+import Unison.Codebase.Editor.HandleInput.Merge2 (AliceMergeInfo (..), BobMergeInfo (..), LcaMergeInfo (..), MergeInfo (..), doMerge)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
@@ -49,7 +49,6 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.SyncMode qualified as SyncMode
-import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
@@ -67,8 +66,8 @@ import Unison.Sync.Common qualified as Common
 import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
-doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
-doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
+doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Cli ()
+doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode = do
   Cli.Env {codebase} <- ask
 
   let includeSquashed = case pullMode of
@@ -76,11 +75,6 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
         Input.PullWithoutHistory -> Share.IncludeSquashedHead
 
   (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
-
-  target1 <-
-    case target of
-      Left _ -> wundefined
-      Right target1 -> pure target1
 
   remoteCausalHash <- importRemoteNamespaceIntoCodebase syncMode pullMode source
 
@@ -96,7 +90,7 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
     case target of
       Left path -> Cli.resolvePath' path
       Right (ProjectAndBranch project branch) ->
-        pure $ ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
+        pure $ ProjectUtils.projectBranchPath (ProjectAndBranch project.projectId branch.branchId)
 
   let description =
         Text.unwords
@@ -104,10 +98,10 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
               case pullMode of
                 PullWithoutHistory -> InputPatterns.pullWithoutHistory
                 PullWithHistory -> InputPatterns.pull,
-            printReadRemoteNamespace (\remoteBranch -> into @Text (ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName))) source,
+            printReadRemoteNamespace (\remoteBranch -> into @Text (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)) source,
             case target of
               Left path -> Path.toText' path
-              Right (ProjectAndBranch project branch) -> into @Text (ProjectAndBranch (project ^. #name) (branch ^. #name))
+              Right (ProjectAndBranch project branch) -> into @Text (ProjectAndBranch project.name branch.name)
           ]
 
   case pullMode of
@@ -120,17 +114,46 @@ doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
         else do
-          remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
+          ProjectAndBranch bobProjectName bobProjectBranchName <-
+            case source of
+              ReadRemoteNamespaceGit _ -> error "can't pull from git"
+              ReadShare'LooseCode _ -> error "can't pull from loose code"
+              ReadShare'ProjectBranch remoteBranch -> pure (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
+
+          ProjectAndBranch aliceProject aliceProjectBranch <-
+            case target of
+              Left _ -> error "can't pull into path"
+              Right target1 -> pure target1
 
           Cli.respond AboutToMerge
 
-          mergeBranchAndPropagateDefaultPatch
-            Branch.RegularMerge
-            description
-            (Just (PullAlreadyUpToDate source target))
-            remoteBranchObject
-            (if Verbosity.isSilent verbosity then Nothing else Just target)
-            targetAbsolutePath
+          aliceCausalHash <-
+            Cli.runTransaction do
+              causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute targetAbsolutePath)
+              pure causal.causalHash
+
+          lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash remoteCausalHash)
+
+          doMerge
+            MergeInfo
+              { alice =
+                  AliceMergeInfo
+                    { causalHash = aliceCausalHash,
+                      project = aliceProject,
+                      projectBranch = aliceProjectBranch
+                    },
+                bob =
+                  BobMergeInfo
+                    { causalHash = remoteCausalHash,
+                      projectName = bobProjectName,
+                      projectBranchName = bobProjectBranchName
+                    },
+                lca =
+                  LcaMergeInfo
+                    { causalHash = lcaCausalHash
+                    },
+                description
+              }
     Input.PullWithoutHistory -> do
       remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
 
@@ -165,8 +188,8 @@ resolveImplicitSource includeSquashed =
     Just (localProjectAndBranch, _restPath) -> do
       (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
         Cli.runTransactionWithRollback \rollback -> do
-          let localProjectId = localProjectAndBranch ^. #project . #projectId
-          let localBranchId = localProjectAndBranch ^. #branch . #branchId
+          let localProjectId = localProjectAndBranch.project.projectId
+          let localBranchId = localProjectAndBranch.branch.branchId
           Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
             Just (remoteProjectId, Just remoteBranchId) -> do
               remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
@@ -193,7 +216,7 @@ resolveExplicitSource includeSquashed = \case
   ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
   ReadShare'ProjectBranch (This remoteProjectName) -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName remoteProjectName
-    let remoteProjectId = remoteProject ^. #projectId
+    let remoteProjectId = remoteProject.projectId
     let remoteBranchName = unsafeFrom @Text "main"
     remoteProjectBranch <-
       ProjectUtils.expectRemoteProjectBranchByName
@@ -202,8 +225,8 @@ resolveExplicitSource includeSquashed = \case
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
     (ProjectAndBranch localProject localBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
-    let localProjectId = localProject ^. #projectId
-    let localBranchId = localBranch ^. #branchId
+    let localProjectId = localProject.projectId
+    let localBranchId = localBranch.branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
@@ -217,10 +240,10 @@ resolveExplicitSource includeSquashed = \case
         Cli.returnEarly $
           Output.NoAssociatedRemoteProject
             Share.hardCodedUri
-            (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
+            (ProjectAndBranch localProject.name localBranch.name)
   ReadShare'ProjectBranch (These projectName branchNameOrLatestRelease) -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
-    let remoteProjectId = remoteProject ^. #projectId
+    let remoteProjectId = remoteProject.projectId
     branchName <- resolveRemoteBranchName projectName branchNameOrLatestRelease
     remoteProjectBranch <-
       ProjectUtils.expectRemoteProjectBranchByName
@@ -233,7 +256,7 @@ resolveExplicitSource includeSquashed = \case
       ProjectBranchNameOrLatestRelease'Name branchName -> pure branchName
       ProjectBranchNameOrLatestRelease'LatestRelease -> do
         remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
-        case remoteProject ^. #latestRelease of
+        case remoteProject.latestRelease of
           Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases projectName)
           Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))
 
@@ -265,14 +288,14 @@ importRemoteNamespaceIntoCodebase syncMode pullMode remoteNamespace = do
 -- | @downloadShareProjectBranch branch@ downloads the given branch.
 downloadShareProjectBranch :: HasCallStack => Bool -> Share.RemoteProjectBranch -> Cli HashJWT
 downloadShareProjectBranch useSquashedIfAvailable branch = do
-  let remoteProjectBranchName = branch ^. #branchName
-  let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch (branch ^. #projectName) remoteProjectBranchName))
+  let remoteProjectBranchName = branch.branchName
+  let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
   causalHashJwt <-
     if useSquashedIfAvailable
-      then case (branch ^. #squashedBranchHead) of
+      then case branch.squashedBranchHead of
         Nothing -> Cli.returnEarly (Output.ShareError ShareExpectedSquashedHead)
         Just squashedHead -> pure squashedHead
-      else pure (branch ^. #branchHead)
+      else pure branch.branchHead
   exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
   when (not exists) do
     (result, numDownloaded) <-

@@ -42,8 +42,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.SyncMode qualified as SyncMode
-import Unison.Codebase.Verbosity (Verbosity)
-import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath, parseIncrementalBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
@@ -1301,22 +1299,18 @@ resetRoot =
 
 pull :: InputPattern
 pull =
-  pullImpl "pull" ["pull.silent"] Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
-
-pullVerbose :: InputPattern
-pullVerbose = pullImpl "pull.verbose" [] Verbosity.Verbose Input.PullWithHistory "and lists the merged entities"
+  pullImpl "pull" [] Input.PullWithHistory ""
 
 pullWithoutHistory :: InputPattern
 pullWithoutHistory =
   pullImpl
     "pull.without-history"
     []
-    Verbosity.Silent
     Input.PullWithoutHistory
     "without including the remote's history. This usually results in smaller codebase sizes."
 
-pullImpl :: String -> [String] -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
-pullImpl name aliases verbosity pullMode addendum = do
+pullImpl :: String -> [String] -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name aliases pullMode addendum = do
   self
   where
     self =
@@ -1362,10 +1356,10 @@ pullImpl name aliases verbosity pullMode addendum = do
               ],
           parse =
             maybeToEither (I.help self) . \case
-              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
+              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode
               [sourceString] -> do
                 source <- parsePullSource (Text.pack sourceString)
-                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode
               [sourceString, targetString] -> do
                 source <- parsePullSource (Text.pack sourceString)
                 target <- parseLooseCodeOrProject targetString
@@ -1374,7 +1368,6 @@ pullImpl name aliases verbosity pullMode addendum = do
                     (Input.PullSourceTarget2 source target)
                     SyncMode.ShortCircuit
                     pullMode
-                    verbosity
               _ -> Nothing
         }
 
@@ -1390,7 +1383,7 @@ pullExhaustive =
             "The "
               <> makeExample' pullExhaustive
               <> "command can be used in place of"
-              <> makeExample' pullVerbose
+              <> makeExample' pull
               <> "to complete namespaces"
               <> "which were pulled incompletely due to a bug in UCM"
               <> "versions M1l and earlier.  It may be extra slow!"
@@ -1403,7 +1396,6 @@ pullExhaustive =
               Input.PullSourceTarget0
               SyncMode.Complete
               Input.PullWithHistory
-              Verbosity.Verbose
         [sourceString] -> do
           source <- parsePullSource (Text.pack sourceString)
           Just $
@@ -1411,7 +1403,6 @@ pullExhaustive =
               (Input.PullSourceTarget1 source)
               SyncMode.Complete
               Input.PullWithHistory
-              Verbosity.Verbose
         [sourceString, targetString] -> do
           source <- parsePullSource (Text.pack sourceString)
           target <- parseLooseCodeOrProject targetString
@@ -1420,7 +1411,6 @@ pullExhaustive =
               (Input.PullSourceTarget2 source target)
               SyncMode.Complete
               Input.PullWithHistory
-              Verbosity.Verbose
         _ -> Nothing
     )
 
@@ -3100,7 +3090,6 @@ validInputs =
       projectsInputPattern,
       pull,
       pullExhaustive,
-      pullVerbose,
       pullWithoutHistory,
       push,
       pushCreate,
