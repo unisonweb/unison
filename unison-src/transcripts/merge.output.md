@@ -491,9 +491,6 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
--- The definitions below are not conflicted, but they each depend on one or more
--- conflicted definitions above.
-
 bar : Text
 bar =
   use Text ++
@@ -535,9 +532,6 @@ project/alice> merge /bob
 
 ```
 ```unison:added-by-ucm scratch.u
--- The definitions below are not conflicted, but they each depend on one or more
--- conflicted definitions above.
-
 bar : Text
 bar =
   use Text ++
@@ -1143,8 +1137,8 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  There's a type or term directly in the `lib` namespace, but I
-  expected only library dependencies to be in there. Please
-  remove it before merging.
+  On alice, there's a type or term directly in the `lib`
+  namespace, but I expected only library dependencies to be in
+  there. Please remove it before merging.
 
 ```
