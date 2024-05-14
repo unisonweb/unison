@@ -2388,20 +2388,31 @@ debugNameDiff =
 test :: InputPattern
 test =
   InputPattern
-    "test"
-    []
-    I.Visible
-    []
-    "`test` runs unit tests for the current branch."
-    ( const $
-        pure $
-          Input.TestI
-            Input.TestInput
-              { includeLibNamespace = False,
-                showFailures = True,
-                showSuccesses = True
-              }
-    )
+    { patternName = "test",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("namespace", Optional, namespaceArg)],
+      help =
+        P.wrapColumn2
+          [ ("`test`", "runs unit tests for the current branch"),
+            ("`test foo`", "runs unit tests for the current branch defined in namespace `foo`")
+          ],
+      parse = \args ->
+        maybe (Left (I.help test)) Right do
+          path <-
+            case args of
+              [] -> Just Path.empty
+              [pathString] -> eitherToMaybe $ Path.parsePath pathString
+              _ -> Nothing
+          Just $
+            Input.TestI
+              Input.TestInput
+                { includeLibNamespace = False,
+                  path,
+                  showFailures = True,
+                  showSuccesses = True
+                }
+    }
 
 testAll :: InputPattern
 testAll =
@@ -2416,6 +2427,7 @@ testAll =
           Input.TestI
             Input.TestInput
               { includeLibNamespace = True,
+                path = Path.empty,
                 showFailures = True,
                 showSuccesses = True
               }
@@ -2523,7 +2535,7 @@ ioTestAll =
       help =
         P.wrapColumn2
           [ ( "`io.test.all`",
-              "Runs all tests which use IO within the scope of the current namespace."
+              "runs unit tests for the current branch that use IO"
             )
           ],
       parse = \case
