@@ -2568,7 +2568,7 @@ runScheme =
   InputPattern
     "run.native"
     []
-    I.Hidden
+    I.Visible
     [("definition to run", Required, exactDefinitionTermQueryArg), ("arguments", ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
