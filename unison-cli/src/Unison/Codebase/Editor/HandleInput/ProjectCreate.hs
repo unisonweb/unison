@@ -114,8 +114,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 Share.GetProjectBranchResponseBranchNotFound -> done Nothing
                 Share.GetProjectBranchResponseProjectNotFound -> done Nothing
                 Share.GetProjectBranchResponseSuccess branch -> pure branch
-            let useSquashed = False
-            downloadProjectBranchFromShare useSquashed baseLatestReleaseBranch
+            downloadProjectBranchFromShare Share.NoSquashedHead baseLatestReleaseBranch
               & onLeftM (Cli.returnEarly . Output.ShareError)
             Cli.Env {codebase} <- ask
             baseLatestReleaseBranchObject <-

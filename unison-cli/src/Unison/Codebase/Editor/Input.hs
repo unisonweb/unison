@@ -241,6 +241,7 @@ data Input
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
   | EditNamespaceI [Path.Path]
+  | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

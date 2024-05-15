@@ -56,7 +56,15 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
+import Unison.Project
+  ( ProjectAndBranch (..),
+    ProjectAndBranchNames (..),
+    ProjectBranchName,
+    ProjectBranchNameOrLatestRelease (..),
+    ProjectBranchSpecifier (..),
+    ProjectName,
+    Semver,
+  )
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
@@ -1221,6 +1229,28 @@ forkLocal =
         dest <- parseBranchRelativePath dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
+
+libInstallInputPattern :: InputPattern
+libInstallInputPattern =
+  InputPattern
+    { patternName = "lib.install",
+      aliases = ["install.lib"],
+      visibility = I.Visible,
+      args = [],
+      help =
+        P.wrapColumn2
+          [ ( makeExample libInstallInputPattern ["@unison/base/releases/latest"],
+              "installs `@unison/base/releases/latest` as a dependency of the current project"
+            )
+          ],
+      parse = \args ->
+        maybe (Left (I.help libInstallInputPattern)) Right do
+          [arg] <- Just args
+          libdep <-
+            eitherToMaybe $
+              tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease)) (Text.pack arg)
+          Just (Input.LibInstallI libdep)
+    }
 
 reset :: InputPattern
 reset =
@@ -3008,6 +3038,7 @@ validInputs =
       history,
       ioTest,
       ioTestAll,
+      libInstallInputPattern,
       load,
       makeStandalone,
       mergeBuiltins,

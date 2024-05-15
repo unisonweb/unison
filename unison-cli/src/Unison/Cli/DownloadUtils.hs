@@ -45,19 +45,18 @@ import Unison.Sync.Types qualified as Share
 -- | Download a project/branch from Share.
 downloadProjectBranchFromShare ::
   HasCallStack =>
-  Bool ->
+  Share.IncludeSquashedHead ->
   Share.RemoteProjectBranch ->
   Cli (Either Output.ShareError CausalHash)
-downloadProjectBranchFromShare useSquashedIfAvailable branch =
+downloadProjectBranchFromShare useSquashed branch =
   Cli.labelE \done -> do
     let remoteProjectBranchName = branch.branchName
     let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
     causalHashJwt <-
-      if useSquashedIfAvailable
-        then case branch.squashedBranchHead of
-          Nothing -> done Output.ShareExpectedSquashedHead
-          Just squashedHead -> pure squashedHead
-        else pure branch.branchHead
+      case (useSquashed, branch.squashedBranchHead) of
+        (Share.IncludeSquashedHead, Nothing) -> done Output.ShareExpectedSquashedHead
+        (Share.IncludeSquashedHead, Just squashedHead) -> pure squashedHead
+        (Share.NoSquashedHead, _) -> pure branch.branchHead
     exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
     when (not exists) do
       (result, numDownloaded) <-

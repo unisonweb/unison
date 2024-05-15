@@ -2214,6 +2214,12 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
+  InstalledLibdep libdep segment ->
+    pure . P.wrap $
+      "I installed"
+        <> prettyProjectAndBranchName libdep
+        <> "as"
+        <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

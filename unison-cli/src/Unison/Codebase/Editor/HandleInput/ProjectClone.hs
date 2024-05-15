@@ -10,7 +10,7 @@ import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import U.Codebase.Sqlite.DbId qualified as Sqlite
-import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.Project qualified as Sqlite (Project (..))
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
@@ -42,7 +42,7 @@ handleClone remoteNames0 maybeLocalNames0 = do
   maybeCurrentProjectBranch <- ProjectUtils.getCurrentProjectBranch
   resolvedRemoteNames <- resolveRemoteNames Share.NoSquashedHead maybeCurrentProjectBranch remoteNames0
   localNames1 <- resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames0
-  cloneInto localNames1 (resolvedRemoteNames ^. #branch)
+  cloneInto localNames1 resolvedRemoteNames.branch
 
 data ResolvedRemoteNames = ResolvedRemoteNames
   { branch :: Share.RemoteProjectBranch,
@@ -101,8 +101,8 @@ resolveRemoteNames includeSquashed maybeCurrentProjectBranch = \case
                     Share.GetProjectBranchResponseSuccess remoteBranch -> Just remoteBranch
                 case (maybeRemoteProject, maybeRemoteBranch) of
                   (Just remoteProject, Nothing) -> do
-                    let remoteProjectId = remoteProject ^. #projectId
-                    let remoteProjectName = remoteProject ^. #projectName
+                    let remoteProjectId = remoteProject.projectId
+                    let remoteProjectName = remoteProject.projectName
                     let remoteBranchName = unsafeFrom @Text "main"
                     remoteBranch <-
                       ProjectUtils.expectRemoteProjectBranchByName
@@ -188,14 +188,14 @@ resolveLocalNames ::
 resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames =
   resolve case maybeLocalNames of
     Nothing ->
-      ProjectAndBranchNames'Unambiguous case resolvedRemoteNames ^. #from of
+      ProjectAndBranchNames'Unambiguous case resolvedRemoteNames.from of
         ResolvedRemoteNamesFrom'Branch -> That remoteBranchName
         ResolvedRemoteNamesFrom'Project -> This remoteProjectName
         ResolvedRemoteNamesFrom'ProjectAndBranch -> These remoteProjectName remoteBranchName
     Just localNames -> localNames
   where
-    remoteBranchName = resolvedRemoteNames ^. #branch ^. #branchName
-    remoteProjectName = resolvedRemoteNames ^. #branch ^. #projectName
+    remoteBranchName = resolvedRemoteNames.branch.branchName
+    remoteProjectName = resolvedRemoteNames.branch.projectName
 
     resolve names =
       case names of
@@ -206,7 +206,7 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
               Cli.returnEarly $
                 Output.AmbiguousCloneLocal
                   (ProjectAndBranch localProjectName remoteBranchName)
-                  (ProjectAndBranch (currentProject ^. #name) localBranchName)
+                  (ProjectAndBranch currentProject.name localBranchName)
         ProjectAndBranchNames'Unambiguous (This localProjectName) -> resolveP localProjectName
         ProjectAndBranchNames'Unambiguous (That localBranchName) -> resolveB localBranchName
         ProjectAndBranchNames'Unambiguous (These localProjectName localBranchName) -> resolvePB localProjectName localBranchName
@@ -232,12 +232,12 @@ resolveLocalNames maybeCurrentProjectBranch resolvedRemoteNames maybeLocalNames 
 -- it takes some time to pull the remote).
 cloneInto :: ProjectAndBranch LocalProjectKey ProjectBranchName -> Share.RemoteProjectBranch -> Cli ()
 cloneInto localProjectBranch remoteProjectBranch = do
-  let remoteProjectName = remoteProjectBranch ^. #projectName
-  let remoteBranchName = remoteProjectBranch ^. #branchName
+  let remoteProjectName = remoteProjectBranch.projectName
+  let remoteBranchName = remoteProjectBranch.branchName
   let remoteProjectBranchNames = ProjectAndBranch remoteProjectName remoteBranchName
 
   branchHead <-
-    downloadProjectBranchFromShare False {- use squashed -} remoteProjectBranch
+    downloadProjectBranchFromShare Share.NoSquashedHead remoteProjectBranch
       & onLeftM (Cli.returnEarly . Output.ShareError)
 
   localProjectAndBranch <-
@@ -252,21 +252,21 @@ cloneInto localProjectBranch remoteProjectBranch = do
             localProjectId <- Sqlite.unsafeIO (ProjectId <$> UUID.nextRandom)
             Queries.insertProject localProjectId localProjectName
             pure (localProjectId, localProjectName)
-          Right localProject -> pure (localProject ^. #projectId, localProject ^. #name)
+          Right localProject -> pure (localProject.projectId, localProject.name)
       localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
       Queries.insertProjectBranch
         Sqlite.ProjectBranch
           { projectId = localProjectId,
             branchId = localBranchId,
-            name = localProjectBranch ^. #branch,
+            name = localProjectBranch.branch,
             parentBranchId = Nothing
           }
       Queries.insertBranchRemoteMapping
         localProjectId
         localBranchId
-        (remoteProjectBranch ^. #projectId)
+        remoteProjectBranch.projectId
         Share.hardCodedUri
-        (remoteProjectBranch ^. #branchId)
+        remoteProjectBranch.branchId
       pure (ProjectAndBranch (localProjectId, localProjectName) localBranchId)
 
   Cli.respond $
@@ -274,7 +274,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
       remoteProjectBranchNames
       ( ProjectAndBranch
           (localProjectAndBranch ^. #project . _2)
-          (localProjectBranch ^. #branch)
+          localProjectBranch.branch
       )
 
   -- Manipulate the root namespace and cd
@@ -291,8 +291,8 @@ loadAssociatedRemoteProjectId ::
 loadAssociatedRemoteProjectId (ProjectAndBranch project branch) =
   fmap fst <$> Queries.loadRemoteProjectBranch projectId Share.hardCodedUri branchId
   where
-    projectId = project ^. #projectId
-    branchId = branch ^. #branchId
+    projectId = project.projectId
+    branchId = branch.branchId
 
 assertProjectNameHasUserSlug :: ProjectName -> Cli ()
 assertProjectNameHasUserSlug projectName =
@@ -313,6 +313,6 @@ assertLocalProjectBranchDoesntExist rollback = \case
   ProjectAndBranch (LocalProjectKey'Project project) branchName -> go project branchName
   where
     go project branchName = do
-      Queries.projectBranchExistsByName (project ^. #projectId) branchName & onTrueM do
-        rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) branchName))
+      Queries.projectBranchExistsByName project.projectId branchName & onTrueM do
+        rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch project.name branchName))
       pure (Right project)
