@@ -113,10 +113,11 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
                 -- Ctrl-c or some input cancel, re-run the prompt
                 go
               Right (Just (expandedArgs, i)) -> do
-                let expandedArgsStr = unwords expandedArgs
-                when (expandedArgs /= ws) $ do
+                let expandedArgs' = IP.unifyArguments expandedArgs
+                    expandedArgsStr = unwords expandedArgs'
+                when (expandedArgs' /= ws) $ do
                   liftIO . putStrLn $ fullPrompt <> expandedArgsStr
-                Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ unwords expandedArgs
+                Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe $ expandedArgsStr
                 pure i
     settings :: Line.Settings IO
     settings =
