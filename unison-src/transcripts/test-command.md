@@ -9,6 +9,9 @@ The `test` command should run all of the tests in the current directory.
 ```unison
 test1 : [Result]
 test1 = [Ok "test1"]
+
+foo.test2 : [Result]
+foo.test2 = [Ok "test2"]
 ```
 
 ```ucm:hide
@@ -45,4 +48,10 @@ testInLib = [Ok "testInLib"]
 
 ```ucm
 .lib> test
+```
+
+`test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
+
+```ucm
+.> test foo
 ```

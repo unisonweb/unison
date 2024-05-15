@@ -301,6 +301,8 @@ data PushRemoteBranchInput = PushRemoteBranchInput
 data TestInput = TestInput
   { -- | Should we run tests in the `lib` namespace?
     includeLibNamespace :: Bool,
+    -- | Relative path to run the tests in. Ignore if `includeLibNamespace` is True - that means test everything.
+    path :: Path,
     showFailures :: Bool,
     showSuccesses :: Bool
   }
