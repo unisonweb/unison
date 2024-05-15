@@ -1021,7 +1021,7 @@ loop e = do
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respondNumbered $ ListEdits patch suffixifiedPPE
-            PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
+            PullRemoteBranchI sourceTarget pMode verbosity -> doPullRemoteBranch sourceTarget pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq

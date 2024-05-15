@@ -41,7 +41,6 @@ import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
-import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
@@ -1362,67 +1361,20 @@ pullImpl name aliases verbosity pullMode addendum = do
               ],
           parse =
             maybeToEither (I.help self) . \case
-              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode verbosity
+              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 pullMode verbosity
               [sourceString] -> do
                 source <- parsePullSource (Text.pack sourceString)
-                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode verbosity
+                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) pullMode verbosity
               [sourceString, targetString] -> do
                 source <- parsePullSource (Text.pack sourceString)
                 target <- parseLooseCodeOrProject targetString
                 Just $
                   Input.PullRemoteBranchI
                     (Input.PullSourceTarget2 source target)
-                    SyncMode.ShortCircuit
                     pullMode
                     verbosity
               _ -> Nothing
         }
-
-pullExhaustive :: InputPattern
-pullExhaustive =
-  InputPattern
-    "debug.pull-exhaustive"
-    []
-    I.Hidden
-    [("remote namespace to pull", Optional, remoteNamespaceArg), ("destination namespace", Optional, namespaceArg)]
-    ( P.lines
-        [ P.wrap $
-            "The "
-              <> makeExample' pullExhaustive
-              <> "command can be used in place of"
-              <> makeExample' pullVerbose
-              <> "to complete namespaces"
-              <> "which were pulled incompletely due to a bug in UCM"
-              <> "versions M1l and earlier.  It may be extra slow!"
-        ]
-    )
-    ( maybeToEither (I.help pullExhaustive) . \case
-        [] ->
-          Just $
-            Input.PullRemoteBranchI
-              Input.PullSourceTarget0
-              SyncMode.Complete
-              Input.PullWithHistory
-              Verbosity.Verbose
-        [sourceString] -> do
-          source <- parsePullSource (Text.pack sourceString)
-          Just $
-            Input.PullRemoteBranchI
-              (Input.PullSourceTarget1 source)
-              SyncMode.Complete
-              Input.PullWithHistory
-              Verbosity.Verbose
-        [sourceString, targetString] -> do
-          source <- parsePullSource (Text.pack sourceString)
-          target <- parseLooseCodeOrProject targetString
-          Just $
-            Input.PullRemoteBranchI
-              (Input.PullSourceTarget2 source target)
-              SyncMode.Complete
-              Input.PullWithHistory
-              Verbosity.Verbose
-        _ -> Nothing
-    )
 
 debugTabCompletion :: InputPattern
 debugTabCompletion =
@@ -1524,8 +1476,7 @@ push =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireNonEmpty,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.RequireNonEmpty
             }
   where
     suggestionsConfig =
@@ -1580,8 +1531,7 @@ pushCreate =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireEmpty,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.RequireEmpty
             }
   where
     suggestionsConfig =
@@ -1615,8 +1565,7 @@ pushForce =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.ForcePush,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.ForcePush
             }
   where
     suggestionsConfig =
@@ -1660,8 +1609,7 @@ pushExhaustive =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireNonEmpty,
-              syncMode = SyncMode.Complete
+              pushBehavior = PushBehavior.RequireNonEmpty
             }
   where
     suggestionsConfig =
@@ -3079,7 +3027,6 @@ validInputs =
       projectSwitch,
       projectsInputPattern,
       pull,
-      pullExhaustive,
       pullVerbose,
       pullWithoutHistory,
       push,

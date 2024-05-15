@@ -44,8 +44,6 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
@@ -64,13 +62,13 @@ import Unison.Sync.Common qualified as Common
 import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
-doPullRemoteBranch :: PullSourceTarget -> SyncMode.SyncMode -> PullMode -> Verbosity.Verbosity -> Cli ()
-doPullRemoteBranch unresolvedSourceAndTarget syncMode pullMode verbosity = do
+doPullRemoteBranch :: PullSourceTarget -> PullMode -> Verbosity.Verbosity -> Cli ()
+doPullRemoteBranch unresolvedSourceAndTarget pullMode verbosity = do
   let includeSquashed = case pullMode of
         Input.PullWithHistory -> Share.NoSquashedHead
         Input.PullWithoutHistory -> Share.IncludeSquashedHead
   (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
-  remoteBranchObject <- loadRemoteNamespaceIntoMemory syncMode pullMode source
+  remoteBranchObject <- loadRemoteNamespaceIntoMemory pullMode source
   when (Branch.isEmpty0 (Branch.head remoteBranchObject)) do
     Cli.respond (PulledEmptyBranch source)
   targetAbsolutePath <-
@@ -215,18 +213,17 @@ resolveImplicitTarget =
     Just (projectAndBranch, _restPath) -> Right projectAndBranch
 
 loadRemoteNamespaceIntoMemory ::
-  SyncMode ->
   PullMode ->
   ReadRemoteNamespace Share.RemoteProjectBranch ->
   Cli (Branch IO)
-loadRemoteNamespaceIntoMemory syncMode pullMode remoteNamespace = do
+loadRemoteNamespaceIntoMemory pullMode remoteNamespace = do
   Cli.Env {codebase} <- ask
   case remoteNamespace of
     ReadRemoteNamespaceGit repo -> do
       let preprocess = case pullMode of
             Input.PullWithHistory -> Unmodified
             Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
-      Cli.ioE (Codebase.importRemoteBranch codebase repo syncMode preprocess) \err ->
+      Cli.ioE (Codebase.importRemoteBranch codebase repo preprocess) \err ->
         Cli.returnEarly (Output.GitError err)
     ReadShare'LooseCode repo -> loadShareLooseCodeIntoMemory repo
     ReadShare'ProjectBranch remoteBranch -> do

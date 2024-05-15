@@ -91,12 +91,10 @@ module Unison.Codebase
     importRemoteBranch,
     Preprocessing (..),
     pushGitBranch,
-    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
     CodebasePath,
-    SyncToDir,
 
     -- * Direct codebase access
     runTransaction,
@@ -138,13 +136,7 @@ import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type
-  ( Codebase (..),
-    GitError (GitCodebaseError),
-    PushGitBranchOpts (..),
-    SyncToDir,
-  )
+import Unison.Codebase.Type (Codebase (..), GitError (GitCodebaseError))
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -497,15 +489,14 @@ importRemoteBranch ::
   (MonadUnliftIO m) =>
   Codebase m v a ->
   ReadGitRemoteNamespace ->
-  SyncMode ->
   Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode preprocess = runExceptT $ do
+importRemoteBranch codebase ns preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
     withStatus "Importing downloaded files into local codebase..." $ do
       processedBranch <- preprocessOp branch
       time "SyncFromDirectory" $ do
-        syncFromDirectory codebase cacheDir mode processedBranch
+        syncFromDirectory codebase cacheDir processedBranch
         pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
