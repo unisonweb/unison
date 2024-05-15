@@ -34,6 +34,7 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.DownloadUtils
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
@@ -165,6 +166,7 @@ library
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -303,6 +305,7 @@ executable transcripts
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -449,6 +452,7 @@ test-suite cli-tests
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes

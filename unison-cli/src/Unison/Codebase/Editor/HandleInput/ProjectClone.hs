@@ -13,6 +13,7 @@ import U.Codebase.Sqlite.DbId qualified as Sqlite
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (updateAt)
@@ -20,17 +21,11 @@ import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.HandleInput.Pull qualified as HandleInput.Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
-import Unison.Share.API.Hash qualified as Share.API
-import Unison.Share.Sync qualified as Share (downloadEntities)
-import Unison.Share.Sync.Types qualified as Share
 import Unison.Sqlite qualified as Sqlite
-import Unison.Sync.Common (hash32ToCausalHash)
-import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
 data LocalProjectKey
@@ -241,24 +236,9 @@ cloneInto localProjectBranch remoteProjectBranch = do
   let remoteBranchName = remoteProjectBranch ^. #branchName
   let remoteProjectBranchNames = ProjectAndBranch remoteProjectName remoteBranchName
 
-  -- Pull the remote branch's contents
-  let remoteBranchHeadJwt = remoteProjectBranch ^. #branchHead
-  (result, numDownloaded) <-
-    Cli.with HandleInput.Pull.withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
-      result <-
-        Share.downloadEntities
-          Share.hardCodedBaseUrl
-          (Share.RepoInfo (into @Text remoteProjectBranchNames))
-          remoteBranchHeadJwt
-          downloadedCallback
-      numDownloaded <- liftIO getNumDownloaded
-      pure (result, numDownloaded)
-  case result of
-    Left err0 ->
-      (Cli.returnEarly . Output.ShareError) case err0 of
-        Share.SyncError err -> Output.ShareErrorDownloadEntities err
-        Share.TransportError err -> Output.ShareErrorTransport err
-    Right () -> Cli.respond (Output.DownloadedEntities numDownloaded)
+  branchHead <-
+    downloadProjectBranchFromShare False {- use squashed -} remoteProjectBranch
+      & onLeftM (Cli.returnEarly . Output.ShareError)
 
   localProjectAndBranch <-
     Cli.runTransactionWithRollback \rollback -> do
@@ -299,7 +279,6 @@ cloneInto localProjectBranch remoteProjectBranch = do
 
   -- Manipulate the root namespace and cd
   Cli.Env {codebase} <- ask
-  let branchHead = hash32ToCausalHash (Share.API.hashJWTHash remoteBranchHeadJwt)
   theBranch <- liftIO (Codebase.expectBranchForHash codebase branchHead)
   let path = projectBranchPath (over #project fst localProjectAndBranch)
   Cli.updateAt ("clone " <> into @Text remoteProjectBranchNames) path (const theBranch)
