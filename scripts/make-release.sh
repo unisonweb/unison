@@ -38,7 +38,7 @@ if ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
 fi
 
 version="${1}"
-target=${2:-origin/trunk}
+src=${2:-origin/trunk}
 tag="release/$version"
 
 echo "Creating release in unison-local-ui."
@@ -50,7 +50,7 @@ gh release create "release/${version}" \
 echo "Kicking off release workflow in unisonweb/unison"
 # Make sure our origin/trunk ref is up to date, since that's usually what gets tagged.
 git fetch origin trunk
-git tag "${tag}" "${target}"
+git tag "${tag}" "${src}"
 git push origin "${tag}"
 gh workflow run release --repo unisonweb/unison \
   --ref "${tag}" \
