@@ -233,7 +233,8 @@ jobs:
           file: ucm
           content: |
             #!/bin/bash
-            "$(dirname "$0")/unison/unison" --runtime-path "$(dirname "$0")/runtime/bin/unison-runtime" "$@"
+            unison_root="$(dirname "$(readlink -f "$0")")"
+            "${unison_root}/unison/unison" --runtime-path "${unison_root}/runtime/bin/unison-runtime" "$@"
       - name: create startup script (Windows)
         if: runner.os == 'Windows'
         uses: 1arp/create-a-file-action@0.4.4
