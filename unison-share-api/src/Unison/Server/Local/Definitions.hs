@@ -1,4 +1,9 @@
-module Unison.Server.Local.Definitions (prettyDefinitionsForHQName) where
+module Unison.Server.Local.Definitions
+  ( prettyDefinitionsForHQName,
+    termDefinitionByName,
+    typeDefinitionByName,
+  )
+where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except

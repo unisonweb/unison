@@ -38,16 +38,16 @@ import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
+import Unison.Core.Project (ProjectBranchName)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax qualified as Syntax
-import Unison.Share.API.Projects (BranchName)
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
@@ -467,8 +467,8 @@ instance Docs.ToCapture (Capture "project-and-branch" ProjectBranchNameParam) wh
 
 data TermDiffResponse = TermDiffResponse
   { project :: ProjectName,
-    oldBranch :: BranchName,
-    newBranch :: BranchName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
     oldTerm :: TermDefinition,
     newTerm :: TermDefinition,
     diff :: DisplayObjectDiff
@@ -505,8 +505,8 @@ instance ToJSON TermDiffResponse where
 
 data TypeDiffResponse = TypeDiffResponse
   { project :: ProjectName,
-    oldBranch :: BranchName,
-    newBranch :: BranchName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
     oldType :: TypeDefinition,
     newType :: TypeDefinition,
     diff :: DisplayObjectDiff
