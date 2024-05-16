@@ -84,7 +84,6 @@ library
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
-      Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type

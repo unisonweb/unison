@@ -41,7 +41,6 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity (Verbosity)
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
 import Unison.HashQualified qualified as HQ
@@ -115,7 +114,7 @@ data Input
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI PullSourceTarget SyncMode PullMode Verbosity
+  | PullRemoteBranchI PullSourceTarget PullMode Verbosity
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
   | ResetI
@@ -244,6 +243,7 @@ data Input
   | EditNamespaceI [Path.Path]
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
@@ -293,8 +293,7 @@ data PushSourceTarget
 
 data PushRemoteBranchInput = PushRemoteBranchInput
   { sourceTarget :: PushSourceTarget,
-    pushBehavior :: PushBehavior,
-    syncMode :: SyncMode
+    pushBehavior :: PushBehavior
   }
   deriving stock (Eq, Show)
 

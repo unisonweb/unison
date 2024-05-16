@@ -27,6 +27,7 @@ module Unison.Cli.ProjectUtils
     expectLooseCodeOrProjectBranch,
 
     -- * Loading remote project info
+    expectRemoteProjectById,
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
     loadRemoteProjectBranchByName,
@@ -37,6 +38,7 @@ module Unison.Cli.ProjectUtils
 
     -- * Other helpers
     findTemporaryBranchName,
+    expectLatestReleaseBranchName,
   )
 where
 
@@ -61,8 +63,9 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, ResolvedBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
+import Unison.Core.Project (ProjectBranchName (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName)
 import Unison.Project.Util
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
@@ -264,6 +267,12 @@ expectLooseCodeOrProjectBranch =
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils
 
+-- | Expect a remote project by id. Its latest-known name is also provided, for error messages.
+expectRemoteProjectById :: RemoteProjectId -> ProjectName -> Cli Share.RemoteProject
+expectRemoteProjectById remoteProjectId remoteProjectName = do
+  Share.getProjectById remoteProjectId & onNothingM do
+    Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
+
 expectRemoteProjectByName :: ProjectName -> Cli Share.RemoteProject
 expectRemoteProjectByName remoteProjectName = do
   Share.getProjectByName remoteProjectName & onNothingM do
@@ -358,3 +367,10 @@ expectRemoteProjectBranchByTheseNames includeSquashed = \case
 remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
 remoteProjectBranchDoesntExist projectAndBranch =
   Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri projectAndBranch)
+
+-- | Expect the given remote project to have a latest release, and return it as a valid branch name.
+expectLatestReleaseBranchName :: Share.RemoteProject -> Cli ProjectBranchName
+expectLatestReleaseBranchName remoteProject =
+  case remoteProject.latestRelease of
+    Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases remoteProject.projectName)
+    Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))

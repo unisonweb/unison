@@ -26,7 +26,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
-import Unison.Codebase (PushGitBranchOpts (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
@@ -52,8 +51,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.Hash qualified as Hash
@@ -84,13 +81,8 @@ handleGist :: GistInput -> Cli ()
 handleGist (GistInput repo) = do
   Cli.Env {codebase} <- ask
   sourceBranch <- Cli.getCurrentBranch
-  let opts =
-        PushGitBranchOpts
-          { behavior = GitPushBehaviorGist,
-            syncMode = SyncMode.ShortCircuit
-          }
   result <-
-    Cli.ioE (Codebase.pushGitBranch codebase repo opts (\_remoteRoot -> pure (Right sourceBranch))) \err ->
+    Cli.ioE (Codebase.pushGitBranch codebase repo GitPushBehaviorGist (\_remoteRoot -> pure (Right sourceBranch))) \err ->
       Cli.returnEarly (Output.GitError err)
   _branch <- result & onLeft Cli.returnEarly
   schLength <- Cli.runTransaction Codebase.branchHashLength
@@ -105,7 +97,7 @@ handleGist (GistInput repo) = do
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
-handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMode} = do
+handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
   case sourceTarget of
     -- push <implicit> to <implicit>
     PushSourceTarget0 ->
@@ -113,7 +105,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
         Nothing -> do
           localPath <- Cli.getCurrentPath
           UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
-            WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+            WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
         Just (localProjectAndBranch, _restPath) ->
@@ -124,7 +116,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push <implicit> to .some.path (git)
     PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.getCurrentPath
-      pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+      pushLooseCodeToGitLooseCode localPath namespace pushBehavior
     -- push <implicit> to .some.path (share)
     PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -141,7 +133,7 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
     -- push .some.path to .some.path (git)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
       localPath <- Cli.resolvePath' localPath0
-      pushLooseCodeToGitLooseCode localPath namespace pushBehavior syncMode
+      pushLooseCodeToGitLooseCode localPath namespace pushBehavior
     -- push .some.path to .some.path (share)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.resolvePath' localPath0
@@ -158,7 +150,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
         (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
         namespace
         pushBehavior
-        syncMode
     -- push @some/project to .some.path (share)
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
       ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
@@ -178,8 +169,8 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior, syncMo
         PushBehavior.RequireNonEmpty -> False
 
 -- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
-pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemoteNamespace -> PushBehavior -> SyncMode -> Cli ()
-pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
+pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemoteNamespace -> PushBehavior -> Cli ()
+pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior = do
   sourceBranch <- Cli.getBranchAt localPath
   let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
       withRemoteRoot remoteRoot = do
@@ -190,21 +181,17 @@ pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior syncMode = do
         case Branch.modifyAtM (gitRemotePath ^. #path) f remoteRoot of
           Nothing -> Left (RefusedToPush pushBehavior (WriteRemoteNamespaceGit gitRemotePath))
           Just newRemoteRoot -> Right newRemoteRoot
-  let opts =
-        PushGitBranchOpts
-          { behavior =
-              case pushBehavior of
-                PushBehavior.ForcePush -> GitPushBehaviorForce
-                PushBehavior.RequireEmpty -> GitPushBehaviorFf
-                PushBehavior.RequireNonEmpty -> GitPushBehaviorFf,
-            syncMode
-          }
+  let behavior =
+        case pushBehavior of
+          PushBehavior.ForcePush -> GitPushBehaviorForce
+          PushBehavior.RequireEmpty -> GitPushBehaviorFf
+          PushBehavior.RequireNonEmpty -> GitPushBehaviorFf
   Cli.Env {codebase} <- ask
   let push =
         Codebase.pushGitBranch
           codebase
           (gitRemotePath ^. #repo)
-          opts
+          behavior
           (\remoteRoot -> pure (withRemoteRoot remoteRoot))
   result <-
     liftIO push & onLeftM \err ->

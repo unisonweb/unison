@@ -408,6 +408,7 @@ data Output
   | MergeMissingConstructorName !Name
   | MergeNestedDeclAlias !Name !Name
   | MergeStrayConstructor !Name
+  | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -649,6 +650,7 @@ isFailure o = case o of
   MergeMissingConstructorName {} -> True
   MergeNestedDeclAlias {} -> True
   MergeStrayConstructor {} -> True
+  InstalledLibdep {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
