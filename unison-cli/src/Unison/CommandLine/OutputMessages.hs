@@ -1339,25 +1339,6 @@ notifyUser dir = \case
           push = P.group . P.backticked . IP.patternName $ IP.push
           pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
-      CouldntParseRemoteBranch repo s ->
-        P.wrap $
-          "I couldn't decode the root branch "
-            <> P.string s
-            <> "from the repository at"
-            <> prettyReadGitRepo repo
-      CouldntLoadRootBranch repo hash ->
-        P.wrap $
-          "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.toBase32HexText $ unCausalHash hash) <> ")")
-            <> "from the repository at"
-            <> prettyReadGitRepo repo
-      CouldntLoadSyncedBranch ns h ->
-        P.wrap $
-          "I just finished importing the branch"
-            <> P.red (P.shown h)
-            <> "from"
-            <> P.red (prettyReadRemoteNamespaceWith absurd (RemoteRepo.ReadRemoteNamespaceGit ns))
-            <> "but now I can't find it."
       CouldntFindRemoteBranch repo path ->
         P.wrap $
           "I couldn't find the remote branch at"
@@ -2233,6 +2214,12 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
+  InstalledLibdep libdep segment ->
+    pure . P.wrap $
+      "I installed"
+        <> prettyProjectAndBranchName libdep
+        <> "as"
+        <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
