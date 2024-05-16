@@ -113,7 +113,7 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
                 -- Ctrl-c or some input cancel, re-run the prompt
                 go
               Right (Just (expandedArgs, i)) -> do
-                let expandedArgs' = IP.unifyArguments expandedArgs
+                let expandedArgs' = IP.unifyArgument <$> expandedArgs
                     expandedArgsStr = unwords expandedArgs'
                 when (expandedArgs' /= ws) $ do
                   liftIO . putStrLn $ fullPrompt <> expandedArgsStr

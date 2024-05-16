@@ -1501,7 +1501,7 @@ handleFindI isVerbose fscope ws input = do
                     (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        Cli.setNumberedArgs $ fmap (searchResultToHQText searchRoot &&& SA.SearchResult searchRoot) results
+        Cli.setNumberedArgs $ fmap (HQ.toText . IP.searchResultToHQ searchRoot &&& SA.SearchResult searchRoot) results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
@@ -1820,16 +1820,6 @@ confirmedCommand :: Input -> Cli Bool
 confirmedCommand i = do
   loopState <- State.get
   pure $ Just i == (loopState ^. #lastInput)
-
---- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQText :: Maybe Path -> SearchResult -> Text
-searchResultToHQText oprefix = \case
-  SR.Tm' n r _ -> HQ.toText $ HQ.requalify (addPrefix <$> n) r
-  SR.Tp' n r _ -> HQ.toText $ HQ.requalify (addPrefix <$> n) (Referent.Ref r)
-  _ -> error "impossible match failure"
-  where
-    addPrefix :: Name -> Name
-    addPrefix = maybe id Path.prefixName2 oprefix
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
