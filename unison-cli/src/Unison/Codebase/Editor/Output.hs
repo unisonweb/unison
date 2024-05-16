@@ -283,13 +283,13 @@ data Output
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+    MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | MergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
       (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))

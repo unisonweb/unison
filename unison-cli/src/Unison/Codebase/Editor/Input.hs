@@ -113,7 +113,7 @@ data Input
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI PullSourceTarget PullMode
+  | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
   | ResetI
@@ -275,7 +275,7 @@ data GistInput = GistInput
 data PullSourceTarget
   = PullSourceTarget0
   | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
-  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) LooseCodeOrProject
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving stock (Eq, Show)
 
 data PushSource

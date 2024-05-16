@@ -38,6 +38,8 @@ import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
@@ -72,9 +74,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError (..),
-  )
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
@@ -1605,21 +1605,25 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyNamespaceKey dest
+          <> prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
+        "Successfully pulled into "
+          <> P.group
+            ( prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
+                <> ", which was empty."
+            )
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $

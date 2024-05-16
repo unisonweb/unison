@@ -85,11 +85,8 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
   when remoteBranchIsEmpty (Cli.respond (PulledEmptyBranch source))
 
-  targetAbsolutePath <-
-    case target of
-      Left path -> Cli.resolvePath' path
-      Right (ProjectAndBranch project branch) ->
-        pure $ ProjectUtils.projectBranchPath (ProjectAndBranch project.projectId branch.branchId)
+  let targetAbsolutePath =
+        ProjectUtils.projectBranchPath (ProjectAndBranch target.project.projectId target.branch.branchId)
 
   let description =
         Text.unwords
@@ -99,8 +96,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
                 PullWithHistory -> InputPatterns.pull,
             printReadRemoteNamespace (\remoteBranch -> into @Text (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)) source,
             case target of
-              Left path -> Path.toText' path
-              Right (ProjectAndBranch project branch) -> into @Text (ProjectAndBranch project.name branch.name)
+              ProjectAndBranch project branch -> into @Text (ProjectAndBranch project.name branch.name)
           ]
 
   case pullMode of
@@ -116,14 +112,9 @@ handlePull unresolvedSourceAndTarget pullMode = do
         else do
           ProjectAndBranch bobProjectName bobProjectBranchName <-
             case source of
-              ReadRemoteNamespaceGit _ -> error "can't pull from git"
-              ReadShare'LooseCode _ -> error "can't pull from loose code"
+              ReadRemoteNamespaceGit _ -> wundefined "can't pull from git"
+              ReadShare'LooseCode _ -> wundefined "can't pull from loose code"
               ReadShare'ProjectBranch remoteBranch -> pure (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
-
-          ProjectAndBranch aliceProject aliceProjectBranch <-
-            case target of
-              Left _ -> error "can't pull into path"
-              Right target1 -> pure target1
 
           Cli.respond AboutToMerge
 
@@ -139,8 +130,8 @@ handlePull unresolvedSourceAndTarget pullMode = do
               { alice =
                   AliceMergeInfo
                     { causalHash = aliceCausalHash,
-                      project = aliceProject,
-                      projectBranch = aliceProjectBranch
+                      project = target.project,
+                      projectBranch = target.branch
                     },
                 bob =
                   BobMergeInfo
@@ -174,13 +165,19 @@ resolveSourceAndTarget ::
   PullSourceTarget ->
   Cli
     ( ReadRemoteNamespace Share.RemoteProjectBranch,
-      Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+      ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch
     )
 resolveSourceAndTarget includeSquashed = \case
   Input.PullSourceTarget0 -> liftA2 (,) (resolveImplicitSource includeSquashed) resolveImplicitTarget
   Input.PullSourceTarget1 source -> liftA2 (,) (resolveExplicitSource includeSquashed source) resolveImplicitTarget
   Input.PullSourceTarget2 source target ->
-    liftA2 (,) (resolveExplicitSource includeSquashed source) (ProjectUtils.expectLooseCodeOrProjectBranch target)
+    liftA2
+      (,)
+      (resolveExplicitSource includeSquashed source)
+      ( ProjectUtils.expectProjectAndBranchByTheseNames case target of
+          ProjectAndBranch Nothing branch -> That branch
+          ProjectAndBranch (Just project) branch -> These project branch
+      )
 
 resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource includeSquashed =
@@ -260,11 +257,10 @@ resolveExplicitSource includeSquashed = \case
         (ProjectAndBranch (remoteProjectId, projectName) branchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
 
-resolveImplicitTarget :: Cli (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-resolveImplicitTarget =
-  ProjectUtils.getCurrentProjectBranch <&> \case
-    Nothing -> Left Path.currentPath
-    Just (projectAndBranch, _restPath) -> Right projectAndBranch
+resolveImplicitTarget :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+resolveImplicitTarget = do
+  (projectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
+  pure projectAndBranch
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect

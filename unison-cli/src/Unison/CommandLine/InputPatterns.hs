@@ -1347,37 +1347,36 @@ pullImpl name aliases pullMode addendum = do
         { patternName = name,
           aliases = aliases,
           visibility = I.Visible,
-          args = [("remote location to pull", Optional, remoteNamespaceArg), ("destination namespace", Optional, namespaceArg)],
+          args =
+            [ ("remote namespace to pull", Optional, remoteNamespaceArg),
+              ( "destination branch",
+                Optional,
+                projectBranchNameArg
+                  ProjectBranchSuggestionsConfig
+                    { showProjectCompletions = True,
+                      projectInclusion = AllProjects,
+                      branchInclusion = ExcludeCurrentBranch
+                    }
+              )
+            ],
           help =
             P.lines
               [ P.wrap $
                   "The"
                     <> makeExample' self
-                    <> "command merges a remote namespace into a local namespace"
+                    <> "command merges a remote namespace into a local branch"
                     <> addendum,
                 "",
                 P.wrapColumn2
                   [ ( makeExample self ["@unison/base/main"],
                       "merges the branch `main`"
                         <> "of the Unison Share hosted project `@unison/base`"
-                        <> "into the current namespace"
+                        <> "into the current branch"
                     ),
                     ( makeExample self ["@unison/base/main", "my-base/topic"],
                       "merges the branch `main`"
                         <> "of the Unison Share hosted project `@unison/base`"
                         <> "into the branch `topic` of the local `my-base` project"
-                    ),
-                    ( makeExample self ["remote", "local"],
-                      "merges the remote namespace `remote`"
-                        <> "into the local namespace `local"
-                    ),
-                    ( makeExample self ["remote"],
-                      "merges the remote namespace `remote`"
-                        <> "into the current namespace"
-                    ),
-                    ( makeExample' self,
-                      "merges the remote namespace configured in `.unisonConfig`"
-                        <> "at the key `RemoteMappings.<namespace>` where `<namespace>` is the current namespace,"
                     )
                   ],
                 "",
@@ -1385,17 +1384,18 @@ pullImpl name aliases pullMode addendum = do
               ],
           parse =
             maybeToEither (I.help self) . \case
-              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 pullMode
+              [] -> Just $ Input.PullI Input.PullSourceTarget0 pullMode
               [sourceString] -> do
                 source <- parsePullSource (Text.pack sourceString)
-                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) pullMode
+                Just $ Input.PullI (Input.PullSourceTarget1 source) pullMode
               [sourceString, targetString] -> do
                 source <- parsePullSource (Text.pack sourceString)
-                target <- parseLooseCodeOrProject targetString
-                Just $
-                  Input.PullRemoteBranchI
-                    (Input.PullSourceTarget2 source target)
-                    pullMode
+                target <-
+                  eitherToMaybe $
+                    tryInto
+                      @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+                      (Text.pack targetString)
+                Just $ Input.PullI (Input.PullSourceTarget2 source target) pullMode
               _ -> Nothing
         }
 
