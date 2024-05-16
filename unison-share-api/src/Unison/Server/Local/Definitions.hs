@@ -7,12 +7,13 @@ import Data.Map qualified as Map
 import Data.Set.NonEmpty qualified as NESet
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.Reference (TermReference)
+import U.Codebase.Reference (TermReference, TypeReference)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -142,3 +143,32 @@ termDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do
         <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
   let (_ref, syntaxDO) = Backend.termsToSyntaxOf (Suffixify False) width pped id (ref, displayObject)
   lift $ Backend.mkTermDefinition codebase biasedPPED width ref renderedDocs syntaxDO
+
+-- | Find the type referenced by the given name and return a display object for it.
+typeDisplayObjectByName :: Codebase m Symbol Ann -> NameSearch Sqlite.Transaction -> Name -> Sqlite.Transaction (Maybe (TypeReference, DisplayObject () (DD.Decl Symbol Ann)))
+typeDisplayObjectByName codebase nameSearch name = runMaybeT do
+  refs <- lift $ NameSearch.lookupRelativeHQRefs' (NS.typeSearch nameSearch) NS.ExactName (HQ'.NameOnly name)
+  ref <- fmap NESet.findMin . hoistMaybe $ NESet.nonEmptySet refs
+  fmap (ref,) . lift $ Backend.displayType ref
+
+typeDefinitionByName ::
+  Codebase IO Symbol Ann ->
+  PPED.PrettyPrintEnvDecl ->
+  NameSearch Sqlite.Transaction ->
+  Width ->
+  Rt.Runtime Symbol ->
+  Name ->
+  Backend IO (Maybe TypeDefinition)
+typeDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do
+  let biasedPPED = PPED.biasTo [name] pped
+  (ref, displayObject, docRefs) <- mapMaybeT (liftIO . Codebase.runTransaction codebase) $ do
+    (ref, displayObject) <- MaybeT $ typeDisplayObjectByName codebase nameSearch name
+    docRefs <- lift $ Backend.docsForDefinitionName codebase nameSearch NS.ExactName name
+    pure (ref, displayObject, docRefs)
+  renderedDocs <-
+    liftIO $
+      renderDocRefs pped width codebase rt docRefs
+        -- local server currently ignores doc eval errors
+        <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
+  let (_ref, syntaxDO) = Backend.typesToSyntaxOf (Suffixify False) width pped id (ref, displayObject)
+  lift $ Backend.mkTypeDefinition codebase biasedPPED width ref renderedDocs syntaxDO
