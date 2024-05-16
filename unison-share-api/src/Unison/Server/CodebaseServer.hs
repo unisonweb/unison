@@ -109,7 +109,7 @@ import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDeta
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
 import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
-import Unison.Server.Types (TermDiffResponse, TypeDiffResponse, mungeString, setCacheControl)
+import Unison.Server.Types (TermDefinition (..), TermDiffResponse, TypeDiffResponse, mungeString, setCacheControl)
 import Unison.Share.API.Projects (BranchName)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
@@ -608,7 +608,9 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
 
 serveProjectDiffTermsEndpoint :: Codebase m v a -> ProjectName -> BranchName -> BranchName -> Name -> Name -> Backend IO TermDiffResponse
 serveProjectDiffTermsEndpoint projectName oldBranchRef newBranchRef oldTerm newTerm = do
-  undefined
+  oldTerm@(TermDefinition {termDefinition = oldDisplayObj}) <- getTermDefinition authZReceipt project oldShortHand oldTermName `whenNothingM` respondError (EntityMissing (ErrorID "term-not-found") ("Term not found: " <> IDs.toText oldShortHand <> ":" <> Name.toText oldTermName))
+  newTerm@(TermDefinition {termDefinition = newDisplayObj}) <- getTermDefinition authZReceipt project newShortHand newTermName `whenNothingM` respondError (EntityMissing (ErrorID "term-not-found") ("Term not found: " <> IDs.toText newShortHand <> ":" <> Name.toText newTermName))
+  let termDiffDisplayObject = DefinitionDiff.diffDisplayObjects oldDisplayObj newDisplayObj
 
 serveProjectDiffTypesEndpoint :: Codebase m v a -> ProjectName -> BranchName -> BranchName -> Name -> Name -> Backend IO TypeDiffResponse
 serveProjectDiffTypesEndpoint projectName oldBranchRef newBranchRef oldType newType = do
