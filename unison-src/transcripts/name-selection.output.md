@@ -70,7 +70,7 @@ d = c + 10
     c : Nat
     d : Nat
 
-.a3> merge .a2 .a3
+.a3> merge.old .a2 .a3
 
   Here's what's changed in .a3 after the merge:
   

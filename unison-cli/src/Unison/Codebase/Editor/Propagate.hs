@@ -548,13 +548,7 @@ propagate patch b = case validatePatch patch of
                 UnisonFileId
                   mempty
                   mempty
-                  ( componentMap
-                      & Map.toList
-                      & fmap
-                        ( \(v, (_ref, tm, _)) ->
-                            (v, External, tm)
-                        )
-                  )
+                  (componentMap <&> (\(_ref, tm, _) -> (External, tm)))
                   mempty
           typecheckingEnv <- Cli.computeTypecheckingEnvironment FileParsers.ShouldUseTndr'No codebase [] file
           let typecheckResult = FileParsers.synthesizeFile typecheckingEnv file

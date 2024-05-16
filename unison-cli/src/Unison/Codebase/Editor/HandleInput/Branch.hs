@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Branch
   ( handleBranch,
     CreateFrom (..),
     doCreateBranch,
+    doCreateBranch',
   )
 where
 
@@ -17,6 +18,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (getBranchAt, getCurrentPath, updateAt)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch (empty)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
@@ -110,9 +112,34 @@ handleBranch sourceI projectAndBranchNames0 = do
 -- Returns the branch id of the newly-created branch.
 doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ProjectBranchId
 doCreateBranch createFrom project newBranchName description = do
+  sourceNamespaceObject <-
+    case createFrom of
+      CreateFrom'Branch (ProjectAndBranch _ sourceBranch) -> do
+        let sourceProjectId = sourceBranch ^. #projectId
+        let sourceBranchId = sourceBranch ^. #branchId
+        Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
+      CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
+      CreateFrom'Nothingness -> pure Branch.empty
+  let projectId = project ^. #projectId
+  let parentBranchId =
+        case createFrom of
+          CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
+            | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
+          _ -> Nothing
+  doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
+
+doCreateBranch' ::
+  Branch IO ->
+  Maybe ProjectBranchId ->
+  Sqlite.Project ->
+  Sqlite.Transaction ProjectBranchName ->
+  Text ->
+  Cli ProjectBranchId
+doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
     Cli.runTransactionWithRollback \rollback -> do
+      newBranchName <- getNewBranchName
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
         True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
         False -> do
@@ -124,25 +151,12 @@ doCreateBranch createFrom project newBranchName description = do
               { projectId,
                 branchId = newBranchId,
                 name = newBranchName,
-                parentBranchId =
-                  -- If we creating the branch from another branch in the same project, mark its parent
-                  case createFrom of
-                    CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-                      | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
-                    _ -> Nothing
+                parentBranchId = parentBranchId
               }
           Queries.setMostRecentBranch projectId newBranchId
           pure newBranchId
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
-  sourceNamespaceObject <-
-    case createFrom of
-      CreateFrom'Branch (ProjectAndBranch _ sourceBranch) -> do
-        let sourceProjectId = sourceBranch ^. #projectId
-        let sourceBranchId = sourceBranch ^. #branchId
-        Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
-      CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
-      CreateFrom'Nothingness -> pure Branch.empty
   _ <- Cli.updateAt description newBranchPath (const sourceNamespaceObject)
   Cli.cd newBranchPath
   pure newBranchId

@@ -1626,6 +1626,57 @@ notifyUser dir = \case
         prettyNamespaceKey dest
           <> "was already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
+  MergeConflictedAliases branch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are not aliases, but they used to be."
+  MergeConflictedTermName name _refs ->
+    pure . P.wrap $
+      "The term name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
+  MergeConflictedTypeName name _refs ->
+    pure . P.wrap $
+      "The type name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
+  MergeConflictInvolvingBuiltin name ->
+    pure . P.wrap $
+      "There's a merge conflict on"
+        <> P.group (prettyName name <> ",")
+        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
+  MergeConstructorAlias maybeBranch name1 name2 ->
+    pure . P.wrap $
+      "On"
+        <> case maybeBranch of
+          Nothing -> "the LCA,"
+          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+        <> prettyName name1
+        <> "and"
+        <> prettyName name2
+        <> "are aliases. Every type declaration must have exactly one name for each constructor."
+  MergeDefnsInLib ->
+    pure . P.wrap $
+      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
+        <> "Please remove it before merging."
+  MergeMissingConstructorName name ->
+    pure . P.wrap $
+      "The type"
+        <> prettyName name
+        <> "is missing a name for one of its constructors. Please add one before merging."
+  MergeNestedDeclAlias shorterName longerName ->
+    pure . P.wrap $
+      "The type"
+        <> prettyName longerName
+        <> "is an alias of"
+        <> P.group (prettyName shorterName <> ".")
+        <> "Type aliases cannot be nested. Please make them disjoint before merging."
+  MergeStrayConstructor name ->
+    pure . P.wrap $
+      "The constructor"
+        <> prettyName name
+        <> "is not in a subnamespace of a name of its type."
+        <> "Please either delete it or rename it before merging."
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1844,9 +1895,7 @@ notifyUser dir = \case
             <> P.newline
             <> tip
               ( "Use"
-                  <> IP.makeExample IP.mergeLocal [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
-                  <> "or"
-                  <> IP.makeExample IP.mergeLocal [prettyAbsolute (Path.Absolute (Path.fromList ["path", "to", "code"]))]
+                  <> IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (UnsafeProjectBranchName "somebranch")]
                   <> "to initialize this branch."
               )
       CreatedProjectBranchFrom'OtherBranch (ProjectAndBranch otherProject otherBranch) ->
@@ -1870,15 +1919,12 @@ notifyUser dir = \case
             <> P.newline
             <> P.newline
             <> tip
-              ( "Use"
-                  <> IP.makeExample
-                    IP.mergeLocal
-                    [ prettySlashProjectBranchName (projectAndBranch ^. #branch),
-                      prettySlashProjectBranchName parentBranch
-                    ]
-                  <> "to merge your work back into the"
+              ( "To merge your work back into the"
                   <> prettyProjectBranchName parentBranch
-                  <> "branch."
+                  <> "branch, first"
+                  <> IP.makeExample IP.projectSwitch [prettySlashProjectBranchName parentBranch]
+                  <> "then"
+                  <> P.group (IP.makeExample IP.mergeInputPattern [prettySlashProjectBranchName (projectAndBranch ^. #branch)] <> ".")
               )
   CreatedRemoteProject host (ProjectAndBranch projectName _) ->
     pure . P.wrap $
@@ -2214,6 +2260,26 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
+  MergeFailure path base target ->
+    pure . P.wrap $
+      "I couldn't automatically merge"
+        <> prettyProjectBranchName (view #branch target)
+        <> "into"
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> "However, I've added the definitions that need attention to the top of"
+        <> P.group (prettyFilePath path <> ".")
+  MergeSuccess base target ->
+    pure . P.wrap $
+      "I merged"
+        <> prettyProjectBranchName (view #branch target)
+        <> "into"
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+  MergeSuccessFastForward base target ->
+    pure . P.wrap $
+      "I fast-forward merged"
+        <> prettyProjectBranchName (view #branch target)
+        <> "into"
+        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
   InstalledLibdep libdep segment ->
     pure . P.wrap $
       "I installed"

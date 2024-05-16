@@ -35,7 +35,6 @@ library
       Unison.Codebase
       Unison.Codebase.Branch
       Unison.Codebase.Branch.BranchDiff
-      Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
       Unison.Codebase.Branch.Raw
@@ -216,6 +215,7 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -412,6 +412,7 @@ test-suite parser-typechecker-tests
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes

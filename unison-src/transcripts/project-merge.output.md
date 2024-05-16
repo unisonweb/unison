@@ -48,7 +48,7 @@ zonk = 0
   
   🎉 🥳 Happy coding!
 
-.> merge foo foo/main
+.> merge.old foo foo/main
 
   Here's what's changed in foo/main after the merge:
   
@@ -106,7 +106,7 @@ foo/main> add
   
   🎉 🥳 Happy coding!
 
-bar/main> merge foo/main
+bar/main> merge.old foo/main
 
   Here's what's changed in the current namespace after the
   merge:
@@ -127,8 +127,8 @@ bar/main> branch /topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
 
 ```
 ```unison
@@ -155,7 +155,7 @@ bar/main> add
   
     xonk : ##Nat
 
-bar/topic> merge /main
+bar/topic> merge.old /main
 
   Here's what's changed in the current namespace after the
   merge:
@@ -173,7 +173,7 @@ bar/topic> merge /main
 
   ☝️  The namespace .bar is empty.
 
-.bar> merge foo/main
+.bar> merge.old foo/main
 
   Here's what's changed in the current namespace after the
   merge:

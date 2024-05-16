@@ -62,7 +62,7 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
 If we merge that back into `builtin`, we get that same chain of history:
 
 ```ucm
-.> merge mybuiltin builtin
+.> merge.old mybuiltin builtin
 
   Nothing changed as a result of the merge.
 
@@ -93,7 +93,7 @@ If we merge that back into `builtin`, we get that same chain of history:
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
 
 ```ucm
-.> merge.squash mybuiltin builtin2
+.> merge.old.squash mybuiltin builtin2
 
   Nothing changed as a result of the merge.
 
@@ -239,7 +239,7 @@ At this point, Alice and Bob both have some history beyond what's in trunk:
 Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob both made their changes in one single commit.
 
 ```ucm
-.> merge.squash alice trunk
+.> merge.old.squash alice trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -269,7 +269,7 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   
   □ 2. #i52j9fd57b (start of history)
 
-.> merge.squash bob trunk
+.> merge.old.squash bob trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -348,7 +348,7 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 This time, we'll first squash Alice and Bob's changes together before squashing their combined changes into `trunk`. The resulting `trunk` will have just a single entry in it, combining both Alice and Bob's changes:
 
 ```ucm
-.> squash alice bob
+.> merge.old.squash alice bob
 
   Here's what's changed in bob after the merge:
   
@@ -365,7 +365,7 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
 
   Applying changes from patch...
 
-.> squash bob trunk
+.> merge.old.squash bob trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -407,7 +407,7 @@ So, there you have it. With squashing, you can control the granularity of your h
 Another thing we can do is `squash` into an empty namespace. This effectively makes a copy of the namespace, but without any of its history:
 
 ```ucm
-.> squash alice nohistoryalice
+.> merge.old.squash alice nohistoryalice
 
   Here's what's changed in nohistoryalice after the merge:
   
@@ -472,7 +472,7 @@ This checks to see that squashing correctly preserves deletions:
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.delete> squash builtin2 builtin
+.delete> merge.old.squash builtin2 builtin
 
   Here's what's changed in builtin after the merge:
   

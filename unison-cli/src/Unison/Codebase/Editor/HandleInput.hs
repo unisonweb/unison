@@ -66,6 +66,7 @@ import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI,
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
@@ -425,6 +426,7 @@ loop e = do
                 if ok
                   then Success
                   else BranchEmpty branchEmpty
+            MergeI branch -> handleMerge branch
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
@@ -1377,6 +1379,7 @@ inputDescription input =
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat

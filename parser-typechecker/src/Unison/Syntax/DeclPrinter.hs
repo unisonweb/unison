@@ -19,6 +19,7 @@ import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
@@ -37,10 +38,11 @@ import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var (freshenId, name, named)
+import qualified Data.Set as Set
 
 type SyntaxText = S.SyntaxText' Reference
 
-type AccessorName = HQ.HashQualified Name
+type AccessorName = Name
 
 prettyDeclW ::
   (Var v) =>
@@ -48,8 +50,8 @@ prettyDeclW ::
   TypeReference ->
   HQ.HashQualified Name ->
   DD.Decl v a ->
-  Writer [AccessorName] (Pretty SyntaxText)
-prettyDeclW ppe r hq d = case d of
+  Writer (Set AccessorName) (Pretty SyntaxText)
+prettyDeclW ppe r hq = \case
   Left e -> pure $ prettyEffectDecl ppe r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
@@ -81,10 +83,7 @@ prettyGADT ::
   Pretty SyntaxText
 prettyGADT env ctorType r name dd =
   P.hang header . P.lines $
-    constructor
-      <$> zip
-        [0 ..]
-        (DD.constructors' dd)
+    constructor <$> zip [0 ..] (DD.constructors' dd)
   where
     constructor (n, (_, _, t)) =
       prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
@@ -116,14 +115,10 @@ prettyDataDecl ::
   TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Writer [AccessorName] (Pretty SyntaxText)
+  Writer (Set AccessorName) (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
-  (header <>)
-    . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor
-      `traverse` zip
-        [0 ..]
-        (DD.constructors' dd)
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
+    <$> constructor `traverse` zip [0 ..] (DD.constructors' dd)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
@@ -136,10 +131,10 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
             . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
             $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
         Just fs -> do
-          tell
+          tell $ Set.fromList $
             [ case accessor of
-                Nothing -> HQ.NameOnly $ declName `Name.joinDot` fieldName
-                Just accessor -> HQ.NameOnly $ declName `Name.joinDot` fieldName `Name.joinDot` accessor
+                Nothing -> declName `Name.joinDot` fieldName
+                Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
               | HQ.NameOnly declName <- [name],
                 fieldName <- fs,
                 accessor <- [Nothing, Just (Name.fromSegment "set"), Just (Name.fromSegment "modify")]

@@ -51,7 +51,7 @@ d = c + 10
 
 ```ucm
 .a3> add
-.a3> merge .a2 .a3
+.a3> merge.old .a2 .a3
 ```
 
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized.

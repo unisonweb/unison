@@ -506,12 +506,10 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
--- Tries to shorten `fqn` to the smallest suffix that still
--- unambiguously refers to the same name. Uses an efficient
+-- Tries to shorten `fqn` to the smallest suffix that still unambiguously refers to the same name. Uses an efficient
 -- logarithmic lookup in the provided relation.
 --
--- NB: Only works if the `Ord` instance for `Name` orders based on
--- `Name.reverseSegments`.
+-- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByName fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
@@ -523,13 +521,10 @@ suffixifyByName fqn rel =
         matchingNameCount =
           getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
 
--- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
--- Uses an efficient logarithmic lookup in the provided relation.
--- The returned `Name` may refer to multiple hashes if the original FQN
--- did as well.
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references. Uses an efficient logarithmic
+-- lookup in the provided relation. The returned `Name` may refer to multiple hashes if the original FQN did as well.
 --
--- NB: Only works if the `Ord` instance for `Name` orders based on
--- `Name.reverseSegments`.
+-- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByHash fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))

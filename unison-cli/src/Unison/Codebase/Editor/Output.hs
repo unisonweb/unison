@@ -395,6 +395,19 @@ data Output
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
+  | MergeFailure !FilePath !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
+  | MergeSuccess !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
+  | MergeSuccessFastForward !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
+  | -- These are all merge precondition violations. See PreconditionViolation for more docs.
+    MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeConflictedTermName !Name !(Set Referent)
+  | MergeConflictedTypeName !Name !(Set Reference.TypeReference)
+  | MergeConflictInvolvingBuiltin !Name
+  | MergeConstructorAlias !(Maybe ProjectBranchName) !Name !Name
+  | MergeDefnsInLib
+  | MergeMissingConstructorName !Name
+  | MergeNestedDeclAlias !Name !Name
+  | MergeStrayConstructor !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -625,6 +638,18 @@ isFailure o = case o of
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
   LooseCodePushDeprecated -> True
+  MergeFailure {} -> True
+  MergeSuccess {} -> False
+  MergeSuccessFastForward {} -> False
+  MergeConflictedAliases {} -> True
+  MergeConflictedTermName {} -> True
+  MergeConflictedTypeName {} -> True
+  MergeConflictInvolvingBuiltin {} -> True
+  MergeConstructorAlias {} -> True
+  MergeDefnsInLib -> True
+  MergeMissingConstructorName {} -> True
+  MergeNestedDeclAlias {} -> True
+  MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
