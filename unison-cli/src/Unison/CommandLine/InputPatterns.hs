@@ -41,7 +41,6 @@ import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
-import Unison.Codebase.SyncMode qualified as SyncMode
 import Unison.CommandLine
 import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath, parseIncrementalBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
@@ -55,7 +54,15 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectBranchNameOrLatestRelease (..), ProjectBranchSpecifier (..), ProjectName, Semver)
+import Unison.Project
+  ( ProjectAndBranch (..),
+    ProjectAndBranchNames (..),
+    ProjectBranchName,
+    ProjectBranchNameOrLatestRelease (..),
+    ProjectBranchSpecifier (..),
+    ProjectName,
+    Semver,
+  )
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
@@ -1221,6 +1228,28 @@ forkLocal =
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
 
+libInstallInputPattern :: InputPattern
+libInstallInputPattern =
+  InputPattern
+    { patternName = "lib.install",
+      aliases = ["install.lib"],
+      visibility = I.Visible,
+      args = [],
+      help =
+        P.wrapColumn2
+          [ ( makeExample libInstallInputPattern ["@unison/base/releases/latest"],
+              "installs `@unison/base/releases/latest` as a dependency of the current project"
+            )
+          ],
+      parse = \args ->
+        maybe (Left (I.help libInstallInputPattern)) Right do
+          [arg] <- Just args
+          libdep <-
+            eitherToMaybe $
+              tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease)) (Text.pack arg)
+          Just (Input.LibInstallI libdep)
+    }
+
 reset :: InputPattern
 reset =
   InputPattern
@@ -1356,63 +1385,19 @@ pullImpl name aliases pullMode addendum = do
               ],
           parse =
             maybeToEither (I.help self) . \case
-              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 SyncMode.ShortCircuit pullMode
+              [] -> Just $ Input.PullRemoteBranchI Input.PullSourceTarget0 pullMode
               [sourceString] -> do
                 source <- parsePullSource (Text.pack sourceString)
-                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) SyncMode.ShortCircuit pullMode
+                Just $ Input.PullRemoteBranchI (Input.PullSourceTarget1 source) pullMode
               [sourceString, targetString] -> do
                 source <- parsePullSource (Text.pack sourceString)
                 target <- parseLooseCodeOrProject targetString
                 Just $
                   Input.PullRemoteBranchI
                     (Input.PullSourceTarget2 source target)
-                    SyncMode.ShortCircuit
                     pullMode
               _ -> Nothing
         }
-
-pullExhaustive :: InputPattern
-pullExhaustive =
-  InputPattern
-    "debug.pull-exhaustive"
-    []
-    I.Hidden
-    [("remote namespace to pull", Optional, remoteNamespaceArg), ("destination namespace", Optional, namespaceArg)]
-    ( P.lines
-        [ P.wrap $
-            "The "
-              <> makeExample' pullExhaustive
-              <> "command can be used in place of"
-              <> makeExample' pull
-              <> "to complete namespaces"
-              <> "which were pulled incompletely due to a bug in UCM"
-              <> "versions M1l and earlier.  It may be extra slow!"
-        ]
-    )
-    ( maybeToEither (I.help pullExhaustive) . \case
-        [] ->
-          Just $
-            Input.PullRemoteBranchI
-              Input.PullSourceTarget0
-              SyncMode.Complete
-              Input.PullWithHistory
-        [sourceString] -> do
-          source <- parsePullSource (Text.pack sourceString)
-          Just $
-            Input.PullRemoteBranchI
-              (Input.PullSourceTarget1 source)
-              SyncMode.Complete
-              Input.PullWithHistory
-        [sourceString, targetString] -> do
-          source <- parsePullSource (Text.pack sourceString)
-          target <- parseLooseCodeOrProject targetString
-          Just $
-            Input.PullRemoteBranchI
-              (Input.PullSourceTarget2 source target)
-              SyncMode.Complete
-              Input.PullWithHistory
-        _ -> Nothing
-    )
 
 debugTabCompletion :: InputPattern
 debugTabCompletion =
@@ -1514,8 +1499,7 @@ push =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireNonEmpty,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.RequireNonEmpty
             }
   where
     suggestionsConfig =
@@ -1570,8 +1554,7 @@ pushCreate =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireEmpty,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.RequireEmpty
             }
   where
     suggestionsConfig =
@@ -1605,8 +1588,7 @@ pushForce =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.ForcePush,
-              syncMode = SyncMode.ShortCircuit
+              pushBehavior = PushBehavior.ForcePush
             }
   where
     suggestionsConfig =
@@ -1650,8 +1632,7 @@ pushExhaustive =
         Input.PushRemoteBranchI
           Input.PushRemoteBranchInput
             { sourceTarget,
-              pushBehavior = PushBehavior.RequireNonEmpty,
-              syncMode = SyncMode.Complete
+              pushBehavior = PushBehavior.RequireNonEmpty
             }
   where
     suggestionsConfig =
@@ -2408,20 +2389,31 @@ debugNameDiff =
 test :: InputPattern
 test =
   InputPattern
-    "test"
-    []
-    I.Visible
-    []
-    "`test` runs unit tests for the current branch."
-    ( const $
-        pure $
-          Input.TestI
-            Input.TestInput
-              { includeLibNamespace = False,
-                showFailures = True,
-                showSuccesses = True
-              }
-    )
+    { patternName = "test",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("namespace", Optional, namespaceArg)],
+      help =
+        P.wrapColumn2
+          [ ("`test`", "runs unit tests for the current branch"),
+            ("`test foo`", "runs unit tests for the current branch defined in namespace `foo`")
+          ],
+      parse = \args ->
+        maybe (Left (I.help test)) Right do
+          path <-
+            case args of
+              [] -> Just Path.empty
+              [pathString] -> eitherToMaybe $ Path.parsePath pathString
+              _ -> Nothing
+          Just $
+            Input.TestI
+              Input.TestInput
+                { includeLibNamespace = False,
+                  path,
+                  showFailures = True,
+                  showSuccesses = True
+                }
+    }
 
 testAll :: InputPattern
 testAll =
@@ -2436,6 +2428,7 @@ testAll =
           Input.TestI
             Input.TestInput
               { includeLibNamespace = True,
+                path = Path.empty,
                 showFailures = True,
                 showSuccesses = True
               }
@@ -2543,7 +2536,7 @@ ioTestAll =
       help =
         P.wrapColumn2
           [ ( "`io.test.all`",
-              "Runs all tests which use IO within the scope of the current namespace."
+              "runs unit tests for the current branch that use IO"
             )
           ],
       parse = \case
@@ -2576,7 +2569,7 @@ runScheme =
   InputPattern
     "run.native"
     []
-    I.Hidden
+    I.Visible
     [("definition to run", Required, exactDefinitionTermQueryArg), ("arguments", ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
@@ -3068,6 +3061,7 @@ validInputs =
       history,
       ioTest,
       ioTestAll,
+      libInstallInputPattern,
       load,
       makeStandalone,
       mergeBuiltins,
@@ -3089,7 +3083,6 @@ validInputs =
       projectSwitch,
       projectsInputPattern,
       pull,
-      pullExhaustive,
       pullWithoutHistory,
       push,
       pushCreate,

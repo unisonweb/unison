@@ -88,15 +88,11 @@ module Unison.Codebase
 
     -- ** Remote sync
     viewRemoteBranch,
-    importRemoteBranch,
-    Preprocessing (..),
     pushGitBranch,
-    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
     CodebasePath,
-    SyncToDir,
 
     -- * Direct codebase access
     runTransaction,
@@ -128,15 +124,13 @@ import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.Codebase.CodeLookup qualified as CL
-import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GitError, PushGitBranchOpts (..), SyncToDir)
+import Unison.Codebase.Type (Codebase (..), GitError)
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -473,36 +467,6 @@ isType c r = case r of
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
 -- * Git stuff
-
--- | An optional preprocessing step to run on branches
--- before they're imported into the local codebase.
-data Preprocessing m
-  = Unmodified
-  | Preprocessed (Branch m -> m (Branch m))
-
--- | Sync elements as needed from a remote git codebase into the local one.
--- If `sch` is supplied, we try to load the specified branch hash;
--- otherwise we try to load the root branch.
-importRemoteBranch ::
-  forall m v a.
-  (MonadUnliftIO m) =>
-  Codebase m v a ->
-  ReadGitRemoteNamespace ->
-  SyncMode ->
-  Preprocessing m ->
-  m (Either GitError CausalHash)
-importRemoteBranch codebase ns mode preprocess = do
-  viewRemoteBranch' codebase ns Git.RequireExistingBranch \(branch, cacheDir) ->
-    withStatus "Importing downloaded files into local codebase..." do
-      processedBranch <- preprocessOp branch
-      syncFromDirectory codebase cacheDir mode processedBranch
-      pure (Branch.headHash processedBranch)
-  where
-    preprocessOp :: Branch m -> m (Branch m)
-    preprocessOp =
-      case preprocess of
-        Preprocessed f -> f
-        Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.

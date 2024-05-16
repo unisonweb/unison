@@ -1339,18 +1339,6 @@ notifyUser dir = \case
           push = P.group . P.backticked . IP.patternName $ IP.push
           pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
-      CouldntParseRemoteBranch repo s ->
-        P.wrap $
-          "I couldn't decode the root branch "
-            <> P.string s
-            <> "from the repository at"
-            <> prettyReadGitRepo repo
-      CouldntLoadRootBranch repo hash ->
-        P.wrap $
-          "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.toBase32HexText $ unCausalHash hash) <> ")")
-            <> "from the repository at"
-            <> prettyReadGitRepo repo
       CouldntFindRemoteBranch repo path ->
         P.wrap $
           "I couldn't find the remote branch at"
@@ -2306,6 +2294,12 @@ notifyUser dir = \case
         <> prettyProjectBranchName (view #branch target)
         <> "into"
         <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+  InstalledLibdep libdep segment ->
+    pure . P.wrap $
+      "I installed"
+        <> prettyProjectAndBranchName libdep
+        <> "as"
+        <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

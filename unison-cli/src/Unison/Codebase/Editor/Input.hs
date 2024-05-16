@@ -41,7 +41,6 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -114,7 +113,7 @@ data Input
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI PullSourceTarget SyncMode PullMode
+  | PullRemoteBranchI PullSourceTarget PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
   | ResetI
@@ -243,6 +242,7 @@ data Input
   | EditNamespaceI [Path.Path]
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
@@ -292,14 +292,15 @@ data PushSourceTarget
 
 data PushRemoteBranchInput = PushRemoteBranchInput
   { sourceTarget :: PushSourceTarget,
-    pushBehavior :: PushBehavior,
-    syncMode :: SyncMode
+    pushBehavior :: PushBehavior
   }
   deriving stock (Eq, Show)
 
 data TestInput = TestInput
   { -- | Should we run tests in the `lib` namespace?
     includeLibNamespace :: Bool,
+    -- | Relative path to run the tests in. Ignore if `includeLibNamespace` is True - that means test everything.
+    path :: Path,
     showFailures :: Bool,
     showSuccesses :: Bool
   }

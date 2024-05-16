@@ -1,9 +1,12 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
-module Unison.Codebase.GitError where
+module Unison.Codebase.GitError
+  ( CodebasePath,
+    GitProtocolError (..),
+    GitCodebaseError (..),
+  )
+where
 
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo, WriteGitRepo)
-import Unison.Codebase.Path
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Prelude
 
@@ -30,7 +33,5 @@ data GitProtocolError
 data GitCodebaseError h
   = NoRemoteNamespaceWithHash ReadGitRepo ShortCausalHash
   | RemoteNamespaceHashAmbiguous ReadGitRepo ShortCausalHash (Set h)
-  | CouldntLoadRootBranch ReadGitRepo h
-  | CouldntParseRemoteBranch ReadGitRepo String
   | CouldntFindRemoteBranch ReadGitRepo Path
   deriving (Show)
