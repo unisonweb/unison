@@ -48,6 +48,7 @@ import Servant
     serve,
     throwError,
   )
+import Servant qualified as Servant
 import Servant.API
   ( Accept (..),
     Capture,
@@ -60,11 +61,13 @@ import Servant.API
   )
 import Servant.Docs
   ( DocIntro (DocIntro),
+    ToParam (..),
     ToSample (..),
     docsWithIntros,
     markdown,
     singleSample,
   )
+import Servant.Docs qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
@@ -106,10 +109,14 @@ import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDeta
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
 import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
-import Unison.Server.Types (mungeString, setCacheControl)
+import Unison.Server.Types (TermDiffResponse, TypeDiffResponse, mungeString, setCacheControl)
+import Unison.Share.API.Projects (BranchName)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
+
+-- | Fail the route with a reasonable error if the query param is missing.
+type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
 
 -- HTML content type
 data HTML = HTML
@@ -143,8 +150,49 @@ type CodebaseServerAPI =
 
 type ProjectsAPI =
   ListProjectsEndpoint
-    :<|> (Capture "project-name" ProjectName :> "branches" :> ListProjectBranchesEndpoint)
-    :<|> (Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+    :<|> ( Capture "project-name" ProjectName
+             :> "branches"
+             :> ( ListProjectBranchesEndpoint
+                    :<|> (Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+                    :<|> ( "diff"
+                             :> ( "terms" :> ProjectDiffTermsEndpoint
+                                    :<|> "types" :> ProjectDiffTypesEndpoint
+                                )
+                         )
+                )
+         )
+
+type ProjectDiffTermsEndpoint =
+  RequiredQueryParam "oldBranchRef" BranchName
+    :> RequiredQueryParam "newBranchRef" BranchName
+    :> RequiredQueryParam "oldTerm" Name
+    :> RequiredQueryParam "newTerm" Name
+    :> Get '[JSON] TermDiffResponse
+
+type ProjectDiffTypesEndpoint =
+  RequiredQueryParam "oldBranchRef" BranchName
+    :> RequiredQueryParam "newBranchRef" BranchName
+    :> RequiredQueryParam "oldType" Name
+    :> RequiredQueryParam "newType" Name
+    :> Get '[JSON] TypeDiffResponse
+
+instance ToParam (Servant.QueryParam' mods "oldBranchRef" a) where
+  toParam _ = Servant.DocQueryParam "oldBranchRef" ["main"] "The name of the old branch" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newBranchRef" a) where
+  toParam _ = Servant.DocQueryParam "newBranchRef" ["main"] "The name of the new branch" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "oldTerm" a) where
+  toParam _ = Servant.DocQueryParam "oldTerm" ["main"] "The name of the old term" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newTerm" a) where
+  toParam _ = Servant.DocQueryParam "newTerm" ["main"] "The name of the new term" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "oldType" a) where
+  toParam _ = Servant.DocQueryParam "oldType" ["main"] "The name of the old type" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newType" a) where
+  toParam _ = Servant.DocQueryParam "newType" ["main"] "The name of the new type" Servant.Normal
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -558,11 +606,24 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
         Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
         Just ch -> pure (Right ch)
 
+serveProjectDiffTermsEndpoint :: Codebase m v a -> ProjectName -> BranchName -> BranchName -> Name -> Name -> Backend IO TermDiffResponse
+serveProjectDiffTermsEndpoint projectName oldBranchRef newBranchRef oldTerm newTerm = do
+  undefined
+
+serveProjectDiffTypesEndpoint :: Codebase m v a -> ProjectName -> BranchName -> BranchName -> Name -> Name -> Backend IO TypeDiffResponse
+serveProjectDiffTypesEndpoint projectName oldBranchRef newBranchRef oldType newType = do
+  undefined
+
 serveProjectsAPI :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ServerT ProjectsAPI (Backend IO)
 serveProjectsAPI codebase rt =
   projectListingEndpoint codebase
-    :<|> projectBranchListingEndpoint codebase
-    :<|> serveProjectsCodebaseServerAPI codebase rt
+    :<|> ( \projectName ->
+             projectBranchListingEndpoint codebase projectName
+               :<|> serveProjectsCodebaseServerAPI codebase rt projectName
+               :<|> ( serveProjectDiffTermsEndpoint codebase projectName
+                        :<|> serveProjectDiffTypesEndpoint codebase projectName
+                    )
+         )
 
 serveUnisonLocal ::
   BackendEnv ->
