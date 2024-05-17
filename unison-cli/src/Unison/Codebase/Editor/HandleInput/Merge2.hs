@@ -43,6 +43,7 @@ import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin.Decls qualified as Builtin.Decls
+import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..), MergeSourceAndTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -60,6 +61,8 @@ import Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchAdds,
   )
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadShareLooseCode (..))
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
@@ -121,6 +124,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -167,8 +171,7 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
         bob =
           BobMergeInfo
             { causalHash = bobCausalHash,
-              projectName = bobProject.name,
-              projectBranchName = bobBranchName
+              source = MergeSource'LocalProjectBranch (ProjectAndBranch bobProject.name bobBranchName)
             },
         lca =
           LcaMergeInfo
@@ -185,7 +188,7 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
 
 data MergeInfo = MergeInfo
   { alice :: !AliceMergeInfo,
-    bob :: !BobMergeInfo,
+    bob :: BobMergeInfo,
     lca :: !LcaMergeInfo,
     -- | How should we describe this merge in the reflog?
     description :: !Text
@@ -199,12 +202,7 @@ data AliceMergeInfo = AliceMergeInfo
 
 data BobMergeInfo = BobMergeInfo
   { causalHash :: !CausalHash,
-    -- | Bob's project and branch names are just for display purposes; they don't necessarily correspond to a real local
-    -- project. For example, if we `pull @unison/base/bugfix`, then we'll use project name `@unison/base` and branch
-    -- name `bugfix`, even though we're just pulling the branch into the current one, with no relationship to any local
-    -- project/branch named `@unison/base/bugfix`.
-    projectName :: !ProjectName,
-    projectBranchName :: !ProjectBranchName
+    source :: !MergeSource
   }
 
 newtype LcaMergeInfo = LcaMergeInfo
@@ -218,26 +216,23 @@ doMerge info = do
           then realDebugFunctions
           else fakeDebugFunctions
 
-  let alicePath =
-        Cli.projectBranchPath (ProjectAndBranch info.alice.project.projectId info.alice.projectBranch.branchId)
-
-  let branchNames =
-        TwoWay
-          { alice = ProjectAndBranch info.alice.project.name info.alice.projectBranch.name,
-            bob = ProjectAndBranch info.bob.projectName info.bob.projectBranchName
-          }
+  let alicePath = Cli.projectBranchPath (ProjectAndBranch info.alice.project.projectId info.alice.projectBranch.branchId)
+  let aliceBranchNames = ProjectAndBranch info.alice.project.name info.alice.projectBranch.name
+  let mergeSource = MergeSourceOrTarget'Source info.bob.source
+  let mergeTarget = MergeSourceOrTarget'Target aliceBranchNames
+  let mergeSourceAndTarget = MergeSourceAndTarget { alice = aliceBranchNames, bob = info.bob.source }
 
   Cli.Env {codebase} <- ask
 
   -- If alice == bob, or LCA == bob (so alice is ahead of bob), then we are done.
   when (info.alice.causalHash == info.bob.causalHash || info.lca.causalHash == Just info.bob.causalHash) do
-    Cli.returnEarly (Output.MergeAlreadyUpToDate (Right branchNames.bob) (Right branchNames.alice))
+    Cli.returnEarly (Output.MergeAlreadyUpToDate2 mergeSourceAndTarget)
 
   -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
   when (info.lca.causalHash == Just info.alice.causalHash) do
     bobBranch <- liftIO (Codebase.expectBranchForHash codebase info.bob.causalHash)
     _ <- Cli.updateAt info.description alicePath (\_aliceBranch -> bobBranch)
-    Cli.returnEarly (Output.MergeSuccessFastForward branchNames.alice branchNames.bob)
+    Cli.returnEarly (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
   -- Create a bunch of cached database lookup functions
   db <- makeMergeDatabase codebase
@@ -263,7 +258,7 @@ doMerge info = do
       pure TwoOrThreeWay {lca, alice, bob}
 
   -- Assert that neither Alice nor Bob have defns in lib
-  for_ [(branchNames.alice.branch, branches.alice), (branchNames.bob.branch, branches.bob)] \(who, branch) -> do
+  for_ [(mergeTarget, branches.alice), (mergeSource, branches.bob)] \(who, branch) -> do
     libdeps <-
       case Map.lookup NameSegment.libSegment branch.children of
         Nothing -> pure V2.Branch.empty
@@ -279,7 +274,7 @@ doMerge info = do
               ( Nametree {value = Defns Map.empty Map.empty, children = Map.empty},
                 DeclNameLookup Map.empty Map.empty
               )
-          Just (maybeBranchName, branch) -> do
+          Just (who, branch) -> do
             defns <-
               Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch) & onLeftM \conflictedName ->
                 Cli.returnEarly case conflictedName of
@@ -289,15 +284,15 @@ doMerge info = do
               Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
                 Cli.returnEarly case err of
                   IncoherentDeclReason'ConstructorAlias name1 name2 ->
-                    Output.MergeConstructorAlias maybeBranchName name1 name2
-                  IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName maybeBranchName name
+                    Output.MergeConstructorAlias who name1 name2
+                  IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
                   IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-                    Output.MergeNestedDeclAlias maybeBranchName shorterName longerName
-                  IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor maybeBranchName name
+                    Output.MergeNestedDeclAlias who shorterName longerName
+                  IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor who name
             pure (defns, declNameLookup)
 
-    (aliceDefns0, aliceDeclNameLookup) <- load (Just (Just branchNames.alice.branch, branches.alice))
-    (bobDefns0, bobDeclNameLookup) <- load (Just (Just branchNames.bob.branch, branches.bob))
+    (aliceDefns0, aliceDeclNameLookup) <- load (Just (Just mergeTarget, branches.alice))
+    (bobDefns0, bobDeclNameLookup) <- load (Just (Just mergeSource, branches.bob))
     (lcaDefns0, lcaDeclNameLookup) <- load ((Nothing,) <$> branches.lca)
 
     let flatten defns = Defns (flattenNametree (view #terms) defns) (flattenNametree (view #types) defns)
@@ -317,9 +312,9 @@ doMerge info = do
   liftIO (debugFunctions.debugDiffs diffs)
 
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-  for_ ((,) <$> branchNames <*> diffs) \(names, diff) ->
+  for_ ((,) <$> TwoWay mergeTarget mergeSource <*> diffs) \(who, diff) ->
     whenJust (findConflictedAlias defns3.lca diff) \(name1, name2) ->
-      Cli.returnEarly (Output.MergeConflictedAliases names.branch name1 name2)
+      Cli.returnEarly (Output.MergeConflictedAliases who name1 name2)
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
   let diff = combineDiffs diffs
@@ -398,7 +393,27 @@ doMerge info = do
                 <*> hydratedThings
                 <*> ppes
 
-  let prettyUnisonFile = makePrettyUnisonFile (into @Text <$> branchNames) renderedConflicts renderedDependents
+  let prettyUnisonFile =
+        makePrettyUnisonFile
+          TwoWay
+            { alice = into @Text aliceBranchNames,
+              bob =
+                case info.bob.source of
+                  MergeSource'LocalProjectBranch bobBranchNames -> into @Text bobBranchNames
+                  MergeSource'RemoteProjectBranch bobBranchNames
+                    | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
+                    | otherwise -> into @Text bobBranchNames
+                  MergeSource'RemoteLooseCode info ->
+                    case Path.toName info.path of
+                      Nothing -> "<root>"
+                      Just name -> Name.toText name
+                  MergeSource'RemoteGitRepo info ->
+                    case Path.toName info.path of
+                      Nothing -> "<root>"
+                      Just name -> Name.toText name
+            }
+          renderedConflicts
+          renderedDependents
 
   let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
 
@@ -424,18 +439,14 @@ doMerge info = do
           (Branch.mergeNode stageOneBranch parents.alice parents.bob)
           Nothing
           info.alice.project
-          (findTemporaryBranchName info.alice.project.projectId (view #branch <$> branchNames))
+          (findTemporaryBranchName info.alice.project.projectId mergeSourceAndTarget)
           info.description
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.respond $
-        Output.MergeFailure
-          scratchFilePath
-          branchNames.alice
-          branchNames.bob
+      Cli.respond (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
     Just tuf -> do
       Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
       let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
@@ -444,7 +455,7 @@ doMerge info = do
           info.description
           alicePath
           (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
-      Cli.respond (Output.MergeSuccess branchNames.alice branchNames.bob)
+      Cli.respond (Output.MergeSuccess mergeSourceAndTarget)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading basic info out of the database
@@ -825,29 +836,39 @@ defnsToNames defns =
       types = Relation.fromMap (BiMultimap.range defns.types)
     }
 
-findTemporaryBranchName :: ProjectId -> TwoWay ProjectBranchName -> Transaction ProjectBranchName
-findTemporaryBranchName projectId branchNames = do
+findTemporaryBranchName :: ProjectId -> MergeSourceAndTarget -> Transaction ProjectBranchName
+findTemporaryBranchName projectId mergeSourceAndTarget = do
   Cli.findTemporaryBranchName projectId preferred
   where
     preferred :: ProjectBranchName
     preferred =
       unsafeFrom @Text $
-        "merge-"
-          <> mangle branchNames.bob
-          <> "-into-"
-          <> mangle branchNames.alice
+        Text.Builder.run $
+          "merge-"
+            <> mangleMergeSource mergeSourceAndTarget.bob
+            <> "-into-"
+            <> mangleBranchName mergeSourceAndTarget.alice.branch
 
-    mangle :: ProjectBranchName -> Text
-    mangle =
-      Text.Builder.run . mangleB
-
-    mangleB :: ProjectBranchName -> Text.Builder
-    mangleB name =
+    mangleMergeSource :: MergeSource -> Text.Builder
+    mangleMergeSource = \case
+      MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
+      MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
+      MergeSource'RemoteLooseCode info -> manglePath info.path
+      MergeSource'RemoteGitRepo info -> manglePath info.path
+    mangleBranchName :: ProjectBranchName -> Text.Builder
+    mangleBranchName name =
       case classifyProjectBranchName name of
-        ProjectBranchNameKind'Contributor user name1 -> Text.Builder.text user <> Text.Builder.char '-' <> mangleB name1
+        ProjectBranchNameKind'Contributor user name1 ->
+          Text.Builder.text user
+            <> Text.Builder.char '-'
+            <> mangleBranchName name1
         ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
         ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
         ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+
+    manglePath :: Path -> Text.Builder
+    manglePath =
+      Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
 
     mangleSemver :: Semver -> Text.Builder
     mangleSemver (Semver x y z) =

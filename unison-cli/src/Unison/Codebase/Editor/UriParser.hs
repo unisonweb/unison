@@ -109,7 +109,7 @@ writeShareRemoteNamespace =
 -- >>> P.parseMaybe readShareLooseCode ".unisonweb.base._releases.M4"
 -- >>> P.parseMaybe readShareLooseCode "unisonweb.base._releases.M4"
 -- Nothing
--- Just (ReadShareLooseCode {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
+-- Just (ReadShareLooseCode {server = DefaultCodeserver, repo = ShareUserHandle {shareUserHandleToText = "unisonweb"}, path = base._releases.M4})
 readShareLooseCode :: P ReadShareLooseCode
 readShareLooseCode = do
   P.label "read share loose code" $

@@ -17,6 +17,7 @@ import U.Codebase.Sqlite.Project qualified as Sqlite (Project (..))
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.DownloadUtils
+import Unison.Cli.MergeTypes (MergeSource (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -110,12 +111,6 @@ handlePull unresolvedSourceAndTarget pullMode = do
           void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
         else do
-          ProjectAndBranch bobProjectName bobProjectBranchName <-
-            case source of
-              ReadRemoteNamespaceGit _ -> wundefined "can't pull from git"
-              ReadShare'LooseCode _ -> wundefined "can't pull from loose code"
-              ReadShare'ProjectBranch remoteBranch -> pure (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
-
           Cli.respond AboutToMerge
 
           aliceCausalHash <-
@@ -136,8 +131,12 @@ handlePull unresolvedSourceAndTarget pullMode = do
                 bob =
                   BobMergeInfo
                     { causalHash = remoteCausalHash,
-                      projectName = bobProjectName,
-                      projectBranchName = bobProjectBranchName
+                      source =
+                        case source of
+                          ReadShare'ProjectBranch remoteBranch ->
+                            MergeSource'RemoteProjectBranch (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
+                          ReadShare'LooseCode info -> MergeSource'RemoteLooseCode info
+                          ReadRemoteNamespaceGit info -> MergeSource'RemoteGitRepo info
                     },
                 lca =
                   LcaMergeInfo

@@ -24,7 +24,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar
 
@@ -58,7 +58,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar
 
@@ -101,7 +101,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar
 
@@ -164,7 +164,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar baz
 
@@ -234,7 +234,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar baz
 
@@ -283,7 +283,7 @@ Merge result:
 ```ucm
 project/alice> merge /bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo
 
@@ -325,7 +325,7 @@ Merge result:
 ```ucm
 project/alice> merge bob
 
-  I merged bob into alice.
+  I merged project/bob into project/alice.
 
 project/alice> view foo bar baz
 
@@ -446,7 +446,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I fast-forward merged bob into alice.
+  I fast-forward merged project/bob into project/alice.
 
 ```
 ## Merge failure: someone deleted something
@@ -485,9 +485,9 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -526,9 +526,9 @@ bar = foo ++ " - " ++ foo
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -579,9 +579,9 @@ baz = "bobs baz"
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -636,9 +636,9 @@ unique type Foo = MkFoo Nat Text
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -673,9 +673,9 @@ unique type Foo = Baz Nat | BobQux Text
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -714,9 +714,9 @@ project/bob> move.term Foo.Qux Foo.Bob
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -748,9 +748,9 @@ unique ability my.cool where
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -794,9 +794,9 @@ These won't cleanly merge.
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -856,9 +856,9 @@ Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she ch
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -903,9 +903,9 @@ bob _ = 19
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge bob into alice. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -964,7 +964,8 @@ baz = "baz"
 ```ucm
 project/alice> merge /bob
 
-  On alice, bar and foo are not aliases, but they used to be.
+  On project/alice, bar and foo are not aliases, but they used
+  to be.
 
 ```
 ### Conflict involving builtin
@@ -1018,9 +1019,9 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On alice, Foo.Bar and Foo.some.other.Alias are aliases. Every
-  type declaration must have exactly one name for each
-  constructor.
+  On project/alice, Foo.Bar and Foo.some.other.Alias are
+  aliases. Every type declaration must have exactly one name for
+  each constructor.
 
 ```
 ### Missing constructor name
@@ -1047,8 +1048,8 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On alice, the type Foo is missing a name for one of its
-  constructors. Please add one before merging.
+  On project/alice, the type Foo is missing a name for one of
+  its constructors. Please add one before merging.
 
 ```
 ### Nested decl alias
@@ -1080,8 +1081,9 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On alice, the type A.inner.X is an alias of A. Type aliases
-  cannot be nested. Please make them disjoint before merging.
+  On project/alice, the type A.inner.X is an alias of A. Type
+  aliases cannot be nested. Please make them disjoint before
+  merging.
 
 ```
 ### Stray constructor alias
@@ -1113,9 +1115,9 @@ project/bob> add
 ```ucm
 project/alice> merge bob
 
-  On alice, the constructor AliasOutsideFooNamespace is not in a
-  subnamespace of a name of its type. Please either delete it or
-  rename it before merging.
+  On project/alice, the constructor AliasOutsideFooNamespace is
+  not in a subnamespace of a name of its type. Please either
+  delete it or rename it before merging.
 
 ```
 ### Term or type in `lib`
@@ -1137,7 +1139,7 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On alice, there's a type or term directly in the `lib`
+  On project/alice, there's a type or term directly in the `lib`
   namespace, but I expected only library dependencies to be in
   there. Please remove it before merging.
 

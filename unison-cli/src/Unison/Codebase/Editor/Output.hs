@@ -28,6 +28,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
+import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -293,6 +294,8 @@ data Output
   | MergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
       (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+  | -- This will replace the above once `merge.old` is deleted
+    MergeAlreadyUpToDate2 !MergeSourceAndTarget
   | PreviewMergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
@@ -395,18 +398,18 @@ data Output
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
-  | MergeFailure !FilePath !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
-  | MergeSuccess !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
-  | MergeSuccessFastForward !(ProjectAndBranch ProjectName ProjectBranchName) !(ProjectAndBranch ProjectName ProjectBranchName)
-  | MergeConflictedAliases !ProjectBranchName !Name !Name
+  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeSuccess !MergeSourceAndTarget
+  | MergeSuccessFastForward !MergeSourceAndTarget
+  | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !(Maybe ProjectBranchName) !Name !Name
-  | MergeDefnsInLib !ProjectBranchName
-  | MergeMissingConstructorName !(Maybe ProjectBranchName) !Name
-  | MergeNestedDeclAlias !(Maybe ProjectBranchName) !Name !Name
-  | MergeStrayConstructor !(Maybe ProjectBranchName) !Name
+  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeDefnsInLib !MergeSourceOrTarget
+  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
+  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -559,6 +562,7 @@ isFailure o = case o of
   AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
+  MergeAlreadyUpToDate2 {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
   NoConflictsOrEdits {} -> False
   ListShallow _ es -> null es
