@@ -9,7 +9,10 @@ import Data.Align (alignWith)
 import Data.Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
+import Data.IntervalMap.Lazy qualified as IntervalMap
 import Data.Map qualified as Map
+import Data.Map.Monoidal (MonoidalMap)
+import Data.Map.Monoidal qualified as MonMap
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
@@ -61,6 +64,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
@@ -104,7 +108,8 @@ checkFile doc = runMaybeT do
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
             pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
-  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
+  (errDiagnostics, codeActions, localBindingTypes) <- lift $ analyseFile fileUri srcText filePPED notes
+  Debug.debugM Debug.Temp "Bindings" localBindingTypes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
@@ -155,11 +160,11 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction], MonoidalMap Symbol (IntervalMap Position (Type.Type Symbol Ann)))
 analyseFile fileUri srcText pped notes = do
   let ppe = PPED.suffixifiedPPE pped
-  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
-  pure (noteDiags, noteActions)
+  (noteDiags, noteActions, localBindingTypes) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
+  pure (noteDiags, noteActions, localBindingTypes)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
 -- codebase.
@@ -205,7 +210,7 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction], MonoidalMap Symbol (IntervalMap Position (Type.Type Symbol Ann)))
 analyseNotes fileUri ppe src notes = do
   flip foldMapM notes \note -> case note of
     Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
@@ -269,10 +274,10 @@ analyseNotes fileUri ppe src notes = do
             nameResolutionCodeActions diags suggestions
               <> typeHoleActions
         _ -> pure []
-      pure (diags, codeActions)
+      pure (diags, codeActions, mempty)
     Result.NameResolutionFailures {} -> do
       -- TODO: diagnostics/code actions for resolution failures
-      pure (noteDiagnostic note todoAnnotation, [])
+      pure (noteDiagnostic note todoAnnotation, [], mempty)
     Result.Parsing err -> do
       let diags = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
@@ -280,15 +285,15 @@ analyseNotes fileUri ppe src notes = do
             range <- ranges
             pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
       -- TODO: Some parsing errors likely have reasonable code actions
-      pure (diags, [])
+      pure (diags, [], mempty)
     Result.UnknownSymbol _ loc ->
-      pure (noteDiagnostic note (singleRange loc), [])
+      pure (noteDiagnostic note (singleRange loc), [], mempty)
     Result.TypeInfo info -> do
       case info of
-        Context.LetBinding v _loc typ _r -> Debug.debugM Debug.Temp "TypeInfo note" (v, typ)
-        _ -> pure ()
-      -- No relevant diagnostics from type info.
-      pure ([], [])
+        Context.LetBinding v loc typ _r -> pure . fromMaybe mempty $ do
+          interval <- Cv.annToInterval loc
+          pure ([], [], MonMap.singleton v $ IntervalMap.singleton interval typ)
+        _ -> pure ([], [], mempty)
     Result.CompilerBug cbug -> do
       let ranges = case cbug of
             Result.TopLevelComponentNotFound _ trm -> singleRange $ ABT.annotation trm
@@ -308,7 +313,7 @@ analyseNotes fileUri ppe src notes = do
               Context.UnknownExistentialVariable _sym _con -> todoAnnotation
               Context.IllegalContextExtension _con _el _s -> todoAnnotation
               Context.OtherBug _s -> todoAnnotation
-      pure (noteDiagnostic note ranges, [])
+      pure (noteDiagnostic note ranges, [], mempty)
   where
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []

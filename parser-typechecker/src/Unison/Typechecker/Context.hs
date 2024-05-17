@@ -1086,11 +1086,12 @@ noteBindingType ::
   forall v loc f a.
   (Ord loc, Var v) =>
   Term.IsTop ->
+  loc ->
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteBindingType top e binding typ = case binding of
+noteBindingType top span e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
@@ -1107,8 +1108,6 @@ noteBindingType top e binding typ = case binding of
     note
       [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
   where
-    span :: loc
-    span = ABT.annotation binding
     note :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> M v loc ()
     note infos =
       if top
@@ -1222,7 +1221,7 @@ synthesizeWanted (Term.Constructor' r) =
 synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
-synthesizeWanted (Term.Let1Top' top binding e) = do
+synthesizeWanted abt@(Term.Let1Top' top binding e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
@@ -1231,7 +1230,7 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
-  noteBindingType top e binding tbinding
+  noteBindingType top (ABT.annotation abt) e binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)

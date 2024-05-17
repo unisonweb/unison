@@ -5,6 +5,9 @@ module Unison.LSP.Hover where
 
 import Control.Lens hiding (List)
 import Control.Monad.Reader
+import Data.IntervalMap.Lazy qualified as IM
+import Data.IntervalMap.Lazy qualified as IntervalMap
+import Data.Map.Monoidal qualified as MonMap
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
@@ -12,6 +15,7 @@ import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
+import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
@@ -28,14 +32,13 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
+import Unison.Type qualified as Type
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Var (Var)
+import Unison.Var qualified as Var
 import UnliftIO qualified
 
 -- | Hover help handler
---
--- TODO:
---   * Add docs
---   * Resolve fqn on hover
 hoverHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentHover -> (Either Msg.ResponseError (Msg.MessageResult 'Msg.Method_TextDocumentHover) -> Lsp ()) -> Lsp ()
 hoverHandler m respond = do
   respond . Right . maybe (InR Null) InL =<< runMaybeT do
@@ -49,7 +52,7 @@ hoverHandler m respond = do
 
 hoverInfo :: Uri -> Position -> MaybeT Lsp Text
 hoverInfo uri pos =
-  (hoverInfoForRef <|> hoverInfoForLiteral)
+  (hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar)
   where
     markdownify :: Text -> Text
     markdownify rendered = Text.unlines ["```unison", rendered, "```"]
@@ -100,9 +103,14 @@ hoverInfo uri pos =
             pure typ
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent uri ref
-            let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
-            pure (symAtCursor <> " : " <> renderedType)
+            pure $ renderTypeSigForHover pped symAtCursor typ
       pure . Text.unlines $ [markdownify typeSig] <> renderedDocs
+
+    renderTypeSigForHover :: Var v => PPED.PrettyPrintEnvDecl -> Text -> Type.Type v a -> Text
+    renderTypeSigForHover pped name typ =
+      let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+       in (name <> " : " <> renderedType)
+
     hoverInfoForLiteral :: MaybeT Lsp Text
     hoverInfoForLiteral =
       markdownify <$> do
@@ -114,6 +122,22 @@ hoverInfo uri pos =
           LSPQ.PatternNode pat -> do
             typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
             pure (": " <> typ)
+
+    hoverInfoForLocalVar :: MaybeT Lsp Text
+    hoverInfoForLocalVar = do
+      LSPQ.nodeAtPosition uri pos >>= \case
+        LSPQ.TermNode (Term.Var' v) -> do
+          FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
+          varContexts <- hoistMaybe $ MonMap.lookup v localBindingTypes
+          -- An interval contining the exact location of the cursor
+          let posInterval = (IM.ClosedInterval pos pos)
+          (_range, typ) <- hoistMaybe $ IntervalMap.lookupLT posInterval varContexts
+
+          pped <- lift $ ppedForFile uri
+          pure $ renderTypeSigForHover pped (Var.name v) typ
+        LSPQ.TermNode {} -> empty
+        LSPQ.TypeNode {} -> empty
+        LSPQ.PatternNode _pat -> empty
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure
