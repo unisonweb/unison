@@ -283,7 +283,10 @@ analyseNotes fileUri ppe src notes = do
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
       pure (noteDiagnostic note (singleRange loc), [])
-    Result.TypeInfo {} ->
+    Result.TypeInfo info -> do
+      case info of
+        Context.LetBinding v _loc typ _r -> Debug.debugM Debug.Temp "TypeInfo note" (v, typ)
+        _ -> pure ()
       -- No relevant diagnostics from type info.
       pure ([], [])
     Result.CompilerBug cbug -> do

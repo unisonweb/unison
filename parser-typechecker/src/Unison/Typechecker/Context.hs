@@ -84,6 +84,7 @@ import Unison.DataDeclaration
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
+import Unison.Name (Name)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -104,7 +105,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Name (Name)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -358,6 +358,11 @@ data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
+  | -- The inferred type of a local binding, and the scope of that binding as a loc.
+    -- Note that if interpreting the type of a 'v' at a given usage site, it is the caller's
+    -- job to use the binding with the smallest containing scope so as to respect variable
+    -- shadowing.
+    LetBinding v loc (Type.Type v loc) RedundantTypeAnnotation
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -474,6 +479,7 @@ scope :: PathElement v loc -> M v loc a -> M v loc a
 scope p (MT m) = MT \ppe pmcSwitch datas effects env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
+  deriving stock (Show)
 
 data Info v loc = Info
   { existentialVars :: Set v, -- set of existentials seen so far
@@ -482,6 +488,7 @@ data Info v loc = Info
     termVarAnnotations :: Map v (Type v loc),
     allVars :: Set v -- all variables seen so far
   }
+  deriving stock (Show)
 
 -- | The empty context
 context0 :: Context v loc
@@ -1075,30 +1082,38 @@ generalizeExistentials' t =
     isExistential TypeVar.Existential {} = True
     isExistential _ = False
 
-noteTopLevelType ::
+noteBindingType ::
+  forall v loc f a.
   (Ord loc, Var v) =>
+  Term.IsTop ->
   ABT.Subst f v a ->
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteTopLevelType e binding typ = case binding of
+noteBindingType top e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
-      Nothing ->
-        btw $
-          topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
+      Nothing -> do
+        let v = Var.reset (ABT.variable e)
+        let t = generalizeAndUnTypeVar typ
+        let redundant = False
+        note [(v, t, redundant)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
-        btw $
-          topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
+        note [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
   _ ->
-    btw $
-      topLevelComponent
-        [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
+    note
+      [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
+  where
+    span :: loc
+    span = ABT.annotation binding
+    note :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> M v loc ()
+    note infos =
+      if top
+        then btw $ topLevelComponent infos
+        else for_ infos \(v, t, r) -> btw $ LetBinding v span t r
 
 synthesizeTop ::
   (Var v) =>
@@ -1216,7 +1231,7 @@ synthesizeWanted (Term.Let1Top' top binding e) = do
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
-  when top $ noteTopLevelType e binding tbinding
+  noteBindingType top e binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)
@@ -1313,6 +1328,7 @@ synthesizeWanted e
       let it = existential' l B.Blank i
           ot = existential' l B.Blank o
           et = existential' l B.Blank e
+
       appendContext $
         [existential i, existential e, existential o, Ann arg it]
       when (Var.typeOf i == Var.Delay) $ do
@@ -1876,7 +1892,8 @@ annotateLetRecBindings isTop letrec =
                 -- Anything else, just make up a fresh existential
                 -- which will be refined during typechecking of the binding
                 vt <- extendExistential v
-                pure $ (e, existential' (loc binding) B.Blank vt)
+                let typ = existential' (loc binding) B.Blank vt
+                pure $ (e, typ)
         (bindings, bindingTypes) <- unzip <$> traverse f bindings
         appendContext (zipWith Ann vs bindingTypes)
         -- check each `bi` against its type
@@ -3379,15 +3396,15 @@ instance (Var v) => Show (Element v loc) where
       ++ TP.prettyStr Nothing PPE.empty t
   show (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
-instance (Ord loc, Var v) => Show (Context v loc) where
-  show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
-    where
-      showElem _ctx (Var v) = case v of
-        TypeVar.Universal x -> "@" <> show x
-        e -> show e
-      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
-      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
-      showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
+-- instance (Ord loc, Var v) => Show (Context v loc) where
+--   show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
+--     where
+--       showElem _ctx (Var v) = case v of
+--         TypeVar.Universal x -> "@" <> show x
+--         e -> show e
+--       showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+--       showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+--       showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
