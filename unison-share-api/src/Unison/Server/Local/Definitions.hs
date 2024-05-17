@@ -154,7 +154,7 @@ typeDisplayObjectByName :: Codebase m Symbol Ann -> NameSearch Sqlite.Transactio
 typeDisplayObjectByName codebase nameSearch name = runMaybeT do
   refs <- lift $ NameSearch.lookupRelativeHQRefs' (NS.typeSearch nameSearch) NS.ExactName (HQ'.NameOnly name)
   ref <- fmap NESet.findMin . hoistMaybe $ NESet.nonEmptySet refs
-  fmap (ref,) . lift $ Backend.displayType ref
+  fmap (ref,) . lift $ Backend.displayType codebase ref
 
 typeDefinitionByName ::
   Codebase IO Symbol Ann ->
