@@ -161,9 +161,11 @@ type CodebaseServerAPI =
 type ProjectsAPI =
   ListProjectsEndpoint
     :<|> ( Capture "project-name" ProjectName
-             :> "branches"
-             :> ( ListProjectBranchesEndpoint
-                    :<|> (Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+             :> ( ( "branches"
+                      :> ( ListProjectBranchesEndpoint
+                             :<|> (Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+                         )
+                  )
                     :<|> ( "diff"
                              :> ( "terms" :> ProjectDiffTermsEndpoint
                                     :<|> "types" :> ProjectDiffTypesEndpoint
@@ -668,8 +670,9 @@ serveProjectsAPI :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ServerT Proje
 serveProjectsAPI codebase rt =
   projectListingEndpoint codebase
     :<|> ( \projectName ->
-             projectBranchListingEndpoint codebase projectName
-               :<|> serveProjectsCodebaseServerAPI codebase rt projectName
+             ( projectBranchListingEndpoint codebase projectName
+                 :<|> serveProjectsCodebaseServerAPI codebase rt projectName
+             )
                :<|> ( serveProjectDiffTermsEndpoint codebase rt projectName
                         :<|> serveProjectDiffTypesEndpoint codebase rt projectName
                     )
