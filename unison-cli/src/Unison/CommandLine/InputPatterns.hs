@@ -47,6 +47,7 @@ import Unison.CommandLine
 import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath, parseIncrementalBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.CommandLine.Completion
+import Unison.CommandLine.FZFResolvers (IncludeLibFZF (..))
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
@@ -399,7 +400,7 @@ view =
     "view"
     []
     I.Visible
-    [("definition to view", OnePlus, definitionQueryArg)]
+    [("definition to view", OnePlus, definitionQueryArg IncludeDepsFZF)]
     ( P.lines
         [ P.wrap $ makeExample view ["foo"] <> "shows definitions named `foo` within your current namespace.",
           P.wrap $ makeExample view [] <> "without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.",
@@ -425,7 +426,7 @@ viewGlobal =
     "view.global"
     []
     I.Visible
-    [("definition to view", ZeroPlus, definitionQueryArg)]
+    [("definition to view", ZeroPlus, definitionQueryArg IncludeDepsFZF)]
     ( P.lines
         [ "`view.global foo` prints definitions of `foo` within your codebase.",
           "`view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
@@ -445,7 +446,7 @@ display =
     "display"
     []
     I.Visible
-    [("definition to display", OnePlus, definitionQueryArg)]
+    [("definition to display", OnePlus, definitionQueryArg IncludeDepsFZF)]
     ( P.lines
         [ "`display foo` prints a rendered version of the term `foo`.",
           "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
@@ -464,7 +465,7 @@ displayTo =
     "display.to"
     []
     I.Visible
-    [("destination file name", Required, filePathArg), ("definition to display", OnePlus, definitionQueryArg)]
+    [("destination file name", Required, filePathArg), ("definition to display", OnePlus, definitionQueryArg IncludeDepsFZF)]
     ( P.wrap $
         makeExample displayTo ["<filename>", "foo"]
           <> "prints a rendered version of the term `foo` to the given file."
@@ -482,7 +483,7 @@ docs =
     "docs"
     []
     I.Visible
-    [("definition", OnePlus, definitionQueryArg)]
+    [("definition", OnePlus, definitionQueryArg IncludeDepsFZF)]
     ( P.lines
         [ "`docs foo` shows documentation for the definition `foo`.",
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
@@ -512,7 +513,7 @@ ui =
     { patternName = "ui",
       aliases = [],
       visibility = I.Visible,
-      args = [("definition to load", Optional, namespaceOrDefinitionArg)],
+      args = [("definition to load", Optional, namespaceOrDefinitionArg IncludeDepsFZF)],
       help = P.wrap "`ui` opens the Local UI in the default browser.",
       parse = \case
         [] -> pure $ Input.UiI Path.relativeEmpty'
@@ -538,7 +539,7 @@ viewByPrefix =
     "view.recursive"
     []
     I.Visible
-    [("definition to view", OnePlus, definitionQueryArg)]
+    [("definition to view", OnePlus, definitionQueryArg IncludeDepsFZF)]
     "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
     ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
         . traverse parseHashQualifiedName
@@ -546,7 +547,7 @@ viewByPrefix =
 
 sfind :: InputPattern
 sfind =
-  InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
+  InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg ExcludeDepsFZF)] msg parse
   where
     parse [q] = Input.StructuredFindI (Input.FindLocal Path.empty) <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
@@ -577,7 +578,7 @@ sfind =
 
 sfindReplace :: InputPattern
 sfindReplace =
-  InputPattern "rewrite" ["sfind.replace"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
+  InputPattern "rewrite" ["sfind.replace"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg ExcludeDepsFZF)] msg parse
   where
     parse [q] = Input.StructuredFindReplaceI <$> parseHashQualifiedName q
     parse _ = Left "expected exactly one argument"
@@ -624,7 +625,7 @@ findIn' cmd mkfscope =
     cmd
     []
     I.Visible
-    [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
+    [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg IncludeDepsFZF)]
     findHelp
     \case
       p : args -> first P.text do
@@ -674,7 +675,7 @@ find' cmd fscope =
     cmd
     []
     I.Visible
-    [("query", ZeroPlus, exactDefinitionArg)]
+    [("query", ZeroPlus, exactDefinitionArg IncludeDepsFZF)]
     findHelp
     (pure . Input.FindI False fscope)
 
@@ -705,7 +706,7 @@ findVerbose =
     "find.verbose"
     []
     I.Visible
-    [("query", ZeroPlus, exactDefinitionArg)]
+    [("query", ZeroPlus, exactDefinitionArg IncludeDepsFZF)]
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -717,7 +718,7 @@ findVerboseAll =
     "find.all.verbose"
     []
     I.Visible
-    [("query", ZeroPlus, exactDefinitionArg)]
+    [("query", ZeroPlus, exactDefinitionArg IncludeDepsFZF)]
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
@@ -741,7 +742,7 @@ renameTerm =
     "move.term"
     ["rename.term"]
     I.Visible
-    [ ("definition to move", Required, exactDefinitionTermQueryArg),
+    [ ("definition to move", Required, exactDefinitionTermQueryArg ExcludeDepsFZF),
       ("new location", Required, newNameArg)
     ]
     "`move.term foo bar` renames `foo` to `bar`."
@@ -762,7 +763,7 @@ moveAll =
     "move"
     ["rename"]
     I.Visible
-    [ ("definition to move", Required, namespaceOrDefinitionArg),
+    [ ("definition to move", Required, namespaceOrDefinitionArg ExcludeDepsFZF),
       ("new location", Required, newNameArg)
     ]
     "`move foo bar` renames the term, type, and namespace foo to bar."
@@ -783,7 +784,7 @@ renameType =
     "move.type"
     ["rename.type"]
     I.Visible
-    [ ("type to move", Required, exactDefinitionTypeQueryArg),
+    [ ("type to move", Required, exactDefinitionTypeQueryArg ExcludeDepsFZF),
       ("new location", Required, newNameArg)
     ]
     "`move.type foo bar` renames `foo` to `bar`."
@@ -843,22 +844,22 @@ deleteGen suffix queryCompletionArg target mkTarget =
         )
 
 delete :: InputPattern
-delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete = deleteGen Nothing (exactDefinitionTypeOrTermQueryArg ExcludeDepsFZF) "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
 
 deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteVerbose = deleteGen (Just "verbose") (exactDefinitionTypeOrTermQueryArg ExcludeDepsFZF) "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
 
 deleteTerm :: InputPattern
-deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+deleteTerm = deleteGen (Just "term") (exactDefinitionTermQueryArg ExcludeDepsFZF) "term" (DeleteTarget'Term DeleteOutput'NoDiff)
 
 deleteTermVerbose :: InputPattern
-deleteTermVerbose = deleteGen (Just "term.verbose") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'Diff)
+deleteTermVerbose = deleteGen (Just "term.verbose") (exactDefinitionTermQueryArg ExcludeDepsFZF) "term" (DeleteTarget'Term DeleteOutput'Diff)
 
 deleteType :: InputPattern
-deleteType = deleteGen (Just "type") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+deleteType = deleteGen (Just "type") (exactDefinitionTypeQueryArg ExcludeDepsFZF) "type" (DeleteTarget'Type DeleteOutput'NoDiff)
 
 deleteTypeVerbose :: InputPattern
-deleteTypeVerbose = deleteGen (Just "type.verbose") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'Diff)
+deleteTypeVerbose = deleteGen (Just "type.verbose") (exactDefinitionTypeQueryArg ExcludeDepsFZF) "type" (DeleteTarget'Type DeleteOutput'Diff)
 
 deleteTermReplacementCommand :: String
 deleteTermReplacementCommand = "delete.term-replacement"
@@ -872,7 +873,7 @@ deleteReplacement isTerm =
     commandName
     []
     I.Visible
-    [("definition", Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), ("patch", Optional, patchArg)]
+    [("definition", Required, if isTerm then (exactDefinitionTermQueryArg ExcludeDepsFZF) else (exactDefinitionTypeQueryArg ExcludeDepsFZF)), ("patch", Optional, patchArg)]
     ( P.string $
         commandName
           <> " <foo> <patch>` removes any edit of the "
@@ -965,7 +966,7 @@ aliasTerm =
     "alias.term"
     []
     I.Visible
-    [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)]
+    [("term to alias", Required, exactDefinitionTermQueryArg IncludeDepsFZF), ("alias name", Required, newNameArg)]
     "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
     \case
       [oldName, newName] -> first P.text do
@@ -983,7 +984,7 @@ aliasType =
     "alias.type"
     []
     I.Visible
-    [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)]
+    [("type to alias", Required, exactDefinitionTypeQueryArg IncludeDepsFZF), ("alias name", Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     \case
       [oldName, newName] -> first P.text do
@@ -1001,7 +1002,7 @@ aliasMany =
     "alias.many"
     ["copy"]
     I.Visible
-    [("definition to alias", Required, definitionQueryArg), ("alias names", OnePlus, exactDefinitionArg)]
+    [("definition to alias", Required, definitionQueryArg ExcludeDepsFZF), ("alias names", OnePlus, exactDefinitionArg ExcludeDepsFZF)]
     ( P.group . P.lines $
         [ P.wrap $
             P.group (makeExample aliasMany ["<relative1>", "[relative2...]", "<namespace>"])
@@ -1853,8 +1854,8 @@ replaceEdit f = self
         "replace"
         []
         I.Visible
-        [ ("definition to replace", Required, definitionQueryArg),
-          ("definition replacement", Required, definitionQueryArg),
+        [ ("definition to replace", Required, definitionQueryArg ExcludeDepsFZF),
+          ("definition replacement", Required, definitionQueryArg ExcludeDepsFZF),
           ("patch", Optional, patchArg)
         ]
         ( P.wrapColumn2
@@ -1899,7 +1900,7 @@ edit =
     { patternName = "edit",
       aliases = [],
       visibility = I.Visible,
-      args = [("definition to edit", OnePlus, definitionQueryArg)],
+      args = [("definition to edit", OnePlus, definitionQueryArg ExcludeDepsFZF)],
       help =
         P.lines
           [ "`edit foo` prepends the definition of `foo` to the top of the most "
@@ -2212,7 +2213,7 @@ names isGlobal =
     cmdName
     []
     I.Visible
-    [("name or hash", Required, definitionQueryArg)]
+    [("name or hash", Required, definitionQueryArg ExcludeDepsFZF)]
     (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     \case
       [thing] -> case HQ.parseText (Text.pack thing) of
@@ -2231,7 +2232,7 @@ dependents =
     "dependents"
     []
     I.Visible
-    [("definition", Required, definitionQueryArg)]
+    [("definition", Required, definitionQueryArg IncludeDepsFZF)]
     "List the named dependents of the specified definition."
     \case
       [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
@@ -2241,7 +2242,7 @@ dependencies =
     "dependencies"
     []
     I.Visible
-    [("definition", Required, definitionQueryArg)]
+    [("definition", Required, definitionQueryArg IncludeDepsFZF)]
     "List the dependencies of the specified definition."
     \case
       [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
@@ -2308,7 +2309,7 @@ debugTerm =
     "debug.term.abt"
     []
     I.Hidden
-    [("term", Required, exactDefinitionTermQueryArg)]
+    [("term", Required, exactDefinitionTermQueryArg IncludeDepsFZF)]
     "View debugging information for a given term."
     ( \case
         [thing] -> fmap (Input.DebugTermI False) $ parseHashQualifiedName thing
@@ -2321,7 +2322,7 @@ debugTermVerbose =
     "debug.term.abt.verbose"
     []
     I.Hidden
-    [("term", Required, exactDefinitionTermQueryArg)]
+    [("term", Required, exactDefinitionTermQueryArg IncludeDepsFZF)]
     "View verbose debugging information for a given term."
     ( \case
         [thing] -> fmap (Input.DebugTermI True) $ parseHashQualifiedName thing
@@ -2334,7 +2335,7 @@ debugType =
     "debug.type.abt"
     []
     I.Hidden
-    [("type", Required, exactDefinitionTypeQueryArg)]
+    [("type", Required, exactDefinitionTypeQueryArg IncludeDepsFZF)]
     "View debugging information for a given type."
     ( \case
         [thing] -> fmap (Input.DebugTypeI) $ parseHashQualifiedName thing
@@ -2467,7 +2468,7 @@ docToMarkdown =
     "debug.doc-to-markdown"
     []
     I.Visible
-    [("doc to render", Required, exactDefinitionTermQueryArg)]
+    [("doc to render", Required, exactDefinitionTermQueryArg ExcludeDepsFZF)]
     ( P.wrapColumn2
         [ ( "`debug.doc-to-markdown term.doc`",
             "Render a doc to markdown."
@@ -2486,7 +2487,7 @@ execute =
     "run"
     []
     I.Visible
-    [("definition to execute", Required, exactDefinitionTermQueryArg), ("argument", ZeroPlus, noCompletionsArg)]
+    [("definition to execute", Required, exactDefinitionTermQueryArg ExcludeDepsFZF), ("argument", ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( "`run mymain args...`",
             "Runs `!mymain`, where `mymain` is searched for in the most recent"
@@ -2521,7 +2522,7 @@ ioTest =
     { patternName = "io.test",
       aliases = ["test.io"],
       visibility = I.Visible,
-      args = [("test to run", Required, exactDefinitionTermQueryArg)],
+      args = [("test to run", Required, exactDefinitionTermQueryArg ExcludeDepsFZF)],
       help =
         P.wrapColumn2
           [ ( "`io.test mytest`",
@@ -2557,7 +2558,7 @@ makeStandalone =
     "compile"
     ["compile.output"]
     I.Visible
-    [("definition to compile", Required, exactDefinitionTermQueryArg), ("output file", Required, filePathArg)]
+    [("definition to compile", Required, exactDefinitionTermQueryArg ExcludeDepsFZF), ("output file", Required, filePathArg)]
     ( P.wrapColumn2
         [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
@@ -2577,7 +2578,7 @@ runScheme =
     "run.native"
     []
     I.Visible
-    [("definition to run", Required, exactDefinitionTermQueryArg), ("arguments", ZeroPlus, noCompletionsArg)]
+    [("definition to run", Required, exactDefinitionTermQueryArg ExcludeDepsFZF), ("arguments", ZeroPlus, noCompletionsArg)]
     ( P.wrapColumn2
         [ ( makeExample runScheme ["main", "args"],
             "Executes !main using native compilation via scheme."
@@ -2594,7 +2595,7 @@ compileScheme =
     "compile.native"
     []
     I.Hidden
-    [("definition to compile", Required, exactDefinitionTermQueryArg), ("output file", Required, filePathArg)]
+    [("definition to compile", Required, exactDefinitionTermQueryArg ExcludeDepsFZF), ("output file", Required, filePathArg)]
     ( P.wrapColumn2
         [ ( makeExample compileScheme ["main", "file"],
             "Creates stand alone executable via compilation to"
@@ -3147,47 +3148,47 @@ commandNameArg =
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> options)
         }
 
-exactDefinitionArg :: ArgumentType
-exactDefinitionArg =
+exactDefinitionArg :: Resolvers.IncludeLibFZF -> ArgumentType
+exactDefinitionArg includeLib =
   ArgumentType
     { typeName = "definition",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      fzfResolver = Just Resolvers.definitionResolver
+      fzfResolver = Just $ Resolvers.definitionResolver includeLib
     }
 
-fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
+fuzzyDefinitionQueryArg :: IncludeLibFZF -> ArgumentType
+fuzzyDefinitionQueryArg includeLib =
   ArgumentType
     { typeName = "fuzzy definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      fzfResolver = Just Resolvers.definitionResolver
+      fzfResolver = Just $ Resolvers.definitionResolver includeLib
     }
 
-definitionQueryArg :: ArgumentType
-definitionQueryArg = exactDefinitionArg {typeName = "definition query"}
+definitionQueryArg :: Resolvers.IncludeLibFZF -> ArgumentType
+definitionQueryArg includeLib = (exactDefinitionArg includeLib) {typeName = "definition query"}
 
-exactDefinitionTypeQueryArg :: ArgumentType
-exactDefinitionTypeQueryArg =
+exactDefinitionTypeQueryArg :: IncludeLibFZF -> ArgumentType
+exactDefinitionTypeQueryArg includeLib =
   ArgumentType
     { typeName = "type definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteType q p),
-      fzfResolver = Just Resolvers.typeDefinitionResolver
+      fzfResolver = Just $ Resolvers.typeDefinitionResolver includeLib
     }
 
-exactDefinitionTypeOrTermQueryArg :: ArgumentType
-exactDefinitionTypeOrTermQueryArg =
+exactDefinitionTypeOrTermQueryArg :: IncludeLibFZF -> ArgumentType
+exactDefinitionTypeOrTermQueryArg includeLib =
   ArgumentType
     { typeName = "type or term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      fzfResolver = Just Resolvers.definitionResolver
+      fzfResolver = Just $ Resolvers.definitionResolver includeLib
     }
 
-exactDefinitionTermQueryArg :: ArgumentType
-exactDefinitionTermQueryArg =
+exactDefinitionTermQueryArg :: IncludeLibFZF -> ArgumentType
+exactDefinitionTermQueryArg includeLib =
   ArgumentType
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
-      fzfResolver = Just Resolvers.termDefinitionResolver
+      fzfResolver = Just $ Resolvers.termDefinitionResolver includeLib
     }
 
 patchArg :: ArgumentType
@@ -3220,8 +3221,8 @@ namespaceOrProjectBranchArg config =
       fzfResolver = Just Resolvers.projectOrBranchResolver
     }
 
-namespaceOrDefinitionArg :: ArgumentType
-namespaceOrDefinitionArg =
+namespaceOrDefinitionArg :: IncludeLibFZF -> ArgumentType
+namespaceOrDefinitionArg includeLib =
   ArgumentType
     { typeName = "term, type, or namespace",
       suggestions = \q cb _http p -> Codebase.runTransaction cb do
@@ -3229,7 +3230,7 @@ namespaceOrDefinitionArg =
         termsTypes <- prefixCompleteTermOrType q p
         pure (List.nubOrd $ namespaces <> termsTypes),
       fzfResolver =
-        Just Resolvers.namespaceOrDefinitionResolver
+        Just $ Resolvers.namespaceOrDefinitionResolver includeLib
     }
 
 -- | A dependency name. E.g. if your project has `lib.base`, `base` would be a dependency

@@ -27,6 +27,10 @@ Sorry, I was expecting an argument for the definition to view, and I couldn't fi
 optionOne = 1
 
 nested.optionTwo = 2
+
+lib.dep.defnInLib = 3
+
+lib.dep.lib.tdep.defnInTransitiveDep = 4
 ```
 
 Definition args
@@ -38,12 +42,21 @@ Definition args
 
   ⍟ I've added these definitions:
   
-    nested.optionTwo : ##Nat
-    optionOne        : ##Nat
+    lib.dep.defnInLib                    : ##Nat
+    lib.dep.lib.tdep.defnInTransitiveDep : ##Nat
+    nested.optionTwo                     : ##Nat
+    optionOne                            : ##Nat
 
 .> debug.fuzzy-options view _
 
   Select a definition to view:
+    * lib.dep.defnInLib
+    * optionOne
+    * nested.optionTwo
+
+.> debug.fuzzy-options edit _
+
+  Select a definition to edit:
     * optionOne
     * nested.optionTwo
 
@@ -51,14 +64,11 @@ Definition args
 Namespace args
 
 ```ucm
-.> add
-
-  ⊡ Ignored previously added definitions: nested.optionTwo
-    optionOne
-
 .> debug.fuzzy-options find-in _
 
   Select a namespace:
+    * lib
+    * lib.dep
     * nested
 
 ```

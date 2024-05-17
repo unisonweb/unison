@@ -20,6 +20,10 @@ opening an empty fuzzy-select.
 optionOne = 1
 
 nested.optionTwo = 2
+
+lib.dep.defnInLib = 3
+
+lib.dep.lib.tdep.defnInTransitiveDep = 4
 ```
 
 Definition args
@@ -27,13 +31,12 @@ Definition args
 ```ucm
 .> add
 .> debug.fuzzy-options view _
+.> debug.fuzzy-options edit _
 ```
-
 
 Namespace args
 
 ```ucm
-.> add
 .> debug.fuzzy-options find-in _
 ```
 

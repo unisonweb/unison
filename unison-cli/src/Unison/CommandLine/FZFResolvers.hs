@@ -1,5 +1,6 @@
 module Unison.CommandLine.FZFResolvers
   ( FZFResolver (..),
+    IncludeLibFZF (..),
     definitionOptions,
     termDefinitionOptions,
     typeDefinitionOptions,
@@ -60,31 +61,41 @@ data FZFResolver = FZFResolver
 instance Show FZFResolver where
   show _ = "<FZFResolver>"
 
+-- | Whether to include things within lib in FZF results.
+-- You will still be able to explicitly select things within lib.
+data IncludeLibFZF
+  = IncludeDepsFZF
+  | ExcludeDepsFZF
+  deriving stock (Eq, Ord, Show)
+
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-genericDefinitionOptions :: Bool -> Bool -> OptionFetcher
-genericDefinitionOptions includeTerms includeTypes _codebase _projCtx searchBranch0 = liftIO do
+genericDefinitionOptions :: IncludeLibFZF -> Bool -> Bool -> OptionFetcher
+genericDefinitionOptions includeLib includeTerms includeTypes _codebase _projCtx searchBranch0 = liftIO do
+  let b = case includeLib of
+        IncludeDepsFZF -> Branch.withoutTransitiveLibs searchBranch0
+        ExcludeDepsFZF -> Branch.withoutLib searchBranch0
   let termsAndTypes =
-        Monoid.whenM includeTerms Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
-          <> Monoid.whenM includeTypes Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
+        Monoid.whenM includeTerms Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms b))
+          <> Monoid.whenM includeTypes Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes b))
   termsAndTypes
     & Set.toList
     & map (HQ.toText . fmap (Name.setPosition Position.Relative))
     & pure
 
 -- | Select a definition from the given branch.
-definitionOptions :: OptionFetcher
-definitionOptions = genericDefinitionOptions True True
+definitionOptions :: IncludeLibFZF -> OptionFetcher
+definitionOptions includeLibFZF = genericDefinitionOptions includeLibFZF True True
 
 -- | Select a term definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-termDefinitionOptions :: OptionFetcher
-termDefinitionOptions = genericDefinitionOptions True False
+termDefinitionOptions :: IncludeLibFZF -> OptionFetcher
+termDefinitionOptions includeLibFZF = genericDefinitionOptions includeLibFZF True False
 
 -- | Select a type definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-typeDefinitionOptions :: OptionFetcher
-typeDefinitionOptions = genericDefinitionOptions False True
+typeDefinitionOptions :: IncludeLibFZF -> OptionFetcher
+typeDefinitionOptions includeLibFZF = genericDefinitionOptions includeLibFZF False True
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
@@ -126,20 +137,20 @@ multiResolver resolvers =
         List.nubOrd <$> foldMapM (\f -> f codebase projCtx searchBranch0) resolvers
    in (FZFResolver {getOptions})
 
-definitionResolver :: FZFResolver
-definitionResolver = FZFResolver {getOptions = definitionOptions}
+definitionResolver :: IncludeLibFZF -> FZFResolver
+definitionResolver includeLibFZF = FZFResolver {getOptions = definitionOptions includeLibFZF}
 
-typeDefinitionResolver :: FZFResolver
-typeDefinitionResolver = FZFResolver {getOptions = typeDefinitionOptions}
+typeDefinitionResolver :: IncludeLibFZF -> FZFResolver
+typeDefinitionResolver includeLibFZF = FZFResolver {getOptions = typeDefinitionOptions includeLibFZF}
 
-termDefinitionResolver :: FZFResolver
-termDefinitionResolver = FZFResolver {getOptions = termDefinitionOptions}
+termDefinitionResolver :: IncludeLibFZF -> FZFResolver
+termDefinitionResolver includeLibFZF = FZFResolver {getOptions = termDefinitionOptions includeLibFZF}
 
 namespaceResolver :: FZFResolver
 namespaceResolver = FZFResolver {getOptions = namespaceOptions}
 
-namespaceOrDefinitionResolver :: FZFResolver
-namespaceOrDefinitionResolver = multiResolver [definitionOptions, namespaceOptions]
+namespaceOrDefinitionResolver :: IncludeLibFZF -> FZFResolver
+namespaceOrDefinitionResolver includeLibFZF = multiResolver [definitionOptions includeLibFZF, namespaceOptions]
 
 projectDependencyResolver :: FZFResolver
 projectDependencyResolver = FZFResolver {getOptions = projectDependencyOptions}
