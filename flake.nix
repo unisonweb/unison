@@ -95,7 +95,9 @@
         assert nixpkgs-packages.hpack.version == versions.hpack;
         {
           packages = nixpkgs-packages // {
+            default = haskell-nix-flake.defaultPackage;
             haskell-nix = haskell-nix-flake.packages;
+            docker = import ./nix/docker.nix { inherit pkgs; haskell-nix = haskell-nix-flake.packages; };
             build-tools = pkgs.symlinkJoin {
               name = "build-tools";
               paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;

@@ -56,7 +56,7 @@ Namespace args
   ⊡ Ignored previously added definitions: nested.optionTwo
     optionOne
 
-.> debug.fuzzy-options cd _
+.> debug.fuzzy-options find-in _
 
   Select a namespace:
     * nested
@@ -85,8 +85,8 @@ myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
   
-  Tip: Use `merge /mybranch /main` to merge your work back into
-       the main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /mybranch`.
 
 .> debug.fuzzy-options switch _
 

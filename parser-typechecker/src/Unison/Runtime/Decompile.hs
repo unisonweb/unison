@@ -20,12 +20,18 @@ import Unison.Prelude
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF (maskTags)
+import Unison.Runtime.Array
+  ( Array
+  , ByteArray
+  , byteArrayToList
+  )
 import Unison.Runtime.Foreign
   ( Foreign (..),
     HashAlgorithm (..),
     maybeUnwrapBuiltin,
     maybeUnwrapForeign,
   )
+import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
   ( Closure (..),
@@ -63,6 +69,8 @@ import Unison.Type
     natRef,
     termLinkRef,
     typeLinkRef,
+    iarrayRef,
+    ibytearrayRef,
   )
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Pretty (indentN, lines, lit, syntaxToColor, wrap)
@@ -210,6 +218,15 @@ decompileForeign backref topTerms f
         _ -> l
   | Just l <- maybeUnwrapForeign typeLinkRef f =
       pure $ typeLink () l
+  | Just (a :: Array Closure) <- maybeUnwrapForeign iarrayRef f =
+      app () (ref () iarrayFromListRef) . list () <$>
+        traverse (decompile backref topTerms) (toList a)
+  | Just (a :: ByteArray) <- maybeUnwrapForeign ibytearrayRef f =
+      pure $
+        app
+          ()
+          (ref () ibarrayFromBytesRef)
+          (decompileBytes . By.fromWord8s $ byteArrayToList a)
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
 decompileForeign _ _ (Wrap r _) =

@@ -5,6 +5,7 @@ module Unison.Test.LSP (test) where
 
 import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
+import Data.Map.Strict qualified as Map
 import Data.String.Here.Uninterpolated (here)
 import Data.Text
 import Data.Text qualified as Text
@@ -255,7 +256,8 @@ makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ 
   scope "parsed file" $ do
     let pfResult =
           UF.terms pf
-            & firstJust \(_v, _fileAnn, trm) ->
+            & Map.toList
+            & firstJust \(_v, (_fileAnn, trm)) ->
               LSPQ.findSmallestEnclosingNode pos trm
     expectEqual (Just expected) (void <$> pfResult)
 

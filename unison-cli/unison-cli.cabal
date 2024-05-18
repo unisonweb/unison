@@ -34,6 +34,7 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.DownloadUtils
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
@@ -60,7 +61,9 @@ library
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
+      Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
+      Unison.Codebase.Editor.HandleInput.Merge2
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm
@@ -165,6 +168,7 @@ library
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -215,6 +219,7 @@ library
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -234,6 +239,7 @@ library
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -246,6 +252,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -302,6 +309,7 @@ executable transcripts
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -353,6 +361,7 @@ executable transcripts
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -373,6 +382,7 @@ executable transcripts
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -386,6 +396,7 @@ executable transcripts
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
@@ -447,6 +458,7 @@ test-suite cli-tests
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -499,6 +511,7 @@ test-suite cli-tests
     , mtl
     , network
     , network-simple
+    , network-udp
     , network-uri
     , nonempty-containers
     , open-browser
@@ -518,6 +531,7 @@ test-suite cli-tests
     , template-haskell
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
@@ -531,6 +545,7 @@ test-suite cli-tests
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer

@@ -159,14 +159,15 @@ jobs:
           distribution: "full"
           variant: "CS"
           version: ${{env.racket_version}}
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        if: runner.os == 'Linux'
-        with:
-          packages: libb2-dev
-          version: 1.0 # cache key version afaik
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
         run: raco pkg install --auto scheme-libs/racket/unison.zip
+      - name: install libb2 (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libb2
+          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
+                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
       - name: build unison-runtime
         run: |
           raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
@@ -232,7 +233,8 @@ jobs:
           file: ucm
           content: |
             #!/bin/bash
-            "$(dirname "$0")/unison/unison" --runtime-path "$(dirname "$0")/runtime/bin/unison-runtime" "$@"
+            unison_root="$(dirname "$(readlink -f "$0")")"
+            "${unison_root}/unison/unison" --runtime-path "${unison_root}/runtime/bin/unison-runtime" "$@"
       - name: create startup script (Windows)
         if: runner.os == 'Windows'
         uses: 1arp/create-a-file-action@0.4.4

@@ -1,9 +1,5 @@
 # Computable documents in Unison
 
-```ucm:hide
-.> builtins.mergeio
-```
-
 Unison documentation is written in Unison and has some neat features:
 
 * The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.

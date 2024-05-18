@@ -5,6 +5,10 @@
          unison/data-info
          racket/file
          racket/flonum
+         (only-in racket
+           date-dst?
+           date-time-zone-offset
+           date*-time-zone-name)
          (only-in unison/boot data-case define-unison)
          (only-in
            rnrs/arithmetic/flonums-6
@@ -12,6 +16,7 @@
 (require racket/file)
 
 (provide
+ builtin-Clock.internals.systemTimeZone.v1
  (prefix-out
   unison-FOp-Clock.internals.
   (combine-out
@@ -35,12 +40,20 @@
         renameFile.impl.v3
         createDirectory.impl.v3
         removeDirectory.impl.v3
+        directoryContents.impl.v3
         setCurrentDirectory.impl.v3
         renameDirectory.impl.v3
         isDirectory.impl.v3
         systemTime.impl.v3
         systemTimeMicroseconds.impl.v3
         createTempDirectory.impl.v3)))
+
+(define (failure-result ty msg vl)
+  (ref-either-left
+    (ref-failure-failure
+      ty
+      (string->chunked-string msg)
+      (unison-any-any vl))))
 
 (define (getFileSize.impl.v3 path)
     (with-handlers
@@ -81,6 +94,24 @@
     (current-directory (chunked-string->string path))
     (ref-either-right none))
 
+(define-unison (directoryContents.impl.v3 path)
+  (with-handlers
+    [[exn:fail:filesystem?
+       (lambda (e)
+         (failure-result
+           ref-iofailure:typelink
+           (exception->string e)
+           ref-unit-unit))]]
+    (let* ([dirps (directory-list (chunked-string->string path))]
+           [dirss (map path->string dirps)])
+      (ref-either-right
+        (vector->chunked-list
+          (list->vector
+            (map
+              string->chunked-string
+              (list* "." ".." dirss))))))))
+
+
 (define-unison (createTempDirectory.impl.v3 prefix)
     (ref-either-right
         (string->chunked-string
@@ -116,6 +147,14 @@
 
 (define-unison (systemTimeMicroseconds.impl.v3 unit)
     (ref-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
+
+(define-unison (builtin-Clock.internals.systemTimeZone.v1 secs)
+  (let* ([d (seconds->date secs)])
+    (list->unison-tuple
+      (list
+        (date-time-zone-offset d)
+        (if (date-dst? d) 1 0)
+        (date*-time-zone-name d)))))
 
 (define (threadCPUTime.v1)
   (right

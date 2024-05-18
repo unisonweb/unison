@@ -84,7 +84,7 @@ foo = 2
   
     foo : ##Nat
 
-.a> merge .b
+.a> merge.old .b
 
   Here's what's changed in the current namespace after the
   merge:
@@ -155,7 +155,7 @@ structural type Foo = Foo
   
     structural type Foo
 
-.a> merge .b
+.a> merge.old .b
 
   Here's what's changed in the current namespace after the
   merge:

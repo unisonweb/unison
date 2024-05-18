@@ -53,7 +53,7 @@ module Unison.Cli.Pretty
 where
 
 import Control.Lens hiding (at)
-import Control.Monad.Writer (Writer, mapWriter, runWriter)
+import Control.Monad.Writer (Writer, runWriter)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -119,6 +119,7 @@ import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
+import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
@@ -411,7 +412,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
   where
     prettyEffects = map prettyEffectDecl (Map.toList effects)
     (prettyDatas, accessorNames) = runWriter $ traverse prettyDataDecl (Map.toList datas)
-    prettyTerms = map (prettyTerm accessorNames) terms
+    prettyTerms = Map.foldrWithKey (\k v -> (prettyTerm accessorNames k v :)) [] terms
     prettyWatches = Map.toList watches >>= \(wk, tms) -> map (prettyWatch . (wk,)) tms
 
     prettyEffectDecl :: (v, (Reference.Id, DD.EffectDeclaration v a)) -> (a, P.Pretty P.ColorText)
@@ -419,16 +420,16 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
       (DD.annotation . DD.toDataDecl $ et, st $ DeclPrinter.prettyDecl ppe' (rd r) (hqv n) (Left et))
     prettyDataDecl :: (v, (Reference.Id, DD.DataDeclaration v a)) -> Writer (Set AccessorName) (a, P.Pretty P.ColorText)
     prettyDataDecl (n, (r, dt)) =
-      (DD.annotation dt,) . st <$> (mapWriter (second Set.fromList) $ DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt))
-    prettyTerm :: Set (AccessorName) -> (v, a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
-    prettyTerm skip (n, a, tm) =
+      (DD.annotation dt,) . st <$> DeclPrinter.prettyDeclW ppe' (rd r) (hqv n) (Right dt)
+    prettyTerm :: Set AccessorName -> v -> (a, Term v a) -> Maybe (a, P.Pretty P.ColorText)
+    prettyTerm skip n (a, tm) =
       if traceMember isMember then Nothing else Just (a, pb hq tm)
       where
         traceMember =
           if Debug.shouldDebug Debug.Update
             then trace (show hq ++ " -> " ++ if isMember then "skip" else "print")
             else id
-        isMember = Set.member hq skip
+        isMember = Set.member (Name.unsafeParseVar n) skip
         hq = hqv n
     prettyWatch :: (String, (v, a, Term v a)) -> (a, P.Pretty P.ColorText)
     prettyWatch (wk, (n, a, tm)) = (a, go wk n tm)
@@ -444,7 +445,7 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.makePPE (PPE.hqNamer 8 (UF.toNames uf)) PPE.dontSuffixify
+    dppe = PPE.makePPE (PPE.namer (UF.toNames uf)) PPE.dontSuffixify
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 

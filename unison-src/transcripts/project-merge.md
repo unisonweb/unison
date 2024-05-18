@@ -11,7 +11,7 @@ zonk = 0
 ```ucm
 .foo> add
 .> project.create-empty foo
-.> merge foo foo/main
+.> merge.old foo foo/main
 ```
 
 ```unison
@@ -24,7 +24,7 @@ foo/main> add
 
 ```ucm
 .> project.create-empty bar
-bar/main> merge foo/main
+bar/main> merge.old foo/main
 bar/main> branch /topic
 ```
 
@@ -34,6 +34,6 @@ xonk = 1
 
 ```ucm
 bar/main> add
-bar/topic> merge /main
-.bar> merge foo/main
+bar/topic> merge.old /main
+.bar> merge.old foo/main
 ```

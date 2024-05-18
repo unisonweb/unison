@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Causal
@@ -12,6 +9,7 @@ module Unison.Codebase.Causal
     one,
     cons,
     consDistinct,
+    mergeNode,
     uncons,
     predecessors,
     threeWayMerge,

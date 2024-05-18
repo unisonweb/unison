@@ -37,7 +37,7 @@ fslkdjflskdjflksjdf = 663
   
     fslkdjflskdjflksjdf : ##Nat
 
-.> merge b0 b1
+.> merge.old b0 b1
 
   Here's what's changed in b1 after the merge:
   
@@ -137,8 +137,6 @@ structural ability X a1 a2 where x : ()
 
   Done.
 
-.ns1> cd .
-
 ```
 Here's what we've done so far:
 
@@ -169,7 +167,7 @@ fromJust = "asldkfjasldkfj"
   
     fromJust : ##Text
 
-.> merge ns1b ns1
+.> merge.old ns1b ns1
 
   Here's what's changed in ns1 after the merge:
   
@@ -417,7 +415,7 @@ a = 555
   
     a : ##Nat
 
-.> merge nsy nsw
+.> merge.old nsy nsw
 
   Here's what's changed in nsw after the merge:
   
@@ -437,7 +435,7 @@ a = 555
 
 ```
 ```ucm
-.> merge nsz nsw
+.> merge.old nsz nsw
 
   Here's what's changed in nsw after the merge:
   

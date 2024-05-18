@@ -47,6 +47,10 @@
   builtin-tls.signedcert:typelink
   builtin-tls.version:typelink
 
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
+
   bytevector
   bytes
   control
@@ -78,7 +82,7 @@
   declare-function-link
   declare-code
 
-  exn:bug?
+  (struct-out exn:bug)
   exn:bug->exception
   exception->string
   raise-unison-exception
@@ -568,7 +572,7 @@
          (let ([disp (describe-value f)])
            (raise
              (make-exn:bug
-               (string->chunked-string "builtin.bug")
+               (string->chunked-string "unhandled top level exception")
                disp))))]]))
 
 (begin-encourage-inline
@@ -607,5 +611,5 @@
 (define (exn:bug->exception b)
   (raise-unison-exception
     ref-runtimefailure:typelink
-    (exn:bug-msg b)
+    (string->chunked-string (exn:bug-msg b))
     (exn:bug-val b)))

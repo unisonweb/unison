@@ -64,7 +64,9 @@ import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
+import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
@@ -76,7 +78,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
-import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
+import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
@@ -424,6 +426,7 @@ loop e = do
                 if ok
                   then Success
                   else BranchEmpty branchEmpty
+            MergeI branch -> handleMerge branch
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
@@ -968,7 +971,7 @@ loop e = do
             --   stepAt updateBuiltins
             --   checkTodo
 
-            MergeBuiltinsI -> do
+            MergeBuiltinsI opath -> do
               Cli.Env {codebase} <- ask
               description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
@@ -984,10 +987,13 @@ loop e = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let srcb = BranchUtil.fromNames Builtin.names
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              let destPath = case opath of
+                    Just path -> Path.resolve currentPath (Path.Relative path)
+                    Nothing -> currentPath `snoc` "builtin"
+              _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
-            MergeIOBuiltinsI -> do
+            MergeIOBuiltinsI opath -> do
               Cli.Env {codebase} <- ask
               description <- inputDescription input
               -- these were added once, but maybe they've changed and need to be
@@ -1008,7 +1014,10 @@ loop e = do
               let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               currentPath <- Cli.getCurrentPath
-              _ <- Cli.updateAtM description (currentPath `snoc` "builtin") \destb ->
+              let destPath = case opath of
+                    Just path -> Path.resolve currentPath (Path.Relative path)
+                    Nothing -> currentPath `snoc` "builtin"
+              _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             ListEditsI maybePath -> do
@@ -1016,7 +1025,7 @@ loop e = do
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respondNumbered $ ListEdits patch suffixifiedPPE
-            PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
+            PullRemoteBranchI sourceTarget pMode verbosity -> handlePull sourceTarget pMode verbosity
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
@@ -1181,6 +1190,7 @@ loop e = do
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
+            LibInstallI libdep -> handleInstallLib libdep
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -1306,8 +1316,10 @@ inputDescription input =
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
-    MergeBuiltinsI -> pure "builtins.merge"
-    MergeIOBuiltinsI -> pure "builtins.mergeio"
+    MergeBuiltinsI Nothing -> pure "builtins.merge"
+    MergeBuiltinsI (Just path) -> ("builtins.merge " <>) <$> p path
+    MergeIOBuiltinsI Nothing -> pure "builtins.mergeio"
+    MergeIOBuiltinsI (Just path) -> ("builtins.mergeio " <>) <$> p path
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
       pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
@@ -1363,10 +1375,12 @@ inputDescription input =
     StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
+    LibInstallI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
@@ -1396,6 +1410,8 @@ inputDescription input =
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
     hp' = either (pure . Text.pack . show) p'
+    p :: Path -> Cli Text
+    p = fmap tShow . Cli.resolvePath
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
@@ -1430,24 +1446,28 @@ handleFindI ::
   Cli ()
 handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
-  currentBranch0 <- Cli.getCurrentBranch0
-  (pped, names) <- case fscope of
-    FindLocal -> do
-      let names = Branch.toNames (Branch.withoutLib currentBranch0)
+  (pped, names, searchRoot, branch0) <- case fscope of
+    FindLocal p -> do
+      searchRoot <- Cli.resolvePath p
+      branch0 <- Cli.getBranch0At searchRoot
+      let names = Branch.toNames (Branch.withoutLib branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names)
-    FindLocalAndDeps -> do
-      let names = Branch.toNames (Branch.withoutTransitiveLibs currentBranch0)
+      pure (pped, names, Just p, branch0)
+    FindLocalAndDeps p -> do
+      searchRoot <- Cli.resolvePath p
+      branch0 <- Cli.getBranch0At searchRoot
+      let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names)
+      pure (pped, names, Just p, branch0)
     FindGlobal -> do
       globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
       pped <- Cli.prettyPrintEnvDeclFromNames globalNames
-      pure (pped, globalNames)
+      currentBranch0 <- Cli.getCurrentBranch0
+      pure (pped, globalNames, Nothing, currentBranch0)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let getResults :: Names -> Cli [SearchResult]
       getResults names =
@@ -1456,7 +1476,7 @@ handleFindI isVerbose fscope ws input = do
           -- type query
           ":" : ws -> do
             typ <- parseSearchType (show input) (unwords ws)
-            let keepNamed = Set.intersection (Branch.deepReferents currentBranch0)
+            let keepNamed = Set.intersection (Branch.deepReferents branch0)
             (noExactTypeMatches, matches) <- do
               Cli.runTransaction do
                 matches <- keepNamed <$> Codebase.termsOfType codebase typ
@@ -1482,16 +1502,16 @@ handleFindI isVerbose fscope ws input = do
                     (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        Cli.setNumberedArgs $ fmap searchResultToHQString results
+        Cli.setNumberedArgs $ fmap (searchResultToHQString searchRoot) results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
   case (results, fscope) of
-    ([], FindLocal) -> do
+    ([], FindLocal {}) -> do
       Cli.respond FindNoLocalMatches
       -- We've already searched everything else, so now we search JUST the
       -- names in lib.
-      let mayOnlyLibBranch = currentBranch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
+      let mayOnlyLibBranch = branch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
       case mayOnlyLibBranch of
         Nothing -> respondResults []
         Just onlyLibBranch -> do
@@ -1805,11 +1825,14 @@ confirmedCommand i = do
   pure $ Just i == (loopState ^. #lastInput)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQString :: SearchResult -> String
-searchResultToHQString = \case
-  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n r
-  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify n (Referent.Ref r)
+searchResultToHQString :: Maybe Path -> SearchResult -> String
+searchResultToHQString oprefix = \case
+  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) r
+  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) (Referent.Ref r)
   _ -> error "impossible match failure"
+  where
+    addPrefix :: Name -> Name
+    addPrefix = maybe id Path.prefixName2 oprefix
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]

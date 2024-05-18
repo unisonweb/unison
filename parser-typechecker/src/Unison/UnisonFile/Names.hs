@@ -28,7 +28,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
-toNames :: (Var v) => UnisonFile v a -> Names
+toNames :: Var v => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf))
@@ -84,10 +84,9 @@ bindNames names (UnisonFileId d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
-  let termVars = (view _1 <$> ts) ++ (Map.elems ws >>= map (view _1))
-      termVarsSet = Set.fromList termVars
+  let termVarsSet = Map.keysSet ts <> Set.fromList (Map.elems ws >>= map (view _1))
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t) ts
+  ts' <- traverse (\(a, t) -> (a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t) ts
   ws' <- traverse (traverse (\(v, a, t) -> (v,a,) <$> Term.bindNames Name.unsafeParseVar termVarsSet names t)) ws
   pure $ UnisonFileId d e ts' ws'
 

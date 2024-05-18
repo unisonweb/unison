@@ -17,7 +17,7 @@ fslkdjflskdjflksjdf = 663
 ```
 ```ucm
 .b0> add
-.> merge b0 b1
+.> merge.old b0 b1
 .> diff.namespace b1 b2
 .b2> diff.namespace .b1
 ```
@@ -48,7 +48,6 @@ structural ability X a1 a2 where x : ()
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
 .ns1> fork .ns1 .ns2
-.ns1> cd .
 ```
 
 Here's what we've done so far:
@@ -67,7 +66,7 @@ fromJust = "asldkfjasldkfj"
 
 ```ucm
 .ns1b> add
-.> merge ns1b ns1
+.> merge.old ns1b ns1
 ```
 
 ```unison:hide
@@ -126,10 +125,10 @@ a = 555
 ```
 ```ucm
 .nsz> update.old
-.> merge nsy nsw
+.> merge.old nsy nsw
 ```
 ```ucm:error
-.> merge nsz nsw
+.> merge.old nsz nsw
 ```
 ```ucm
 .> diff.namespace nsx nsw

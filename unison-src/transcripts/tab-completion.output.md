@@ -103,17 +103,17 @@ unique type subnamespace.AType = A | B
 
 ```ucm
 -- Should tab complete namespaces
-.> debug.tab-complete cd sub
+.> debug.tab-complete find-in sub
 
    subnamespace
    subnamespace2
 
-.> debug.tab-complete cd subnamespace
+.> debug.tab-complete find-in subnamespace
 
    subnamespace
    subnamespace2
 
-.> debug.tab-complete cd subnamespace.
+.> debug.tab-complete find-in subnamespace.
 
    subnamespace.AType
 
@@ -197,8 +197,8 @@ myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
   
-  Tip: Use `merge /mybranch /main` to merge your work back into
-       the main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /mybranch`.
 
 myproject/main> debug.tab-complete branch.delete /mybr
 
@@ -238,6 +238,5 @@ myproject/main> add
 myproject/main> debug.tab-complete merge mybr
 
    /mybranch
-   mybranchsubnamespace
 
 ```

@@ -90,8 +90,6 @@ and update the codebase to use the new type `Foo`...
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
-.> cd .
-
 ```
 ### Preserving user type variables
 
@@ -130,8 +128,6 @@ Add that to the codebase:
     preserve.otherTerm : Optional baz -> Optional baz
     preserve.someTerm  : Optional foo -> Optional foo
 
-.> cd .
-
 ```
 Let's now edit the dependency:
 
@@ -148,7 +144,8 @@ preserve.someTerm _ = None
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       preserve.someTerm : Optional x -> Optional x
 
@@ -161,8 +158,6 @@ Update...
   ⍟ I've updated these names to your new definition:
   
     preserve.someTerm : Optional x -> Optional x
-
-.> cd .
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -233,8 +228,6 @@ We'll make two copies of this namespace.
 .subpath> fork one two
 
   Done.
-
-.> cd .
 
 ```
 Now let's edit one of the terms...

@@ -173,7 +173,7 @@ defaultColors :: ST.Element r -> Maybe Color
 defaultColors = \case
   ST.NumericLiteral -> Nothing
   ST.TextLiteral -> Nothing
-  ST.BytesLiteral -> Just HiBlack
+  ST.BytesLiteral -> Just HiPurple
   ST.CharLiteral -> Nothing
   ST.BooleanLiteral -> Nothing
   ST.Blank -> Nothing
@@ -182,21 +182,21 @@ defaultColors = \case
   ST.TermReference _ -> Nothing
   ST.Op _ -> Nothing
   ST.Unit -> Nothing
-  ST.AbilityBraces -> Just HiBlack
-  ST.ControlKeyword -> Just Bold
-  ST.LinkKeyword -> Just HiBlack
-  ST.TypeOperator -> Just HiBlack
+  ST.AbilityBraces -> Just HiPurple
+  ST.ControlKeyword -> Just HiCyan
+  ST.LinkKeyword -> Just HiPurple
+  ST.TypeOperator -> Just HiPurple
   ST.BindingEquals -> Nothing
   ST.TypeAscriptionColon -> Just Blue
   ST.DataTypeKeyword -> Nothing
   ST.DataTypeParams -> Nothing
   ST.DataTypeModifier -> Nothing
-  ST.UseKeyword -> Just HiBlack
-  ST.UsePrefix -> Just HiBlack
-  ST.UseSuffix -> Just HiBlack
-  ST.HashQualifier _ -> Just HiBlack
+  ST.UseKeyword -> Just HiPurple
+  ST.UsePrefix -> Just HiPurple
+  ST.UseSuffix -> Just HiPurple
+  ST.HashQualifier _ -> Just HiPurple
   ST.DelayForceChar -> Just Yellow
   ST.DelimiterChar -> Nothing
   ST.Parenthesis -> Nothing
   ST.DocDelimiter -> Just Green
-  ST.DocKeyword -> Just Bold
+  ST.DocKeyword -> Just HiCyan

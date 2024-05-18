@@ -25,6 +25,7 @@ module Unison.Cli.Monad
 
     -- * Short-circuiting
     label,
+    labelE,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
@@ -335,6 +336,12 @@ label f =
         | n == m -> k (unsafeCoerce a) s1
         | otherwise -> throwIO err
       Right a -> feed k a
+
+-- | A variant of @label@ for the common case that early-return values are tagged with a Left.
+labelE :: ((forall void. a -> Cli void) -> Cli b) -> Cli (Either a b)
+labelE f =
+  label \goto ->
+    Right <$> f (goto . Left)
 
 -- | Time an action.
 time :: String -> Cli a -> Cli a

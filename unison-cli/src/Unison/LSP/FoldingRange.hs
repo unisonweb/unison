@@ -44,7 +44,7 @@ foldingRangesForFile UnisonFileId {dataDeclarationsId, effectDeclarationsId, ter
         effectDeclarationsId
           & Map.toList
           & map \(sym, (_typ, decl)) -> (Just sym, DD.annotation . DD.toDataDecl $ decl)
-      termFolds = terms & fmap \(sym, ann, _trm) -> (Just sym, ann)
+      termFolds = terms & Map.toList & fmap \(sym, (ann, _trm)) -> (Just sym, ann)
       watchFolds =
         watches
           & fold

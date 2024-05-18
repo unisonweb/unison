@@ -3,7 +3,6 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.> builtins.merge
 .ns> builtins.merge
 ```
 
@@ -15,7 +14,6 @@ structural type X = x
 
 ```ucm
 .ns> add
-.> cd .
 ```
 
 Now we update the type, changing the name of the constructors, _but_, we simultaneously

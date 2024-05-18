@@ -2,7 +2,7 @@ This transcript executes very slowly, because the compiler has an
 entire copy of base (and other stuff) within it.
 
 ```ucm:hide
-.> builtins.mergeio
+.> builtins.merge
 .> pull.without-history unison.public.base.trunk base
 ```
 

@@ -178,21 +178,21 @@ Stream.collect s =
   handle !s with Stream.collect.handler
 
 
--- An ability that facilitates creating temoporary directories that can be 
+-- An ability that facilitates creating temoporary directories that can be
 -- automatically cleaned up
 structural ability TempDirs where
   newTempDir: Text -> Text
   removeDir: Text -> ()
 
 -- A handler for TempDirs which cleans up temporary directories
--- This will be useful for IO tests which need to interact with 
+-- This will be useful for IO tests which need to interact with
 -- the filesystem
 
 autoCleaned.handler: '{io2.IO} (Request {TempDirs} r -> r)
 autoCleaned.handler _ =
   remover : [Text] -> {io2.IO} ()
   remover = cases
-    a +: as -> match removeDirectory.impl a with 
+    a +: as -> match removeDirectory.impl a with
                    Left (Failure _ e _) -> watch e ()
                    _ -> ()
                remover as
@@ -277,12 +277,12 @@ putBytes = compose2 reraise putBytes.impl
 getLine = compose reraise getLine.impl
 systemTime = compose reraise systemTime.impl
 decodeCert = compose reraise decodeCert.impl
-serverSocket = compose2 reraise serverSocket.impl
+serverSocket = compose2 reraise IO.serverSocket.impl
 listen = compose reraise listen.impl
-handshake = compose reraise handshake.impl 
-send = compose2 reraise send.impl 
+handshake = compose reraise handshake.impl
+send = compose2 reraise Tls.send.impl
 closeSocket = compose reraise closeSocket.impl
-clientSocket = compose2 reraise clientSocket.impl
+clientSocket = compose2 reraise IO.clientSocket.impl
 receive = compose reraise receive.impl
 terminate = compose reraise terminate.impl
 newServer = compose2 reraise newServer.impl
@@ -451,4 +451,3 @@ saveTestCase name ver f i =
   saveSelfContained (f, i) sfile
   writeFile ofile (toUtf8 output)
   writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
-

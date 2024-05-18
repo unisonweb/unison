@@ -1,10 +1,6 @@
 
 Test for code serialization operations.
 
-```ucm:hide
-.> builtins.merge
-```
-
 Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
@@ -138,8 +134,8 @@ verified name link =
   with handleTest ("verified " ++ name)
 
 rejected : Text -> [(Link.Term,Code)] ->{io2.IO} Result
-rejected name rco = 
-  handle verify name rco 
+rejected name rco =
+  handle verify name rco
   with expectFailure ("rejected " ++ name)
 
 missed : Text -> Link.Term -> Result

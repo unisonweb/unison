@@ -13,6 +13,7 @@ import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli (stepAt)
@@ -20,7 +21,6 @@ import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.HandleInput.Pull qualified as Pull
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment qualified as NameSegment
@@ -114,8 +114,8 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 Share.GetProjectBranchResponseBranchNotFound -> done Nothing
                 Share.GetProjectBranchResponseProjectNotFound -> done Nothing
                 Share.GetProjectBranchResponseSuccess branch -> pure branch
-            let useSquashed = False
-            Pull.downloadShareProjectBranch useSquashed baseLatestReleaseBranch
+            downloadProjectBranchFromShare Share.NoSquashedHead baseLatestReleaseBranch
+              & onLeftM (Cli.returnEarly . Output.ShareError)
             Cli.Env {codebase} <- ask
             baseLatestReleaseBranchObject <-
               liftIO $

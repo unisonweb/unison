@@ -27,6 +27,7 @@ data DebugFlag
   | Codebase
   | Git
   | Integrity
+  | Merge
   | Migration
   | Sqlite
   | Sync
@@ -60,6 +61,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "CODEBASE" -> pure Codebase
       "GIT" -> pure Git
       "INTEGRITY" -> pure Integrity
+      "MERGE" -> pure Merge
       "MIGRATION" -> pure Migration
       "SQLITE" -> pure Sqlite
       "SYNC" -> pure Sync
@@ -90,6 +92,10 @@ debugCodebase = Codebase `Set.member` debugFlags
 debugAuth :: Bool
 debugAuth = Auth `Set.member` debugFlags
 {-# NOINLINE debugAuth #-}
+
+debugMerge :: Bool
+debugMerge = Merge `Set.member` debugFlags
+{-# NOINLINE debugMerge #-}
 
 debugMigration :: Bool
 debugMigration = Migration `Set.member` debugFlags
@@ -183,6 +189,7 @@ shouldDebug = \case
   Codebase -> debugCodebase
   Git -> debugGit
   Integrity -> debugIntegrity
+  Merge -> debugMerge
   Migration -> debugMigration
   Sqlite -> debugSqlite
   Sync -> debugSync

@@ -44,8 +44,6 @@ type MyType = MyType Text
   
   
 
-.> cd .
-
 ```
 ## A merge with conflicting updates.
 
@@ -69,7 +67,7 @@ type MyType = MyType Int
 ```
 
 ```ucm
-.mergeA> merge .mergeB
+.mergeA> merge.old .mergeB
 
   Here's what's changed in the current namespace after the
   merge:
@@ -78,13 +76,13 @@ type MyType = MyType Int
   
     1.  type MyType#ig1g2ka7lv
         ↓
-    2.  ┌ type MyType#ig1g2ka7lv
-    3.  └ type MyType#m6mdqhqcr1
+    2.  ┌ type MyType#8c6f40i3tj
+    3.  └ type MyType#ig1g2ka7lv
     
     4.  MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
         ↓
-    5.  ┌ MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
-    6.  └ MyType.MyType#m6mdqhqcr1#0 : Int -> MyType#m6mdqhqcr1
+    5.  ┌ MyType.MyType#8c6f40i3tj#0 : Int -> MyType#8c6f40i3tj
+    6.  └ MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
     
     7.  x#dcgdua2lj6 : Nat
         ↓
@@ -114,16 +112,16 @@ type MyType = MyType Int
   use as the new definition:
   
     The type 1. #8h7qq3ougl was replaced with
-      2. MyType#ig1g2ka7lv
-      3. MyType#m6mdqhqcr1
+      2. MyType#8c6f40i3tj
+      3. MyType#ig1g2ka7lv
     The term 4. #gjmq673r1v was replaced with
       5. x#dcgdua2lj6
       6. x#f3lgjvjqoo
   ❓
   
   The term MyType.MyType has conflicting definitions:
-    7. MyType.MyType#ig1g2ka7lv#0
-    8. MyType.MyType#m6mdqhqcr1#0
+    7. MyType.MyType#8c6f40i3tj#0
+    8. MyType.MyType#ig1g2ka7lv#0
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `move.term` or `delete.term`

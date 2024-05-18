@@ -1950,8 +1950,10 @@ reserveIds :: Word64 -> TVar Word64 -> IO Word64
 reserveIds n free = atomically . stateTVar free $ \i -> (i, i + n)
 
 updateMap :: (Semigroup s) => s -> TVar s -> STM s
-updateMap new r = stateTVar r $ \old ->
-  let total = new <> old in (total, total)
+updateMap new0 r = do
+  new <- evaluateSTM new0
+  stateTVar r $ \old ->
+    let total = new <> old in (total, total)
 
 refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
 refLookup s m r
@@ -2079,6 +2081,11 @@ checkValueSandboxing cc allowed0 v = do
       | otherwise -> pure . Left $ S.toList miss
   where
     allowed = S.fromList allowed0
+
+-- Just evaluating to force exceptions. Shouldn't actually be that
+-- unsafe.
+evaluateSTM :: a -> STM a
+evaluateSTM x = unsafeIOToSTM (evaluate x)
 
 cacheAdd0 ::
   S.Set Reference ->

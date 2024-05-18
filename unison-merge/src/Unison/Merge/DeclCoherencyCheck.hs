@@ -79,7 +79,7 @@
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-module Unison.Codebase.Branch.DeclCoherencyCheck
+module Unison.Merge.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
     checkDeclCoherency,
   )
@@ -94,23 +94,24 @@ import Control.Monad.Trans.Except qualified as Except (except)
 import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
-import U.Codebase.Referent (Referent)
-import U.Codebase.Referent qualified as Referent
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
-import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Map qualified as Map (deleteLookup, upsertF)
-import Unison.Util.Nametree (Defns (..), Nametree (..))
-import Witch (unsafeFrom)
+import Unison.Util.Nametree (Nametree (..))
 
 data IncoherentDeclReason
   = -- | A second naming of a constructor was discovered underneath a decl's name, e.g.
@@ -120,45 +121,49 @@ data IncoherentDeclReason
     --   Foo.Some.Other.Name.For.Bar#Foo#0
     IncoherentDeclReason'ConstructorAlias !Name !Name
   | IncoherentDeclReason'MissingConstructorName !Name
-  | IncoherentDeclReason'NestedDeclAlias !Name
-  | IncoherentDeclReason'NoConstructorNames !Name
+  | -- | A second naming of a decl was discovered underneath its name, e.g.
+    --
+    --   Foo#Foo
+    --   Foo.Bar#Foo
+    IncoherentDeclReason'NestedDeclAlias !Name !Name -- shorter name, longer name
   | IncoherentDeclReason'StrayConstructor !Name
 
 checkDeclCoherency ::
   (TypeReferenceId -> Transaction Int) ->
-  (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))) ->
-  Transaction (Either IncoherentDeclReason (BiMultimap Name Name))
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
+  Transaction (Either IncoherentDeclReason DeclNameLookup)
 checkDeclCoherency loadDeclNumConstructors =
   Except.runExceptT
-    . fmap (view #declNames)
-    . (`State.execStateT` DeclCoherencyCheckState Map.empty BiMultimap.empty)
+    . fmap (view #declNameLookup)
+    . (`State.execStateT` DeclCoherencyCheckState Map.empty (DeclNameLookup Map.empty Map.empty))
     . go []
   where
     go ::
       [NameSegment] ->
-      ( Nametree
-          (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))
-      ) ->
+      (Nametree (Defns (Map NameSegment Referent) (Map NameSegment TypeReference))) ->
       StateT DeclCoherencyCheckState (ExceptT IncoherentDeclReason Transaction) ()
     go prefix (Nametree Defns {terms, types} children) = do
       for_ (Map.toList terms) \case
         (_, Referent.Ref _) -> pure ()
-        (_, Referent.Con (ReferenceBuiltin _) _) -> pure ()
-        (name, Referent.Con (ReferenceDerived typeRef) conId) -> do
+        (_, Referent.Con (ConstructorReference (ReferenceBuiltin _) _) _) -> pure ()
+        (name, Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) _) -> do
           DeclCoherencyCheckState {expectedConstructors} <- State.get
           expectedConstructors1 <- lift (Except.except (Map.upsertF f typeRef expectedConstructors))
           #expectedConstructors .= expectedConstructors1
           where
-            f :: Maybe (IntMap MaybeConstructorName) -> Either IncoherentDeclReason (IntMap MaybeConstructorName)
+            f ::
+              Maybe (Name, IntMap MaybeConstructorName) ->
+              Either IncoherentDeclReason (Name, IntMap MaybeConstructorName)
             f = \case
               Nothing -> Left (IncoherentDeclReason'StrayConstructor (fullName name))
-              Just expected -> IntMap.alterF g (unsafeFrom @Word64 conId) expected
+              Just (typeName, expected) -> (typeName,) <$> IntMap.alterF g (fromIntegral @Word64 @Int conId) expected
                 where
                   g :: Maybe MaybeConstructorName -> Either IncoherentDeclReason (Maybe MaybeConstructorName)
                   g = \case
                     Nothing -> error "didnt put expected constructor id"
                     Just NoConstructorNameYet -> Right (Just (YesConstructorName (fullName name)))
-                    Just (YesConstructorName firstName) -> Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
+                    Just (YesConstructorName firstName) ->
+                      Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
 
       childrenWeWentInto <-
         forMaybe (Map.toList types) \case
@@ -167,34 +172,43 @@ checkDeclCoherency loadDeclNumConstructors =
             DeclCoherencyCheckState {expectedConstructors} <- State.get
             whatHappened <- do
               let recordNewDecl ::
-                    Maybe (IntMap MaybeConstructorName) ->
-                    Compose (ExceptT IncoherentDeclReason Transaction) WhatHappened (IntMap MaybeConstructorName)
+                    Maybe (Name, IntMap MaybeConstructorName) ->
+                    Compose (ExceptT IncoherentDeclReason Transaction) WhatHappened (Name, IntMap MaybeConstructorName)
                   recordNewDecl =
                     Compose . \case
-                      Just _ -> Except.throwError (IncoherentDeclReason'NestedDeclAlias typeName)
+                      Just (shorterTypeName, _) -> Except.throwError (IncoherentDeclReason'NestedDeclAlias shorterTypeName typeName)
                       Nothing ->
                         lift (loadDeclNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
-                          n -> InhabitedDecl (IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
+                          n -> InhabitedDecl (typeName, IntMap.fromAscList [(i, NoConstructorNameYet) | i <- [0 .. n - 1]])
               lift (getCompose (Map.upsertF recordNewDecl typeRef expectedConstructors))
             case whatHappened of
-              UninhabitedDecl -> pure Nothing
+              UninhabitedDecl -> do
+                #declNameLookup . #declToConstructors %= Map.insert typeName []
+                pure Nothing
               InhabitedDecl expectedConstructors1 -> do
                 child <-
                   Map.lookup name children & onNothing do
-                    Except.throwError (IncoherentDeclReason'NoConstructorNames typeName)
+                    Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
                 go (name : prefix) child
                 DeclCoherencyCheckState {expectedConstructors} <- State.get
                 -- fromJust is safe here because we upserted `typeRef` key above
-                let (fromJust -> maybeConstructorNames, expectedConstructors1) =
+                let (fromJust -> (_typeName, maybeConstructorNames), expectedConstructors1) =
                       Map.deleteLookup typeRef expectedConstructors
                 constructorNames <-
                   unMaybeConstructorNames maybeConstructorNames & onNothing do
                     Except.throwError (IncoherentDeclReason'MissingConstructorName typeName)
                 #expectedConstructors .= expectedConstructors1
-                #declNames %= \declNames ->
-                  foldr (BiMultimap.insert typeName) declNames constructorNames
+                #declNameLookup %= \declNameLookup ->
+                  DeclNameLookup
+                    { constructorToDecl =
+                        List.foldl'
+                          (\acc constructorName -> Map.insert constructorName typeName acc)
+                          declNameLookup.constructorToDecl
+                          constructorNames,
+                      declToConstructors = Map.insert typeName constructorNames declNameLookup.declToConstructors
+                    }
                 pure (Just name)
             where
               typeName = fullName name
@@ -206,8 +220,8 @@ checkDeclCoherency loadDeclNumConstructors =
           Name.fromReverseSegments (name :| prefix)
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
-  { expectedConstructors :: !(Map TypeReferenceId (IntMap MaybeConstructorName)),
-    declNames :: !(BiMultimap Name Name)
+  { expectedConstructors :: !(Map TypeReferenceId (Name, IntMap MaybeConstructorName)),
+    declNameLookup :: !DeclNameLookup
   }
   deriving stock (Generic)
 

@@ -1,7 +1,3 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
 ```unison
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
@@ -15,7 +11,7 @@ gen seed k =
   c = 1442695040888963407
   a = 6364136223846793005
   (mod seed k, a * seed + c)
-  
+
 shuffle : Nat -> [a] -> [a]
 shuffle =
   pick acc seed = cases
@@ -24,7 +20,7 @@ shuffle =
         (k, seed) -> match (take k l, drop k l) with
           (pre, x +: post) -> pick (acc :+ x) seed (pre ++ post)
           (pre, []) -> pick acc seed pre
-  
+
   pick []
 
 runTestCase : Text ->{Exception,IO} (Text, Test.Result)
@@ -51,7 +47,7 @@ runTestCase name =
     then Fail (name ++ " legacy mismatch")
     else Ok name
   (name, result)
-  
+
 serialTests : '{IO,Exception} [Test.Result]
 serialTests = do
   l = !availableCases
