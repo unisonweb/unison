@@ -48,6 +48,7 @@ import Servant
     serve,
     throwError,
   )
+import Servant qualified as Servant
 import Servant.API
   ( Accept (..),
     Capture,
@@ -60,11 +61,13 @@ import Servant.API
   )
 import Servant.Docs
   ( DocIntro (DocIntro),
+    ToParam (..),
     ToSample (..),
     docsWithIntros,
     markdown,
     singleSample,
   )
+import Servant.Docs qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
@@ -85,17 +88,24 @@ import System.Random.MWC (createSystemRandom)
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
-import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.HashQualified
+import Unison.HashQualified qualified as HQ
 import Unison.Name as Name (Name, segments)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
 import Unison.Server.Backend qualified as Backend
+import Unison.Server.Backend.DefinitionDiff qualified as DefinitionDiff
 import Unison.Server.Errors (backendError)
+import Unison.Server.Local.Definitions qualified as Defn
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Local.Endpoints.GetDefinitions
@@ -106,10 +116,17 @@ import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDeta
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)
 import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
-import Unison.Server.Types (mungeString, setCacheControl)
+import Unison.Server.NameSearch (NameSearch (..))
+import Unison.Server.NameSearch.FromNames qualified as Names
+import Unison.Server.Types (TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Util.Pretty qualified as Pretty
+
+-- | Fail the route with a reasonable error if the query param is missing.
+type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
 
 -- HTML content type
 data HTML = HTML
@@ -143,8 +160,51 @@ type CodebaseServerAPI =
 
 type ProjectsAPI =
   ListProjectsEndpoint
-    :<|> (Capture "project-name" ProjectName :> "branches" :> ListProjectBranchesEndpoint)
-    :<|> (Capture "project-name" ProjectName :> "branches" :> Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+    :<|> ( Capture "project-name" ProjectName
+             :> ( ( "branches"
+                      :> ( ListProjectBranchesEndpoint
+                             :<|> (Capture "branch-name" ProjectBranchName :> CodebaseServerAPI)
+                         )
+                  )
+                    :<|> ( "diff"
+                             :> ( "terms" :> ProjectDiffTermsEndpoint
+                                    :<|> "types" :> ProjectDiffTypesEndpoint
+                                )
+                         )
+                )
+         )
+
+type ProjectDiffTermsEndpoint =
+  RequiredQueryParam "oldBranchRef" ProjectBranchName
+    :> RequiredQueryParam "newBranchRef" ProjectBranchName
+    :> RequiredQueryParam "oldTerm" Name
+    :> RequiredQueryParam "newTerm" Name
+    :> Get '[JSON] TermDiffResponse
+
+type ProjectDiffTypesEndpoint =
+  RequiredQueryParam "oldBranchRef" ProjectBranchName
+    :> RequiredQueryParam "newBranchRef" ProjectBranchName
+    :> RequiredQueryParam "oldType" Name
+    :> RequiredQueryParam "newType" Name
+    :> Get '[JSON] TypeDiffResponse
+
+instance ToParam (Servant.QueryParam' mods "oldBranchRef" a) where
+  toParam _ = Servant.DocQueryParam "oldBranchRef" ["main"] "The name of the old branch" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newBranchRef" a) where
+  toParam _ = Servant.DocQueryParam "newBranchRef" ["main"] "The name of the new branch" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "oldTerm" a) where
+  toParam _ = Servant.DocQueryParam "oldTerm" ["main"] "The name of the old term" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newTerm" a) where
+  toParam _ = Servant.DocQueryParam "newTerm" ["main"] "The name of the new term" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "oldType" a) where
+  toParam _ = Servant.DocQueryParam "oldType" ["main"] "The name of the old type" Servant.Normal
+
+instance ToParam (Servant.QueryParam' mods "newType" a) where
+  toParam _ = Servant.DocQueryParam "newType" ["main"] "The name of the new type" Servant.Normal
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -529,40 +589,94 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
   where
     projectAndBranchName = ProjectAndBranch projectName branchName
     namespaceListingEndpoint _rootParam rel name = do
-      root <- resolveProjectRoot
-      setCacheControl <$> NamespaceListing.serve codebase (Just root) rel name
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> NamespaceListing.serve codebase (Just . Right $ root) rel name
     namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
-      root <- resolveProjectRoot
-      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just root) renderWidth
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just . Right $ root) renderWidth
 
     serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
-      root <- resolveProjectRoot
-      setCacheControl <$> serveDefinitions rt codebase (Just root) relativePath rawHqns renderWidth suff
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> serveDefinitions rt codebase (Just . Right $ root) relativePath rawHqns renderWidth suff
 
     serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
-      root <- resolveProjectRoot
-      setCacheControl <$> serveFuzzyFind codebase (Just root) relativePath limit renderWidth query
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> serveFuzzyFind codebase (Just . Right $ root) relativePath limit renderWidth query
 
     serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot
-      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
 
     serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot
-      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just root) relativeTo renderWidth
+      root <- resolveProjectRoot codebase projectAndBranchName
+      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
 
-    resolveProjectRoot :: Backend IO (Either ShortCausalHash CausalHash)
-    resolveProjectRoot = do
-      mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
-      case mayCH of
-        Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
-        Just ch -> pure (Right ch)
+resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO CausalHash
+resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
+  mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
+  case mayCH of
+    Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
+    Just ch -> pure ch
+
+serveProjectDiffTermsEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TermDiffResponse
+serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef oldTerm newTerm = do
+  (oldPPED, oldNameSearch) <- contextForProjectBranch codebase projectName oldBranchRef
+  (newPPED, newNameSearch) <- contextForProjectBranch codebase projectName newBranchRef
+  oldTerm@TermDefinition {termDefinition = oldTermDispObject} <- Defn.termDefinitionByName codebase oldPPED oldNameSearch width rt oldTerm `whenNothingM` throwError (Backend.NoSuchDefinition (HQ.NameOnly oldTerm))
+  newTerm@TermDefinition {termDefinition = newTermDisplayObj} <- Defn.termDefinitionByName codebase newPPED newNameSearch width rt newTerm `whenNothingM` throwError (Backend.NoSuchDefinition (HQ.NameOnly newTerm))
+  let termDiffDisplayObject = DefinitionDiff.diffDisplayObjects oldTermDispObject newTermDisplayObj
+  pure
+    TermDiffResponse
+      { project = projectName,
+        oldBranch = oldBranchRef,
+        newBranch = newBranchRef,
+        oldTerm = oldTerm,
+        newTerm = newTerm,
+        diff = termDiffDisplayObject
+      }
+  where
+    width = Pretty.Width 80
+
+contextForProjectBranch :: (Codebase IO v a) -> ProjectName -> ProjectBranchName -> Backend IO (PrettyPrintEnvDecl, NameSearch Sqlite.Transaction)
+contextForProjectBranch codebase projectName branchName = do
+  projectRootHash <- resolveProjectRoot codebase (ProjectAndBranch projectName branchName)
+  projectRootBranch <- liftIO $ Codebase.expectBranchForHash codebase projectRootHash
+  hashLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
+  let names = Branch.toNames (Branch.head projectRootBranch)
+  let pped = PPED.makePPED (PPE.hqNamer hashLength names) (PPE.suffixifyByHash names)
+  let nameSearch = Names.makeNameSearch hashLength names
+  pure (pped, nameSearch)
+
+serveProjectDiffTypesEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TypeDiffResponse
+serveProjectDiffTypesEndpoint codebase rt projectName oldBranchRef newBranchRef oldType newType = do
+  (oldPPED, oldNameSearch) <- contextForProjectBranch codebase projectName oldBranchRef
+  (newPPED, newNameSearch) <- contextForProjectBranch codebase projectName newBranchRef
+  oldType@TypeDefinition {typeDefinition = oldTypeDispObj} <- Defn.typeDefinitionByName codebase oldPPED oldNameSearch width rt oldType `whenNothingM` throwError (Backend.NoSuchDefinition (HQ.NameOnly oldType))
+  newType@TypeDefinition {typeDefinition = newTypeDisplayObj} <- Defn.typeDefinitionByName codebase newPPED newNameSearch width rt newType `whenNothingM` throwError (Backend.NoSuchDefinition (HQ.NameOnly newType))
+  let typeDiffDisplayObject = DefinitionDiff.diffDisplayObjects oldTypeDispObj newTypeDisplayObj
+  pure
+    TypeDiffResponse
+      { project = projectName,
+        oldBranch = oldBranchRef,
+        newBranch = newBranchRef,
+        oldType = oldType,
+        newType = newType,
+        diff = typeDiffDisplayObject
+      }
+  where
+    width = Pretty.Width 80
 
 serveProjectsAPI :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ServerT ProjectsAPI (Backend IO)
 serveProjectsAPI codebase rt =
   projectListingEndpoint codebase
-    :<|> projectBranchListingEndpoint codebase
-    :<|> serveProjectsCodebaseServerAPI codebase rt
+    :<|> ( \projectName ->
+             ( projectBranchListingEndpoint codebase projectName
+                 :<|> serveProjectsCodebaseServerAPI codebase rt projectName
+             )
+               :<|> ( serveProjectDiffTermsEndpoint codebase rt projectName
+                        :<|> serveProjectDiffTypesEndpoint codebase rt projectName
+                    )
+         )
 
 serveUnisonLocal ::
   BackendEnv ->

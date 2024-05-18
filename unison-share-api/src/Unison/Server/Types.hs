@@ -38,12 +38,13 @@ import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
+import Unison.Core.Project (ProjectBranchName)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax qualified as Syntax
@@ -258,7 +259,9 @@ data SemanticSyntaxDiff
     SegmentChange (String, String) (Maybe Syntax.Element)
   | -- (shared segment) (fromAnnotation, toAnnotation)
     AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema SemanticSyntaxDiff
 
 instance ToJSON SemanticSyntaxDiff where
   toJSON = \case
@@ -299,7 +302,9 @@ instance ToJSON SemanticSyntaxDiff where
 data DisplayObjectDiff
   = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
   | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
-  deriving stock (Show, Eq)
+  deriving stock (Show, Eq, Generic)
+
+deriving instance ToSchema DisplayObjectDiff
 
 data UnisonRef
   = TypeRef UnisonHash
@@ -459,3 +464,79 @@ instance Docs.ToCapture (Capture "project-and-branch" ProjectBranchNameParam) wh
     DocCapture
       "project-and-branch"
       "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"
+
+data TermDiffResponse = TermDiffResponse
+  { project :: ProjectName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
+    oldTerm :: TermDefinition,
+    newTerm :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema TermDiffResponse
+
+instance Docs.ToSample TermDiffResponse where
+  toSamples _ = []
+
+instance ToJSON TermDiffResponse where
+  toJSON (TermDiffResponse {diff, project, oldBranch, newBranch, oldTerm, newTerm}) =
+    case diff of
+      DisplayObjectDiff dispDiff ->
+        object
+          [ "diff" .= dispDiff,
+            "diffKind" .= ("diff" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldTerm" .= oldTerm,
+            "newTerm" .= newTerm
+          ]
+      MismatchedDisplayObjects {} ->
+        object
+          [ "diffKind" .= ("mismatched" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldTerm" .= oldTerm,
+            "newTerm" .= newTerm
+          ]
+
+data TypeDiffResponse = TypeDiffResponse
+  { project :: ProjectName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
+    oldType :: TypeDefinition,
+    newType :: TypeDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema TypeDiffResponse
+
+instance Docs.ToSample TypeDiffResponse where
+  toSamples _ = []
+
+instance ToJSON TypeDiffResponse where
+  toJSON (TypeDiffResponse {diff, project, oldBranch, newBranch, oldType, newType}) =
+    case diff of
+      DisplayObjectDiff dispDiff ->
+        object
+          [ "diff" .= dispDiff,
+            "diffKind" .= ("diff" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldType" .= oldType,
+            "newType" .= newType
+          ]
+      MismatchedDisplayObjects {} ->
+        object
+          [ "diffKind" .= ("mismatched" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldType" .= oldType,
+            "newType" .= newType
+          ]

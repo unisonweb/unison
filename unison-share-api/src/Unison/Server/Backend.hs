@@ -842,14 +842,13 @@ docsForDefinitionName ::
   NameSearch Sqlite.Transaction ->
   Names.SearchType ->
   Name ->
-  IO [TermReference]
+  Sqlite.Transaction [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
   let potentialDocNames = [name, name Cons.:> "doc"]
-  Codebase.runTransaction codebase do
-    refs <-
-      potentialDocNames & foldMapM \name ->
-        lookupRelativeHQRefs' termSearch searchType (HQ'.NameOnly name)
-    filterForDocs (toList refs)
+  refs <-
+    potentialDocNames & foldMapM \name ->
+      lookupRelativeHQRefs' termSearch searchType (HQ'.NameOnly name)
+  filterForDocs (toList refs)
   where
     filterForDocs :: [Referent] -> Sqlite.Transaction [TermReference]
     filterForDocs rs = do

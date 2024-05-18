@@ -1,16 +1,28 @@
-module Unison.Server.Local.Definitions (prettyDefinitionsForHQName) where
+module Unison.Server.Local.Definitions
+  ( prettyDefinitionsForHQName,
+    termDefinitionByName,
+    typeDefinitionByName,
+  )
+where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Except
+import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Map qualified as Map
+import Data.Set.NonEmpty qualified as NESet
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.Reference (TermReference, TypeReference)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
+import Unison.NamesWithHistory qualified as NS
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -19,13 +31,19 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend
+import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Local qualified as Local
+import Unison.Server.NameSearch (NameSearch)
+import Unison.Server.NameSearch qualified as NS
+import Unison.Server.NameSearch qualified as NameSearch
 import Unison.Server.NameSearch.FromNames (makeNameSearch)
 import Unison.Server.Types
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty (Width)
 
@@ -71,7 +89,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults name = do
-        docRefs <- docsForDefinitionName codebase nameSearch Names.ExactName name
+        docRefs <- Codebase.runTransaction codebase $ docsForDefinitionName codebase nameSearch Names.ExactName name
         renderDocRefs pped width codebase rt docRefs
           -- local server currently ignores doc eval errors
           <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
@@ -96,3 +114,66 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
       renderedDisplayTerms
       renderedDisplayTypes
       renderedMisses
+
+-- | Find the term referenced by the given name and return a display object for it.
+termDisplayObjectByName :: Codebase m Symbol Ann -> NameSearch Sqlite.Transaction -> Name -> Sqlite.Transaction (Maybe (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann)))
+termDisplayObjectByName codebase nameSearch name = runMaybeT do
+  refs <- lift $ NameSearch.lookupRelativeHQRefs' (NS.termSearch nameSearch) NS.ExactName (HQ'.NameOnly name)
+  ref <- fmap NESet.findMin . hoistMaybe $ NESet.nonEmptySet refs
+  case ref of
+    Referent.Ref r -> (r,) <$> lift (Backend.displayTerm codebase r)
+    Referent.Con _ _ ->
+      -- TODO: Should we error here or some other sensible thing rather than returning no
+      -- result?
+      empty
+
+termDefinitionByName ::
+  Codebase IO Symbol Ann ->
+  PPED.PrettyPrintEnvDecl ->
+  NameSearch Sqlite.Transaction ->
+  Width ->
+  Rt.Runtime Symbol ->
+  Name ->
+  Backend IO (Maybe TermDefinition)
+termDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do
+  let biasedPPED = PPED.biasTo [name] pped
+  (ref, displayObject, docRefs) <- mapMaybeT (liftIO . Codebase.runTransaction codebase) $ do
+    (ref, displayObject) <- MaybeT $ termDisplayObjectByName codebase nameSearch name
+    docRefs <- lift $ Backend.docsForDefinitionName codebase nameSearch NS.ExactName name
+    pure (ref, displayObject, docRefs)
+  renderedDocs <-
+    liftIO $
+      renderDocRefs pped width codebase rt docRefs
+        -- local server currently ignores doc eval errors
+        <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
+  let (_ref, syntaxDO) = Backend.termsToSyntaxOf (Suffixify False) width pped id (ref, displayObject)
+  lift $ Backend.mkTermDefinition codebase biasedPPED width ref renderedDocs syntaxDO
+
+-- | Find the type referenced by the given name and return a display object for it.
+typeDisplayObjectByName :: Codebase m Symbol Ann -> NameSearch Sqlite.Transaction -> Name -> Sqlite.Transaction (Maybe (TypeReference, DisplayObject () (DD.Decl Symbol Ann)))
+typeDisplayObjectByName codebase nameSearch name = runMaybeT do
+  refs <- lift $ NameSearch.lookupRelativeHQRefs' (NS.typeSearch nameSearch) NS.ExactName (HQ'.NameOnly name)
+  ref <- fmap NESet.findMin . hoistMaybe $ NESet.nonEmptySet refs
+  fmap (ref,) . lift $ Backend.displayType codebase ref
+
+typeDefinitionByName ::
+  Codebase IO Symbol Ann ->
+  PPED.PrettyPrintEnvDecl ->
+  NameSearch Sqlite.Transaction ->
+  Width ->
+  Rt.Runtime Symbol ->
+  Name ->
+  Backend IO (Maybe TypeDefinition)
+typeDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do
+  let biasedPPED = PPED.biasTo [name] pped
+  (ref, displayObject, docRefs) <- mapMaybeT (liftIO . Codebase.runTransaction codebase) $ do
+    (ref, displayObject) <- MaybeT $ typeDisplayObjectByName codebase nameSearch name
+    docRefs <- lift $ Backend.docsForDefinitionName codebase nameSearch NS.ExactName name
+    pure (ref, displayObject, docRefs)
+  renderedDocs <-
+    liftIO $
+      renderDocRefs pped width codebase rt docRefs
+        -- local server currently ignores doc eval errors
+        <&> fmap \(hqn, h, doc, _errs) -> (hqn, h, doc)
+  let (_ref, syntaxDO) = Backend.typesToSyntaxOf (Suffixify False) width pped id (ref, displayObject)
+  lift $ Backend.mkTypeDefinition codebase biasedPPED width ref renderedDocs syntaxDO
