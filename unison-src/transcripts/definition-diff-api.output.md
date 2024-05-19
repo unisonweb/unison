@@ -54,8 +54,8 @@ diffs/main> branch.create new
 
   Done. I've created the new branch based off of main.
   
-  Tip: Use `merge /new /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /new`.
 
 ```
 ```unison
