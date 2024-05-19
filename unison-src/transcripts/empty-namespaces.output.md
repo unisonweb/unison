@@ -64,7 +64,7 @@ Merging an empty namespace should be a no-op
 
   ☝️  The namespace .empty is empty.
 
-.empty> merge .mynamespace
+.empty> merge.old .mynamespace
 
   ⚠️
   

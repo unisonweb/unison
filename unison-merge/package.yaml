@@ -1,0 +1,86 @@
+name: unison-merge
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+
+ghc-options: -Wall
+
+dependencies:
+  - base
+  - bimap
+  - bitvec
+  - bytestring
+  - containers
+  - either
+  - free
+  - generic-lens
+  - lens
+  - monad-validate
+  - mtl
+  - nonempty-containers
+  - safe
+  - semialign
+  - semigroups
+  - text
+  - these
+  - transformers
+  - unison-codebase
+  - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
+  - unison-core
+  - unison-core1
+  - unison-hash
+  - unison-parser-typechecker
+  - unison-prelude
+  - unison-sqlite
+  - unison-syntax
+  - unison-util-cache
+  - unison-util-nametree
+  - unison-util-relation
+  - vector
+  - witherable
+
+library:
+  # exposed-modules:
+  #   # TODO probably whittle this down to one
+  #   - Unison.Merge
+  #   - Unison.Merge2
+  source-dirs: src
+  when:
+    - condition: '!os(windows)'
+      dependencies: unix
+    - condition: false
+      other-modules: Paths_unison_merge
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - InstanceSigs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - NumericUnderscores
+  - OverloadedLabels
+  - OverloadedRecordDot
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

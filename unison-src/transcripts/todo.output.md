@@ -67,7 +67,7 @@ type MyType = MyType Int
 ```
 
 ```ucm
-.mergeA> merge .mergeB
+.mergeA> merge.old .mergeB
 
   Here's what's changed in the current namespace after the
   merge:

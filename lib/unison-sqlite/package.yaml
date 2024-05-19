@@ -44,6 +44,7 @@ dependencies:
   - text-builder
   - transformers
   - unison-prelude
+  - unison-util-cache
   - unliftio
   - unliftio-core
 
@@ -68,6 +69,7 @@ default-extensions:
   - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
+  - InstanceSigs
   - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses

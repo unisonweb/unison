@@ -39,6 +39,7 @@ import Crypto.Error (CryptoError (..), CryptoFailable (..))
 import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
@@ -153,6 +154,7 @@ import System.Process as SYS
   )
 import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
+import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
@@ -2933,6 +2935,14 @@ declareForeigns = do
     . mkForeign
     $ pure . verifyEd25519Wrapper
 
+  declareForeign Untracked "crypto.Rsa.sign.impl" boxBoxToEFBox
+    . mkForeign
+    $ pure . signRsaWrapper
+
+  declareForeign Untracked "crypto.Rsa.verify.impl" boxBoxBoxToEFBool
+    . mkForeign
+    $ pure . verifyRsaWrapper
+
   let catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Util.Text.Text a)
       catchAll e = do
         e <- Exception.tryAnyDeep e
@@ -3573,6 +3583,31 @@ verifyEd25519Wrapper (public0, msg0, sig0) = case validated of
     errMsg CryptoError_SecretKeyStructureInvalid =
       "ed25519: Secret key structure invalid"
     errMsg _ = "ed25519: unexpected error"
+
+signRsaWrapper ::
+  (Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+signRsaWrapper (secret0, msg0) = case validated of
+  Left err ->
+    Left (Failure Ty.cryptoFailureRef err unitValue)
+  Right secret ->
+    case RSA.sign Nothing (Just Hash.SHA256) secret msg of
+      Left err -> Left (Failure Ty.cryptoFailureRef (Rsa.rsaErrorToText err) unitValue)
+      Right signature -> Right $ Bytes.fromByteString signature
+  where
+    msg = Bytes.toArray msg0 :: ByteString
+    validated = Rsa.parseRsaPrivateKey (Bytes.toArray secret0 :: ByteString)
+
+verifyRsaWrapper ::
+  (Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bool
+verifyRsaWrapper (public0, msg0, sig0) = case validated of
+  Left err ->
+    Left $ Failure Ty.cryptoFailureRef err unitValue
+  Right public ->
+    Right $ RSA.verify (Just Hash.SHA256) public msg sig
+  where
+    msg = Bytes.toArray msg0 :: ByteString
+    sig = Bytes.toArray sig0 :: ByteString
+    validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
 
 typeReferences :: [(Reference, Word64)]
 typeReferences = zip rs [1 ..]

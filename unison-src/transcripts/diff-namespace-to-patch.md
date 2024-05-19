@@ -22,8 +22,8 @@ two.e = 6
 
 ```ucm:hide
 .> add
-.> merge oneconflicts one
-.> merge twoconflicts two
+.> merge.old oneconflicts one
+.> merge.old twoconflicts two
 .> delete.namespace oneconflicts
 .> delete.namespace twoconflicts
 ```

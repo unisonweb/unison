@@ -5,6 +5,9 @@ The `test` command should run all of the tests in the current directory.
 ```unison
 test1 : [Result]
 test1 = [Ok "test1"]
+
+foo.test2 : [Result]
+foo.test2 = [Ok "test2"]
 ```
 
 ```ucm
@@ -17,7 +20,8 @@ test1 = [Ok "test1"]
   
     ⍟ These new definitions are ok to `add`:
     
-      test1 : [Result]
+      foo.test2 : [Result]
+      test1     : [Result]
 
 ```
 ```ucm
@@ -29,13 +33,18 @@ test1 = [Ok "test1"]
 
   
 
+  
+
+  
+
     New test results:
   
-  ◉ test1   test1
+  ◉ foo.test2   test2
+  ◉ test1       test1
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
-  Tip: Use view test1 to view the source of a test.
+  Tip: Use view foo.test2 to view the source of a test.
 
 ```
 Tests should be cached if unchanged.
@@ -45,11 +54,12 @@ Tests should be cached if unchanged.
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ test1   test1
+  ◉ foo.test2   test2
+  ◉ test1       test1
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
-  Tip: Use view test1 to view the source of a test.
+  Tip: Use view foo.test2 to view the source of a test.
 
 ```
 `test` won't descend into the `lib` namespace, but `test.all` will.
@@ -77,20 +87,22 @@ testInLib = [Ok "testInLib"]
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ test1   test1
+  ◉ foo.test2   test2
+  ◉ test1       test1
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
-  Tip: Use view test1 to view the source of a test.
+  Tip: Use view foo.test2 to view the source of a test.
 
 .> test.all
 
     
     Cached test results (`help testcache` to learn more)
     
-    ◉ test1   test1
+    ◉ foo.test2   test2
+    ◉ test1       test1
     
-    ✅ 1 test(s) passing
+    ✅ 2 test(s) passing
     
     ✅  
 
@@ -119,5 +131,19 @@ testInLib = [Ok "testInLib"]
   ✅ 1 test(s) passing
   
   Tip: Use view testInLib to view the source of a test.
+
+```
+`test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
+
+```ucm
+.> test foo
+
+  Cached test results (`help testcache` to learn more)
+  
+  ◉ foo.test2   test2
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view foo.test2 to view the source of a test.
 
 ```

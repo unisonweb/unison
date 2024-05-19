@@ -80,7 +80,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       (12, migrateSchema11To12),
       sqlMigration 13 Q.addMostRecentNamespaceTable,
       sqlMigration 14 Q.addSquashResultTable,
-      sqlMigration 15 Q.addSquashResultTableIfNotExists
+      sqlMigration 15 Q.addSquashResultTableIfNotExists,
+      sqlMigration 16 Q.cdToProjectRoot
     ]
   where
     sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Transaction ())

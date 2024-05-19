@@ -23,6 +23,8 @@ dependencies:
   - NanoID
   - aeson
   - ansi-terminal
+  - asn1-encoding
+  - asn1-types
   - async
   - atomic-primops
   - base
@@ -160,6 +162,7 @@ tests:
       - easytest
       - filemanip
       - split
+      - hex-text
       - unison-parser-typechecker
     when:
       - condition: false
@@ -185,6 +188,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedLabels
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

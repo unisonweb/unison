@@ -28,13 +28,13 @@ a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #5qd3km7th4
+  ⊙ 1. #d079vet1oj
   
     + Adds / updates:
     
       a
   
-  □ 2. #9vjjqeod4l (start of history)
+  □ 2. #4bigcpnl7t (start of history)
 
 .> reset 2
 
@@ -47,7 +47,7 @@ a = 5
   
   
   
-  □ 1. #9vjjqeod4l (start of history)
+  □ 1. #4bigcpnl7t (start of history)
 
 ```
 ```unison
@@ -83,13 +83,13 @@ foo.a = 5
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #1p2akhggkc
+  ⊙ 1. #tfg7r9359n
   
     + Adds / updates:
     
       foo.a
   
-  □ 2. #9vjjqeod4l (start of history)
+  □ 2. #4bigcpnl7t (start of history)
 
 .> reset 1 foo
 
@@ -152,8 +152,8 @@ foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
 
 foo/main> history
 

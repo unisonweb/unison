@@ -474,8 +474,8 @@ updateRoot new reason =
     let newHash = Branch.headHash new
     oldHash <- getLastSavedRootHash
     when (oldHash /= newHash) do
-      setRootBranch new
       liftIO (Codebase.putRootBranch codebase reason new)
+      setRootBranch new
       setLastSavedRootHash newHash
 
 ------------------------------------------------------------------------------------------------------------------------

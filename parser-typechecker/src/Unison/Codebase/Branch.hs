@@ -14,12 +14,14 @@ module Unison.Codebase.Branch
     branch0,
     one,
     cons,
+    mergeNode,
     uncons,
     empty,
     empty0,
     discardHistory,
     discardHistory0,
     transform,
+    transform0,
 
     -- * Branch tests
     isEmpty,
@@ -98,7 +100,7 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import U.Codebase.HashTags (PatchHash (..))
+import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -473,6 +475,15 @@ stepM f = \case
 cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
+-- | Construct a two-parent merge node.
+mergeNode :: forall m. Applicative m => Branch0 m -> Branch m -> Branch m -> Branch m
+mergeNode child parent1 parent2 =
+  Branch (Causal.mergeNode child (Map.fromList [f parent1, f parent2]))
+  where
+    f :: Branch m -> (CausalHash, m (Causal m (Branch0 m)))
+    f parent =
+      (headHash parent, pure (_history parent))
+
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True
 isOne _ = False
@@ -722,19 +733,15 @@ transform :: (Functor m) => (forall a. m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
   where
-    transformB0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
-    transformB0 f b =
-      b
-        { _children = transform f <$> _children b,
-          _edits = second f <$> _edits b
-        }
+    transformB0s :: (Functor m) => (forall a. m a -> n a) -> Causal m (Branch0 m) -> Causal m (Branch0 n)
+    transformB0s f = Causal.unsafeMapHashPreserving (transform0 f)
 
-    transformB0s ::
-      (Functor m) =>
-      (forall a. m a -> n a) ->
-      Causal m (Branch0 m) ->
-      Causal m (Branch0 n)
-    transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
+transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
+transform0 f b =
+  b
+    { _children = transform f <$> _children b,
+      _edits = second f <$> _edits b
+    }
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.

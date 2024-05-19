@@ -199,8 +199,8 @@ annToInterval ann = annToRange ann <&> rangeToInterval
 -- parsed file, false otherwise.
 hasUserTypeSignature :: Eq v => UnisonFile v a -> v -> Bool
 hasUserTypeSignature parsedFile sym =
-  UF.terms parsedFile
-    & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
+  Map.toList (UF.terms parsedFile)
+    & any (\(v, (_, trm)) -> v == sym && isJust (Term.getTypeAnnotation trm))
 
 -- | A text replacement to apply to a file.
 data TextReplacement = TextReplacement
