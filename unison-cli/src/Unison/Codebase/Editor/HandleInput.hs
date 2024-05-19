@@ -1171,7 +1171,6 @@ loop e = do
             DeprecateTypeI {} -> Cli.respond NotImplemented
             RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True
             RemoveTypeReplacementI from patchPath -> doRemoveReplacement from patchPath False
-            ShowDefinitionByPrefixI {} -> Cli.respond NotImplemented
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
@@ -1397,7 +1396,6 @@ inputDescription input =
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
-    ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))

@@ -2,7 +2,150 @@
    This module defines 'InputPattern' values for every supported input command.
 -}
 
-module Unison.CommandLine.InputPatterns where
+module Unison.CommandLine.InputPatterns
+  ( -- * Input commands
+    add,
+    aliasMany,
+    aliasTerm,
+    aliasType,
+    api,
+    authLogin,
+    back,
+    branchEmptyInputPattern,
+    branchInputPattern,
+    branchRenameInputPattern,
+    branchesInputPattern,
+    cd,
+    clear,
+    clone,
+    compileScheme,
+    copyPatch,
+    createAuthor,
+    debugClearWatchCache,
+    debugDoctor,
+    debugDumpNamespace,
+    debugDumpNamespaceSimple,
+    debugFileHashes,
+    debugFormat,
+    debugFuzzyOptions,
+    debugLSPFoldRanges,
+    debugNameDiff,
+    debugNumberedArgs,
+    debugTabCompletion,
+    debugTerm,
+    debugTermVerbose,
+    debugType,
+    delete,
+    deleteBranch,
+    deleteNamespace,
+    deleteNamespaceForce,
+    deletePatch,
+    deleteProject,
+    deleteTerm,
+    deleteTermReplacement,
+    deleteTermVerbose,
+    deleteType,
+    deleteTypeReplacement,
+    deleteTypeVerbose,
+    deleteVerbose,
+    dependencies,
+    dependents,
+    diffNamespace,
+    diffNamespaceToPatch,
+    display,
+    displayTo,
+    docToMarkdown,
+    docs,
+    docsToHtml,
+    edit,
+    editNamespace,
+    execute,
+    find,
+    findAll,
+    findGlobal,
+    findIn,
+    findInAll,
+    findPatch,
+    findShallow,
+    findVerbose,
+    findVerboseAll,
+    forkLocal,
+    gist,
+    help,
+    helpTopics,
+    history,
+    ioTest,
+    ioTestAll,
+    libInstallInputPattern,
+    load,
+    makeStandalone,
+    mergeBuiltins,
+    mergeIOBuiltins,
+    mergeInputPattern,
+    mergeOldInputPattern,
+    mergeOldPreviewInputPattern,
+    mergeOldSquashInputPattern,
+    moveAll,
+    names,
+    namespaceDependencies,
+    patch,
+    previewAdd,
+    previewUpdate,
+    printVersion,
+    projectCreate,
+    projectCreateEmptyInputPattern,
+    projectRenameInputPattern,
+    projectSwitch,
+    projectsInputPattern,
+    pull,
+    pullWithoutHistory,
+    push,
+    pushCreate,
+    pushExhaustive,
+    pushForce,
+    quit,
+    releaseDraft,
+    renameBranch,
+    renamePatch,
+    renameTerm,
+    renameType,
+    replace,
+    reset,
+    resetRoot,
+    runScheme,
+    saveExecuteResult,
+    sfind,
+    sfindReplace,
+    test,
+    testAll,
+    todo,
+    ui,
+    undo,
+    up,
+    update,
+    updateBuiltins,
+    updateOld,
+    updateOldNoPatch,
+    upgrade,
+    view,
+    viewGlobal,
+    viewPatch,
+    viewReflog,
+
+    -- * Misc
+    deleteTermReplacementCommand,
+    deleteTypeReplacementCommand,
+    helpFor,
+    makeExample',
+    makeExample,
+    makeExampleEOS,
+    makeExampleNoBackticks,
+    patternMap,
+    patternName,
+    showPatternHelp,
+    validInputs,
+  )
+where
 
 import Control.Lens (preview, review, (^.))
 import Control.Lens.Cons qualified as Cons
@@ -11,7 +154,6 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -21,7 +163,7 @@ import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Internal qualified as Megaparsec (withParsecT)
-import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
@@ -34,7 +176,7 @@ import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (WriteGitRepo, WriteRemoteNamespace)
 import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.UriParser (readRemoteNamespaceParser)
 import Unison.Codebase.Editor.UriParser qualified as UriParser
@@ -62,6 +204,7 @@ import Unison.Project
     ProjectBranchSpecifier (..),
     ProjectName,
     Semver,
+    branchWithOptionalProjectParser,
   )
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
@@ -70,6 +213,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segme
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as P
+import Unison.Util.Pretty.MegaParsec (prettyPrintParseError)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -95,8 +239,7 @@ makeExampleNoBackticks p args =
 makeExample' :: InputPattern -> P.Pretty CT.ColorText
 makeExample' p = makeExample p []
 
-makeExampleEOS ::
-  InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
+makeExampleEOS :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
 makeExampleEOS p args =
   P.group $
     backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)) <> "."
@@ -529,18 +672,6 @@ undo =
     []
     "`undo` reverts the most recent change to the codebase."
     (const $ pure Input.UndoI)
-
-viewByPrefix :: InputPattern
-viewByPrefix =
-  InputPattern
-    "view.recursive"
-    []
-    I.Visible
-    [("definition to view", OnePlus, definitionQueryArg)]
-    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
-    ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
-        . traverse parseHashQualifiedName
-    )
 
 sfind :: InputPattern
 sfind =
@@ -1353,9 +1484,9 @@ pullImpl name aliases pullMode addendum = do
                 Optional,
                 projectBranchNameArg
                   ProjectBranchSuggestionsConfig
-                    { showProjectCompletions = True,
+                    { showProjectCompletions = False,
                       projectInclusion = AllProjects,
-                      branchInclusion = ExcludeCurrentBranch
+                      branchInclusion = AllBranches
                     }
               )
             ],
@@ -1382,21 +1513,57 @@ pullImpl name aliases pullMode addendum = do
                 "",
                 explainRemote Pull
               ],
-          parse =
-            maybeToEither (I.help self) . \case
-              [] -> Just $ Input.PullI Input.PullSourceTarget0 pullMode
-              [sourceString] -> do
-                source <- parsePullSource (Text.pack sourceString)
-                Just $ Input.PullI (Input.PullSourceTarget1 source) pullMode
-              [sourceString, targetString] -> do
-                source <- parsePullSource (Text.pack sourceString)
-                target <-
-                  eitherToMaybe $
-                    tryInto
-                      @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-                      (Text.pack targetString)
-                Just $ Input.PullI (Input.PullSourceTarget2 source target) pullMode
-              _ -> Nothing
+          parse = \case
+            -- maybeToEither (I.help self) . \case
+            [] -> Right $ Input.PullI Input.PullSourceTarget0 pullMode
+            [sourceString] -> do
+              source <-
+                sourceString
+                  & Text.pack
+                  & megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
+                  & mapLeft (\err -> I.help self <> P.newline <> err)
+              Right $ Input.PullI (Input.PullSourceTarget1 source) pullMode
+            [sourceString, targetString] -> do
+              source <-
+                sourceString
+                  & Text.pack
+                  & megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
+                  & mapLeft (\err -> I.help self <> P.newline <> err)
+              target <-
+                targetString
+                  & Text.pack
+                  & megaparse branchWithOptionalProjectParser
+                  & mapLeft
+                    ( \err ->
+                        -- You used to be able to pull into a path. So if target parsing fails, but path parsing succeeds,
+                        -- explain that the command has changed. Furthermore, in the special case that the user is trying to
+                        -- pull into the `lib` namespace, suggest using `lib.install`.
+                        case Path.parsePath' targetString of
+                          Left _ -> I.help self <> P.newline <> err
+                          Right path ->
+                            I.help self
+                              <> P.newline
+                              <> P.newline
+                              <> P.newline
+                              <> let pullingIntoLib =
+                                       case path of
+                                         Path.RelativePath'
+                                           ( Path.Relative
+                                               (Path.toList -> lib : _)
+                                             ) -> lib == NameSegment.libSegment
+                                         _ -> False
+                                  in P.wrap $
+                                       "You may only"
+                                         <> makeExample' pull
+                                         <> "into a branch."
+                                         <> if pullingIntoLib
+                                           then
+                                             "Did you mean to run"
+                                               <> P.group (makeExample libInstallInputPattern [P.string sourceString] <> "?")
+                                           else mempty
+                    )
+              Right $ Input.PullI (Input.PullSourceTarget2 source target) pullMode
+            _ -> Left (I.help self)
         }
 
 debugTabCompletion :: InputPattern
@@ -1931,14 +2098,6 @@ topicNameArg =
           suggestions = \q _ _ _ -> pure (exactComplete q $ topics),
           fzfResolver = Just $ Resolvers.fuzzySelectFromList (Text.pack <$> topics)
         }
-
-codebaseServerNameArg :: ArgumentType
-codebaseServerNameArg =
-  ArgumentType
-    { typeName = "codebase-server",
-      suggestions = \_ _ _ _ -> pure [],
-      fzfResolver = Nothing
-    }
 
 helpTopics :: InputPattern
 helpTopics =
@@ -3147,14 +3306,6 @@ exactDefinitionArg =
       fzfResolver = Just Resolvers.definitionResolver
     }
 
-fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
-  ArgumentType
-    { typeName = "fuzzy definition query",
-      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTermOrType q p),
-      fzfResolver = Just Resolvers.definitionResolver
-    }
-
 definitionQueryArg :: ArgumentType
 definitionQueryArg = exactDefinitionArg {typeName = "definition query"}
 
@@ -3300,18 +3451,6 @@ data ProjectInclusion = OnlyWithinCurrentProject | OnlyOutsideCurrentProject | A
 
 data BranchInclusion = ExcludeCurrentBranch | AllBranches
   deriving stock (Eq, Ord, Show)
-
-projectsByPrefix :: MonadIO m => ProjectInclusion -> Codebase m v a -> Path.Absolute -> Text -> m [(ProjectId, ProjectName)]
-projectsByPrefix projectInclusion codebase path query = do
-  allProjectMatches <- Codebase.runTransaction codebase do
-    Queries.loadAllProjectsBeginningWith (Just query)
-      <&> map (\(Sqlite.Project projId projName) -> (projId, projName))
-  let projectCtx = projectContextFromPath path
-  pure $ case (projectCtx, projectInclusion) of
-    (_, AllProjects) -> allProjectMatches
-    (LooseCodePath {}, _) -> allProjectMatches
-    (ProjectBranchPath currentProjectId _branchId _path, OnlyWithinCurrentProject) -> allProjectMatches & filter \(projId, _) -> projId == currentProjectId
-    (ProjectBranchPath currentProjectId _branchId _path, OnlyOutsideCurrentProject) -> allProjectMatches & filter \(projId, _) -> projId /= currentProjectId
 
 data ProjectBranchSuggestionsConfig = ProjectBranchSuggestionsConfig
   { -- Whether projects (without branches) should be considered possible completions.
@@ -3674,15 +3813,6 @@ projectBranchNameArg config =
       fzfResolver = Just Resolvers.projectBranchResolver
     }
 
--- [project/]branch
-projectBranchNameWithOptionalProjectNameArg :: ArgumentType
-projectBranchNameWithOptionalProjectNameArg =
-  ArgumentType
-    { typeName = "project-branch-name-with-optional-project-name",
-      suggestions = \_ _ _ _ -> pure [],
-      fzfResolver = Just Resolvers.projectBranchResolver
-    }
-
 branchRelativePathArg :: ArgumentType
 branchRelativePathArg =
   ArgumentType
@@ -3738,10 +3868,6 @@ projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
                 isFinished = False
               }
 
-parsePullSource :: Text -> Maybe (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
-parsePullSource =
-  Megaparsec.parseMaybe (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease)
-
 -- | Parse a 'Input.PushSource'.
 parsePushSource :: String -> Either (P.Pretty CT.ColorText) Input.PushSource
 parsePushSource sourceStr =
@@ -3779,9 +3905,6 @@ parseWriteGitRepo label input = do
     (fromString . show) -- turn any parsing errors into a Pretty.
     (Megaparsec.parse (UriParser.writeGitRepo <* Megaparsec.eof) label (Text.pack input))
 
-collectNothings :: (a -> Maybe b) -> [a] -> [a]
-collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
-
 explainRemote :: PushPull -> P.Pretty CT.ColorText
 explainRemote pushPull =
   P.group $
@@ -3798,23 +3921,8 @@ explainRemote pushPull =
   where
     gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
-showErrorFancy :: (Megaparsec.ShowErrorComponent e) => Megaparsec.ErrorFancy e -> String
-showErrorFancy (Megaparsec.ErrorFail msg) = msg
-showErrorFancy (Megaparsec.ErrorIndentation ord ref actual) =
-  "incorrect indentation (got "
-    <> show (Megaparsec.unPos actual)
-    <> ", should be "
-    <> p
-    <> show (Megaparsec.unPos ref)
-    <> ")"
-  where
-    p = case ord of
-      LT -> "less than "
-      EQ -> "equal to "
-      GT -> "greater than "
-showErrorFancy (Megaparsec.ErrorCustom a) = Megaparsec.showErrorComponent a
-
-showErrorItem :: Megaparsec.ErrorItem (Megaparsec.Token Text) -> String
-showErrorItem (Megaparsec.Tokens ts) = Megaparsec.showTokens (Proxy @Text) ts
-showErrorItem (Megaparsec.Label label) = NE.toList label
-showErrorItem Megaparsec.EndOfInput = "end of input"
+megaparse :: Megaparsec.Parsec Void Text a -> Text -> Either (P.Pretty P.ColorText) a
+megaparse parser input =
+  input
+    & Megaparsec.parse (parser <* Megaparsec.eof) ""
+    & mapLeft (prettyPrintParseError (Text.unpack input))

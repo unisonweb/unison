@@ -61,10 +61,9 @@ type P = P.Parsec Void Text.Text
 
 readRemoteNamespaceParser :: ProjectBranchSpecifier branch -> P (ReadRemoteNamespace (These ProjectName branch))
 readRemoteNamespaceParser specifier =
-  P.label "generic repo" $
-    ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
-      <|> ReadShare'LooseCode <$> readShareLooseCode
+  ReadRemoteNamespaceGit <$> readGitRemoteNamespace
+    <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
+    <|> ReadShare'LooseCode <$> readShareLooseCode
 
 projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ::
   ProjectBranchSpecifier branch ->
