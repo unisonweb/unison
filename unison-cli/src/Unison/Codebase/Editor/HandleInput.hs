@@ -539,11 +539,12 @@ loop e = do
             DocToMarkdownI docName -> do
               names <- Cli.currentNames
               pped <- Cli.prettyPrintEnvDeclFromNames names
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              let nameSearch = NameSearch.makeNameSearch hqLength names
               Cli.Env {codebase, runtime} <- ask
+              docRefs <- Cli.runTransaction do
+                hqLength <- Codebase.hashLength
+                let nameSearch = NameSearch.makeNameSearch hqLength names
+                Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
                 for docRefs \docRef -> do
                   Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc

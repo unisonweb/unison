@@ -21,6 +21,7 @@ module Unison.Util.Map
     upsertF,
     upsertLookup,
     valuesVector,
+    asList_,
   )
 where
 
@@ -55,6 +56,15 @@ bitraverse fa fb = fmap Map.fromList . traverse (B.bitraverse fa fb) . Map.toLis
 bitraversed :: (Ord a', Ord k') => Traversal k k' a a' -> Traversal v v' a a' -> Traversal (Map k v) (Map k' v') a a'
 bitraversed keyT valT f m =
   bitraverse (keyT f) (valT f) m
+
+-- | Traverse a map as a list of key-value pairs.
+-- Note: This can have unexpected results if the result contains duplicate keys.
+asList_ :: Ord k' => Traversal (Map k v) (Map k' v') [(k, v)] [(k', v')]
+asList_ f s =
+  s
+    & Map.toList
+    & f
+    <&> Map.fromList
 
 -- | 'swap' throws away data if the input contains duplicate values
 swap :: (Ord b) => Map a b -> Map b a
