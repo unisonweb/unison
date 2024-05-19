@@ -1,8 +1,8 @@
 # Behaviour of namespace histories during a merge.
 
-Note: This is a descriptive test meant to capture the current behaviour of 
+Note: This is a descriptive test meant to capture the current behaviour of
 branch histories during a merge.
-It isn't prescriptive about how merges _should_ work with respect to child branches, 
+It isn't prescriptive about how merges _should_ work with respect to child branches,
 but I think we should at least notice if we change things by accident.
 
 
@@ -69,7 +69,7 @@ Split off two separate forks, one for testing squash merges, one for standard me
 For a squash merge, when I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.squash parent_fork parent_squash_base
+.> merge.old.squash parent_fork parent_squash_base
 .> history parent_squash_base
 ```
 
@@ -86,7 +86,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
 For a standard merge, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge parent_fork parent_merge_base
+.> merge.old parent_fork parent_merge_base
 .> history parent_merge_base
 ```
 

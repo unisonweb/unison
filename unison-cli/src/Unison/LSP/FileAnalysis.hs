@@ -37,7 +37,6 @@ import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -104,7 +103,8 @@ checkFile doc = runMaybeT do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
             pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
-  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
+  filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
+  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
@@ -155,10 +155,10 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile fileUri srcText notes = do
-  pped <- PPED.suffixifiedPPE <$> LSP.currentPPED
-  (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
+analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile fileUri srcText pped notes = do
+  let ppe = PPED.suffixifiedPPE pped
+  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
@@ -357,7 +357,6 @@ analyseNotes fileUri ppe src notes = do
       | not (isUserBlank v) = pure []
       | otherwise = do
           Env {codebase} <- ask
-          ppe <- PPED.suffixifiedPPE <$> currentPPED
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
           refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
@@ -444,9 +443,9 @@ mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Sym
 mkTypeSignatureHints parsedFile typecheckedFile = do
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
-        UF.terms parsedFile
+        Map.toList (UF.terms parsedFile)
           & mapMaybe
-            ( \(v, ann, trm) -> do
+            ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
                 guard (isNothing $ Term.getTypeAnnotation trm)
                 pure (v, ann)

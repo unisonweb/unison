@@ -23,7 +23,7 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
 
 .foo> ls
 
-  1. builtin/ (467 terms, 74 types)
+  1. builtin/ (469 terms, 74 types)
 
 ```
 And for a limited time, you can get even more builtin goodies:
@@ -35,7 +35,7 @@ And for a limited time, you can get even more builtin goodies:
 
 .foo> ls
 
-  1. builtin/ (641 terms, 92 types)
+  1. builtin/ (643 terms, 92 types)
 
 ```
 More typically, you'd start out by pulling `base.

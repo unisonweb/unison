@@ -7,6 +7,7 @@ module U.Codebase.Causal
   )
 where
 
+import Data.Function (on)
 import Data.Map.Strict qualified as Map
 import Unison.Prelude
 
@@ -17,6 +18,9 @@ data Causal m hc he pe e = Causal
     value :: m e
   }
   deriving stock (Functor, Generic)
+
+instance Eq hc => Eq (Causal m hc he pe e) where
+  (==) = (==) `on` causalHash
 
 -- | @emap f g@ maps over the values and parents' values with @f@ and @g@.
 emap :: Functor m => (e -> e') -> (pe -> pe') -> Causal m hc he pe e -> Causal m hc he pe' e'

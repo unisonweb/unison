@@ -19,6 +19,7 @@ dependencies:
   - base
   - bytes
   - bytestring
+  - co-log-core
   - code-page
   - concurrent-output
   - configurator
@@ -31,9 +32,9 @@ dependencies:
   - extra
   - filepath
   - free
+  - friendly-time
   - fsnotify
   - fuzzyfind
-  - friendly-time
   - generic-lens
   - haskeline
   - http-client >= 0.7.6
@@ -48,12 +49,10 @@ dependencies:
   - megaparsec
   - memory
   - mtl
-  - network-uri
+  - network
   - network-simple
   - network-udp
-  - network
-  - co-log-core
-  - uri-encode
+  - network-uri
   - nonempty-containers
   - open-browser
   - optparse-applicative >= 0.16.1.0
@@ -72,6 +71,7 @@ dependencies:
   - template-haskell
   - temporary
   - text
+  - text-ansi
   - text-builder
   - text-rope
   - these
@@ -84,6 +84,7 @@ dependencies:
   - unison-core
   - unison-core1
   - unison-hash
+  - unison-merge
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
@@ -96,9 +97,9 @@ dependencies:
   - unison-util-relation
   - unliftio
   - unordered-containers
+  - uri-encode
   - uuid
   - vector
-  - witherable
   - wai
   - warp
   - witch
@@ -179,6 +180,7 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

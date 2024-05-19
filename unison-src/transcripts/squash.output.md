@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ 1. #o6oig4fk7p (start of history)
+  □ 1. #i3vp9o9btm (start of history)
 
 .> fork builtin builtin2
 
@@ -42,27 +42,27 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #695699eqes
+  ⊙ 1. #tpkjb488ei
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #5acatj352b
+  ⊙ 2. #334ak3epqt
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #o6oig4fk7p (start of history)
+  □ 3. #i3vp9o9btm (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
 
 ```ucm
-.> merge mybuiltin builtin
+.> merge.old mybuiltin builtin
 
   Nothing changed as a result of the merge.
 
@@ -73,27 +73,27 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #695699eqes
+  ⊙ 1. #tpkjb488ei
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ 2. #5acatj352b
+  ⊙ 2. #334ak3epqt
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ 3. #o6oig4fk7p (start of history)
+  □ 3. #i3vp9o9btm (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
 
 ```ucm
-.> merge.squash mybuiltin builtin2
+.> merge.old.squash mybuiltin builtin2
 
   Nothing changed as a result of the merge.
 
@@ -108,7 +108,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ 1. #o6oig4fk7p (start of history)
+  □ 1. #i3vp9o9btm (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -239,7 +239,7 @@ At this point, Alice and Bob both have some history beyond what's in trunk:
 Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob both made their changes in one single commit.
 
 ```ucm
-.> merge.squash alice trunk
+.> merge.old.squash alice trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -269,7 +269,7 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   
   □ 2. #i52j9fd57b (start of history)
 
-.> merge.squash bob trunk
+.> merge.old.squash bob trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -348,7 +348,7 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 This time, we'll first squash Alice and Bob's changes together before squashing their combined changes into `trunk`. The resulting `trunk` will have just a single entry in it, combining both Alice and Bob's changes:
 
 ```ucm
-.> squash alice bob
+.> merge.old.squash alice bob
 
   Here's what's changed in bob after the merge:
   
@@ -365,7 +365,7 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
 
   Applying changes from patch...
 
-.> squash bob trunk
+.> merge.old.squash bob trunk
 
   Here's what's changed in trunk after the merge:
   
@@ -407,7 +407,7 @@ So, there you have it. With squashing, you can control the granularity of your h
 Another thing we can do is `squash` into an empty namespace. This effectively makes a copy of the namespace, but without any of its history:
 
 ```ucm
-.> squash alice nohistoryalice
+.> merge.old.squash alice nohistoryalice
 
   Here's what's changed in nohistoryalice after the merge:
   
@@ -472,7 +472,7 @@ This checks to see that squashing correctly preserves deletions:
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
-.delete> squash builtin2 builtin
+.delete> merge.old.squash builtin2 builtin
 
   Here's what's changed in builtin after the merge:
   
@@ -493,13 +493,13 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #erp3nu5u70
+  ⊙ 1. #dv00hf6vmg
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ 2. #o6oig4fk7p (start of history)
+  □ 2. #i3vp9o9btm (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.

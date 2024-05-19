@@ -251,6 +251,7 @@ module U.Codebase.Sqlite.Queries
     addMostRecentNamespaceTable,
     addSquashResultTable,
     addSquashResultTableIfNotExists,
+    cdToProjectRoot,
 
     -- ** schema version
     currentSchemaVersion,
@@ -411,7 +412,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 15
+currentSchemaVersion = 16
 
 createSchema :: Transaction ()
 createSchema = do
@@ -474,6 +475,10 @@ addSquashResultTable =
 addSquashResultTableIfNotExists :: Transaction ()
 addSquashResultTableIfNotExists =
   executeStatements $(embedProjectStringFile "sql/010-ensure-squash-cache-table.sql")
+
+cdToProjectRoot :: Transaction ()
+cdToProjectRoot =
+  executeStatements $(embedProjectStringFile "sql/011-cd-to-project-root.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =

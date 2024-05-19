@@ -28,14 +28,14 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
 If we merge that back into `builtin`, we get that same chain of history:
 
 ```ucm
-.> merge mybuiltin builtin
+.> merge.old mybuiltin builtin
 .> history builtin
 ```
 
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
 
 ```ucm
-.> merge.squash mybuiltin builtin2
+.> merge.old.squash mybuiltin builtin2
 .> history builtin2
 ```
 
@@ -92,9 +92,9 @@ At this point, Alice and Bob both have some history beyond what's in trunk:
 Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob both made their changes in one single commit.
 
 ```ucm
-.> merge.squash alice trunk
+.> merge.old.squash alice trunk
 .> history trunk
-.> merge.squash bob trunk
+.> merge.old.squash bob trunk
 .> history trunk
 ```
 
@@ -109,8 +109,8 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
 This time, we'll first squash Alice and Bob's changes together before squashing their combined changes into `trunk`. The resulting `trunk` will have just a single entry in it, combining both Alice and Bob's changes:
 
 ```ucm
-.> squash alice bob
-.> squash bob trunk
+.> merge.old.squash alice bob
+.> merge.old.squash bob trunk
 .> history trunk
 ```
 
@@ -121,7 +121,7 @@ So, there you have it. With squashing, you can control the granularity of your h
 Another thing we can do is `squash` into an empty namespace. This effectively makes a copy of the namespace, but without any of its history:
 
 ```ucm
-.> squash alice nohistoryalice
+.> merge.old.squash alice nohistoryalice
 .> history nohistoryalice
 ```
 
@@ -136,7 +136,7 @@ This checks to see that squashing correctly preserves deletions:
 .delete> fork builtin builtin2
 .delete> delete.term.verbose builtin2.Nat.+
 .delete> delete.term.verbose builtin2.Nat.*
-.delete> squash builtin2 builtin
+.delete> merge.old.squash builtin2 builtin
 .delete> history builtin
 ```
 

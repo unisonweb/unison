@@ -775,6 +775,10 @@ cryptoBuiltins =
   [ B "crypto.Ed25519.sign.impl" $
       bytes --> bytes --> bytes --> eithert failure bytes,
     B "crypto.Ed25519.verify.impl" $
+      bytes --> bytes --> bytes --> eithert failure boolean,
+    B "crypto.Rsa.sign.impl" $
+      bytes --> bytes --> eithert failure bytes,
+    B "crypto.Rsa.verify.impl" $
       bytes --> bytes --> bytes --> eithert failure boolean
   ]
 

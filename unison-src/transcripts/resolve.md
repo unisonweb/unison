@@ -73,10 +73,10 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 Let's now merge these namespaces into `c`:
 
 ```ucm
-.example.resolve> merge a c
+.example.resolve> merge.old a c
 ```
 ```ucm:error
-.example.resolve> merge b c
+.example.resolve> merge.old b c
 ```
 
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.

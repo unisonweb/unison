@@ -43,8 +43,8 @@ b = 2
 
 ```ucm
 .z> add
-.> merge x y
-.> merge y z
+.> merge.old x y
+.> merge.old y z
 .> history z
 ```
 

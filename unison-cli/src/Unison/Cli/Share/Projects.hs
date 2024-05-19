@@ -96,7 +96,7 @@ data GetProjectBranchResponse
 data IncludeSquashedHead
   = IncludeSquashedHead
   | NoSquashedHead
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 -- | Get a project branch by id.
 --
