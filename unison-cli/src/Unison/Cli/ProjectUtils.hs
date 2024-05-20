@@ -25,6 +25,7 @@ module Unison.Cli.ProjectUtils
     getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
     expectLooseCodeOrProjectBranch,
+    getProjectBranchCausalHash,
 
     -- * Loading remote project info
     expectRemoteProjectById,
@@ -35,6 +36,11 @@ module Unison.Cli.ProjectUtils
     loadRemoteProjectBranchByNames,
     expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
+
+    -- * Projecting out common things
+    justTheIds,
+    justTheIds',
+    justTheNames,
 
     -- * Other helpers
     findTemporaryBranchName,
@@ -49,7 +55,10 @@ import Control.Lens
 import Data.List qualified as List
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.These (These (..))
+import U.Codebase.Causal qualified
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -59,6 +68,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects (IncludeSquashedHead)
 import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (LooseCodeOrProject)
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
@@ -73,7 +83,6 @@ import Unison.Project.Util
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
-import qualified Data.Text as Text
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
 branchRelativePathToAbsolute brp =
@@ -107,6 +116,18 @@ resolveBranchRelativePath = \case
     toThese = \case
       Left branchName -> That branchName
       Right (projectName, branchName) -> These projectName branchName
+
+justTheIds :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
+justTheIds x =
+  ProjectAndBranch x.project.projectId x.branch.branchId
+
+justTheIds' :: Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
+justTheIds' x =
+  ProjectAndBranch x.projectId x.branchId
+
+justTheNames :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectName ProjectBranchName
+justTheNames x =
+  ProjectAndBranch x.project.name x.branch.name
 
 -- @findTemporaryBranchName projectId preferred@ finds some unused branch name in @projectId@ with a name
 -- like @preferred@.
@@ -267,6 +288,13 @@ expectLooseCodeOrProjectBranch =
       That (ProjectAndBranch Nothing branch) -> Right (That branch)
       That (ProjectAndBranch (Just project) branch) -> Right (These project branch)
       These path _ -> Left path -- (3) above
+
+-- | Get the causal hash of a project branch.
+getProjectBranchCausalHash :: ProjectAndBranch ProjectId ProjectBranchId -> Transaction CausalHash
+getProjectBranchCausalHash branch = do
+  let path = projectBranchPath branch
+  causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
+  pure causal.causalHash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils

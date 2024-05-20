@@ -242,6 +242,7 @@ data Input
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
+  | UpgradeCommitI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

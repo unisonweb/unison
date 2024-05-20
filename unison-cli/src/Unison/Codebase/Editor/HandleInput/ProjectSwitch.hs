@@ -8,7 +8,6 @@ where
 import Data.These (These (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -68,13 +67,13 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
         Cli.runTransactionWithRollback \rollback -> do
           Queries.loadProjectBranchByNames projectName branchName & onNothingM do
             rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-  switchToProjectBranch branch.projectId branch.branchId
+  switchToProjectBranch (ProjectUtils.justTheIds' branch)
 
 -- | Switch to a branch:
 --
 -- * Record it as the most-recent branch (so it's restored when ucm starts).
 -- * Change the current path in the in-memory loop state.
-switchToProjectBranch :: ProjectId -> ProjectBranchId -> Cli ()
-switchToProjectBranch projectId branchId = do
-  Cli.runTransaction (Queries.setMostRecentBranch projectId branchId)
-  Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch projectId branchId))
+switchToProjectBranch :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
+switchToProjectBranch x = do
+  Cli.runTransaction (Queries.setMostRecentBranch x.project x.branch)
+  Cli.cd (ProjectUtils.projectBranchPath x)

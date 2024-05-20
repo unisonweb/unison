@@ -44,3 +44,48 @@ thingy =
   foo + 10
 ```
 
+Resolve the error and commit the upgrade.
+
+```unison
+thingy = foo + +10
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      thingy : Int
+
+```
+```ucm
+proj/upgrade-old-to-new> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+proj/upgrade-old-to-new> upgrade.commit
+
+  I fast-forward merged proj/upgrade-old-to-new into proj/main.
+
+proj/main> view thingy
+
+  thingy : Int
+  thingy =
+    use Int +
+    foo + +10
+
+proj/main> ls lib
+
+  1. builtin/ (469 terms, 74 types)
+  2. new/     (1 term)
+
+```

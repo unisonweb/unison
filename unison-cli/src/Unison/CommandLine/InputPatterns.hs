@@ -127,6 +127,7 @@ module Unison.CommandLine.InputPatterns
     updateOld,
     updateOldNoPatch,
     upgrade,
+    upgradeCommitInputPattern,
     view,
     viewGlobal,
     viewPatch,
@@ -3142,6 +3143,19 @@ upgrade =
       segment NE.:| [] <- Just (Name.reverseSegments name)
       Just segment
 
+upgradeCommitInputPattern :: InputPattern
+upgradeCommitInputPattern =
+  InputPattern
+    { patternName = "upgrade.commit",
+      aliases = ["commit.upgrade"],
+      visibility = I.Visible,
+      args = [],
+      help = P.wrap $ makeExample' upgradeCommitInputPattern <> "commits the current upgrade.",
+      parse = \case
+        [] -> Right Input.UpgradeCommitI
+        _ -> Left (I.help upgradeCommitInputPattern)
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -3270,6 +3284,7 @@ validInputs =
       updateOld,
       updateOldNoPatch,
       upgrade,
+      upgradeCommitInputPattern,
       view,
       viewGlobal,
       viewPatch,

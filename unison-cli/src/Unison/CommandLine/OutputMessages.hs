@@ -2311,6 +2311,8 @@ notifyUser dir = \case
         <> prettyProjectAndBranchName libdep
         <> "as"
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
+  NoUpgradeInProgress ->
+    pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
