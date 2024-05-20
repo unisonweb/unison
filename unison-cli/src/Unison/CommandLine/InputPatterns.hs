@@ -1368,10 +1368,23 @@ libInstallInputPattern =
       visibility = I.Visible,
       args = [],
       help =
-        P.wrapColumn2
-          [ ( makeExample libInstallInputPattern ["@unison/base/releases/latest"],
-              "installs `@unison/base/releases/latest` as a dependency of the current project"
-            )
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' libInstallInputPattern
+                <> "command installs a dependency into the `lib` namespace.",
+            "",
+            P.wrapColumn2
+              [ ( makeExample libInstallInputPattern ["@unison/base/releases/latest"],
+                  "installs the latest release of `@unison/base`"
+                ),
+                ( makeExample libInstallInputPattern ["@unison/base/releases/3.0.0"],
+                  "installs version 3.0.0 of `@unison/base`"
+                ),
+                ( makeExample libInstallInputPattern ["@unison/base/topic"],
+                  "installs the `topic` branch of `@unison/base`"
+                )
+              ]
           ],
       parse = \args ->
         maybe (Left (I.help libInstallInputPattern)) Right do

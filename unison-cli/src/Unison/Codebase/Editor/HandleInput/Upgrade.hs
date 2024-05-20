@@ -10,6 +10,7 @@ import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Text.Builder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -169,8 +170,7 @@ handleUpgrade oldName newName = do
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure scratchFilePath oldName newName)
-      Cli.returnEarlyWithoutOutput
+      Cli.returnEarly (Output.UpgradeFailure scratchFilePath oldName newName)
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
@@ -267,12 +267,25 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
 -- like "upgrade-<oldDepName>-to-<newDepName>".
 findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
 findTemporaryBranchName projectId oldDepName newDepName = do
-  Cli.findTemporaryBranchName projectId preferred
+  Cli.findTemporaryBranchName projectId $
+    -- First try something like
+    --
+    --   upgrade-unison_base_3_0_0-to-unison_base_4_0_0
+    --
+    -- and if that fails (which it shouldn't, but may because of symbols or something), back off to some
+    -- more-guaranteed-to-work mangled name like
+    --
+    --   upgrade-unisonbase300-to-unisonbase400
+    tryFrom @Text (mk oldDepText newDepText)
+      & fromRight (unsafeFrom @Text (mk (scrub oldDepText) (scrub newDepText)))
   where
-    preferred :: ProjectBranchName
-    preferred =
-      unsafeFrom @Text $
-        "upgrade-"
-          <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
-          <> "-to-"
-          <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
+    mk :: Text -> Text -> Text
+    mk old new =
+      Text.Builder.run ("upgrade-" <> Text.Builder.text old <> "-to-" <> Text.Builder.text new)
+
+    scrub :: Text -> Text
+    scrub =
+      Text.filter Char.isAlphaNum
+
+    oldDepText = NameSegment.toEscapedText oldDepName
+    newDepText = NameSegment.toEscapedText newDepName

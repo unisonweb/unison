@@ -65,6 +65,7 @@ library
       base
     , bytestring
     , containers
+    , directory
     , either
     , extra
     , filepath
