@@ -5,7 +5,12 @@ module Unison.Codebase.Path
     Path' (..),
     Absolute (..),
     pattern AbsolutePath',
+    absPath_,
+    Location (..),
+    locAbsPath_,
+    locPath_,
     Relative (..),
+    relPath_,
     pattern RelativePath',
     Resolve (..),
     pattern Empty,
@@ -89,13 +94,27 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
+import Unison.Core.Project (ProjectBranchName)
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
+import Unison.Project (ProjectName)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
+
+data Location
+  = Location ProjectName ProjectBranchName Absolute
+
+locAbsPath_ :: Lens' Location Absolute
+locAbsPath_ = lens go set
+  where
+    go (Location _ _ p) = p
+    set (Location n b _) p = Location n b p
+
+locPath_ :: Lens' Location Path
+locPath_ = locAbsPath_ . absPath_
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path {toSeq :: Seq NameSegment}
@@ -111,7 +130,13 @@ instance GHC.IsList Path where
 
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+absPath_ :: Lens' Absolute Path
+absPath_ = lens unabsolute (\_ new -> Absolute new)
+
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
+
+relPath_ :: Lens' Relative Path
+relPath_ = lens unrelative (\_ new -> Relative new)
 
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
