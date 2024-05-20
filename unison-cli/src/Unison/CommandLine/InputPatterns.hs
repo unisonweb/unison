@@ -1249,7 +1249,7 @@ libInstallInputPattern =
                   "installs the latest release of `@unison/base`"
                 ),
                 ( makeExample libInstallInputPattern ["@unison/base/releases/3.0.0"],
-                  "installs version 3.0.0 `@unison/base`"
+                  "installs version 3.0.0 of `@unison/base`"
                 ),
                 ( makeExample libInstallInputPattern ["@unison/base/topic"],
                   "installs the `topic` branch of `@unison/base`"
