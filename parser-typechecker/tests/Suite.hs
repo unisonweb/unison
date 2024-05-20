@@ -26,7 +26,6 @@ import Unison.Test.Typechecker qualified as Typechecker
 import Unison.Test.Typechecker.Context qualified as Context
 import Unison.Test.Typechecker.TypeError qualified as TypeError
 import Unison.Test.UnisonSources qualified as UnisonSources
-import Unison.Test.Util.PinBoard qualified as PinBoard
 import Unison.Test.Util.Relation qualified as Relation
 import Unison.Test.Util.Text qualified as Text
 import Unison.Test.Var qualified as Var
@@ -54,7 +53,6 @@ test =
       Typechecker.test,
       Context.test,
       Name.test,
-      PinBoard.test,
       CodebaseInit.test,
       Branch.test
     ]

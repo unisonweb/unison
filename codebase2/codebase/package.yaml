@@ -21,8 +21,33 @@ library:
       other-modules: Paths_unison_codebase
 
 default-extensions:
+  - BangPatterns
   - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
   - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedLabels
+  - OverloadedRecordDot
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - ViewPatterns
 
 language: GHC2021

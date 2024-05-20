@@ -17,6 +17,8 @@ module Unison.Project
     ProjectBranchSpecifier (..),
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
+    projectAndOptionalBranchParser,
+    branchWithOptionalProjectParser,
     ProjectAndBranchNames (..),
     projectAndBranchNamesParser2,
     projectNameParser,
