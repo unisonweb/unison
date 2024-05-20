@@ -279,7 +279,6 @@ data Output
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
@@ -551,7 +550,6 @@ isFailure o = case o of
   PatchInvolvesExternalDependents {} -> True
   AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
-  WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False

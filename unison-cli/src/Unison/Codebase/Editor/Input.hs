@@ -32,7 +32,6 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
-import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
@@ -52,7 +51,6 @@ import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source
-  | IncomingRootBranch (Set CausalHash)
   deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"

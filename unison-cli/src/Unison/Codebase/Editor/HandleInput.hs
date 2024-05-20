@@ -201,13 +201,6 @@ import UnliftIO.Directory qualified as Directory
 loop :: Either Event Input -> Cli ()
 loop e = do
   case e of
-    Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      rootBranch <- Cli.getRootBranch
-      Cli.respond $
-        WarnIncomingRootBranch
-          (SCH.fromHash schLength $ Branch.headHash rootBranch)
-          (Set.map (SCH.fromHash schLength) hashes)
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
