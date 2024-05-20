@@ -2197,7 +2197,7 @@ coalesceWanted' keep ((loc, n) : new) old
         if keep u
           then pure (new, (loc, n) : old)
           else do
-            defaultAbility n
+            _ <- defaultAbility n
             pure (new, old)
       coalesceWanted new old
   | otherwise = coalesceWanted' keep new ((loc, n) : old)

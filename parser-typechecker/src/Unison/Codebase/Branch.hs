@@ -476,13 +476,18 @@ cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
 -- | Construct a two-parent merge node.
-mergeNode :: forall m. Applicative m => Branch0 m -> Branch m -> Branch m -> Branch m
+mergeNode ::
+  forall m.
+  Applicative m =>
+  Branch0 m ->
+  (CausalHash, m (Branch m)) ->
+  (CausalHash, m (Branch m)) ->
+  Branch m
 mergeNode child parent1 parent2 =
   Branch (Causal.mergeNode child (Map.fromList [f parent1, f parent2]))
   where
-    f :: Branch m -> (CausalHash, m (Causal m (Branch0 m)))
-    f parent =
-      (headHash parent, pure (_history parent))
+    f (hash, getBranch) =
+      (hash, _history <$> getBranch)
 
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True
@@ -606,20 +611,17 @@ modifyAt path f = runIdentity . modifyAtM path (pure . f)
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM ::
   forall n m.
-  (Functor n) =>
-  (Applicative m) => -- because `Causal.cons` uses `pure`
+  (Functor n, Applicative m) =>
   Path ->
   (Branch m -> n (Branch m)) ->
   Branch m ->
   n (Branch m)
 modifyAtM path f b = case Path.uncons path of
   Nothing -> f b
-  Just (seg, path) -> do
-    -- Functor
+  Just (seg, path) ->
     let child = getChildBranch seg (head b)
-    child' <- modifyAtM path f child
-    -- step the branch by updating its children according to fixup
-    pure $ step (setChildBranch seg child') b
+     in -- step the branch by updating its children according to fixup
+        (\child' -> step (setChildBranch seg child') b) <$> modifyAtM path f child
 
 -- | Perform updates over many locations within a branch by batching up operations on
 -- sub-branches as much as possible without affecting semantics.

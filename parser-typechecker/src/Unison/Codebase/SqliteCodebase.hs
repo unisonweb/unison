@@ -662,7 +662,7 @@ pushGitBranch srcConn repo behavior action = UnliftIO.try do
             C.withConnection destCodebase \destConn ->
               doSync codebaseStatus destConn newBranch
             pure (Right newBranch)
-    for newBranchOrErr $ push pushStaging repo
+    for_ newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
     readRepo :: ReadGitRepo
