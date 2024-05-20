@@ -4,19 +4,17 @@ module Unison.Codebase.Editor.HandleInput.CommitUpgrade
   )
 where
 
-import Data.Text qualified as Text
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Cli.MergeTypes (MergeSource (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch qualified as ProjectSwitch
+import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.CommandLine.InputPattern qualified as InputPattern
-import Unison.CommandLine.InputPatterns qualified as InputPatterns
+import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..))
 
@@ -36,34 +34,22 @@ handleCommitUpgrade = do
   let parentProjectAndBranch =
         ProjectAndBranch upgradeProjectAndBranch.project parentBranch
 
+  -- Run `update`
+
+  Update.handleUpdate2
+
   -- Switch to the parent
 
   ProjectSwitch.switchToProjectBranch (ProjectUtils.justTheIds parentProjectAndBranch)
 
   -- Merge the upgrade branch into the parent
 
-  (parentCausalHash, upgradeCausalHash, lcaCausalHash) <-
-    Cli.runTransaction do
-      parentCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds parentProjectAndBranch)
-      upgradeCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds upgradeProjectAndBranch)
-      lcaCausalHash <- Operations.lca parentCausalHash upgradeCausalHash
-      pure (parentCausalHash, upgradeCausalHash, lcaCausalHash)
-
-  Merge.doMerge
-    Merge.MergeInfo
-      { alice =
-          Merge.AliceMergeInfo
-            { causalHash = parentCausalHash,
-              projectAndBranch = parentProjectAndBranch
-            },
-        bob =
-          Merge.BobMergeInfo
-            { causalHash = upgradeCausalHash,
-              source = MergeSource'LocalProjectBranch (ProjectUtils.justTheNames upgradeProjectAndBranch)
-            },
-        lca =
-          Merge.LcaMergeInfo
-            { causalHash = lcaCausalHash
-            },
-        description = Text.pack (InputPattern.patternName InputPatterns.upgradeCommitInputPattern)
+  Merge.doMergeLocalBranch
+    TwoWay
+      { alice = parentProjectAndBranch,
+        bob = upgradeProjectAndBranch
       }
+
+  -- Delete the upgrade branch
+
+  DeleteBranch.doDeleteProjectBranch upgradeProjectAndBranch

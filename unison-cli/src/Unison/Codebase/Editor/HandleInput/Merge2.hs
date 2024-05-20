@@ -7,6 +7,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     BobMergeInfo (..),
     LcaMergeInfo (..),
     doMerge,
+    doMergeLocalBranch,
   )
 where
 
@@ -155,32 +156,10 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   bobProjectBranch <- ProjectUtils.expectProjectBranchByName bobProject bobBranchName
   let bobProjectAndBranch = ProjectAndBranch bobProject bobProjectBranch
 
-  (aliceCausalHash, bobCausalHash, lcaCausalHash) <-
-    Cli.runTransaction do
-      aliceCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds aliceProjectAndBranch)
-      bobCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds bobProjectAndBranch)
-      -- Using Alice and Bob's causal hashes, find the LCA (if it exists)
-      lcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
-      pure (aliceCausalHash, bobCausalHash, lcaCausalHash)
-
-  -- Do the merge!
-  doMerge
-    MergeInfo
-      { alice =
-          AliceMergeInfo
-            { causalHash = aliceCausalHash,
-              projectAndBranch = aliceProjectAndBranch
-            },
-        bob =
-          BobMergeInfo
-            { causalHash = bobCausalHash,
-              source = MergeSource'LocalProjectBranch (ProjectUtils.justTheNames bobProjectAndBranch)
-            },
-        lca =
-          LcaMergeInfo
-            { causalHash = lcaCausalHash
-            },
-        description = "merge " <> into @Text (ProjectUtils.justTheNames bobProjectAndBranch)
+  doMergeLocalBranch
+    TwoWay
+      { alice = aliceProjectAndBranch,
+        bob = bobProjectAndBranch
       }
 
 data MergeInfo = MergeInfo
@@ -452,6 +431,36 @@ doMerge info = do
           alicePath
           (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
       Cli.respond (Output.MergeSuccess mergeSourceAndTarget)
+
+doMergeLocalBranch :: TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
+doMergeLocalBranch branches = do
+  (aliceCausalHash, bobCausalHash, lcaCausalHash) <-
+    Cli.runTransaction do
+      aliceCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds branches.alice)
+      bobCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds branches.bob)
+      -- Using Alice and Bob's causal hashes, find the LCA (if it exists)
+      lcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
+      pure (aliceCausalHash, bobCausalHash, lcaCausalHash)
+
+  -- Do the merge!
+  doMerge
+    MergeInfo
+      { alice =
+          AliceMergeInfo
+            { causalHash = aliceCausalHash,
+              projectAndBranch = branches.alice
+            },
+        bob =
+          BobMergeInfo
+            { causalHash = bobCausalHash,
+              source = MergeSource'LocalProjectBranch (ProjectUtils.justTheNames branches.bob)
+            },
+        lca =
+          LcaMergeInfo
+            { causalHash = lcaCausalHash
+            },
+        description = "merge " <> into @Text (ProjectUtils.justTheNames branches.bob)
+      }
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading basic info out of the database

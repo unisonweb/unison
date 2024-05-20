@@ -24,7 +24,6 @@ thingy = foo + +10
 ```
 
 ```ucm
-proj/upgrade-old-to-new> update
 proj/upgrade-old-to-new> upgrade.commit
 proj/main> view thingy
 proj/main> ls lib
