@@ -39,6 +39,9 @@ module Unison.Cli.ProjectUtils
     -- * Other helpers
     findTemporaryBranchName,
     expectLatestReleaseBranchName,
+
+    -- * Upgrade branch utils
+    getUpgradeBranchParent,
   )
 where
 
@@ -70,6 +73,7 @@ import Unison.Project.Util
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
+import qualified Data.Text as Text
 
 branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
 branchRelativePathToAbsolute brp =
@@ -374,3 +378,14 @@ expectLatestReleaseBranchName remoteProject =
   case remoteProject.latestRelease of
     Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases remoteProject.projectName)
     Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))
+
+-- | @getUpgradeBranchParent branch@ returns the parent branch of an "upgrade" branch.
+--
+-- When an upgrade fails, we put you on a branch called `upgrade-<old>-to-<new>`. That's an "upgrade" branch. It's not
+-- currently distinguished in the database, so we first just switch on whether its name begins with "upgrade-". If it
+-- does, then we get the branch's parent, which should exist, but perhaps wouldn't if the user had manually made a
+-- parentless branch called "upgrade-whatever" for whatever reason.
+getUpgradeBranchParent :: Sqlite.ProjectBranch -> Maybe ProjectBranchId
+getUpgradeBranchParent branch = do
+  guard ("upgrade-" `Text.isPrefixOf` into @Text branch.name)
+  branch.parentBranchId
