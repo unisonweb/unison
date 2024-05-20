@@ -3525,7 +3525,8 @@ loadProjectBranchSql projectId branchId =
       project_branch.project_id,
       project_branch.branch_id,
       project_branch.name,
-      project_branch_parent.parent_branch_id
+      project_branch_parent.parent_branch_id,
+      project_branch.causal_hash_id
     FROM
       project_branch
       LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
@@ -3680,11 +3681,11 @@ loadProjectAndBranchNames projectId branchId =
 
 -- | Insert a project branch.
 insertProjectBranch :: ProjectBranch -> Transaction ()
-insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId causalHashId) = do
   execute
     [sql|
-      INSERT INTO project_branch (project_id, branch_id, name)
-        VALUES (:projectId, :branchId, :branchName)
+      INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
+        VALUES (:projectId, :branchId, :branchName, :causalHashId)
     |]
   whenJust maybeParentBranchId \parentBranchId ->
     execute
