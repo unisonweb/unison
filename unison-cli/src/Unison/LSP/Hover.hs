@@ -125,19 +125,20 @@ hoverInfo uri pos =
 
     hoverInfoForLocalVar :: MaybeT Lsp Text
     hoverInfoForLocalVar = do
-      LSPQ.nodeAtPosition uri pos >>= \case
-        LSPQ.TermNode (Term.Var' v) -> do
-          FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
-          varContexts <- hoistMaybe $ MonMap.lookup v localBindingTypes
-          -- An interval contining the exact location of the cursor
-          let posInterval = (IM.ClosedInterval pos pos)
-          (_range, typ) <- hoistMaybe $ IntervalMap.lookupLT posInterval varContexts
-
-          pped <- lift $ ppedForFile uri
-          pure $ renderTypeSigForHover pped (Var.name v) typ
+      node <- LSPQ.nodeAtPosition uri pos
+      localVar <- case node of
+        LSPQ.TermNode (Term.Var' v) -> pure $ v
         LSPQ.TermNode {} -> empty
         LSPQ.TypeNode {} -> empty
         LSPQ.PatternNode _pat -> empty
+
+      FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
+      varContexts <- hoistMaybe $ MonMap.lookup localVar localBindingTypes
+      -- An interval contining the exact location of the cursor
+      let posInterval = (IM.ClosedInterval pos pos)
+      (_range, typ) <- hoistMaybe $ IntervalMap.lookupLT posInterval varContexts
+      pped <- lift $ ppedForFile uri
+      pure $ renderTypeSigForHover pped (Var.name localVar) typ
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure

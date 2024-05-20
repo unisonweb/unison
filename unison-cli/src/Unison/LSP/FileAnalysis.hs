@@ -109,7 +109,6 @@ checkFile doc = runMaybeT do
             pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
   (errDiagnostics, codeActions, localBindingTypes) <- lift $ analyseFile fileUri srcText filePPED notes
-  Debug.debugM Debug.Temp "Bindings" localBindingTypes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
