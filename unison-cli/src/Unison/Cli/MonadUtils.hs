@@ -143,7 +143,7 @@ getConfig key = do
 -- | Get the current path.
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
-  use #currentPath
+  view Path.locAbsPath_ <$> Cli.getCurrentLocation
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli Path.Absolute
@@ -225,8 +225,8 @@ resolveShortCausalHashToCausalHash rollback shortHash = do
 -- Getting/Setting branches
 
 -- | Get the root branch.
-getRootBranch :: Cli (Branch IO)
-getRootBranch = do
+getProjectRootBranch :: Cli (Branch IO)
+getProjectRootBranch = do
   use #root >>= atomically . readTMVar
 
 -- | Get the root branch0.
