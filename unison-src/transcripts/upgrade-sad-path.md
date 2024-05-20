@@ -27,4 +27,5 @@ thingy = foo + +10
 proj/upgrade-old-to-new> upgrade.commit
 proj/main> view thingy
 proj/main> ls lib
+proj/main> branches
 ```
