@@ -62,6 +62,7 @@ library
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
       Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime

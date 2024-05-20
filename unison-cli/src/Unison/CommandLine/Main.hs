@@ -10,6 +10,7 @@ import Control.Lens (preview, (?~), (^.))
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
+import Data.List.NonEmpty qualified as NEL
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Ki qualified
@@ -20,6 +21,7 @@ import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
@@ -30,12 +32,14 @@ import Unison.Cli.Pretty (prettyProjectAndBranchName)
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
@@ -60,10 +64,11 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  Path.Absolute ->
+  PP.ProjectPathCtx ->
+  IO (Branch IO) ->
   [String] ->
   IO Input
-getUserInput codebase authHTTPClient currentPath numberedArgs =
+getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -78,23 +83,15 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
         Just a -> pure a
     go :: Line.InputT IO Input
     go = do
-      promptString <-
-        case preview projectBranchPathPrism currentPath of
-          Nothing -> pure ((P.green . P.shown) currentPath)
-          Just (ProjectAndBranch projectId branchId, restPath) -> do
-            lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
-              -- If the project branch has been deleted from sqlite, just show a borked prompt
-              Nothing -> P.red "???"
-              Just (projectName, branchName) ->
-                P.sep
-                  " "
-                  ( catMaybes
-                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
-                        case restPath of
-                          Path.Empty -> Nothing
-                          _ -> (Just . P.green . P.shown) restPath
-                      ]
-                  )
+      let (PP.ProjectPath projectName projectBranchName path) = ppCtx ^. PP.ctxAsNames_
+      let promptString =
+            P.sep
+              ":"
+              ( catMaybes
+                  [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName projectBranchName)),
+                    (Just . P.green . P.shown) path
+                  ]
+              )
       let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
       line <- Line.getInputLine fullPrompt
       case line of
@@ -102,7 +99,7 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase ppCtx currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
@@ -125,12 +122,12 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
           historyFile = Just ".unisonHistory",
           autoAddHistory = False
         }
-    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
+    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient ppCtx
 
 main ::
   FilePath ->
   Welcome.Welcome ->
-  Path.Absolute ->
+  PP.ProjectPathIds ->
   Config ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
@@ -143,9 +140,8 @@ main ::
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
-  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope do
     root <- Codebase.getRootBranch codebase
     atomically do
@@ -158,7 +154,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
     UnliftIO.concurrently_
       (UnliftIO.evaluate root)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
-  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
+  let initialState = Cli.loopState0 rootVar ppIds
   Ki.fork_ scope do
     let loop lastRoot = do
           -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
@@ -186,10 +182,13 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
       getInput loopState = do
         currentEcho <- hGetEcho stdin
         liftIO $ restoreEcho currentEcho
+        let getProjectRoot = atomically $ readTMVar rootVar
+        Codebase.runTransaction codebase Ops.expectProjectAndBranchNames
         getUserInput
           codebase
           authHTTPClient
-          (loopState ^. #currentPath)
+          (NEL.head $ Cli.projectPathStack loopState)
+          getProjectRoot
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
       loadSourceFile fname =

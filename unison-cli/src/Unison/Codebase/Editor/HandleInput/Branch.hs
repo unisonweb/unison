@@ -151,7 +151,8 @@ doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName de
               { projectId,
                 branchId = newBranchId,
                 name = newBranchName,
-                parentBranchId = parentBranchId
+                parentBranchId = parentBranchId,
+                rootCausalHash = error "TODO: implement doCreateBranch"
               }
           Queries.setMostRecentBranch projectId newBranchId
           pure newBranchId

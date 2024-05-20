@@ -43,11 +43,11 @@ handleNamespaceDependencies namespacePath' = do
   externalDependencies <-
     Cli.runTransaction (namespaceDependencies codebase branch)
   currentPPED <- Cli.currentPrettyPrintEnvDecl
-  globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
-  globalPPED <- Cli.prettyPrintEnvDeclFromNames globalNames
+  rootNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getProjectRoot0
+  rootPPED <- Cli.prettyPrintEnvDeclFromNames rootNames
   -- We explicitly include a global unsuffixified fallback on namespace dependencies since
   -- the things we want names for are obviously outside of our scope.
-  let ppeWithFallback = PPED.unsuffixifiedPPE $ PPED.addFallback globalPPED currentPPED
+  let ppeWithFallback = PPED.unsuffixifiedPPE $ PPED.addFallback rootPPED currentPPED
   Cli.respondNumbered $ Output.ListNamespaceDependencies ppeWithFallback path externalDependencies
 
 -- | Check the dependencies of all types and terms in the current namespace,

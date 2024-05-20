@@ -6,6 +6,9 @@ module Unison.Cli.MonadUtils
 
     -- * Paths
     getCurrentPath,
+    getCurrentProjectName,
+    getCurrentProjectBranchName,
+    getProjectPathCtx,
     resolvePath,
     resolvePath',
     resolveSplit',
@@ -20,16 +23,14 @@ module Unison.Cli.MonadUtils
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
-    getRootBranch,
-    setRootBranch,
-    modifyRootBranch,
-    getRootBranch0,
+    setCurrentProjectRoot,
+    modifyProjectRoot,
+    getProjectRoot,
+    getProjectRoot0,
     getCurrentBranch,
     getCurrentBranch0,
     getBranchAt,
     getBranch0At,
-    getLastSavedRootHash,
-    setLastSavedRootHash,
     getMaybeBranchAt,
     getMaybeBranch0At,
     expectBranchAtPath,
@@ -49,7 +50,7 @@ module Unison.Cli.MonadUtils
     stepManyAtMNoSync,
     stepManyAtNoSync,
     syncRoot,
-    updateRoot,
+    updateCurrentProjectRoot,
     updateAtM,
     updateAt,
     updateAndStepAt,
@@ -94,6 +95,9 @@ import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -106,6 +110,7 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
@@ -115,6 +120,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
@@ -140,10 +146,28 @@ getConfig key = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting paths, path resolution, etc.
 
--- | Get the current path.
+getProjectPathCtx :: Cli PP.ProjectPathCtx
+getProjectPathCtx = do
+  (PP.ProjectPath projId branchId path) <- Cli.getProjectPathIds
+  -- TODO: Reset to a valid project on error.
+  (Project {name = projName}, ProjectBranch {name = branchName}) <- fmap (fromMaybe (error $ reportBug "E794202" ("Project branch not found in database for ids: " <> show (projId, branchId)))) . Cli.runTransaction . runMaybeT $ do
+    project <- MaybeT $ Q.loadProject projId
+    branch <- MaybeT $ Q.loadProjectBranch projId branchId
+    pure (project, branch)
+  pure (PP.ProjectPath (projId, projName) (branchId, branchName) path)
+
+-- | Get the current path relative to the current project.
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
-  view Path.locAbsPath_ <$> Cli.getCurrentLocation
+  view PP.absPath_ <$> getProjectPathCtx
+
+getCurrentProjectName :: Cli ProjectName
+getCurrentProjectName = do
+  view (PP.ctxAsNames_ . PP.project_) <$> getProjectPathCtx
+
+getCurrentProjectBranchName :: Cli ProjectBranchName
+getCurrentProjectBranchName = do
+  view (PP.ctxAsNames_ . PP.branch_) <$> getProjectPathCtx
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli Path.Absolute
@@ -225,28 +249,28 @@ resolveShortCausalHashToCausalHash rollback shortHash = do
 -- Getting/Setting branches
 
 -- | Get the root branch.
-getProjectRootBranch :: Cli (Branch IO)
-getProjectRootBranch = do
-  use #root >>= atomically . readTMVar
+getProjectRoot :: Cli (Branch IO)
+getProjectRoot = do
+  use #currentProjectRoot >>= atomically . readTMVar
 
 -- | Get the root branch0.
-getRootBranch0 :: Cli (Branch0 IO)
-getRootBranch0 =
-  Branch.head <$> getRootBranch
+getProjectRoot0 :: Cli (Branch0 IO)
+getProjectRoot0 =
+  Branch.head <$> getProjectRoot
 
 -- | Set a new root branch.
 --
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-setRootBranch :: Branch IO -> Cli ()
-setRootBranch b = do
-  void $ modifyRootBranch (const b)
+setCurrentProjectRoot :: Branch IO -> Cli ()
+setCurrentProjectRoot b = do
+  void $ modifyProjectRoot (const b)
 
 -- | Modify the root branch.
 --
 -- Note: This does _not_ update the codebase, the caller is responsible for that.
-modifyRootBranch :: (Branch IO -> Branch IO) -> Cli (Branch IO)
-modifyRootBranch f = do
-  rootVar <- use #root
+modifyProjectRoot :: (Branch IO -> Branch IO) -> Cli (Branch IO)
+modifyProjectRoot f = do
+  rootVar <- use #currentProjectRoot
   atomically do
     root <- takeTMVar rootVar
     let !newRoot = f root
@@ -265,17 +289,6 @@ getCurrentBranch0 :: Cli (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
--- | Get the last saved root hash.
-getLastSavedRootHash :: Cli CausalHash
-getLastSavedRootHash = do
-  use #lastSavedRootHash
-
--- | Set a new root branch.
--- Note: This does _not_ update the codebase, the caller is responsible for that.
-setLastSavedRootHash :: CausalHash -> Cli ()
-setLastSavedRootHash ch = do
-  #lastSavedRootHash .= ch
-
 -- | Get the branch at an absolute path.
 getBranchAt :: Path.Absolute -> Cli (Branch IO)
 getBranchAt path =
@@ -289,7 +302,7 @@ getBranch0At path =
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchAt :: Path.Absolute -> Cli (Maybe (Branch IO))
 getMaybeBranchAt path = do
-  rootBranch <- getRootBranch
+  rootBranch <- getProjectRoot
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
 -- | Get the maybe-branch0 at an absolute path.
@@ -394,9 +407,9 @@ stepManyAtNoSync' ::
   f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
-  origRoot <- getRootBranch
+  origRoot <- getProjectRoot
   newRoot <- Branch.stepManyAtM actions origRoot
-  setRootBranch newRoot
+  setCurrentProjectRoot newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
@@ -405,7 +418,7 @@ stepManyAtNoSync ::
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAtNoSync actions =
-  void . modifyRootBranch $ Branch.stepManyAt actions
+  void . modifyProjectRoot $ Branch.stepManyAt actions
 
 stepManyAtM ::
   (Foldable f) =>
@@ -421,15 +434,15 @@ stepManyAtMNoSync ::
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
-  oldRoot <- getRootBranch
+  oldRoot <- getProjectRoot
   newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
-  setRootBranch newRoot
+  setCurrentProjectRoot newRoot
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli ()
 syncRoot description = do
-  rootBranch <- getRootBranch
-  updateRoot rootBranch description
+  rootBranch <- getProjectRoot
+  updateCurrentProjectRoot rootBranch description
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
@@ -439,9 +452,9 @@ updateAtM ::
   (Branch IO -> Cli (Branch IO)) ->
   Cli Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- getRootBranch
+  b <- getProjectRoot
   b' <- Branch.modifyAtM p f b
-  updateRoot b' reason
+  updateCurrentProjectRoot b' reason
   pure $ b /= b'
 
 -- | Update a branch at the given path, returning `True` if
@@ -464,26 +477,22 @@ updateAndStepAt reason updates steps = do
   root <-
     (Branch.stepManyAt steps)
       . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
-      <$> getRootBranch
-  updateRoot root reason
+      <$> getProjectRoot
+  updateCurrentProjectRoot root reason
 
-updateRoot :: Branch IO -> Text -> Cli ()
-updateRoot new reason =
-  Cli.time "updateRoot" do
+updateCurrentProjectRoot :: Branch IO -> Text -> Cli ()
+updateCurrentProjectRoot new reason =
+  Cli.time "updateCurrentProjectRoot" do
     Cli.Env {codebase} <- ask
-    let newHash = Branch.headHash new
-    oldHash <- getLastSavedRootHash
-    when (oldHash /= newHash) do
-      liftIO (Codebase.putRootBranch codebase reason new)
-      setRootBranch new
-      setLastSavedRootHash newHash
+    liftIO (Codebase.putRootBranch codebase reason new)
+    setCurrentProjectRoot new
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
 
 getTermsAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)
 getTermsAt path = do
-  rootBranch0 <- getRootBranch0
+  rootBranch0 <- getProjectRoot0
   pure (BranchUtil.getTerm (Path.convert path) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -491,7 +500,7 @@ getTermsAt path = do
 
 getTypesAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set TypeReference)
 getTypesAt path = do
-  rootBranch0 <- getRootBranch0
+  rootBranch0 <- getProjectRoot0
   pure (BranchUtil.getType (Path.convert path) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------

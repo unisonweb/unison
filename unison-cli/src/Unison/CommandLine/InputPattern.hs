@@ -26,6 +26,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Path as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
@@ -67,7 +68,7 @@ data ArgumentType = ArgumentType
       String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute -> -- Current path
+      PP.ProjectPathCtx ->
       m [Line.Completion],
     -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
     -- available.

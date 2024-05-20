@@ -6,9 +6,6 @@ module Unison.Codebase.Path
     Absolute (..),
     pattern AbsolutePath',
     absPath_,
-    Location (..),
-    locAbsPath_,
-    locPath_,
     Relative (..),
     relPath_,
     pattern RelativePath',
@@ -62,6 +59,8 @@ module Unison.Codebase.Path
     unsafeToName',
     toText,
     toText',
+    absToText,
+    relToText,
     unsplit,
     unsplit',
     unsplitAbsolute,
@@ -94,27 +93,13 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
-import Unison.Core.Project (ProjectBranchName)
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Convert (..), Name, Parse)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
-import Unison.Project (ProjectName)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
-
-data Location
-  = Location ProjectName ProjectBranchName Absolute
-
-locAbsPath_ :: Lens' Location Absolute
-locAbsPath_ = lens go set
-  where
-    go (Location _ _ p) = p
-    set (Location n b _) p = Location n b p
-
-locPath_ :: Lens' Location Path
-locPath_ = locAbsPath_ . absPath_
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path {toSeq :: Seq NameSegment}
@@ -128,6 +113,7 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
+-- | A path absolute to the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
 absPath_ :: Lens' Absolute Path
@@ -166,14 +152,14 @@ absoluteToPath' = AbsolutePath'
 
 instance Show Path' where
   show = \case
-    AbsolutePath' abs -> show abs
-    RelativePath' rel -> show rel
+    AbsolutePath' abs -> Text.unpack $ absToText abs
+    RelativePath' rel -> Text.unpack $ relToText rel
 
 instance Show Absolute where
-  show s = "." ++ show (unabsolute s)
+  show s = Text.unpack $ absToText s
 
 instance Show Relative where
-  show = show . unrelative
+  show = Text.unpack . relToText
 
 unsplit' :: Split' -> Path'
 unsplit' = \case
@@ -386,6 +372,12 @@ instance Show Path where
 toText :: Path -> Text
 toText =
   maybe Text.empty Name.toText . toName
+
+absToText :: Absolute -> Text
+absToText abs = "." <> toText (unabsolute abs)
+
+relToText :: Relative -> Text
+relToText rel = toText (unrelative rel)
 
 unsafeParseText :: Text -> Path
 unsafeParseText = \case

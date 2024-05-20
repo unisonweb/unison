@@ -14,7 +14,7 @@ module Unison.Cli.Monad
     -- * Immutable state
     LoopState (..),
     loopState0,
-    getCurrentLocation,
+    getProjectPathIds,
 
     -- * Lifting IO actions
     ioE,
@@ -75,8 +75,8 @@ import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path (locAbsPath_)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
@@ -178,9 +178,9 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { currentBranch :: TMVar (Branch IO),
+  { currentProjectRoot :: TMVar (Branch IO),
     -- the current position in the codebase, with the head being the most recent lcoation.
-    locationStack :: List.NonEmpty Path.Location,
+    projectPathStack :: List.NonEmpty PP.ProjectPathIds,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
 
@@ -206,11 +206,11 @@ data LoopState = LoopState
   deriving stock (Generic)
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: TMVar (Branch IO) -> Path.Location -> LoopState
+loopState0 :: TMVar (Branch IO) -> PP.ProjectPathIds -> LoopState
 loopState0 b p = do
   LoopState
-    { currentBranch = b,
-      locationStack = pure p,
+    { currentProjectRoot = b,
+      projectPathStack = pure p,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
@@ -372,13 +372,14 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
-getCurrentLocation :: Cli Path.Location
-getCurrentLocation = NonEmpty.head <$> use #locationStack
+getProjectPathIds :: Cli PP.ProjectPathIds
+getProjectPathIds = do
+  NonEmpty.head <$> use #projectPathStack
 
 cd :: Path.Absolute -> Cli ()
 cd path = do
-  loc <- getCurrentLocation
-  #locationStack %= NonEmpty.cons (loc & locAbsPath_ .~ path)
+  pp <- getProjectPathIds
+  #projectPathStack %= NonEmpty.cons (pp & PP.absPath_ .~ path)
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --
@@ -386,15 +387,15 @@ cd path = do
 popd :: Cli Bool
 popd = do
   state <- State.get
-  case List.NonEmpty.uncons (locationStack state) of
+  case List.NonEmpty.uncons (projectPathStack state) of
     (_, Nothing) -> pure False
     (_, Just paths) -> do
-      setMostRecentLocation (List.NonEmpty.head paths)
-      State.put state {locationStack = paths}
+      setMostRecentProjectPath (List.NonEmpty.head paths)
+      State.put state {projectPathStack = paths}
       pure True
 
-setMostRecentLocation :: Path.Location -> Cli ()
-setMostRecentLocation _loc =
+setMostRecentProjectPath :: PP.ProjectPathIds -> Cli ()
+setMostRecentProjectPath _loc =
   -- runTransaction . Queries.setMostRecentLocation . map NameSegment.toUnescapedText . Path.toList . Path.unabsolute
   error "Implement setMostRecentLocation"
 

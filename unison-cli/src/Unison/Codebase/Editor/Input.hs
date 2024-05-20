@@ -331,7 +331,7 @@ data DeleteTarget
   = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
   | DeleteTarget'Term DeleteOutput [Path.HQSplit']
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
-  | DeleteTarget'Namespace Insistence (Maybe Path.Split')
+  | DeleteTarget'Namespace Insistence Path.Split'
   | DeleteTarget'Patch Path.Split'
   | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | DeleteTarget'Project ProjectName

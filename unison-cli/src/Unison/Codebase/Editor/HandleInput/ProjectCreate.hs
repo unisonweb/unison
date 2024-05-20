@@ -161,7 +161,8 @@ insertProjectAndBranch projectId projectName branchId branchName = do
       { projectId,
         branchId,
         name = branchName,
-        parentBranchId = Nothing
+        parentBranchId = Nothing,
+        rootCausalHash = error "Add causal hash id in insertProjectAndBranch"
       }
   Queries.setMostRecentBranch projectId branchId
 

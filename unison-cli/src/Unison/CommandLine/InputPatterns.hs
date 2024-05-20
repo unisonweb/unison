@@ -182,6 +182,8 @@ import Unison.Codebase.Editor.UriParser (readRemoteNamespaceParser)
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathCtx)
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.CommandLine
 import Unison.CommandLine.BranchRelativePath (parseBranchRelativePath, parseIncrementalBranchRelativePath)
@@ -206,7 +208,6 @@ import Unison.Project
     Semver,
     branchWithOptionalProjectParser,
   )
-import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segmentP)
@@ -1234,13 +1235,9 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence = \case
-  ["."] ->
-    first fromString
-      . pure
-      $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
   [p] -> first P.text do
     p <- Path.parseSplit' p
-    pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
+    pure $ Input.DeleteI (DeleteTarget'Namespace insistence p)
   _ -> Left helpText
 
 deletePatch :: InputPattern
@@ -3481,9 +3478,9 @@ projectAndOrBranchSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute -> -- Current path
+  ProjectPathCtx ->
   m [Line.Completion]
-projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
+projectAndOrBranchSuggestions config inputStr codebase _httpClient ppCtx = do
   case Text.uncons input of
     -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
     -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
@@ -3527,10 +3524,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
           pure (map (projectBranchToCompletion projectName) branches)
   where
     input = Text.strip . Text.pack $ inputStr
-
-    (mayCurrentProjectId, _mayCurrentBranchId) = case projectContextFromPath path of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+    currentProjectId = ppCtx ^. (PP.ctxAsIds_ . PP.project_)
 
     handleAmbiguousComplete ::
       MonadIO m =>
@@ -3667,28 +3661,22 @@ handleBranchesComplete ::
   ProjectBranchSuggestionsConfig ->
   Text ->
   Codebase m v a ->
-  Path.Absolute ->
+  PP.ProjectPathCtx ->
   m [Completion]
-handleBranchesComplete config branchName codebase path = do
+handleBranchesComplete config branchName codebase ppCtx = do
   branches <-
-    case preview ProjectUtils.projectBranchPathPrism path of
-      Nothing -> pure []
-      Just (ProjectAndBranch currentProjectId _, _) ->
-        Codebase.runTransaction codebase do
-          fmap (filterBranches config path) do
-            Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
+    Codebase.runTransaction codebase do
+      fmap (filterBranches config ppCtx) do
+        Queries.loadAllProjectBranchesBeginningWith (ppCtx ^. PP.ctxAsIds_ . PP.project_) (Just branchName)
   pure (map currentProjectBranchToCompletion branches)
 
-filterBranches :: ProjectBranchSuggestionsConfig -> Path.Absolute -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
-filterBranches config path branches =
-  case (mayCurrentBranchId, branchInclusion config) of
-    (_, AllBranches) -> branches
-    (Nothing, _) -> branches
-    (Just currentBranchId, ExcludeCurrentBranch) -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
+filterBranches :: ProjectBranchSuggestionsConfig -> PP.ProjectPathCtx -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+filterBranches config ppCtx branches =
+  case (branchInclusion config) of
+    AllBranches -> branches
+    ExcludeCurrentBranch -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
   where
-    (_mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath path of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+    currentBranchId = ppCtx ^. PP.ctxAsIds_ . PP.branch_
 
 currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
 currentProjectBranchToCompletion (_, branchName) =
@@ -3704,9 +3692,9 @@ branchRelativePathSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPathCtx ->
   m [Line.Completion]
-branchRelativePathSuggestions config inputStr codebase _httpClient currentPath = do
+branchRelativePathSuggestions config inputStr codebase _httpClient ppCtx = do
   case parseIncrementalBranchRelativePath inputStr of
     Left _ -> pure []
     Right ibrp -> case ibrp of
@@ -3719,7 +3707,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
       BranchRelativePath.IncompleteProject _proj ->
         projectNameSuggestions WithSlash inputStr codebase
       BranchRelativePath.IncompleteBranch mproj mbranch -> case mproj of
-        Nothing -> map suffixPathSep <$> handleBranchesComplete config (maybe "" into mbranch) codebase currentPath
+        Nothing -> map suffixPathSep <$> handleBranchesComplete config (maybe "" into mbranch) codebase ppCtx
         Just projectName -> do
           branches <-
             Codebase.runTransaction codebase do
@@ -3727,19 +3715,12 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap (filterBranches config currentPath) do
+                  fmap (filterBranches config ppCtx) do
                     Queries.loadAllProjectBranchesBeginningWith projectId (into @Text <$> mbranch)
           pure (map (projectBranchToCompletionWithSep projectName) branches)
       BranchRelativePath.PathRelativeToCurrentBranch relPath -> Codebase.runTransaction codebase do
-        mprojectBranch <- runMaybeT do
-          (projectId, branchId) <- MaybeT (pure $ (,) <$> mayCurrentProjectId <*> mayCurrentBranchId)
-          MaybeT (Queries.loadProjectBranch projectId branchId)
-        case mprojectBranch of
-          Nothing -> pure []
-          Just projectBranch -> do
-            let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
-                projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+        -- TODO: Verify this works as intendid
+        map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) mempty
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
           mprojectBranch <- runMaybeT do
@@ -3747,7 +3728,6 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
               Left names@(ProjectAndBranch projectName branchName) -> do
                 (,Left names) <$> MaybeT (Queries.loadProjectBranchByNames projectName branchName)
               Right branchName -> do
-                currentProjectId <- MaybeT (pure mayCurrentProjectId)
                 projectBranch <- MaybeT (Queries.loadProjectBranchByName currentProjectId branchName)
                 pure (projectBranch, Right (projectBranch ^. #name))
           case mprojectBranch of
@@ -3757,9 +3737,8 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
                   projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
               map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
   where
-    (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+    currentPath = ppCtx ^. PP.absPath_
+    currentProjectId = ppCtx ^. PP.ctxAsIds_ . PP.project_
 
     projectBranchToCompletionWithSep :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
     projectBranchToCompletionWithSep projectName (_, branchName) =

@@ -241,7 +241,7 @@ propagate patch b = case validatePatch patch of
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
-    rootNames <- Branch.toNames <$> Cli.getRootBranch0
+    rootNames <- Branch.toNames <$> Cli.getProjectRoot0
 
     let -- TODO: these are just used for tracing, could be deleted if we don't care
         -- about printing meaningful names for definitions during propagation, or if

@@ -98,6 +98,9 @@ module U.Codebase.Sqlite.Operations
     fuzzySearchDefinitions,
     namesPerspectiveForRootAndPath,
 
+    -- * Projects
+    expectProjectAndBranchNames,
+
     -- * reflog
     getReflog,
     appendReflog,
@@ -181,6 +184,8 @@ import U.Codebase.Sqlite.Patch.TermEdit qualified as S
 import U.Codebase.Sqlite.Patch.TermEdit qualified as S.TermEdit
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
@@ -198,6 +203,7 @@ import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
+import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment)
@@ -1541,3 +1547,9 @@ stripPrefixFromNamedRef (PathSegments prefix) namedRef =
                 Nothing -> reversedName
                 Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| strippedReversedPath)
    in namedRef {S.reversedSegments = newReversedName}
+
+expectProjectAndBranchNames :: Db.ProjectId -> Db.ProjectBranchId -> Transaction (ProjectName, ProjectBranchName)
+expectProjectAndBranchNames projectId projectBranchId = do
+  Project {name = pName} <- Q.expectProject projectId
+  ProjectBranch {name = bName} <- Q.expectProjectBranch projectId projectBranchId
+  pure (pName, bName)

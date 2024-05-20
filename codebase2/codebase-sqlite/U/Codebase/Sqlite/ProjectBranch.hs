@@ -15,7 +15,7 @@ data ProjectBranch = ProjectBranch
     branchId :: !ProjectBranchId,
     name :: !ProjectBranchName,
     parentBranchId :: !(Maybe ProjectBranchId),
-    rootCausalHash :: !CausalHashId
+    causalHashId :: !CausalHashId
   }
   deriving stock (Eq, Generic, Show)
   deriving anyclass (ToRow, FromRow)
