@@ -969,6 +969,72 @@ project/alice> merge bob
 .> project.delete project
 ```
 
+## `merge.commit` example
+
+After merge conflicts are resolved, you can use `merge.commit` rather than `update` + `switch` + `merge` +
+`branch.delete` to "commit" your changes.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+Original branch:
+```unison:hide
+foo : Text
+foo = "old foo"
+```
+
+```ucm:hide
+project/main> add
+project/main> branch alice
+```
+
+Alice's changes:
+```unison:hide
+foo : Text
+foo = "alices foo"
+```
+
+```ucm:hide
+project/alice> update
+project/main> branch bob
+```
+
+Bob's changes:
+
+```unison:hide
+foo : Text
+foo = "bobs foo"
+```
+
+Attempt to merge:
+
+```ucm:hide
+project/bob> update
+```
+```ucm:error
+project/alice> merge /bob
+```
+
+Resolve conflicts and commit:
+
+```unison
+foo : Text
+foo = "alice and bobs foo"
+```
+
+```ucm
+project/merge-bob-into-alice> merge.commit
+project/alice> view foo
+project/alice> branches
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+
 ## Precondition violations
 
 There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.

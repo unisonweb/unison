@@ -412,6 +412,7 @@ data Output
   | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress
+  | NoMergeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -656,6 +657,7 @@ isFailure o = case o of
   MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
   NoUpgradeInProgress {} -> True
+  NoMergeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

@@ -1934,6 +1934,19 @@ mergeInputPattern =
             pure (Input.MergeI branch)
     }
 
+mergeCommitInputPattern :: InputPattern
+mergeCommitInputPattern =
+  InputPattern
+    { patternName = "merge.commit",
+      aliases = ["commit.merge"],
+      visibility = I.Visible,
+      args = [],
+      help = P.wrap $ makeExample' mergeCommitInputPattern <> "commits the current merge.",
+      parse = \case
+        [] -> Right Input.MergeCommitI
+        _ -> Left (I.help mergeCommitInputPattern)
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
@@ -3256,6 +3269,7 @@ validInputs =
       mergeOldPreviewInputPattern,
       mergeOldSquashInputPattern,
       mergeInputPattern,
+      mergeCommitInputPattern,
       names False, -- names
       names True, -- names.global
       namespaceDependencies,

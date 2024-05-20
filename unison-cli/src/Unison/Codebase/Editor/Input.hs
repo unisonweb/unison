@@ -243,6 +243,7 @@ data Input
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
+  | MergeCommitI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
