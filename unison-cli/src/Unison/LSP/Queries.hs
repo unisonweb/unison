@@ -389,7 +389,7 @@ markdownDocsForFQN fileUri fqn =
     nameSearch <- lift $ getNameSearch
     Env {codebase, runtime} <- ask
     liftIO $ do
-      docRefs <- Backend.docsForDefinitionName codebase nameSearch ExactName name
+      docRefs <- Codebase.runTransaction codebase $ Backend.docsForDefinitionName codebase nameSearch ExactName name
       for docRefs $ \docRef -> do
         Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
         pure . Md.toText $ Md.toMarkdown doc
