@@ -685,49 +685,6 @@ notifyUser dir = \case
           $ "The namespaces "
             <> P.commas (prettyBranchId <$> ps)
             <> " are empty. Was there a typo?"
-  WarnIncomingRootBranch current hashes ->
-    pure $
-      if null hashes
-        then
-          P.wrap $
-            "Please let someone know I generated an empty IncomingRootBranch"
-              <> " event, which shouldn't be possible!"
-        else
-          P.lines
-            [ P.wrap $
-                (if length hashes == 1 then "A" else "Some")
-                  <> "codebase"
-                  <> P.plural hashes "root"
-                  <> "appeared unexpectedly"
-                  <> "with"
-                  <> P.group (P.plural hashes "hash" <> ":"),
-              "",
-              (P.indentN 2 . P.oxfordCommas)
-                (map prettySCH $ toList hashes),
-              "",
-              P.wrap $
-                "and I'm not sure what to do about it."
-                  <> "The last root namespace hash that I knew about was:",
-              "",
-              P.indentN 2 $ prettySCH current,
-              "",
-              P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
-              "",
-              P.wrap $
-                "After that, you might try using the"
-                  <> makeExample' IP.forkLocal
-                  <> "command to inspect the namespaces listed above, and decide which"
-                  <> "one you want as your root."
-                  <> "You can also use"
-                  <> makeExample' IP.viewReflog
-                  <> "to see the"
-                  <> "last few root namespace hashes on record.",
-              "",
-              P.wrap $
-                "Once you find one you like, you can use the"
-                  <> makeExample' IP.resetRoot
-                  <> "command to set it."
-            ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
