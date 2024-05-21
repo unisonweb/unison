@@ -1787,7 +1787,7 @@ notifyUser dir = \case
   ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> case shareRef of
+      "View it here: " <> case shareRef of
         Left repoPath -> prettyShareLink repoPath
         Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
@@ -1913,12 +1913,17 @@ notifyUser dir = \case
       "I just created"
         <> prettyProjectName projectName
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
   CreatedRemoteProjectBranch host projectAndBranch ->
     pure . P.wrap $
-      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host
+      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyShareURI host
   RemoteProjectBranchIsUpToDate host projectAndBranch ->
-    pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
+    pure $
+      P.wrap $
+        prettyProjectAndBranchName projectAndBranch
+          <> "on"
+          <> prettyShareURI host
+          <> "is already up-to-date."
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
   ProjectNameAlreadyExists name ->
@@ -1938,12 +1943,12 @@ notifyUser dir = \case
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyShareURI host
   NoAssociatedRemoteProjectBranch host (ProjectAndBranch project branch) ->
     pure . P.wrap $
       prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
         <> "isn't associated with any branch on"
-        <> prettyURI host
+        <> prettyShareURI host
   LocalProjectDoesntExist project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist."
@@ -1959,17 +1964,17 @@ notifyUser dir = \case
         <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
-      prettyProjectName project <> "does not exist on" <> prettyURI host
+      prettyProjectName project <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
     let push = P.group . P.backticked . IP.patternName $ IP.push
      in pure . P.wrap $
           "The previous push target named"
             <> prettyProjectAndBranchName projectAndBranch
             <> "has been deleted from"
-            <> P.group (prettyURI host <> ".")
+            <> P.group (prettyShareURI host <> ".")
             <> "I've deleted the invalid push target."
             <> "Run the"
             <> push
@@ -1978,14 +1983,14 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has some history that I don't know about."
   RemoteProjectPublishedReleaseCannotBeChanged host projectAndBranch ->
     pure . P.wrap $
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has already been published and cannot be changed."
         <> "Consider making a new release instead."
   RemoteProjectReleaseIsDeprecated host projectAndBranch ->
@@ -1993,7 +1998,7 @@ notifyUser dir = \case
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has been deprecated."
   Unauthorized message ->
     pure . P.wrap $
