@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.FindAndReplace
   )
 where
 
-import Control.Arrow ((&&&))
 import Control.Lens hiding (at)
 import Control.Monad.Reader (ask)
 import Control.Monad.State
@@ -89,7 +88,7 @@ handleStructuredFindI rule = do
       ok t = pure (t, False)
   results0 <- traverse ok results
   let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
-  let toNumArgs = (Reference.toText &&& SA.Ref) . Referent.toReference . view _2
+  let toNumArgs = SA.Ref . Referent.toReference . view _2
   Cli.setNumberedArgs $ map toNumArgs results
   Cli.respond (ListStructuredFind (fst <$> results))
 

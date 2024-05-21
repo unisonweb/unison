@@ -5,7 +5,6 @@
 
 module Unison.CommandLine.OutputMessages where
 
-import Control.Arrow ((&&&))
 import Control.Lens hiding (at)
 import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
@@ -130,7 +129,6 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import Unison.ShortHash qualified as ShortHash
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
@@ -351,7 +349,7 @@ notifyNumbered = \case
             ]
         branchHashes :: [CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, (displayBranchHash &&& SA.Namespace) <$> branchHashes)
+     in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
       toSCH h = SCH.fromHash schLength h
@@ -410,7 +408,7 @@ notifyNumbered = \case
   ListEdits patch ppe -> showListEdits patch ppe
   ListProjects projects ->
     ( P.numberedList (map (prettyProjectName . view #name) projects),
-      map ((into @Text &&& SA.Project) . view #name) projects
+      map (SA.Project . view #name) projects
     )
   ListBranches projectName branches ->
     ( P.columnNHeader
@@ -427,11 +425,7 @@ notifyNumbered = \case
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
       map
-        ( ( (into @Text . ProjectAndBranch projectName)
-              &&& (SA.ProjectBranch . ProjectAndBranch (pure projectName))
-          )
-            . fst
-        )
+        (SA.ProjectBranch . ProjectAndBranch (pure projectName) . fst)
         branches
     )
   AmbiguousSwitch project (ProjectAndBranch currentProject branch) ->
@@ -457,11 +451,9 @@ notifyNumbered = \case
               <> switch ["2"]
               <> " to pick one of these."
           ),
-      [ (Text.cons '/' . into @Text &&& SA.ProjectBranch . ProjectAndBranch Nothing) branch,
-        ( (into @Text . ProjectAndBranch project)
-            &&& (SA.ProjectBranch . ProjectAndBranch (pure project))
-        )
-          $ UnsafeProjectBranchName "main"
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.ProjectBranch . ProjectAndBranch (pure project) $
+          UnsafeProjectBranchName "main"
       ]
     )
     where
@@ -490,8 +482,8 @@ notifyNumbered = \case
               <> reset (resetArgs ["2"])
               <> " to pick one of these."
           ),
-      [ (Text.cons '/' . into @Text &&& SA.ProjectBranch . ProjectAndBranch Nothing) branch,
-        (into @Text . show &&& SA.AbsolutePath) absPath0
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.AbsolutePath absPath0
       ]
     )
     where
@@ -533,7 +525,7 @@ notifyNumbered = \case
             )
             (1, (mempty, mempty))
           & snd
-          & over (_2 . mapped) (Name.toText &&& SA.Name)
+          & over (_2 . mapped) SA.Name
       externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
       externalDepsTable = ifoldMap $ \ld dependents ->
         [(prettyLD ld, prettyDependents dependents)]
@@ -613,7 +605,7 @@ showListEdits patch ppe =
       let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = (ShortHash.toText . Reference.toShortHash &&& SA.Ref) $ lhsRef
+      let lhsHash = SA.Ref lhsRef
       case termEdit of
         TermEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])
@@ -624,7 +616,7 @@ showListEdits patch ppe =
         TermEdit.Replace rhsRef _typing -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
-          lift $ tell ([lhsHash], [(HQ.toText &&& SA.HashQualified) rhsTermName])
+          lift $ tell ([lhsHash], [SA.HashQualified rhsTermName])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
@@ -638,7 +630,7 @@ showListEdits patch ppe =
       let lhsTypeName = PPE.typeName ppe lhsRef
       -- We use the shortHash of the lhs rather than its name for numbered args,
       -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = (ShortHash.toText . Reference.toShortHash &&& SA.Ref) $ lhsRef
+      let lhsHash = SA.Ref lhsRef
       case typeEdit of
         TypeEdit.Deprecate -> do
           lift $ tell ([lhsHash], [])
@@ -649,7 +641,7 @@ showListEdits patch ppe =
         TypeEdit.Replace rhsRef -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTypeName = PPE.typeName ppe rhsRef
-          lift $ tell ([lhsHash], [(HQ.toText &&& SA.HashQualified) rhsTypeName])
+          lift $ tell ([lhsHash], [SA.HashQualified rhsTypeName])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
@@ -1663,7 +1655,7 @@ notifyUser dir = \case
         prettyNamespaceKey dest
           <> "is already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
-  DumpNumberedArgs args -> pure . P.numberedList $ fmap (P.text . fst) args
+  DumpNumberedArgs args -> pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument) args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat
@@ -2729,7 +2721,7 @@ renderNameConflicts ppe conflictedNames = do
       P.lines <$> do
         for (Map.toList conflictedNames) $ \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
-            n <- addNumberedArg $ (HQ.toText &&& SA.HashQualified) hash
+            n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
           pure . P.wrap $
             ( "The "
@@ -2761,7 +2753,7 @@ renderEditConflicts ppe Patch {..} = do
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
     numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
     numberedHQName hqName = do
-      n <- addNumberedArg $ (HQ.toText &&& SA.HashQualified) hqName
+      n <- addNumberedArg $ SA.HashQualified hqName
       pure $ formatNum n <> styleHashQualified P.bold hqName
     formatTypeEdits ::
       (Reference, Set TypeEdit.TypeEdit) ->
@@ -2800,9 +2792,9 @@ renderEditConflicts ppe Patch {..} = do
       Numbered Pretty
     formatConflict = either formatTypeEdits formatTermEdits
 
-type Numbered = State.State (Int, Seq.Seq (Text, StructuredArgument))
+type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 
-addNumberedArg :: (Text, StructuredArgument) -> Numbered Int
+addNumberedArg :: StructuredArgument -> Numbered Int
 addNumberedArg s = do
   (n, args) <- State.get
   State.put (n + 1, args Seq.|> s)
@@ -2874,11 +2866,11 @@ todoOutput ppe todo = runNumbered do
     todoEdits :: Numbered Pretty
     todoEdits = do
       numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
-        n <- addNumberedArg . (HQ.toText &&& SA.HashQualified) $ PPE.typeName ppeu ref
+        n <- addNumberedArg . SA.HashQualified $ PPE.typeName ppeu ref
         pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
       let filteredTerms = goodTerms (unscore <$> dirtyTerms)
       termNumbers <- for filteredTerms \(ref, _, _) -> do
-        n <- addNumberedArg . (HQ.toText &&& SA.HashQualified) $ PPE.termName ppeu ref
+        n <- addNumberedArg . SA.HashQualified $ PPE.termName ppeu ref
         pure $ formatNum n
       let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
@@ -3283,21 +3275,13 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg' $ (prefixBranchId prefix &&& SA.NameWithBranchPrefix prefix) name
+      addNumberedArg' $ SA.NameWithBranchPrefix prefix name
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
-      addNumberedArg' . (HQ'.toTextWith (prefixBranchId prefix) &&& SA.HashQualifiedWithBranchPrefix prefix) $ HQ'.requalify hq r
+      addNumberedArg' . SA.HashQualifiedWithBranchPrefix prefix $ HQ'.requalify hq r
 
-    -- E.g.
-    -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
-    -- prefixBranchId ".base" "List.map" -> ".base.List.map"
-    prefixBranchId :: Input.AbsBranchId -> Name -> Text
-    prefixBranchId branchId name = case branchId of
-      Left sch -> "#" <> SCH.toText sch <> ":" <> Name.toText (Name.makeAbsolute name)
-      Right pathPrefix -> Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
-
-    addNumberedArg' :: (Text, StructuredArgument) -> Numbered Pretty
+    addNumberedArg' :: StructuredArgument -> Numbered Pretty
     addNumberedArg' s = case sn of
       ShowNumbers -> do
         n <- addNumberedArg s
@@ -3552,7 +3536,7 @@ numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
-    & fmap ((HQ.toText &&& SA.HashQualified) . PPE.labeledRefName ppe)
+    & fmap (SA.HashQualified . PPE.labeledRefName ppe)
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::

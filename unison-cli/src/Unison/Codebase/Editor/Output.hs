@@ -90,7 +90,7 @@ type SourceName = Text
 --  __NB__: This only temporarily holds `Text`. Until all of the inputs are
 --          updated to handle `StructuredArgument`s, we need to ensure that the
 --          serialization remains unchanged.
-type NumberedArgs = [(Text, StructuredArgument)]
+type NumberedArgs = [StructuredArgument]
 
 type HashLength = Int
 

@@ -51,7 +51,7 @@ data Visibility = Hidden | Visible
 -- needs to be parsed or a numbered argument that doesn’t need to be parsed, as
 -- we’ve preserved its representation (although the numbered argument could
 -- still be of the wrong type, which should result in an error).
-type Argument = Either String (Text, StructuredArgument)
+type Argument = Either String StructuredArgument
 
 type Arguments = [Argument]
 
