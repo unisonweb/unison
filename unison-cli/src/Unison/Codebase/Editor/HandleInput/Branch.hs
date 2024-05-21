@@ -16,7 +16,7 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli (getBranchAt, getCurrentPath, updateAt)
+import Unison.Cli.MonadUtils qualified as Cli (getBranchFromProjectRootPath, getCurrentPath, updateAt)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch (empty)
@@ -117,7 +117,7 @@ doCreateBranch createFrom project newBranchName description = do
       CreateFrom'Branch (ProjectAndBranch _ sourceBranch) -> do
         let sourceProjectId = sourceBranch ^. #projectId
         let sourceBranchId = sourceBranch ^. #branchId
-        Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
+        Cli.getBranchFromProjectRootPath (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
       CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
       CreateFrom'Nothingness -> pure Branch.empty
   let projectId = project ^. #projectId

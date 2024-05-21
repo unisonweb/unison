@@ -3,22 +3,18 @@
 
 module Unison.Server.Local.Endpoints.Current where
 
+import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema (..))
 import Servant ((:>))
 import Servant.Docs (ToSample (..))
-import U.Codebase.Sqlite.DbId
-import U.Codebase.Sqlite.Project qualified as Project
-import U.Codebase.Sqlite.ProjectBranch qualified as ProjectBranch
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment (NameSegment)
+import Unison.Codebase.ProjectPath qualified as PP
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
-import Unison.Project.Util (pattern BranchesNameSegment, pattern ProjectsNameSegment, pattern UUIDNameSegment)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 
@@ -57,26 +53,11 @@ serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
-  segments <- Codebase.runTransaction codebase Queries.expectMostRecentNamespace
-  let absolutePath = toPath segments
-  case toIds segments of
-    ProjectAndBranch (Just projectId) branchId ->
-      Codebase.runTransaction codebase do
-        project <- Queries.expectProject projectId
-        branch <- traverse (Queries.expectProjectBranch projectId) branchId
-        pure $ Current (Just $ Project.name project) (ProjectBranch.name <$> branch) absolutePath
-    ProjectAndBranch _ _ ->
-      pure $ Current Nothing Nothing absolutePath
-  where
-    toIds :: [NameSegment] -> ProjectAndBranch (Maybe ProjectId) (Maybe ProjectBranchId)
-    toIds segments =
-      case segments of
-        ProjectsNameSegment : UUIDNameSegment projectId : BranchesNameSegment : UUIDNameSegment branchId : _ ->
-          ProjectAndBranch {project = Just $ ProjectId projectId, branch = Just $ ProjectBranchId branchId}
-        ProjectsNameSegment : UUIDNameSegment projectId : _ ->
-          ProjectAndBranch {project = Just $ ProjectId projectId, branch = Nothing}
-        _ ->
-          ProjectAndBranch {project = Nothing, branch = Nothing}
-
-    toPath :: [NameSegment] -> Path.Absolute
-    toPath = Path.Absolute . Path.fromList
+  ppCtx <-
+    Codebase.runTransaction codebase Codebase.loadCurrentProjectPathCtx <&> \case
+      Nothing ->
+        -- TODO: Come up with a better solution for this
+        error "No current project path context"
+      Just ppCtx -> ppCtx
+  let (PP.ProjectPath projName branchName path) = ppCtx ^. PP.ctxAsNames_
+  pure $ Current (Just projName) (Just branchName) path

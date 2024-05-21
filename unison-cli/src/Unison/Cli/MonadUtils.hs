@@ -29,10 +29,10 @@ module Unison.Cli.MonadUtils
     getProjectRoot0,
     getCurrentBranch,
     getCurrentBranch0,
-    getBranchAt,
-    getBranch0At,
-    getMaybeBranchAt,
-    getMaybeBranch0At,
+    getBranchFromProjectRootPath,
+    getBranch0FromProjectRootPath,
+    getMaybeBranchFromProjectRootPath,
+    getMaybeBranch0FromProjectRootPath,
     expectBranchAtPath,
     expectBranchAtPath',
     expectBranch0AtPath,
@@ -194,7 +194,7 @@ resolveSplit' =
 resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
 resolveAbsBranchId = \case
   Left hash -> resolveShortCausalHash hash
-  Right path -> getBranchAt path
+  Right path -> getBranchFromProjectRootPath path
 
 -- | V2 version of 'resolveAbsBranchId2'.
 resolveAbsBranchIdV2 ::
@@ -289,26 +289,26 @@ getCurrentBranch0 :: Cli (Branch0 IO)
 getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
--- | Get the branch at an absolute path.
-getBranchAt :: Path.Absolute -> Cli (Branch IO)
-getBranchAt path =
-  getMaybeBranchAt path <&> fromMaybe Branch.empty
+-- | Get the branch at an absolute path from the project root.
+getBranchFromProjectRootPath :: Path.Absolute -> Cli (Branch IO)
+getBranchFromProjectRootPath path =
+  getMaybeBranchFromProjectRootPath path <&> fromMaybe Branch.empty
 
 -- | Get the branch0 at an absolute path.
-getBranch0At :: Path.Absolute -> Cli (Branch0 IO)
-getBranch0At path =
-  Branch.head <$> getBranchAt path
+getBranch0FromProjectRootPath :: Path.Absolute -> Cli (Branch0 IO)
+getBranch0FromProjectRootPath path =
+  Branch.head <$> getBranchFromProjectRootPath path
 
 -- | Get the maybe-branch at an absolute path.
-getMaybeBranchAt :: Path.Absolute -> Cli (Maybe (Branch IO))
-getMaybeBranchAt path = do
+getMaybeBranchFromProjectRootPath :: Path.Absolute -> Cli (Maybe (Branch IO))
+getMaybeBranchFromProjectRootPath path = do
   rootBranch <- getProjectRoot
   pure (Branch.getAt (Path.unabsolute path) rootBranch)
 
 -- | Get the maybe-branch0 at an absolute path.
-getMaybeBranch0At :: Path.Absolute -> Cli (Maybe (Branch0 IO))
-getMaybeBranch0At path =
-  fmap Branch.head <$> getMaybeBranchAt path
+getMaybeBranch0FromProjectRootPath :: Path.Absolute -> Cli (Maybe (Branch0 IO))
+getMaybeBranch0FromProjectRootPath path =
+  fmap Branch.head <$> getMaybeBranchFromProjectRootPath path
 
 -- | Get the branch at a relative path, or return early if there's no such branch.
 expectBranchAtPath :: Path -> Cli (Branch IO)
@@ -319,7 +319,7 @@ expectBranchAtPath =
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
-  getMaybeBranchAt path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+  getMaybeBranchFromProjectRootPath path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
 
 -- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
 expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
@@ -520,7 +520,7 @@ getPatchAt path =
 getMaybePatchAt :: Path.Split' -> Cli (Maybe Patch)
 getMaybePatchAt path0 = do
   (path, name) <- resolveSplit' path0
-  branch <- getBranch0At path
+  branch <- getBranch0FromProjectRootPath path
   liftIO (Branch.getMaybePatch name branch)
 
 -- | Get the patch at a path, or return early if there's no such patch.
