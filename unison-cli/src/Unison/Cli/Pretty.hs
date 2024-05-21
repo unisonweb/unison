@@ -37,6 +37,7 @@ module Unison.Cli.Pretty
     prettySemver,
     prettyShareLink,
     prettySharePath,
+    prettyShareURI,
     prettySlashProjectBranchName,
     prettyTermName,
     prettyTypeName,
@@ -139,6 +140,11 @@ type Pretty = P.Pretty P.ColorText
 
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
+
+prettyShareURI :: URI -> Pretty
+prettyShareURI host
+  | URI.uriToString id host "" == "https://api.unison-lang.org" = P.bold (P.blue "Unison Share")
+  | otherwise = P.bold (P.blue (P.shown host))
 
 prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
@@ -394,15 +400,15 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
   -- Special-case Unison Share since we know its project branch URLs
   if URI.uriToString id host "" == "https://api.unison-lang.org"
     then
-      P.hiBlack . P.text $
+      P.group $
         "https://share.unison-lang.org/"
-          <> into @Text remoteProject
+          <> prettyProjectName remoteProject
           <> "/code/"
-          <> into @Text remoteBranch
+          <> prettyProjectBranchName remoteBranch
     else
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
-        <> P.hiBlack (P.shown host)
+        <> P.shown host
 
 stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
 stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism

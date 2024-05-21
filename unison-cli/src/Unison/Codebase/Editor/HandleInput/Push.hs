@@ -650,10 +650,12 @@ makeSetHeadAfterUploadAction ::
   Share.RemoteProjectBranch ->
   Cli AfterUploadAction
 makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
-  let remoteProjectAndBranchNames = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName)
+  let remoteProjectAndBranchNames = ProjectAndBranch remoteBranch.projectName remoteBranch.branchName
 
-  when (localBranchHead == Share.API.hashJWTHash (remoteBranch ^. #branchHead)) do
-    Cli.returnEarly (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
+  when (localBranchHead == Share.API.hashJWTHash remoteBranch.branchHead) do
+    Cli.respond (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
+    Cli.returnEarly (ViewOnShare (Right (Share.hardCodedUri, remoteBranch.projectName, remoteBranch.branchName)))
+
 
   when (not force) do
     whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
