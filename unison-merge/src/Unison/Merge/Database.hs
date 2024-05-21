@@ -16,11 +16,12 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Builtin qualified as Builtins
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as V1
+import Unison.Codebase.SqliteCodebase.Operations qualified as Operations (expectDeclComponent)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration qualified as V1 (Decl)
 import Unison.DataDeclaration qualified as V1.Decl
+import Unison.Hash (Hash)
 import Unison.Parser.Ann qualified as V1 (Ann)
 import Unison.Prelude
 import Unison.Referent qualified as V1 (Referent)
@@ -29,6 +30,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol qualified as V1 (Symbol)
 import Unison.Term qualified as V1 (Term)
+import Unison.Type qualified as V1 (Type)
 import Unison.Util.Cache qualified as Cache
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -39,9 +41,10 @@ data MergeDatabase = MergeDatabase
   { loadCausal :: CausalHash -> Transaction (CausalBranch Transaction),
     loadDeclNumConstructors :: TypeReferenceId -> Transaction Int,
     loadDeclType :: TypeReference -> Transaction ConstructorType,
-    loadV1Branch :: CausalHash -> Transaction (V1.Branch Transaction),
     loadV1Decl :: TypeReferenceId -> Transaction (V1.Decl V1.Symbol V1.Ann),
-    loadV1Term :: TermReferenceId -> Transaction (V1.Term V1.Symbol V1.Ann)
+    loadV1DeclComponent :: Hash -> Transaction [V1.Decl V1.Symbol V1.Ann],
+    loadV1Term :: TermReferenceId -> Transaction (V1.Term V1.Symbol V1.Ann),
+    loadV1TermComponent :: Hash -> Transaction [(V1.Term V1.Symbol V1.Ann, V1.Type V1.Symbol V1.Ann)]
   }
 
 makeMergeDatabase :: MonadIO m => Codebase IO V1.Symbol V1.Ann -> m MergeDatabase
@@ -53,7 +56,6 @@ makeMergeDatabase codebase = liftIO do
   loadDeclNumConstructors <- do
     cache <- Cache.semispaceCache 1024
     pure (Sqlite.cacheTransaction cache Operations.expectDeclNumConstructors)
-  let loadV1Branch = undefined -- Codebase.expectBranchForHash codebase
   loadV1Decl <- do
     cache <- Cache.semispaceCache 1024
     pure (Sqlite.cacheTransaction cache (Codebase.unsafeGetTypeDeclaration codebase))
@@ -67,7 +69,18 @@ makeMergeDatabase codebase = liftIO do
   loadV1Term <- do
     cache <- Cache.semispaceCache 1024
     pure (Sqlite.cacheTransaction cache (Codebase.unsafeGetTerm codebase))
-  pure MergeDatabase {loadCausal, loadDeclNumConstructors, loadDeclType, loadV1Branch, loadV1Decl, loadV1Term}
+  let loadV1TermComponent = Codebase.unsafeGetTermComponent codebase
+  let loadV1DeclComponent = Operations.expectDeclComponent
+  pure
+    MergeDatabase
+      { loadCausal,
+        loadDeclNumConstructors,
+        loadDeclType,
+        loadV1Decl,
+        loadV1DeclComponent,
+        loadV1Term,
+        loadV1TermComponent
+      }
 
 -- Convert a v2 referent (missing decl type) to a v1 referent.
 referent2to1 :: MergeDatabase -> Referent -> Transaction V1.Referent

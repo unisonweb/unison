@@ -10,4 +10,4 @@ data TwoOrThreeWay a = TwoOrThreeWay
     alice :: a,
     bob :: a
   }
-  deriving stock (Functor, Generic)
+  deriving stock (Foldable, Functor, Generic, Traversable)

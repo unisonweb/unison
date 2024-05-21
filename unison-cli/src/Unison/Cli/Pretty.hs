@@ -19,6 +19,8 @@ module Unison.Cli.Pretty
     prettyLabeledDependencies,
     prettyPath,
     prettyPath',
+    prettyMergeSource,
+    prettyMergeSourceOrTarget,
     prettyProjectAndBranchName,
     prettyBranchName,
     prettyProjectBranchName,
@@ -69,6 +71,7 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
+import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
 import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
@@ -76,7 +79,7 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadGitRepo,
-    ReadRemoteNamespace,
+    ReadRemoteNamespace (..),
     ShareUserHandle (..),
     WriteGitRepo,
     WriteRemoteNamespace (..),
@@ -224,6 +227,18 @@ prettyHash = prettyBase32Hex# . Hash.toBase32Hex
 
 prettyHash32 :: (IsString s) => Hash32 -> P.Pretty s
 prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
+
+prettyMergeSource :: MergeSource -> Pretty
+prettyMergeSource = \case
+  MergeSource'LocalProjectBranch branch -> prettyProjectAndBranchName branch
+  MergeSource'RemoteProjectBranch branch -> "remote " <> prettyProjectAndBranchName branch
+  MergeSource'RemoteLooseCode info -> prettyReadRemoteNamespace (ReadShare'LooseCode info)
+  MergeSource'RemoteGitRepo info -> prettyReadRemoteNamespace (ReadRemoteNamespaceGit info)
+
+prettyMergeSourceOrTarget :: MergeSourceOrTarget -> Pretty
+prettyMergeSourceOrTarget = \case
+  MergeSourceOrTarget'Target alice -> prettyProjectAndBranchName alice
+  MergeSourceOrTarget'Source bob -> prettyMergeSource bob
 
 prettyProjectName :: ProjectName -> Pretty
 prettyProjectName =

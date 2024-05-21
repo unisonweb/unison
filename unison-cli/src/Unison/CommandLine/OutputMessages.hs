@@ -38,9 +38,12 @@ import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
+import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
@@ -72,9 +75,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError (..),
-  )
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
@@ -1605,31 +1606,41 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyNamespaceKey dest
+          <> prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
+        "Successfully pulled into "
+          <> P.group
+            ( prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
+                <> ", which was empty."
+            )
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        either prettyPath' prettyProjectAndBranchName dest
           <> "was already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
-  MergeConflictedAliases branch name1 name2 ->
+          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
+  MergeAlreadyUpToDate2 aliceAndBob ->
+    pure . P.callout "😶" $
+      P.wrap $
+        prettyProjectAndBranchName aliceAndBob.alice
+          <> "was already up-to-date with"
+          <> P.group (prettyMergeSource aliceAndBob.bob <> ".")
+  MergeConflictedAliases aliceOrBob name1 name2 ->
     pure . P.wrap $
       "On"
-        <> P.group (prettyProjectBranchName branch <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2
@@ -1645,35 +1656,49 @@ notifyUser dir = \case
       "There's a merge conflict on"
         <> P.group (prettyName name <> ",")
         <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias maybeBranch name1 name2 ->
+  MergeConstructorAlias maybeAliceOrBob name1 name2 ->
     pure . P.wrap $
       "On"
-        <> case maybeBranch of
+        <> case maybeAliceOrBob of
           Nothing -> "the LCA,"
-          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2
         <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib ->
+  MergeDefnsInLib aliceOrBob ->
     pure . P.wrap $
-      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
+      "On"
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
         <> "Please remove it before merging."
-  MergeMissingConstructorName name ->
+  MergeMissingConstructorName maybeAliceOrBob name ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the type"
         <> prettyName name
         <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias shorterName longerName ->
+  MergeNestedDeclAlias maybeAliceOrBob shorterName longerName ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
         <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor name ->
+  MergeStrayConstructor maybeAliceOrBob name ->
     pure . P.wrap $
-      "The constructor"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the constructor"
         <> prettyName name
         <> "is not in a subnamespace of a name of its type."
         <> "Please either delete it or rename it before merging."
@@ -2260,26 +2285,26 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path base target ->
+  MergeFailure path aliceAndBob ->
     pure . P.wrap $
       "I couldn't automatically merge"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
-  MergeSuccess base target ->
+  MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
-  MergeSuccessFastForward base target ->
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+  MergeSuccessFastForward aliceAndBob ->
     pure . P.wrap $
       "I fast-forward merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
   InstalledLibdep libdep segment ->
     pure . P.wrap $
       "I installed"

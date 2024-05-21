@@ -185,7 +185,6 @@ library
       Unison.Util.EnumContainers
       Unison.Util.Exception
       Unison.Util.Logger
-      Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
       Unison.Util.RefPromise
       Unison.Util.Star2
@@ -385,7 +384,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.UnisonSources
-      Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
       Unison.Test.Util.Text
