@@ -55,6 +55,7 @@ module Unison.Codebase
     getShallowRootCausal,
     getShallowProjectRootBranch,
     getShallowBranchAtProjectPath,
+    getShallowProjectRootByNames,
 
     -- * Root branch
     getRootBranch,
@@ -144,6 +145,7 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Ope
 import Unison.Codebase.Type (Codebase (..), GitError)
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.Core.Project (ProjectAndBranch)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
@@ -151,6 +153,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -251,6 +254,12 @@ getShallowBranchAtProjectPath ::
 getShallowBranchAtProjectPath (PP.ProjectPath projectId projectBranchId path) = do
   projectRootBranch <- getShallowProjectRootBranch projectId projectBranchId
   getShallowBranchAtPath (Path.unabsolute path) projectRootBranch
+
+getShallowProjectRootByNames :: ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))
+getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMaybeT do
+  ProjectBranch {causalHashId} <- MaybeT $ Q.loadProjectBranchByNames projectName branchName
+  causalHash <- lift $ Q.expectCausalHash causalHashId
+  lift $ Operations.expectCausalBranchByCausalHash causalHash
 
 -- | Get a v1 branch from the root following the given path.
 getBranchAtPath ::

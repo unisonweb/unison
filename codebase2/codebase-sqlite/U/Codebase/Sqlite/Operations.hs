@@ -13,6 +13,7 @@ module U.Codebase.Sqlite.Operations
     saveBranchV3,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectBranchByCausalHashId,
     expectBranchByBranchHash,
     expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
