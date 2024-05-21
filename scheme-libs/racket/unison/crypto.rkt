@@ -3,6 +3,7 @@
          ffi/unsafe/define
          racket/exn
          racket/runtime-path
+         (only-in unison/data-info ref-either-left ref-either-right)
          (for-syntax racket/base)
          openssl/libcrypto
          unison/chunked-seq
@@ -226,13 +227,13 @@
           #t)))))
 
 (define (Ed25519.sign.impl seed _ignored_pubkey input)
-    (bytes->chunked-bytes (evpSign-raw (chunked-bytes->bytes seed) (chunked-bytes->bytes input))))
+    (ref-either-right (bytes->chunked-bytes (evpSign-raw (chunked-bytes->bytes seed) (chunked-bytes->bytes input)))))
 
 (define (Ed25519.verify.impl public-key input signature)
-    (evpVerify-raw
+    (ref-either-right (evpVerify-raw
         (chunked-bytes->bytes public-key)
         (chunked-bytes->bytes input)
-        (chunked-bytes->bytes signature)))
+        (chunked-bytes->bytes signature))))
 
 ; This one isn't provided by libcrypto, for some reason
 (define (HashAlgorithm.Blake2b_256) (cons 'blake2b 256))
