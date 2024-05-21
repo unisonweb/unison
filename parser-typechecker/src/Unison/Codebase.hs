@@ -1,6 +1,10 @@
 module Unison.Codebase
   ( Codebase,
 
+    -- * UCM session state
+    loadCurrentProjectPathCtx,
+    setCurrentProjectPath,
+
     -- * Terms
     getTerm,
     unsafeGetTerm,
@@ -120,6 +124,7 @@ import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -549,3 +554,18 @@ unsafeGetTermComponent codebase hash =
   getTermComponentWithTypes codebase hash <&> \case
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
+
+loadCurrentProjectPathCtx :: Sqlite.Transaction (Maybe PP.ProjectPathCtx)
+loadCurrentProjectPathCtx = do
+  mProjectPath <- Q.loadCurrentProjectPath
+  case mProjectPath of
+    Nothing -> pure Nothing
+    Just (projectId, projectBranchId, path) -> do
+      Project {name = projectName} <- Q.expectProject projectId
+      ProjectBranch {name = branchName} <- Q.expectProjectBranch projectId projectBranchId
+      let absPath = Path.Absolute (Path.fromList path)
+      pure $ Just (PP.ProjectPath (projectId, projectName) (projectBranchId, branchName) absPath)
+
+setCurrentProjectPath :: PP.ProjectPathIds -> Sqlite.Transaction ()
+setCurrentProjectPath (PP.ProjectPath projectId projectBranchId path) =
+  Q.setCurrentProjectPath projectId projectBranchId (Path.toList (Path.unabsolute path))

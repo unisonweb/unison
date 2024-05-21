@@ -235,9 +235,9 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
-    -- * most recent namespace
-    expectMostRecentNamespace,
-    setMostRecentNamespace,
+    -- * current project path
+    loadCurrentProjectPath,
+    setCurrentProjectPath,
 
     -- * migrations
     createSchema,
@@ -252,6 +252,7 @@ module U.Codebase.Sqlite.Queries
     addSquashResultTable,
     addSquashResultTableIfNotExists,
     cdToProjectRoot,
+    addCurrentProjectPathTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -487,6 +488,10 @@ schemaVersion =
       SELECT version
       FROM schema_version
     |]
+
+addCurrentProjectPathTable :: Transaction ()
+addCurrentProjectPathTable =
+  executeStatements $(embedProjectStringFile "sql/012-add-current-project-path-table.sql")
 
 data UnexpectedSchemaVersion = UnexpectedSchemaVersion
   { actual :: SchemaVersion,
@@ -4249,33 +4254,39 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectMostRecentNamespace :: Transaction [NameSegment]
-expectMostRecentNamespace =
-  queryOneColCheck
+loadCurrentProjectPath :: Transaction (Maybe (ProjectId, ProjectBranchId, [NameSegment]))
+loadCurrentProjectPath =
+  queryMaybeRowCheck
     [sql|
-      SELECT namespace
-      FROM most_recent_namespace
+      SELECT project_id, branch_id, path
+      FROM current_project_path
     |]
     check
   where
-    check :: Text -> Either JsonParseFailure [NameSegment]
-    check bytes =
-      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
-        Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
-        Right namespace -> Right (map NameSegment namespace)
+    check :: (ProjectId, ProjectBranchId, Text) -> Either JsonParseFailure (ProjectId, ProjectBranchId, [NameSegment])
+    check (projId, branchId, pathText) =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 pathText) of
+        Left failure -> Left JsonParseFailure {bytes = pathText, failure = Text.pack failure}
+        Right namespace -> Right (projId, branchId, map NameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
-setMostRecentNamespace :: [Text] -> Transaction ()
-setMostRecentNamespace namespace =
+setCurrentProjectPath ::
+  ProjectId ->
+  ProjectBranchId ->
+  [NameSegment] ->
+  Transaction ()
+setCurrentProjectPath projId branchId path = do
+  execute
+    [sql| TRUNCATE TABLE current_project_path |]
   execute
     [sql|
-      UPDATE most_recent_namespace
-      SET namespace = :json
+      INSERT INTO most_recent_namespace(project_id, branch_id, path)
+      VALUES (:projId, :branchId, :jsonPath)
     |]
   where
-    json :: Text
-    json =
-      Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
+    jsonPath :: Text
+    jsonPath =
+      Text.Lazy.toStrict (Aeson.encodeToLazyText $ map NameSegment.toUnescapedText path)
 
 -- | Get the causal hash result from squashing the provided branch hash if we've squashed it
 -- at some point in the past.
