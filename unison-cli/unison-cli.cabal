@@ -35,6 +35,7 @@ library
       Unison.Auth.Types
       Unison.Auth.UserInfo
       Unison.Cli.DownloadUtils
+      Unison.Cli.MergeTypes
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils

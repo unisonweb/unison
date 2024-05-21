@@ -38,9 +38,12 @@ import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
+import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
@@ -72,9 +75,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError (..),
-  )
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
@@ -684,49 +685,6 @@ notifyUser dir = \case
           $ "The namespaces "
             <> P.commas (prettyBranchId <$> ps)
             <> " are empty. Was there a typo?"
-  WarnIncomingRootBranch current hashes ->
-    pure $
-      if null hashes
-        then
-          P.wrap $
-            "Please let someone know I generated an empty IncomingRootBranch"
-              <> " event, which shouldn't be possible!"
-        else
-          P.lines
-            [ P.wrap $
-                (if length hashes == 1 then "A" else "Some")
-                  <> "codebase"
-                  <> P.plural hashes "root"
-                  <> "appeared unexpectedly"
-                  <> "with"
-                  <> P.group (P.plural hashes "hash" <> ":"),
-              "",
-              (P.indentN 2 . P.oxfordCommas)
-                (map prettySCH $ toList hashes),
-              "",
-              P.wrap $
-                "and I'm not sure what to do about it."
-                  <> "The last root namespace hash that I knew about was:",
-              "",
-              P.indentN 2 $ prettySCH current,
-              "",
-              P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
-              "",
-              P.wrap $
-                "After that, you might try using the"
-                  <> makeExample' IP.forkLocal
-                  <> "command to inspect the namespaces listed above, and decide which"
-                  <> "one you want as your root."
-                  <> "You can also use"
-                  <> makeExample' IP.viewReflog
-                  <> "to see the"
-                  <> "last few root namespace hashes on record.",
-              "",
-              P.wrap $
-                "Once you find one you like, you can use the"
-                  <> makeExample' IP.resetRoot
-                  <> "command to set it."
-            ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
@@ -1605,31 +1563,41 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyNamespaceKey dest
+          <> prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
+        "Successfully pulled into "
+          <> P.group
+            ( prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
+                <> ", which was empty."
+            )
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        either prettyPath' prettyProjectAndBranchName dest
           <> "was already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
-  MergeConflictedAliases branch name1 name2 ->
+          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
+  MergeAlreadyUpToDate2 aliceAndBob ->
+    pure . P.callout "😶" $
+      P.wrap $
+        prettyProjectAndBranchName aliceAndBob.alice
+          <> "was already up-to-date with"
+          <> P.group (prettyMergeSource aliceAndBob.bob <> ".")
+  MergeConflictedAliases aliceOrBob name1 name2 ->
     pure . P.wrap $
       "On"
-        <> P.group (prettyProjectBranchName branch <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2
@@ -1645,35 +1613,49 @@ notifyUser dir = \case
       "There's a merge conflict on"
         <> P.group (prettyName name <> ",")
         <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias maybeBranch name1 name2 ->
+  MergeConstructorAlias maybeAliceOrBob name1 name2 ->
     pure . P.wrap $
       "On"
-        <> case maybeBranch of
+        <> case maybeAliceOrBob of
           Nothing -> "the LCA,"
-          Just branch -> P.group (prettyProjectBranchName branch <> ",")
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2
         <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib ->
+  MergeDefnsInLib aliceOrBob ->
     pure . P.wrap $
-      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
+      "On"
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
         <> "Please remove it before merging."
-  MergeMissingConstructorName name ->
+  MergeMissingConstructorName maybeAliceOrBob name ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the type"
         <> prettyName name
         <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias shorterName longerName ->
+  MergeNestedDeclAlias maybeAliceOrBob shorterName longerName ->
     pure . P.wrap $
-      "The type"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
         <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor name ->
+  MergeStrayConstructor maybeAliceOrBob name ->
     pure . P.wrap $
-      "The constructor"
+      "On"
+        <> case maybeAliceOrBob of
+          Nothing -> "the LCA,"
+          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the constructor"
         <> prettyName name
         <> "is not in a subnamespace of a name of its type."
         <> "Please either delete it or rename it before merging."
@@ -1805,7 +1787,7 @@ notifyUser dir = \case
   ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> case shareRef of
+      "View it here: " <> case shareRef of
         Left repoPath -> prettyShareLink repoPath
         Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
@@ -1931,12 +1913,17 @@ notifyUser dir = \case
       "I just created"
         <> prettyProjectName projectName
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
   CreatedRemoteProjectBranch host projectAndBranch ->
     pure . P.wrap $
-      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host
+      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyShareURI host
   RemoteProjectBranchIsUpToDate host projectAndBranch ->
-    pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
+    pure $
+      P.wrap $
+        prettyProjectAndBranchName projectAndBranch
+          <> "on"
+          <> prettyShareURI host
+          <> "is already up-to-date."
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
   ProjectNameAlreadyExists name ->
@@ -1956,12 +1943,12 @@ notifyUser dir = \case
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyShareURI host
   NoAssociatedRemoteProjectBranch host (ProjectAndBranch project branch) ->
     pure . P.wrap $
       prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
         <> "isn't associated with any branch on"
-        <> prettyURI host
+        <> prettyShareURI host
   LocalProjectDoesntExist project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist."
@@ -1977,17 +1964,17 @@ notifyUser dir = \case
         <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
-      prettyProjectName project <> "does not exist on" <> prettyURI host
+      prettyProjectName project <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
     let push = P.group . P.backticked . IP.patternName $ IP.push
      in pure . P.wrap $
           "The previous push target named"
             <> prettyProjectAndBranchName projectAndBranch
             <> "has been deleted from"
-            <> P.group (prettyURI host <> ".")
+            <> P.group (prettyShareURI host <> ".")
             <> "I've deleted the invalid push target."
             <> "Run the"
             <> push
@@ -1996,14 +1983,14 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has some history that I don't know about."
   RemoteProjectPublishedReleaseCannotBeChanged host projectAndBranch ->
     pure . P.wrap $
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has already been published and cannot be changed."
         <> "Consider making a new release instead."
   RemoteProjectReleaseIsDeprecated host projectAndBranch ->
@@ -2011,7 +1998,7 @@ notifyUser dir = \case
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has been deprecated."
   Unauthorized message ->
     pure . P.wrap $
@@ -2260,26 +2247,26 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path base target ->
+  MergeFailure path aliceAndBob ->
     pure . P.wrap $
       "I couldn't automatically merge"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
-  MergeSuccess base target ->
+  MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
-  MergeSuccessFastForward base target ->
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+  MergeSuccessFastForward aliceAndBob ->
     pure . P.wrap $
       "I fast-forward merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
   InstalledLibdep libdep segment ->
     pure . P.wrap $
       "I installed"

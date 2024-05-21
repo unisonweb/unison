@@ -32,7 +32,6 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
-import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
@@ -41,7 +40,6 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Verbosity (Verbosity)
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -53,7 +51,6 @@ import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source
-  | IncomingRootBranch (Set CausalHash)
   deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
@@ -114,7 +111,7 @@ data Input
     MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
   | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
   | DiffNamespaceI BranchId BranchId -- old new
-  | PullRemoteBranchI PullSourceTarget PullMode Verbosity
+  | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI (Either ShortCausalHash Path')
   | ResetI
@@ -198,7 +195,6 @@ data Input
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
-  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI
   | UpdateBuiltinsI
   | MergeBuiltinsI (Maybe Path)
@@ -276,7 +272,7 @@ data GistInput = GistInput
 data PullSourceTarget
   = PullSourceTarget0
   | PullSourceTarget1 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
-  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) LooseCodeOrProject
+  | PullSourceTarget2 (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease)) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving stock (Eq, Show)
 
 data PushSource

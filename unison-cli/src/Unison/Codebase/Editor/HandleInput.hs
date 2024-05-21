@@ -201,13 +201,6 @@ import UnliftIO.Directory qualified as Directory
 loop :: Either Event Input -> Cli ()
 loop e = do
   case e of
-    Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      rootBranch <- Cli.getRootBranch
-      Cli.respond $
-        WarnIncomingRootBranch
-          (SCH.fromHash schLength $ Branch.headHash rootBranch)
-          (Set.map (SCH.fromHash schLength) hashes)
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
@@ -435,8 +428,11 @@ loop e = do
               let destp = looseCodeOrProjectToPath dest0
               srcb <- Cli.expectBranchAtPath' srcp
               dest <- Cli.resolvePath' destp
-              -- todo: fixme: use project and branch names
-              let err = Just $ MergeAlreadyUpToDate src0 dest0
+              let err =
+                    Just $
+                      MergeAlreadyUpToDate
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> src0)
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> dest0)
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
@@ -1025,7 +1021,7 @@ loop e = do
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respondNumbered $ ListEdits patch suffixifiedPPE
-            PullRemoteBranchI sourceTarget pMode verbosity -> handlePull sourceTarget pMode verbosity
+            PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
@@ -1169,7 +1165,6 @@ loop e = do
             DeprecateTypeI {} -> Cli.respond NotImplemented
             RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True
             RemoveTypeReplacementI from patchPath -> doRemoveReplacement from patchPath False
-            ShowDefinitionByPrefixI {} -> Cli.respond NotImplemented
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
@@ -1391,11 +1386,10 @@ inputDescription input =
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat
-    PullRemoteBranchI {} -> wat
+    PullI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
-    ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
