@@ -45,7 +45,7 @@ stuff.thing = 2
 
 ```ucm:hide
 .> add
-.> delete.namespace .deleted
+.> delete.namespace deleted
 ```
 
 ## fork
