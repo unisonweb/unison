@@ -1239,7 +1239,7 @@ deleteNamespaceParser helpText insistence = \case
       . pure
       $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
   [p] -> first P.text do
-    p <- Path.parseSplit' p
+    p <- Path.parseSplit p
     pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
   _ -> Left helpText
 
