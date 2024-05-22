@@ -38,7 +38,7 @@ handleNamespaceDependencies namespacePath' = do
   Cli.Env {codebase} <- ask
   path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
   branch <-
-    Cli.getMaybeBranch0At path & onNothingM do
+    Cli.getMaybeBranch0FromProjectRootPath path & onNothingM do
       Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath (Path.absoluteToPath' path)))
   externalDependencies <-
     Cli.runTransaction (namespaceDependencies codebase branch)

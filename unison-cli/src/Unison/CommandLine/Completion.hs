@@ -20,9 +20,8 @@ module Unison.CommandLine.Completion
   )
 where
 
-import Control.Lens (ifoldMap)
+import Control.Lens
 import Control.Lens qualified as Lens
-import Control.Lens.Cons (unsnoc)
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
@@ -146,7 +145,7 @@ completeWithinNamespace ::
   Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query ppCtx = do
   shortHashLen <- Codebase.hashLength
-  b <- Codebase.getShallowBranchAtPath (Path.unabsolute absQueryPath) Nothing
+  b <- Codebase.getShallowBranchAtProjectPath (queryProjectPath ^. PP.ctxAsIds_)
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
@@ -169,8 +168,8 @@ completeWithinNamespace compTypes query ppCtx = do
     queryPathPrefix :: Path.Path'
     querySuffix :: Text
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
-    absQueryPath :: Path.Absolute
-    absQueryPath = Path.resolve ppCtx queryPathPrefix
+    queryProjectPath :: PP.ProjectPathCtx
+    queryProjectPath = ppCtx & PP.absPath_ %~ \curPath -> Path.resolve curPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
     getChildSuggestions shortHashLen b
       | Text.null querySuffix = pure []

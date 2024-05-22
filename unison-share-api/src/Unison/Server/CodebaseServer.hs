@@ -85,6 +85,8 @@ import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
 import System.Random.MWC (createSystemRandom)
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -589,34 +591,38 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
   where
     projectAndBranchName = ProjectAndBranch projectName branchName
     namespaceListingEndpoint _rootParam rel name = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> NamespaceListing.serve codebase (Just . Right $ root) rel name
     namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just . Right $ root) renderWidth
 
     serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveDefinitions rt codebase (Just . Right $ root) relativePath rawHqns renderWidth suff
 
     serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveFuzzyFind codebase (Just . Right $ root) relativePath limit renderWidth query
 
     serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveTermSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
 
     serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
+      root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
 
-resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO CausalHash
+resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO (V2.CausalBranch Sqlite.Transaction)
 resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
-  mayCH <- liftIO . Codebase.runTransaction codebase $ Codebase.causalHashForProjectBranchName @IO projectAndBranchName
-  case mayCH of
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
     Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
-    Just ch -> pure ch
+    Just cb -> pure cb
+
+resolveProjectRootHash :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> Causal.causalHash
 
 serveProjectDiffTermsEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TermDiffResponse
 serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef oldTerm newTerm = do
@@ -639,7 +645,7 @@ serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef 
 
 contextForProjectBranch :: (Codebase IO v a) -> ProjectName -> ProjectBranchName -> Backend IO (PrettyPrintEnvDecl, NameSearch Sqlite.Transaction)
 contextForProjectBranch codebase projectName branchName = do
-  projectRootHash <- resolveProjectRoot codebase (ProjectAndBranch projectName branchName)
+  projectRootHash <- resolveProjectRootHash codebase (ProjectAndBranch projectName branchName)
   projectRootBranch <- liftIO $ Codebase.expectBranchForHash codebase projectRootHash
   hashLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   let names = Branch.toNames (Branch.head projectRootBranch)

@@ -1,21 +1,8 @@
 -- | Project-related utilities.
 module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
-    getCurrentProject,
-    expectCurrentProject,
-    expectCurrentProjectIds,
-    getCurrentProjectIds,
-    getCurrentProjectBranch,
-    getProjectBranchForPath,
-    expectCurrentProjectBranch,
     expectProjectBranchByName,
-    projectPath,
-    projectBranchesPath,
-    projectBranchPath,
-    projectBranchSegment,
-    projectBranchPathPrism,
     resolveBranchRelativePath,
-    branchRelativePathToAbsolute,
 
     -- * Name hydration
     hydrateNames,
@@ -43,6 +30,7 @@ module Unison.Cli.ProjectUtils
 where
 
 import Control.Lens
+import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.List qualified as List
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
@@ -61,48 +49,27 @@ import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.CommandLine.BranchRelativePath (BranchRelativePath, ResolvedBranchRelativePath)
-import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
+import Unison.Codebase.ProjectPath qualified as PP
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectBranchName (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectName)
-import Unison.Project.Util
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
-branchRelativePathToAbsolute :: BranchRelativePath -> Cli Path.Absolute
-branchRelativePathToAbsolute brp =
-  resolveBranchRelativePath brp <&> \case
-    BranchRelativePath.ResolvedLoosePath p -> p
-    BranchRelativePath.ResolvedBranchRelative projectBranch mRel ->
-      let projectBranchIds = getIds projectBranch
-          handleRel = case mRel of
-            Nothing -> id
-            Just rel -> flip Path.resolve rel
-       in handleRel (projectBranchPath projectBranchIds)
-  where
-    getIds = \case
-      ProjectAndBranch project branch -> ProjectAndBranch (view #projectId project) (view #branchId branch)
-
-resolveBranchRelativePath :: BranchRelativePath -> Cli ResolvedBranchRelativePath
-resolveBranchRelativePath = \case
-  BranchRelativePath.BranchRelative brp -> case brp of
-    This projectBranch -> do
-      projectBranch <- expectProjectAndBranchByTheseNames (toThese projectBranch)
-      pure (BranchRelativePath.ResolvedBranchRelative projectBranch Nothing)
-    That path -> do
-      (projectBranch, _) <- expectCurrentProjectBranch
-      pure (BranchRelativePath.ResolvedBranchRelative projectBranch (Just path))
-    These projectBranch path -> do
-      projectBranch <- expectProjectAndBranchByTheseNames (toThese projectBranch)
-      pure (BranchRelativePath.ResolvedBranchRelative projectBranch (Just path))
-  BranchRelativePath.LoosePath path ->
-    BranchRelativePath.ResolvedLoosePath <$> Cli.resolvePath' path
-  where
-    toThese = \case
-      Left branchName -> That branchName
-      Right (projectName, branchName) -> These projectName branchName
+resolveBranchRelativePath :: BranchRelativePath -> Cli PP.ProjectPathCtx
+resolveBranchRelativePath brp = do
+  case brp of
+    BranchPathInCurrentProject projBranchName path -> do
+      projectAndBranch <- expectProjectAndBranchByTheseNames (That projBranchName)
+      pure $ PP.ctxFromProjectAndBranch projectAndBranch path
+    QualifiedBranchPath projName projBranchName path -> do
+      projectAndBranch <- expectProjectAndBranchByTheseNames (These projName projBranchName)
+      pure $ PP.ctxFromProjectAndBranch projectAndBranch path
+    UnqualifiedPath newPath' -> do
+      ppCtx <- Cli.getProjectPathCtx
+      pure $ ppCtx & PP.absPath_ %~ \curPath -> Path.resolve curPath newPath'
 
 -- @findTemporaryBranchName projectId preferred@ finds some unused branch name in @projectId@ with a name
 -- like @preferred@.
@@ -125,55 +92,22 @@ findTemporaryBranchName projectId preferred = do
 
   pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
 
--- | Get the current project that a user is on.
-getCurrentProject :: Cli (Maybe Sqlite.Project)
-getCurrentProject = do
-  path <- Cli.getCurrentPath
-  case preview projectBranchPathPrism path of
-    Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId _branchId, _restPath) ->
-      Cli.runTransaction do
-        project <- Queries.expectProject projectId
-        pure (Just project)
-
--- | Like 'getCurrentProject', but fails with a message if the user is not on a project branch.
-expectCurrentProject :: Cli Sqlite.Project
-expectCurrentProject = do
-  getCurrentProject & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
-
--- | Get the current project ids that a user is on.
-getCurrentProjectIds :: Cli (Maybe (ProjectAndBranch ProjectId ProjectBranchId))
-getCurrentProjectIds =
-  fmap fst . preview projectBranchPathPrism <$> Cli.getCurrentPath
-
--- | Like 'getCurrentProjectIds', but fails with a message if the user is not on a project branch.
-expectCurrentProjectIds :: Cli (ProjectAndBranch ProjectId ProjectBranchId)
-expectCurrentProjectIds =
-  getCurrentProjectIds & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
-
 -- | Get the current project+branch+branch path that a user is on.
-getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
-getCurrentProjectBranch = do
-  path <- Cli.getCurrentPath
-  getProjectBranchForPath path
+getCurrentProjectBranch :: Cli (Maybe (PP.ProjectPath Sqlite.Project Sqlite.ProjectBranch))
+getCurrentProjectBranch = runMaybeT do
+  ppCtx <- lift Cli.getProjectPathCtx
+  mapMaybeT Cli.runTransaction $ do
+    proj <- MaybeT $ Queries.loadProject (ppCtx ^. PP.ctxAsIds_ . PP.project_)
+    branch <- MaybeT $ Queries.loadProjectBranch (proj ^. #projectId) (ppCtx ^. PP.ctxAsIds_ . PP.branch_)
+    pure $ PP.ProjectPath proj branch (ppCtx ^. PP.absPath_)
 
 expectProjectBranchByName :: Sqlite.Project -> ProjectBranchName -> Cli Sqlite.ProjectBranch
 expectProjectBranchByName project branchName =
   Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
     Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
 
-getProjectBranchForPath :: Path.Absolute -> Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
-getProjectBranchForPath path = do
-  case preview projectBranchPathPrism path of
-    Nothing -> pure Nothing
-    Just (ProjectAndBranch projectId branchId, restPath) ->
-      Cli.runTransaction do
-        project <- Queries.expectProject projectId
-        branch <- Queries.expectProjectBranch projectId branchId
-        pure (Just (ProjectAndBranch project branch, restPath))
-
 -- | Like 'getCurrentProjectBranch', but fails with a message if the user is not on a project branch.
-expectCurrentProjectBranch :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path)
+expectCurrentProjectBranch :: Cli (PP.ProjectPath Sqlite.Project Sqlite.ProjectBranch)
 expectCurrentProjectBranch =
   getCurrentProjectBranch & onNothingM (Cli.returnEarly Output.NotOnProjectBranch)
 
@@ -187,8 +121,8 @@ hydrateNames :: These ProjectName ProjectBranchName -> Cli (ProjectAndBranch Pro
 hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
-    pure (ProjectAndBranch (project ^. #name) branchName)
+    ppCtx <- Cli.getProjectPathCtx
+    pure (ProjectAndBranch (ppCtx ^. PP.ctxAsNames_ . PP.project_) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- Expect a local project+branch by ids.
@@ -210,9 +144,9 @@ getProjectAndBranchByTheseNames ::
 getProjectAndBranchByTheseNames = \case
   This projectName -> getProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> runMaybeT do
-    (ProjectAndBranch project _branch, _restPath) <- MaybeT getCurrentProjectBranch
-    branch <- MaybeT (Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName))
-    pure (ProjectAndBranch project branch)
+    currentProjectBranch <- MaybeT getCurrentProjectBranch
+    branch <- MaybeT (Cli.runTransaction (Queries.loadProjectBranchByName (currentProjectBranch ^. PP.project_ . #projectId) branchName))
+    pure (ProjectAndBranch (currentProjectBranch ^. PP.project_) branch)
   These projectName branchName -> do
     Cli.runTransaction do
       runMaybeT do
@@ -230,7 +164,7 @@ expectProjectAndBranchByTheseNames ::
 expectProjectAndBranchByTheseNames = \case
   This projectName -> expectProjectAndBranchByTheseNames (These projectName (unsafeFrom @Text "main"))
   That branchName -> do
-    (ProjectAndBranch project _branch, _restPath) <- expectCurrentProjectBranch
+    PP.ProjectPath project _branch _restPath <- expectCurrentProjectBranch
     branch <-
       Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
         Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
@@ -347,7 +281,7 @@ expectRemoteProjectBranchByTheseNames includeSquashed = \case
     let remoteBranchName = unsafeFrom @Text "main"
     expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
   That branchName -> do
-    (ProjectAndBranch localProject localBranch, _restPath) <- expectCurrentProjectBranch
+    PP.ProjectPath localProject localBranch _restPath <- expectCurrentProjectBranch
     let localProjectId = localProject ^. #projectId
     let localBranchId = localBranch ^. #branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case

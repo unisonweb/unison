@@ -34,6 +34,7 @@ module Unison.Cli.Monad
     -- * Changing the current directory
     cd,
     popd,
+    switchProject,
 
     -- * Communicating output to the user
     respond,
@@ -67,6 +68,8 @@ import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Unique (Unique, newUnique)
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -81,6 +84,7 @@ import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (..))
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -379,7 +383,16 @@ getProjectPathIds = do
 cd :: Path.Absolute -> Cli ()
 cd path = do
   pp <- getProjectPathIds
-  #projectPathStack %= NonEmpty.cons (pp & PP.absPath_ .~ path)
+  let newPP = pp & PP.absPath_ .~ path
+  setMostRecentProjectPath newPP
+  #projectPathStack %= NonEmpty.cons newPP
+
+switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
+switchProject (ProjectAndBranch projectId branchId) = do
+  let newPP = PP.ProjectPath projectId branchId Path.absoluteEmpty
+  #projectPathStack %= NonEmpty.cons newPP
+  runTransaction $ Q.setMostRecentBranch projectId branchId
+  setMostRecentProjectPath newPP
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --

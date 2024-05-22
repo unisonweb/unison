@@ -108,7 +108,7 @@ handleUpdate2 = do
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
-  currentBranch0 <- Cli.getBranch0At currentPath
+  currentBranch0 <- Cli.getCurrentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps

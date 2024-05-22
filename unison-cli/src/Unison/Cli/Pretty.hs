@@ -5,7 +5,6 @@
 module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
-    prettyAbsoluteStripProject,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
@@ -73,7 +72,6 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -409,15 +407,6 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
         <> P.shown host
-
-stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
-stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
-
-prettyAbsoluteStripProject :: Path.Absolute -> Pretty
-prettyAbsoluteStripProject path =
-  P.blue case stripProjectBranchInfo path of
-    Just p -> P.shown p
-    Nothing -> P.shown path
 
 prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
 prettyLabeledDependencies ppe lds =

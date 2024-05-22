@@ -60,10 +60,8 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
         Queries.loadMostRecentBranch (project ^. #projectId) >>= \case
           Nothing -> do
             let branchName = unsafeFrom @Text "main"
-            branch <-
-              Queries.loadProjectBranchByName (project ^. #projectId) branchName & onNothingM do
+            Queries.loadProjectBranchByName (project ^. #projectId) branchName & onNothingM do
                 rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
-            setMostRecentBranch branch
           Just branchId ->
             Queries.loadProjectBranch (project ^. #projectId) branchId >>= \case
               Nothing -> error "impossible"
@@ -71,12 +69,6 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
     _ -> do
       projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
       Cli.runTransactionWithRollback \rollback -> do
-        branch <-
-          Queries.loadProjectBranchByNames projectName branchName & onNothingM do
-            rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-        setMostRecentBranch branch
-  Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId)))
-  where
-    setMostRecentBranch branch = do
-      Queries.setMostRecentBranch (branch ^. #projectId) (branch ^. #branchId)
-      pure branch
+        Queries.loadProjectBranchByNames projectName branchName & onNothingM do
+          rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+  Cli.switchProject (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId)

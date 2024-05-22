@@ -10,27 +10,24 @@ where
 import Control.Lens ((^.))
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli (getBranchFromProjectRootPath, getCurrentPath, updateAt)
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Branch qualified as Branch (empty)
+import Unison.Codebase.Branch qualified as Branch (empty, headHash)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
 import Unison.Sqlite qualified as Sqlite
-
-data CreateFrom
-  = CreateFrom'Branch (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | CreateFrom'LooseCode Path.Absolute
-  | CreateFrom'Nothingness
 
 -- | Create a new project branch from an existing project branch or namespace.
 handleBranch :: Input.BranchSourceI -> ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
@@ -51,14 +48,21 @@ handleBranch sourceI projectAndBranchNames0 = do
       Cli.returnEarly (Output.CannotCreateReleaseBranchWithBranchCommand newBranchName ver)
     ProjectBranchNameKind'NothingSpecial -> pure ()
 
+  srcProject <-
+    Cli.runTransactionWithRollback \rollback -> do
+      Queries.loadProjectByName projectName & onNothingM do
+        -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
+        rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+
   -- Compute what we should create the branch from.
-  createFrom <-
+  mayNewBranchCausalHash <-
     case sourceI of
       Input.BranchSourceI'CurrentContext ->
-        ProjectUtils.getCurrentProjectBranch >>= \case
-          Nothing -> CreateFrom'LooseCode <$> Cli.getCurrentPath
-          Just (currentBranch, _restPath) -> pure (CreateFrom'Branch currentBranch)
-      Input.BranchSourceI'Empty -> pure CreateFrom'Nothingness
+        Cli.getProjectRoot >>= \case
+          projectRoot -> do
+            pure Branch.headHash projectRoot
+      Input.BranchSourceI'Empty -> do
+        pure Nothing
       Input.BranchSourceI'LooseCodeOrProject (This sourcePath) -> do
         currentPath <- Cli.getCurrentPath
         pure (CreateFrom'LooseCode (Path.resolve currentPath sourcePath))
@@ -80,13 +84,7 @@ handleBranch sourceI projectAndBranchNames0 = do
               ProjectAndBranch Nothing b -> That b
               ProjectAndBranch (Just p) b -> These p b
 
-  project <-
-    Cli.runTransactionWithRollback \rollback -> do
-      Queries.loadProjectByName projectName & onNothingM do
-        -- We can't make the *first* branch of a project with `branch`; the project has to already exist.
-        rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-
-  _ <- doCreateBranch createFrom project newBranchName ("branch " <> into @Text projectAndBranchNames)
+  _ <- doCreateBranch newBranchCausalHashId project newBranchName ("branch " <> into @Text projectAndBranchNames)
 
   Cli.respond $
     Output.CreatedProjectBranch
@@ -95,47 +93,27 @@ handleBranch sourceI projectAndBranchNames0 = do
             if sourceBranch ^. #project . #projectId == project ^. #projectId
               then Output.CreatedProjectBranchFrom'ParentBranch (sourceBranch ^. #branch . #name)
               else Output.CreatedProjectBranchFrom'OtherBranch sourceBranch
-          CreateFrom'LooseCode path -> Output.CreatedProjectBranchFrom'LooseCode path
           CreateFrom'Nothingness -> Output.CreatedProjectBranchFrom'Nothingness
       )
       projectAndBranchNames
 
 -- | @doCreateBranch createFrom project branch description@:
 --
---   1. Creates a new branch row for @branch@ in project @project@ (failing if @branch@ already exists in @project@)
---   2. Puts the branch contents from @createFrom@ in the root namespace., using @description@ for the reflog.
---   3. cds to the new branch in the root namespace.
+--   1. Creates a new branch row for @branch@ in project @project@ (failing if @branch@ already exists in @project@).
+--   3. Switches to the new branch.
 --
 -- This bit of functionality is factored out from the main 'handleBranch' handler because it is also called by the
 -- @release.draft@ command, which essentially just creates a branch, but with some different output for the user.
 --
 -- Returns the branch id of the newly-created branch.
-doCreateBranch :: CreateFrom -> Sqlite.Project -> ProjectBranchName -> Text -> Cli ProjectBranchId
-doCreateBranch createFrom project newBranchName description = do
-  sourceNamespaceObject <-
-    case createFrom of
-      CreateFrom'Branch (ProjectAndBranch _ sourceBranch) -> do
-        let sourceProjectId = sourceBranch ^. #projectId
-        let sourceBranchId = sourceBranch ^. #branchId
-        Cli.getBranchFromProjectRootPath (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
-      CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
-      CreateFrom'Nothingness -> pure Branch.empty
-  let projectId = project ^. #projectId
-  let parentBranchId =
-        case createFrom of
-          CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-            | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
-          _ -> Nothing
-  doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
-
-doCreateBranch' ::
-  Branch IO ->
+doCreateBranch ::
+  CausalHashId ->
   Maybe ProjectBranchId ->
   Sqlite.Project ->
   Sqlite.Transaction ProjectBranchName ->
   Text ->
   Cli ProjectBranchId
-doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName description = do
+doCreateBranch newBranchCausalId parentBranchId project getNewBranchName description = do
   let projectId = project ^. #projectId
   newBranchId <-
     Cli.runTransactionWithRollback \rollback -> do
@@ -152,12 +130,11 @@ doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName de
                 branchId = newBranchId,
                 name = newBranchName,
                 parentBranchId = parentBranchId,
-                rootCausalHash = error "TODO: implement doCreateBranch"
+                causalHashId = newBranchCausalId
               }
           Queries.setMostRecentBranch projectId newBranchId
           pure newBranchId
 
-  let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
-  _ <- Cli.updateAt description newBranchPath (const sourceNamespaceObject)
-  Cli.cd newBranchPath
+  -- TODO: Switch to new branch
+  Cli.switch newBranchPath
   pure newBranchId

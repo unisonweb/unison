@@ -3,6 +3,8 @@ module Unison.Codebase.ProjectPath
     ProjectPathIds,
     ProjectPathNames,
     ProjectPathCtx,
+    fromProjectAndBranch,
+    ctxFromProjectAndBranch,
     absPath_,
     path_,
     projectAndBranch_,
@@ -18,6 +20,8 @@ import Control.Lens
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -34,6 +38,12 @@ type ProjectPathIds = ProjectPath ProjectId ProjectBranchId
 type ProjectPathNames = ProjectPath ProjectName ProjectBranchName
 
 type ProjectPathCtx = ProjectPath (ProjectId, ProjectName) (ProjectBranchId, ProjectBranchName)
+
+fromProjectAndBranch :: ProjectAndBranch proj branch -> Path.Absolute -> ProjectPath proj branch
+fromProjectAndBranch (ProjectAndBranch proj branch) = ProjectPath proj branch
+
+ctxFromProjectAndBranch :: ProjectAndBranch Project ProjectBranch -> Path.Absolute -> ProjectPathCtx
+ctxFromProjectAndBranch (ProjectAndBranch (Project {projectId, name = projectName}) (ProjectBranch {branchId, name = branchName})) = ProjectPath (projectId, projectName) (branchId, branchName)
 
 project_ :: Lens' (ProjectPath p b) p
 project_ = lens go set
