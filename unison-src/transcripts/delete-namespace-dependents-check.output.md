@@ -41,13 +41,22 @@ myproject/main> branch /new
 
 myproject/new> delete.namespace sub
 
-  Done.
+  ⚠️
+  
+  I didn't delete the namespace because the following
+  definitions are still in use.
+  
+  Dependency   Referenced In
+  dependency   1. dependent
+  
+  If you want to proceed anyways and leave those definitions
+  without names, use delete.namespace.force
 
 myproject/new> view dependent
 
   dependent : Nat
   dependent =
     use Nat +
-    #mllb0u5378 + 99
+    dependency + 99
 
 ```

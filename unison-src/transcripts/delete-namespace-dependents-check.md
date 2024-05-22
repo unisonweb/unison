@@ -15,7 +15,7 @@ sub.dependency = 123
 dependent = dependency + 99
 ```
 
-```ucm
+```ucm:error
 myproject/main> add
 myproject/main> branch /new
 myproject/new> delete.namespace sub
