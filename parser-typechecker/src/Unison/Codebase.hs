@@ -50,7 +50,7 @@ module Unison.Codebase
     getShallowCausalAtPath,
     getBranchAtPath,
     Operations.expectCausalBranchByCausalHash,
-    getShallowCausalFromRoot,
+    getShallowCausalAtPathFromRootHash,
     getShallowRootBranch,
     getShallowRootCausal,
     getShallowProjectRootBranch,
@@ -184,15 +184,13 @@ runTransactionWithRollback ::
 runTransactionWithRollback Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransactionWithRollback conn action
 
-getShallowCausalFromRoot ::
-  -- Optional root branch, if Nothing use the codebase's root branch.
-  Maybe CausalHash ->
+getShallowCausalAtPathFromRootHash ::
+  -- Causal to start at, if Nothing use the codebase's root branch.
+  CausalHash ->
   Path.Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalFromRoot mayRootHash p = do
-  rootCausal <- case mayRootHash of
-    Nothing -> getShallowRootCausal
-    Just ch -> Operations.expectCausalBranchByCausalHash ch
+getShallowCausalAtPathFromRootHash rootCausalHash p = do
+  rootCausal <- Operations.expectCausalBranchByCausalHash rootCausalHash
   getShallowCausalAtPath p (Just rootCausal)
 
 -- | Get the shallow representation of the root branches without loading the children or
@@ -240,19 +238,18 @@ getShallowBranchAtPath path branch = do
           childBranch <- V2Causal.value childCausal
           getShallowBranchAtPath p childBranch
 
-getShallowProjectRootBranch :: Db.ProjectId -> Db.ProjectBranchId -> Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
-getShallowProjectRootBranch projectId projectBranchId = do
-  ProjectBranch {causalHashId} <- Q.expectProjectBranch projectId projectBranchId
+getShallowProjectRootBranch :: ProjectBranch -> Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
+getShallowProjectRootBranch ProjectBranch {causalHashId} = do
   causalHash <- Q.expectCausalHash causalHashId
   Operations.expectCausalBranchByCausalHash causalHash >>= V2Causal.value
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
 getShallowBranchAtProjectPath ::
-  PP.ProjectPathIds ->
+  PP.ProjectPath ->
   Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
-getShallowBranchAtProjectPath (PP.ProjectPath projectId projectBranchId path) = do
-  projectRootBranch <- getShallowProjectRootBranch projectId projectBranchId
+getShallowBranchAtProjectPath (PP.ProjectPath _project projectBranch path) = do
+  projectRootBranch <- getShallowProjectRootBranch projectBranch
   getShallowBranchAtPath (Path.unabsolute path) projectRootBranch
 
 getShallowProjectRootByNames :: ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))

@@ -239,7 +239,7 @@ data DefinitionReference
 data Service
   = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
   | -- (Project branch names, perspective within project, definition reference)
-    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Path (Maybe DefinitionReference)
+    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Absolute (Maybe DefinitionReference)
   | Api
   deriving stock (Show)
 
@@ -299,13 +299,13 @@ urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
     LooseCodeUI perspective def ->
-      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path (Path.unabsolute perspective) def)
+      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path perspective def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) perspective def ->
       tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path perspective def)
     Api -> tShow baseUrl <> "/" <> toUrlPath [DontEscape "api"]
   where
-    path :: Path.Path -> Maybe DefinitionReference -> [URISegment]
-    path ns def =
+    path :: Path.Absolute -> Maybe DefinitionReference -> [URISegment]
+    path (Path.Absolute ns) def =
       let nsPath = namespacePath ns
        in case definitionPath def of
             Just defPath -> case nsPath of

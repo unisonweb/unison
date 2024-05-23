@@ -18,10 +18,8 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch (headHash)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
@@ -41,7 +39,7 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
       Cli.returnEarly (Output.CannotCreateReleaseBranchWithBranchCommand newBranchName ver)
     ProjectBranchNameKind'NothingSpecial -> pure ()
 
-  currentProjectName <- Cli.getProjectPath <&> view (PP.ctxAsNames_ . PP.project_)
+  currentProjectName <- Cli.getCurrentProjectPath <&> view (PP.asNames_ . #project)
   destProject <- do
     Cli.runTransactionWithRollback
       \rollback -> do
@@ -51,22 +49,21 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
           rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName newBranchName))
 
   -- Compute what we should create the branch from.
-  maySrcBranch <-
+  maySrcProjectAndBranch <-
     case sourceI of
-      Input.BranchSourceI'CurrentContext -> Just <$> ProjectUtils.getCurrentProjectBranch
+      Input.BranchSourceI'CurrentContext -> Just . view PP.projectAndBranch_ <$> Cli.getCurrentProjectPath
       Input.BranchSourceI'Empty -> pure Nothing
       Input.BranchSourceI'UnresolvedProjectBranch unresolvedProjectBranch -> do
-        ppCtx <- Cli.getProjectPath
-        ProjectAndBranch _proj branch <- ProjectUtils.resolveProjectBranch ppCtx (unresolvedProjectBranch & #branch %~ Just)
-        pure $ Just branch
+        pp <- Cli.getCurrentProjectPath
+        Just <$> ProjectUtils.resolveProjectBranch (pp ^. #project) (unresolvedProjectBranch & #branch %~ Just)
 
-  _ <- doCreateBranch maySrcBranch project newBranchName
+  _ <- doCreateBranch (view #branch <$> maySrcProjectAndBranch) destProject newBranchName
 
   Cli.respond $
     Output.CreatedProjectBranch
-      ( case maySrcBranch of
+      ( case maySrcProjectAndBranch of
           Just sourceBranch ->
-            if sourceBranch ^. #project . #projectId == project ^. #projectId
+            if sourceBranch ^. #project . #projectId == destProject ^. #projectId
               then Output.CreatedProjectBranchFrom'ParentBranch (sourceBranch ^. #branch . #name)
               else Output.CreatedProjectBranchFrom'OtherBranch sourceBranch
           Nothing -> Output.CreatedProjectBranchFrom'Nothingness
@@ -86,7 +83,7 @@ doCreateBranch ::
   -- If no parent branch is provided, make an empty branch.
   Maybe Sqlite.ProjectBranch ->
   Sqlite.Project ->
-  Sqlite.Transaction ProjectBranchName ->
+  ProjectBranchName ->
   Cli ProjectBranchId
 doCreateBranch mayParentBranch project getNewBranchName = do
   let projectId = project ^. #projectId

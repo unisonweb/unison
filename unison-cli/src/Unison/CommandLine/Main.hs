@@ -83,7 +83,7 @@ getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
         Just a -> pure a
     go :: Line.InputT IO Input
     go = do
-      let (PP.ProjectPath projectName projectBranchName path) = ppCtx ^. PP.ctxAsNames_
+      let (PP.ProjectPath projectName projectBranchName path) = ppCtx ^. PP.asNames_
       let promptString =
             P.sep
               ":"

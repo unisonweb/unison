@@ -11,8 +11,6 @@ module Unison.Codebase.ProjectPath
     asIds_,
     asNames_,
     asProjectAndBranch_,
-    project_,
-    branch_,
   )
 where
 
@@ -27,11 +25,11 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 
 data ProjectPathG proj branch = ProjectPath
-  { projPathProject :: proj,
-    projPathBranch :: branch,
-    projPathPath :: Path.Absolute
+  { project :: proj,
+    branch :: branch,
+    absPath :: Path.Absolute
   }
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
 
 type ProjectPathIds = ProjectPathG ProjectId ProjectBranchId
 
@@ -42,18 +40,6 @@ type ProjectPath = ProjectPathG Project ProjectBranch
 fromProjectAndBranch :: ProjectAndBranch Project ProjectBranch -> Path.Absolute -> ProjectPath
 fromProjectAndBranch (ProjectAndBranch proj branch) path = ProjectPath proj branch path
 
-project_ :: Lens' (ProjectPathG p b) p
-project_ = lens get set
-  where
-    get (ProjectPath p _ _) = p
-    set (ProjectPath _ b path) p = ProjectPath p b path
-
-branch_ :: Lens' (ProjectPathG p b) b
-branch_ = lens get set
-  where
-    get (ProjectPath _ b _) = b
-    set (ProjectPath p _ path) b = ProjectPath p b path
-
 -- | Project a project context into a project path of just IDs
 asIds_ :: Lens' ProjectPath ProjectPathIds
 asIds_ = lens get set
@@ -61,8 +47,8 @@ asIds_ = lens get set
     get (ProjectPath proj branch path) = ProjectPath (proj ^. #projectId) (branch ^. #branchId) path
     set p (ProjectPath pId bId path) =
       p
-        & project_ . #projectId .~ pId
-        & branch_ . #branchId .~ bId
+        & #project . #projectId .~ pId
+        & #branch . #branchId .~ bId
         & absPath_ .~ path
 
 -- | Project a project context into a project path of just names
@@ -72,15 +58,15 @@ asNames_ = lens get set
     get (ProjectPath proj branch path) = ProjectPath (proj ^. #name) (branch ^. #name) path
     set p (ProjectPath pName bName path) =
       p
-        & project_ . #name .~ pName
-        & branch_ . #name .~ bName
+        & #project . #name .~ pName
+        & #branch . #name .~ bName
         & absPath_ .~ path
 
 asProjectAndBranch_ :: Lens' ProjectPath (ProjectAndBranch Project ProjectBranch)
 asProjectAndBranch_ = lens get set
   where
     get (ProjectPath proj branch _) = ProjectAndBranch proj branch
-    set p (ProjectAndBranch proj branch) = p & project_ .~ proj & branch_ .~ branch
+    set p (ProjectAndBranch proj branch) = p & #project .~ proj & #branch .~ branch
 
 instance Bifunctor ProjectPathG where
   bimap f g (ProjectPath p b path) = ProjectPath (f p) (g b) path

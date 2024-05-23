@@ -8,7 +8,7 @@ module Unison.Cli.MonadUtils
     getCurrentPath,
     getCurrentProjectName,
     getCurrentProjectBranchName,
-    getProjectPath,
+    getCurrentProjectPath,
     resolvePath,
     resolvePath',
     resolveSplit',
@@ -95,8 +95,6 @@ import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
-import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -146,28 +144,28 @@ getConfig key = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting paths, path resolution, etc.
 
-getProjectPath :: Cli PP.ProjectPath
-getProjectPath = do
+getCurrentProjectPath :: Cli PP.ProjectPath
+getCurrentProjectPath = do
   (PP.ProjectPath projId branchId path) <- Cli.getProjectPathIds
   -- TODO: Reset to a valid project on error.
-  (Project {name = projName}, ProjectBranch {name = branchName}) <- fmap (fromMaybe (error $ reportBug "E794202" ("Project branch not found in database for ids: " <> show (projId, branchId)))) . Cli.runTransaction . runMaybeT $ do
+  (proj, branch) <- fmap (fromMaybe (error $ reportBug "E794202" ("Project branch not found in database for ids: " <> show (projId, branchId)))) . Cli.runTransaction . runMaybeT $ do
     project <- MaybeT $ Q.loadProject projId
     branch <- MaybeT $ Q.loadProjectBranch projId branchId
     pure (project, branch)
-  pure (PP.ProjectPath (projId, projName) (branchId, branchName) path)
+  pure (PP.ProjectPath proj branch path)
 
 -- | Get the current path relative to the current project.
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
-  view PP.absPath_ <$> getProjectPath
+  view PP.absPath_ <$> getCurrentProjectPath
 
 getCurrentProjectName :: Cli ProjectName
 getCurrentProjectName = do
-  view (PP.ctxAsNames_ . PP.project_) <$> getProjectPath
+  view (PP.asNames_ . #project) <$> getCurrentProjectPath
 
 getCurrentProjectBranchName :: Cli ProjectBranchName
 getCurrentProjectBranchName = do
-  view (PP.ctxAsNames_ . PP.branch_) <$> getProjectPath
+  view (PP.asNames_ . #branch) <$> getCurrentProjectPath
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli Path.Absolute

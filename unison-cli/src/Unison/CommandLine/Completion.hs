@@ -101,7 +101,7 @@ noCompletions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   m [System.Console.Haskeline.Completion.Completion]
 noCompletions _ _ _ _ = pure []
 
@@ -145,7 +145,7 @@ completeWithinNamespace ::
   Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query ppCtx = do
   shortHashLen <- Codebase.hashLength
-  b <- Codebase.getShallowBranchAtProjectPath (queryProjectPath ^. PP.ctxAsIds_)
+  b <- Codebase.getShallowBranchAtProjectPath (queryProjectPath ^. PP.asIds_)
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
