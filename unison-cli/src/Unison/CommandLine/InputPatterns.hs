@@ -1355,7 +1355,7 @@ find' cmd fscope =
     I.Visible
     [("query", ZeroPlus, exactDefinitionArg)]
     findHelp
-    (fmap (Input.FindI False fscope) . traverse (unsupportedStructuredArgument "text"))
+    (pure . Input.FindI False fscope . fmap unifyArgument)
 
 findShallow :: InputPattern
 findShallow =
