@@ -85,5 +85,5 @@ curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-linux.t
 
 **Windows manual install:**
 * Recommended: [Set your default Terminal application](https://devblogs.microsoft.com/commandline/windows-terminal-as-your-default-command-line-experience/) to “Windows Terminal”.
-* Download [the release](https://github.com/unisonweb/unison/releases/download/release%2FM5h/ucm-windows.zip) and extract it to a location of your choosing.
+* Download [the release](https://github.com/unisonweb/unison/releases/latest/download/ucm-windows.zip) and extract it to a location of your choosing.
 * Run `ucm.exe`

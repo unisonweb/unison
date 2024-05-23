@@ -40,7 +40,7 @@ y = "hello"
 
 ```ucm
 .feature1> add
-.master> merge .feature1
+.master> merge.old .feature1
 .master> view y
 ```
 
@@ -52,7 +52,7 @@ We can also delete the fork if we're done with it. (Don't worry, even though the
 it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
-.> delete.namespace .feature1
+.> delete.namespace feature1
 .> history .feature1
 .> history
 ```
@@ -98,7 +98,7 @@ master.frobnicate n = n + 1
 At this point, `master` and `feature2` both have some changes the other doesn't know about. Let's merge them.
 
 ```ucm
-.> merge feature2 master
+.> merge.old feature2 master
 ```
 
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):

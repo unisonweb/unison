@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -31,9 +31,34 @@ library
   hs-source-dirs:
       ./
   default-extensions:
+      BangPatterns
       BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
       LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
   build-depends:
       base
     , containers

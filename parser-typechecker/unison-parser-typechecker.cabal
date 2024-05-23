@@ -35,7 +35,6 @@ library
       Unison.Codebase
       Unison.Codebase.Branch
       Unison.Codebase.Branch.BranchDiff
-      Unison.Codebase.Branch.DeclCoherencyCheck
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
       Unison.Codebase.Branch.Raw
@@ -85,7 +84,6 @@ library
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
-      Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
@@ -187,7 +185,6 @@ library
       Unison.Util.EnumContainers
       Unison.Util.Exception
       Unison.Util.Logger
-      Unison.Util.PinBoard
       Unison.Util.Pretty.MegaParsec
       Unison.Util.RefPromise
       Unison.Util.Star2
@@ -217,6 +214,7 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes
@@ -386,7 +384,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.UnisonSources
-      Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
       Unison.Test.Util.Text
@@ -413,6 +410,7 @@ test-suite parser-typechecker-tests
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes

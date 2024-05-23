@@ -94,6 +94,7 @@ import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
+import U.Codebase.Decl (Modifier)
 
 debug :: Bool
 debug = False
@@ -497,11 +498,13 @@ getDeclElement =
         0 -> pure Decl.Data
         1 -> pure Decl.Effect
         other -> unknownTag "DeclType" other
-    getModifier =
-      getWord8 >>= \case
-        0 -> pure Decl.Structural
-        1 -> Decl.Unique <$> getText
-        other -> unknownTag "DeclModifier" other
+
+getModifier :: MonadGet m => m Modifier
+getModifier =
+  getWord8 >>= \case
+    0 -> pure Decl.Structural
+    1 -> Decl.Unique <$> getText
+    other -> unknownTag "DeclModifier" other
 
 -- | Get the number of constructors in a decl element.
 getDeclElementNumConstructors :: (MonadGet m) => m Int
@@ -512,7 +515,7 @@ getDeclElementNumConstructors = do
   getListLength
   where
     skipDeclType = void getWord8
-    skipDeclModifier = void getWord8
+    skipDeclModifier = void getModifier
     skipDeclTypeVariables = void (getList skipSymbol)
 
 lookupDeclElement ::

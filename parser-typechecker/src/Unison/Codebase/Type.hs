@@ -4,10 +4,8 @@
 module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
-    PushGitBranchOpts (..),
     GitPushBehavior (..),
     GitError (..),
-    SyncToDir,
     LocalOrRemote (..),
     gitErrorFromOpenCodebaseError,
   )
@@ -21,7 +19,6 @@ import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, W
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
-import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
@@ -35,12 +32,6 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.WatchKind qualified as WK
-
-type SyncToDir m =
-  CodebasePath -> -- dest codebase
-  SyncMode ->
-  Branch m -> -- branch to sync to dest codebase
-  m ()
 
 -- | Abstract interface to a user's codebase.
 data Codebase m v a = Codebase
@@ -86,12 +77,12 @@ data Codebase m v a = Codebase
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
-    syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
+    syncFromDirectory :: CodebasePath -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
-    syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
+    syncToDirectory :: CodebasePath -> Branch m -> m (),
     viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: forall e. WriteGitRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
+    pushGitBranch :: forall e. WriteGitRepo -> GitPushBehavior -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
@@ -115,11 +106,6 @@ data LocalOrRemote
   = Local
   | Remote
   deriving (Show, Eq, Ord)
-
-data PushGitBranchOpts = PushGitBranchOpts
-  { behavior :: GitPushBehavior,
-    syncMode :: SyncMode
-  }
 
 data GitPushBehavior
   = -- | Don't set root, just sync entities.

@@ -28,7 +28,7 @@ Cause a conflict:
     a.x : Nat
     b.x : Nat
 
-.merged> merge .a
+.merged> merge.old .a
 
   Here's what's changed in the current namespace after the
   merge:
@@ -44,7 +44,7 @@ Cause a conflict:
 
   Applying changes from patch...
 
-.merged> merge .b
+.merged> merge.old .b
 
   Here's what's changed in the current namespace after the
   merge:

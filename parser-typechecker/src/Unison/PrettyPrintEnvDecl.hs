@@ -9,6 +9,7 @@ module Unison.PrettyPrintEnvDecl
 where
 
 import Unison.Name (Name)
+import Unison.Prelude hiding (empty)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
 
@@ -24,7 +25,7 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
   { unsuffixifiedPPE :: PrettyPrintEnv,
     suffixifiedPPE :: PrettyPrintEnv
   }
-  deriving (Show)
+  deriving stock (Generic, Show)
 
 -- | Lifts 'biasTo' over a PrettyPrintEnvDecl
 biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl

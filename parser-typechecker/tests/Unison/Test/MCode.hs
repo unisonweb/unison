@@ -44,7 +44,7 @@ testEval0 :: [(Reference, SuperGroup Symbol)] -> SuperGroup Symbol -> Test ()
 testEval0 env main =
   ok << io do
     cc <- baseCCache False
-    cacheAdd ((mainRef, main) : env) cc
+    _ <- cacheAdd ((mainRef, main) : env) cc
     rtm <- readTVarIO (refTm cc)
     apply0 Nothing cc Nothing (rtm Map.! mainRef)
   where

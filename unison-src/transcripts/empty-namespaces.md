@@ -32,7 +32,7 @@ Merging an empty namespace should be a no-op
 
 ```ucm:error
 .empty> history
-.empty> merge .mynamespace
+.empty> merge.old .mynamespace
 .empty> history
 ```
 
@@ -45,7 +45,7 @@ stuff.thing = 2
 
 ```ucm:hide
 .> add
-.> delete.namespace .deleted
+.> delete.namespace deleted
 ```
 
 ## fork

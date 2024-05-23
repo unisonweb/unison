@@ -12,6 +12,7 @@ dependencies:
   - base
   - bytestring
   - containers
+  - directory
   - generic-lens
   - either
   - extra
@@ -22,6 +23,7 @@ dependencies:
   - pretty-simple
   - safe
   - text
+  - these
   - time
   - transformers
   - unliftio

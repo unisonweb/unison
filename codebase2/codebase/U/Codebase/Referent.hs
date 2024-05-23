@@ -48,6 +48,11 @@ toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
 
+toReferenceId :: Referent -> Maybe Reference.Id
+toReferenceId = \case
+  Ref termRef -> Reference.toId termRef
+  Con typeRef _ -> Reference.toId typeRef
+
 toTermReference :: Referent' termRef typeRef -> Maybe termRef
 toTermReference = \case
   Ref termRef -> Just termRef

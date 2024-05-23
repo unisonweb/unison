@@ -71,7 +71,7 @@ type MyType = MyType Int
 ```
 
 ```ucm:error
-.mergeA> merge .mergeB
+.mergeA> merge.old .mergeB
 .mergeA> todo
 ```
 

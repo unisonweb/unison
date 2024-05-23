@@ -52,7 +52,7 @@ jobs:
 
           gh release create "release/${{inputs.version}}" \
             --repo unisonweb/unison \
-            --target "${{github.ref}}" \
+            --target "${{github.sha}}" \
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
             \

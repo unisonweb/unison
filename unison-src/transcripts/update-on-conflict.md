@@ -13,8 +13,8 @@ b.x = 2
 Cause a conflict:
 ```ucm
 .> add
-.merged> merge .a
-.merged> merge .b
+.merged> merge.old .a
+.merged> merge.old .b
 ```
 
 Updating conflicted definitions works fine, and the associated patch contains two entries.

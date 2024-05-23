@@ -18,6 +18,7 @@ module Unison.CommandLine.FZFResolvers
     projectAndOrBranchArg,
     projectOrBranchResolver,
     projectBranchResolver,
+    projectBranchWithinCurrentProjectResolver,
     projectNameResolver,
     fuzzySelectHeader,
   )
@@ -152,6 +153,9 @@ projectOrBranchResolver = multiResolver [projectBranchOptions, namespaceOptions]
 
 projectBranchResolver :: FZFResolver
 projectBranchResolver = FZFResolver {getOptions = projectBranchOptions}
+
+projectBranchWithinCurrentProjectResolver :: FZFResolver
+projectBranchWithinCurrentProjectResolver = FZFResolver {getOptions = projectBranchOptionsWithinCurrentProject}
 
 projectNameResolver :: FZFResolver
 projectNameResolver = FZFResolver {getOptions = projectNameOptions}

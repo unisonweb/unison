@@ -53,14 +53,17 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
+import Unison.Codebase.Path (Path)
+import Unison.Reference (TermReferenceId)
+import qualified Unison.Codebase.Path as Path
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
 handleTest :: TestInput -> Cli ()
-handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
+handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testRefs <- findTermsOfTypes codebase includeLibNamespace (NESet.singleton (DD.testResultListType mempty))
+  testRefs <- findTermsOfTypes codebase includeLibNamespace path (NESet.singleton (DD.testResultListType mempty))
 
   cachedTests <-
     Map.fromList <$> Cli.runTransaction do
@@ -138,9 +141,10 @@ handleIOTest main = do
       runIOTest suffixifiedPPE ref
   Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
-findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> NESet (Type.Type Symbol Ann) -> Cli (Set Reference.Id)
-findTermsOfTypes codebase includeLib filterTypes = do
-  branch <- Cli.getCurrentBranch0
+findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> Path -> NESet (Type.Type Symbol Ann) -> Cli (Set TermReferenceId)
+findTermsOfTypes codebase includeLib path filterTypes = do
+  branch <- Cli.expectBranch0AtPath path
+
   let possibleTests =
         branch
           & (if includeLib then id else Branch.withoutLib)
@@ -157,7 +161,7 @@ handleAllIOTests = do
   names <- Cli.currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let suffixifiedPPE = PPED.suffixifiedPPE pped
-  ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
+  ioTestRefs <- findTermsOfTypes codebase False Path.empty (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
     Nothing -> Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True [] []
     Just neTestRefs -> do

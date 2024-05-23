@@ -1,10 +1,5 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
@@ -64,8 +59,7 @@ import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
-import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (LocalOrRemote (..), PushGitBranchOpts (..))
+import Unison.Codebase.Type (GitPushBehavior, LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
@@ -325,8 +319,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
 
-            syncFromDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-            syncFromDirectory srcRoot _syncMode b =
+            syncFromDirectory :: Codebase1.CodebasePath -> Branch m -> m ()
+            syncFromDirectory srcRoot b =
               withConnection (debugName ++ ".sync.src") srcRoot \srcConn ->
                 withConn \destConn -> do
                   progressStateRef <- liftIO (newIORef emptySyncProgressState)
@@ -334,8 +328,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     Sqlite.runWriteTransaction destConn \runDest -> do
                       syncInternal (syncProgress progressStateRef) runSrc runDest b
 
-            syncToDirectory :: Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-            syncToDirectory destRoot _syncMode b =
+            syncToDirectory :: Codebase1.CodebasePath -> Branch m -> m ()
+            syncToDirectory destRoot b =
               withConn \srcConn ->
                 withConnection (debugName ++ ".sync.dest") destRoot \destConn -> do
                   progressStateRef <- liftIO (newIORef emptySyncProgressState)
@@ -635,11 +629,11 @@ pushGitBranch ::
   (MonadUnliftIO m) =>
   Sqlite.Connection ->
   WriteGitRepo ->
-  PushGitBranchOpts ->
+  GitPushBehavior ->
   -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
   m (Either C.GitError (Either e (Branch m)))
-pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = UnliftIO.try do
+pushGitBranch srcConn repo behavior action = UnliftIO.try do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -668,7 +662,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts behavior _syncMode) action = Unlif
             C.withConnection destCodebase \destConn ->
               doSync codebaseStatus destConn newBranch
             pure (Right newBranch)
-    for newBranchOrErr $ push pushStaging repo
+    for_ newBranchOrErr $ push pushStaging repo
     pure newBranchOrErr
   where
     readRepo :: ReadGitRepo

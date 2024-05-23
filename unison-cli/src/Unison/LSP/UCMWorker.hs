@@ -28,24 +28,24 @@ ucmWorker ::
   STM CausalHash ->
   STM Path.Absolute ->
   Lsp ()
-ucmWorker ppedVar parseNamesVar nameSearchCacheVar currentPathVar getLatestRoot getLatestPath = do
+ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestRoot getLatestPath = do
   Env {codebase, completionsVar} <- ask
   let loop :: (CausalHash, Path.Absolute) -> Lsp a
       loop (currentRoot, currentPath) = do
         Debug.debugM Debug.LSP "LSP path: " currentPath
         currentBranch0 <- fmap Branch.head . liftIO $ (Codebase.getBranchAtPath codebase currentPath)
-        let parseNames = Branch.toNames currentBranch0
+        let currentNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let pped = PPED.makePPED (PPE.hqNamer hl parseNames) (PPE.suffixifyByHash parseNames)
+        let pped = PPED.makePPED (PPE.hqNamer hl currentNames) (PPE.suffixifyByHash currentNames)
         atomically $ do
           writeTMVar currentPathVar currentPath
-          writeTMVar parseNamesVar parseNames
+          writeTMVar currentNamesVar currentNames
           writeTMVar ppedVar pped
-          writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl parseNames)
+          writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl currentNames)
         -- Re-check everything with the new names and ppe
         VFS.markAllFilesDirty
         atomically do
-          writeTMVar completionsVar (namesToCompletionTree parseNames)
+          writeTMVar completionsVar (namesToCompletionTree currentNames)
         Debug.debugLogM Debug.LSP "LSP Initialized"
         latest <- atomically $ do
           latestRoot <- getLatestRoot

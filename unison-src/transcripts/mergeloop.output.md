@@ -126,13 +126,13 @@ b = 2
     a : ##Nat
     b : ##Nat
 
-.> merge x y
+.> merge.old x y
 
   Nothing changed as a result of the merge.
 
   Applying changes from patch...
 
-.> merge y z
+.> merge.old y z
 
   Nothing changed as a result of the merge.
 

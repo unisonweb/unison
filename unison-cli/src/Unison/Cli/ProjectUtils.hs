@@ -8,6 +8,7 @@ module Unison.Cli.ProjectUtils
     getCurrentProjectBranch,
     getProjectBranchForPath,
     expectCurrentProjectBranch,
+    expectProjectBranchByName,
     projectPath,
     projectBranchesPath,
     projectBranchPath,
@@ -26,6 +27,7 @@ module Unison.Cli.ProjectUtils
     expectLooseCodeOrProjectBranch,
 
     -- * Loading remote project info
+    expectRemoteProjectById,
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
     loadRemoteProjectBranchByName,
@@ -33,10 +35,17 @@ module Unison.Cli.ProjectUtils
     loadRemoteProjectBranchByNames,
     expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
+
+    -- * Other helpers
+    findTemporaryBranchName,
+    expectLatestReleaseBranchName,
   )
 where
 
 import Control.Lens
+import Data.List qualified as List
+import Data.Maybe (fromJust)
+import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -54,9 +63,11 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, ResolvedBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
+import Unison.Core.Project (ProjectBranchName (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName)
 import Unison.Project.Util
+import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Witch (unsafeFrom)
 
@@ -93,6 +104,27 @@ resolveBranchRelativePath = \case
       Left branchName -> That branchName
       Right (projectName, branchName) -> These projectName branchName
 
+-- @findTemporaryBranchName projectId preferred@ finds some unused branch name in @projectId@ with a name
+-- like @preferred@.
+findTemporaryBranchName :: ProjectId -> ProjectBranchName -> Transaction ProjectBranchName
+findTemporaryBranchName projectId preferred = do
+  allBranchNames <-
+    fmap (Set.fromList . map snd) do
+      Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+
+  let -- all branch name candidates in order of preference:
+      --   prefix
+      --   prefix-2
+      --   prefix-3
+      --   ...
+      allCandidates :: [ProjectBranchName]
+      allCandidates =
+        preferred : do
+          n <- [(2 :: Int) ..]
+          pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
+
+  pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
+
 -- | Get the current project that a user is on.
 getCurrentProject :: Cli (Maybe Sqlite.Project)
 getCurrentProject = do
@@ -124,6 +156,11 @@ getCurrentProjectBranch :: Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.Pr
 getCurrentProjectBranch = do
   path <- Cli.getCurrentPath
   getProjectBranchForPath path
+
+expectProjectBranchByName :: Sqlite.Project -> ProjectBranchName -> Cli Sqlite.ProjectBranch
+expectProjectBranchByName project branchName =
+  Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName) & onNothingM do
+    Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
 
 getProjectBranchForPath :: Path.Absolute -> Cli (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch, Path.Path))
 getProjectBranchForPath path = do
@@ -230,6 +267,12 @@ expectLooseCodeOrProjectBranch =
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils
 
+-- | Expect a remote project by id. Its latest-known name is also provided, for error messages.
+expectRemoteProjectById :: RemoteProjectId -> ProjectName -> Cli Share.RemoteProject
+expectRemoteProjectById remoteProjectId remoteProjectName = do
+  Share.getProjectById remoteProjectId & onNothingM do
+    Cli.returnEarly (Output.RemoteProjectDoesntExist Share.hardCodedUri remoteProjectName)
+
 expectRemoteProjectByName :: ProjectName -> Cli Share.RemoteProject
 expectRemoteProjectByName remoteProjectName = do
   Share.getProjectByName remoteProjectName & onNothingM do
@@ -324,3 +367,10 @@ expectRemoteProjectBranchByTheseNames includeSquashed = \case
 remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
 remoteProjectBranchDoesntExist projectAndBranch =
   Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri projectAndBranch)
+
+-- | Expect the given remote project to have a latest release, and return it as a valid branch name.
+expectLatestReleaseBranchName :: Share.RemoteProject -> Cli ProjectBranchName
+expectLatestReleaseBranchName remoteProject =
+  case remoteProject.latestRelease of
+    Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases remoteProject.projectName)
+    Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))

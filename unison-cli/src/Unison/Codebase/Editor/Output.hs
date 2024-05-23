@@ -28,6 +28,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
+import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -63,7 +64,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -284,21 +285,22 @@ data Output
     NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
-  | WarnIncomingRootBranch ShortCausalHash (Set ShortCausalHash)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
   | PullAlreadyUpToDate
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
-    MergeOverEmpty (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+    MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | MergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+  | -- This will replace the above once `merge.old` is deleted
+    MergeAlreadyUpToDate2 !MergeSourceAndTarget
   | PreviewMergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
@@ -401,6 +403,19 @@ data Output
   | UpgradeFailure !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
+  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeSuccess !MergeSourceAndTarget
+  | MergeSuccessFastForward !MergeSourceAndTarget
+  | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
+  | MergeConflictedTermName !Name !(NESet Referent)
+  | MergeConflictedTypeName !Name !(NESet TypeReference)
+  | MergeConflictInvolvingBuiltin !Name
+  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeDefnsInLib !MergeSourceOrTarget
+  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
+  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
+  | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -541,7 +556,6 @@ isFailure o = case o of
   PatchInvolvesExternalDependents {} -> True
   AboutToPropagatePatch {} -> False
   NothingToPatch {} -> False
-  WarnIncomingRootBranch {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -552,6 +566,7 @@ isFailure o = case o of
   AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
+  MergeAlreadyUpToDate2 {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
   NoConflictsOrEdits {} -> False
   ListShallow _ es -> null es
@@ -630,6 +645,19 @@ isFailure o = case o of
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
   LooseCodePushDeprecated -> True
+  MergeFailure {} -> True
+  MergeSuccess {} -> False
+  MergeSuccessFastForward {} -> False
+  MergeConflictedAliases {} -> True
+  MergeConflictedTermName {} -> True
+  MergeConflictedTypeName {} -> True
+  MergeConflictInvolvingBuiltin {} -> True
+  MergeConstructorAlias {} -> True
+  MergeDefnsInLib {} -> True
+  MergeMissingConstructorName {} -> True
+  MergeNestedDeclAlias {} -> True
+  MergeStrayConstructor {} -> True
+  InstalledLibdep {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

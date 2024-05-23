@@ -152,8 +152,8 @@ foo/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
-  Tip: Use `merge /topic /main` to merge your work back into the
-       main branch.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
 
 foo/main> history
 

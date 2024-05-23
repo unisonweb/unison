@@ -6,14 +6,12 @@ where
 import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Char qualified as Char
-import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Text.Builder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -172,8 +170,7 @@ handleUpgrade oldName newName = do
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.respond (Output.UpgradeFailure scratchFilePath oldName newName)
-      Cli.returnEarlyWithoutOutput
+      Cli.returnEarly (Output.UpgradeFailure scratchFilePath oldName newName)
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
@@ -270,28 +267,25 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
 -- like "upgrade-<oldDepName>-to-<newDepName>".
 findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
 findTemporaryBranchName projectId oldDepName newDepName = do
-  allBranchNames <-
-    fmap (Set.fromList . map snd) do
-      Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+  Cli.findTemporaryBranchName projectId $
+    -- First try something like
+    --
+    --   upgrade-unison_base_3_0_0-to-unison_base_4_0_0
+    --
+    -- and if that fails (which it shouldn't, but may because of symbols or something), back off to some
+    -- more-guaranteed-to-work mangled name like
+    --
+    --   upgrade-unisonbase300-to-unisonbase400
+    tryFrom @Text (mk oldDepText newDepText)
+      & fromRight (unsafeFrom @Text (mk (scrub oldDepText) (scrub newDepText)))
+  where
+    mk :: Text -> Text -> Text
+    mk old new =
+      Text.Builder.run ("upgrade-" <> Text.Builder.text old <> "-to-" <> Text.Builder.text new)
 
-  let -- all branch name candidates in order of preference:
-      --   upgrade-<old>-to-<new>
-      --   upgrade-<old>-to-<new>-2
-      --   upgrade-<old>-to-<new>-3
-      --   ...
-      allCandidates :: [ProjectBranchName]
-      allCandidates =
-        preferred : do
-          n <- [(2 :: Int) ..]
-          pure (unsafeFrom @Text (into @Text preferred <> "-" <> tShow n))
-        where
-          preferred :: ProjectBranchName
-          preferred =
-            -- filter isAlpha just to make it more likely this is a valid project name :sweat-smile:
-            unsafeFrom @Text $
-              "upgrade-"
-                <> Text.filter Char.isAlpha (NameSegment.toEscapedText oldDepName)
-                <> "-to-"
-                <> Text.filter Char.isAlpha (NameSegment.toEscapedText newDepName)
+    scrub :: Text -> Text
+    scrub =
+      Text.filter Char.isAlphaNum
 
-  pure (fromJust (List.find (\name -> not (Set.member name allBranchNames)) allCandidates))
+    oldDepText = NameSegment.toEscapedText oldDepName
+    newDepText = NameSegment.toEscapedText newDepName

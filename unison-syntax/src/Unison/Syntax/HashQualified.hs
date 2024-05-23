@@ -51,7 +51,7 @@ parseTextWith parser text =
 unsafeParseText :: Text -> HashQualified Name
 unsafeParseText txt = fromMaybe msg . parseText $ txt
   where
-    msg = error $ "HashQualified.unsafeFromText " <> show txt
+    msg = error $ "HashQualified.unsafeParseText " <> show txt
 
 toText :: HashQualified Name -> Text
 toText =

@@ -1,7 +1,8 @@
 The Unison language
 ===================
 
-[![Build Status](https://github.com/unisonweb/unison/actions/workflows/ci.yaml/badge.svg)](https://github.com/unisonweb/unison/actions/workflows/ci.yaml?query=branch%3Atrunk)
+[![CI Status](https://github.com/unisonweb/unison/actions/workflows/ci.yaml/badge.svg)](https://github.com/unisonweb/unison/actions/workflows/ci.yaml?query=branch%3Atrunk)
+[![Pre-Release Status](https://github.com/unisonweb/unison/actions/workflows/pre-release.yaml/badge.svg)](https://github.com/unisonweb/unison/actions/workflows/pre-release.yaml)
 
 * [Overview](#overview)
 * [Building using Stack](#building-using-stack)

@@ -65,7 +65,9 @@ import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
+import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
@@ -77,7 +79,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
-import Unison.Codebase.Editor.HandleInput.Pull (doPullRemoteBranch, mergeBranchAndPropagateDefaultPatch, propagatePatch)
+import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch, propagatePatch)
 import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
@@ -200,13 +202,6 @@ import UnliftIO.Directory qualified as Directory
 loop :: Either Event Input -> Cli ()
 loop e = do
   case e of
-    Left (IncomingRootBranch hashes) -> Cli.time "IncomingRootBranch" do
-      schLength <- Cli.runTransaction Codebase.branchHashLength
-      rootBranch <- Cli.getRootBranch
-      Cli.respond $
-        WarnIncomingRootBranch
-          (SCH.fromHash schLength $ Branch.headHash rootBranch)
-          (Set.map (SCH.fromHash schLength) hashes)
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
@@ -428,6 +423,7 @@ loop e = do
                 if ok
                   then Success
                   else BranchEmpty branchEmpty
+            MergeI branch -> handleMerge branch
             MergeLocalBranchI src0 dest0 mergeMode -> do
               description <- inputDescription input
               src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
@@ -436,8 +432,11 @@ loop e = do
               let destp = looseCodeOrProjectToPath dest0
               srcb <- Cli.expectBranchAtPath' srcp
               dest <- Cli.resolvePath' destp
-              -- todo: fixme: use project and branch names
-              let err = Just $ MergeAlreadyUpToDate src0 dest0
+              let err =
+                    Just $
+                      MergeAlreadyUpToDate
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> src0)
+                        ((\x -> ProjectAndBranch x.project.name x.branch.name) <$> dest0)
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
@@ -540,11 +539,12 @@ loop e = do
             DocToMarkdownI docName -> do
               names <- Cli.currentNames
               pped <- Cli.prettyPrintEnvDeclFromNames names
-              hqLength <- Cli.runTransaction Codebase.hashLength
-              let nameSearch = NameSearch.makeNameSearch hqLength names
               Cli.Env {codebase, runtime} <- ask
+              docRefs <- Cli.runTransaction do
+                hqLength <- Codebase.hashLength
+                let nameSearch = NameSearch.makeNameSearch hqLength names
+                Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
               mdText <- liftIO $ do
-                docRefs <- Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
                 for docRefs \docRef -> do
                   Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
                   pure . Md.toText $ Md.toMarkdown doc
@@ -748,16 +748,15 @@ loop e = do
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
               DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
-                branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
+                branch <- Cli.expectBranchAtPath (Path.unsplit p)
                 description <- inputDescription input
-                absPath <- Cli.resolveSplit' p
                 let toDelete =
                       Names.prefix0
-                        (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
+                        (Path.unsafeToName (Path.unsplit (p)))
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
-                  rootNames <- Branch.toNames <$> Cli.getRootBranch0
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty rootNames)
+                  names <- Cli.currentNames
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty names)
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
@@ -769,7 +768,7 @@ loop e = do
                       ppeDecl <- Cli.currentPrettyPrintEnvDecl
                       Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                       Cli.returnEarlyWithoutOutput
-                parentPathAbs <- Cli.resolvePath' parentPath
+                parentPathAbs <- Cli.resolvePath parentPath
                 -- We have to modify the parent in order to also wipe out the history at the
                 -- child.
                 Cli.updateAt description parentPathAbs \parentBranch ->
@@ -1011,7 +1010,7 @@ loop e = do
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respondNumbered $ ListEdits patch suffixifiedPPE
-            PullRemoteBranchI sourceTarget sMode pMode verbosity -> doPullRemoteBranch sourceTarget sMode pMode verbosity
+            PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
             PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq -> handleDependencies hq
@@ -1155,7 +1154,6 @@ loop e = do
             DeprecateTypeI {} -> Cli.respond NotImplemented
             RemoveTermReplacementI from patchPath -> doRemoveReplacement from patchPath True
             RemoveTypeReplacementI from patchPath -> doRemoveReplacement from patchPath False
-            ShowDefinitionByPrefixI {} -> Cli.respond NotImplemented
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
             GistI input -> handleGist input
@@ -1176,6 +1174,7 @@ loop e = do
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
+            LibInstallI libdep -> handleInstallLib libdep
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -1264,10 +1263,10 @@ inputDescription input =
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Namespace Try opath0 -> do
-          opath <- ops' opath0
+          opath <- ops opath0
           pure ("delete.namespace " <> opath)
         DeleteTarget'Namespace Force opath0 -> do
-          opath <- ops' opath0
+          opath <- ops opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
@@ -1360,10 +1359,12 @@ inputDescription input =
     StructuredFindReplaceI {} -> wat
     GistI {} -> wat
     HistoryI {} -> wat
+    LibInstallI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     ListEditsI {} -> wat
     LoadI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
@@ -1374,11 +1375,10 @@ inputDescription input =
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat
     ProjectsI -> wat
-    PullRemoteBranchI {} -> wat
+    PullI {} -> wat
     PushRemoteBranchI {} -> wat
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
-    ShowDefinitionByPrefixI {} -> wat
     ShowDefinitionI {} -> wat
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
@@ -1399,8 +1399,8 @@ inputDescription input =
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
     brp = fmap from . ProjectUtils.resolveBranchRelativePath
-    ops' :: Maybe Path.Split' -> Cli Text
-    ops' = maybe (pure ".") ps'
+    ops :: Maybe Path.Split -> Cli Text
+    ops = maybe (pure ".") ps
     opatch :: Maybe Path.Split' -> Cli Text
     opatch = ps' . fromMaybe Cli.defaultPatchPath
     wat = error $ show input ++ " is not expected to alter the branch"
@@ -1414,6 +1414,7 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toEscapedText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
+    ps = p . Path.unsplit
     looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
     looseCodeOrProjectToText = \case
       This path -> p' path

@@ -82,6 +82,7 @@ import GHC.Generics as X (Generic, Generic1)
 import GHC.IO.Handle qualified as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
+import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
 import System.IO qualified as IO
 import Text.Read as X (readMaybe)
@@ -236,23 +237,28 @@ writeUtf8 fileName txt = do
     Handle.hSetEncoding handle IO.utf8
     Text.hPutStr handle txt
 
--- | Atomically prepend some text to a file
+-- | Atomically prepend some text to a file, creating the file if it doesn't already exist
 prependUtf8 :: FilePath -> Text -> IO ()
 prependUtf8 path txt = do
-  let withTempFile tmpFilePath tmpHandle = do
-        Text.hPutStrLn tmpHandle txt
-        IO.withFile path IO.ReadMode \currentScratchFile -> do
-          let copyLoop = do
-                chunk <- Text.hGetChunk currentScratchFile
-                case Text.length chunk == 0 of
-                  True -> pure ()
-                  False -> do
-                    Text.hPutStr tmpHandle chunk
-                    copyLoop
-          copyLoop
-        IO.hClose tmpHandle
-        UnliftIO.renameFile tmpFilePath path
-  UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
+  Directory.doesFileExist path >>= \case
+    False -> writeUtf8 path txt
+    True -> do
+      let withTempFile tmpFilePath tmpHandle = do
+            Handle.hSetEncoding tmpHandle IO.utf8
+            Text.hPutStrLn tmpHandle txt
+            IO.withFile path IO.ReadMode \currentScratchFile -> do
+              Handle.hSetEncoding currentScratchFile IO.utf8
+              let copyLoop = do
+                    chunk <- Text.hGetChunk currentScratchFile
+                    case Text.length chunk == 0 of
+                      True -> pure ()
+                      False -> do
+                        Text.hPutStr tmpHandle chunk
+                        copyLoop
+              copyLoop
+            IO.hClose tmpHandle
+            UnliftIO.renameFile tmpFilePath path
+      UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
 
 reportBug :: String -> String -> String
 reportBug bugId msg =

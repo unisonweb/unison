@@ -34,6 +34,7 @@ module Unison.Share.API.Projects
     ProjectBranchIds (..),
     NotFound (..),
     Unauthorized (..),
+    BranchName,
   )
 where
 

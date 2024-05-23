@@ -14,12 +14,14 @@ module Unison.Codebase.Branch
     branch0,
     one,
     cons,
+    mergeNode,
     uncons,
     empty,
     empty0,
     discardHistory,
     discardHistory0,
     transform,
+    transform0,
 
     -- * Branch tests
     isEmpty,
@@ -98,7 +100,7 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import U.Codebase.HashTags (PatchHash (..))
+import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -473,6 +475,20 @@ stepM f = \case
 cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
+-- | Construct a two-parent merge node.
+mergeNode ::
+  forall m.
+  Applicative m =>
+  Branch0 m ->
+  (CausalHash, m (Branch m)) ->
+  (CausalHash, m (Branch m)) ->
+  Branch m
+mergeNode child parent1 parent2 =
+  Branch (Causal.mergeNode child (Map.fromList [f parent1, f parent2]))
+  where
+    f (hash, getBranch) =
+      (hash, _history <$> getBranch)
+
 isOne :: Branch m -> Bool
 isOne (Branch Causal.One {}) = True
 isOne _ = False
@@ -595,20 +611,17 @@ modifyAt path f = runIdentity . modifyAtM path (pure . f)
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM ::
   forall n m.
-  (Functor n) =>
-  (Applicative m) => -- because `Causal.cons` uses `pure`
+  (Functor n, Applicative m) =>
   Path ->
   (Branch m -> n (Branch m)) ->
   Branch m ->
   n (Branch m)
 modifyAtM path f b = case Path.uncons path of
   Nothing -> f b
-  Just (seg, path) -> do
-    -- Functor
+  Just (seg, path) ->
     let child = getChildBranch seg (head b)
-    child' <- modifyAtM path f child
-    -- step the branch by updating its children according to fixup
-    pure $ step (setChildBranch seg child') b
+     in -- step the branch by updating its children according to fixup
+        (\child' -> step (setChildBranch seg child') b) <$> modifyAtM path f child
 
 -- | Perform updates over many locations within a branch by batching up operations on
 -- sub-branches as much as possible without affecting semantics.
@@ -722,19 +735,15 @@ transform :: (Functor m) => (forall a. m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
   where
-    transformB0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
-    transformB0 f b =
-      b
-        { _children = transform f <$> _children b,
-          _edits = second f <$> _edits b
-        }
+    transformB0s :: (Functor m) => (forall a. m a -> n a) -> Causal m (Branch0 m) -> Causal m (Branch0 n)
+    transformB0s f = Causal.unsafeMapHashPreserving (transform0 f)
 
-    transformB0s ::
-      (Functor m) =>
-      (forall a. m a -> n a) ->
-      Causal m (Branch0 m) ->
-      Causal m (Branch0 n)
-    transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
+transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
+transform0 f b =
+  b
+    { _children = transform f <$> _children b,
+      _edits = second f <$> _edits b
+    }
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
