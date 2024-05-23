@@ -147,7 +147,7 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review, (^.))
+import Control.Lens ((^.))
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -168,7 +168,6 @@ import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Cli.Pretty (prettyProjectAndBranchName, prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Merge qualified as Branch
@@ -182,7 +181,7 @@ import Unison.Codebase.Editor.UriParser (readRemoteNamespaceParser)
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
-import Unison.Codebase.ProjectPath (ProjectPathCtx)
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.CommandLine
@@ -1412,7 +1411,7 @@ reset =
           arg0 <- branchIdOrProject arg0
           arg1 <- case restArgs of
             [] -> pure Nothing
-            arg1 : [] -> Just <$> parseLooseCodeOrProject arg1
+            arg1 : [] -> Just <$> parseUnresolvedProjectBranch arg1
             _ -> Nothing
           Just (Input.ResetI arg0 arg1)
         _ -> Nothing
@@ -1839,8 +1838,8 @@ mergeOldSquashInputPattern =
       parse =
         maybeToEither (I.help mergeOldSquashInputPattern) . \case
           [src, dest] -> do
-            src <- parseLooseCodeOrProject src
-            dest <- parseLooseCodeOrProject dest
+            src <- parseUnresolvedProjectBranch src
+            dest <- parseUnresolvedProjectBranch dest
             Just $ Input.MergeLocalBranchI src dest Branch.SquashMerge
           _ -> Nothing
     }
@@ -1873,23 +1872,17 @@ mergeOldInputPattern =
           ),
           ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
             "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
-          ),
-          ( makeExample mergeOldInputPattern [".src"],
-            "merges `.src` namespace into the current namespace"
-          ),
-          ( makeExample mergeOldInputPattern [".src", ".dest"],
-            "merges `.src` namespace into the `dest` namespace"
           )
         ]
     )
     ( maybeToEither (I.help mergeOldInputPattern) . \case
         [src] -> do
-          src <- parseLooseCodeOrProject src
-          Just $ Input.MergeLocalBranchI src (This Path.relativeEmpty') Branch.RegularMerge
+          src <- parseUnresolvedProjectBranch src
+          Just $ Input.MergeLocalBranchI src Nothing Branch.RegularMerge
         [src, dest] -> do
-          src <- parseLooseCodeOrProject src
-          dest <- parseLooseCodeOrProject dest
-          Just $ Input.MergeLocalBranchI src dest Branch.RegularMerge
+          src <- parseUnresolvedProjectBranch src
+          dest <- parseUnresolvedProjectBranch dest
+          Just $ Input.MergeLocalBranchI src (Just dest) Branch.RegularMerge
         _ -> Nothing
     )
   where
@@ -1930,16 +1923,8 @@ mergeInputPattern =
             pure (Input.MergeI branch)
     }
 
-parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
-parseLooseCodeOrProject inputString =
-  case (asLooseCode, asBranch) of
-    (Right path, Left _) -> Just (This path)
-    (Left _, Right branch) -> Just (That branch)
-    (Right path, Right branch) -> Just (These path branch)
-    (Left _, Left _) -> Nothing
-  where
-    asLooseCode = Path.parsePath' inputString
-    asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
+parseUnresolvedProjectBranch :: String -> Maybe Input.UnresolvedProjectBranch
+parseUnresolvedProjectBranch inputString = eitherToMaybe $ tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -1993,12 +1978,12 @@ mergeOldPreviewInputPattern =
     )
     ( maybeToEither (I.help mergeOldPreviewInputPattern) . \case
         [src] -> do
-          src <- parseLooseCodeOrProject src
-          pure $ Input.PreviewMergeLocalBranchI src (This Path.relativeEmpty')
+          src <- parseUnresolvedProjectBranch src
+          pure $ Input.PreviewMergeLocalBranchI src Nothing
         [src, dest] -> do
-          src <- parseLooseCodeOrProject src
-          dest <- parseLooseCodeOrProject dest
-          pure $ Input.PreviewMergeLocalBranchI src dest
+          src <- parseUnresolvedProjectBranch src
+          dest <- parseUnresolvedProjectBranch dest
+          pure $ Input.PreviewMergeLocalBranchI src (Just dest)
         _ -> Nothing
     )
   where
@@ -3007,18 +2992,17 @@ branchInputPattern =
       help =
         P.wrapColumn2
           [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
-            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
-            ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
+            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`")
           ],
       parse =
         maybeToEither (showPatternHelp branchInputPattern) . \case
           [source0, name] -> do
-            source <- parseLooseCodeOrProject source0
+            source <- parseUnresolvedProjectBranch source0
             projectAndBranch <-
               Text.pack name
                 & tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
                 & eitherToMaybe
-            Just (Input.BranchI (Input.BranchSourceI'LooseCodeOrProject source) projectAndBranch)
+            Just (Input.BranchI (Input.BranchSourceI'UnresolvedProjectBranch source) projectAndBranch)
           [name] -> do
             projectAndBranch <-
               Text.pack name
@@ -3365,7 +3349,7 @@ namespaceOrProjectBranchArg config =
   ArgumentType
     { typeName = "namespace or branch",
       suggestions =
-        let namespaceSuggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p)
+        let namespaceSuggestions = \q cb _http ppCtx -> Codebase.runTransaction cb (prefixCompleteNamespace q ppCtx)
          in unionSuggestions
               [ projectAndOrBranchSuggestions config,
                 namespaceSuggestions
@@ -3478,7 +3462,7 @@ projectAndOrBranchSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  ProjectPathCtx ->
+  ProjectPath ->
   m [Line.Completion]
 projectAndOrBranchSuggestions config inputStr codebase _httpClient ppCtx = do
   case Text.uncons input of
@@ -3616,15 +3600,14 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient ppCtx = do
           then projectCompletions
           else branchCompletions ++ projectCompletions
 
-    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
-    handleBranchesComplete branchName codebase path = do
+    -- Complete the text into a branch name within the provided project
+    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> PP.ProjectPath -> m [Completion]
+    handleBranchesComplete branchName codebase ppCtx = do
+      let projId = ppCtx ^. PP.ctxAsIds_ . PP.project_
       branches <-
-        case preview ProjectUtils.projectBranchPathPrism path of
-          Nothing -> pure []
-          Just (ProjectAndBranch currentProjectId _, _) ->
-            Codebase.runTransaction codebase do
-              fmap (filterBranches config path) do
-                Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
+        Codebase.runTransaction codebase do
+          fmap (filterBranches config path) do
+            Queries.loadAllProjectBranchesBeginningWith projId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
 
     filterProjects :: [Sqlite.Project] -> [Sqlite.Project]
@@ -3661,7 +3644,7 @@ handleBranchesComplete ::
   ProjectBranchSuggestionsConfig ->
   Text ->
   Codebase m v a ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   m [Completion]
 handleBranchesComplete config branchName codebase ppCtx = do
   branches <-
@@ -3670,7 +3653,7 @@ handleBranchesComplete config branchName codebase ppCtx = do
         Queries.loadAllProjectBranchesBeginningWith (ppCtx ^. PP.ctxAsIds_ . PP.project_) (Just branchName)
   pure (map currentProjectBranchToCompletion branches)
 
-filterBranches :: ProjectBranchSuggestionsConfig -> PP.ProjectPathCtx -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+filterBranches :: ProjectBranchSuggestionsConfig -> PP.ProjectPath -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
 filterBranches config ppCtx branches =
   case (branchInclusion config) of
     AllBranches -> branches
@@ -3692,17 +3675,17 @@ branchRelativePathSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   m [Line.Completion]
 branchRelativePathSuggestions config inputStr codebase _httpClient ppCtx = do
   case parseIncrementalBranchRelativePath inputStr of
     Left _ -> pure []
     Right ibrp -> case ibrp of
-      BranchRelativePath.ProjectOrRelative _txt _path -> do
+      BranchRelativePath.ProjectOrPath' _txt _path -> do
         namespaceSuggestions <- Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
         projectSuggestions <- projectNameSuggestions WithSlash inputStr codebase
         pure (namespaceSuggestions ++ projectSuggestions)
-      BranchRelativePath.LooseCode _path ->
+      BranchRelativePath.OnlyPath' _path ->
         Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
       BranchRelativePath.IncompleteProject _proj ->
         projectNameSuggestions WithSlash inputStr codebase
@@ -3723,22 +3706,9 @@ branchRelativePathSuggestions config inputStr codebase _httpClient ppCtx = do
         map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) mempty
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
-          mprojectBranch <- runMaybeT do
-            case projStuff of
-              Left names@(ProjectAndBranch projectName branchName) -> do
-                (,Left names) <$> MaybeT (Queries.loadProjectBranchByNames projectName branchName)
-              Right branchName -> do
-                projectBranch <- MaybeT (Queries.loadProjectBranchByName currentProjectId branchName)
-                pure (projectBranch, Right (projectBranch ^. #name))
-          case mprojectBranch of
-            Nothing -> pure []
-            Just (projectBranch, prefix) -> do
-              let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
-                  projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+          map (addBranchPrefix projStuff) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) ppCtx
   where
     currentPath = ppCtx ^. PP.absPath_
-    currentProjectId = ppCtx ^. PP.ctxAsIds_ . PP.project_
 
     projectBranchToCompletionWithSep :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
     projectBranchToCompletionWithSep projectName (_, branchName) =

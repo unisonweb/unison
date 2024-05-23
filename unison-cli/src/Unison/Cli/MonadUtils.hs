@@ -8,7 +8,7 @@ module Unison.Cli.MonadUtils
     getCurrentPath,
     getCurrentProjectName,
     getCurrentProjectBranchName,
-    getProjectPathCtx,
+    getProjectPath,
     resolvePath,
     resolvePath',
     resolveSplit',
@@ -146,8 +146,8 @@ getConfig key = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting paths, path resolution, etc.
 
-getProjectPathCtx :: Cli PP.ProjectPathCtx
-getProjectPathCtx = do
+getProjectPath :: Cli PP.ProjectPath
+getProjectPath = do
   (PP.ProjectPath projId branchId path) <- Cli.getProjectPathIds
   -- TODO: Reset to a valid project on error.
   (Project {name = projName}, ProjectBranch {name = branchName}) <- fmap (fromMaybe (error $ reportBug "E794202" ("Project branch not found in database for ids: " <> show (projId, branchId)))) . Cli.runTransaction . runMaybeT $ do
@@ -159,15 +159,15 @@ getProjectPathCtx = do
 -- | Get the current path relative to the current project.
 getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
-  view PP.absPath_ <$> getProjectPathCtx
+  view PP.absPath_ <$> getProjectPath
 
 getCurrentProjectName :: Cli ProjectName
 getCurrentProjectName = do
-  view (PP.ctxAsNames_ . PP.project_) <$> getProjectPathCtx
+  view (PP.ctxAsNames_ . PP.project_) <$> getProjectPath
 
 getCurrentProjectBranchName :: Cli ProjectBranchName
 getCurrentProjectBranchName = do
-  view (PP.ctxAsNames_ . PP.branch_) <$> getProjectPathCtx
+  view (PP.ctxAsNames_ . PP.branch_) <$> getProjectPath
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli Path.Absolute

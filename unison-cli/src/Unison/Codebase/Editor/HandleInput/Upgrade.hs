@@ -65,13 +65,10 @@ handleUpgrade oldName newName = do
 
   Cli.Env {codebase, writeSource} <- ask
 
-  (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
-  let projectId = projectAndBranch ^. #project . #projectId
-  let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId (projectAndBranch ^. #branch . #branchId))
-  let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, oldName]))
-  let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, newName]))
+  let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
+  let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
 
-  currentNamespace <- Cli.getBranch0At projectPath
+  currentNamespace <- Cli.getProjectRoot0
   let currentNamespaceSansOld = Branch.deleteLibdep oldName currentNamespace
   let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld
   let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld

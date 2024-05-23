@@ -105,8 +105,8 @@ data Input
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | -- merge first causal into destination
-    MergeLocalBranchI UnresolvedProjectBranch UnresolvedProjectBranch Branch.MergeMode
-  | PreviewMergeLocalBranchI UnresolvedProjectBranch UnresolvedProjectBranch
+    MergeLocalBranchI UnresolvedProjectBranch (Maybe UnresolvedProjectBranch) Branch.MergeMode
+  | PreviewMergeLocalBranchI UnresolvedProjectBranch (Maybe UnresolvedProjectBranch)
   | DiffNamespaceI BranchId BranchId -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
@@ -246,7 +246,7 @@ data BranchSourceI
   | -- | Create an empty branch
     BranchSourceI'Empty
   | -- | Create a branch from this other branch
-    BranchSourceI'LooseCodeOrProject UnresolvedProjectBranch
+    BranchSourceI'UnresolvedProjectBranch UnresolvedProjectBranch
   deriving stock (Eq, Show)
 
 data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput

@@ -1037,7 +1037,7 @@ loop e = do
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
-              ppCtx <- Cli.getProjectPathCtx
+              ppCtx <- Cli.getProjectPath
               let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient ppCtx
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
@@ -1048,7 +1048,7 @@ loop e = do
                 Just (IP.InputPattern {args = argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
                     ((argName, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {getOptions}}), "_") -> do
-                      ppCtx <- Cli.getProjectPathCtx
+                      ppCtx <- Cli.getProjectPath
                       results <- liftIO $ getOptions codebase ppCtx currentBranch
                       Cli.respond (DebugDisplayFuzzyOptions argName (Text.unpack <$> results))
                     ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do

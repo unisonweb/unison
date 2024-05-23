@@ -120,7 +120,7 @@ nothingTodo = emojiNote "😶"
 parseInput ::
   Codebase IO Symbol Ann ->
   -- | Current location
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   IO (Branch.Branch IO) ->
   -- | Numbered arguments
   [String] ->
@@ -194,7 +194,7 @@ data FZFResolveFailure
   | NoFZFOptions Text {- argument description -}
   | FZFCancelled
 
-fzfResolve :: Codebase IO Symbol Ann -> PP.ProjectPathCtx -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Either FZFResolveFailure [String])
+fzfResolve :: Codebase IO Symbol Ann -> PP.ProjectPath -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Either FZFResolveFailure [String])
 fzfResolve codebase ppCtx getCurrentBranch pat args = runExceptT do
   -- We resolve args in two steps, first we check that all arguments that will require a fzf
   -- resolver have one, and only if so do we prompt the user to actually do a fuzzy search.

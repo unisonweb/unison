@@ -73,7 +73,7 @@ haskelineTabComplete ::
   Map String IP.InputPattern ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Line.CompletionFunc m
 haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWordWithPrev Nothing " " $ \prev word ->
   -- User hasn't finished a command name, complete from command names
@@ -141,7 +141,7 @@ completeWithinNamespace ::
   NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query ppCtx = do
   shortHashLen <- Codebase.hashLength
@@ -168,7 +168,7 @@ completeWithinNamespace compTypes query ppCtx = do
     queryPathPrefix :: Path.Path'
     querySuffix :: Text
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
-    queryProjectPath :: PP.ProjectPathCtx
+    queryProjectPath :: PP.ProjectPath
     queryProjectPath = ppCtx & PP.absPath_ %~ \curPath -> Path.resolve curPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
     getChildSuggestions shortHashLen b
@@ -274,35 +274,35 @@ parseLaxPath'Query txt =
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteTermOrType ::
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteTermOrType = completeWithinNamespace (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
 
 -- | Completes a term argument by prefix-matching against the query.
 prefixCompleteTerm ::
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteTerm = completeWithinNamespace (NESet.singleton TermCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteType ::
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
 
 -- | Completes a patch argument by prefix-matching against the query.
 prefixCompletePatch ::
   String ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 

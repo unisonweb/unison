@@ -64,7 +64,7 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  PP.ProjectPathCtx ->
+  PP.ProjectPath ->
   IO (Branch IO) ->
   [String] ->
   IO Input

@@ -36,7 +36,7 @@ instance ToSample Current where
         Current
           (Just $ UnsafeProjectName "@unison/base")
           (Just $ UnsafeProjectBranchName "main")
-          (Path.Absolute $ Path.unsafeParseText ".__projects._53393e4b_1f61_467c_a488_b6068c727daa.branches._f0aec0e3_249f_4004_b836_572fea3981c1")
+          (Path.Absolute $ Path.unsafeParseText ".my.namespace")
       )
     ]
 
@@ -53,11 +53,11 @@ serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
-  ppCtx <-
-    Codebase.runTransaction codebase Codebase.loadCurrentProjectPathCtx <&> \case
+  pp <-
+    Codebase.runTransaction codebase Codebase.loadCurrentProjectPath <&> \case
       Nothing ->
         -- TODO: Come up with a better solution for this
         error "No current project path context"
-      Just ppCtx -> ppCtx
-  let (PP.ProjectPath projName branchName path) = ppCtx ^. PP.ctxAsNames_
+      Just pp -> pp
+  let (PP.ProjectPath projName branchName path) = pp ^. PP.asNames_
   pure $ Current (Just projName) (Just branchName) path
