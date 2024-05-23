@@ -378,7 +378,7 @@ jobs:
           contents: |
             ```ucm
             .> project.create-empty jit-setup
-            jit-setup/main> pull ${{ env.jit_version }} lib.jit
+            jit-setup/main> lib.install ${{ env.jit_version }}
             ```
             ```unison
             go = generateSchemeBoot "${{ env.jit_generated_src_scheme }}"
