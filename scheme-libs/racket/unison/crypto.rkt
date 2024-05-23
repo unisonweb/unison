@@ -216,26 +216,29 @@
     (ERR_error_string_n id buffer (bytes-length buffer))
     (bytes->string/utf-8 buffer)))
 
+(define (libcrypto-error message)
+    (error (string-append message (get-error-message (ERR_get_error)))))
+
 (define EVP_PKEY_ED25519 1087)
 (define (evpSign-raw seed input)
   (let* ([ctx (EVP_MD_CTX_new)]
          [pkey (EVP_PKEY_new_raw_private_key EVP_PKEY_ED25519 #f seed (bytes-length seed))])
     (if (false? pkey)
-      (raise (error "Invalid seed provided."))
+      (raise (libcrypto-error "Invalid seed provided. "))
       (if (<= (EVP_DigestSignInit ctx #f #f #f pkey) 0)
-        (raise (error "Initializing signing failed"))
+        (raise (libcrypto-error "Initializing signing failed. "))
         (let* ([output (make-bytes 64)])
           (if (<= (EVP_DigestSign ctx output input (bytes-length input)) 0)
-            (raise (error (string-append "Running digest failed: " (get-error-message (ERR_get_error)))))
+            (raise (libcrypto-error "Running digest failed. "))
             output))))))
 
 (define (evpVerify-raw public-key input signature)
   (let* ([ctx (EVP_MD_CTX_new)]
          [pkey (EVP_PKEY_new_raw_public_key EVP_PKEY_ED25519 #f public-key (bytes-length public-key))])
     (if (false? pkey)
-      (raise (error "Invalid seed provided."))
+      (raise (libcrypto-error "Invalid seed provided. "))
       (if (<= (EVP_DigestVerifyInit ctx #f #f #f pkey) 0)
-        (raise (error "Initializing Verify failed"))
+        (raise (libcrypto-error "Initializing Verify failed. "))
         (if (<= (EVP_DigestVerify ctx signature (bytes-length signature) input (bytes-length input)) 0)
           #f
           #t)))))
