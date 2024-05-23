@@ -53,6 +53,14 @@
   (unless (= 1 v)
     (error who "failed with return value ~a" v)))
 
+(define ERR_get_error (if (string? libcrypto)
+        (lambda _ (raise (error 'libcrypto "ERR_get_error\n~a" libcrypto)))
+        (get-ffi-obj "ERR_get_error" libcrypto (_fun -> _long))))
+(define ERR_error_string_n (if (string? libcrypto)
+        (lambda _ (raise (error 'libcrypto "ERR_error_string_n\n~a" libcrypto)))
+        (get-ffi-obj "ERR_error_string_n" libcrypto
+            (_fun _long _bytes _long -> _void))))
+
 (define EVP_Digest
     (if (string? libcrypto)
         (lambda _ (raise (error 'libcrypto "EVP_Digest\n~a" libcrypto)))
@@ -203,6 +211,10 @@
             -> _int
             ))))
 
+(define (get-error-message id)
+  (let* ([buffer (make-bytes 512)])
+    (ERR_error_string_n id buffer (bytes-length buffer))
+    (bytes->string/utf-8 buffer)))
 
 (define EVP_PKEY_ED25519 1087)
 (define (evpSign-raw seed input)
@@ -214,7 +226,7 @@
         (raise (error "Initializing signing failed"))
         (let* ([output (make-bytes 64)])
           (if (<= (EVP_DigestSign ctx output input (bytes-length input)) 0)
-            (raise (error "Running digest failed"))
+            (raise (error (string-append "Running digest failed: " (get-error-message (ERR_get_error)))))
             output))))))
 
 (define (evpVerify-raw public-key input signature)
