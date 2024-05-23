@@ -1236,7 +1236,7 @@ deleteNamespaceForce =
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence = \case
   [p] -> first P.text do
-    p <- Path.parseSplit' p
+    p <- Path.parseSplit p
     pure $ Input.DeleteI (DeleteTarget'Namespace insistence p)
   _ -> Left helpText
 

@@ -734,17 +734,24 @@ loop e = do
                   description
                   (BranchUtil.makeDeletePatch (Path.convert src))
                 Cli.respond Success
-              DeleteTarget'Namespace insistence p@(parentPath, childName) -> do
-                branch <- Cli.expectBranchAtPath' (Path.unsplit' p)
+              DeleteTarget'Namespace insistence Nothing -> do
+                hasConfirmed <- confirmedCommand input
+                if hasConfirmed || insistence == Force
+                  then do
+                    description <- inputDescription input
+                    Cli.updateRoot Branch.empty description
+                    Cli.respond DeletedEverything
+                  else Cli.respond DeleteEverythingConfirmation
+              DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
+                branch <- Cli.expectBranchAtPath (Path.unsplit p)
                 description <- inputDescription input
-                absPath <- Cli.resolveSplit' p
                 let toDelete =
                       Names.prefix0
-                        (Path.unsafeToName (Path.unsplit (Path.convert absPath)))
+                        (Path.unsafeToName (Path.unsplit (p)))
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
-                  rootNames <- Branch.toNames <$> Cli.getProjectRoot0
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty rootNames)
+                  names <- Cli.currentNames
+                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty names)
                   case (null endangerments, insistence) of
                     (True, _) -> pure (Cli.respond Success)
                     (False, Force) -> do
@@ -756,7 +763,7 @@ loop e = do
                       ppeDecl <- Cli.currentPrettyPrintEnvDecl
                       Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                       Cli.returnEarlyWithoutOutput
-                parentPathAbs <- Cli.resolvePath' parentPath
+                parentPathAbs <- Cli.resolvePath parentPath
                 -- We have to modify the parent in order to also wipe out the history at the
                 -- child.
                 Cli.updateAt description parentPathAbs \parentBranch ->
@@ -1264,10 +1271,10 @@ inputDescription input =
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Namespace Try opath0 -> do
-          opath <- ps' opath0
+          opath <- ops opath0
           pure ("delete.namespace " <> opath)
         DeleteTarget'Namespace Force opath0 -> do
-          opath <- ps' opath0
+          opath <- ops opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'Patch path0 -> do
           path <- ps' path0
@@ -1400,6 +1407,8 @@ inputDescription input =
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
     brp = fmap from . ProjectUtils.resolveBranchRelativePath
+    ops :: Maybe Path.Split -> Cli Text
+    ops = maybe (pure ".") ps
     opatch :: Maybe Path.Split' -> Cli Text
     opatch = ps' . fromMaybe Cli.defaultPatchPath
     wat = error $ show input ++ " is not expected to alter the branch"
@@ -1413,6 +1422,7 @@ inputDescription input =
       pure (p <> "." <> HQ'.toTextWith NameSegment.toEscapedText hq)
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
+    ps = p . Path.unsplit
     looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
     looseCodeOrProjectToText = \case
       This path -> p' path
