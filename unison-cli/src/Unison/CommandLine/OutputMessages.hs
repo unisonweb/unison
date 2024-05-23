@@ -1188,8 +1188,6 @@ notifyUser dir = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  -- TODO: Present conflicting TermEdits and TypeEdits
-  -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     let containsWatchExpressions = notNull $ UF.watchComponents uf
@@ -1222,8 +1220,7 @@ notifyUser dir = \case
                                 <> IP.makeExample' IP.add
                                 <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would"
-                                <> "change:",
+                                <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
                           ]
               ]
