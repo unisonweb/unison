@@ -24,10 +24,12 @@
         HashAlgorithm.Blake2b_256
         HashAlgorithm.Blake2b_512
         hashBytes
-        hmacBytes
-        Ed25519.sign.impl
-        Ed25519.verify.impl
-        )))
+        hmacBytes))
+    (prefix-out builtin-crypto.
+        (combine-out
+            Ed25519.sign.impl
+            Ed25519.verify.impl))
+        )
 
 (define-runtime-path libb2-so '(so "libb2" ("1" #f)))
 
