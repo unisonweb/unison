@@ -31,7 +31,6 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 
@@ -118,9 +117,8 @@ resolveMainRef main = do
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let mainType = Runtime.mainType runtime
-      smain = HQ.toText main
   lookupTermRefWithType codebase main >>= \case
     [(rf, ty)]
       | Typechecker.fitsScheme ty mainType -> pure (rf, suffixifiedPPE)
-      | otherwise -> Cli.returnEarly (BadMainFunction "main" smain ty suffixifiedPPE [mainType])
-    _ -> Cli.returnEarly (NoMainFunction smain suffixifiedPPE [mainType])
+      | otherwise -> Cli.returnEarly (BadMainFunction "main" main ty suffixifiedPPE [mainType])
+    _ -> Cli.returnEarly (NoMainFunction main suffixifiedPPE [mainType])

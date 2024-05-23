@@ -156,7 +156,7 @@ data Input
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
-    ExecuteI Text [String]
+    ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]
@@ -166,7 +166,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI Text [String]
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI Text (HQ.HashQualified Name)
   | TestI TestInput

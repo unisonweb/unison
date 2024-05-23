@@ -2708,8 +2708,9 @@ execute =
     )
     $ \case
       main : args ->
-        Input.ExecuteI (Text.pack $ unifyArgument main)
-          <$> traverse (unsupportedStructuredArgument "a command-line argument") args
+        Input.ExecuteI
+          <$> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument "a command-line argument") args
       _ -> Left $ showPatternHelp execute
 
 saveExecuteResult :: InputPattern
@@ -2799,8 +2800,9 @@ runScheme =
     )
     $ \case
       main : args ->
-        Input.ExecuteSchemeI (Text.pack $ unifyArgument main)
-          <$> traverse (unsupportedStructuredArgument "a command-line argument") args
+        Input.ExecuteSchemeI
+          <$> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument "a command-line argument") args
       _ -> Left $ showPatternHelp runScheme
 
 compileScheme :: InputPattern
