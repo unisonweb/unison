@@ -135,6 +135,7 @@ module U.Codebase.Sqlite.Queries
     insertProjectBranch,
     renameProjectBranch,
     deleteProjectBranch,
+    setProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
 
@@ -3767,6 +3768,16 @@ deleteProjectBranch projectId branchId = do
   execute
     [sql|
       DELETE FROM project_branch
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+
+-- | Set project branch HEAD
+setProjectBranchHead :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchHead projectId branchId causalHashId =
+  execute
+    [sql|
+      UPDATE project_branch
+      SET causal_hash_id = :causalHashId
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
 

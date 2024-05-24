@@ -50,7 +50,7 @@ module Unison.Cli.MonadUtils
     stepManyAtMNoSync,
     stepManyAtNoSync,
     syncRoot,
-    updateCurrentProjectRoot,
+    updateProjectBranchRoot,
     updateAtM,
     updateAt,
     updateAndStepAt,
@@ -110,6 +110,7 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath, ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -457,12 +458,12 @@ syncRoot description = do
 -- an update occurred and false otherwise
 updateAtM ::
   Text ->
-  Path.Absolute ->
+  ProjectPath ->
   (Branch IO -> Cli (Branch IO)) ->
   Cli Bool
-updateAtM reason (Path.Absolute p) f = do
-  b <- getProjectRoot
-  b' <- Branch.modifyAtM p f b
+updateAtM reason pp f = do
+  b <- getBranchFromProjectPath (pp & PP.absPath_ .~ Path.absoluteEmpty)
+  b' <- Branch.modifyAtM (pp ^. PP.path_) f b
   updateCurrentProjectRoot b' reason
   pure $ b /= b'
 
@@ -470,7 +471,7 @@ updateAtM reason (Path.Absolute p) f = do
 -- an update occurred and false otherwise
 updateAt ::
   Text ->
-  Path.Absolute ->
+  ProjectPath ->
   (Branch IO -> Branch IO) ->
   Cli Bool
 updateAt reason p f = do
@@ -487,13 +488,13 @@ updateAndStepAt reason updates steps = do
     (Branch.stepManyAt steps)
       . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
       <$> getProjectRoot
-  updateCurrentProjectRoot root reason
+  ProjectPath _ projBranch _ <- getCurrentProjectPath
+  updateProjectBranchRoot projBranch root reason
 
-updateCurrentProjectRoot :: Branch IO -> Text -> Cli ()
-updateCurrentProjectRoot new reason =
+updateProjectBranchRoot :: ProjectBranch -> Branch IO -> Text -> Cli ()
+updateProjectBranchRoot projectBranch new reason =
   Cli.time "updateCurrentProjectRoot" do
-    Cli.Env {codebase} <- ask
-    liftIO (Codebase.putRootBranch codebase reason new)
+    runTransaction $ Q.setProjectBranchHead (projectBranch ^. #branchId) (Branch.headHash new)
     setCurrentProjectRoot new
 
 ------------------------------------------------------------------------------------------------------------------------

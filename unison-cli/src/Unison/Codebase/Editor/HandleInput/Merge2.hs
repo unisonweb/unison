@@ -43,7 +43,7 @@ import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin.Decls qualified as Builtin.Decls
-import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..), MergeSourceAndTarget (..))
+import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -64,6 +64,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
@@ -136,11 +137,12 @@ import Unison.Util.SyntaxText (SyntaxText')
 import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import qualified U.Codebase.Sqlite.Queries as Q
 
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   -- Assert that Alice (us) is on a project branch, and grab the causal hash.
-  (ProjectAndBranch aliceProject aliceProjectBranch, _path) <- Cli.expectCurrentProjectBranch
+  ProjectPath aliceProject aliceProjectBranch _path <- Cli.getCurrentProjectPath
   aliceCausalHash <- Cli.runTransaction (projectBranchToCausalHash aliceProjectBranch)
 
   -- Resolve Bob's maybe-project-name + branch-name to the info the merge algorithm needs: the project name, branch
@@ -182,9 +184,7 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   where
     projectBranchToCausalHash :: ProjectBranch -> Transaction CausalHash
     projectBranchToCausalHash branch = do
-      let path = Cli.projectBranchPath (ProjectAndBranch branch.projectId branch.branchId)
-      causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
-      pure causal.causalHash
+      Q.expectCausalHash (branch ^. causalHashId)
 
 data MergeInfo = MergeInfo
   { alice :: !AliceMergeInfo,
@@ -220,7 +220,7 @@ doMerge info = do
   let aliceBranchNames = ProjectAndBranch info.alice.project.name info.alice.projectBranch.name
   let mergeSource = MergeSourceOrTarget'Source info.bob.source
   let mergeTarget = MergeSourceOrTarget'Target aliceBranchNames
-  let mergeSourceAndTarget = MergeSourceAndTarget { alice = aliceBranchNames, bob = info.bob.source }
+  let mergeSourceAndTarget = MergeSourceAndTarget {alice = aliceBranchNames, bob = info.bob.source}
 
   Cli.Env {codebase} <- ask
 
