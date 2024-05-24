@@ -177,7 +177,7 @@ projectBranchOptions codebase _projCtx _searchBranch0 = do
 -- E.g. '@unison/base/main'
 projectBranchOptionsWithinCurrentProject :: OptionFetcher
 projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
-  Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith (projCtx ^. PP.asIds_ . #project) Nothing)
+  Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith (projCtx ^. #project . #projectId) Nothing)
     <&> fmap (into @Text . snd)
 
 -- | Exported from here just so the debug command and actual implementation can use the same

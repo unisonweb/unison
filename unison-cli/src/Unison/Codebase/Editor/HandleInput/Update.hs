@@ -174,16 +174,16 @@ handleUpdate input optionalPatch requestedNames = do
     -- take a look at the `updates` from the SlurpResult
     -- and make a patch diff to record a replacement from the old to new references
     Cli.stepManyAtMNoSync
-      ( [ ( Path.unabsolute currentPath',
+      ( [ ( currentPath',
             pure . doSlurpUpdates typeEdits termEdits termDeprecations
           ),
-          ( Path.unabsolute currentPath',
+          ( currentPath',
             pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
           )
         ]
           ++ case patchOps of
             Nothing -> []
-            Just (_, update, p) -> [(Path.unabsolute p, update)]
+            Just (_, update, p) -> [(p, update)]
       )
     Cli.runTransaction
       . Codebase.addDefsToCodebase codebase
@@ -501,7 +501,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
                   terms =
-                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v,term) -> (v, (External, term)),
+                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v, term) -> (v, (External, term)),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty
@@ -649,7 +649,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
 propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
 propagatePatchNoSync patch scopePath =
   Cli.time "propagatePatchNoSync" do
-    Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+    Cli.stepAtNoSync' (scopePath, Propagate.propagateAndApply patch)
 
 recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
 recomponentize =

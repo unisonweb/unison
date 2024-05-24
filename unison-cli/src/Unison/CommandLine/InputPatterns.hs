@@ -3598,7 +3598,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient pp = do
     -- Complete the text into a branch name within the provided project
     handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> PP.ProjectPath -> m [Completion]
     handleBranchesComplete branchName codebase pp = do
-      let projId = pp ^. PP.asIds_ . #project
+      let projId = pp ^. #project . #projectId
       branches <-
         Codebase.runTransaction codebase do
           fmap (filterBranches config pp) do
@@ -3615,7 +3615,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient pp = do
             & List.find (\Sqlite.Project {projectId} -> projectId == currentProjectId)
             & maybeToList
 
-    PP.ProjectPath currentProjectId _currentBranchId _currentPath = pp ^. PP.asIds_
+    PP.ProjectPath currentProjectId _currentBranchId _currentPath = PP.toIds pp
 
 projectToCompletion :: Sqlite.Project -> Completion
 projectToCompletion project =
@@ -3646,7 +3646,7 @@ handleBranchesComplete config branchName codebase pp = do
   branches <-
     Codebase.runTransaction codebase do
       fmap (filterBranches config pp) do
-        Queries.loadAllProjectBranchesBeginningWith (pp ^. PP.asIds_ . #project) (Just branchName)
+        Queries.loadAllProjectBranchesBeginningWith (pp ^. #project . #projectId) (Just branchName)
   pure (map currentProjectBranchToCompletion branches)
 
 filterBranches :: ProjectBranchSuggestionsConfig -> PP.ProjectPath -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
@@ -3655,7 +3655,7 @@ filterBranches config pp branches =
     AllBranches -> branches
     ExcludeCurrentBranch -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
   where
-    currentBranchId = pp ^. PP.asIds_ . #branch
+    currentBranchId = pp ^. #branch . #branchId
 
 currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
 currentProjectBranchToCompletion (_, branchName) =

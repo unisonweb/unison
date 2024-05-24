@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.HandleInput.MoveType (doMoveType, moveTypeSteps) where
 
-import Control.Lens (over, _2)
+import Control.Lens
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -11,6 +11,7 @@ import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
@@ -29,11 +30,11 @@ moveTypeSteps src' dest' = do
       destTypes <- Cli.getTypesAt (Path.convert dest)
       when (not (Set.null destTypes)) do
         Cli.returnEarly (Output.TypeAlreadyExists dest' destTypes)
-      let p = Path.convert src
+      let p = over _1 (view PP.path_) src
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-          BranchUtil.makeAddTypeName (Path.convert dest) srcType
+          BranchUtil.makeAddTypeName (over _1 (view PP.path_) dest) srcType
         ]
 
 doMoveType :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()

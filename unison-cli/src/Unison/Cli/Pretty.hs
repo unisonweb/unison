@@ -5,6 +5,7 @@
 module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
+    prettyProjectPath,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
@@ -88,6 +89,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Core.Project (ProjectBranchName)
@@ -213,6 +215,9 @@ prettyRelative = P.blue . P.shown
 
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
+
+prettyProjectPath :: PP.ProjectPath -> Pretty
+prettyProjectPath = P.blue . P.shown
 
 prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)

@@ -3,7 +3,6 @@ module Unison.Cli.ProjectUtils
   ( -- * Project/path helpers
     expectProjectBranchByName,
     resolveBranchRelativePath,
-    resolveProjectPath,
     resolveProjectBranch,
 
     -- * Name hydration
@@ -47,7 +46,6 @@ import Unison.Cli.Share.Projects (IncludeSquashedHead)
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
@@ -108,7 +106,7 @@ hydrateNames = \case
   This projectName -> pure (ProjectAndBranch projectName (unsafeFrom @Text "main"))
   That branchName -> do
     pp <- Cli.getCurrentProjectPath
-    pure (ProjectAndBranch (pp ^. PP.asNames_ . #project) branchName)
+    pure (ProjectAndBranch (pp ^. #project . #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
 -- Expect a local project+branch by ids.
@@ -164,18 +162,6 @@ expectProjectAndBranchByTheseNames = \case
           pure (ProjectAndBranch project branch)
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
-
--- | Expect/resolve a branch-relative path with the following rules:
---
---   1. If the project is missing, use the current project.
---   2. If we have an unambiguous `/branch` or `project/branch`, resolve it using the current
---      project, defaulting to 'main' if branch is unspecified.
---   3. If we just have a path, resolve it using the current project.
-resolveProjectPath :: Project -> ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Maybe Path' -> Cli PP.ProjectPath
-resolveProjectPath defaultProj mayProjAndBranch mayPath' = do
-  projAndBranch <- resolveProjectBranch defaultProj mayProjAndBranch
-  absPath <- fromMaybe Path.absoluteEmpty <$> traverse Cli.resolvePath' mayPath'
-  pure $ PP.fromProjectAndBranch projAndBranch absPath
 
 -- | Expect/resolve branch reference with the following rules:
 --

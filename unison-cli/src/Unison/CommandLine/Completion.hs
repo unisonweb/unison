@@ -145,7 +145,7 @@ completeWithinNamespace ::
   Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
 completeWithinNamespace compTypes query ppCtx = do
   shortHashLen <- Codebase.hashLength
-  b <- Codebase.getShallowBranchAtProjectPath (queryProjectPath ^. PP.asIds_)
+  b <- Codebase.getShallowBranchAtProjectPath queryProjectPath
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib

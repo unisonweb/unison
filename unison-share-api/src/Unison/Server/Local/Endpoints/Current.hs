@@ -59,5 +59,5 @@ getCurrentProjectBranch codebase = do
         -- TODO: Come up with a better solution for this
         error "No current project path context"
       Just pp -> pp
-  let (PP.ProjectPath projName branchName path) = pp ^. PP.asNames_
+  let (PP.ProjectPath projName branchName path) = PP.toNames pp 
   pure $ Current (Just projName) (Just branchName) path

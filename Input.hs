@@ -67,8 +67,6 @@ type BranchId = Either ShortCausalHash Path'
 -- | An unambiguous project branch name, use the current project name if not provided.
 type UnresolvedProjectBranch = ProjectAndBranch (Maybe ProjectName) ProjectBranchName
 
--- | TODO: You should probably use a `ProjectPath` instead of a `Path.Absolute` in most
--- cases.
 type AbsBranchId = Either ShortCausalHash Path.Absolute
 
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'

@@ -29,10 +29,10 @@ module Unison.Cli.MonadUtils
     getProjectRoot0,
     getCurrentBranch,
     getCurrentBranch0,
-    getBranchFromProjectRootPath,
-    getBranch0FromProjectRootPath,
-    getMaybeBranchFromProjectRootPath,
-    getMaybeBranch0FromProjectRootPath,
+    getBranchFromProjectPath,
+    getBranch0FromProjectPath,
+    getMaybeBranchFromProjectPath,
+    getMaybeBranch0FromProjectPath,
     expectBranchAtPath,
     expectBranchAtPath',
     expectBranch0AtPath,
@@ -95,6 +95,8 @@ import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Sqlite.Project (Project)
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -118,7 +120,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
@@ -161,26 +163,26 @@ getCurrentPath = do
 
 getCurrentProjectName :: Cli ProjectName
 getCurrentProjectName = do
-  view (PP.asNames_ . #project) <$> getCurrentProjectPath
+  view (#project . #name) <$> getCurrentProjectPath
 
 getCurrentProjectBranchName :: Cli ProjectBranchName
 getCurrentProjectBranchName = do
-  view (PP.asNames_ . #branch) <$> getCurrentProjectPath
+  view (#branch . #name) <$> getCurrentProjectPath
 
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
-resolvePath :: Path -> Cli Path.Absolute
+resolvePath :: Path -> Cli PP.ProjectPath
 resolvePath path = do
-  currentPath <- getCurrentPath
-  pure (Path.resolve currentPath (Path.Relative path))
+  pp <- getCurrentProjectPath
+  pure $ pp & PP.absPath_ %~ \p -> Path.resolve p path
 
 -- | Resolve a @Path'@ to a @Path.Absolute@, per the current path.
-resolvePath' :: Path' -> Cli Path.Absolute
-resolvePath' path = do
-  currentPath <- getCurrentPath
-  pure (Path.resolve currentPath path)
+resolvePath' :: Path' -> Cli PP.ProjectPath
+resolvePath' path' = do
+  pp <- getCurrentProjectPath
+  pure $ pp & PP.absPath_ %~ \p -> Path.resolve p path'
 
 -- | Resolve a path split, per the current path.
-resolveSplit' :: (Path', a) -> Cli (Path.Absolute, a)
+resolveSplit' :: (Path', a) -> Cli (PP.ProjectPath, a)
 resolveSplit' =
   traverseOf _1 resolvePath'
 
@@ -192,22 +194,24 @@ resolveSplit' =
 resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
 resolveAbsBranchId = \case
   Left hash -> resolveShortCausalHash hash
-  Right path -> getBranchFromProjectRootPath path
+  Right absPath -> do
+    pp <- resolvePath' (Path' (Left absPath))
+    getBranchFromProjectPath pp
 
 -- | V2 version of 'resolveAbsBranchId2'.
 resolveAbsBranchIdV2 ::
   (forall void. Output.Output -> Sqlite.Transaction void) ->
+  ProjectAndBranch Project ProjectBranch ->
   Input.AbsBranchId ->
   Sqlite.Transaction (V2.Branch Sqlite.Transaction)
-resolveAbsBranchIdV2 rollback = \case
+resolveAbsBranchIdV2 rollback (ProjectAndBranch proj branch) = \case
   Left shortHash -> do
     hash <- resolveShortCausalHashToCausalHash rollback shortHash
-    succeed (Codebase.expectCausalBranchByCausalHash hash)
-  Right path -> succeed (Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path))
-  where
-    succeed getCausal = do
-      causal <- getCausal
-      V2Causal.value causal
+    causal <- (Codebase.expectCausalBranchByCausalHash hash)
+    V2Causal.value causal
+  Right absPath -> do
+    let pp = PP.ProjectPath proj branch absPath
+    Codebase.getShallowBranchAtProjectPath pp
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
@@ -219,7 +223,7 @@ resolveBranchId branchId = do
 -- | Resolve a @BranchId@ to an @AbsBranchId@.
 resolveBranchIdToAbsBranchId :: Input.BranchId -> Cli Input.AbsBranchId
 resolveBranchIdToAbsBranchId =
-  traverseOf _Right resolvePath'
+  traverseOf _Right (fmap (view PP.absPath_) . resolvePath')
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
@@ -288,25 +292,28 @@ getCurrentBranch0 = do
   Branch.head <$> getCurrentBranch
 
 -- | Get the branch at an absolute path from the project root.
-getBranchFromProjectRootPath :: Path.Absolute -> Cli (Branch IO)
-getBranchFromProjectRootPath path =
-  getMaybeBranchFromProjectRootPath path <&> fromMaybe Branch.empty
+getBranchFromProjectPath :: PP.ProjectPath -> Cli (Branch IO)
+getBranchFromProjectPath pp =
+  getMaybeBranchFromProjectPath pp <&> fromMaybe Branch.empty
 
 -- | Get the branch0 at an absolute path.
-getBranch0FromProjectRootPath :: Path.Absolute -> Cli (Branch0 IO)
-getBranch0FromProjectRootPath path =
-  Branch.head <$> getBranchFromProjectRootPath path
+getBranch0FromProjectPath :: PP.ProjectPath -> Cli (Branch0 IO)
+getBranch0FromProjectPath pp =
+  Branch.head <$> getBranchFromProjectPath pp
 
 -- | Get the maybe-branch at an absolute path.
-getMaybeBranchFromProjectRootPath :: Path.Absolute -> Cli (Maybe (Branch IO))
-getMaybeBranchFromProjectRootPath path = do
-  rootBranch <- getProjectRoot
-  pure (Branch.getAt (Path.unabsolute path) rootBranch)
+getMaybeBranchFromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch IO))
+getMaybeBranchFromProjectPath pp = do
+  Cli.Env {codebase} <- ask
+  let ProjectBranch {causalHashId} = pp ^. #branch
+  causalHash <- Cli.runTransaction $ Q.expectCausalHash causalHashId
+  rootBranch <- liftIO $ Codebase.expectBranchForHash codebase causalHash
+  pure (Branch.getAt (pp ^. PP.path_) rootBranch)
 
 -- | Get the maybe-branch0 at an absolute path.
-getMaybeBranch0FromProjectRootPath :: Path.Absolute -> Cli (Maybe (Branch0 IO))
-getMaybeBranch0FromProjectRootPath path =
-  fmap Branch.head <$> getMaybeBranchFromProjectRootPath path
+getMaybeBranch0FromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch0 IO))
+getMaybeBranch0FromProjectPath pp =
+  fmap Branch.head <$> getMaybeBranchFromProjectPath pp
 
 -- | Get the branch at a relative path, or return early if there's no such branch.
 expectBranchAtPath :: Path -> Cli (Branch IO)
@@ -317,7 +324,7 @@ expectBranchAtPath =
 expectBranchAtPath' :: Path' -> Cli (Branch IO)
 expectBranchAtPath' path0 = do
   path <- resolvePath' path0
-  getMaybeBranchFromProjectRootPath path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
+  getMaybeBranchFromProjectPath path & onNothingM (Cli.returnEarly (Output.BranchNotFound path0))
 
 -- | Get the branch0 at an absolute or relative path, or return early if there's no such branch.
 expectBranch0AtPath' :: Path' -> Cli (Branch0 IO)
@@ -343,48 +350,52 @@ assertNoBranchAtPath' path' = do
 -- current terms/types etc).
 branchExistsAtPath' :: Path' -> Cli Bool
 branchExistsAtPath' path' = do
-  absPath <- resolvePath' path'
+  pp <- resolvePath' path'
   Cli.runTransaction do
-    causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute absPath)
-    branch <- V2Causal.value causal
+    branch <- Codebase.getShallowBranchAtProjectPath pp
     isEmpty <- V2Branch.isEmpty branch
     pure (not isEmpty)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Updating branches
 
+relativizeActions :: (Foldable f) => f (Path.Absolute, x) -> [(Path, x)]
+relativizeActions actions =
+  toList actions
+    & traversed . _1 %~ Path.unabsolute
+
 stepAt ::
   Text ->
-  (Path, Branch0 IO -> Branch0 IO) ->
+  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepAt cause = stepManyAt @[] cause . pure
 
 stepAt' ::
   Text ->
-  (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepAt' cause = stepManyAt' @[] cause . pure
 
 stepAtNoSync' ::
-  (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepAtNoSync' = stepManyAtNoSync' @[] . pure
 
 stepAtNoSync ::
-  (Path, Branch0 IO -> Branch0 IO) ->
+  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepAtNoSync = stepManyAtNoSync @[] . pure
 
 stepAtM ::
   Text ->
-  (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepAtM cause = stepManyAtM @[] cause . pure
 
 stepManyAt ::
   (Foldable f) =>
   Text ->
-  f (Path, Branch0 IO -> Branch0 IO) ->
+  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
@@ -393,7 +404,7 @@ stepManyAt reason actions = do
 stepManyAt' ::
   (Foldable f) =>
   Text ->
-  f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAt' reason actions = do
   res <- stepManyAtNoSync' actions
@@ -402,26 +413,26 @@ stepManyAt' reason actions = do
 
 stepManyAtNoSync' ::
   (Foldable f) =>
-  f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
   origRoot <- getProjectRoot
-  newRoot <- Branch.stepManyAtM actions origRoot
+  newRoot <- Branch.stepManyAtM (relativizeActions actions) origRoot
   setCurrentProjectRoot newRoot
   pure (origRoot /= newRoot)
 
 -- Like stepManyAt, but doesn't update the last saved root
 stepManyAtNoSync ::
   (Foldable f) =>
-  f (Path, Branch0 IO -> Branch0 IO) ->
+  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
-stepManyAtNoSync actions =
-  void . modifyProjectRoot $ Branch.stepManyAt actions
+stepManyAtNoSync actions = do
+  void . modifyProjectRoot $ Branch.stepManyAt (relativizeActions actions)
 
 stepManyAtM ::
   (Foldable f) =>
   Text ->
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtM reason actions = do
   stepManyAtMNoSync actions
@@ -429,11 +440,11 @@ stepManyAtM reason actions = do
 
 stepManyAtMNoSync ::
   (Foldable f) =>
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
+  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
   oldRoot <- getProjectRoot
-  newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
+  newRoot <- liftIO (Branch.stepManyAtM (relativizeActions actions) oldRoot)
   setCurrentProjectRoot newRoot
 
 -- | Sync the in-memory root branch.
@@ -488,18 +499,18 @@ updateCurrentProjectRoot new reason =
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
 
-getTermsAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)
-getTermsAt path = do
-  rootBranch0 <- getProjectRoot0
-  pure (BranchUtil.getTerm (Path.convert path) rootBranch0)
+getTermsAt :: (PP.ProjectPath, HQ'.HQSegment) -> Cli (Set Referent)
+getTermsAt (pp, hqSeg) = do
+  rootBranch0 <- getBranch0FromProjectPath pp
+  pure (BranchUtil.getTerm (mempty, hqSeg) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting types
 
-getTypesAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set TypeReference)
-getTypesAt path = do
-  rootBranch0 <- getProjectRoot0
-  pure (BranchUtil.getType (Path.convert path) rootBranch0)
+getTypesAt :: (PP.ProjectPath, HQ'.HQSegment) -> Cli (Set TypeReference)
+getTypesAt (pp, hqSeg) = do
+  rootBranch0 <- getBranch0FromProjectPath pp
+  pure (BranchUtil.getType (mempty, hqSeg) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting patches
@@ -517,8 +528,8 @@ getPatchAt path =
 -- | Get the patch at a path.
 getMaybePatchAt :: Path.Split' -> Cli (Maybe Patch)
 getMaybePatchAt path0 = do
-  (path, name) <- resolveSplit' path0
-  branch <- getBranch0FromProjectRootPath path
+  (pp, name) <- resolveSplit' path0
+  branch <- getBranch0FromProjectPath pp
   liftIO (Branch.getMaybePatch name branch)
 
 -- | Get the patch at a path, or return early if there's no such patch.

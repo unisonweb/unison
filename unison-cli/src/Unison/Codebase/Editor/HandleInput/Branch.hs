@@ -39,7 +39,7 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
       Cli.returnEarly (Output.CannotCreateReleaseBranchWithBranchCommand newBranchName ver)
     ProjectBranchNameKind'NothingSpecial -> pure ()
 
-  currentProjectName <- Cli.getCurrentProjectPath <&> view (PP.asNames_ . #project)
+  currentProjectName <- Cli.getCurrentProjectPath <&> view (#project . #name)
   destProject <- do
     Cli.runTransactionWithRollback
       \rollback -> do

@@ -29,6 +29,7 @@ module Unison.Codebase.Path
     prefixName2,
     unprefixName,
     HQSplit,
+    AbsSplit,
     Split,
     Split',
     HQSplit',
@@ -178,6 +179,8 @@ unsplitHQ (p, a) = fmap (snoc p) a
 
 unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
+
+type AbsSplit = (Absolute, NameSegment)
 
 type Split = (Path, NameSegment)
 
@@ -514,6 +517,9 @@ instance Resolve Absolute Relative Absolute where
 
 instance Resolve Absolute Relative Path' where
   resolve l r = AbsolutePath' (resolve l r)
+
+instance Resolve Absolute Path Absolute where
+  resolve (Absolute l) r = Absolute (resolve l r)
 
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a

@@ -8,8 +8,8 @@ module Unison.Codebase.ProjectPath
     path_,
     projectAndBranch_,
     toText,
-    asIds_,
-    asNames_,
+    toIds,
+    toNames,
     asProjectAndBranch_,
   )
 where
@@ -41,26 +41,12 @@ fromProjectAndBranch :: ProjectAndBranch Project ProjectBranch -> Path.Absolute 
 fromProjectAndBranch (ProjectAndBranch proj branch) path = ProjectPath proj branch path
 
 -- | Project a project context into a project path of just IDs
-asIds_ :: Lens' ProjectPath ProjectPathIds
-asIds_ = lens get set
-  where
-    get (ProjectPath proj branch path) = ProjectPath (proj ^. #projectId) (branch ^. #branchId) path
-    set p (ProjectPath pId bId path) =
-      p
-        & #project . #projectId .~ pId
-        & #branch . #branchId .~ bId
-        & absPath_ .~ path
+toIds :: ProjectPath -> ProjectPathIds
+toIds (ProjectPath proj branch path) = ProjectPath (proj ^. #projectId) (branch ^. #branchId) path
 
 -- | Project a project context into a project path of just names
-asNames_ :: Lens' ProjectPath ProjectPathNames
-asNames_ = lens get set
-  where
-    get (ProjectPath proj branch path) = ProjectPath (proj ^. #name) (branch ^. #name) path
-    set p (ProjectPath pName bName path) =
-      p
-        & #project . #name .~ pName
-        & #branch . #name .~ bName
-        & absPath_ .~ path
+toNames :: ProjectPath -> ProjectPathNames
+toNames (ProjectPath proj branch path) = ProjectPath (proj ^. #name) (branch ^. #name) path
 
 asProjectAndBranch_ :: Lens' ProjectPath (ProjectAndBranch Project ProjectBranch)
 asProjectAndBranch_ = lens get set
@@ -77,9 +63,9 @@ instance Bifoldable ProjectPathG where
 instance Bitraversable ProjectPathG where
   bitraverse f g (ProjectPath p b path) = ProjectPath <$> f p <*> g b <*> pure path
 
-toText :: ProjectPathG ProjectName ProjectBranchName -> Text
-toText (ProjectPath projName branchName path) =
-  into @Text projName <> "/" <> into @Text branchName <> ":" <> Path.absToText path
+toText :: ProjectPathG Project ProjectBranch -> Text
+toText (ProjectPath proj branch path) =
+  into @Text (proj ^. #name) <> "/" <> into @Text (branch ^. #name) <> ":" <> Path.absToText path
 
 absPath_ :: Lens' (ProjectPathG p b) Path.Absolute
 absPath_ = lens go set
