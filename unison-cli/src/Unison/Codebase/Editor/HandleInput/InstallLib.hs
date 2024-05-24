@@ -24,7 +24,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -35,7 +35,7 @@ import Unison.Project
     classifyProjectBranchName,
     projectNameToUserProjectSlugs,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment (unsafeParseText)
+import Unison.Syntax.NameSegment qualified as NameSegment (libSegment, unsafeParseText)
 
 handleInstallLib :: ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
 handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
@@ -96,7 +96,7 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
 
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
-fresh :: Ord a => (Int -> a -> a) -> Set a -> a -> a
+fresh :: (Ord a) => (Int -> a -> a) -> Set a -> a -> a
 fresh bump taken x =
   fromJust (List.find (\y -> not (Set.member y taken)) (x : map (\i -> bump i x) [2 ..]))
 

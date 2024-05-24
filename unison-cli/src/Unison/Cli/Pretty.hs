@@ -99,8 +99,8 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE

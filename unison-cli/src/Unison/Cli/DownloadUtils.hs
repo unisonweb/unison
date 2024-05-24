@@ -30,7 +30,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Type (GitError)
 import Unison.Codebase.Type qualified as Codebase (viewRemoteBranch')
 import Unison.Core.Project (ProjectAndBranch (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share

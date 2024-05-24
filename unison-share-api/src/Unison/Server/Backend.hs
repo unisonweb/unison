@@ -133,8 +133,8 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -170,7 +170,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment (docSegment, libSegment, toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -212,10 +212,10 @@ data BackendError
   = NoSuchNamespace Path.Absolute
   | -- Failed to parse path
     BadNamespace
+      -- | error message
       String
-      -- ^ error message
+      -- | namespace
       String
-      -- ^ namespace
   | CouldntExpandBranchHash ShortCausalHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
@@ -276,7 +276,7 @@ data TermEntry v a = TermEntry
   }
   deriving (Eq, Ord, Show, Generic)
 
-termEntryLabeledDependencies :: Ord v => TermEntry v a -> Set LD.LabeledDependency
+termEntryLabeledDependencies :: (Ord v) => TermEntry v a -> Set LD.LabeledDependency
 termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag, termEntryName} =
   foldMap Type.labeledDependencies termEntryType
     <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
@@ -461,11 +461,11 @@ getTermTag codebase r sig = do
     V2Referent.Con ref _ -> Just <$> Codebase.runTransaction codebase (Codebase.getDeclType codebase ref)
   pure $
     if
-        | isDoc -> Doc
-        | isTest -> Test
-        | Just CT.Effect <- constructorType -> Constructor Ability
-        | Just CT.Data <- constructorType -> Constructor Data
-        | otherwise -> Plain
+      | isDoc -> Doc
+      | isTest -> Test
+      | Just CT.Effect <- constructorType -> Constructor Ability
+      | Just CT.Data <- constructorType -> Constructor Data
+      | otherwise -> Plain
 
 getTypeTag ::
   (Var v) =>
@@ -726,7 +726,7 @@ mungeSyntaxText ::
 mungeSyntaxText = fmap Syntax.convertElement
 
 mkTypeDefinition ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   Width ->
@@ -842,7 +842,7 @@ docsForDefinitionName ::
   Name ->
   IO [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
-  let potentialDocNames = [name, name Cons.:> "doc"]
+  let potentialDocNames = [name, name Cons.:> NameSegment.docSegment]
   Codebase.runTransaction codebase do
     refs <-
       potentialDocNames & foldMapM \name ->
@@ -1219,7 +1219,7 @@ loadTypeDisplayObject c = \case
       <$> Codebase.getTypeDeclaration c id
 
 -- | Get the causal hash a given project branch points to
-causalHashForProjectBranchName :: MonadIO m => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
+causalHashForProjectBranchName :: (MonadIO m) => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
 causalHashForProjectBranchName (ProjectAndBranch projectName branchName) = do
   Q.loadProjectBranchByNames projectName branchName >>= \case
     Nothing -> pure Nothing

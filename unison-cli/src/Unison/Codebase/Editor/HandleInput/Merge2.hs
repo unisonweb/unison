@@ -85,8 +85,8 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
@@ -104,6 +104,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -446,7 +447,7 @@ renderTermBinding ppe (HQ.NameOnly -> name) term typ =
         else TermPrinter.prettyBinding ppe name term
 
 renderTypeBinding ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Name ->
   TypeReferenceId ->
@@ -601,7 +602,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
       branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
    in branch2
   where
-    go :: Ord v => Map Name v -> Nametree (Map NameSegment v)
+    go :: (Ord v) => Map Name v -> Nametree (Map NameSegment v)
     go =
       unflattenNametree . BiMultimap.fromRange
 
@@ -676,7 +677,7 @@ identifyDependents defns conflicts unconflicts = do
             -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
             -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
             -- that when that conflict is resolved, it will propagate to bar.
-            let f :: Foldable t => t Reference.Id -> Set Reference
+            let f :: (Foldable t) => t Reference.Id -> Set Reference
                 f =
                   List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
              in bifoldMap f f <$> conflicts
@@ -797,7 +798,7 @@ loadNamespaceInfo abort db branch = do
 -- | Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
 -- in the "lib" namespace.
 loadNamespaceInfo0 ::
-  Monad m =>
+  (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
   m (Nametree (DefnsF2 (Map NameSegment) Set Referent TypeReference))

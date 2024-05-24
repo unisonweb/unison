@@ -94,8 +94,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -143,7 +142,7 @@ import Unison.Syntax.NamePrinter
     prettyShortHash,
     styleHashQualified,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -306,7 +305,7 @@ notifyNumbered = \case
               "",
               tip $
                 "Add"
-                  <> prettyName (Name.fromSegment "License")
+                  <> prettyName (Name.fromSegment NameSegment.licenseSegment)
                   <> "values for"
                   <> prettyName (Name.fromSegment authorNS)
                   <> "under"
@@ -3219,7 +3218,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             [] -> mempty
             x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
       pure $ n <> P.bold " patch " <> prettyName name <> message
-    -- 	18. patch q
+    --          18. patch q
     prettyNamePatch prefix (name, _patchDiff) = do
       n <- numPatch prefix name
       pure $ n <> P.bold " patch " <> prettyName name

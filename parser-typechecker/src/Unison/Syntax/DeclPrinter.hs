@@ -10,6 +10,7 @@ where
 import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -29,6 +30,7 @@ import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter (prettyName, styleHashQualified'')
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
@@ -38,7 +40,6 @@ import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var (freshenId, name, named)
-import qualified Data.Set as Set
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -131,14 +132,19 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
             . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
             $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
         Just fs -> do
-          tell $ Set.fromList $
-            [ case accessor of
-                Nothing -> declName `Name.joinDot` fieldName
-                Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
-              | HQ.NameOnly declName <- [name],
-                fieldName <- fs,
-                accessor <- [Nothing, Just (Name.fromSegment "set"), Just (Name.fromSegment "modify")]
-            ]
+          tell $
+            Set.fromList $
+              [ case accessor of
+                  Nothing -> declName `Name.joinDot` fieldName
+                  Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
+                | HQ.NameOnly declName <- [name],
+                  fieldName <- fs,
+                  accessor <-
+                    [ Nothing,
+                      Just (Name.fromSegment NameSegment.setSegment),
+                      Just (Name.fromSegment NameSegment.modifySegment)
+                    ]
+              ]
           pure . P.group $
             fmt S.DelimiterChar "{ "
               <> P.sep

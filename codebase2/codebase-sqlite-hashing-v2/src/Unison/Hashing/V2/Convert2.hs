@@ -36,7 +36,7 @@ import U.Codebase.Type qualified as V2.Type
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as H2
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Util.Map qualified as Map

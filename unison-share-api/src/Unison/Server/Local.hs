@@ -14,11 +14,10 @@ import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.NameSegment (libSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Backend
 import Unison.Sqlite qualified as Sqlite
+import Unison.Syntax.NameSegment qualified as NameSegment
 
 -- | Given an arbitrary query and perspective, find the name root the query belongs in,
 -- then return that root and the query relocated to that root.
@@ -62,17 +61,15 @@ inferNamesRoot p b
   where
     findBaseProject :: Path -> Maybe Path
     findBaseProject
-      ( (NameSegment.toUnescapedText -> "public")
-          Cons.:< (NameSegment.toUnescapedText -> "base")
-          Cons.:< release
-          Cons.:< _rest
-        ) =
-        Just (Path.fromList ["public", "base", release])
+      (public Cons.:< base Cons.:< release Cons.:< _rest) =
+        if public == NameSegment.publicLooseCodeSegment && base == NameSegment.baseSegment
+          then Just (Path.fromList [public, base, release])
+          else Nothing
     findBaseProject _ = Nothing
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
     go p b = do
       childMap <- lift . lift $ nonEmptyChildren b
-      when (isJust $ Map.lookup libSegment childMap) $ ask >>= tell . Last . Just
+      when (isJust $ Map.lookup NameSegment.libSegment childMap) $ ask >>= tell . Last . Just
       case p of
         Path.Empty -> pure ()
         (nextChild Cons.:< pathRemainder) ->
@@ -99,7 +96,7 @@ inferNamesRoot p b
 -- Nothing
 findDepRoot :: Path -> Maybe Path
 findDepRoot (lib Cons.:< depRoot Cons.:< rest)
-  | lib == libSegment =
+  | lib == NameSegment.libSegment =
       -- Keep looking to see if the full path is actually in a transitive dependency, otherwise
       -- fallback to this spot
       ((Path.fromList [lib, depRoot] <>) <$> findDepRoot rest)

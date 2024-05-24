@@ -79,7 +79,6 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.CodebaseServer qualified as Server
@@ -409,7 +408,7 @@ popd = do
 
 setMostRecentNamespace :: Path.Absolute -> Cli ()
 setMostRecentNamespace =
-  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toUnescapedText . Path.toList . Path.unabsolute
+  runTransaction . Queries.setMostRecentNamespace . Path.toList . Path.unabsolute
 
 respond :: Output -> Cli ()
 respond output = do

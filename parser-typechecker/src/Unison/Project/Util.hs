@@ -19,8 +19,8 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Project (ProjectAndBranch (..))
 
 -- | Get the path that a project is stored at. Users aren't supposed to go here.
@@ -152,9 +152,7 @@ pattern BranchesNameSegment <-
     BranchesNameSegment = branchesNameSegment
 
 projectsNameSegment :: NameSegment
-projectsNameSegment =
-  "__projects"
+projectsNameSegment = NameSegment "__projects"
 
 branchesNameSegment :: NameSegment
-branchesNameSegment =
-  "branches"
+branchesNameSegment = NameSegment "branches"

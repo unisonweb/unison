@@ -1,6 +1,25 @@
 -- | Utilities related to the parsing and printing of name segments using the default syntax.
 module Unison.Syntax.NameSegment
-  ( -- * String conversions
+  ( -- * Sentinel name segments
+    defaultPatchSegment,
+    docSegment,
+    libSegment,
+    publicLooseCodeSegment,
+    baseSegment,
+    snocSegment,
+    consSegment,
+    concatSegment,
+    watchSegment,
+    setSegment,
+    modifySegment,
+    licenseSegment,
+    metadataSegment,
+    authorsSegment,
+    copyrightHoldersSegment,
+    guidSegment,
+    builtinSegment,
+
+    -- * String conversions
     toEscapedText,
     toEscapedTextBuilder,
     parseText,
@@ -33,11 +52,63 @@ import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (libSegment)
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..), posP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators)
+
+------------------------------------------------------------------------------------------------------------------------
+-- special segment names
+
+defaultPatchSegment :: NameSegment
+defaultPatchSegment = NameSegment "patch"
+
+docSegment :: NameSegment
+docSegment = NameSegment "doc"
+
+publicLooseCodeSegment :: NameSegment
+publicLooseCodeSegment = NameSegment "public"
+
+baseSegment :: NameSegment
+baseSegment = NameSegment "base"
+
+snocSegment :: NameSegment
+snocSegment = NameSegment ":+"
+
+consSegment :: NameSegment
+consSegment = NameSegment "+:"
+
+concatSegment :: NameSegment
+concatSegment = NameSegment "++"
+
+watchSegment :: NameSegment
+watchSegment = NameSegment ">"
+
+setSegment :: NameSegment
+setSegment = NameSegment "set"
+
+modifySegment :: NameSegment
+modifySegment = NameSegment "modify"
+
+licenseSegment :: NameSegment
+licenseSegment = NameSegment "License"
+
+metadataSegment :: NameSegment
+metadataSegment = NameSegment "metadata"
+
+authorsSegment :: NameSegment
+authorsSegment = NameSegment "authors"
+
+copyrightHoldersSegment :: NameSegment
+copyrightHoldersSegment = NameSegment "copyrightHolders"
+
+guidSegment :: NameSegment
+guidSegment = NameSegment "guid"
+
+builtinSegment :: NameSegment
+builtinSegment = NameSegment "builtin"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
@@ -91,7 +162,7 @@ renderParseErr = \case
   ReservedOperator s -> "reserved operator: " <> s
   ReservedWord s -> "reserved word: " <> s
 
-segmentP :: Monad m => ParsecT (Token ParseErr) [Char] m NameSegment
+segmentP :: (Monad m) => ParsecT (Token ParseErr) [Char] m NameSegment
 segmentP =
   P.withParsecT (fmap ReservedOperator) symbolyP
     <|> P.withParsecT (fmap ReservedWord) wordyP

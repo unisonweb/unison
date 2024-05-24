@@ -8,10 +8,10 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid qualified as Monoid
 
 data ReadRepo
@@ -132,7 +132,7 @@ data ReadShareLooseCode = ReadShareLooseCode
 isPublic :: ReadShareLooseCode -> Bool
 isPublic ReadShareLooseCode {path} =
   case path of
-    ((NameSegment.toUnescapedText -> "public") Path.:< _) -> True
+    (segment Path.:< _) -> segment == NameSegment.publicLooseCodeSegment
     _ -> False
 
 data WriteRemoteNamespace a

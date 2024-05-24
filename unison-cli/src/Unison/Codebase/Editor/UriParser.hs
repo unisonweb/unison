@@ -31,7 +31,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Path (Path (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified
@@ -62,9 +62,12 @@ type P = P.Parsec Void Text.Text
 readRemoteNamespaceParser :: ProjectBranchSpecifier branch -> P (ReadRemoteNamespace (These ProjectName branch))
 readRemoteNamespaceParser specifier =
   P.label "generic repo" $
-    ReadRemoteNamespaceGit <$> readGitRemoteNamespace
-      <|> ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
-      <|> ReadShare'LooseCode <$> readShareLooseCode
+    ReadRemoteNamespaceGit
+      <$> readGitRemoteNamespace
+        <|> ReadShare'ProjectBranch
+      <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
+        <|> ReadShare'LooseCode
+      <$> readShareLooseCode
 
 projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ::
   ProjectBranchSpecifier branch ->
@@ -92,9 +95,12 @@ writeRemoteNamespace =
 
 writeRemoteNamespaceWith :: P a -> P (WriteRemoteNamespace a)
 writeRemoteNamespaceWith projectBranchParser =
-  WriteRemoteNamespaceGit <$> writeGitRemoteNamespace
-    <|> WriteRemoteProjectBranch <$> projectBranchParser
-    <|> WriteRemoteNamespaceShare <$> writeShareRemoteNamespace
+  WriteRemoteNamespaceGit
+    <$> writeGitRemoteNamespace
+      <|> WriteRemoteProjectBranch
+    <$> projectBranchParser
+      <|> WriteRemoteNamespaceShare
+    <$> writeShareRemoteNamespace
 
 -- >>> P.parseMaybe writeShareRemoteNamespace "unisonweb.base._releases.M4"
 -- Just (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})

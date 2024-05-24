@@ -26,6 +26,7 @@ import Unison.Reference (TypeReferenceId)
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.Var qualified as Var (namespaced)
@@ -243,7 +244,7 @@ watched = P.try do
   kind <- (fmap . fmap . fmap) (Text.unpack . Name.toText) (optional importWordyId)
   guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead importSymbolyId)
-  guard (op == Just (Name.fromSegment ">"))
+  guard (op == Just (Name.fromSegment NameSegment.watchSegment))
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)

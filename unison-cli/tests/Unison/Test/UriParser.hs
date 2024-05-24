@@ -6,12 +6,23 @@ import Data.These (These (..))
 import Data.Void (Void)
 import EasyTest
 import Text.Megaparsec qualified as P
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRepo (..), ReadRemoteNamespace (..), ShareCodeserver (..), ShareUserHandle (..), WriteGitRemoteNamespace (..), WriteGitRepo (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..), pattern ReadGitRemoteNamespace, pattern ReadShareLooseCode)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadGitRepo (..),
+    ReadRemoteNamespace (..),
+    ShareCodeserver (..),
+    ShareUserHandle (..),
+    WriteGitRemoteNamespace (..),
+    WriteGitRepo (..),
+    WriteRemoteNamespace (..),
+    WriteShareRemoteNamespace (..),
+    pattern ReadGitRemoteNamespace,
+    pattern ReadShareLooseCode,
+  )
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Project (ProjectBranchSpecifier (..))
 
 test :: Test ()
@@ -68,19 +79,22 @@ test =
         ]
     ]
 
-gitR :: Text -> Maybe Text -> Maybe ShortCausalHash -> [NameSegment] -> ReadRemoteNamespace void
-gitR url ref sch path = ReadRemoteNamespaceGit (ReadGitRemoteNamespace (ReadGitRepo url ref) sch (Path.fromList path))
+mkPath :: [Text] -> Path.Path
+mkPath = Path.fromList . fmap NameSegment
 
-gitW :: Text -> Maybe Text -> [NameSegment] -> WriteRemoteNamespace void
-gitW url branch path = WriteRemoteNamespaceGit (WriteGitRemoteNamespace (WriteGitRepo url branch) (Path.fromList path))
+gitR :: Text -> Maybe Text -> Maybe ShortCausalHash -> [Text] -> ReadRemoteNamespace void
+gitR url ref sch path = ReadRemoteNamespaceGit (ReadGitRemoteNamespace (ReadGitRepo url ref) sch (mkPath path))
 
-looseR :: Text -> [NameSegment] -> ReadRemoteNamespace void
+gitW :: Text -> Maybe Text -> [Text] -> WriteRemoteNamespace void
+gitW url branch path = WriteRemoteNamespaceGit (WriteGitRemoteNamespace (WriteGitRepo url branch) (mkPath path))
+
+looseR :: Text -> [Text] -> ReadRemoteNamespace void
 looseR user path =
-  ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle user) (Path.fromList path))
+  ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle user) (mkPath path))
 
-looseW :: Text -> [NameSegment] -> WriteRemoteNamespace void
+looseW :: Text -> [Text] -> WriteRemoteNamespace void
 looseW user path =
-  WriteRemoteNamespaceShare (WriteShareRemoteNamespace DefaultCodeserver (ShareUserHandle user) (Path.fromList path))
+  WriteRemoteNamespaceShare (WriteShareRemoteNamespace DefaultCodeserver (ShareUserHandle user) (mkPath path))
 
 branchR :: These Text Text -> ReadRemoteNamespace (These ProjectName ProjectBranchName)
 branchR =

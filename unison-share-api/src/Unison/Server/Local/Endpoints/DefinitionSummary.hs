@@ -35,7 +35,7 @@ import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl.Sqlite qualified as PPESqlite
