@@ -17,7 +17,7 @@ Cause a conflict:
 .merged> merge.old .b
 ```
 
-Updating conflicted definitions works fine, and the associated patch contains two entries.
+Updating conflicted definitions works fine.
 
 ```unison
 x = 3
@@ -25,5 +25,4 @@ x = 3
 
 ```ucm
 .merged> update
-.merged> view.patch
 ```

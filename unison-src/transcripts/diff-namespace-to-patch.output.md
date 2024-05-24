@@ -24,7 +24,7 @@ two.e = 6
   3. one.b#dcg : Nat
   4. one.c : Nat
   5. one.d : Nat
-  
+
 
 .> find two.
 
@@ -34,24 +34,18 @@ two.e = 6
   4. two.c#qpo : Nat
   5. two.d : Nat
   6. two.e : Nat
-  
+
 
 .> diff.namespace.to-patch one two thepatch
 
-  Edited Terms:
-    1. one.b#cp6ri8mtg0 -> 4. two.b
-    2. one.b#dcgdua2lj6 -> 5. two.b
-    3. one.a            -> 6. two.a
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
-
 ```
-A summary of the diff:
 
-* `one.a` -> `two.a` is a normal update.
-* Even though `one.b` is conflicted, both `one.b#hash1` and `one.b#hash2` get mapped to `two.b`.
-* Because `two.c` is conflicted, `one.c` doesn't end up on the left-hand side of the patch.
-* Because `one.d` and `one.e` are aliases, they don't end up on the left-hand side of the patch.
-* Neither `one.f` nor `two.g` end up in the patch because the names `f` and `g are not common to both namespaces.
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+⚠️
+I don't know how to diff.namespace.to-patch. Type `help` or `?`
+to get help.

@@ -19,7 +19,6 @@ module Unison.CommandLine.InputPatterns
     clear,
     clone,
     compileScheme,
-    copyPatch,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -39,19 +38,15 @@ module Unison.CommandLine.InputPatterns
     deleteBranch,
     deleteNamespace,
     deleteNamespaceForce,
-    deletePatch,
     deleteProject,
     deleteTerm,
-    deleteTermReplacement,
     deleteTermVerbose,
     deleteType,
-    deleteTypeReplacement,
     deleteTypeVerbose,
     deleteVerbose,
     dependencies,
     dependents,
     diffNamespace,
-    diffNamespaceToPatch,
     display,
     displayTo,
     docToMarkdown,
@@ -65,7 +60,6 @@ module Unison.CommandLine.InputPatterns
     findGlobal,
     findIn,
     findInAll,
-    findPatch,
     findShallow,
     findVerbose,
     findVerboseAll,
@@ -88,7 +82,6 @@ module Unison.CommandLine.InputPatterns
     moveAll,
     names,
     namespaceDependencies,
-    patch,
     previewAdd,
     previewUpdate,
     printVersion,
@@ -106,10 +99,8 @@ module Unison.CommandLine.InputPatterns
     quit,
     releaseDraft,
     renameBranch,
-    renamePatch,
     renameTerm,
     renameType,
-    replace,
     reset,
     resetRoot,
     runScheme,
@@ -129,12 +120,9 @@ module Unison.CommandLine.InputPatterns
     upgrade,
     view,
     viewGlobal,
-    viewPatch,
     viewReflog,
 
     -- * Misc
-    deleteTermReplacementCommand,
-    deleteTypeReplacementCommand,
     helpFor,
     makeExample',
     makeExample,
@@ -495,45 +483,6 @@ previewUpdate =
     )
     \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
 
-patch :: InputPattern
-patch =
-  InputPattern
-    "patch"
-    []
-    I.Visible
-    [("patch", Required, patchArg), ("namespace", Optional, namespaceArg)]
-    ( P.lines
-        [ P.wrap $
-            makeExample' patch
-              <> "rewrites any definitions that depend on "
-              <> "definitions with type-preserving edits to use the updated versions of"
-              <> "these dependencies.",
-          "",
-          P.wrapColumn2
-            [ ( makeExample patch ["<patch>", "[path]"],
-                "applies the given patch"
-                  <> "to the given namespace"
-              ),
-              ( makeExample patch ["<patch>"],
-                "applies the given patch"
-                  <> "to the current namespace"
-              )
-            ]
-        ]
-    )
-    \case
-      patchStr : ws -> first P.text do
-        patch <- Path.parseSplit' patchStr
-        branch <- case ws of
-          [pathStr] -> Path.parsePath' pathStr
-          _ -> pure Path.relativeEmpty'
-        pure $ Input.PropagatePatchI patch branch
-      [] ->
-        Left $
-          warn $
-            makeExample' patch
-              <> "takes a patch and an optional namespace."
-
 view :: InputPattern
 view =
   InputPattern
@@ -852,18 +801,6 @@ findVerboseAll =
     )
     (pure . Input.FindI True (Input.FindLocalAndDeps Path.empty))
 
-findPatch :: InputPattern
-findPatch =
-  InputPattern
-    "find.patch"
-    ["list.patch", "ls.patch"]
-    I.Visible
-    []
-    ( P.wrapColumn2
-        [("`find.patch`", "lists all patches in the current namespace.")]
-    )
-    (pure . const Input.FindPatchI)
-
 renameTerm :: InputPattern
 renameTerm =
   InputPattern
@@ -989,54 +926,6 @@ deleteType = deleteGen (Just "type") exactDefinitionTypeQueryArg "type" (DeleteT
 deleteTypeVerbose :: InputPattern
 deleteTypeVerbose = deleteGen (Just "type.verbose") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'Diff)
 
-deleteTermReplacementCommand :: String
-deleteTermReplacementCommand = "delete.term-replacement"
-
-deleteTypeReplacementCommand :: String
-deleteTypeReplacementCommand = "delete.type-replacement"
-
-deleteReplacement :: Bool -> InputPattern
-deleteReplacement isTerm =
-  InputPattern
-    commandName
-    []
-    I.Visible
-    [("definition", Required, if isTerm then exactDefinitionTermQueryArg else exactDefinitionTypeQueryArg), ("patch", Optional, patchArg)]
-    ( P.string $
-        commandName
-          <> " <foo> <patch>` removes any edit of the "
-          <> str
-          <> " `foo` from the patch `patch`, "
-          <> "or from the default patch if none is specified.  Note that `foo` refers to the "
-          <> "original name for the "
-          <> str
-          <> " - not the one in place after the edit."
-    )
-    ( \case
-        query : patch -> do
-          patch <- first P.text . traverse Path.parseSplit' $ listToMaybe patch
-          q <- parseHashQualifiedName query
-          pure $ input q patch
-        _ ->
-          Left
-            . P.warnCallout
-            . P.wrapString
-            $ commandName
-              <> " needs arguments. See `help "
-              <> commandName
-              <> "`."
-    )
-  where
-    input =
-      if isTerm
-        then Input.RemoveTermReplacementI
-        else Input.RemoveTypeReplacementI
-    str = if isTerm then "term" else "type"
-    commandName =
-      if isTerm
-        then deleteTermReplacementCommand
-        else deleteTypeReplacementCommand
-
 deleteProject :: InputPattern
 deleteProject =
   InputPattern
@@ -1081,12 +970,6 @@ deleteBranch =
           projectInclusion = OnlyWithinCurrentProject,
           branchInclusion = AllBranches
         }
-
-deleteTermReplacement :: InputPattern
-deleteTermReplacement = deleteReplacement True
-
-deleteTypeReplacement :: InputPattern
-deleteTypeReplacement = deleteReplacement False
 
 aliasTerm :: InputPattern
 aliasTerm =
@@ -1242,56 +1125,6 @@ deleteNamespaceParser helpText insistence = \case
     p <- Path.parseSplit p
     pure $ Input.DeleteI (DeleteTarget'Namespace insistence (Just p))
   _ -> Left helpText
-
-deletePatch :: InputPattern
-deletePatch =
-  InputPattern
-    "delete.patch"
-    []
-    I.Visible
-    [("patch to delete", Required, patchArg)]
-    "`delete.patch <foo>` deletes the patch `foo`"
-    \case
-      [p] -> first P.text do
-        p <- Path.parseSplit' p
-        pure . Input.DeleteI $ DeleteTarget'Patch p
-      _ -> Left (I.help deletePatch)
-
-movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
-movePatch src dest = first P.text do
-  src <- Path.parseSplit' src
-  dest <- Path.parseSplit' dest
-  pure $ Input.MovePatchI src dest
-
-copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
-copyPatch' src dest = first P.text do
-  src <- Path.parseSplit' src
-  dest <- Path.parseSplit' dest
-  pure $ Input.CopyPatchI src dest
-
-copyPatch :: InputPattern
-copyPatch =
-  InputPattern
-    "copy.patch"
-    []
-    I.Visible
-    [("patch to copy", Required, patchArg), ("copy destination", Required, newNameArg)]
-    "`copy.patch foo bar` copies the patch `foo` to `bar`."
-    \case
-      [src, dest] -> copyPatch' src dest
-      _ -> Left (I.help copyPatch)
-
-renamePatch :: InputPattern
-renamePatch =
-  InputPattern
-    "move.patch"
-    ["rename.patch"]
-    I.Visible
-    [("patch", Required, patchArg), ("new location", Required, newNameArg)]
-    "`move.patch foo bar` renames the patch `foo` to `bar`."
-    \case
-      [src, dest] -> movePatch src dest
-      _ -> Left (I.help renamePatch)
 
 renameBranch :: InputPattern
 renameBranch =
@@ -2012,45 +1845,6 @@ mergeOldPreviewInputPattern =
           branchInclusion = AllBranches
         }
 
-replaceEdit ::
-  ( HQ.HashQualified Name ->
-    HQ.HashQualified Name ->
-    Maybe Input.PatchPath ->
-    Input
-  ) ->
-  InputPattern
-replaceEdit f = self
-  where
-    self =
-      InputPattern
-        "replace"
-        []
-        I.Visible
-        [ ("definition to replace", Required, definitionQueryArg),
-          ("definition replacement", Required, definitionQueryArg),
-          ("patch", Optional, patchArg)
-        ]
-        ( P.wrapColumn2
-            [ ( makeExample self ["<from>", "<to>", "<patch>"],
-                "Replace the term/type <from> in the given patch with the term/type <to>."
-              ),
-              ( makeExample self ["<from>", "<to>"],
-                "Replace the term/type <from> with <to> in the default patch."
-              )
-            ]
-        )
-        ( \case
-            source : target : patch -> do
-              patch <- first P.text <$> traverse Path.parseSplit' $ listToMaybe patch
-              sourcehq <- parseHashQualifiedName source
-              targethq <- parseHashQualifiedName target
-              pure $ f sourcehq targethq patch
-            _ -> Left $ I.help self
-        )
-
-replace :: InputPattern
-replace = replaceEdit Input.ReplaceI
-
 viewReflog :: InputPattern
 viewReflog =
   InputPattern
@@ -2347,29 +2141,6 @@ quit =
     \case
       [] -> pure Input.QuitI
       _ -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
-
-viewPatch :: InputPattern
-viewPatch =
-  InputPattern
-    "view.patch"
-    []
-    I.Visible
-    [("patch", Optional, patchArg)]
-    ( P.wrapColumn2
-        [ ( makeExample' viewPatch,
-            "Lists all the edits in the default patch."
-          ),
-          ( makeExample viewPatch ["<patch>"],
-            "Lists all the edits in the given patch."
-          )
-        ]
-    )
-    \case
-      [] -> Right $ Input.ListEditsI Nothing
-      [patchStr] -> mapLeft P.text do
-        patch <- Path.parseSplit' patchStr
-        Right $ Input.ListEditsI (Just patch)
-      _ -> Left $ warn "`view.patch` takes a patch and that's it."
 
 names :: Input.IsGlobal -> InputPattern
 names isGlobal =
@@ -2865,24 +2636,6 @@ printVersion =
         _ -> Left (showPatternHelp printVersion)
     )
 
-diffNamespaceToPatch :: InputPattern
-diffNamespaceToPatch =
-  InputPattern
-    { patternName = "diff.namespace.to-patch",
-      aliases = [],
-      visibility = I.Visible,
-      args = [],
-      help = P.wrap "Create a patch from a namespace diff.",
-      parse = \case
-        [branchId1, branchId2, patch] ->
-          mapLeft P.text do
-            branchId1 <- Input.parseBranchId branchId1
-            branchId2 <- Input.parseBranchId branchId2
-            patch <- Path.parseSplit' patch
-            pure (Input.DiffNamespaceToPatchI Input.DiffNamespaceToPatchInput {branchId1, branchId2, patch})
-        _ -> Left (showPatternHelp diffNamespaceToPatch)
-    }
-
 projectCreate :: InputPattern
 projectCreate =
   InputPattern
@@ -3174,7 +2927,6 @@ validInputs =
       clear,
       clone,
       compileScheme,
-      copyPatch,
       createAuthor,
       debugClearWatchCache,
       debugDoctor,
@@ -3195,18 +2947,14 @@ validInputs =
       deleteProject,
       deleteNamespace,
       deleteNamespaceForce,
-      deletePatch,
       deleteTerm,
-      deleteTermReplacement,
       deleteTermVerbose,
       deleteType,
-      deleteTypeReplacement,
       deleteTypeVerbose,
       deleteVerbose,
       dependencies,
       dependents,
       diffNamespace,
-      diffNamespaceToPatch,
       display,
       displayTo,
       docToMarkdown,
@@ -3220,7 +2968,6 @@ validInputs =
       findAll,
       findInAll,
       findGlobal,
-      findPatch,
       findShallow,
       findVerbose,
       findVerboseAll,
@@ -3245,7 +2992,6 @@ validInputs =
       names False, -- names
       names True, -- names.global
       namespaceDependencies,
-      patch,
       previewAdd,
       previewUpdate,
       printVersion,
@@ -3263,11 +3009,9 @@ validInputs =
       quit,
       releaseDraft,
       renameBranch,
-      renamePatch,
       renameTerm,
       renameType,
       moveAll,
-      replace,
       reset,
       resetRoot,
       runScheme,
@@ -3285,7 +3029,6 @@ validInputs =
       upgrade,
       view,
       viewGlobal,
-      viewPatch,
       viewReflog
     ]
 

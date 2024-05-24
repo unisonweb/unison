@@ -6,9 +6,7 @@
 module Unison.CommandLine.OutputMessages where
 
 import Control.Lens hiding (at)
-import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -128,7 +126,6 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import Unison.ShortHash qualified as ShortHash
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
@@ -405,7 +402,6 @@ notifyNumbered = \case
           ],
       numberedArgsForEndangerments ppeDecl endangerments
     )
-  ListEdits patch ppe -> showListEdits patch ppe
   ListProjects projects ->
     ( P.numberedList (map (prettyProjectName . view #name) projects),
       map (Text.unpack . into @Text . view #name) projects
@@ -551,99 +547,6 @@ undoTip =
       <> IP.makeExample' IP.viewReflog
       <> "to undo this change."
 
-showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
-showListEdits patch ppe =
-  ( P.sepNonEmpty
-      "\n\n"
-      [ if null types
-          then mempty
-          else
-            "Edited Types:"
-              `P.hang` P.column2 typeOutputs,
-        if null terms
-          then mempty
-          else
-            "Edited Terms:"
-              `P.hang` P.column2 termOutputs,
-        if null types && null terms
-          then "This patch is empty."
-          else
-            tip . P.string $
-              "To remove entries from a patch, use "
-                <> IP.deleteTermReplacementCommand
-                <> " or "
-                <> IP.deleteTypeReplacementCommand
-                <> ", as appropriate."
-      ],
-    numberedArgsCol1 <> numberedArgsCol2
-  )
-  where
-    typeOutputs, termOutputs :: [(Pretty, Pretty)]
-    numberedArgsCol1, numberedArgsCol2 :: NumberedArgs
-    -- We use the output of the first column's count as the first number in the second
-    -- column's count. Laziness allows this since they're used independently of one another.
-    (((typeOutputs, termOutputs), (lastNumberInFirstColumn, _)), (numberedArgsCol1, numberedArgsCol2)) =
-      runWriter . flip runStateT (1, lastNumberInFirstColumn) $ do
-        typeOutputs <- traverse prettyTypeEdit types
-        termOutputs <- traverse prettyTermEdit terms
-        pure (typeOutputs, termOutputs)
-    types :: [(Reference, TypeEdit.TypeEdit)]
-    types = R.toList $ Patch._typeEdits patch
-    terms :: [(Reference, TermEdit.TermEdit)]
-    terms = R.toList $ Patch._termEdits patch
-    showNum :: Int -> Pretty
-    showNum n = P.hiBlack (P.shown n <> ". ")
-
-    prettyTermEdit ::
-      (Reference.TermReference, TermEdit.TermEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
-    prettyTermEdit (lhsRef, termEdit) = do
-      n1 <- gets fst <* modify (first succ)
-      let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
-      -- We use the shortHash of the lhs rather than its name for numbered args,
-      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
-      case termEdit of
-        TermEdit.Deprecate -> do
-          lift $ tell ([lhsHash], [])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
-              "-> (deprecated)"
-            )
-        TermEdit.Replace rhsRef _typing -> do
-          n2 <- gets snd <* modify (second succ)
-          let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
-          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTermName)])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
-              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
-            )
-
-    prettyTypeEdit ::
-      (Reference, TypeEdit.TypeEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
-    prettyTypeEdit (lhsRef, typeEdit) = do
-      n1 <- gets fst <* modify (first succ)
-      let lhsTypeName = PPE.typeName ppe lhsRef
-      -- We use the shortHash of the lhs rather than its name for numbered args,
-      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
-      case typeEdit of
-        TypeEdit.Deprecate -> do
-          lift $ tell ([lhsHash], [])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
-              "-> (deprecated)"
-            )
-        TypeEdit.Replace rhsRef -> do
-          n2 <- gets snd <* modify (second succ)
-          let rhsTypeName = PPE.typeName ppe rhsRef
-          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTypeName)])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
-              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
-            )
-
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir = \case
   SaveTermNameConflict name ->
@@ -782,13 +685,6 @@ notifyUser dir = \case
             <> " by someone else. Trying your command again might fix it."
       ]
   EvaluationFailure err -> pure err
-  TypeTermMismatch typeName termName ->
-    pure $
-      P.warnCallout "I was expecting either two types or two terms but was given a type "
-        <> P.syntaxToColor (prettyHashQualified typeName)
-        <> " and a term "
-        <> P.syntaxToColor (prettyHashQualified termName)
-        <> "."
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure $
@@ -814,8 +710,6 @@ notifyUser dir = \case
           P.warnCallout typeOrTermMsg
             <> P.newline
             <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
-  PatchNotFound _ ->
-    pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
   NamesNotFound hqs ->
@@ -833,8 +727,6 @@ notifyUser dir = \case
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
     pure . P.warnCallout $ "A type by that name already exists."
-  PatchAlreadyExists _ ->
-    pure . P.warnCallout $ "A patch by that name already exists."
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
@@ -1356,17 +1248,6 @@ notifyUser dir = \case
             "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new),
             "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
           ]
-  ListOfPatches patches ->
-    pure $
-      if null patches
-        then P.lit "nothing to show"
-        else numberedPatches patches
-    where
-      numberedPatches :: Set Name -> Pretty
-      numberedPatches patches =
-        (P.column2 . fmap format) ([(1 :: Integer) ..] `zip` (toList patches))
-        where
-          format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
   NoConfiguredRemoteMapping pp p -> do
     let (localPathExample, sharePathExample) =
           if Path.isRoot p
@@ -1500,12 +1381,6 @@ notifyUser dir = \case
       "I could't find a type with hash "
         <> (prettyShortHash sh)
   AboutToPropagatePatch -> pure "Applying changes from patch..."
-  NothingToPatch _patchPath dest ->
-    pure $
-      P.callout "😶" . P.wrap $
-        "This had no effect. Perhaps the patch has already been applied"
-          <> "or it doesn't intersect with the definitions in"
-          <> P.group (prettyPath' dest <> ".")
   PatchNeedsToBeConflictFree ->
     pure . P.wrap $
       "I tried to auto-apply the patch, but couldn't because it contained"
