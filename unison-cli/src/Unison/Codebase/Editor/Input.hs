@@ -1,7 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     BranchSourceI (..),
-    DiffNamespaceToPatchInput (..),
     GistInput (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
@@ -142,8 +141,6 @@ data Input
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
   | MoveBranchI Path.Path' Path.Path'
-  | MovePatchI Path.Split' Path.Split'
-  | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
     DeleteI DeleteTarget
   | -- edits stuff:
@@ -155,14 +152,6 @@ data Input
   | Update2I
   | PreviewUpdateI (Set Name)
   | TodoI (Maybe PatchPath) Path'
-  | PropagatePatchI PatchPath Path'
-  | ListEditsI (Maybe PatchPath)
-  | -- -- create and remove update directives
-    DeprecateTermI PatchPath Path.HQSplit'
-  | DeprecateTypeI PatchPath Path.HQSplit'
-  | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
-  | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
-  | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -190,7 +179,6 @@ data Input
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
-  | FindPatchI
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions.
@@ -225,7 +213,6 @@ data Input
   | GistI GistInput
   | AuthLoginI
   | VersionI
-  | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
@@ -251,16 +238,6 @@ data BranchSourceI
   | -- | Create a branch from this loose-code-or-project
     BranchSourceI'LooseCodeOrProject LooseCodeOrProject
   deriving stock (Eq, Show)
-
-data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
-  { -- The first/earlier namespace.
-    branchId1 :: BranchId,
-    -- The second/later namespace.
-    branchId2 :: BranchId,
-    -- Where to store the patch that corresponds to the diff between the namespaces.
-    patch :: Path.Split'
-  }
-  deriving stock (Eq, Generic, Show)
 
 -- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
 data GistInput = GistInput
@@ -332,7 +309,6 @@ data DeleteTarget
   | DeleteTarget'Term DeleteOutput [Path.HQSplit']
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
   | DeleteTarget'Namespace Insistence (Maybe Path.Split)
-  | DeleteTarget'Patch Path.Split'
   | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | DeleteTarget'Project ProjectName
   deriving stock (Eq, Show)

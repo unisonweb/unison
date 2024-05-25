@@ -9,20 +9,16 @@ Test that tab completion works as expected.
 
    view
    view.global
-   view.patch
 
 .> debug.tab-complete delete.
 
    delete.branch
    delete.namespace
    delete.namespace.force
-   delete.patch
    delete.project
    delete.term
-   delete.term-replacement
    delete.term.verbose
    delete.type
-   delete.type-replacement
    delete.type.verbose
    delete.verbose
 
