@@ -178,7 +178,6 @@ library
       Unison.UnisonFile.Names
       Unison.UnisonFile.Summary
       Unison.UnisonFile.Type
-      Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd

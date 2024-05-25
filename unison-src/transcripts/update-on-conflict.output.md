@@ -64,7 +64,7 @@ Cause a conflict:
   Applying changes from patch...
 
 ```
-Updating conflicted definitions works fine, and the associated patch contains two entries.
+Updating conflicted definitions works fine.
 
 ```unison
 x = 3
@@ -91,9 +91,5 @@ x = 3
   updated...
 
   Done.
-
-.merged> view.patch
-
-  This patch is empty.
 
 ```
