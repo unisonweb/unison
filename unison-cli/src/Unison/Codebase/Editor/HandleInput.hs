@@ -1758,7 +1758,7 @@ displayI outputLoc hq = do
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
       doDisplay outputLoc ns tm
 
-docsI :: Path.HQSplit' -> Cli ()
+docsI :: Name -> Cli ()
 docsI src = do
   findInScratchfileByName
   where
@@ -1766,14 +1766,8 @@ docsI src = do
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
-    hq :: HQ.HashQualified Name
-    hq =
-      let hq' :: HQ'.HashQualified Name
-          hq' = Path.unsafeToName' <$> Name.convert src
-       in Name.convert hq'
-
     dotDoc :: HQ.HashQualified Name
-    dotDoc = hq <&> \n -> Name.joinDot n (Name.fromSegment "doc")
+    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment "doc"
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do

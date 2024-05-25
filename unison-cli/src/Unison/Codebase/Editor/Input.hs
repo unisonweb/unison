@@ -174,7 +174,7 @@ data Input
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | -- Display docs for provided terms.
-    DocsI (NonEmpty Path.HQSplit')
+    DocsI (NonEmpty Name)
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
