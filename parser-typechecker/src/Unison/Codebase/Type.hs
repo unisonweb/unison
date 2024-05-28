@@ -68,10 +68,6 @@ data Codebase m v a = Codebase
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
-    -- | Copy a branch and all of its dependencies from the given codebase into this one.
-    syncFromDirectory :: CodebasePath -> Branch m -> m (),
-    -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
-    syncToDirectory :: CodebasePath -> Branch m -> m (),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.

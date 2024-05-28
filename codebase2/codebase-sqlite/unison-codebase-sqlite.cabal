@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -61,7 +61,6 @@ library
       U.Codebase.Sqlite.RemoteProjectBranch
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
-      U.Codebase.Sqlite.Sync22
       U.Codebase.Sqlite.TempEntity
       U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
