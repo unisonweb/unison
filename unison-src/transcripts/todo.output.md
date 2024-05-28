@@ -205,14 +205,6 @@ oldfoo = 801
   
     oldfoo : Nat
 
-.lhs> view.patch patch
-
-  Edited Terms: 1. oldfoo -> 2. foo
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
-
 .lhs> todo
 
   ✅

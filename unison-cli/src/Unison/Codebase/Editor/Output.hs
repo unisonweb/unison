@@ -17,7 +17,6 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
-import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
@@ -28,7 +27,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
+import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -39,14 +38,12 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -128,7 +125,6 @@ data NumberedOutput
       HashLength
       [(CausalHash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
-  | ListEdits Patch PPE.PrettyPrintEnv
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -173,7 +169,6 @@ data Output
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | FindNoLocalMatches
-  | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
   | TypeParseError String (Parser.Err Symbol)
@@ -192,13 +187,11 @@ data Output
   | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
   | NameNotFound Path.HQSplit'
   | NamesNotFound [Name]
-  | PatchNotFound Path.Split'
   | TypeNotFound Path.HQSplit'
   | TermNotFound Path.HQSplit'
   | MoveNothingFound Path'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
-  | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
   | NoLastRunResult
   | SaveTermNameConflict Name
   | SearchTermsNotFound [HQ.HashQualified Name]
@@ -231,7 +224,6 @@ data Output
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
-  | ListOfPatches (Set Name)
   | ListStructuredFind [HQ.HashQualified Name]
   | -- ListStructuredFind patternMatchingUsages termBodyUsages
     -- show the result of add/update
@@ -268,15 +260,12 @@ data Output
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
-  | GitError GitError
   | ShareError ShareError
   | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | TermMissingType Reference
   | AboutToPropagatePatch
-  | -- todo: tell the user to run `todo` on the same patch they just used
-    NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | StartOfCurrentPathHistory
@@ -488,7 +477,6 @@ isFailure o = case o of
   BranchAlreadyExists {} -> True
   -- we do a global search after finding no local matches, so let's not call this a failure yet
   FindNoLocalMatches {} -> False
-  PatchAlreadyExists {} -> True
   NoExactTypeMatches -> True
   BranchEmpty {} -> True
   EmptyLooseCodePush {} -> True
@@ -508,13 +496,11 @@ isFailure o = case o of
   BranchNotFound {} -> True
   NameNotFound {} -> True
   NamesNotFound _ -> True
-  PatchNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
   MoveNothingFound {} -> True
   TermNotFound' {} -> True
-  TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
   SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)
   DeleteBranchConfirmation {} -> False
@@ -524,7 +510,6 @@ isFailure o = case o of
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfDefinitions _ _ _ ds -> null ds
-  ListOfPatches s -> Set.null s
   ListStructuredFind tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
@@ -542,14 +527,12 @@ isFailure o = case o of
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  GitError {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
   PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
   AboutToPropagatePatch {} -> False
-  NothingToPatch {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -662,7 +645,6 @@ isNumberedFailure = \case
   DeletedDespiteDependents {} -> False
   History {} -> False
   ListBranches {} -> False
-  ListEdits {} -> False
   ListProjects {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False

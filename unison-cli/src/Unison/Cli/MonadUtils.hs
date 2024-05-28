@@ -68,9 +68,6 @@ module Unison.Cli.MonadUtils
 
     -- ** Getting patches
     getPatchAt,
-    getMaybePatchAt,
-    expectPatchAt,
-    assertNoPatchAt,
 
     -- * Latest touched Unison file
     getLatestFile,
@@ -532,16 +529,6 @@ getMaybePatchAt path0 = do
   (pp, name) <- resolveSplit' path0
   branch <- getBranch0FromProjectPath pp
   liftIO (Branch.getMaybePatch name branch)
-
--- | Get the patch at a path, or return early if there's no such patch.
-expectPatchAt :: Path.Split' -> Cli Patch
-expectPatchAt path =
-  getMaybePatchAt path & onNothingM (Cli.returnEarly (Output.PatchNotFound path))
-
--- | Assert that there's no patch at a path, or return early if there is one.
-assertNoPatchAt :: Path.Split' -> Cli ()
-assertNoPatchAt path = do
-  whenJustM (getMaybePatchAt path) \_ -> Cli.returnEarly (Output.PatchAlreadyExists path)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Latest (typechecked) unison file utils

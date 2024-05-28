@@ -61,7 +61,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchAdds,
   )
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadShareLooseCode (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
@@ -404,10 +404,6 @@ doMerge info = do
                     | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
                     | otherwise -> into @Text bobBranchNames
                   MergeSource'RemoteLooseCode info ->
-                    case Path.toName info.path of
-                      Nothing -> "<root>"
-                      Just name -> Name.toText name
-                  MergeSource'RemoteGitRepo info ->
                     case Path.toName info.path of
                       Nothing -> "<root>"
                       Just name -> Name.toText name
@@ -854,7 +850,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
       MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
       MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
       MergeSource'RemoteLooseCode info -> manglePath info.path
-      MergeSource'RemoteGitRepo info -> manglePath info.path
     mangleBranchName :: ProjectBranchName -> Text.Builder
     mangleBranchName name =
       case classifyProjectBranchName name of

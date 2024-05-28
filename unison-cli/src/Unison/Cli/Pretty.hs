@@ -27,7 +27,6 @@ module Unison.Cli.Pretty
     prettyProjectName,
     prettyProjectNameSlash,
     prettyNamespaceKey,
-    prettyReadGitRepo,
     prettyReadRemoteNamespace,
     prettyReadRemoteNamespaceWith,
     prettyRelative,
@@ -46,7 +45,6 @@ module Unison.Cli.Pretty
     prettyURI,
     prettyUnisonFile,
     prettyWhichBranchEmpty,
-    prettyWriteGitRepo,
     prettyWriteRemoteNamespace,
     shareOrigin,
     unsafePrettyTermResultSigFull',
@@ -78,10 +76,8 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, Missi
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo,
-    ReadRemoteNamespace (..),
+  ( ReadRemoteNamespace (..),
     ShareUserHandle (..),
-    WriteGitRepo,
     WriteRemoteNamespace (..),
     WriteShareRemoteNamespace (..),
     shareUserHandleToText,
@@ -242,7 +238,6 @@ prettyMergeSource = \case
   MergeSource'LocalProjectBranch branch -> prettyProjectAndBranchName branch
   MergeSource'RemoteProjectBranch branch -> "remote " <> prettyProjectAndBranchName branch
   MergeSource'RemoteLooseCode info -> prettyReadRemoteNamespace (ReadShare'LooseCode info)
-  MergeSource'RemoteGitRepo info -> prettyReadRemoteNamespace (ReadRemoteNamespaceGit info)
 
 prettyMergeSourceOrTarget :: MergeSourceOrTarget -> Pretty
 prettyMergeSourceOrTarget = \case
@@ -350,18 +345,6 @@ prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
 prettyTypeName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.typeName ppe r)
-
-prettyReadGitRepo :: ReadGitRepo -> Pretty
-prettyReadGitRepo = \case
-  RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
-
-prettyWriteGitRepo :: WriteGitRepo -> Pretty
-prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
-
--- prettyWriteRepo :: WriteRepo -> Pretty
--- prettyWriteRepo = \case
---   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
---   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
 
 -- | Pretty-print a 'WhichBranchEmpty'.
 prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
