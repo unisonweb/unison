@@ -245,37 +245,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   rootBranchCache
                   (runTransaction (CodebaseOps.uncachedLoadRootBranch branchCache getDeclType))
 
-            putRootBranch :: Text -> Branch m -> m ()
-            putRootBranch reason branch1 = do
-              now <- liftIO getCurrentTime
-              withRunInIO \runInIO -> do
-                -- this is naughty, the type says Transaction but it
-                -- won't run automatically with whatever Transaction
-                -- it is composed into unless the enclosing
-                -- Transaction is applied to the same db connection.
-                let branch1Trans = Branch.transform (Sqlite.unsafeIO . runInIO) branch1
-                    putRootBranchTrans :: Sqlite.Transaction () = do
-                      let emptyCausalHash = Branch.headHash Branch.empty
-                      fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
-                      let toRootCausalHash = Branch.headHash branch1
-                      CodebaseOps.putRootBranch branch1Trans
-                      Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
-
-                -- We need to update the database and the cached
-                -- value. We want to keep these in sync, so we take
-                -- the cache lock while updating sqlite.
-                withLock
-                  rootBranchCache
-                  (\restore _ -> restore $ runInIO $ runTransaction putRootBranchTrans)
-                  (\_ -> Just branch1Trans)
-
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: CausalHash -> m (Maybe (Branch m))
             getBranchForHash h =
               fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
 
-            putBranch :: Branch m -> m ()
+            putBranch :: Branch m -> m CausalHash
             putBranch branch =
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
@@ -334,8 +310,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getRootBranch,
-                  putRootBranch,
                   getBranchForHash,
                   putBranch,
                   syncFromDirectory,

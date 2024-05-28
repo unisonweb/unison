@@ -66,7 +66,7 @@ type SymbolName = Text
 -- | Valid ways to provide source code to the run command
 data RunSource
   = RunFromPipe SymbolName
-  | RunFromSymbol SymbolName
+  | RunFromSymbol ProjectPath
   | RunFromFile FilePath SymbolName
   | RunCompiled FilePath
   deriving (Show, Eq)

@@ -58,10 +58,7 @@ module Unison.Codebase
     getShallowProjectRootByNames,
 
     -- * Root branch
-    getRootBranch,
-    SqliteCodebase.Operations.getRootBranchExists,
     Operations.expectRootCausalHash,
-    putRootBranch,
     SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches

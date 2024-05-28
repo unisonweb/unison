@@ -1,10 +1,5 @@
 module U.Codebase.Sqlite.Operations
   ( -- * branches
-    saveRootBranch,
-    loadRootCausalHash,
-    expectRootCausalHash,
-    expectRootCausal,
-    expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     loadCausalBranchAtPath,
@@ -234,19 +229,6 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
   where
     loadValueHashById :: Db.BranchHashId -> Transaction BranchHash
     loadValueHashById = fmap BranchHash . Q.expectHash . Db.unBranchHashId
-
-expectRootCausalHash :: Transaction CausalHash
-expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
-
-expectRootBranchHash :: Transaction BranchHash
-expectRootBranchHash = do
-  rootCausalHashId <- Q.expectNamespaceRoot
-  expectValueHashByCausalHashId rootCausalHashId
-
-loadRootCausalHash :: Transaction (Maybe CausalHash)
-loadRootCausalHash =
-  runMaybeT $
-    lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
 
 -- | Load the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
@@ -616,16 +598,6 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch ::
-  HashHandle ->
-  C.Branch.CausalBranch Transaction ->
-  Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch hh c = do
-  when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
-  (boId, chId) <- saveBranch hh c
-  Q.setNamespaceRoot chId
-  pure (boId, chId)
-
 -- saveBranch is kind of a "deep save causal"
 
 -- we want a "shallow save causal" that could take a
@@ -751,9 +723,6 @@ saveCausalObject hh (C.Causal.Causal hc he parents _) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-
-expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
-expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
 
 loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.CausalBranch Transaction))
 loadCausalBranchByCausalHash hc = do
