@@ -1244,17 +1244,8 @@ findIn' cmd mkfscope =
     I.Visible
     [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
     findHelp
-    $ \case
-      p : args ->
-        Input.FindI False . mkfscope
-          <$> first P.text (handlePathArg p)
-          -- __FIXME__: This changes things a bit. Previously, `find` and
-          --            friends would just expand the numbered args and search
-          --            for them like any other string, but now it recognizes
-          --            that you’re trying to look up something you already
-          --            have, and refuses to. Is that the right thing to do? We
-          --            _could_ still serialize in this case.
-          <*> traverse (unsupportedStructuredArgument "text") args
+    \case
+      p : args -> Input.FindI False . mkfscope <$> handlePathArg p <*> pure (unifyArgument <$> args)
       _ -> Left findHelp
 
 findHelp :: P.Pretty CT.ColorText
@@ -1332,9 +1323,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    ( fmap (Input.FindI True $ Input.FindLocal Path.empty)
-        . traverse (unsupportedStructuredArgument "text")
-    )
+    (pure . Input.FindI True (Input.FindLocal Path.empty) . fmap unifyArgument)
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -1346,9 +1335,7 @@ findVerboseAll =
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    ( fmap (Input.FindI True $ Input.FindLocalAndDeps Path.empty)
-        . traverse (unsupportedStructuredArgument "text")
-    )
+    (pure . Input.FindI True (Input.FindLocalAndDeps Path.empty) . fmap unifyArgument)
 
 renameTerm :: InputPattern
 renameTerm =
