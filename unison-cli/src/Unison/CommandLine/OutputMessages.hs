@@ -1545,7 +1545,8 @@ notifyUser dir = \case
         prettyNamespaceKey dest
           <> "is already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
-  DumpNumberedArgs args -> pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument) args
+  DumpNumberedArgs schLength args ->
+    pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat

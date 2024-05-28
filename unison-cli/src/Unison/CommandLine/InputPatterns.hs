@@ -220,14 +220,8 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty.MegaParsec (prettyPrintParseError)
 
--- |
---
---  __FIXME__: Don’t hardcode this
-schLength :: Int
-schLength = 10
-
-formatStructuredArgument :: StructuredArgument -> Text
-formatStructuredArgument = \case
+formatStructuredArgument :: Maybe Int -> StructuredArgument -> Text
+formatStructuredArgument schLength = \case
   SA.AbsolutePath path -> into @Text $ show path
   SA.Name name -> Name.toText name
   SA.HashQualified hqName -> HQ.toText hqName
@@ -237,7 +231,7 @@ formatStructuredArgument = \case
   -- also: ShortHash.toText . Reference.toShortHash
   SA.Ref reference -> Reference.toText reference
   -- also: ("#" <>) . Hash.toBase32HexText . unCausalHash
-  SA.Namespace causalHash -> ("#" <>) . SCH.toText $ SCH.fromHash schLength causalHash
+  SA.Namespace causalHash -> ("#" <>) . SCH.toText $ maybe SCH.fromFullHash SCH.fromHash schLength causalHash
   SA.NameWithBranchPrefix absBranchId name -> prefixBranchId absBranchId name
   SA.HashQualifiedWithBranchPrefix absBranchId hq'Name -> HQ'.toTextWith (prefixBranchId absBranchId) hq'Name
   SA.ShallowListEntry path entry -> entryToHQText path entry
@@ -270,7 +264,7 @@ formatStructuredArgument = \case
 -- command /should/ accept a structured argument of some type, but currently
 -- wants a `String`.
 unifyArgument :: I.Argument -> String
-unifyArgument = either id (Text.unpack . formatStructuredArgument)
+unifyArgument = either id (Text.unpack . formatStructuredArgument Nothing)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -306,7 +300,7 @@ wrongStructuredArgument :: Text -> StructuredArgument -> P.Pretty CT.ColorText
 wrongStructuredArgument expected actual =
   P.text $ expectedButActually
     expected
-    (formatStructuredArgument actual)
+    (formatStructuredArgument Nothing actual)
     case actual of
       SA.Ref _ -> "a reference"
       SA.Name _ -> "a name"
@@ -467,7 +461,7 @@ handleBranchIdArg =
       SA.Name name -> pure . pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
         pure . pure . Path.fromName' $ either (const name) (Name.makeAbsolute . flip Path.prefixName name) mprefix
-      SA.Namespace hash -> pure . Left $ SCH.fromHash schLength hash
+      SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleBranchIdOrProjectArg ::
@@ -477,7 +471,7 @@ handleBranchIdOrProjectArg =
   either
     (maybe (Left $ P.text "Expected a branch or project, but it’s not") pure . branchIdOrProject)
     \case
-      SA.Namespace hash -> pure . This . Left $ SCH.fromHash schLength hash
+      SA.Namespace hash -> pure . This . Left $ SCH.fromFullHash hash
       SA.AbsolutePath path -> pure . This . pure $ Path.absoluteToPath' path
       SA.Name name -> pure . This . pure $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . This . pure $ Path.fromName' name
@@ -509,7 +503,7 @@ handleBranchId2Arg =
   either
     Input.parseBranchId2
     \case
-      SA.Namespace hash -> pure . Left $ SCH.fromHash schLength hash
+      SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
       SA.AbsolutePath path -> pure . pure . LoosePath $ Path.absoluteToPath' path
       SA.Name name -> pure . pure . LoosePath $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . pure . LoosePath $ Path.fromName' name
@@ -584,7 +578,7 @@ handleShortCausalHashArg =
   either
     (first (P.text . Text.pack) . Input.parseShortCausalHash)
     \case
-      SA.Namespace hash -> pure $ SCH.fromHash schLength hash
+      SA.Namespace hash -> pure $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a causal hash" otherNumArg
 
 handleShortHashOrHQSplit'Arg ::

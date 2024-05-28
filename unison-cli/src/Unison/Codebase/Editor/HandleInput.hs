@@ -812,8 +812,9 @@ loop e = do
             ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI path -> handleNamespaceDependencies path
             DebugNumberedArgsI -> do
+              schLength <- Cli.runTransaction Codebase.branchHashLength
               numArgs <- use #numberedArgs
-              Cli.respond (DumpNumberedArgs numArgs)
+              Cli.respond (DumpNumberedArgs schLength numArgs)
             DebugTypecheckedUnisonFileI -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile

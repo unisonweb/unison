@@ -27,7 +27,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
+import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -302,7 +302,7 @@ data Output
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
-  | DumpNumberedArgs NumberedArgs
+  | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName Text
