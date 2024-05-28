@@ -12,8 +12,13 @@ import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Reference (TypeReference)
+import Unison.Referent (Referent)
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Nametree (Nametree (..))
 import Unison.Var (Var)
 
 -- | A lookup from decl-to-constructor name and vice-versa.
