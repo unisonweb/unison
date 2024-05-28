@@ -35,7 +35,6 @@ import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.ABT qualified as ABT
@@ -63,7 +62,6 @@ import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNames
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.TodoOutput qualified as TO
-import Unison.Codebase.GitError
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
@@ -73,9 +71,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.Codebase.TermEdit qualified as TermEdit
-import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
@@ -1092,133 +1088,6 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  GitError e -> pure $ case e of
-    GitSqliteCodebaseError e -> case e of
-      CodebaseFileLockFailed ->
-        P.wrap $
-          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
-      NoDatabaseFile repo localPath ->
-        P.wrap $
-          "I didn't find a codebase in the repository at"
-            <> prettyReadGitRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
-        P.wrap $
-          "The specified codebase codebase is on version "
-            <> P.shown fromSv
-            <> " but needs to be on version "
-            <> P.shown toSv
-      UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
-        P.wrap $
-          "I don't know how to interpret schema version "
-            <> P.shown v
-            <> "in the repository at"
-            <> prettyReadGitRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      GitCouldntParseRootBranchHash repo s ->
-        P.wrap $
-          "I couldn't parse the string"
-            <> P.red (P.string s)
-            <> "into a namespace hash, when opening the repository at"
-            <> P.group (prettyReadGitRepo repo <> ".")
-    GitProtocolError e -> case e of
-      NoGit ->
-        P.wrap $
-          "I couldn't find git. Make sure it's installed and on your path."
-      CleanupError e ->
-        P.wrap $
-          "I encountered an exception while trying to clean up a git cache directory:"
-            <> P.group (P.shown e)
-      CloneException repo msg ->
-        P.wrap $
-          "I couldn't clone the repository at"
-            <> prettyReadGitRepo repo
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      CopyException srcRepoPath destPath msg ->
-        P.wrap $
-          "I couldn't copy the repository at"
-            <> P.string srcRepoPath
-            <> "into"
-            <> P.string destPath
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      PushNoOp repo ->
-        P.wrap $
-          "The repository at" <> prettyWriteGitRepo repo <> "is already up-to-date."
-      PushException repo msg ->
-        P.wrap $
-          "I couldn't push to the repository at"
-            <> prettyWriteGitRepo repo
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      RemoteRefNotFound repo ref ->
-        P.wrap $
-          "I couldn't find the ref " <> P.green (P.text ref) <> " in the repository at " <> P.blue (P.text repo) <> ";"
-      UnrecognizableCacheDir uri localPath ->
-        P.wrap $
-          "A cache directory for"
-            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
-            <> "already exists at"
-            <> P.backticked' (P.string localPath) ","
-            <> "but it doesn't seem to"
-            <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-      UnrecognizableCheckoutDir uri localPath ->
-        P.wrap $
-          "I tried to clone"
-            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
-            <> "into a cache directory at"
-            <> P.backticked' (P.string localPath) ","
-            <> "but I can't recognize the"
-            <> "result as a git repository, so I'm not sure what to do next."
-      PushDestinationHasNewStuff repo ->
-        P.callout "⏸" . P.lines $
-          [ P.wrap $
-              "The repository at"
-                <> prettyWriteGitRepo repo
-                <> "has some changes I don't know about.",
-            "",
-            P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
-          ]
-        where
-          push = P.group . P.backticked . IP.patternName $ IP.push
-          pull = P.group . P.backticked . IP.patternName $ IP.pull
-    GitCodebaseError e -> case e of
-      CouldntFindRemoteBranch repo path ->
-        P.wrap $
-          "I couldn't find the remote branch at"
-            <> P.shown path
-            <> "in the repository at"
-            <> prettyReadGitRepo repo
-      NoRemoteNamespaceWithHash repo sch ->
-        P.wrap $
-          "The repository at"
-            <> prettyReadGitRepo repo
-            <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . P.text . SCH.toText) sch
-      RemoteNamespaceHashAmbiguous repo sch hashes ->
-        P.lines
-          [ P.wrap $
-              "The namespace hash"
-                <> prettySCH sch
-                <> "at"
-                <> prettyReadGitRepo repo
-                <> "is ambiguous."
-                <> "Did you mean one of these hashes?",
-            "",
-            P.indentN 2 $
-              P.lines
-                ( prettySCH . SCH.fromHash ((Text.length . SCH.toText) sch * 2)
-                    <$> Set.toList hashes
-                ),
-            "",
-            P.wrap "Try again with a few more hash characters to disambiguate."
-          ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -1267,7 +1136,7 @@ notifyUser dir = \case
           "Type `help " <> PushPull.fold "push" "pull" pp <> "` for more information."
         ]
 
-  --  | ConfiguredGitUrlParseError PushPull Path' Text String
+  --  | ConfiguredRemoteMappingParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $

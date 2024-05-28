@@ -43,7 +43,7 @@ import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin.Decls qualified as Builtin.Decls
-import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..), MergeSourceAndTarget (..))
+import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -61,7 +61,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchAdds,
   )
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadShareLooseCode (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
@@ -220,7 +220,7 @@ doMerge info = do
   let aliceBranchNames = ProjectAndBranch info.alice.project.name info.alice.projectBranch.name
   let mergeSource = MergeSourceOrTarget'Source info.bob.source
   let mergeTarget = MergeSourceOrTarget'Target aliceBranchNames
-  let mergeSourceAndTarget = MergeSourceAndTarget { alice = aliceBranchNames, bob = info.bob.source }
+  let mergeSourceAndTarget = MergeSourceAndTarget {alice = aliceBranchNames, bob = info.bob.source}
 
   Cli.Env {codebase} <- ask
 
@@ -404,10 +404,6 @@ doMerge info = do
                     | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
                     | otherwise -> into @Text bobBranchNames
                   MergeSource'RemoteLooseCode info ->
-                    case Path.toName info.path of
-                      Nothing -> "<root>"
-                      Just name -> Name.toText name
-                  MergeSource'RemoteGitRepo info ->
                     case Path.toName info.path of
                       Nothing -> "<root>"
                       Just name -> Name.toText name
@@ -854,7 +850,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
       MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
       MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
       MergeSource'RemoteLooseCode info -> manglePath info.path
-      MergeSource'RemoteGitRepo info -> manglePath info.path
     mangleBranchName :: ProjectBranchName -> Text.Builder
     mangleBranchName name =
       case classifyProjectBranchName name of

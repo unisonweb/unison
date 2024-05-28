@@ -25,7 +25,6 @@ import UnliftIO.Environment (lookupEnv)
 data DebugFlag
   = Auth
   | Codebase
-  | Git
   | Integrity
   | Merge
   | Migration
@@ -59,7 +58,6 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
     case Text.toUpper . Text.strip $ w of
       "AUTH" -> pure Auth
       "CODEBASE" -> pure Codebase
-      "GIT" -> pure Git
       "INTEGRITY" -> pure Integrity
       "MERGE" -> pure Merge
       "MIGRATION" -> pure Migration
@@ -76,10 +74,6 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "UPDATE" -> pure Update
       _ -> empty
 {-# NOINLINE debugFlags #-}
-
-debugGit :: Bool
-debugGit = Git `Set.member` debugFlags
-{-# NOINLINE debugGit #-}
 
 debugSqlite :: Bool
 debugSqlite = Sqlite `Set.member` debugFlags
@@ -146,11 +140,11 @@ debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.memb
 {-# NOINLINE debugPatternCoverageConstraintSolver #-}
 
 -- | Use for trace-style selective debugging.
--- E.g. 1 + (debug Git "The second number" 2)
+-- E.g. 1 + (debug Sync "The second number" 2)
 --
 -- Or, use in pattern matching to view arguments.
 -- E.g.
--- myFunc (debug Git "argA" -> argA) = ...
+-- myFunc (debug Sync "argA" -> argA) = ...
 debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
@@ -160,7 +154,7 @@ debug flag msg a =
 -- | Use for selective debug logging in monadic contexts.
 -- E.g.
 -- do
---   debugM Git "source repo" srcRepo
+--   debugM Sync "source repo" srcRepo
 --   ...
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
@@ -187,7 +181,6 @@ shouldDebug :: DebugFlag -> Bool
 shouldDebug = \case
   Auth -> debugAuth
   Codebase -> debugCodebase
-  Git -> debugGit
   Integrity -> debugIntegrity
   Merge -> debugMerge
   Migration -> debugMigration
