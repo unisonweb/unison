@@ -369,8 +369,6 @@ handleProjectArg =
     )
     ( \case
         SA.Project project -> pure project
-        -- __FIXME__: Do we want to treat a project branch as a project?
-        SA.ProjectBranch (ProjectAndBranch (Just project) _) -> pure project
         otherArgType -> Left $ wrongStructuredArgument "a path" otherArgType
     )
 
