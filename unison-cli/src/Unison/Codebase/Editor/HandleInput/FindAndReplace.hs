@@ -82,15 +82,14 @@ handleStructuredFindI rule = do
     Referent.Ref _ <- pure r
     Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
     pure (HQ'.toHQ shortName, r)
-  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
+  let ok (hq, Referent.Ref (Reference.DerivedId r)) = do
         oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
-      ok t = pure (t, False)
+        pure $ (hq, maybe False (\e -> any ($ e) rules) oe)
+      ok (hq, _) = pure (hq, False)
   results0 <- traverse ok results
-  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
-  let toNumArgs = SA.Ref . Referent.toReference . view _2
-  Cli.setNumberedArgs $ map toNumArgs results
-  Cli.respond (ListStructuredFind (fst <$> results))
+  let results = Alphabetical.sortAlphabetically [hq | (hq, True) <- results0]
+  Cli.setNumberedArgs $ map SA.HashQualified results
+  Cli.respond (ListStructuredFind results)
 
 lookupRewrite ::
   (HQ.HashQualified Name -> Output) ->

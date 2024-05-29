@@ -203,7 +203,6 @@ import Unison.Project
     branchWithOptionalProjectParser,
   )
 import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
-import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
@@ -227,8 +226,6 @@ formatStructuredArgument schLength = \case
   SA.Project projectName -> into @Text projectName
   SA.ProjectBranch (ProjectAndBranch mproj branch) ->
     maybe (Text.cons '/' . into @Text) (\project -> into @Text . ProjectAndBranch project) mproj branch
-  -- also: ShortHash.toText . Reference.toShortHash
-  SA.Ref reference -> Reference.toText reference
   -- also: ("#" <>) . Hash.toBase32HexText . unCausalHash
   SA.Namespace causalHash -> ("#" <>) . SCH.toText $ maybe SCH.fromFullHash SCH.fromHash schLength causalHash
   SA.NameWithBranchPrefix absBranchId name -> prefixBranchId absBranchId name
@@ -291,17 +288,23 @@ unsupportedStructuredArgument :: Text -> I.Argument -> Either (P.Pretty CT.Color
 unsupportedStructuredArgument expected =
   either pure (const . Left . P.text $ "can’t use a numbered argument for " <> expected)
 
-expectedButActually :: Text -> Text -> Text -> Text
+expectedButActually :: Text -> StructuredArgument -> Text -> P.Pretty CT.ColorText
 expectedButActually expected actualValue actualType =
-  "Expected " <> expected <> ", but the numbered arg resulted in " <> actualValue <> ", which is " <> actualType <> "."
+  P.text $
+    "Expected "
+      <> expected
+      <> ", but the numbered arg resulted in "
+      <> formatStructuredArgument Nothing actualValue
+      <> ", which is "
+      <> actualType
+      <> "."
 
 wrongStructuredArgument :: Text -> StructuredArgument -> P.Pretty CT.ColorText
 wrongStructuredArgument expected actual =
-  P.text $ expectedButActually
+  expectedButActually
     expected
-    (formatStructuredArgument Nothing actual)
+    actual
     case actual of
-      SA.Ref _ -> "a reference"
       SA.Name _ -> "a name"
       SA.AbsolutePath _ -> "an absolute path"
       SA.Namespace _ -> "a namespace"
@@ -381,7 +384,6 @@ handleHashQualifiedNameArg =
       SA.Name name -> pure $ HQ.NameOnly name
       SA.NameWithBranchPrefix mprefix name ->
         pure . HQ.NameOnly $ foldr (\prefix -> Name.makeAbsolute . Path.prefixName prefix) name mprefix
-      SA.Ref ref -> pure . HQ.HashOnly $ Reference.toShortHash ref
       SA.HashQualified hqname -> pure hqname
       SA.HashQualifiedWithBranchPrefix mprefix hqname ->
         pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Name.makeAbsolute . Path.prefixName prefix) hqname mprefix
@@ -526,15 +528,15 @@ handleBranchRelativePathArg =
         pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
-hqNameToSplit' :: HQ.HashQualified Name -> Either (P.Pretty CT.ColorText) Path.HQSplit'
+hqNameToSplit' :: HQ.HashQualified Name -> Either ShortHash Path.HQSplit'
 hqNameToSplit' = \case
-  HQ.HashOnly _ -> Left $ P.text "Only have a hash"
+  HQ.HashOnly hash -> Left hash
   HQ.NameOnly name -> pure . fmap HQ'.NameOnly $ Path.splitFromName' name
   HQ.HashQualified name hash -> pure . fmap (`HQ'.HashQualified` hash) $ Path.splitFromName' name
 
-hqNameToSplit :: HQ.HashQualified Name -> Either (P.Pretty CT.ColorText) Path.HQSplit
+hqNameToSplit :: HQ.HashQualified Name -> Either ShortHash Path.HQSplit
 hqNameToSplit = \case
-  HQ.HashOnly _ -> Left $ P.text "Only have a hash"
+  HQ.HashOnly hash -> Left hash
   HQ.NameOnly name -> pure . fmap HQ'.NameOnly $ Path.splitFromName name
   HQ.HashQualified name hash -> pure . fmap (`HQ'.HashQualified` hash) $ Path.splitFromName name
 
@@ -553,11 +555,12 @@ handleHashQualifiedSplit'Arg =
   either
     (first P.text . Path.parseHQSplit')
     \case
-      SA.HashQualified name -> hqNameToSplit' name
+      hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit' $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
-      SA.SearchResult mpath result -> hqNameToSplit' $ searchResultToHQ mpath result
+      sr@(SA.SearchResult mpath result) ->
+        first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
 
 handleHashQualifiedSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.HQSplit
@@ -565,11 +568,12 @@ handleHashQualifiedSplitArg =
   either
     (first P.text . Path.parseHQSplit)
     \case
-      SA.HashQualified name -> hqNameToSplit name
+      hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
-      SA.SearchResult mpath result -> hqNameToSplit $ searchResultToHQ mpath result
+      sr@(SA.SearchResult mpath result) ->
+        first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleShortCausalHashArg :: I.Argument -> Either (P.Pretty CT.ColorText) ShortCausalHash
@@ -586,12 +590,11 @@ handleShortHashOrHQSplit'Arg =
   either
     (first P.text . Path.parseShortHashOrHQSplit')
     \case
-      SA.Ref ref -> pure $ Left $ Reference.toShortHash ref
-      SA.HashQualified name -> pure <$> hqNameToSplit' name
+      SA.HashQualified name -> pure $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure . pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . pure $ hq'NameToSplit' (Name.makeAbsolute . Path.prefixName prefix <$> hqname)
-      SA.SearchResult mpath result -> fmap pure . hqNameToSplit' $ searchResultToHQ mpath result
+      SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
 
 handleRelativeNameSegmentArg :: I.Argument -> Either (P.Pretty CT.ColorText) NameSegment
