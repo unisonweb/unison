@@ -18,6 +18,7 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
+    commit,
     compileScheme,
     createAuthor,
     debugClearWatchCache,
@@ -374,6 +375,20 @@ previewAdd =
         <> "has changed."
     )
     \ws -> pure $ Input.PreviewAddI (Set.fromList $ map (Name.unsafeParseText . Text.pack) ws)
+
+commit :: InputPattern
+commit =
+  InputPattern
+    "experimental.commit"
+    []
+    I.Visible
+    [("scratch file", Optional, filePathArg)]
+    ( "`experimental.commit` *replaces* all your existing non-lib code with the code from a scratch file. Any code which is not present within the file (aside from your libs) will be removed."
+    )
+    \case
+      [] -> pure $ Input.CommitI Nothing
+      [file] -> pure $ Input.CommitI . Just $ file
+      _ -> Left (I.help load)
 
 update :: InputPattern
 update =
@@ -2927,6 +2942,7 @@ validInputs =
       clear,
       clone,
       compileScheme,
+      commit,
       createAuthor,
       debugClearWatchCache,
       debugDoctor,

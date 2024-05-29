@@ -195,7 +195,7 @@ loop e = do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
-        _ -> loadUnisonFile sourceName text
+        _ -> void $ loadUnisonFile sourceName text
     Right input ->
       let previewResponse sourceName sr uf = do
             names <- Cli.currentNames
@@ -717,7 +717,7 @@ loop e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            LoadI maybePath -> handleLoad maybePath
+            LoadI maybePath -> void $ handleLoad maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
@@ -742,6 +742,23 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
+            CommitI mayScratchFile -> do
+              uf <- handleLoad mayScratchFile
+              description <- inputDescription input
+              Cli.Env {codebase} <- ask
+              currentPath <- Cli.getCurrentPath
+              libNames <-
+                Cli.getCurrentBranch0
+                  <&> Branch.onlyLib
+                  <&> Branch.toNames
+              let sr = Slurp.slurpFile uf mempty Slurp.AddOp libNames
+              let adds = SlurpResult.adds sr
+              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf . Branch.onlyLib)
+              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+              pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf libNames
+              let suffixifiedPPE = PPED.suffixifiedPPE pped
+              Cli.respond $ SlurpOutput input suffixifiedPPE sr
+              Cli.syncRoot description
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             Update2I -> handleUpdate2
             PreviewUpdateI requestedNames -> do
@@ -1062,6 +1079,7 @@ inputDescription input =
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
     AddI _selection -> pure "add"
+    CommitI -> pure "commit"
     UpdateI p0 _selection -> do
       p <-
         case p0 of
