@@ -36,6 +36,7 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils (getCurrentBranch0)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
@@ -195,7 +196,7 @@ loop loadMode e = do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
-        _ -> void $ loadUnisonFile loadMode sourceName text
+        _ -> void $ loadUnisonFile False loadMode sourceName text
     Right input ->
       let previewResponse sourceName sr uf = do
             names <- Cli.currentNames
@@ -717,7 +718,7 @@ loop loadMode e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            LoadI maybePath -> void $ handleLoad loadMode maybePath
+            LoadI maybePath -> void $ handleLoad False loadMode maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
@@ -743,7 +744,7 @@ loop loadMode e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             CommitI mayScratchFile -> do
-              uf <- handleLoad LoadForCommit mayScratchFile
+              uf <- handleLoad True LoadForCommit mayScratchFile
               description <- inputDescription input
               Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
@@ -753,12 +754,20 @@ loop loadMode e = do
                   <&> Branch.toNames
               let sr = Slurp.slurpFile uf mempty Slurp.AddOp libNames
               let adds = SlurpResult.adds sr
+              beforeBranch0 <- Cli.getCurrentBranch0
+              beforePPED <- Cli.currentPrettyPrintEnvDecl
               Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf . Branch.onlyLib)
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf libNames
-              let suffixifiedPPE = PPED.suffixifiedPPE pped
-              Cli.respond $ SlurpOutput input suffixifiedPPE sr
+              -- pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf libNames
+              -- let suffixifiedPPE = PPED.suffixifiedPPE pped
+              -- Cli.respond $ SlurpOutput input suffixifiedPPE sr
               Cli.syncRoot description
+              afterBranch0 <- getCurrentBranch0
+              afterPPED <- Cli.currentPrettyPrintEnvDecl
+              (_ppe, diff) <- diffHelper beforeBranch0 afterBranch0
+              let pped = afterPPED `PPED.addFallback` beforePPED
+              currentPath <- Cli.getCurrentPath
+              Cli.respondNumbered $ ShowDiffNamespace (Right currentPath) (Right currentPath) (PPED.suffixifiedPPE pped) diff
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             Update2I -> handleUpdate2
             PreviewUpdateI requestedNames -> do

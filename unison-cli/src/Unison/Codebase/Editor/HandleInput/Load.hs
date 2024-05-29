@@ -53,8 +53,8 @@ data LoadMode
     LoadForCommit
   deriving (Show, Eq, Ord)
 
-handleLoad :: LoadMode -> Maybe FilePath -> Cli (TypecheckedUnisonFile Symbol Ann)
-handleLoad loadMode maybePath = do
+handleLoad :: Bool -> LoadMode -> Maybe FilePath -> Cli (TypecheckedUnisonFile Symbol Ann)
+handleLoad silent loadMode maybePath = do
   latestFile <- Cli.getLatestFile
   path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly Output.NoUnisonFile)
   Cli.Env {loadSource} <- ask
@@ -63,27 +63,27 @@ handleLoad loadMode maybePath = do
       Cli.InvalidSourceNameError -> Cli.returnEarly $ Output.InvalidSourceName path
       Cli.LoadError -> Cli.returnEarly $ Output.SourceLoadFailed path
       Cli.LoadSuccess contents -> pure contents
-  loadUnisonFile loadMode (Text.pack path) contents
+  loadUnisonFile silent loadMode (Text.pack path) contents
 
-loadUnisonFile :: LoadMode -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
-loadUnisonFile loadMode sourceName text = do
-  Cli.respond $ Output.LoadingFile sourceName
-  names <- case loadMode of
+loadUnisonFile :: Bool -> LoadMode -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
+loadUnisonFile silent loadMode sourceName text = do
+  when (not silent) . Cli.respond $ Output.LoadingFile sourceName
+  currentNames <- case loadMode of
     Normal -> Cli.currentNames
     LoadForCommit -> do
       Cli.getCurrentBranch0
         <&> Branch.onlyLib
         <&> Branch.toNames
-  unisonFile <- withFile names sourceName text
-  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp names
-  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
+  unisonFile <- withFile currentNames sourceName text
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
+  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
-  Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
+  when (not silent) . Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
   (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
   let e' = Map.map go e
       go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-  when (not (null e')) do
+  when (not silent && not (null e')) do
     Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
   pure unisonFile

@@ -27,7 +27,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
+import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
