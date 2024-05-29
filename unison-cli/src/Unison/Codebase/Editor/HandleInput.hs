@@ -64,7 +64,7 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
-import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), LoadMode (LoadForCommit), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -188,14 +188,14 @@ import UnliftIO.Directory qualified as Directory
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
 
-loop :: Either Event Input -> Cli ()
-loop e = do
+loop :: LoadMode -> Either Event Input -> Cli ()
+loop loadMode e = do
   case e of
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
-        _ -> void $ loadUnisonFile sourceName text
+        _ -> void $ loadUnisonFile loadMode sourceName text
     Right input ->
       let previewResponse sourceName sr uf = do
             names <- Cli.currentNames
@@ -717,7 +717,7 @@ loop e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            LoadI maybePath -> void $ handleLoad maybePath
+            LoadI maybePath -> void $ handleLoad loadMode maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input
@@ -743,7 +743,7 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             CommitI mayScratchFile -> do
-              uf <- handleLoad mayScratchFile
+              uf <- handleLoad LoadForCommit mayScratchFile
               description <- inputDescription input
               Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
@@ -1079,7 +1079,7 @@ inputDescription input =
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
     AddI _selection -> pure "add"
-    CommitI -> pure "commit"
+    CommitI mayScratchFile -> pure ("commit" <> maybe "" Text.pack mayScratchFile)
     UpdateI p0 _selection -> do
       p <-
         case p0 of

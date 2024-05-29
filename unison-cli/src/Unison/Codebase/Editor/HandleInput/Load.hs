@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.HandleInput.Load
   ( handleLoad,
     loadUnisonFile,
+    LoadMode (..),
     EvalMode (..),
     evalUnisonFile,
   )
@@ -20,6 +21,8 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
@@ -43,8 +46,15 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile.Names qualified as UF
 import Unison.WatchKind qualified as WK
 
-handleLoad :: Maybe FilePath -> Cli ()
-handleLoad maybePath = do
+data LoadMode
+  = Normal
+  | -- Load a file without any names from the codebase except for library dependencies.
+    -- This mode is used for _replacing_ the current branch whole-sale with code from a scratch file.
+    LoadForCommit
+  deriving (Show, Eq, Ord)
+
+handleLoad :: LoadMode -> Maybe FilePath -> Cli (TypecheckedUnisonFile Symbol Ann)
+handleLoad loadMode maybePath = do
   latestFile <- Cli.getLatestFile
   path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly Output.NoUnisonFile)
   Cli.Env {loadSource} <- ask
@@ -53,15 +63,20 @@ handleLoad maybePath = do
       Cli.InvalidSourceNameError -> Cli.returnEarly $ Output.InvalidSourceName path
       Cli.LoadError -> Cli.returnEarly $ Output.SourceLoadFailed path
       Cli.LoadSuccess contents -> pure contents
-  loadUnisonFile (Text.pack path) contents
+  loadUnisonFile loadMode (Text.pack path) contents
 
-loadUnisonFile :: Text -> Text -> Cli ()
-loadUnisonFile sourceName text = do
+loadUnisonFile :: LoadMode -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
+loadUnisonFile loadMode sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  currentNames <- Cli.currentNames
-  unisonFile <- withFile currentNames sourceName text
-  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
+  names <- case loadMode of
+    Normal -> Cli.currentNames
+    LoadForCommit -> do
+      Cli.getCurrentBranch0
+        <&> Branch.onlyLib
+        <&> Branch.toNames
+  unisonFile <- withFile names sourceName text
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp names
+  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
@@ -71,6 +86,7 @@ loadUnisonFile sourceName text = do
   when (not (null e')) do
     Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
+  pure unisonFile
   where
     withFile ::
       Names ->

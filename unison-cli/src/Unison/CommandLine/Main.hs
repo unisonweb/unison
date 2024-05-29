@@ -32,6 +32,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
+import Unison.Codebase.Editor.HandleInput.Load (LoadMode)
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -142,8 +143,9 @@ main ::
   (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   ShouldWatchFiles ->
+  LoadMode ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles loadMode = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   _ <- Ki.fork scope do
@@ -268,7 +270,7 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
         loop0 s0 = do
           let step = do
                 input <- awaitInput s0
-                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop loadMode input)
                 let sNext = case input of
                       Left _ -> resultState
                       Right inp -> resultState & #lastInput ?~ inp
