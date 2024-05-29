@@ -64,7 +64,6 @@ module Unison.CommandLine.InputPatterns
     findVerbose,
     findVerboseAll,
     forkLocal,
-    gist,
     help,
     helpTopics,
     history,
@@ -165,8 +164,7 @@ import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
@@ -217,6 +215,7 @@ import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Pretty.MegaParsec (prettyPrintParseError)
 
@@ -2858,35 +2857,6 @@ createAuthor =
         ('"' : quoted) -> init quoted
         bare -> bare
 
-gist :: InputPattern
-gist =
-  InputPattern
-    "push.gist"
-    ["gist"]
-    I.Visible
-    [("repository", Required, gitUrlArg)]
-    ( P.lines
-        [ "Publish the current namespace.",
-          "",
-          P.wrapColumn2
-            [ ( "`gist git(git@github.com:user/repo)`",
-                "publishes the contents of the current namespace into the specified git repo."
-              )
-            ],
-          "",
-          P.indentN 2 . P.wrap $
-            "Note: Gists are not yet supported on Unison Share, though you can just do a normal"
-              <> "`push.create` of the current namespace to your Unison Share codebase wherever you like!"
-        ]
-    )
-    ( \case
-        [repoString] ->
-          fmap (Input.GistI . Input.GistInput)
-            . parseWriteGitRepo "gist git repo"
-            =<< unsupportedStructuredArgument "a VCS repository" repoString
-        _ -> Left (showPatternHelp gist)
-    )
-
 authLogin :: InputPattern
 authLogin =
   InputPattern
@@ -3231,7 +3201,6 @@ validInputs =
       sfind,
       sfindReplace,
       forkLocal,
-      gist,
       help,
       helpTopics,
       history,
@@ -3423,39 +3392,12 @@ filePathArg =
       fzfResolver = Nothing
     }
 
--- Arya: I could imagine completions coming from previous pulls
-gitUrlArg :: ArgumentType
-gitUrlArg =
-  ArgumentType
-    { typeName = "git-url",
-      suggestions =
-        let complete s = pure [Completion s s False]
-         in \input _ _ _ -> case input of
-              "gh" -> complete "git(https://github.com/"
-              "gl" -> complete "git(https://gitlab.com/"
-              "bb" -> complete "git(https://bitbucket.com/"
-              "ghs" -> complete "git(git@github.com:"
-              "gls" -> complete "git(git@gitlab.com:"
-              "bbs" -> complete "git(git@bitbucket.com:"
-              _ -> pure [],
-      fzfResolver = Nothing
-    }
-
 -- | Refers to a namespace on some remote code host.
 remoteNamespaceArg :: ArgumentType
 remoteNamespaceArg =
   ArgumentType
     { typeName = "remote-namespace",
-      suggestions =
-        let complete s = pure [Completion s s False]
-         in \input _cb http _p -> case input of
-              "gh" -> complete "git(https://github.com/"
-              "gl" -> complete "git(https://gitlab.com/"
-              "bb" -> complete "git(https://bitbucket.com/"
-              "ghs" -> complete "git(git@github.com:"
-              "gls" -> complete "git(git@gitlab.com:"
-              "bbs" -> complete "git(git@bitbucket.com:"
-              _ -> sharePathCompletion http input,
+      suggestions = \input _cb http _p -> sharePathCompletion http input,
       fzfResolver = Nothing
     }
 
@@ -3907,27 +3849,18 @@ parseHashQualifiedName s =
     Right
     $ HQ.parseText (Text.pack s)
 
-parseWriteGitRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteGitRepo
-parseWriteGitRepo label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (Megaparsec.parse (UriParser.writeGitRepo <* Megaparsec.eof) label (Text.pack input))
-
 explainRemote :: PushPull -> P.Pretty CT.ColorText
 explainRemote pushPull =
   P.group $
     P.lines
-      [ P.wrap $ "where `remote` is a hosted codebase, such as:",
+      [ P.wrap $ "where `remote` is a project or project branch, such as:",
         P.indentN 2 . P.column2 $
-          [ ("Unison Share", P.backticked "user.public.some.remote.path"),
-            ("Git + root", P.backticked $ "git(" <> gitRepo <> "user/repo)"),
-            ("Git + path", P.backticked $ "git(" <> gitRepo <> "user/repo).some.remote.path"),
-            ("Git + branch", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch)"),
-            ("Git + branch + path", P.backticked $ "git(" <> gitRepo <> "user/repo:some-branch).some.remote.path")
+          [ ("Project (defaults to the /main branch)", P.backticked "@unison/base"),
+            ("Project Branch", P.backticked "@unison/base/feature"),
+            ("Contributor Branch", P.backticked "@unison/base/@johnsmith/feature")
           ]
+            <> Monoid.whenM (pushPull == Pull) [("Project Release", P.backticked "@unison/base/releases/1.0.0")]
       ]
-  where
-    gitRepo = PushPull.fold @(P.Pretty P.ColorText) "git@github.com:" "https://github.com/" pushPull
 
 megaparse :: Megaparsec.Parsec Void Text a -> Text -> Either (P.Pretty P.ColorText) a
 megaparse parser input =

@@ -45,7 +45,6 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -267,7 +266,6 @@ data Output
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
-  | GitError GitError
   | ShareError ShareError
   | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | NoConfiguredRemoteMapping PushPull Path.Absolute
@@ -401,11 +399,11 @@ data Output
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
-  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
-  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
-  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
+  | MergeMissingConstructorName !MergeSourceOrTarget !Name
+  | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
+  | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -535,7 +533,6 @@ isFailure o = case o of
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  GitError {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True

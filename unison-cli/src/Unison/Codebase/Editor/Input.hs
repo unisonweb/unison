@@ -1,7 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     BranchSourceI (..),
-    GistInput (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
@@ -32,7 +31,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -210,7 +209,6 @@ data Input
   | UiI Path'
   | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
-  | GistI GistInput
   | AuthLoginI
   | VersionI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
@@ -237,12 +235,6 @@ data BranchSourceI
     BranchSourceI'Empty
   | -- | Create a branch from this loose-code-or-project
     BranchSourceI'LooseCodeOrProject LooseCodeOrProject
-  deriving stock (Eq, Show)
-
--- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
-data GistInput = GistInput
-  { repo :: WriteGitRepo
-  }
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.
