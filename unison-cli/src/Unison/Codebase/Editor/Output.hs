@@ -393,11 +393,11 @@ data Output
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
-  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
-  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
-  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
+  | MergeMissingConstructorName !MergeSourceOrTarget !Name
+  | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
+  | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade

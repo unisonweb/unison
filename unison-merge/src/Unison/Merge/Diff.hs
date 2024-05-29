@@ -9,23 +9,30 @@ import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Reference (TypeReference)
-import Unison.Hash (Hash)
+import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.Hash (Hash (Hash))
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.Synhash qualified as Synhash
+import Unison.Merge.Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
+import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
+import Unison.Reference (Reference' (..), TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
+import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
@@ -40,12 +47,29 @@ import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
 -- branches. If the hash of a name did not change, it will not appear in the map.
 nameBasedNamespaceDiff ::
   MergeDatabase ->
-  ThreeWay DeclNameLookup ->
+  TwoWay DeclNameLookup ->
+  Map Name [Maybe Name] ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference))
-nameBasedNamespaceDiff db declNameLookups defns = do
-  diffs <- sequence (synhashDefns <$> declNameLookups <*> defns)
-  pure (diffNamespaceDefns diffs.lca <$> TwoWay {alice = diffs.alice, bob = diffs.bob})
+nameBasedNamespaceDiff db declNameLookups lcaDeclToConstructors defns = do
+  lcaHashes <-
+    synhashDefnsWith
+      hashTerm
+      ( \name -> \case
+          ReferenceBuiltin builtin -> pure (synhashBuiltinDecl builtin)
+          ReferenceDerived ref ->
+            case sequence (lcaDeclToConstructors Map.! name) of
+              -- If we don't have a name for every constructor, that's okay, just use a dummy syntactic hash here.
+              -- This is safe; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk
+              -- that we accidentally get an equal hash and classify a real update as unchanged.
+              Nothing -> pure (Hash mempty)
+              Just names -> do
+                decl <- loadDeclWithGoodConstructorNames names ref
+                pure (synhashDerivedDecl ppe name decl)
+      )
+      defns.lca
+  hashes <- sequence (synhashDefns <$> declNameLookups <*> ThreeWay.forgetLca defns)
+  pure (diffNamespaceDefns lcaHashes <$> hashes)
   where
     synhashDefns ::
       DeclNameLookup ->
@@ -55,16 +79,20 @@ nameBasedNamespaceDiff db declNameLookups defns = do
       -- FIXME: use cache so we only synhash each thing once
       synhashDefnsWith hashTerm hashType
       where
-        hashTerm :: Referent -> Transaction Hash
-        hashTerm =
-          Synhash.hashTerm db.loadV1Term ppe
-
         hashType :: Name -> TypeReference -> Transaction Hash
-        hashType name =
-          Synhash.hashDecl
-            (fmap (DeclNameLookup.setConstructorNames declNameLookup name) . db.loadV1Decl)
-            ppe
-            name
+        hashType name = \case
+          ReferenceBuiltin builtin -> pure (synhashBuiltinDecl builtin)
+          ReferenceDerived ref -> do
+            decl <- loadDeclWithGoodConstructorNames (DeclNameLookup.expectConstructorNames declNameLookup name) ref
+            pure (synhashDerivedDecl ppe name decl)
+
+    loadDeclWithGoodConstructorNames :: [Name] -> TypeReferenceId -> Transaction (Decl Symbol Ann)
+    loadDeclWithGoodConstructorNames names =
+      fmap (DataDeclaration.setConstructorNames (map Name.toVar names)) . db.loadV1Decl
+
+    hashTerm :: Referent -> Transaction Hash
+    hashTerm =
+      synhashTerm db.loadV1Term ppe
 
     ppe :: PrettyPrintEnv
     ppe =

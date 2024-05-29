@@ -24,9 +24,10 @@
 -- "foo" would have the same syntactic hash. This indicates (to our merge algorithm) that this was an auto-propagated
 -- update.
 module Unison.Merge.Synhash
-  ( hashType,
-    hashTerm,
-    hashDecl,
+  ( synhashType,
+    synhashTerm,
+    synhashBuiltinDecl,
+    synhashDerivedDecl,
   )
 where
 
@@ -72,8 +73,8 @@ isDeclTag, isTermTag :: H.Token Hash
 isDeclTag = H.Tag 0
 isTermTag = H.Tag 1
 
-hashBuiltinDecl :: Text -> Hash
-hashBuiltinDecl name =
+synhashBuiltinDecl :: Text -> Hash
+synhashBuiltinDecl name =
   H.accumulate [isBuiltinTag, isDeclTag, H.Text name]
 
 hashBuiltinTerm :: Text -> Hash
@@ -104,23 +105,6 @@ hashConstructorNameToken declName conName =
             )
    in H.Text (Name.toText strippedConName)
 
--- | Syntactically hash a decl, using reference names rather than hashes. Two decls will have the same syntactic hash if
--- they they are the same sort of decl (both are data decls or both are effect decls), the unique type guid is the same,
--- the constructors appear in the same order and have the same names, and the constructors' types have the same
--- syntactic hashes.
-hashDecl ::
-  (Monad m, Var v) =>
-  (TypeReferenceId -> m (Decl v a)) ->
-  PrettyPrintEnv ->
-  Name ->
-  TypeReference ->
-  m Hash
-hashDecl loadDecl ppe name = \case
-  ReferenceBuiltin builtin -> pure (hashBuiltinDecl builtin)
-  ReferenceDerived ref -> do
-    decl <- loadDecl ref
-    pure (hashDerivedDecl ppe name decl)
-
 hashDerivedTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
 hashDerivedTerm ppe t =
   H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
@@ -148,8 +132,12 @@ hashDeclTokens :: Var v => PrettyPrintEnv -> Name -> Decl v a -> [Token]
 hashDeclTokens ppe name decl =
   hashConstructorType (DD.constructorType decl) : hashDataDeclTokens ppe name (DD.asDataDecl decl)
 
-hashDerivedDecl :: Var v => PrettyPrintEnv -> Name -> Decl v a -> Hash
-hashDerivedDecl ppe name decl =
+-- | Syntactically hash a decl, using reference names rather than hashes. Two decls will have the same syntactic hash if
+-- they they are the same sort of decl (both are data decls or both are effect decls), the unique type guid is the same,
+-- the constructors appear in the same order and have the same names, and the constructors' types have the same
+-- syntactic hashes.
+synhashDerivedDecl :: Var v => PrettyPrintEnv -> Name -> Decl v a -> Hash
+synhashDerivedDecl ppe name decl =
   H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe name decl
 
 hashHQNameToken :: HashQualified Name -> Token
@@ -218,8 +206,14 @@ hashReferentTokens ppe referent =
 -- | Syntactically hash a term, using reference names rather than hashes.
 -- Two terms will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
-hashTerm :: forall m v a. (Monad m, Var v) => (TypeReferenceId -> m (Term v a)) -> PrettyPrintEnv -> V1.Referent -> m Hash
-hashTerm loadTerm ppe = \case
+synhashTerm ::
+  forall m v a.
+  (Monad m, Var v) =>
+  (TypeReferenceId -> m (Term v a)) ->
+  PrettyPrintEnv ->
+  V1.Referent ->
+  m Hash
+synhashTerm loadTerm ppe = \case
   V1.Referent.Con ref CT.Data -> pure (hashDerivedTerm ppe (Term.constructor @v () ref))
   V1.Referent.Con ref CT.Effect -> pure (hashDerivedTerm ppe (Term.request @v () ref))
   V1.Referent.Ref (ReferenceBuiltin builtin) -> pure (hashBuiltinTerm builtin)
@@ -269,8 +263,8 @@ hashTermFTokens ppe = \case
 -- | Syntactically hash a type, using reference names rather than hashes.
 -- Two types will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
-hashType :: Var v => PrettyPrintEnv -> Type v a -> Hash
-hashType ppe t =
+synhashType :: Var v => PrettyPrintEnv -> Type v a -> Hash
+synhashType ppe t =
   H.accumulate $ hashTypeTokens ppe t
 
 hashTypeTokens :: forall v a. Var v => PrettyPrintEnv -> Type v a -> [Token]

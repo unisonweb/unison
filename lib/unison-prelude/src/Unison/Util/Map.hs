@@ -5,6 +5,7 @@ module Unison.Util.Map
     bitraverse,
     bitraversed,
     deleteLookup,
+    deleteLookupJust,
     elemsSet,
     foldM,
     foldMapM,
@@ -105,6 +106,11 @@ valuesVector =
 deleteLookup :: (Ord k) => k -> Map k v -> (Maybe v, Map k v)
 deleteLookup =
   Map.alterF (,Nothing)
+
+-- | Like 'deleteLookup', but asserts the value is in the map prior to deletion.
+deleteLookupJust :: (HasCallStack, Ord k) => k -> Map k v -> (v, Map k v)
+deleteLookupJust =
+  Map.alterF (maybe (error (reportBug "E525283" "deleteLookupJust: element not found")) (,Nothing))
 
 -- | Like 'Map.elems', but return the values as a set.
 elemsSet :: Ord v => Map k v -> Set v
