@@ -1488,12 +1488,10 @@ notifyUser dir = \case
       "There's a merge conflict on"
         <> P.group (prettyName name <> ",")
         <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias maybeAliceOrBob name1 name2 ->
+  MergeConstructorAlias aliceOrBob name1 name2 ->
     pure . P.wrap $
       "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> prettyName name1
         <> "and"
         <> prettyName name2
@@ -1504,32 +1502,26 @@ notifyUser dir = \case
         <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
         <> "Please remove it before merging."
-  MergeMissingConstructorName maybeAliceOrBob name ->
+  MergeMissingConstructorName aliceOrBob name ->
     pure . P.wrap $
       "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> "the type"
         <> prettyName name
         <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias maybeAliceOrBob shorterName longerName ->
+  MergeNestedDeclAlias aliceOrBob shorterName longerName ->
     pure . P.wrap $
       "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
         <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor maybeAliceOrBob name ->
+  MergeStrayConstructor aliceOrBob name ->
     pure . P.wrap $
       "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> "the constructor"
         <> prettyName name
         <> "is not in a subnamespace of a name of its type."

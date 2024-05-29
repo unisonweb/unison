@@ -217,6 +217,12 @@ checkDeclCoherency loadDeclNumConstructors =
         fullName name =
           Name.fromReverseSegments (name :| prefix)
 
+-- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns a mapping from decl name to
+-- constructor names, where constructor names can be missing.
+--
+-- This function exists merely to extract a best-effort decl-name-to-constructor-name mapping for the LCA of a merge.
+-- We require Alice and Bob to have coherent decls, but their LCA is out of the user's control and may have incoherent
+-- decls, and whether or not it does, we still need to compute *some* syntactic hash for its decls.
 lenientCheckDeclCoherency ::
   forall m.
   Monad m =>
