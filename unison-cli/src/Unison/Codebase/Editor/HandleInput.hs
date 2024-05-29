@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput (loop) where
 
 -- TODO: Don't import backend
 
+import Control.Arrow ((&&&))
 import Control.Error.Util qualified as ErrorUtil
 import Control.Lens hiding (from)
 import Control.Monad.Reader (ask)
@@ -97,6 +98,7 @@ import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
@@ -144,7 +146,6 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
-import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Server.Doc.Markdown.Render qualified as Md
@@ -220,19 +221,22 @@ loop e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               let numEntriesToShow = 500
-              entries <-
-                Cli.runTransaction do
-                  schLength <- Codebase.branchHashLength
-                  Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
+              (schLength, entries) <-
+                Cli.runTransaction $
+                  (,) <$> Codebase.branchHashLength <*> Codebase.getReflog numEntriesToShow
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
-              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
+              let (shortEntries, numberedEntries) =
+                    unzip $
+                      expandedEntries <&> \(time, hash, reason) ->
+                        let (exp, sa) = (SCH.fromHash schLength &&& SA.Namespace) hash
+                         in ((time, exp, reason), sa)
               Cli.setNumberedArgs numberedEntries
-              Cli.respond $ ShowReflog expandedEntries
+              Cli.respond $ ShowReflog shortEntries
               where
                 expandEntries ::
-                  ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool) ->
-                  Maybe ((Maybe UTCTime, SCH.ShortCausalHash, Text), ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool))
+                  ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool) ->
+                  Maybe ((Maybe UTCTime, CausalHash, Text), ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool))
                 expandEntries ([], Just expectedHash, moreEntriesToLoad) =
                   if moreEntriesToLoad
                     then Nothing
@@ -690,7 +694,7 @@ loop e = do
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              Cli.setNumberedArgs $ fmap entryToHQString entries
+              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               -- This used to be a delayed action which only forced the loading of the root
@@ -700,20 +704,6 @@ loop e = do
               -- in an improvement, so perhaps it's not worth the effort.
               let buildPPE = pure suffixifiedPPE
               Cli.respond $ ListShallow buildPPE entries
-              where
-                entryToHQString :: ShallowListEntry v Ann -> String
-                entryToHQString e =
-                  fixup $ Text.unpack case e of
-                    ShallowTypeEntry te -> Backend.typeEntryDisplayName te
-                    ShallowTermEntry te -> Backend.termEntryDisplayName te
-                    ShallowBranchEntry ns _ _ -> NameSegment.toEscapedText ns
-                    ShallowPatchEntry ns -> NameSegment.toEscapedText ns
-                  where
-                    fixup s = case pathArgStr of
-                      "" -> s
-                      p | last p == '.' -> p ++ s
-                      p -> p ++ "." ++ s
-                    pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
@@ -822,8 +812,9 @@ loop e = do
             ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI path -> handleNamespaceDependencies path
             DebugNumberedArgsI -> do
+              schLength <- Cli.runTransaction Codebase.branchHashLength
               numArgs <- use #numberedArgs
-              Cli.respond (DumpNumberedArgs numArgs)
+              Cli.respond (DumpNumberedArgs schLength numArgs)
             DebugTypecheckedUnisonFileI -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile
@@ -1242,7 +1233,7 @@ handleFindI isVerbose fscope ws input = do
                     (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        Cli.setNumberedArgs $ fmap (searchResultToHQString searchRoot) results
+        Cli.setNumberedArgs $ fmap (SA.SearchResult searchRoot) results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
@@ -1297,8 +1288,8 @@ handleDependencies hq = do
   let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
   let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
   Cli.setNumberedArgs $
-    map (Text.unpack . Reference.toText . snd) types
-      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
+    map (SA.Ref . snd) types
+      <> map (SA.Ref . Referent.toReference . snd) terms
   Cli.respond $ ListDependencies suffixifiedPPE lds (fst <$> types) (fst <$> terms)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -1335,7 +1326,7 @@ handleDependents hq = do
   let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  Cli.setNumberedArgs $ map (Text.unpack . Reference.toText . view _2) (types <> terms)
+  Cli.setNumberedArgs . map (SA.Ref . view _2) $ types <> terms
   Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
@@ -1449,9 +1440,7 @@ doShowTodoOutput patch scopePath = do
     then Cli.respond NoConflictsOrEdits
     else do
       Cli.setNumberedArgs
-        ( Text.unpack . Reference.toText . view _2
-            <$> fst (TO.todoFrontierDependents todo)
-        )
+        (SA.Ref . view _2 <$> fst (TO.todoFrontierDependents todo))
       pped <- Cli.currentPrettyPrintEnvDecl
       Cli.respondNumbered $ TodoOutput pped todo
 
@@ -1496,16 +1485,6 @@ confirmedCommand :: Input -> Cli Bool
 confirmedCommand i = do
   loopState <- State.get
   pure $ Just i == (loopState ^. #lastInput)
-
--- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQString :: Maybe Path -> SearchResult -> String
-searchResultToHQString oprefix = \case
-  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) r
-  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) (Referent.Ref r)
-  _ -> error "impossible match failure"
-  where
-    addPrefix :: Name -> Name
-    addPrefix = maybe id Path.prefixName2 oprefix
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]

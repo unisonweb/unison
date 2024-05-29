@@ -350,8 +350,8 @@ prettyWhichBranchEmpty = \case
   WhichBranchEmptyPath path -> prettyPath' path
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.toBase32HexText . unCausalHash
+displayBranchHash :: CausalHash -> Text
+displayBranchHash = ("#" <>) . Hash.toBase32HexText . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =
