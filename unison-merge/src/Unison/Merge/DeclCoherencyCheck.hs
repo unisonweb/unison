@@ -102,6 +102,7 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -154,18 +155,16 @@ checkDeclCoherency loadDeclNumConstructors =
           #expectedConstructors .= expectedConstructors1
           where
             f ::
-              Maybe (Name, IntMap (Maybe Name)) ->
-              Either IncoherentDeclReason (Name, IntMap (Maybe Name))
+              Maybe (Name, ConstructorNames) ->
+              Either IncoherentDeclReason (Name, ConstructorNames)
             f = \case
-              Nothing -> Left (IncoherentDeclReason'StrayConstructor (fullName name))
-              Just (typeName, expected) -> (typeName,) <$> IntMap.alterF g (fromIntegral @Word64 @Int conId) expected
-                where
-                  g :: Maybe (Maybe Name) -> Either IncoherentDeclReason (Maybe (Maybe Name))
-                  g = \case
-                    Nothing -> error "didnt put expected constructor id"
-                    Just Nothing -> Right (Just (Just (fullName name)))
-                    Just (Just firstName) ->
-                      Left (IncoherentDeclReason'ConstructorAlias firstName (fullName name))
+              Nothing -> Left (IncoherentDeclReason'StrayConstructor name1)
+              Just (typeName, expected) ->
+                case recordConstructorName conId name1 expected of
+                  Left existingName -> Left (IncoherentDeclReason'ConstructorAlias existingName name1)
+                  Right expected1 -> Right (typeName, expected1)
+              where
+                name1 = fullName name
 
       childrenWeWentInto <-
         forMaybe (Map.toList defns.types) \case
@@ -174,15 +173,15 @@ checkDeclCoherency loadDeclNumConstructors =
             DeclCoherencyCheckState {expectedConstructors} <- State.get
             whatHappened <- do
               let recordNewDecl ::
-                    Maybe (Name, IntMap (Maybe Name)) ->
-                    Compose (ExceptT IncoherentDeclReason m) WhatHappened (Name, IntMap (Maybe Name))
+                    Maybe (Name, ConstructorNames) ->
+                    Compose (ExceptT IncoherentDeclReason m) WhatHappened (Name, ConstructorNames)
                   recordNewDecl =
                     Compose . \case
                       Just (shorterTypeName, _) -> Except.throwError (IncoherentDeclReason'NestedDeclAlias shorterTypeName typeName)
                       Nothing ->
                         lift (loadDeclNumConstructors typeRef) <&> \case
                           0 -> UninhabitedDecl
-                          n -> InhabitedDecl (typeName, IntMap.fromAscList [(i, Nothing) | i <- [0 .. n - 1]])
+                          n -> InhabitedDecl (typeName, emptyConstructorNames n)
               lift (getCompose (Map.upsertF recordNewDecl typeRef expectedConstructors))
             case whatHappened of
               UninhabitedDecl -> do
@@ -238,28 +237,18 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
         (_, Referent.Ref _) -> pure ()
         (_, Referent.Con (ConstructorReference (ReferenceBuiltin _) _) _) -> pure ()
         (name, Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) _) -> do
-          #expectedConstructors %= Map.adjust (Map.map f) typeRef
-          where
-            f :: IntMap (Maybe Name) -> IntMap (Maybe Name)
-            f =
-              IntMap.adjust g (fromIntegral @Word64 @Int conId)
-              where
-                g :: Maybe Name -> Maybe Name
-                g = \case
-                  Nothing -> Just (fullName name)
-                  -- Ignore constructor alias, just keep first name we found
-                  Just firstName -> Just firstName
+          #expectedConstructors %= Map.adjust (Map.map (lenientRecordConstructorName conId (fullName name))) typeRef
 
       childrenWeWentInto <-
         forMaybe (Map.toList defns.types) \case
           (_, ReferenceBuiltin _) -> pure Nothing
           (name, ReferenceDerived typeRef) -> do
             whatHappened <- do
-              let recordNewDecl :: m (WhatHappened (Map Name (IntMap (Maybe Name))))
+              let recordNewDecl :: m (WhatHappened (Map Name ConstructorNames))
                   recordNewDecl =
                     loadDeclNumConstructors typeRef <&> \case
                       0 -> UninhabitedDecl
-                      n -> InhabitedDecl (Map.singleton typeName (IntMap.fromAscList [(i, Nothing) | i <- [0 .. n - 1]]))
+                      n -> InhabitedDecl (Map.singleton typeName (emptyConstructorNames n))
               state <- State.get
               lift (getCompose (Map.upsertF (\_ -> Compose recordNewDecl) typeRef state.expectedConstructors))
             case whatHappened of
@@ -275,8 +264,8 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
                       Map.alterF f typeRef state.expectedConstructors
                       where
                         f ::
-                          Maybe (Map Name (IntMap (Maybe Name))) ->
-                          (IntMap (Maybe Name), Maybe (Map Name (IntMap (Maybe Name))))
+                          Maybe (Map Name ConstructorNames) ->
+                          (ConstructorNames, Maybe (Map Name ConstructorNames))
                         f =
                           -- fromJust is safe here because we upserted `typeRef` key above
                           -- deleteLookupJust is safe here because we upserted `typeName` key above
@@ -296,16 +285,47 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
           Name.fromReverseSegments (name :| prefix)
 
 data DeclCoherencyCheckState = DeclCoherencyCheckState
-  { expectedConstructors :: !(Map TypeReferenceId (Name, IntMap (Maybe Name))),
+  { expectedConstructors :: !(Map TypeReferenceId (Name, ConstructorNames)),
     declNameLookup :: !DeclNameLookup
   }
   deriving stock (Generic)
 
 data LenientDeclCoherencyCheckState = LenientDeclCoherencyCheckState
-  { expectedConstructors :: !(Map TypeReferenceId (Map Name (IntMap (Maybe Name)))),
+  { expectedConstructors :: !(Map TypeReferenceId (Map Name ConstructorNames)),
     declToConstructors :: !(Map Name [Maybe Name])
   }
   deriving stock (Generic)
+
+-- A partial mapping from constructor id to name; a collection of constructor names starts out with the correct number
+-- of keys (per the number of data constructors) all mapped to Nothing. Then, as names are discovered by walking a
+-- name tree, Nothings become Justs.
+type ConstructorNames =
+  IntMap (Maybe Name)
+
+-- Make an empty set of constructor names given the number of constructors.
+emptyConstructorNames :: Int -> ConstructorNames
+emptyConstructorNames numConstructors =
+  IntMap.fromAscList [(i, Nothing) | i <- [0 .. numConstructors - 1]]
+
+recordConstructorName :: HasCallStack => ConstructorId -> Name -> ConstructorNames -> Either Name ConstructorNames
+recordConstructorName conId conName =
+  IntMap.alterF f (fromIntegral @Word64 @Int conId)
+  where
+    f :: Maybe (Maybe Name) -> Either Name (Maybe (Maybe Name))
+    f = \case
+      Nothing -> error (reportBug "E397219" ("recordConstructorName: didn't expect constructor id " ++ show conId))
+      Just Nothing -> Right (Just (Just conName))
+      Just (Just existingName) -> Left existingName
+
+lenientRecordConstructorName :: ConstructorId -> Name -> ConstructorNames -> ConstructorNames
+lenientRecordConstructorName conId conName =
+  IntMap.adjust f (fromIntegral @Word64 @Int conId)
+  where
+    f :: Maybe Name -> Maybe Name
+    f = \case
+      Nothing -> Just conName
+      -- Ignore constructor alias, just keep first name we found
+      Just existingName -> Just existingName
 
 data WhatHappened a
   = UninhabitedDecl
