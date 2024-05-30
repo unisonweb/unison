@@ -66,7 +66,8 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
-import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), LoadMode (LoadForCommit), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), LoadMode (LoadForCommit), evalUnisonFile, handleLoad)
+import Unison.Codebase.Editor.HandleInput.Load qualified as Load
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -197,7 +198,9 @@ loop loadMode e = do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
-        _ -> void $ loadUnisonFile False loadMode sourceName text
+        _ -> case loadMode of
+          Load.LoadForCommit -> void $ Load.loadUnisonFileForCommit False sourceName text
+          Load.Normal -> void $ Load.loadUnisonFile sourceName text
     Right input ->
       let previewResponse sourceName sr uf = do
             names <- Cli.currentNames
