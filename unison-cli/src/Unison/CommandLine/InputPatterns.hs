@@ -992,7 +992,7 @@ docs =
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
-    $ maybe (Left $ I.help docs) (fmap Input.DocsI . traverse handleHashQualifiedSplit'Arg) . NE.nonEmpty
+    $ maybe (Left $ I.help docs) (fmap Input.DocsI . traverse handleNameArg) . NE.nonEmpty
 
 api :: InputPattern
 api =
