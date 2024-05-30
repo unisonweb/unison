@@ -42,7 +42,7 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch (..), Branch0 (..))
+import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -886,21 +886,20 @@ loop e = do
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
                   goBranch :: forall m. (Monad m) => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
-                  goBranch h b (Set.fromList -> causalParents) queue = case b of
-                    Branch0 terms0 types0 children0 patches0 _ _ _ _ _ ->
-                      let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
-                          ignoreMetadata s r =
-                            (r, R.lookupDom r $ Star2.d1 s)
-                          terms = Map.fromList . map (ignoreMetadata terms0) . Foldable.toList $ Star2.fact terms0
-                          types = Map.fromList . map (ignoreMetadata types0) . Foldable.toList $ Star2.fact types0
-                          patches = fmap fst patches0
-                          children = fmap Branch.headHash children0
-                       in do
-                            let d = Output.DN.DumpNamespace terms types patches children causalParents
-                            -- the alternate implementation that doesn't rely on `traceM` blows up
-                            traceM $ P.toPlain 200 (prettyDump (h, d))
-                            set h
-                            goCausal (map getCausal (Foldable.toList children0) ++ queue)
+                  goBranch h b (Set.fromList -> causalParents) queue =
+                    let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
+                        ignoreMetadata s r =
+                          (r, R.lookupDom r $ Star2.d1 s)
+                        terms = Map.fromList . map (ignoreMetadata (b ^. Branch.terms)) . Foldable.toList $ Star2.fact (b ^. Branch.terms)
+                        types = Map.fromList . map (ignoreMetadata (b ^. Branch.types)) . Foldable.toList $ Star2.fact (b ^. Branch.types)
+                        patches = fmap fst (b ^. Branch.edits)
+                        children = fmap Branch.headHash (b ^. Branch.children)
+                     in do
+                          let d = Output.DN.DumpNamespace terms types patches children causalParents
+                          -- the alternate implementation that doesn't rely on `traceM` blows up
+                          traceM $ P.toPlain 200 (prettyDump (h, d))
+                          set h
+                          goCausal (map getCausal (Foldable.toList (b ^. Branch.children)) ++ queue)
                   prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
                     P.lit "Namespace "
                       <> P.shown h

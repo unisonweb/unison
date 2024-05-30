@@ -20,7 +20,7 @@ import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input
@@ -501,7 +501,7 @@ getSlurpResultForUpdate requestedNames slurpCheckNames = do
                   --   fresh2 = fresh1 + 2
                   --   fresh3 = fresh2 + 3
                   terms =
-                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v,term) -> (v, (External, term)),
+                    Map.fromList $ Map.elems refToGeneratedNameAndTerm <&> \(v, term) -> (v, (External, term)),
                   -- In the context of this update, whatever watches were in the latest typechecked Unison file are
                   -- irrelevant, so we don't need to copy them over.
                   watches = Map.empty

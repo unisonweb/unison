@@ -3,7 +3,6 @@
 
 module Unison.CommandLine.DisplayValues where
 
-import Control.Lens ((^.))
 import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin

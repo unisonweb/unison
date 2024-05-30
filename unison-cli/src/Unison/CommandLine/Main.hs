@@ -6,7 +6,7 @@ where
 import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
-import Control.Lens (preview, (?~), (^.))
+import Control.Lens (preview, (?~))
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef

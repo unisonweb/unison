@@ -15,17 +15,11 @@ module Unison.Hashing.V2.Convert
 where
 
 import Control.Applicative
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Control.Lens qualified as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
-import Data.Bifunctor (bimap)
-import Data.Foldable (toList)
-import Data.Function ((&))
-import Data.Functor ((<&>))
-import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Set (Set)
 import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import Unison.ABT qualified as ABT
@@ -43,6 +37,7 @@ import Unison.Kind qualified as Memory.Kind
 import Unison.NameSegment qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
+import Unison.Prelude
 import Unison.Reference qualified as Memory.Reference
 import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)

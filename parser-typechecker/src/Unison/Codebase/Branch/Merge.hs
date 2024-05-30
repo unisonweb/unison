@@ -15,7 +15,7 @@ import Data.Map.Merge.Lazy qualified as Map
 import U.Codebase.HashTags (PatchHash (..))
 import Unison.Codebase.Branch
   ( Branch (..),
-    Branch0 (_children, _edits, _terms, _types),
+    Branch0,
     branch0,
     cons,
     discardHistory0,
@@ -24,6 +24,7 @@ import Unison.Codebase.Branch
     isEmpty,
     isEmpty0,
   )
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.BranchDiff (BranchDiff (BranchDiff))
 import Unison.Codebase.Branch.BranchDiff qualified as BDiff
 import Unison.Codebase.Causal qualified as Causal
@@ -67,12 +68,12 @@ merge'' lca mode (Branch x) (Branch y) =
           (Map.traverseMaybeMissing $ combineMissing ca)
           (Map.traverseMaybeMissing $ combineMissing ca)
           (Map.zipWithAMatched $ const (merge'' lca mode))
-          (_children l)
-          (_children r)
-      pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
+          (l ^. Branch.children)
+          (r ^. Branch.children)
+      pure $ branch0 (head0 ^. Branch.terms) (head0 ^. Branch.types) children (head0 ^. Branch.edits)
 
     combineMissing ca k cur =
-      case Map.lookup k (_children ca) of
+      case Map.lookup k (ca ^. Branch.children) of
         Nothing -> pure $ Just cur
         Just old -> do
           nw <- merge'' lca mode (cons empty0 old) cur
@@ -84,16 +85,16 @@ merge'' lca mode (Branch x) (Branch y) =
     apply b0 (BranchDiff addedTerms removedTerms addedTypes removedTypes changedPatches) = do
       patches <-
         sequenceA $
-          Map.differenceWith patchMerge (pure @m <$> _edits b0) changedPatches
-      let newPatches = makePatch <$> Map.difference changedPatches (_edits b0)
+          Map.differenceWith patchMerge (pure @m <$> b0 ^. Branch.edits) changedPatches
+      let newPatches = makePatch <$> Map.difference changedPatches (b0 ^. Branch.edits)
           makePatch Patch.PatchDiff {..} =
             let p = Patch.Patch _addedTermEdits _addedTypeEdits
              in (PatchHash (H.hashPatch p), pure p)
       pure $
         branch0
-          (Star2.difference (_terms b0) removedTerms <> addedTerms)
-          (Star2.difference (_types b0) removedTypes <> addedTypes)
-          (_children b0)
+          (Star2.difference (b0 ^. Branch.terms) removedTerms <> addedTerms)
+          (Star2.difference (b0 ^. Branch.types) removedTypes <> addedTypes)
+          (b0 ^. Branch.children)
           (patches <> newPatches)
     patchMerge mhp Patch.PatchDiff {..} = Just $ do
       (_, mp) <- mhp
@@ -118,12 +119,12 @@ merge0 ::
   Branch0 m ->
   m (Branch0 m)
 merge0 lca mode b1 b2 = do
-  c3 <- unionWithM (merge'' lca mode) (_children b1) (_children b2)
-  e3 <- unionWithM g (_edits b1) (_edits b2)
+  c3 <- unionWithM (merge'' lca mode) (b1 ^. Branch.children) (b2 ^. Branch.children)
+  e3 <- unionWithM g (b1 ^. Branch.edits) (b2 ^. Branch.edits)
   pure $
     branch0
-      (_terms b1 <> _terms b2)
-      (_types b1 <> _types b2)
+      (b1 ^. Branch.terms <> b2 ^. Branch.terms)
+      (b1 ^. Branch.types <> b2 ^. Branch.types)
       c3
       e3
   where

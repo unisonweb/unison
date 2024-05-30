@@ -5,7 +5,6 @@ module Unison.Merge.CombineDiffs
   )
 where
 
-import Control.Lens (view)
 import Data.Semialign (alignWith)
 import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))

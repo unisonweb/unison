@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Push
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, view, (.~), (^.), _1, _2)
+import Control.Lens (_1, _2)
 import Control.Monad.Reader (ask)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text

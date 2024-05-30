@@ -6,7 +6,6 @@ module Unison.Merge.DeclNameLookup
   )
 where
 
-import Control.Lens (over)
 import Data.Map.Strict qualified as Map
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Unison.DataDeclaration (Decl)

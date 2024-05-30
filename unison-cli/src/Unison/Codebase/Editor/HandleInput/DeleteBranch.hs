@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.DeleteBranch
   )
 where
 
-import Control.Lens (over, (^.))
 import Data.Map.Strict qualified as Map
 import Data.These (These (..))
 import U.Codebase.Sqlite.Queries qualified as Queries

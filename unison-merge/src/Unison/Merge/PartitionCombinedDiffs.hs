@@ -3,7 +3,7 @@ module Unison.Merge.PartitionCombinedDiffs
   )
 where
 
-import Control.Lens (Lens', over, view, (%~), (.~))
+import Control.Lens (Lens')
 import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))

@@ -18,6 +18,7 @@ module Unison.Codebase.BranchUtil
   )
 where
 
+import Control.Lens
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -51,7 +52,7 @@ getTerm (p, hq) b = case hq of
   HashQualified n sh -> filter sh $ Star2.lookupD1 n terms
   where
     filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
-    terms = Branch._terms (Branch.getAt0 p b)
+    terms = (Branch.getAt0 p b) ^. Branch.terms
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference.TypeReference
 getType (p, hq) b = case hq of
@@ -59,13 +60,13 @@ getType (p, hq) b = case hq of
   HashQualified n sh -> filter sh $ Star2.lookupD1 n types
   where
     filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
-    types = Branch._types (Branch.getAt0 p b)
+    types = (Branch.getAt0 p b) ^. Branch.types
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
-  [] -> Map.lookup seg (Branch._children b)
+  [] -> Map.lookup seg (b ^. Branch.children)
   h : p ->
-    (Branch.head <$> Map.lookup h (Branch._children b))
+    (Branch.head <$> Map.lookup h (b ^. Branch.children))
       >>= getBranch (Path.fromList p, seg)
 
 makeAddTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)

@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.ProjectClone
   )
 where
 
-import Control.Lens (over, (^.), _2)
+import Control.Lens (_2)
 import Control.Monad.Reader (ask)
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID

@@ -18,7 +18,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
@@ -620,14 +620,14 @@ applyPropagate patch Edits {termReplacements, typeReplacements, constructorRepla
       Map Reference Reference ->
       Branch0 m ->
       Branch0 m
-    updateLevel termEdits typeEdits Branch0 {..} =
-      Branch.branch0 terms types _children _edits
+    updateLevel termEdits typeEdits b =
+      Branch.branch0 terms types (b ^. Branch.children) (b ^. Branch.edits)
       where
         isPropagatedReferent (Referent.Con _ _) = True
         isPropagatedReferent (Referent.Ref r) = isPropagated r
 
         terms0 :: Metadata.Star Referent NameSegment
-        terms0 = Star2.replaceFacts replaceConstructor constructorReplacements _terms
+        terms0 = Star2.replaceFacts replaceConstructor constructorReplacements (b ^. Branch.terms)
         terms :: Branch.Star Referent NameSegment
         terms =
           updateMetadatas $
@@ -635,7 +635,7 @@ applyPropagate patch Edits {termReplacements, typeReplacements, constructorRepla
         types :: Branch.Star Reference NameSegment
         types =
           updateMetadatas $
-            Star2.replaceFacts replaceType typeEdits _types
+            Star2.replaceFacts replaceType typeEdits (b ^. Branch.types)
 
         updateMetadatas ::
           (Ord r) =>
