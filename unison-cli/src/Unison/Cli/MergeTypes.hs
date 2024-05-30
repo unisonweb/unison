@@ -7,7 +7,7 @@ module Unison.Cli.MergeTypes
   )
 where
 
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadShareLooseCode)
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 
 -- | What are we merging in?
@@ -15,7 +15,6 @@ data MergeSource
   = MergeSource'LocalProjectBranch !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSource'RemoteProjectBranch !(ProjectAndBranch ProjectName ProjectBranchName)
   | MergeSource'RemoteLooseCode !ReadShareLooseCode
-  | MergeSource'RemoteGitRepo !ReadGitRemoteNamespace
 
 type MergeTarget =
   ProjectAndBranch ProjectName ProjectBranchName

@@ -27,7 +27,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Auth.Types (CredentialFailure)
-import Unison.Cli.MergeTypes (MergeSourceOrTarget, MergeSourceAndTarget)
+import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
@@ -36,6 +36,7 @@ import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as SR
+import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
@@ -44,7 +45,6 @@ import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Type (GitError)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -83,7 +83,12 @@ type ListDetailed = Bool
 
 type SourceName = Text
 
-type NumberedArgs = [String]
+-- |
+--
+--  __NB__: This only temporarily holds `Text`. Until all of the inputs are
+--          updated to handle `StructuredArgument`s, we need to ensure that the
+--          serialization remains unchanged.
+type NumberedArgs = [StructuredArgument]
 
 type HashLength = Int
 
@@ -152,13 +157,13 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction Text PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction (HQ.HashQualified Name) PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
       Text
       -- ^ what we were trying to do (e.g. "run", "io.test")
-      Text
+      (HQ.HashQualified Name)
       -- ^ name of function
       (Type Symbol Ann)
       -- ^ bad type of function
@@ -261,7 +266,6 @@ data Output
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
-  | GitError GitError
   | ShareError ShareError
   | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
   | NoConfiguredRemoteMapping PushPull Path.Absolute
@@ -296,7 +300,7 @@ data Output
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
-  | DumpNumberedArgs NumberedArgs
+  | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName Text
@@ -395,11 +399,11 @@ data Output
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
-  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
-  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
-  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
+  | MergeMissingConstructorName !MergeSourceOrTarget !Name
+  | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
+  | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -529,7 +533,6 @@ isFailure o = case o of
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  GitError {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True

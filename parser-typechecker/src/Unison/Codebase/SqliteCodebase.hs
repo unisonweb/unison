@@ -14,17 +14,13 @@ where
 
 import Control.Monad.Except qualified as Except
 import Control.Monad.Extra qualified as Monad
-import Data.Char qualified as Char
 import Data.Either.Extra ()
 import Data.IORef
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.Time (getCurrentTime)
 import System.Console.ANSI qualified as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
-import System.FilePath qualified as FilePath
-import System.FilePath.Posix qualified as FilePath.Posix
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import U.Codebase.Reflog qualified as Reflog
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -36,15 +32,6 @@ import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.Git (gitIn, gitInCaptured, gitTextIn, withRepo)
-import Unison.Codebase.Editor.Git qualified as Git
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace (..),
-    ReadGitRepo,
-    WriteGitRepo (..),
-    writeToReadGit,
-  )
-import Unison.Codebase.GitError qualified as GitError
 import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init qualified as Codebase
 import Unison.Codebase.Init.CreateCodebaseError qualified as Codebase1
@@ -54,12 +41,11 @@ import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError qualified as GitError
 import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
-import Unison.Codebase.Type (GitPushBehavior, LocalOrRemote (..))
+import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
@@ -75,9 +61,8 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Util.Timing (time)
 import Unison.WatchKind qualified as UF
-import UnliftIO (UnliftIO (..), finally, throwIO, try)
+import UnliftIO (UnliftIO (..), finally)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
-import UnliftIO.Exception (catch)
 import UnliftIO.STM
 
 debug, debugProcessBranches :: Bool
@@ -102,30 +87,6 @@ initWithSetup onCreate =
       withCreatedCodebase = createCodebaseOrError onCreate,
       codebasePath = makeCodebaseDirPath
     }
-
-data CodebaseStatus
-  = ExistingCodebase
-  | CreatedCodebase
-  deriving (Eq)
-
--- | Open the codebase at the given location, or create it if one doesn't already exist.
-withOpenOrCreateCodebase ::
-  (MonadUnliftIO m) =>
-  Sqlite.Transaction () ->
-  Codebase.DebugName ->
-  CodebasePath ->
-  LocalOrRemote ->
-  CodebaseLockOption ->
-  MigrationStrategy ->
-  ((CodebaseStatus, Codebase m Symbol Ann) -> m r) ->
-  m (Either Codebase1.OpenCodebaseError r)
-withOpenOrCreateCodebase onCreate debugName codebasePath localOrRemote lockOption migrationStrategy action = do
-  createCodebaseOrError onCreate debugName codebasePath lockOption (action' CreatedCodebase) >>= \case
-    Left (Codebase1.CreateCodebaseAlreadyExists) -> do
-      sqliteCodebase debugName codebasePath localOrRemote lockOption migrationStrategy (action' ExistingCodebase)
-    Right r -> pure (Right r)
-  where
-    action' openOrCreate codebase = action (openOrCreate, codebase)
 
 -- | Create a codebase at the given location.
 createCodebaseOrError ::
@@ -379,8 +340,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   putBranch,
                   syncFromDirectory,
                   syncToDirectory,
-                  viewRemoteBranch',
-                  pushGitBranch = \repo opts action -> withConn \conn -> pushGitBranch conn repo opts action,
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
@@ -570,214 +529,6 @@ syncProgress progressStateRef = Sync.Progress (liftIO . need) (liftIO . done) (l
           ++ show (fmap v need, bimap id v done, bimap id v warn)
       where
         v = const ()
-
--- FIXME(mitchell) seems like this should have "git" in its name
-viewRemoteBranch' ::
-  forall m r.
-  (MonadUnliftIO m) =>
-  ReadGitRemoteNamespace ->
-  Git.GitBranchBehavior ->
-  ((Branch m, CodebasePath) -> m r) ->
-  m (Either C.GitError r)
-viewRemoteBranch' ReadGitRemoteNamespace {repo, sch, path} gitBranchBehavior action = UnliftIO.try $ do
-  -- set up the cache dir
-  time "Git fetch" $
-    throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
-      let remotePath = Git.gitDirToPath remoteRepo
-          -- In modern UCM all new codebases are created in WAL mode, but it's possible old
-          -- codebases were pushed to git in DELETE mode, so when pulling remote branches we
-          -- ensure we're in WAL mode just to be safe.
-          ensureWALMode conn = Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
-      -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
-      -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself
-      -- is somehow corrupt, or not even a Unison database.
-      --
-      -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps
-      -- update its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion`
-      -- error.
-      (withConnection "codebase exists check" remotePath ensureWALMode) `catch` \exception ->
-        if Sqlite.isCantOpenException exception
-          then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
-          else throwIO exception
-
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote DoLock (MigrateAfterPrompt Codebase.Backup Codebase.Vacuum) \codebase -> do
-        -- try to load the requested branch from it
-        branch <- time "Git fetch (sch)" $ case sch of
-          -- no sub-branch was specified, so use the root.
-          Nothing -> time "Get remote root branch" $ Codebase1.getRootBranch codebase
-          -- load from a specific `ShortCausalHash`
-          Just sch -> do
-            branchCompletions <- Codebase1.runTransaction codebase (Codebase1.causalHashesByPrefix sch)
-            case toList branchCompletions of
-              [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
-              [h] ->
-                (Codebase1.getBranchForHash codebase h) >>= \case
-                  Just b -> pure b
-                  Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sch
-              _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sch branchCompletions
-        case Branch.getAt path branch of
-          Just b -> action (b, remotePath)
-          Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
-      case result of
-        Left err -> throwIO . C.GitSqliteCodebaseError $ C.gitErrorFromOpenCodebaseError remotePath repo err
-        Right inner -> pure inner
-
--- | Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
--- the existing root.
-pushGitBranch ::
-  forall m e.
-  (MonadUnliftIO m) =>
-  Sqlite.Connection ->
-  WriteGitRepo ->
-  GitPushBehavior ->
-  -- An action which accepts the current root branch on the remote and computes a new branch.
-  (Branch m -> m (Either e (Branch m))) ->
-  m (Either C.GitError (Either e (Branch m)))
-pushGitBranch srcConn repo behavior action = UnliftIO.try do
-  -- Pull the latest remote into our git cache
-  -- Use a local git clone to copy this git repo into a temp-dir
-  -- Delete the codebase in our temp-dir
-  -- Use sqlite's VACUUM INTO command to make a copy of the remote codebase into our temp-dir
-  -- Connect to the copied codebase and sync whatever it is we want to push.
-  -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
-  -- if setting the remote root,
-  --   do a `before` check on the staging codebase
-  --   if it passes, proceed (see below)
-  --   if it fails, throw an exception (which will rollback) and clean up.
-  -- push from the temp-dir to the remote.
-  -- Delete the temp-dir.
-  --
-  -- set up the cache dir
-  throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-    newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-      . withOpenOrCreateCodebase (pure ()) "push.dest" (Git.gitDirToPath pushStaging) Remote DoLock (MigrateAfterPrompt Codebase.Backup Codebase.Vacuum)
-      $ \(codebaseStatus, destCodebase) -> do
-        currentRootBranch <-
-          Codebase1.runTransaction destCodebase CodebaseOps.getRootBranchExists >>= \case
-            False -> pure Branch.empty
-            True -> C.getRootBranch destCodebase
-        action currentRootBranch >>= \case
-          Left e -> pure $ Left e
-          Right newBranch -> do
-            C.withConnection destCodebase \destConn ->
-              doSync codebaseStatus destConn newBranch
-            pure (Right newBranch)
-    for_ newBranchOrErr $ push pushStaging repo
-    pure newBranchOrErr
-  where
-    readRepo :: ReadGitRepo
-    readRepo = writeToReadGit repo
-    doSync :: CodebaseStatus -> Sqlite.Connection -> Branch m -> m ()
-    doSync codebaseStatus destConn newBranch = do
-      progressStateRef <- liftIO (newIORef emptySyncProgressState)
-      Sqlite.runReadOnlyTransaction srcConn \runSrc -> do
-        Sqlite.runWriteTransaction destConn \runDest -> do
-          _ <- syncInternal (syncProgress progressStateRef) runSrc runDest newBranch
-          let overwriteRoot forcePush = do
-                let newBranchHash = Branch.headHash newBranch
-                case codebaseStatus of
-                  ExistingCodebase -> do
-                    when (not forcePush) do
-                      -- the call to runDB "handles" the possible DB error by bombing
-                      runDest Ops.loadRootCausalHash >>= \case
-                        Nothing -> pure ()
-                        Just oldRootHash -> do
-                          runDest (CodebaseOps.before oldRootHash newBranchHash) >>= \case
-                            False -> throwIO . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                            True -> pure ()
-                  CreatedCodebase -> pure ()
-                runDest (setRepoRoot newBranchHash)
-          case behavior of
-            C.GitPushBehaviorGist -> pure ()
-            C.GitPushBehaviorFf -> overwriteRoot False
-            C.GitPushBehaviorForce -> overwriteRoot True
-    setRepoRoot :: CausalHash -> Sqlite.Transaction ()
-    setRepoRoot h = do
-      let err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h
-      chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h
-      Q.setNamespaceRoot chId
-
-    -- This function makes sure that the result of git status is valid.
-    -- Valid lines are any of:
-    --
-    --   ?? .unison/v2/unison.sqlite3 (initial commit to an empty repo)
-    --   M .unison/v2/unison.sqlite3  (updating an existing repo)
-    --   D .unison/v2/unison.sqlite3-wal (cleaning up the WAL from before bugfix)
-    --   D .unison/v2/unison.sqlite3-shm (ditto)
-    --
-    -- Invalid lines are like:
-    --
-    --   ?? .unison/v2/unison.sqlite3-wal
-    --
-    -- Which will only happen if the write-ahead log hasn't been
-    -- fully folded into the unison.sqlite3 file.
-    --
-    -- Returns `Just (hasDeleteWal, hasDeleteShm)` on success,
-    -- `Nothing` otherwise. hasDeleteWal means there's the line:
-    --   D .unison/v2/unison.sqlite3-wal
-    -- and hasDeleteShm is `True` if there's the line:
-    --   D .unison/v2/unison.sqlite3-shm
-    --
-    parseStatus :: Text -> Maybe (Bool, Bool)
-    parseStatus status =
-      if all okLine statusLines
-        then Just (hasDeleteWal, hasDeleteShm)
-        else Nothing
-      where
-        -- `git status` always displays paths using posix forward-slashes,
-        -- so we have to convert our expected path to test.
-        posixCodebasePath =
-          FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
-        posixLockfilePath = FilePath.replaceExtension posixCodebasePath "lockfile"
-        statusLines = Text.unpack <$> Text.lines status
-        t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath || p == posixLockfilePath = True
-        okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
-        okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
-        isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
-        isShmDelete _ = False
-        hasDeleteWal = any isWalDelete statusLines
-        hasDeleteShm = any isShmDelete statusLines
-
-    -- Commit our changes
-    push :: forall n. (MonadIO n) => Git.GitRepo -> WriteGitRepo -> Branch m -> n Bool -- withIOError needs IO
-    push remotePath repo@(WriteGitRepo {url, branch = mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
-      -- has anything changed?
-      -- note: -uall recursively shows status for all files in untracked directories
-      --   we want this so that we see
-      --     `??  .unison/v2/unison.sqlite3` and not
-      --     `??  .unison/`
-      status <- gitTextIn remotePath ["status", "--short", "-uall"]
-      if Text.null status
-        then pure False
-        else case parseStatus status of
-          Nothing ->
-            error $
-              "An error occurred during push.\n"
-                <> "I was expecting only to see "
-                <> codebasePath
-                <> " modified, but saw:\n\n"
-                <> Text.unpack status
-                <> "\n\n"
-                <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
-                <> "and add any more details about how you encountered this!\n"
-          Just (hasDeleteWal, hasDeleteShm) -> do
-            -- Only stage files we're expecting; don't `git add --all .`
-            -- which could accidentally commit some garbage
-            gitIn remotePath ["add", Text.pack codebasePath]
-            when hasDeleteWal $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-shm"]
-            gitIn
-              remotePath
-              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash newRootBranch)]
-            -- Push our changes to the repo, silencing all output.
-            -- Even with quiet, the remote (Github) can still send output through,
-            -- so we capture stdout and stderr.
-            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", url] ++ Git.gitVerbosity ++ maybe [] (pure @[]) mayGitBranch
-            when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
-            pure True
 
 -- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
 -- at the source to the destination.
