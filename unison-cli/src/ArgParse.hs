@@ -17,6 +17,7 @@ import Options.Applicative
     ParserPrefs,
     ReadM,
     action,
+    argument,
     auto,
     columns,
     command,
@@ -32,6 +33,7 @@ import Options.Applicative
     info,
     infoOption,
     long,
+    maybeReader,
     metavar,
     option,
     parserFailure,
@@ -53,21 +55,21 @@ import System.Environment (lookupEnv)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.HashQualified (HashQualified)
 import Unison.LSP (LspFormattingConfig (..))
+import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import Unison.Server.CodebaseServer qualified as Server
+import Unison.Syntax.HashQualified qualified as HQ
 import Unison.Util.Pretty (Width (..))
-
--- The name of a symbol to execute.
-type SymbolName = Text
 
 -- | Valid ways to provide source code to the run command
 data RunSource
-  = RunFromPipe SymbolName
-  | RunFromSymbol SymbolName
-  | RunFromFile FilePath SymbolName
+  = RunFromPipe (HashQualified Name)
+  | RunFromSymbol (HashQualified Name)
+  | RunFromFile FilePath (HashQualified Name)
   | RunCompiled FilePath
   deriving (Show, Eq)
 
@@ -368,22 +370,26 @@ versionParser = pure PrintVersion
 runArgumentParser :: Parser [String]
 runArgumentParser = many (strArgument (metavar "RUN-ARGS"))
 
+runHQParser :: Parser (HashQualified Name)
+runHQParser =
+  argument (maybeReader (HQ.parseText . Text.pack)) (metavar "SYMBOL")
+
 runSymbolParser :: Parser Command
 runSymbolParser =
-  Run . RunFromSymbol <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
+  Run . RunFromSymbol <$> runHQParser <*> runArgumentParser
 
 runFileParser :: Parser Command
 runFileParser =
   Run
     <$> ( RunFromFile
             <$> fileArgument "path/to/file"
-            <*> strArgument (metavar "SYMBOL")
+            <*> runHQParser
         )
     <*> runArgumentParser
 
 runPipeParser :: Parser Command
 runPipeParser =
-  Run . RunFromPipe <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
+  Run . RunFromPipe <$> runHQParser <*> runArgumentParser
 
 runCompiledParser :: Parser Command
 runCompiledParser =

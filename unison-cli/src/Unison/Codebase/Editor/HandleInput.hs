@@ -1061,7 +1061,7 @@ inputDescription input =
       pure ("update.old" <> p)
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
-    ExecuteI s args -> pure ("execute " <> Text.unwords (s : fmap Text.pack args))
+    ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
@@ -1071,7 +1071,7 @@ inputDescription input =
     MergeIOBuiltinsI (Just path) -> ("builtins.mergeio " <>) <$> p path
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
+      pure $ "run.native " <> Text.unwords (HQ.toText nm : fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     ClearI {} -> pure "clear"

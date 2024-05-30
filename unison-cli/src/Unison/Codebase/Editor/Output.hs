@@ -157,13 +157,13 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction Text PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction (HQ.HashQualified Name) PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
       Text
       -- ^ what we were trying to do (e.g. "run", "io.test")
-      Text
+      (HQ.HashQualified Name)
       -- ^ name of function
       (Type Symbol Ann)
       -- ^ bad type of function

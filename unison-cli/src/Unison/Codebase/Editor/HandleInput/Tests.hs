@@ -28,6 +28,8 @@ import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Input (TestInput (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.HashQualified qualified as HQ
@@ -38,6 +40,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference (TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash qualified as SH
@@ -53,9 +56,6 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
-import Unison.Codebase.Path (Path)
-import Unison.Reference (TermReferenceId)
-import qualified Unison.Codebase.Path as Path
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
@@ -137,7 +137,7 @@ handleIOTest main = do
   (fails, oks) <-
     refs & foldMapM \(ref, typ) -> do
       when (not $ isIOTest typ) do
-        Cli.returnEarly (BadMainFunction "io.test" (HQ.toText main) typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
+        Cli.returnEarly (BadMainFunction "io.test" main typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
       runIOTest suffixifiedPPE ref
   Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
