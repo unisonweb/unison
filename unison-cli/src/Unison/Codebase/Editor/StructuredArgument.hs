@@ -10,7 +10,6 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
-import Unison.Reference (Reference)
 import Unison.Server.Backend (ShallowListEntry)
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Symbol (Symbol)
@@ -22,7 +21,6 @@ data StructuredArgument
   | HashQualified (HQ.HashQualified Name)
   | Project ProjectName
   | ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | Ref Reference
   | Namespace CausalHash
   | NameWithBranchPrefix AbsBranchId Name
   | HashQualifiedWithBranchPrefix AbsBranchId (HQ'.HashQualified Name)

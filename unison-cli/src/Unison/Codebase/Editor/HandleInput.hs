@@ -1285,12 +1285,10 @@ handleDependencies hq = do
     let types = [(PPE.typeName suffixifiedPPE r, r) | LabeledDependency.TypeReference r <- toList dependencies]
     let terms = [(PPE.termName suffixifiedPPE r, r) | LabeledDependency.TermReferent r <- toList dependencies]
     pure (types, terms)
-  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
-  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  Cli.setNumberedArgs $
-    map (SA.Ref . snd) types
-      <> map (SA.Ref . Referent.toReference . snd) terms
-  Cli.respond $ ListDependencies suffixifiedPPE lds (fst <$> types) (fst <$> terms)
+  let types = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst) . join $ fst <$> results
+  let terms = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst) . join $ snd <$> results
+  Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
+  Cli.respond $ ListDependencies suffixifiedPPE lds types terms
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
 handleDependents hq = do
@@ -1307,7 +1305,7 @@ handleDependents hq = do
   results <- for (toList lds) \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
+      let tp = Codebase.dependents Queries.ExcludeOwnComponent
           tm = \case
             Referent.Ref r -> Codebase.dependents Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
@@ -1323,11 +1321,11 @@ handleDependents hq = do
           Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
           pure (isTerm, HQ'.toHQ shortName, r)
     pure results
-  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let sort = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  Cli.setNumberedArgs . map (SA.Ref . view _2) $ types <> terms
-  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
+  Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
+  Cli.respond (ListDependents ppe lds types terms)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
@@ -1439,8 +1437,9 @@ doShowTodoOutput patch scopePath = do
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
-      Cli.setNumberedArgs
-        (SA.Ref . view _2 <$> fst (TO.todoFrontierDependents todo))
+      Cli.setNumberedArgs $
+        SA.HashQualified . HQ.HashOnly . Reference.toShortHash . view _2
+          <$> fst (TO.todoFrontierDependents todo)
       pped <- Cli.currentPrettyPrintEnvDecl
       Cli.respondNumbered $ TodoOutput pped todo
 
