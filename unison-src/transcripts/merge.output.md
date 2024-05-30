@@ -1144,3 +1144,139 @@ project/alice> merge /bob
   there. Please remove it before merging.
 
 ```
+## LCA precondition violations
+
+The LCA is not subject to most precondition violations, which is good, because the user can't easily manipulate it!
+
+Here's an example. We'll delete a constructor name from the LCA and still be able to merge Alice and Bob's stuff
+together.
+
+LCA:
+
+```unison
+structural type Foo = Bar Nat | Baz Nat Nat
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo
+
+project/main> delete.term Foo.Baz
+
+  Done.
+
+```
+Alice's branch:
+
+```ucm
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+project/alice> delete.type Foo
+
+  Done.
+
+project/alice> delete.term Foo.Bar
+
+  Done.
+
+```
+```unison
+alice : Nat
+alice = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      alice : Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    alice : Nat
+
+```
+Bob's branch:
+
+```ucm
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+project/bob> delete.type Foo
+
+  Done.
+
+project/bob> delete.term Foo.Bar
+
+  Done.
+
+```
+```unison
+bob : Nat
+bob = 101
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+Now we merge:
+
+```ucm
+project/alice> merge /bob
+
+  I merged project/bob into project/alice.
+
+```

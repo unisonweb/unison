@@ -103,7 +103,6 @@ oldfoo = 801
 
 ```ucm
 .lhs> add
-.lhs> view.patch patch
 .lhs> todo
 ```
 

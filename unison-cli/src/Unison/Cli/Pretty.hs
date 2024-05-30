@@ -27,7 +27,6 @@ module Unison.Cli.Pretty
     prettyProjectName,
     prettyProjectNameSlash,
     prettyNamespaceKey,
-    prettyReadGitRepo,
     prettyReadRemoteNamespace,
     prettyReadRemoteNamespaceWith,
     prettyRelative,
@@ -37,6 +36,7 @@ module Unison.Cli.Pretty
     prettySemver,
     prettyShareLink,
     prettySharePath,
+    prettyShareURI,
     prettySlashProjectBranchName,
     prettyTermName,
     prettyTypeName,
@@ -45,7 +45,6 @@ module Unison.Cli.Pretty
     prettyURI,
     prettyUnisonFile,
     prettyWhichBranchEmpty,
-    prettyWriteGitRepo,
     prettyWriteRemoteNamespace,
     shareOrigin,
     unsafePrettyTermResultSigFull',
@@ -78,10 +77,8 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, Missi
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo,
-    ReadRemoteNamespace (..),
+  ( ReadRemoteNamespace (..),
     ShareUserHandle (..),
-    WriteGitRepo,
     WriteRemoteNamespace (..),
     WriteShareRemoteNamespace (..),
     shareUserHandleToText,
@@ -139,6 +136,11 @@ type Pretty = P.Pretty P.ColorText
 
 prettyURI :: URI -> Pretty
 prettyURI = P.bold . P.blue . P.shown
+
+prettyShareURI :: URI -> Pretty
+prettyShareURI host
+  | URI.uriToString id host "" == "https://api.unison-lang.org" = P.bold (P.blue "Unison Share")
+  | otherwise = P.bold (P.blue (P.shown host))
 
 prettyReadRemoteNamespace :: ReadRemoteNamespace Share.RemoteProjectBranch -> Pretty
 prettyReadRemoteNamespace =
@@ -233,7 +235,6 @@ prettyMergeSource = \case
   MergeSource'LocalProjectBranch branch -> prettyProjectAndBranchName branch
   MergeSource'RemoteProjectBranch branch -> "remote " <> prettyProjectAndBranchName branch
   MergeSource'RemoteLooseCode info -> prettyReadRemoteNamespace (ReadShare'LooseCode info)
-  MergeSource'RemoteGitRepo info -> prettyReadRemoteNamespace (ReadRemoteNamespaceGit info)
 
 prettyMergeSourceOrTarget :: MergeSourceOrTarget -> Pretty
 prettyMergeSourceOrTarget = \case
@@ -342,18 +343,6 @@ prettyTypeName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.typeName ppe r)
 
-prettyReadGitRepo :: ReadGitRepo -> Pretty
-prettyReadGitRepo = \case
-  RemoteRepo.ReadGitRepo {url} -> P.blue (P.text url)
-
-prettyWriteGitRepo :: WriteGitRepo -> Pretty
-prettyWriteGitRepo RemoteRepo.WriteGitRepo {url} = P.blue (P.text url)
-
--- prettyWriteRepo :: WriteRepo -> Pretty
--- prettyWriteRepo = \case
---   RemoteRepo.WriteRepoGit RemoteRepo.WriteGitRepo {url} -> P.blue (P.text url)
---   RemoteRepo.WriteRepoShare s -> P.blue (P.text (RemoteRepo.printShareRepo s))
-
 -- | Pretty-print a 'WhichBranchEmpty'.
 prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
@@ -361,8 +350,8 @@ prettyWhichBranchEmpty = \case
   WhichBranchEmptyPath path -> prettyPath' path
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: CausalHash -> String
-displayBranchHash = ("#" <>) . Text.unpack . Hash.toBase32HexText . unCausalHash
+displayBranchHash :: CausalHash -> Text
+displayBranchHash = ("#" <>) . Hash.toBase32HexText . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =
@@ -394,15 +383,15 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
   -- Special-case Unison Share since we know its project branch URLs
   if URI.uriToString id host "" == "https://api.unison-lang.org"
     then
-      P.hiBlack . P.text $
+      P.group $
         "https://share.unison-lang.org/"
-          <> into @Text remoteProject
+          <> prettyProjectName remoteProject
           <> "/code/"
-          <> into @Text remoteBranch
+          <> prettyProjectBranchName remoteBranch
     else
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
-        <> P.hiBlack (P.shown host)
+        <> P.shown host
 
 stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
 stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism

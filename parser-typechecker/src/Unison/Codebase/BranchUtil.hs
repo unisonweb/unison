@@ -15,8 +15,6 @@ module Unison.Codebase.BranchUtil
     makeAddTermName,
     makeDeleteTermName,
     makeAnnihilateTermName,
-    makeDeletePatch,
-    makeReplacePatch,
   )
 where
 
@@ -24,7 +22,6 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
@@ -82,12 +79,6 @@ makeAnnihilateTermName (p, name) = (p, Branch.annihilateTermName name)
 
 makeAnnihilateTypeName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
 makeAnnihilateTypeName (p, name) = (p, Branch.annihilateTypeName name)
-
-makeReplacePatch :: (Applicative m) => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
-makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
-
-makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
-makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
 makeAddTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)

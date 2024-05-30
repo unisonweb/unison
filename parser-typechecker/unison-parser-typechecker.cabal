@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -47,11 +47,9 @@ library
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.DisplayObject
-      Unison.Codebase.Editor.Git
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
-      Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
@@ -71,7 +69,6 @@ library
       Unison.Codebase.SqliteCodebase.Branch.Cache
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
-      Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
@@ -178,7 +175,6 @@ library
       Unison.UnisonFile.Names
       Unison.UnisonFile.Summary
       Unison.UnisonFile.Type
-      Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd

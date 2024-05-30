@@ -24,5 +24,7 @@ dist-newstyle
 
 # Mac developers
 **/.DS_Store
-
 /libb2.dylib
+
+# Nix
+result

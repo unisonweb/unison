@@ -57,17 +57,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
   (source, target) <- resolveSourceAndTarget includeSquashed unresolvedSourceAndTarget
 
   remoteCausalHash <- do
-    Cli.Env {codebase} <- ask
     case source of
-      ReadRemoteNamespaceGit repo -> do
-        downloadLooseCodeFromGitRepo
-          codebase
-          ( case pullMode of
-              Input.PullWithHistory -> GitNamespaceHistoryTreatment'LetAlone
-              Input.PullWithoutHistory -> GitNamespaceHistoryTreatment'DiscardAllHistory
-          )
-          repo
-          & onLeftM (Cli.returnEarly . Output.GitError)
       ReadShare'LooseCode repo -> downloadLooseCodeFromShare repo & onLeftM (Cli.returnEarly . Output.ShareError)
       ReadShare'ProjectBranch remoteBranch ->
         downloadProjectBranchFromShare
@@ -135,7 +125,6 @@ handlePull unresolvedSourceAndTarget pullMode = do
                           ReadShare'ProjectBranch remoteBranch ->
                             MergeSource'RemoteProjectBranch (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
                           ReadShare'LooseCode info -> MergeSource'RemoteLooseCode info
-                          ReadRemoteNamespaceGit info -> MergeSource'RemoteGitRepo info
                     },
                 lca =
                   LcaMergeInfo
@@ -208,7 +197,6 @@ resolveExplicitSource ::
   ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease) ->
   Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveExplicitSource includeSquashed = \case
-  ReadRemoteNamespaceGit namespace -> pure (ReadRemoteNamespaceGit namespace)
   ReadShare'LooseCode namespace -> pure (ReadShare'LooseCode namespace)
   ReadShare'ProjectBranch (This remoteProjectName) -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName remoteProjectName
