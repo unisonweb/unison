@@ -104,7 +104,7 @@ import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
-    Branch0 (..),
+    Branch0,
     NamespaceHash,
     Star,
     UnwrappedBranch,
@@ -160,30 +160,29 @@ instance Hashing.ContentAddressable (Branch0 m) where
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
-withoutLib Branch0 {..} =
-  let newChildren =
-        _children
-          & imapMaybe
-            ( \nameSegment child ->
-                if nameSegment == NameSegment.libSegment
-                  then Nothing
-                  else Just (child & head_ %~ withoutLib)
-            )
-   in branch0 _terms _types newChildren _edits
+withoutLib b =
+  b
+    & children
+      %~ imapMaybe
+        ( \nameSegment child ->
+            if nameSegment == NameSegment.libSegment
+              then Nothing
+              else Just (child & head_ %~ withoutLib)
+        )
 
 -- | Remove any transitive libs reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutTransitiveLibs :: Branch0 m -> Branch0 m
-withoutTransitiveLibs Branch0 {..} =
+withoutTransitiveLibs b0 =
   let newChildren =
-        _children
+        (b0 ^. children)
           & imapMaybe
             ( \nameSegment child ->
                 if nameSegment == NameSegment.libSegment
                   then Just (child & head_ %~ withoutLib)
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
-   in branch0 _terms _types newChildren _edits
+   in b0 & children .~ newChildren
 
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
@@ -224,9 +223,9 @@ deepEdits' = go id
   where
     -- can change this to an actual prefix once Name is a [NameSegment]
     go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
-    go addPrefix Branch0 {_children, _edits} =
-      Map.mapKeys (addPrefix . Name.fromSegment) _edits
-        <> foldMap f (Map.toList _children)
+    go addPrefix b0 =
+      Map.mapKeys (addPrefix . Name.fromSegment) (b0 ^. edits)
+        <> foldMap f (Map.toList (b0 ^. children))
       where
         f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
         f (c, b) = go (addPrefix . Name.cons c) (head b)
@@ -252,7 +251,7 @@ toList0 = go Path.empty
   where
     go p b =
       (p, b)
-        : ( Map.toList (_children b)
+        : ( Map.toList (b ^. children)
               >>= ( \(seg, cb) ->
                       go (Path.snoc p seg) (head cb)
                   )
@@ -265,7 +264,7 @@ getAt ::
   Maybe (Branch m)
 getAt path root = case Path.uncons path of
   Nothing -> if isEmpty root then Nothing else Just root
-  Just (seg, path) -> case Map.lookup seg (_children $ head root) of
+  Just (seg, path) -> case Map.lookup seg (head root ^. children) of
     Just b -> getAt path b
     Nothing -> Nothing
 
@@ -275,7 +274,7 @@ getAt' p b = fromMaybe empty $ getAt p b
 getAt0 :: Path -> Branch0 m -> Branch0 m
 getAt0 p b = case Path.uncons p of
   Nothing -> b
-  Just (seg, path) -> case Map.lookup seg (_children b) of
+  Just (seg, path) -> case Map.lookup seg (b ^. children) of
     Just c -> getAt0 path (head c)
     Nothing -> empty0
 
@@ -376,27 +375,27 @@ stepManyAtM actions startBranch = do
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
   (Applicative m) => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepEverywhere f Branch0 {..} = f (branch0 _terms _types children _edits)
+stepEverywhere f b0 = f (b0 & children %~ updates)
   where
-    children = fmap (step $ stepEverywhere f) _children
+    updates = fmap (step $ stepEverywhere f)
 
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
 -- otherwise update it.
 -- Todo: Fix this in hashing & serialization instead of here?
 getChildBranch :: NameSegment -> Branch0 m -> Branch m
-getChildBranch seg b = fromMaybe empty $ Map.lookup seg (_children b)
+getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children)
 
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
 
 getPatch :: (Applicative m) => NameSegment -> Branch0 m -> m Patch
-getPatch seg b = case Map.lookup seg (_edits b) of
+getPatch seg b = case Map.lookup seg (b ^. edits) of
   Nothing -> pure Patch.empty
   Just (_, p) -> p
 
 getMaybePatch :: (Applicative m) => NameSegment -> Branch0 m -> m (Maybe Patch)
-getMaybePatch seg b = case Map.lookup seg (_edits b) of
+getMaybePatch seg b = case Map.lookup seg (b ^. edits) of
   Nothing -> pure Nothing
   Just (_, p) -> Just <$> p
 
@@ -570,10 +569,10 @@ transform f b = case _history b of
 
 transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
 transform0 f b =
-  b
-    { _children = transform f <$> _children b,
-      _edits = second f <$> _edits b
-    }
+  branch0 (b ^. terms) (b ^. types) newChildren newEdits
+  where
+    newChildren = transform f <$> (b ^. children)
+    newEdits = second f <$> (b ^. edits)
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.

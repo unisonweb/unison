@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Branch.Type
@@ -112,7 +113,13 @@ history :: Iso' (Branch m) (UnwrappedBranch m)
 history = iso _history Branch
 
 edits :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
-edits = lens _edits (\b0 e -> b0 {_edits = e})
+edits =
+  lens
+    _edits
+    ( \b0 e ->
+        b0 {_edits = e}
+          & deriveIsEmpty
+    )
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms =
@@ -121,6 +128,7 @@ terms =
     \branch terms ->
       branch {_terms = terms}
         & deriveDeepTerms
+        & deriveIsEmpty
 
 types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
 types =
@@ -129,6 +137,7 @@ types =
     \branch types ->
       branch {_types = types}
         & deriveDeepTypes
+        & deriveIsEmpty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = _isEmpty0
@@ -168,11 +177,7 @@ branch0 terms types children edits =
       _types = types,
       _children = children,
       _edits = edits,
-      _isEmpty0 =
-        R.null (Star2.d1 terms)
-          && R.null (Star2.d1 types)
-          && Map.null edits
-          && all (isEmpty0 . head) children,
+      _isEmpty0 = False,
       -- These are all overwritten immediately
       _deepTerms = R.empty,
       _deepTypes = R.empty,
@@ -183,6 +188,16 @@ branch0 terms types children edits =
     & deriveDeepTypes
     & deriveDeepPaths
     & deriveDeepEdits
+    & deriveIsEmpty
+
+deriveIsEmpty :: Branch0 m -> Branch0 m
+deriveIsEmpty b0 =
+  let isEmpty' =
+        R.null (Star2.d1 $ _terms b0)
+          && R.null (Star2.d1 $ _types b0)
+          && Map.null (_edits b0)
+          && all (isEmpty0 . head) (_children b0)
+   in b0 {_isEmpty0 = isEmpty'}
 
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
