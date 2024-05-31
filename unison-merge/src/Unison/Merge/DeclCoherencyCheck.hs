@@ -120,7 +120,7 @@ data IncoherentDeclReason
     --   Foo#Foo
     --   Foo.Bar#Foo#0
     --   Foo.Some.Other.Name.For.Bar#Foo#0
-    IncoherentDeclReason'ConstructorAlias !Name !Name
+    IncoherentDeclReason'ConstructorAlias !Name !Name !Name -- type, first constructor, second constructor
   | IncoherentDeclReason'MissingConstructorName !Name
   | -- | A second naming of a decl was discovered underneath its name, e.g.
     --
@@ -161,7 +161,7 @@ checkDeclCoherency loadDeclNumConstructors =
               Nothing -> Left (IncoherentDeclReason'StrayConstructor name1)
               Just (typeName, expected) ->
                 case recordConstructorName conId name1 expected of
-                  Left existingName -> Left (IncoherentDeclReason'ConstructorAlias existingName name1)
+                  Left existingName -> Left (IncoherentDeclReason'ConstructorAlias typeName existingName name1)
                   Right expected1 -> Right (typeName, expected1)
               where
                 name1 = fullName name

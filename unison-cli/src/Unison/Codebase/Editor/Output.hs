@@ -399,7 +399,7 @@ data Output
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name
+  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
   | MergeMissingConstructorName !MergeSourceOrTarget !Name
   | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
