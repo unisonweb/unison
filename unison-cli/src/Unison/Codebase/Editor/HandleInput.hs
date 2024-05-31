@@ -738,8 +738,6 @@ loop loadMode e = do
               previewResponse sourceName sr uf
             CommitI mayScratchFile -> do
               uf <- handleLoad True LoadForCommit mayScratchFile
-              description <- inputDescription input
-              Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
               libNames <-
                 Cli.getCurrentBranch0
@@ -748,19 +746,14 @@ loop loadMode e = do
               let sr = Slurp.slurpFile uf mempty Slurp.AddOp libNames
               let adds = SlurpResult.adds sr
               beforeBranch0 <- Cli.getCurrentBranch0
-              beforePPED <- Cli.currentPrettyPrintEnvDecl
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf . Branch.onlyLib)
-              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              -- pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf libNames
-              -- let suffixifiedPPE = PPED.suffixifiedPPE pped
-              -- Cli.respond $ SlurpOutput input suffixifiedPPE sr
-              Cli.syncRoot description
+              Cli.Env {codebase} <- ask
+              Cli.runTransaction . Codebase.addDefsToCodebase codebase $ uf
+              description <- inputDescription input
+              Cli.stepAt description (Path.unabsolute currentPath, doSlurpAdds adds uf . Branch.onlyLib)
               afterBranch0 <- getCurrentBranch0
-              afterPPED <- Cli.currentPrettyPrintEnvDecl
-              (_ppe, diff) <- diffHelper beforeBranch0 afterBranch0
-              let pped = afterPPED `PPED.addFallback` beforePPED
+              (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               currentPath <- Cli.getCurrentPath
-              Cli.respondNumbered $ ShowDiffNamespace (Right currentPath) (Right currentPath) (PPED.suffixifiedPPE pped) diff
+              Cli.respondNumbered $ ShowDiffNamespace (Right currentPath) (Right currentPath) ppe diff
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             Update2I -> handleUpdate2
             PreviewUpdateI requestedNames -> do

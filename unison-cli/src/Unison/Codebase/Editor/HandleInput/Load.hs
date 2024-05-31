@@ -31,7 +31,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
@@ -44,13 +43,11 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile.Names qualified as UF
-import Unison.Util.Relation qualified as R
 import Unison.WatchKind qualified as WK
 
 data LoadMode
@@ -91,51 +88,6 @@ loadUnisonFile sourceName text = do
     Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
   pure unisonFile
-  where
-    withFile ::
-      Names ->
-      Text ->
-      Text ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile names sourceName text = do
-      currentPath <- Cli.getCurrentPath
-      State.modify' \loopState ->
-        loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      maybeTypecheckedUnisonFile & onNothing do
-        let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
-        pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
-        let suffixifiedPPE = PPED.suffixifiedPPE pped
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
-        when (not (null cbs)) do
-          Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
-        Cli.returnEarlyWithoutOutput
 
 loadUnisonFileForCommit :: Bool -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
 loadUnisonFileForCommit silent sourceName text = do
@@ -148,17 +100,8 @@ loadUnisonFileForCommit silent sourceName text = do
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp libNames
   let adds = SlurpResult.adds sr
   let afterBranch0 = Update.doSlurpAdds adds unisonFile beforeBranch0LibOnly
-  -- let beforeWithoutLib =
-  --       Branch.withoutLib beforeBranch0
-  let afterWithoutLib = Branch.withoutLib afterBranch0
-  -- Debug.debugM Debug.Temp "Old doc:" (R.lookupRan (Name.unsafeParseText "oauth2.handler.doc") (Branch.deepTerms beforeBranch0))
-  Debug.debugM Debug.Temp "New doc:" (R.lookupRan (Name.unsafeParseText "oauth2.handler.doc") (Branch.deepTerms afterBranch0))
-  Debug.debugM Debug.Temp "New doc Without Lib:" (R.lookupRan (Name.unsafeParseText "oauth2.handler.doc") (Branch.deepTerms afterWithoutLib))
-  -- Debug.debugM Debug.Temp "After Branch terms:" (Branch.deepTerms $ Branch.withoutLib afterBranch0)
-  -- Debug.debugM Debug.Temp "After Branch types:" (Branch.deepTypes $ Branch.withoutLib afterBranch0)
   afterPPED <- Cli.currentPrettyPrintEnvDecl
   (_ppe, diff) <- diffHelper beforeBranch0 afterBranch0
-  -- Debug.debugM Debug.Temp "DIFF" diff
   let pped = afterPPED `PPED.addFallback` beforePPED
   let ppe = PPE.suffixifiedPPE pped
   currentPath <- Cli.getCurrentPath
@@ -171,51 +114,51 @@ loadUnisonFileForCommit silent sourceName text = do
       Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
   pure unisonFile
-  where
-    withFile ::
-      Names ->
-      Text ->
-      Text ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile names sourceName text = do
+
+withFile ::
+  Names ->
+  Text ->
+  Text ->
+  Cli (TypecheckedUnisonFile Symbol Ann)
+withFile names sourceName text = do
+  currentPath <- Cli.getCurrentPath
+  State.modify' \loopState ->
+    loopState
+      & #latestFile .~ Just (Text.unpack sourceName, False)
+      & #latestTypecheckedFile .~ Nothing
+  Cli.Env {codebase, generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names
+          }
+  unisonFile <-
+    Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
+      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+  -- set that the file at least parsed (but didn't typecheck)
+  State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+  typecheckingEnv <-
+    Cli.runTransaction do
+      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+  let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+  maybeTypecheckedUnisonFile & onNothing do
+    let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
+    pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+    let suffixifiedPPE = PPED.suffixifiedPPE pped
+    let tes = [err | Result.TypeError err <- toList notes]
+        cbs =
+          [ bug
+            | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                toList notes
+          ]
+    when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
-      State.modify' \loopState ->
-        loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      maybeTypecheckedUnisonFile & onNothing do
-        let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
-        pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
-        let suffixifiedPPE = PPED.suffixifiedPPE pped
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
-        when (not (null cbs)) do
-          Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
-        Cli.returnEarlyWithoutOutput
+      Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null cbs)) do
+      Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
+    Cli.returnEarlyWithoutOutput
 
 data EvalMode = Sandboxed | Permissive | Native
 
