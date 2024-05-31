@@ -814,7 +814,7 @@ commit =
     )
     \case
       [] -> pure $ Input.CommitI Nothing
-      [file] -> pure $ Input.CommitI . Just $ file
+      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument "a file name" file
       _ -> Left (I.help load)
 
 update :: InputPattern
