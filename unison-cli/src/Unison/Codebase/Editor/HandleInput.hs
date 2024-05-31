@@ -57,6 +57,7 @@ import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.CommitUpgrade (handleCommitUpgrade)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
@@ -963,6 +964,7 @@ loop e = do
             CloneI remoteNames localNames -> handleClone remoteNames localNames
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
+            UpgradeCommitI -> handleCommitUpgrade
             LibInstallI libdep -> handleInstallLib libdep
 
 inputDescription :: Input -> Cli Text
@@ -1138,6 +1140,7 @@ inputDescription input =
     UiI {} -> wat
     UpI {} -> wat
     UpgradeI {} -> wat
+    UpgradeCommitI {} -> wat
     VersionI -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text

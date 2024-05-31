@@ -405,6 +405,7 @@ data Output
   | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
   | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
+  | NoUpgradeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -641,6 +642,7 @@ isFailure o = case o of
   MergeNestedDeclAlias {} -> True
   MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
+  NoUpgradeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

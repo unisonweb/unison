@@ -115,8 +115,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
               { alice =
                   AliceMergeInfo
                     { causalHash = aliceCausalHash,
-                      project = target.project,
-                      projectBranch = target.branch
+                      projectAndBranch = target
                     },
                 bob =
                   BobMergeInfo
@@ -209,9 +208,9 @@ resolveExplicitSource includeSquashed = \case
         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
-    (ProjectAndBranch localProject localBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
-    let localProjectId = localProject.projectId
-    let localBranchId = localBranch.branchId
+    (localProjectAndBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
+    let localProjectId = localProjectAndBranch.project.projectId
+    let localBranchId = localProjectAndBranch.branch.branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
       Just (remoteProjectId, _maybeProjectBranchId) -> do
         remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
@@ -228,9 +227,7 @@ resolveExplicitSource includeSquashed = \case
         pure (ReadShare'ProjectBranch remoteProjectBranch)
       Nothing -> do
         Cli.returnEarly $
-          Output.NoAssociatedRemoteProject
-            Share.hardCodedUri
-            (ProjectAndBranch localProject.name localBranch.name)
+          Output.NoAssociatedRemoteProject Share.hardCodedUri (ProjectUtils.justTheNames localProjectAndBranch)
   ReadShare'ProjectBranch (These projectName branchNameOrLatestRelease) -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName projectName
     let remoteProjectId = remoteProject.projectId
