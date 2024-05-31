@@ -2867,7 +2867,7 @@ authLogin =
   InputPattern
     "auth.login"
     []
-    I.Hidden
+    I.Visible
     []
     ( P.lines
         [ P.wrap "Obtain an authentication session with Unison Share.",
