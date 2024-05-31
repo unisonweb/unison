@@ -24,7 +24,7 @@ import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
+import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffFromTypecheckedUnisonFile)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.Update qualified as Update
 import Unison.Codebase.Editor.Output qualified as Output
@@ -101,7 +101,7 @@ loadUnisonFileForCommit silent sourceName text = do
   let adds = SlurpResult.adds sr
   let afterBranch0 = Update.doSlurpAdds adds unisonFile beforeBranch0LibOnly
   afterPPED <- Cli.currentPrettyPrintEnvDecl
-  (_ppe, diff) <- diffHelper beforeBranch0 afterBranch0
+  (_ppe, diff) <- diffFromTypecheckedUnisonFile unisonFile beforeBranch0 afterBranch0
   let pped = afterPPED `PPED.addFallback` beforePPED
   let ppe = PPE.suffixifiedPPE pped
   currentPath <- Cli.getCurrentPath

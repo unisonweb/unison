@@ -5,7 +5,7 @@
 Add some definitions to the codebase for us to later update.
 
 ```unison
-type MyRecord = 
+type MyRecord =
   { nat : Nat
   , text : Text
   , bool : Boolean
@@ -29,8 +29,8 @@ Should be able to easily change and remove record fields and definitions in a si
 
 ```unison
 -- Rename and re-type the `nat` field to `getNat`
--- Remove the `bool` field 
-type MyRecord = 
+-- Remove the `bool` field
+type MyRecord =
   { getNat : () -> Nat
   , text : Text
   }
@@ -47,6 +47,7 @@ addToRecordField rec = !(getNat rec) + 10
 ```
 
 ```ucm
+.> experimental.commit.preview
 .> experimental.commit
 .> find
 .> view MyRecord
