@@ -23,12 +23,12 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common qualified as Sync.Common
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Witch (unsafeFrom)
 
 -- | Create a new project.

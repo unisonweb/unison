@@ -62,6 +62,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
+import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
@@ -81,7 +82,6 @@ import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -377,12 +377,12 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
                 overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
                   uf
                     & #effectDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
               Right dd ->
                 overwriteConstructorNames name dd <&> \dd' ->
                   uf
                     & #dataDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)

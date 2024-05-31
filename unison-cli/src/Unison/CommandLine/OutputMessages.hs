@@ -94,6 +94,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names

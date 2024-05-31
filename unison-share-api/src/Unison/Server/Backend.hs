@@ -134,6 +134,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment (docSegment, libSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -170,7 +171,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
-import Unison.Syntax.NameSegment qualified as NameSegment (docSegment, libSegment, toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -201,6 +202,10 @@ data ShallowListEntry v a
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
+-- __TODO__: This is only used for sorting, and it seems like it might be better
+--           to avoid `Text` and instead
+--        1. compare as `Name` (using `Name.fromSegment`) and
+--        2. make that the `Ord` instance.
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry te -> termEntryDisplayName te
@@ -212,10 +217,10 @@ data BackendError
   = NoSuchNamespace Path.Absolute
   | -- Failed to parse path
     BadNamespace
-      -- | error message
       String
-      -- | namespace
+      -- ^ error message
       String
+      -- ^ namespace
   | CouldntExpandBranchHash ShortCausalHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
@@ -461,11 +466,11 @@ getTermTag codebase r sig = do
     V2Referent.Con ref _ -> Just <$> Codebase.runTransaction codebase (Codebase.getDeclType codebase ref)
   pure $
     if
-      | isDoc -> Doc
-      | isTest -> Test
-      | Just CT.Effect <- constructorType -> Constructor Ability
-      | Just CT.Data <- constructorType -> Constructor Data
-      | otherwise -> Plain
+        | isDoc -> Doc
+        | isTest -> Test
+        | Just CT.Effect <- constructorType -> Constructor Ability
+        | Just CT.Data <- constructorType -> Constructor Data
+        | otherwise -> Plain
 
 getTypeTag ::
   (Var v) =>

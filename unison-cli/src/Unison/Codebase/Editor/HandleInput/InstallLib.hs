@@ -24,6 +24,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment (libSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
@@ -35,7 +36,7 @@ import Unison.Project
     classifyProjectBranchName,
     projectNameToUserProjectSlugs,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment (libSegment, unsafeParseText)
+import Unison.Syntax.NameSegment qualified as NameSegment (unsafeParseText)
 
 handleInstallLib :: ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
 handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do

@@ -85,6 +85,7 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
@@ -104,7 +105,6 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)

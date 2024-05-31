@@ -20,6 +20,7 @@ import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
@@ -30,7 +31,6 @@ import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NamePrinter (prettyName, styleHashQualified'')
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)

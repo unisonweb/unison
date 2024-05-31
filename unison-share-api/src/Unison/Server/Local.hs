@@ -14,10 +14,10 @@ import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Backend
 import Unison.Sqlite qualified as Sqlite
-import Unison.Syntax.NameSegment qualified as NameSegment
 
 -- | Given an arbitrary query and perspective, find the name root the query belongs in,
 -- then return that root and the query relocated to that root.

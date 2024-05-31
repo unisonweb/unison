@@ -40,9 +40,9 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName)
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Witch (unsafeFrom)
 
 handlePull :: PullSourceTarget -> PullMode -> Verbosity.Verbosity -> Cli ()

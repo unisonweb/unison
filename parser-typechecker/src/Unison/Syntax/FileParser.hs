@@ -16,6 +16,7 @@ import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -26,7 +27,6 @@ import Unison.Reference (TypeReferenceId)
 import Unison.Syntax.DeclParser (declarations)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Syntax.Var qualified as Var (namespaced)

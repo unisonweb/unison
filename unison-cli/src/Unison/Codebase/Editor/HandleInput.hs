@@ -133,6 +133,7 @@ import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names

@@ -51,6 +51,7 @@ import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
@@ -59,7 +60,7 @@ import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), docSegment, wordyP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
 import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 import Unison.Util.Bytes qualified as Bytes

@@ -32,7 +32,8 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment.Internal (NameSegment)
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
@@ -44,7 +45,6 @@ import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Name qualified as Name (nameP, parseText, toText)
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty

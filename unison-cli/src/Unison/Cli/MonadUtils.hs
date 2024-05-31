@@ -111,6 +111,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -119,7 +120,6 @@ import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
