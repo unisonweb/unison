@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput (loop) where
 
 -- TODO: Don't import backend
 
+import Control.Arrow ((&&&))
 import Control.Error.Util qualified as ErrorUtil
 import Control.Lens hiding (from)
 import Control.Monad.Reader (ask)
@@ -43,7 +44,7 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch (..), Branch0 (..))
+import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -79,7 +80,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch)
-import Unison.Codebase.Editor.HandleInput.Push (handleGist, handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
@@ -98,6 +99,7 @@ import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
@@ -145,7 +147,6 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
-import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Server.Doc.Markdown.Render qualified as Md
@@ -221,19 +222,22 @@ loop loadMode e = do
               Cli.respond $ PrintMessage pretty
             ShowReflogI -> do
               let numEntriesToShow = 500
-              entries <-
-                Cli.runTransaction do
-                  schLength <- Codebase.branchHashLength
-                  Codebase.getReflog numEntriesToShow <&> fmap (first $ SCH.fromHash schLength)
+              (schLength, entries) <-
+                Cli.runTransaction $
+                  (,) <$> Codebase.branchHashLength <*> Codebase.getReflog numEntriesToShow
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
-              let numberedEntries = expandedEntries <&> \(_time, hash, _reason) -> "#" <> SCH.toString hash
+              let (shortEntries, numberedEntries) =
+                    unzip $
+                      expandedEntries <&> \(time, hash, reason) ->
+                        let (exp, sa) = (SCH.fromHash schLength &&& SA.Namespace) hash
+                         in ((time, exp, reason), sa)
               Cli.setNumberedArgs numberedEntries
-              Cli.respond $ ShowReflog expandedEntries
+              Cli.respond $ ShowReflog shortEntries
               where
                 expandEntries ::
-                  ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool) ->
-                  Maybe ((Maybe UTCTime, SCH.ShortCausalHash, Text), ([Reflog.Entry SCH.ShortCausalHash Text], Maybe SCH.ShortCausalHash, Bool))
+                  ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool) ->
+                  Maybe ((Maybe UTCTime, CausalHash, Text), ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool))
                 expandEntries ([], Just expectedHash, moreEntriesToLoad) =
                   if moreEntriesToLoad
                     then Nothing
@@ -691,7 +695,7 @@ loop loadMode e = do
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              Cli.setNumberedArgs $ fmap entryToHQString entries
+              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               -- This used to be a delayed action which only forced the loading of the root
@@ -701,20 +705,6 @@ loop loadMode e = do
               -- in an improvement, so perhaps it's not worth the effort.
               let buildPPE = pure suffixifiedPPE
               Cli.respond $ ListShallow buildPPE entries
-              where
-                entryToHQString :: ShallowListEntry v Ann -> String
-                entryToHQString e =
-                  fixup $ Text.unpack case e of
-                    ShallowTypeEntry te -> Backend.typeEntryDisplayName te
-                    ShallowTermEntry te -> Backend.termEntryDisplayName te
-                    ShallowBranchEntry ns _ _ -> NameSegment.toEscapedText ns
-                    ShallowPatchEntry ns -> NameSegment.toEscapedText ns
-                  where
-                    fixup s = case pathArgStr of
-                      "" -> s
-                      p | last p == '.' -> p ++ s
-                      p -> p ++ "." ++ s
-                    pathArgStr = show pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
@@ -848,8 +838,9 @@ loop loadMode e = do
             ListDependenciesI hq -> handleDependencies hq
             NamespaceDependenciesI path -> handleNamespaceDependencies path
             DebugNumberedArgsI -> do
+              schLength <- Cli.runTransaction Codebase.branchHashLength
               numArgs <- use #numberedArgs
-              Cli.respond (DumpNumberedArgs numArgs)
+              Cli.respond (DumpNumberedArgs schLength numArgs)
             DebugTypecheckedUnisonFileI -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               uf <- Cli.expectLatestTypecheckedFile
@@ -912,21 +903,20 @@ loop loadMode e = do
                         Causal.Cons h _bh b tail -> goBranch h b [fst tail] (tail : queue)
                         Causal.Merge h _bh b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
                   goBranch :: forall m. (Monad m) => CausalHash -> Branch0 m -> [CausalHash] -> [(CausalHash, m (Branch.UnwrappedBranch m))] -> StateT (Set CausalHash) m ()
-                  goBranch h b (Set.fromList -> causalParents) queue = case b of
-                    Branch0 terms0 types0 children0 patches0 _ _ _ _ _ ->
-                      let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
-                          ignoreMetadata s r =
-                            (r, R.lookupDom r $ Star2.d1 s)
-                          terms = Map.fromList . map (ignoreMetadata terms0) . Foldable.toList $ Star2.fact terms0
-                          types = Map.fromList . map (ignoreMetadata types0) . Foldable.toList $ Star2.fact types0
-                          patches = fmap fst patches0
-                          children = fmap Branch.headHash children0
-                       in do
-                            let d = Output.DN.DumpNamespace terms types patches children causalParents
-                            -- the alternate implementation that doesn't rely on `traceM` blows up
-                            traceM $ P.toPlain 200 (prettyDump (h, d))
-                            set h
-                            goCausal (map getCausal (Foldable.toList children0) ++ queue)
+                  goBranch h b (Set.fromList -> causalParents) queue =
+                    let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
+                        ignoreMetadata s r =
+                          (r, R.lookupDom r $ Star2.d1 s)
+                        terms = Map.fromList . map (ignoreMetadata (b ^. Branch.terms)) . Foldable.toList $ Star2.fact (b ^. Branch.terms)
+                        types = Map.fromList . map (ignoreMetadata (b ^. Branch.types)) . Foldable.toList $ Star2.fact (b ^. Branch.types)
+                        patches = fmap fst (b ^. Branch.edits)
+                        children = fmap Branch.headHash (b ^. Branch.children)
+                     in do
+                          let d = Output.DN.DumpNamespace terms types patches children causalParents
+                          -- the alternate implementation that doesn't rely on `traceM` blows up
+                          traceM $ P.toPlain 200 (prettyDump (h, d))
+                          set h
+                          goCausal (map getCausal (Foldable.toList (b ^. Branch.children)) ++ queue)
                   prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
                     P.lit "Namespace "
                       <> P.shown h
@@ -984,7 +974,6 @@ loop loadMode e = do
               Cli.respond output
             UpdateBuiltinsI -> Cli.respond NotImplemented
             QuitI -> Cli.haltRepl
-            GistI input -> handleGist input
             AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
             VersionI -> do
               Cli.Env {ucmVersion} <- ask
@@ -1098,7 +1087,7 @@ inputDescription input =
       pure ("update.old" <> p)
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
-    ExecuteI s args -> pure ("execute " <> Text.unwords (s : fmap Text.pack args))
+    ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
@@ -1108,7 +1097,7 @@ inputDescription input =
     MergeIOBuiltinsI (Just path) -> ("builtins.mergeio " <>) <$> p path
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
-      pure $ "run.native " <> Text.unwords (nm : fmap Text.pack args)
+      pure $ "run.native " <> Text.unwords (HQ.toText nm : fmap Text.pack args)
     CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     ClearI {} -> pure "clear"
@@ -1145,7 +1134,6 @@ inputDescription input =
     FindShallowI {} -> wat
     StructuredFindI {} -> wat
     StructuredFindReplaceI {} -> wat
-    GistI {} -> wat
     HistoryI {} -> wat
     LibInstallI {} -> wat
     ListDependenciesI {} -> wat
@@ -1271,7 +1259,7 @@ handleFindI isVerbose fscope ws input = do
                     (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
             pure $ uniqueBy SR.toReferent srs
   let respondResults results = do
-        Cli.setNumberedArgs $ fmap (searchResultToHQString searchRoot) results
+        Cli.setNumberedArgs $ fmap (SA.SearchResult searchRoot) results
         results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
         Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
   results <- getResults names
@@ -1323,12 +1311,10 @@ handleDependencies hq = do
     let types = [(PPE.typeName suffixifiedPPE r, r) | LabeledDependency.TypeReference r <- toList dependencies]
     let terms = [(PPE.termName suffixifiedPPE r, r) | LabeledDependency.TermReferent r <- toList dependencies]
     pure (types, terms)
-  let types = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ fst <$> results)
-  let terms = nubOrdOn snd . Name.sortByText (HQ.toText . fst) $ (join $ snd <$> results)
-  Cli.setNumberedArgs $
-    map (Text.unpack . Reference.toText . snd) types
-      <> map (Text.unpack . Reference.toText . Referent.toReference . snd) terms
-  Cli.respond $ ListDependencies suffixifiedPPE lds (fst <$> types) (fst <$> terms)
+  let types = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst) . join $ fst <$> results
+  let terms = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst) . join $ snd <$> results
+  Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
+  Cli.respond $ ListDependencies suffixifiedPPE lds types terms
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
 handleDependents hq = do
@@ -1345,7 +1331,7 @@ handleDependents hq = do
   results <- for (toList lds) \ld -> do
     -- The full set of dependent references, any number of which may not have names in the current namespace.
     dependents <-
-      let tp r = Codebase.dependents Queries.ExcludeOwnComponent r
+      let tp = Codebase.dependents Queries.ExcludeOwnComponent
           tm = \case
             Referent.Ref r -> Codebase.dependents Queries.ExcludeOwnComponent r
             Referent.Con (ConstructorReference r _cid) _ct ->
@@ -1361,11 +1347,11 @@ handleDependents hq = do
           Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
           pure (isTerm, HQ'.toHQ shortName, r)
     pure results
-  let sort = nubOrdOn snd . Name.sortByText (HQ.toText . fst)
+  let sort = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst)
   let types = sort [(n, r) | (False, n, r) <- join results]
   let terms = sort [(n, r) | (True, n, r) <- join results]
-  Cli.setNumberedArgs $ map (Text.unpack . Reference.toText . view _2) (types <> terms)
-  Cli.respond (ListDependents ppe lds (fst <$> types) (fst <$> terms))
+  Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
+  Cli.respond (ListDependents ppe lds types terms)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
@@ -1477,10 +1463,9 @@ doShowTodoOutput patch scopePath = do
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
     else do
-      Cli.setNumberedArgs
-        ( Text.unpack . Reference.toText . view _2
-            <$> fst (TO.todoFrontierDependents todo)
-        )
+      Cli.setNumberedArgs $
+        SA.HashQualified . HQ.HashOnly . Reference.toShortHash . view _2
+          <$> fst (TO.todoFrontierDependents todo)
       pped <- Cli.currentPrettyPrintEnvDecl
       Cli.respondNumbered $ TodoOutput pped todo
 
@@ -1525,16 +1510,6 @@ confirmedCommand :: Input -> Cli Bool
 confirmedCommand i = do
   loopState <- State.get
   pure $ Just i == (loopState ^. #lastInput)
-
--- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQString :: Maybe Path -> SearchResult -> String
-searchResultToHQString oprefix = \case
-  SR.Tm' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) r
-  SR.Tp' n r _ -> Text.unpack $ HQ.toText $ HQ.requalify (addPrefix <$> n) (Referent.Ref r)
-  _ -> error "impossible match failure"
-  where
-    addPrefix :: Name -> Name
-    addPrefix = maybe id Path.prefixName2 oprefix
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
@@ -1808,7 +1783,7 @@ displayI outputLoc hq = do
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
       doDisplay outputLoc ns tm
 
-docsI :: Path.HQSplit' -> Cli ()
+docsI :: Name -> Cli ()
 docsI src = do
   findInScratchfileByName
   where
@@ -1816,14 +1791,8 @@ docsI src = do
        (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
-    hq :: HQ.HashQualified Name
-    hq =
-      let hq' :: HQ'.HashQualified Name
-          hq' = Path.unsafeToName' <$> Name.convert src
-       in Name.convert hq'
-
     dotDoc :: HQ.HashQualified Name
-    dotDoc = hq <&> \n -> Name.joinDot n (Name.fromSegment "doc")
+    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment "doc"
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do

@@ -10,7 +10,7 @@ module Unison.KindInference.Solve
   )
 where
 
-import Control.Lens (Prism', prism', review, (%~))
+import Control.Lens (Prism', prism', review)
 import Control.Monad.Reader (asks)
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
@@ -127,19 +127,19 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
           -- Signal that we solved something on this pass (by passing
           -- @True@) and continue
           Right () -> go True acc cs
-  
-    -- | tracing helper
+
+    -- \| tracing helper
     dbg ::
       forall a.
-      -- | A hanging prefix or header
+      -- \| A hanging prefix or header
       P.Pretty P.ColorText ->
-      -- | The constraints to print
+      -- \| The constraints to print
       [GeneratedConstraint v loc] ->
       ([GeneratedConstraint v loc] -> Solve v loc a) ->
       Solve v loc a
     dbg = traceApp \ppe cs -> prettyConstraints ppe (map (review _Generated) cs)
 
-    -- | Like @dbg@, but for a single constraint
+    -- \| Like @dbg@, but for a single constraint
     dbgSingle ::
       forall a.
       P.Pretty P.ColorText ->
@@ -148,7 +148,7 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
       Solve v loc a
     dbgSingle = traceApp \ppe c -> prettyConstraintD' ppe (review _Generated c)
 
-    -- | A helper for @dbg*@
+    -- \| A helper for @dbg*@
     traceApp ::
       forall a b.
       (PrettyPrintEnv -> a -> P.Pretty P.ColorText) ->
@@ -231,21 +231,21 @@ addConstraint' = \case
       _ -> Nothing
   Unsolved.Unify l a b -> Right <$> union l a b
   where
-    -- | A helper for solving various @Is*@ constraints. In each case
+    -- \| A helper for solving various @Is*@ constraints. In each case
     -- we want to lookup any existing constraints on the constrained
     -- variable. If none exist then we simply add the new constraint,
     -- as it can't conflict with anything. If there is an existing
     -- constraint we defer to the passed in function.
     handleConstraint ::
-      -- | The variable mentioned in the input constraint
+      -- \| The variable mentioned in the input constraint
       UVar v loc ->
-      -- | The new constraint
+      -- \| The new constraint
       Solved.Constraint (UVar v loc) v loc ->
-      -- | How to handle the an existing constraint
+      -- \| How to handle the an existing constraint
       ( Solved.Constraint (UVar v loc) v loc ->
         Maybe (Solved.Constraint (UVar v loc) v loc, [UnsolvedConstraint v loc])
       ) ->
-      -- | An error or a list of implied constraints
+      -- \| An error or a list of implied constraints
       Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
     handleConstraint s solvedConstraint phi = do
       st@SolveState {constraints} <- M.get
@@ -321,7 +321,6 @@ initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) 
 initialState env =
   let ((), finalState) = run env emptyState initializeState
    in finalState
-
 
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()
 initializeState = assertGen do

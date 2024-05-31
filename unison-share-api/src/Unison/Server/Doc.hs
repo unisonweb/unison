@@ -8,7 +8,6 @@
 
 module Unison.Server.Doc where
 
-import Control.Lens (view, (^.))
 import Control.Monad
 import Data.Aeson (ToJSON)
 import Data.Foldable

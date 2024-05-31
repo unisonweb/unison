@@ -2,10 +2,10 @@
 
 module Unison.PrettyPrintEnv.MonadPretty where
 
-import Control.Lens (over, set, view, views, _1, _2)
+import Control.Lens (views, _1, _2)
 import Control.Monad.Reader (MonadReader, Reader, local, runReader)
 import Data.Set qualified as Set
-import Unison.Prelude (Set)
+import Unison.Prelude 
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.Var (Var)
 

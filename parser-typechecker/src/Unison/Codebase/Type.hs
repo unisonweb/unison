@@ -4,21 +4,13 @@
 module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
-    GitPushBehavior (..),
-    GitError (..),
     LocalOrRemote (..),
-    gitErrorFromOpenCodebaseError,
   )
 where
 
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference qualified as V2
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.Git qualified as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadGitRepo, WriteGitRepo)
-import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
-import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (..))
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
@@ -80,9 +72,6 @@ data Codebase m v a = Codebase
     syncFromDirectory :: CodebasePath -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> Branch m -> m (),
-    viewRemoteBranch' :: forall r. ReadGitRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
-    -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: forall e. WriteGitRepo -> GitPushBehavior -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
@@ -106,28 +95,3 @@ data LocalOrRemote
   = Local
   | Remote
   deriving (Show, Eq, Ord)
-
-data GitPushBehavior
-  = -- | Don't set root, just sync entities.
-    GitPushBehaviorGist
-  | -- | After syncing entities, do a fast-forward check, then set the root.
-    GitPushBehaviorFf
-  | -- | After syncing entities, just set the root (force-pushy).
-    GitPushBehaviorForce
-
-data GitError
-  = GitProtocolError GitProtocolError
-  | GitCodebaseError (GitCodebaseError CausalHash)
-  | GitSqliteCodebaseError GitSqliteCodebaseError
-  deriving (Show)
-
-instance Exception GitError
-
-gitErrorFromOpenCodebaseError :: CodebasePath -> ReadGitRepo -> OpenCodebaseError -> GitSqliteCodebaseError
-gitErrorFromOpenCodebaseError path repo = \case
-  OpenCodebaseDoesntExist -> NoDatabaseFile repo path
-  OpenCodebaseUnknownSchemaVersion v ->
-    UnrecognizedSchemaVersion repo path (fromIntegral v)
-  OpenCodebaseRequiresMigration fromSv toSv ->
-    CodebaseRequiresMigration fromSv toSv
-  OpenCodebaseFileLockFailed -> CodebaseFileLockFailed

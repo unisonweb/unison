@@ -5,6 +5,6 @@
     name = "ucm";
     tag = "latest";
     contents = with pkgs; [ cacert fzf ];
-    config.Cmd = [ "${haskell-nix."unison-cli:exe:unison"}/bin/unison" ];
+    config.Cmd = [ "${haskell-nix."unison-cli-main:exe:unison"}/bin/unison" ];
   };
 }

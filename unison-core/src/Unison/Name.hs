@@ -56,7 +56,7 @@ module Unison.Name
   )
 where
 
-import Control.Lens (mapped, over, _1, _2)
+import Control.Lens (mapped, _1, _2)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))

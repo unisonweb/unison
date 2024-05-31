@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   )
 where
 
-import Control.Lens ((^.))
 import Data.These (These (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)

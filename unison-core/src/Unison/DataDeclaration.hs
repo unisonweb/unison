@@ -33,10 +33,11 @@ module Unison.DataDeclaration
     constructors_,
     asDataDecl_,
     declAsDataDecl_,
+    setConstructorNames,
   )
 where
 
-import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, _2, _3)
 import Control.Monad.State (evalState)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -163,6 +164,20 @@ constructorVars dd = fst <$> constructors dd
 
 constructorNames :: (Var v) => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
+
+-- | Overwrite the constructor names with the given list, given in canonical order, which is assumed to be of the
+-- correct length.
+--
+-- Presumably this is called because the decl was loaded from the database outside of the context of a namespace,
+-- since it's not stored with names there, so we had plugged in dummy names like "Constructor1", "Constructor2", ...
+--
+-- Then, at some point, we discover the constructors' names in a namespace, and now we'd like to combine the two
+-- together to get a Decl structure in memory with good/correct names for constructors.
+setConstructorNames :: [v] -> Decl v a -> Decl v a
+setConstructorNames constructorNames =
+  over
+    (declAsDataDecl_ . constructors_)
+    (zipWith (set _2) constructorNames)
 
 -- This function is unsound, since the `rid` and the `decl` have to match.
 -- It should probably be hashed directly from the Decl, once we have a

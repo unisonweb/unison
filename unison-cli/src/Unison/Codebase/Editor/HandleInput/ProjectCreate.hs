@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
-import Control.Lens (over, (^.))
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text

@@ -1,7 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     BranchSourceI (..),
-    GistInput (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
@@ -32,7 +31,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -158,7 +157,7 @@ data Input
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
-    ExecuteI Text [String]
+    ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]
@@ -168,7 +167,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI Text [String]
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI Text (HQ.HashQualified Name)
   | TestI TestInput
@@ -176,7 +175,7 @@ data Input
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | -- Display docs for provided terms.
-    DocsI (NonEmpty Path.HQSplit')
+    DocsI (NonEmpty Name)
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
@@ -211,7 +210,6 @@ data Input
   | UiI Path'
   | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
-  | GistI GistInput
   | AuthLoginI
   | VersionI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
@@ -238,12 +236,6 @@ data BranchSourceI
     BranchSourceI'Empty
   | -- | Create a branch from this loose-code-or-project
     BranchSourceI'LooseCodeOrProject LooseCodeOrProject
-  deriving stock (Eq, Show)
-
--- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
-data GistInput = GistInput
-  { repo :: WriteGitRepo
-  }
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.

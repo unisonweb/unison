@@ -3,7 +3,7 @@ module Unison.Codebase.BranchDiff where
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.HashTags (PatchHash)
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Patch (Patch, PatchDiff)
 import Unison.Codebase.Patch qualified as Patch

@@ -5,7 +5,7 @@ module Unison.Codebase.Branch
   ( -- * Branch types
     Branch (..),
     UnwrappedBranch,
-    Branch0 (..),
+    Branch0,
     Raw,
     Star,
     NamespaceHash,
@@ -25,6 +25,7 @@ module Unison.Codebase.Branch
 
     -- * Branch tests
     isEmpty,
+    isEmpty0,
     isOne,
     before,
     lca,
@@ -84,6 +85,10 @@ module Unison.Codebase.Branch
     edits,
 
     -- ** Term/type queries
+    deepTerms,
+    deepTypes,
+    deepEdits,
+    deepPaths,
     deepReferents,
     deepTermReferences,
     deepTypeReferences,
@@ -92,32 +97,35 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
-import Control.Monad.State (State)
-import Control.Monad.State qualified as State
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
-import Data.Sequence qualified as Seq
-import Data.Set qualified as Set
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
-    Branch0 (..),
+    Branch0,
     NamespaceHash,
     Star,
     UnwrappedBranch,
+    branch0,
+    children,
+    deepEdits,
+    deepPaths,
+    deepTerms,
+    deepTypes,
     edits,
     head,
     headHash,
     history,
-    namespaceHash,
+    isEmpty0,
+    nonEmptyChildren,
+    terms,
+    types,
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
-import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path (..))
@@ -133,7 +141,6 @@ import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.List qualified as List
-import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -154,30 +161,29 @@ instance Hashing.ContentAddressable (Branch0 m) where
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
-withoutLib Branch0 {..} =
-  let newChildren =
-        _children
-          & imapMaybe
-            ( \nameSegment child ->
-                if nameSegment == NameSegment.libSegment
-                  then Nothing
-                  else Just (child & head_ %~ withoutLib)
-            )
-   in branch0 _terms _types newChildren _edits
+withoutLib b =
+  b
+    & children
+      %~ imapMaybe
+        ( \nameSegment child ->
+            if nameSegment == NameSegment.libSegment
+              then Nothing
+              else Just (child & head_ %~ withoutLib)
+        )
 
 -- | Remove any transitive libs reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutTransitiveLibs :: Branch0 m -> Branch0 m
-withoutTransitiveLibs Branch0 {..} =
+withoutTransitiveLibs b0 =
   let newChildren =
-        _children
+        (b0 ^. children)
           & imapMaybe
             ( \nameSegment child ->
                 if nameSegment == NameSegment.libSegment
                   then Just (child & head_ %~ withoutLib)
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
-   in branch0 _terms _types newChildren _edits
+   in b0 & children .~ newChildren
 
 onlyLib :: Branch0 m -> Branch0 m
 onlyLib Branch0 {..} =
@@ -203,179 +209,13 @@ deepTermReferences =
 deepTypeReferences :: Branch0 m -> Set TypeReference
 deepTypeReferences = R.dom . deepTypes
 
-terms :: Lens' (Branch0 m) (Star Referent NameSegment)
-terms =
-  lens
-    _terms
-    \branch terms ->
-      branch {_terms = terms}
-        & deriveDeepTerms
-
-types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
-types =
-  lens
-    _types
-    \branch types ->
-      branch {_types = types}
-        & deriveDeepTypes
-
-children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
-children = lens _children (\Branch0 {..} x -> branch0 _terms _types x _edits)
-
-nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
-nonEmptyChildren b =
-  b
-    & _children
-    & Map.filter (not . isEmpty0 . head)
-
 namespaceStats :: Branch0 m -> NamespaceStats
-namespaceStats Branch0 {deepTerms, deepTypes, deepEdits} =
+namespaceStats b =
   NamespaceStats
-    { numContainedTerms = Relation.size deepTerms,
-      numContainedTypes = Relation.size deepTypes,
-      numContainedPatches = Map.size deepEdits
+    { numContainedTerms = Relation.size $ deepTerms b,
+      numContainedTypes = Relation.size $ deepTypes b,
+      numContainedPatches = Map.size $ deepEdits b
     }
-
--- creates a Branch0 from the primary fields and derives the others.
-branch0 ::
-  forall m.
-  Metadata.Star Referent NameSegment ->
-  Metadata.Star TypeReference NameSegment ->
-  Map NameSegment (Branch m) ->
-  Map NameSegment (PatchHash, m Patch) ->
-  Branch0 m
-branch0 terms types children edits =
-  Branch0
-    { _terms = terms,
-      _types = types,
-      _children = children,
-      _edits = edits,
-      isEmpty0 =
-        R.null (Star2.d1 terms)
-          && R.null (Star2.d1 types)
-          && Map.null edits
-          && all (isEmpty0 . head) children,
-      -- These are all overwritten immediately
-      deepTerms = R.empty,
-      deepTypes = R.empty,
-      deepPaths = Set.empty,
-      deepEdits = Map.empty
-    }
-    & deriveDeepTerms
-    & deriveDeepTypes
-    & deriveDeepPaths
-    & deriveDeepEdits
-
--- | Derive the 'deepTerms' field of a branch.
-deriveDeepTerms :: Branch0 m -> Branch0 m
-deriveDeepTerms branch =
-  branch {deepTerms = R.fromList (makeDeepTerms branch)}
-  where
-    makeDeepTerms :: Branch0 m -> [(Referent, Name)]
-    makeDeepTerms branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        -- `reversePrefix` might be ["Nat", "base", "lib"], and `b0` the `Nat` sub-namespace.
-        -- Then `R.toList` might produce the NameSegment "+", and we put the two together to
-        -- construct the name `Name Relative ("+" :| ["Nat","base","lib"])`.
-        go ::
-          forall m.
-          Seq (DeepChildAcc m) ->
-          [(Referent, Name)] ->
-          DeepState m [(Referent, Name)]
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let terms :: [(Referent, Name)]
-              terms =
-                map
-                  (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix)))
-                  (R.toList (Star2.d1 (_terms b0)))
-          children <- deepChildrenHelper e
-          go (work <> children) (terms <> acc)
-
--- | Derive the 'deepTypes' field of a branch.
-deriveDeepTypes :: forall m. Branch0 m -> Branch0 m
-deriveDeepTypes branch =
-  branch {deepTypes = R.fromList (makeDeepTypes branch)}
-  where
-    makeDeepTypes :: Branch0 m -> [(TypeReference, Name)]
-    makeDeepTypes branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go ::
-          Seq (DeepChildAcc m) ->
-          [(TypeReference, Name)] ->
-          DeepState m [(TypeReference, Name)]
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let types :: [(TypeReference, Name)]
-              types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star2.d1 (_types b0)))
-          children <- deepChildrenHelper e
-          go (work <> children) (types <> acc)
-
--- | Derive the 'deepPaths' field of a branch.
-deriveDeepPaths :: forall m. Branch0 m -> Branch0 m
-deriveDeepPaths branch =
-  branch {deepPaths = makeDeepPaths branch}
-  where
-    makeDeepPaths :: Branch0 m -> Set Path
-    makeDeepPaths branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState m (Set Path)
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let paths :: Set Path
-              paths =
-                if isEmpty0 b0
-                  then Set.empty
-                  else (Set.singleton . Path . Seq.fromList . reverse) reversePrefix
-          children <- deepChildrenHelper e
-          go (work <> children) (paths <> acc)
-
--- | Derive the 'deepEdits' field of a branch.
-deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
-deriveDeepEdits branch =
-  branch {deepEdits = makeDeepEdits branch}
-  where
-    makeDeepEdits :: Branch0 m -> Map Name PatchHash
-    makeDeepEdits branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go :: (Seq (DeepChildAcc m)) -> Map Name PatchHash -> DeepState m (Map Name PatchHash)
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let edits :: Map Name PatchHash
-              edits =
-                Map.mapKeysMonotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (fst <$> _edits b0)
-          children <- deepChildrenHelper e
-          go (work <> children) (edits <> acc)
-
--- | State used by deepChildrenHelper to determine whether to descend into a child branch.
--- Contains the set of visited namespace hashes.
-type DeepState m = State (Set (NamespaceHash m))
-
--- | Represents a unit of remaining work in traversing children for computing `deep*`.
--- (reverse prefix to a branch, the number of `lib` segments in the reverse prefix, and the branch itself)
-type DeepChildAcc m = ([NameSegment], Int, Branch0 m)
-
--- | Helper for knowing whether to descend into a child branch or not.
--- Accepts child namespaces with previously unseen hashes, and any nested under 1 or fewer `lib` segments.
-deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m (Seq (DeepChildAcc m))
-deepChildrenHelper (reversePrefix, libDepth, b0) = do
-  let go :: (NameSegment, Branch m) -> DeepState m (Seq (DeepChildAcc m))
-      go (ns, b) = do
-        let h = namespaceHash b
-        result <- do
-          let isShallowDependency = libDepth <= 1
-          isUnseenNamespace <- State.gets (Set.notMember h)
-          pure
-            if isShallowDependency || isUnseenNamespace
-              then
-                let libDepth' = if ns == NameSegment.libSegment then libDepth + 1 else libDepth
-                 in Seq.singleton (ns : reversePrefix, libDepth', head b)
-              else Seq.empty
-        State.modify' (Set.insert h)
-        pure result
-  Monoid.foldMapM go (Map.toList (nonEmptyChildren b0))
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
@@ -388,9 +228,9 @@ deepEdits' = go id
   where
     -- can change this to an actual prefix once Name is a [NameSegment]
     go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
-    go addPrefix Branch0 {_children, _edits} =
-      Map.mapKeys (addPrefix . Name.fromSegment) _edits
-        <> foldMap f (Map.toList _children)
+    go addPrefix b0 =
+      Map.mapKeys (addPrefix . Name.fromSegment) (b0 ^. edits)
+        <> foldMap f (Map.toList (b0 ^. children))
       where
         f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
         f (c, b) = go (addPrefix . Name.cons c) (head b)
@@ -416,7 +256,7 @@ toList0 = go Path.empty
   where
     go p b =
       (p, b)
-        : ( Map.toList (_children b)
+        : ( Map.toList (b ^. children)
               >>= ( \(seg, cb) ->
                       go (Path.snoc p seg) (head cb)
                   )
@@ -429,7 +269,7 @@ getAt ::
   Maybe (Branch m)
 getAt path root = case Path.uncons path of
   Nothing -> if isEmpty root then Nothing else Just root
-  Just (seg, path) -> case Map.lookup seg (_children $ head root) of
+  Just (seg, path) -> case Map.lookup seg (head root ^. children) of
     Just b -> getAt path b
     Nothing -> Nothing
 
@@ -439,7 +279,7 @@ getAt' p b = fromMaybe empty $ getAt p b
 getAt0 :: Path -> Branch0 m -> Branch0 m
 getAt0 p b = case Path.uncons p of
   Nothing -> b
-  Just (seg, path) -> case Map.lookup seg (_children b) of
+  Just (seg, path) -> case Map.lookup seg (b ^. children) of
     Just c -> getAt0 path (head c)
     Nothing -> empty0
 
@@ -450,18 +290,7 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 =
-  Branch0
-    { _terms = mempty,
-      _types = mempty,
-      _children = Map.empty,
-      _edits = Map.empty,
-      isEmpty0 = True,
-      deepTerms = Relation.empty,
-      deepTypes = Relation.empty,
-      deepPaths = Set.empty,
-      deepEdits = Map.empty
-    }
+empty0 = branch0 mempty mempty mempty mempty
 
 -- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
@@ -551,27 +380,27 @@ stepManyAtM actions startBranch = do
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
   (Applicative m) => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepEverywhere f Branch0 {..} = f (branch0 _terms _types children _edits)
+stepEverywhere f b0 = f (b0 & children %~ updates)
   where
-    children = fmap (step $ stepEverywhere f) _children
+    updates = fmap (step $ stepEverywhere f)
 
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
 -- otherwise update it.
 -- Todo: Fix this in hashing & serialization instead of here?
 getChildBranch :: NameSegment -> Branch0 m -> Branch m
-getChildBranch seg b = fromMaybe empty $ Map.lookup seg (_children b)
+getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children)
 
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
 
 getPatch :: (Applicative m) => NameSegment -> Branch0 m -> m Patch
-getPatch seg b = case Map.lookup seg (_edits b) of
+getPatch seg b = case Map.lookup seg (b ^. edits) of
   Nothing -> pure Patch.empty
   Just (_, p) -> p
 
 getMaybePatch :: (Applicative m) => NameSegment -> Branch0 m -> m (Maybe Patch)
-getMaybePatch seg b = case Map.lookup seg (_edits b) of
+getMaybePatch seg b = case Map.lookup seg (b ^. edits) of
   Nothing -> pure Nothing
   Just (_, p) -> Just <$> p
 
@@ -745,10 +574,10 @@ transform f b = case _history b of
 
 transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
 transform0 f b =
-  b
-    { _children = transform f <$> _children b,
-      _edits = second f <$> _edits b
-    }
+  branch0 (b ^. terms) (b ^. types) newChildren newEdits
+  where
+    newChildren = transform f <$> (b ^. children)
+    newEdits = second f <$> (b ^. edits)
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.

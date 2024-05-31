@@ -79,9 +79,9 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
     pure $
       fresh
         (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
-        ( case Map.lookup NameSegment.libSegment currentBranchObject._children of
+        ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children) of
             Nothing -> Set.empty
-            Just libdeps -> Map.keysSet (Branch._children (Branch.head libdeps))
+            Just libdeps -> Map.keysSet ((Branch.head libdeps) ^. Branch.children)
         )
         (makeDependencyName libdepProjectName libdepBranchName)
 

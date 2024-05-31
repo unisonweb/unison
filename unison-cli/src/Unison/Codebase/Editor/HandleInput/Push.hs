@@ -1,13 +1,11 @@
 -- | @push@ input handler
 module Unison.Codebase.Editor.HandleInput.Push
-  ( handleGist,
-    handlePushRemoteBranch,
+  ( handlePushRemoteBranch,
   )
 where
 
 import Control.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Lens (over, view, (.~), (^.), _1, _2)
-import Control.Monad.Reader (ask)
+import Control.Lens (_1, _2)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
@@ -26,13 +24,9 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
-import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch (..))
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
-  ( GistInput (..),
-    PushRemoteBranchInput (..),
+  ( PushRemoteBranchInput (..),
     PushSource (..),
     PushSourceTarget (..),
   )
@@ -40,20 +34,13 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRemoteNamespace (..),
-    ReadRemoteNamespace (..),
-    WriteGitRemoteNamespace (..),
-    WriteRemoteNamespace (..),
+  ( WriteRemoteNamespace (..),
     WriteShareRemoteNamespace (..),
-    writeToReadGit,
   )
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.PushBehavior qualified as PushBehavior
-import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Type (GitPushBehavior (..))
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
-import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment (..))
@@ -76,25 +63,6 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Types qualified as Share
 import Witch (unsafeFrom)
 
--- | Handle a @gist@ command.
-handleGist :: GistInput -> Cli ()
-handleGist (GistInput repo) = do
-  Cli.Env {codebase} <- ask
-  sourceBranch <- Cli.getCurrentBranch
-  result <-
-    Cli.ioE (Codebase.pushGitBranch codebase repo GitPushBehaviorGist (\_remoteRoot -> pure (Right sourceBranch))) \err ->
-      Cli.returnEarly (Output.GitError err)
-  _branch <- result & onLeft Cli.returnEarly
-  schLength <- Cli.runTransaction Codebase.branchHashLength
-  Cli.respond $
-    GistCreated $
-      ReadRemoteNamespaceGit
-        ReadGitRemoteNamespace
-          { repo = writeToReadGit repo,
-            sch = Just (SCH.fromHash schLength (Branch.headHash sourceBranch)),
-            path = Path.empty
-          }
-
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
 handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
@@ -105,7 +73,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
         Nothing -> do
           localPath <- Cli.getCurrentPath
           UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
-            WriteRemoteNamespaceGit namespace -> pushLooseCodeToGitLooseCode localPath namespace pushBehavior
             WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
             WriteRemoteProjectBranch v -> absurd v
         Just (localProjectAndBranch, _restPath) ->
@@ -113,10 +80,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
             force
             localProjectAndBranch
             Nothing
-    -- push <implicit> to .some.path (git)
-    PushSourceTarget1 (WriteRemoteNamespaceGit namespace) -> do
-      localPath <- Cli.getCurrentPath
-      pushLooseCodeToGitLooseCode localPath namespace pushBehavior
     -- push <implicit> to .some.path (share)
     PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.getCurrentPath
@@ -130,10 +93,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
           pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
         Just (localProjectAndBranch, _restPath) ->
           pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
-    -- push .some.path to .some.path (git)
-    PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceGit namespace) -> do
-      localPath <- Cli.resolvePath' localPath0
-      pushLooseCodeToGitLooseCode localPath namespace pushBehavior
     -- push .some.path to .some.path (share)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.resolvePath' localPath0
@@ -143,13 +102,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
       localPath <- Cli.resolvePath' localPath0
       remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
-    -- push @some/project to .some.path (git)
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceGit namespace) -> do
-      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
-      pushLooseCodeToGitLooseCode
-        (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
-        namespace
-        pushBehavior
     -- push @some/project to .some.path (share)
     PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
       ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
@@ -167,49 +119,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
         PushBehavior.ForcePush -> True
         PushBehavior.RequireEmpty -> False
         PushBehavior.RequireNonEmpty -> False
-
--- Push a local namespace ("loose code") to a Git-hosted remote namespace ("loose code").
-pushLooseCodeToGitLooseCode :: Path.Absolute -> WriteGitRemoteNamespace -> PushBehavior -> Cli ()
-pushLooseCodeToGitLooseCode localPath gitRemotePath pushBehavior = do
-  sourceBranch <- Cli.getBranchAt localPath
-  let withRemoteRoot :: Branch IO -> Either Output (Branch IO)
-      withRemoteRoot remoteRoot = do
-        let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if
-            -- this rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch`
-            -- already.
-            f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-        case Branch.modifyAtM (gitRemotePath ^. #path) f remoteRoot of
-          Nothing -> Left (RefusedToPush pushBehavior (WriteRemoteNamespaceGit gitRemotePath))
-          Just newRemoteRoot -> Right newRemoteRoot
-  let behavior =
-        case pushBehavior of
-          PushBehavior.ForcePush -> GitPushBehaviorForce
-          PushBehavior.RequireEmpty -> GitPushBehaviorFf
-          PushBehavior.RequireNonEmpty -> GitPushBehaviorFf
-  Cli.Env {codebase} <- ask
-  let push =
-        Codebase.pushGitBranch
-          codebase
-          (gitRemotePath ^. #repo)
-          behavior
-          (\remoteRoot -> pure (withRemoteRoot remoteRoot))
-  result <-
-    liftIO push & onLeftM \err ->
-      Cli.returnEarly (Output.GitError err)
-  _branch <- result & onLeft Cli.returnEarly
-  Cli.respond Success
-  where
-    -- Per `pushBehavior`, we are either:
-    --
-    --   (1) force-pushing, in which case the remote branch state doesn't matter
-    --   (2) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-    --   (3) updating a non-empty branch, which fails if the branch is empty (`push`)
-    shouldPushTo :: PushBehavior -> Branch m -> Bool
-    shouldPushTo pushBehavior remoteBranch =
-      case pushBehavior of
-        PushBehavior.ForcePush -> True
-        PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
-        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
 -- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
 pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemoteNamespace -> PushBehavior -> Cli ()
@@ -655,7 +564,6 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
   when (localBranchHead == Share.API.hashJWTHash remoteBranch.branchHead) do
     Cli.respond (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
     Cli.returnEarly (ViewOnShare (Right (Share.hardCodedUri, remoteBranch.projectName, remoteBranch.branchName)))
-
 
   when (not force) do
     whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
