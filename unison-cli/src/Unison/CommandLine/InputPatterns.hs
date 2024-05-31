@@ -815,7 +815,7 @@ commit =
     )
     \case
       [] -> pure $ Input.CommitI Nothing
-      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument "a file name" file
+      [file] -> Input.CommitI . Just <$> unsupportedStructuredArgument "a file name" file
       _ -> Left (I.help load)
 
 commitPreview :: InputPattern
@@ -828,8 +828,8 @@ commitPreview =
     ( "`experimental.commit.preview` shows the diff which would be applied if you were to run " <> patternName commit
     )
     \case
-      [] -> pure $ Input.CommitI Nothing
-      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument "a file name" file
+      [] -> pure $ Input.CommitPreviewI Nothing
+      [file] -> Input.CommitPreviewI . Just <$> unsupportedStructuredArgument "a file name" file
       _ -> Left (I.help load)
 
 update :: InputPattern
@@ -3190,6 +3190,7 @@ validInputs =
       clone,
       compileScheme,
       commit,
+      commitPreview,
       createAuthor,
       debugClearWatchCache,
       debugDoctor,

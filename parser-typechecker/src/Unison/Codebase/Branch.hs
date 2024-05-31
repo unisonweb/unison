@@ -187,9 +187,8 @@ withoutTransitiveLibs b0 =
 
 onlyLib :: Branch0 m -> Branch0 m
 onlyLib b =
-  b
-    & children %~ \c ->
-      (Map.singleton NameSegment.libSegment (fromMaybe empty $ Map.lookup NameSegment.libSegment c))
+  let newChildren = (Map.singleton NameSegment.libSegment (fromMaybe empty $ Map.lookup NameSegment.libSegment (b ^. children)))
+   in branch0 mempty mempty newChildren mempty
 
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m

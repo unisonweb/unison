@@ -32,6 +32,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as Names
 
 diffHelper ::
   Branch0 IO ->
@@ -69,13 +70,15 @@ diffFromTypecheckedUnisonFile tf before after = do
     names <- Cli.currentNames
     pped <- Cli.prettyPrintEnvDeclFromNames names
     let suffixifiedPPE = PPED.suffixifiedPPE pped
+    let beforeNames = Branch.toNames before
+    let afterNames = Names.addNamesFromTypeCheckedUnisonFile tf (Branch.toNames after)
     fmap (suffixifiedPPE,) do
       OBranchDiff.toOutput
         (getTypeOfReferent codebase)
         (getDeclOrBuiltin codebase)
         hqLength
-        (Branch.toNames before)
-        (Branch.toNames after)
+        beforeNames
+        afterNames
         diff
   where
     TL.TypeLookup {dataDecls, effectDecls} = UF.typeLookupForTypecheckedFile tf

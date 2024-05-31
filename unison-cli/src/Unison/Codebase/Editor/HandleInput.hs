@@ -710,7 +710,7 @@ loop loadMode e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-            LoadI maybePath -> void $ handleLoad False loadMode maybePath
+            LoadI maybePath -> void $ handleLoad True loadMode maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
               description <- inputDescription input

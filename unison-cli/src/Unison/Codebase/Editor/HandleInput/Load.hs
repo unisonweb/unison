@@ -58,7 +58,7 @@ data LoadMode
   deriving (Show, Eq, Ord)
 
 handleLoad :: Bool -> LoadMode -> Maybe FilePath -> Cli (TypecheckedUnisonFile Symbol Ann)
-handleLoad silent loadMode maybePath = do
+handleLoad showWatchExprs loadMode maybePath = do
   latestFile <- Cli.getLatestFile
   path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly Output.NoUnisonFile)
   Cli.Env {loadSource} <- ask
@@ -69,7 +69,7 @@ handleLoad silent loadMode maybePath = do
       Cli.LoadSuccess contents -> pure contents
   case loadMode of
     Normal -> loadUnisonFile (Text.pack path) contents
-    LoadForCommit -> loadUnisonFileForCommit silent (Text.pack path) contents
+    LoadForCommit -> loadUnisonFileForCommit showWatchExprs (Text.pack path) contents
 
 loadUnisonFile :: Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
 loadUnisonFile sourceName text = do
@@ -90,8 +90,8 @@ loadUnisonFile sourceName text = do
   pure unisonFile
 
 loadUnisonFileForCommit :: Bool -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
-loadUnisonFileForCommit silent sourceName text = do
-  when (not silent) . Cli.respond $ Output.LoadingFile sourceName
+loadUnisonFileForCommit showWatchExprs sourceName text = do
+  Cli.respond $ Output.LoadingFile sourceName
   beforeBranch0 <- Cli.getCurrentBranch0
   let beforeBranch0LibOnly = Branch.onlyLib beforeBranch0
   beforePPED <- Cli.currentPrettyPrintEnvDecl
@@ -100,13 +100,13 @@ loadUnisonFileForCommit silent sourceName text = do
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp libNames
   let adds = SlurpResult.adds sr
   let afterBranch0 = Update.doSlurpAdds adds unisonFile beforeBranch0LibOnly
-  afterPPED <- Cli.currentPrettyPrintEnvDecl
+  afterPPED <- Cli.prettyPrintEnvDeclFromNames (Branch.toNames afterBranch0)
   (_ppe, diff) <- diffFromTypecheckedUnisonFile unisonFile beforeBranch0 afterBranch0
   let pped = afterPPED `PPED.addFallback` beforePPED
   let ppe = PPE.suffixifiedPPE pped
   currentPath <- Cli.getCurrentPath
   Cli.respondNumbered $ Output.ShowDiffNamespace (Right currentPath) (Right currentPath) ppe diff
-  when (not silent) do
+  when showWatchExprs do
     (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
     let e' = Map.map go e
         go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)

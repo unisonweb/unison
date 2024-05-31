@@ -1,10 +1,10 @@
 ```ucm:hide
-.> builtins.merge
+.> builtins.merge lib
 ```
 
 Add some definitions to the codebase for us to later update.
 
-```unison
+```unison:hide
 type MyRecord =
   { nat : Nat
   , text : Text
@@ -21,7 +21,7 @@ addToRecordField rec = nat rec + 10
 > addToRecordField (MyRecord 9 "hi" true)
 ```
 
-```ucm
+```ucm:hide
 .> add
 ```
 
