@@ -37,7 +37,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils (getCurrentBranch0)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
@@ -737,7 +736,7 @@ loop loadMode e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
             CommitI mayScratchFile -> do
-              uf <- handleLoad True LoadForCommit mayScratchFile
+              uf <- handleLoad False LoadForCommit mayScratchFile
               currentPath <- Cli.getCurrentPath
               libNames <-
                 Cli.getCurrentBranch0
@@ -745,15 +744,12 @@ loop loadMode e = do
                   <&> Branch.toNames
               let sr = Slurp.slurpFile uf mempty Slurp.AddOp libNames
               let adds = SlurpResult.adds sr
-              beforeBranch0 <- Cli.getCurrentBranch0
               Cli.Env {codebase} <- ask
               Cli.runTransaction . Codebase.addDefsToCodebase codebase $ uf
               description <- inputDescription input
               Cli.stepAt description (Path.unabsolute currentPath, doSlurpAdds adds uf . Branch.onlyLib)
-              afterBranch0 <- getCurrentBranch0
-              (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
-              currentPath <- Cli.getCurrentPath
-              Cli.respondNumbered $ ShowDiffNamespace (Right currentPath) (Right currentPath) ppe diff
+            CommitPreviewI mayScratchFile -> do
+              void $ handleLoad False LoadForCommit mayScratchFile
             UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             Update2I -> handleUpdate2
             PreviewUpdateI requestedNames -> do
@@ -1073,7 +1069,8 @@ inputDescription input =
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
     AddI _selection -> pure "add"
-    CommitI mayScratchFile -> pure ("commit" <> maybe "" Text.pack mayScratchFile)
+    CommitI mayScratchFile -> pure ("experimental.commit" <> maybe "" Text.pack mayScratchFile)
+    CommitPreviewI mayScratchFile -> pure ("experimental.commit.preview" <> maybe "" Text.pack mayScratchFile)
     UpdateI p0 _selection -> do
       p <-
         case p0 of

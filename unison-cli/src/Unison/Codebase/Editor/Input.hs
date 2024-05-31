@@ -148,6 +148,7 @@ data Input
   | AddI (Set Name)
   | PreviewAddI (Set Name)
   | CommitI (Maybe FilePath)
+  | CommitPreviewI (Maybe FilePath)
   | UpdateI OptionalPatch (Set Name)
   | Update2I
   | PreviewUpdateI (Set Name)
