@@ -36,6 +36,8 @@ module Unison.UnisonFile
     typecheckedUnisonFile,
     Unison.UnisonFile.rewrite,
     prepareRewrite,
+    typeLookupForTypecheckedFile,
+    typeOfReferentFromTypecheckedUnisonFile,
   )
 where
 
@@ -56,6 +58,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -354,6 +357,33 @@ declsToTypeLookup uf =
     (wrangle (effectDeclarations uf))
   where
     wrangle = Map.fromList . Map.elems
+
+-- | Provides a lookup for all types and terms within the unison file.
+typeLookupForTypecheckedFile :: Var v => TypecheckedUnisonFile v a -> TL.TypeLookup v a
+typeLookupForTypecheckedFile tf =
+  TL.TypeLookup
+    termTypeLookup
+    (wrangle $ dataDeclarationsId' tf)
+    (wrangle $ effectDeclarationsId' tf)
+  where
+    termTypeLookup =
+      hashTermsId tf
+        & Map.elems
+        & fmap
+          (\(_ann, termRefId, _wk, _trm, typ) -> (Reference.DerivedId termRefId, typ))
+        & Map.fromList
+    wrangle = Map.fromList . fmap (first Reference.DerivedId) . Map.elems
+
+-- | Gets the type of a reference from either the parsed file or the codebase.
+typeOfReferentFromTypecheckedUnisonFile :: Var v => TypecheckedUnisonFile v a -> Referent -> Maybe (Type v a)
+typeOfReferentFromTypecheckedUnisonFile tf = \case
+  Referent.Ref reference ->
+    Map.lookup reference typeOfTerms
+  Referent.Con (ConstructorReference typeReference cid) _type -> do
+    decl <- Map.lookup typeReference dataDecls <|> (DD.toDataDecl <$> Map.lookup typeReference effectDecls)
+    DD.typeOfConstructor decl cid
+  where
+    TL.TypeLookup {typeOfTerms, dataDecls, effectDecls} = typeLookupForTypecheckedFile tf
 
 -- Returns true if the file has any definitions or watches
 nonEmpty :: TypecheckedUnisonFile v a -> Bool

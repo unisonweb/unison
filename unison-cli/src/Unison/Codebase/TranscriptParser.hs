@@ -50,6 +50,7 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
+import Unison.Codebase.Editor.HandleInput.Load qualified as Load
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -549,7 +550,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                   loop case input of
                     Left _ -> s
                     Right inp -> s & #lastInput ?~ inp
-            Cli.runCli env s1 (HandleInput.loop input) >>= \case
+            Cli.runCli env s1 (HandleInput.loop Load.Normal input) >>= \case
               (Cli.Success (), s2) -> next s2
               (Cli.Continue, s2) -> next s2
               (Cli.HaltRepl, _) -> onHalt

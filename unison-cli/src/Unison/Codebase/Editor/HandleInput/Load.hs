@@ -1,6 +1,8 @@
 module Unison.Codebase.Editor.HandleInput.Load
   ( handleLoad,
     loadUnisonFile,
+    loadUnisonFileForCommit,
+    LoadMode (..),
     EvalMode (..),
     evalUnisonFile,
   )
@@ -20,9 +22,14 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffFromTypecheckedUnisonFile)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
+import Unison.Codebase.Editor.HandleInput.Update qualified as Update
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
+import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
@@ -43,8 +50,15 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile.Names qualified as UF
 import Unison.WatchKind qualified as WK
 
-handleLoad :: Maybe FilePath -> Cli ()
-handleLoad maybePath = do
+data LoadMode
+  = Normal
+  | -- Load a file without any names from the codebase except for library dependencies.
+    -- This mode is used for _replacing_ the current branch whole-sale with code from a scratch file.
+    LoadForCommit
+  deriving (Show, Eq, Ord)
+
+handleLoad :: Bool -> LoadMode -> Maybe FilePath -> Cli (TypecheckedUnisonFile Symbol Ann)
+handleLoad showWatchExprs loadMode maybePath = do
   latestFile <- Cli.getLatestFile
   path <- (maybePath <|> fst <$> latestFile) & onNothing (Cli.returnEarly Output.NoUnisonFile)
   Cli.Env {loadSource} <- ask
@@ -53,9 +67,11 @@ handleLoad maybePath = do
       Cli.InvalidSourceNameError -> Cli.returnEarly $ Output.InvalidSourceName path
       Cli.LoadError -> Cli.returnEarly $ Output.SourceLoadFailed path
       Cli.LoadSuccess contents -> pure contents
-  loadUnisonFile (Text.pack path) contents
+  case loadMode of
+    Normal -> loadUnisonFile (Text.pack path) contents
+    LoadForCommit -> loadUnisonFileForCommit showWatchExprs (Text.pack path) contents
 
-loadUnisonFile :: Text -> Text -> Cli ()
+loadUnisonFile :: Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
   currentNames <- Cli.currentNames
@@ -71,51 +87,78 @@ loadUnisonFile sourceName text = do
   when (not (null e')) do
     Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
-  where
-    withFile ::
-      Names ->
-      Text ->
-      Text ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile names sourceName text = do
+  pure unisonFile
+
+loadUnisonFileForCommit :: Bool -> Text -> Text -> Cli (TypecheckedUnisonFile Symbol Ann)
+loadUnisonFileForCommit showWatchExprs sourceName text = do
+  Cli.respond $ Output.LoadingFile sourceName
+  beforeBranch0 <- Cli.getCurrentBranch0
+  let beforeBranch0LibOnly = Branch.onlyLib beforeBranch0
+  beforePPED <- Cli.currentPrettyPrintEnvDecl
+  let libNames = Branch.toNames beforeBranch0LibOnly
+  unisonFile <- withFile libNames sourceName text
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp libNames
+  let adds = SlurpResult.adds sr
+  let afterBranch0 = Update.doSlurpAdds adds unisonFile beforeBranch0LibOnly
+  afterPPED <- Cli.prettyPrintEnvDeclFromNames (Branch.toNames afterBranch0)
+  (_ppe, diff) <- diffFromTypecheckedUnisonFile unisonFile beforeBranch0 afterBranch0
+  let pped = afterPPED `PPED.addFallback` beforePPED
+  let ppe = PPE.suffixifiedPPE pped
+  currentPath <- Cli.getCurrentPath
+  Cli.respondNumbered $ Output.ShowDiffNamespace (Right currentPath) (Right currentPath) ppe diff
+  when showWatchExprs do
+    (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
+    let e' = Map.map go e
+        go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+    when (not (null e')) do
+      Cli.respond $ Output.Evaluated text ppe bindings e'
+  #latestTypecheckedFile .= Just (Right unisonFile)
+  pure unisonFile
+
+withFile ::
+  Names ->
+  Text ->
+  Text ->
+  Cli (TypecheckedUnisonFile Symbol Ann)
+withFile names sourceName text = do
+  currentPath <- Cli.getCurrentPath
+  State.modify' \loopState ->
+    loopState
+      & #latestFile .~ Just (Text.unpack sourceName, False)
+      & #latestTypecheckedFile .~ Nothing
+  Cli.Env {codebase, generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            names
+          }
+  unisonFile <-
+    Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
+      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+  -- set that the file at least parsed (but didn't typecheck)
+  State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+  typecheckingEnv <-
+    Cli.runTransaction do
+      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+  let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+  maybeTypecheckedUnisonFile & onNothing do
+    let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
+    pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+    let suffixifiedPPE = PPED.suffixifiedPPE pped
+    let tes = [err | Result.TypeError err <- toList notes]
+        cbs =
+          [ bug
+            | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                toList notes
+          ]
+    when (not (null tes)) do
       currentPath <- Cli.getCurrentPath
-      State.modify' \loopState ->
-        loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      maybeTypecheckedUnisonFile & onNothing do
-        let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
-        pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
-        let suffixifiedPPE = PPED.suffixifiedPPE pped
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
-        when (not (null cbs)) do
-          Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
-        Cli.returnEarlyWithoutOutput
+      Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null cbs)) do
+      Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
+    Cli.returnEarlyWithoutOutput
 
 data EvalMode = Sandboxed | Permissive | Native
 

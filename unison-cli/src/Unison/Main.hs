@@ -64,6 +64,8 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.Load (LoadMode)
+import Unison.Codebase.Editor.HandleInput.Load qualified as Load
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
@@ -93,6 +95,7 @@ import Unison.Version (Version)
 import Unison.Version qualified as Version
 import UnliftIO qualified
 import UnliftIO.Directory (getHomeDirectory)
+import UnliftIO.Environment (lookupEnv)
 
 type Runtimes =
   (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
@@ -138,6 +141,10 @@ main version = do
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
       nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
+      loadMode <-
+        lookupEnv "UNISON_LOAD_MODE" >>= \case
+          Just "commit" -> pure Load.LoadForCommit
+          _ -> pure Load.Normal
       withConfig mCodePathOption \config -> do
         currentDir <- getCurrentDirectory
         case command of
@@ -190,6 +197,7 @@ main version = do
                           noOpRootNotifier
                           noOpPathNotifier
                           CommandLine.ShouldNotWatchFiles
+                          loadMode
           Run (RunFromPipe mainName) args -> do
             e <- safeReadUtf8StdIn
             case e of
@@ -217,6 +225,7 @@ main version = do
                       noOpRootNotifier
                       noOpPathNotifier
                       CommandLine.ShouldNotWatchFiles
+                      loadMode
           Run (RunCompiled file) args ->
             BL.readFile file >>= \bs ->
               try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -351,6 +360,7 @@ main version = do
                             notifyOnRootChanges
                             notifyOnPathChanges
                             shouldWatchFiles
+                            loadMode
                     Exit -> do Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
@@ -530,8 +540,9 @@ launch ::
   (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
+  LoadMode ->
   IO ()
-launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles loadMode = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -553,6 +564,7 @@ launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseU
         notifyRootChange
         notifyPathChange
         shouldWatchFiles
+        loadMode
 
 newtype MarkdownFile = MarkdownFile FilePath
 

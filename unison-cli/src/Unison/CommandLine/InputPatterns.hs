@@ -18,6 +18,8 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
+    commit,
+    commitPreview,
     compileScheme,
     createAuthor,
     debugClearWatchCache,
@@ -190,8 +192,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Prelude hiding (view)
 import Unison.Parser.Ann (Ann)
+import Unison.Prelude hiding (view)
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectAndBranchNames (..),
@@ -801,6 +803,34 @@ previewAdd =
         <> "has changed."
     )
     $ fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
+
+commit :: InputPattern
+commit =
+  InputPattern
+    "experimental.commit"
+    []
+    I.Visible
+    [("scratch file", Optional, filePathArg)]
+    ( "`experimental.commit` *replaces* all your existing non-lib code with the code from a scratch file. Any code which is not present within the file (aside from your libs) will be removed."
+    )
+    \case
+      [] -> pure $ Input.CommitI Nothing
+      [file] -> Input.CommitI . Just <$> unsupportedStructuredArgument "a file name" file
+      _ -> Left (I.help load)
+
+commitPreview :: InputPattern
+commitPreview =
+  InputPattern
+    "experimental.commit.preview"
+    []
+    I.Visible
+    [("scratch file", Optional, filePathArg)]
+    ( "`experimental.commit.preview` shows the diff which would be applied if you were to run " <> patternName commit
+    )
+    \case
+      [] -> pure $ Input.CommitPreviewI Nothing
+      [file] -> Input.CommitPreviewI . Just <$> unsupportedStructuredArgument "a file name" file
+      _ -> Left (I.help load)
 
 update :: InputPattern
 update =
@@ -3159,6 +3189,8 @@ validInputs =
       clear,
       clone,
       compileScheme,
+      commit,
+      commitPreview,
       createAuthor,
       debugClearWatchCache,
       debugDoctor,

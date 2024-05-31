@@ -40,7 +40,7 @@ So we can see the pretty-printed output:
 
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
-```ucm:error
+```ucm
 .> diff.namespace a1 a2
 ```
 

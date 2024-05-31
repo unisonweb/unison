@@ -73,6 +73,7 @@ module Unison.Codebase.Branch
     -- *** Libdep manipulations
     withoutLib,
     withoutTransitiveLibs,
+    onlyLib,
     deleteLibdep,
     deleteLibdeps,
 
@@ -183,6 +184,11 @@ withoutTransitiveLibs b0 =
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
    in b0 & children .~ newChildren
+
+onlyLib :: Branch0 m -> Branch0 m
+onlyLib b =
+  let newChildren = (Map.singleton NameSegment.libSegment (fromMaybe empty $ Map.lookup NameSegment.libSegment (b ^. children)))
+   in branch0 mempty mempty newChildren mempty
 
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
