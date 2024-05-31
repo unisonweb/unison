@@ -281,8 +281,8 @@ doMerge info = do
             declNameLookup <-
               Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
                 Cli.returnEarly case err of
-                  IncoherentDeclReason'ConstructorAlias name1 name2 ->
-                    Output.MergeConstructorAlias who name1 name2
+                  IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+                    Output.MergeConstructorAlias who typeName conName1 conName2
                   IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
                   IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
                     Output.MergeNestedDeclAlias who shorterName longerName
