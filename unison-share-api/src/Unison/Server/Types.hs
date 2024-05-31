@@ -38,15 +38,16 @@ import U.Codebase.HashTags
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
+import Unison.Core.Project (ProjectBranchName)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
-import Unison.Server.Syntax (SyntaxText)
+import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
@@ -191,6 +192,20 @@ instance ToJSON DefinitionDisplayResults where
 
 deriving instance ToSchema DefinitionDisplayResults
 
+data TermDefinitionDiff = TermDefinitionDiff
+  { left :: TermDefinition,
+    right :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+data TypeDefinitionDiff = TypeDefinitionDiff
+  { left :: TypeDefinition,
+    right :: TypeDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
 newtype Suffixify = Suffixify {suffixified :: Bool}
   deriving (Eq, Ord, Show, Generic)
 
@@ -198,8 +213,8 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName],
     bestTermName :: HashQualifiedName,
     defnTermTag :: TermTag,
-    termDefinition :: DisplayObject SyntaxText SyntaxText,
-    signature :: SyntaxText,
+    termDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
+    signature :: Syntax.SyntaxText,
     termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -208,7 +223,7 @@ data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName],
     bestTypeName :: HashQualifiedName,
     defnTypeTag :: TypeTag,
-    typeDefinition :: DisplayObject SyntaxText SyntaxText,
+    typeDefinition :: DisplayObject Syntax.SyntaxText Syntax.SyntaxText,
     typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   }
   deriving (Eq, Show, Generic)
@@ -233,6 +248,64 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
+-- | A type for semantic diffing of definitions.
+-- Includes special-cases for when the name in a definition has changed but the hash hasn't
+-- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
+data SemanticSyntaxDiff
+  = Old [Syntax.SyntaxSegment]
+  | New [Syntax.SyntaxSegment]
+  | Both [Syntax.SyntaxSegment]
+  | --  (fromSegment, toSegment) (shared annotation)
+    SegmentChange (String, String) (Maybe Syntax.Element)
+  | -- (shared segment) (fromAnnotation, toAnnotation)
+    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema SemanticSyntaxDiff
+
+instance ToJSON SemanticSyntaxDiff where
+  toJSON = \case
+    Old segments ->
+      object
+        [ "diffTag" .= ("old" :: Text),
+          "elements" .= segments
+        ]
+    New segments ->
+      object
+        [ "diffTag" .= ("new" :: Text),
+          "elements" .= segments
+        ]
+    Both segments ->
+      object
+        [ "diffTag" .= ("both" :: Text),
+          "elements" .= segments
+        ]
+    SegmentChange (fromSegment, toSegment) annotation ->
+      object
+        [ "diffTag" .= ("segmentChange" :: Text),
+          "fromSegment" .= fromSegment,
+          "toSegment" .= toSegment,
+          "annotation" .= annotation
+        ]
+    AnnotationChange segment (fromAnnotation, toAnnotation) ->
+      object
+        [ "diffTag" .= ("annotationChange" :: Text),
+          "segment" .= segment,
+          "fromAnnotation" .= fromAnnotation,
+          "toAnnotation" .= toAnnotation
+        ]
+
+-- | A diff of the syntax of a term or type
+--
+-- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
+-- undiffed syntax.
+data DisplayObjectDiff
+  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
+  | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  deriving stock (Show, Eq, Generic)
+
+deriving instance ToSchema DisplayObjectDiff
+
 data UnisonRef
   = TypeRef UnisonHash
   | TermRef UnisonHash
@@ -247,7 +320,7 @@ data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
     termName :: HQ'.HashQualified Name,
     termHash :: ShortHash,
-    termType :: Maybe SyntaxText,
+    termType :: Maybe Syntax.SyntaxText,
     termTag :: TermTag
   }
   deriving (Eq, Generic, Show)
@@ -391,3 +464,79 @@ instance Docs.ToCapture (Capture "project-and-branch" ProjectBranchNameParam) wh
     DocCapture
       "project-and-branch"
       "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"
+
+data TermDiffResponse = TermDiffResponse
+  { project :: ProjectName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
+    oldTerm :: TermDefinition,
+    newTerm :: TermDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema TermDiffResponse
+
+instance Docs.ToSample TermDiffResponse where
+  toSamples _ = []
+
+instance ToJSON TermDiffResponse where
+  toJSON (TermDiffResponse {diff, project, oldBranch, newBranch, oldTerm, newTerm}) =
+    case diff of
+      DisplayObjectDiff dispDiff ->
+        object
+          [ "diff" .= dispDiff,
+            "diffKind" .= ("diff" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldTerm" .= oldTerm,
+            "newTerm" .= newTerm
+          ]
+      MismatchedDisplayObjects {} ->
+        object
+          [ "diffKind" .= ("mismatched" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldTerm" .= oldTerm,
+            "newTerm" .= newTerm
+          ]
+
+data TypeDiffResponse = TypeDiffResponse
+  { project :: ProjectName,
+    oldBranch :: ProjectBranchName,
+    newBranch :: ProjectBranchName,
+    oldType :: TypeDefinition,
+    newType :: TypeDefinition,
+    diff :: DisplayObjectDiff
+  }
+  deriving (Eq, Show, Generic)
+
+deriving instance ToSchema TypeDiffResponse
+
+instance Docs.ToSample TypeDiffResponse where
+  toSamples _ = []
+
+instance ToJSON TypeDiffResponse where
+  toJSON (TypeDiffResponse {diff, project, oldBranch, newBranch, oldType, newType}) =
+    case diff of
+      DisplayObjectDiff dispDiff ->
+        object
+          [ "diff" .= dispDiff,
+            "diffKind" .= ("diff" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldType" .= oldType,
+            "newType" .= newType
+          ]
+      MismatchedDisplayObjects {} ->
+        object
+          [ "diffKind" .= ("mismatched" :: Text),
+            "project" .= project,
+            "oldBranchRef" .= oldBranch,
+            "newBranchRef" .= newBranch,
+            "oldType" .= oldType,
+            "newType" .= newType
+          ]

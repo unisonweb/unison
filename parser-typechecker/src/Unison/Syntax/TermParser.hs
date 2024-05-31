@@ -142,11 +142,11 @@ link :: (Monad m, Var v) => TermP v m
 link = termLink <|> typeLink
   where
     typeLink = do
-      P.try (reserved "typeLink") -- type opens a block, gotta use something else
+      _ <- P.try (reserved "typeLink") -- type opens a block, gotta use something else
       tok <- typeLink'
       pure $ Term.typeLink (ann tok) (L.payload tok)
     termLink = do
-      P.try (reserved "termLink")
+      _ <- P.try (reserved "termLink")
       tok <- termLink'
       pure $ Term.termLink (ann tok) (L.payload tok)
 
@@ -201,7 +201,7 @@ matchCase = do
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
   let guardedBlocks = label "pattern guard" . some $ do
-        reserved "|"
+        _ <- reserved "|"
         guard <-
           asum
             [ Nothing <$ P.try (quasikeyword "otherwise"),
@@ -290,7 +290,7 @@ parsePattern = label "pattern" root
           | Set.null s -> die tok s
           | Set.size s > 1 -> die tok s
           | otherwise -> -- matched ctor name, consume the token
-              do anyToken; pure (Set.findMin s <$ tok)
+              do _ <- anyToken; pure (Set.findMin s <$ tok)
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
         die hq s = case L.payload hq of
@@ -1058,7 +1058,7 @@ destructuringBind = do
   (p, boundVars) <- P.try do
     (p, boundVars) <- parsePattern
     let boundVars' = snd <$> boundVars
-    P.lookAhead (openBlockWith "=")
+    _ <- P.lookAhead (openBlockWith "=")
     pure (p, boundVars')
   (_spanAnn, scrute) <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing

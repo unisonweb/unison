@@ -297,16 +297,6 @@ unique type Y a b = Y a b
 
   Done.
 
-.> view.patch ns2.patch
-
-  Edited Terms:
-    1. ns1.b         -> 3. ns2.b
-    2. ns1.fromJust' -> 4. ns2.fromJust
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
-
 .> fork ns2 ns3
 
   Done.

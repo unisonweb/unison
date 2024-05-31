@@ -120,11 +120,10 @@ doCreateBranch createFrom project newBranchName description = do
         Cli.getBranchAt (ProjectUtils.projectBranchPath (ProjectAndBranch sourceProjectId sourceBranchId))
       CreateFrom'LooseCode sourcePath -> Cli.getBranchAt sourcePath
       CreateFrom'Nothingness -> pure Branch.empty
-  let projectId = project ^. #projectId
   let parentBranchId =
         case createFrom of
           CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
-            | (sourceBranch ^. #projectId) == projectId -> Just (sourceBranch ^. #branchId)
+            | sourceBranch.projectId == project.projectId -> Just sourceBranch.branchId
           _ -> Nothing
   doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
 

@@ -5,6 +5,7 @@ module Unison.Util.Map
     bitraverse,
     bitraversed,
     deleteLookup,
+    deleteLookupJust,
     elemsSet,
     foldM,
     foldMapM,
@@ -21,6 +22,7 @@ module Unison.Util.Map
     upsertF,
     upsertLookup,
     valuesVector,
+    asList_,
   )
 where
 
@@ -55,6 +57,15 @@ bitraverse fa fb = fmap Map.fromList . traverse (B.bitraverse fa fb) . Map.toLis
 bitraversed :: (Ord a', Ord k') => Traversal k k' a a' -> Traversal v v' a a' -> Traversal (Map k v) (Map k' v') a a'
 bitraversed keyT valT f m =
   bitraverse (keyT f) (valT f) m
+
+-- | Traverse a map as a list of key-value pairs.
+-- Note: This can have unexpected results if the result contains duplicate keys.
+asList_ :: Ord k' => Traversal (Map k v) (Map k' v') [(k, v)] [(k', v')]
+asList_ f s =
+  s
+    & Map.toList
+    & f
+    <&> Map.fromList
 
 -- | 'swap' throws away data if the input contains duplicate values
 swap :: (Ord b) => Map a b -> Map b a
@@ -95,6 +106,11 @@ valuesVector =
 deleteLookup :: (Ord k) => k -> Map k v -> (Maybe v, Map k v)
 deleteLookup =
   Map.alterF (,Nothing)
+
+-- | Like 'deleteLookup', but asserts the value is in the map prior to deletion.
+deleteLookupJust :: (HasCallStack, Ord k) => k -> Map k v -> (v, Map k v)
+deleteLookupJust =
+  Map.alterF (maybe (error (reportBug "E525283" "deleteLookupJust: element not found")) (,Nothing))
 
 -- | Like 'Map.elems', but return the values as a set.
 elemsSet :: Ord v => Map k v -> Set v

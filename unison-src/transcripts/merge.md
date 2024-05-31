@@ -1300,3 +1300,70 @@ project/alice> merge /bob
 ```ucm:hide
 .> project.delete project
 ```
+
+## LCA precondition violations
+
+The LCA is not subject to most precondition violations, which is good, because the user can't easily manipulate it!
+
+Here's an example. We'll delete a constructor name from the LCA and still be able to merge Alice and Bob's stuff
+together.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+LCA:
+
+```unison
+structural type Foo = Bar Nat | Baz Nat Nat
+```
+
+```ucm
+project/main> add
+project/main> delete.term Foo.Baz
+```
+
+Alice's branch:
+
+```ucm
+project/main> branch alice
+project/alice> delete.type Foo
+project/alice> delete.term Foo.Bar
+```
+
+```unison
+alice : Nat
+alice = 100
+```
+
+```ucm
+project/alice> add
+```
+
+Bob's branch:
+
+```ucm
+project/main> branch bob
+project/bob> delete.type Foo
+project/bob> delete.term Foo.Bar
+```
+
+```unison
+bob : Nat
+bob = 101
+```
+
+```ucm
+project/bob> add
+```
+
+Now we merge:
+
+```ucm
+project/alice> merge /bob
+```
+
+```ucm:hide
+.> project.delete project
+```

@@ -86,10 +86,6 @@ module Unison.Codebase
     syncFromDirectory,
     syncToDirectory,
 
-    -- ** Remote sync
-    viewRemoteBranch,
-    pushGitBranch,
-
     -- * Codebase path
     getCodebaseDir,
     CodebasePath,
@@ -124,13 +120,11 @@ import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.Codebase.CodeLookup qualified as CL
-import Unison.Codebase.Editor.Git qualified as Git
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace)
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
-import Unison.Codebase.Type (Codebase (..), GitError)
+import Unison.Codebase.Type (Codebase (..))
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -465,20 +459,6 @@ isType :: Codebase m v a -> Reference -> Sqlite.Transaction Bool
 isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
-
--- * Git stuff
-
--- | Pull a git branch and view it from the cache, without syncing into the
--- local codebase.
-viewRemoteBranch ::
-  (MonadIO m) =>
-  Codebase m v a ->
-  ReadGitRemoteNamespace ->
-  Git.GitBranchBehavior ->
-  (Branch m -> m r) ->
-  m (Either GitError r)
-viewRemoteBranch codebase ns gitBranchBehavior action =
-  viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
 unsafeGetComponentLength :: (HasCallStack) => Hash -> Sqlite.Transaction Reference.CycleSize
 unsafeGetComponentLength h =

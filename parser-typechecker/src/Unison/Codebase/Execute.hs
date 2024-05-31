@@ -14,17 +14,19 @@ import Unison.Codebase.MainTerm (getMainTerm)
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.HashQualified qualified as HQ
+import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
+import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty qualified as P
 
 execute ::
   Codebase.Codebase IO Symbol Ann ->
   Runtime Symbol ->
-  Text ->
+  HQ.HashQualified Name ->
   IO (Either Runtime.Error ())
 execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) . runExceptT $ do
@@ -34,9 +36,8 @@ execute codebase runtime mainName =
     let mainType = Runtime.mainType runtime
     mt <- liftIO $ Codebase.runTransaction codebase $ getMainTerm loadTypeOfTerm parseNames mainName mainType
     case mt of
-      MainTerm.NotAFunctionName s -> throwError ("Not a function name: " <> P.text s)
-      MainTerm.NotFound s -> throwError ("Not found: " <> P.text s)
-      MainTerm.BadType s _ -> throwError (P.text s <> " is not of type '{IO} ()")
+      MainTerm.NotFound s -> throwError ("Not found: " <> P.text (HQ.toText s))
+      MainTerm.BadType s _ -> throwError (P.text (HQ.toText s) <> " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
         let codeLookup = Codebase.toCodeLookup codebase
             ppe = PPE.empty

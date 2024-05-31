@@ -4,8 +4,6 @@
 module Unison.Cli.DownloadUtils
   ( downloadProjectBranchFromShare,
     downloadLooseCodeFromShare,
-    GitNamespaceHistoryTreatment (..),
-    downloadLooseCodeFromGitRepo,
   )
 where
 
@@ -18,27 +16,19 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Codebase (Codebase)
-import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.Git qualified as Git
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace, ReadShareLooseCode, shareUserHandleToText)
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode, shareUserHandleToText)
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Type (GitError)
-import Unison.Codebase.Type qualified as Codebase (viewRemoteBranch')
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.NameSegment.Internal qualified as NameSegment
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
-import Unison.Symbol (Symbol)
 import Unison.Sync.Common qualified as Sync.Common
 import Unison.Sync.Types qualified as Share
 
@@ -113,26 +103,3 @@ withEntitiesDownloadedProgressCallback action = do
             <> tShow entitiesDownloaded
             <> " entities...\n\n"
       action ((\n -> atomically (modifyTVar' entitiesDownloadedVar (+ n))), readTVarIO entitiesDownloadedVar)
-
-data GitNamespaceHistoryTreatment
-  = -- | Don't touch the history
-    GitNamespaceHistoryTreatment'LetAlone
-  | -- | Throw away all history at all levels
-    GitNamespaceHistoryTreatment'DiscardAllHistory
-
--- | Download loose code that's in a SQLite codebase in a Git repo.
-downloadLooseCodeFromGitRepo ::
-  MonadIO m =>
-  Codebase IO Symbol Ann ->
-  GitNamespaceHistoryTreatment ->
-  ReadGitRemoteNamespace ->
-  m (Either GitError CausalHash)
-downloadLooseCodeFromGitRepo codebase historyTreatment namespace = liftIO do
-  Codebase.viewRemoteBranch' codebase namespace Git.RequireExistingBranch \(branch0, cacheDir) -> do
-    let branch =
-          case historyTreatment of
-            GitNamespaceHistoryTreatment'LetAlone -> branch0
-            GitNamespaceHistoryTreatment'DiscardAllHistory -> Branch.discardHistory branch0
-
-    Codebase.syncFromDirectory codebase cacheDir branch
-    pure (Branch.headHash branch)

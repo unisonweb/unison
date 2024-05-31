@@ -7,15 +7,11 @@ import Data.Void (Void)
 import EasyTest
 import Text.Megaparsec qualified as P
 import Unison.Codebase.Editor.RemoteRepo
-  ( ReadGitRepo (..),
-    ReadRemoteNamespace (..),
+  ( ReadRemoteNamespace (..),
     ShareCodeserver (..),
     ShareUserHandle (..),
-    WriteGitRemoteNamespace (..),
-    WriteGitRepo (..),
     WriteRemoteNamespace (..),
     WriteShareRemoteNamespace (..),
-    pattern ReadGitRemoteNamespace,
     pattern ReadShareLooseCode,
   )
 import Unison.Codebase.Editor.UriParser qualified as UriParser
@@ -34,22 +30,7 @@ test =
         [ ("unisonweb.base._releases.M4", looseR "unisonweb" ["base", "_releases", "M4"]),
           ("project", branchR (This "project")),
           ("/branch", branchR (That "branch")),
-          ("project/branch", branchR (These "project" "branch")),
-          ("git(/srv/git/project.git)", gitR "/srv/git/project.git" Nothing Nothing []),
-          ("git(/srv/git/project.git:abc)#def.hij.klm", gitR "/srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(srv/git/project.git)", gitR "srv/git/project.git" Nothing Nothing []),
-          ("git(srv/git/project.git:abc)#def.hij.klm", gitR "srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(file:///srv/git/project.git)", gitR "file:///srv/git/project.git" Nothing Nothing []),
-          ("git(file:///srv/git/project.git:abc)#def.hij.klm", gitR "file:///srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(file://srv/git/project.git)", gitR "file://srv/git/project.git" Nothing Nothing []),
-          ("git(file://srv/git/project.git:abc)#def.hij.klm", gitR "file://srv/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(https://example.com/git/project.git)", gitR "https://example.com/git/project.git" Nothing Nothing []),
-          ("git(https://user@example.com/git/project.git:abc)#def.hij.klm", gitR "https://user@example.com/git/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(ssh://git@8.8.8.8:222/user/project.git)", gitR "ssh://git@8.8.8.8:222/user/project.git" Nothing Nothing []),
-          ("git(ssh://git@github.com/user/project.git:abc)#def.hij.klm", gitR "ssh://git@github.com/user/project.git" (Just "abc") (sch "def") ["hij", "klm"]),
-          ("git(git@github.com:user/project.git)", gitR "git@github.com:user/project.git" Nothing Nothing []),
-          ("git(github.com:user/project.git)", gitR "github.com:user/project.git" Nothing Nothing []),
-          ("git(git@github.com:user/project.git:abc)#def.hij.klm", gitR "git@github.com:user/project.git" (Just "abc") (sch "def") ["hij", "klm"])
+          ("project/branch", branchR (These "project" "branch"))
         ]
         [".unisonweb.base"],
       parserTests
@@ -58,35 +39,14 @@ test =
         [ ("unisonweb.base._releases.M4", looseW "unisonweb" ["base", "_releases", "M4"]),
           ("project", branchW (This "project")),
           ("/branch", branchW (That "branch")),
-          ("project/branch", branchW (These "project" "branch")),
-          ("git(/srv/git/project.git)", gitW "/srv/git/project.git" Nothing []),
-          ("git(srv/git/project.git)", gitW "srv/git/project.git" Nothing []),
-          ("git(file:///srv/git/project.git)", gitW "file:///srv/git/project.git" Nothing []),
-          ("git(file://srv/git/project.git)", gitW "file://srv/git/project.git" Nothing []),
-          ("git(https://example.com/git/project.git)", gitW "https://example.com/git/project.git" Nothing []),
-          ("git(ssh://git@8.8.8.8:222/user/project.git)", gitW "ssh://git@8.8.8.8:222/user/project.git" Nothing []),
-          ("git(git@github.com:user/project.git)", gitW "git@github.com:user/project.git" Nothing []),
-          ("git(github.com:user/project.git)", gitW "github.com:user/project.git" Nothing [])
+          ("project/branch", branchW (These "project" "branch"))
         ]
-        [ ".unisonweb.base",
-          "git(/srv/git/project.git:abc)#def.hij.klm",
-          "git(srv/git/project.git:abc)#def.hij.klm",
-          "git(file:///srv/git/project.git:abc)#def.hij.klm",
-          "git(file://srv/git/project.git:abc)#def.hij.klm",
-          "git(https://user@example.com/git/project.git:abc)#def.hij.klm",
-          "git(ssh://git@github.com/user/project.git:abc)#def.hij.klm",
-          "git(git@github.com:user/project.git:abc)#def.hij.klm"
+        [ ".unisonweb.base"
         ]
     ]
 
 mkPath :: [Text] -> Path.Path
 mkPath = Path.fromList . fmap NameSegment
-
-gitR :: Text -> Maybe Text -> Maybe ShortCausalHash -> [Text] -> ReadRemoteNamespace void
-gitR url ref sch path = ReadRemoteNamespaceGit (ReadGitRemoteNamespace (ReadGitRepo url ref) sch (mkPath path))
-
-gitW :: Text -> Maybe Text -> [Text] -> WriteRemoteNamespace void
-gitW url branch path = WriteRemoteNamespaceGit (WriteGitRemoteNamespace (WriteGitRepo url branch) (mkPath path))
 
 looseR :: Text -> [Text] -> ReadRemoteNamespace void
 looseR user path =

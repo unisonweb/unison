@@ -30,6 +30,7 @@ proj/main> add
 
 ```
 Test tab completion and fzf options of upgrade command.
+
 ```ucm
 proj/main> debug.tab-complete upgrade ol
 

@@ -4,8 +4,10 @@
 
 module Unison.CommandLine.InputPattern
   ( InputPattern (..),
+    Argument,
     ArgumentType (..),
     ArgumentDescription,
+    Arguments,
     argType,
     FZFResolver (..),
     IsOptional (..),
@@ -25,6 +27,7 @@ import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
+import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Path as Path
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.Prelude
@@ -44,6 +47,14 @@ data IsOptional
 data Visibility = Hidden | Visible
   deriving (Show, Eq, Ord)
 
+-- | An argument to a command is either a string provided by the user which
+-- needs to be parsed or a numbered argument that doesn’t need to be parsed, as
+-- we’ve preserved its representation (although the numbered argument could
+-- still be of the wrong type, which should result in an error).
+type Argument = Either String StructuredArgument
+
+type Arguments = [Argument]
+
 -- | Argument description
 -- It should fit grammatically into sentences like "I was expecting an argument for the <argDesc>"
 -- e.g. "namespace to merge", "definition to delete", "remote target to push to" etc.
@@ -55,7 +66,7 @@ data InputPattern = InputPattern
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
-    parse :: [String] -> Either (P.Pretty CT.ColorText) Input
+    parse :: Arguments -> Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType

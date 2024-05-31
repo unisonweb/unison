@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -35,6 +35,7 @@ library
       Unison.Auth.Types
       Unison.Auth.UserInfo
       Unison.Cli.DownloadUtils
+      Unison.Cli.MergeTypes
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
@@ -54,6 +55,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DeleteBranch
@@ -96,6 +98,7 @@ library
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
+      Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
@@ -426,7 +429,6 @@ test-suite cli-tests
   other-modules:
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
-      Unison.Test.GitSync
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser

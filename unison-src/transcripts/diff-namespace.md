@@ -87,7 +87,6 @@ unique type Y a b = Y a b
 .> diff.namespace ns1 ns2
 .> alias.type ns1.X ns1.X2
 .> alias.type ns2.A' ns2.A''
-.> view.patch ns2.patch
 .> fork ns2 ns3
 .> alias.term ns2.fromJust' ns2.yoohoo
 .> delete.term.verbose ns2.fromJust'

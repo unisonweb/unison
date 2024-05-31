@@ -6,9 +6,7 @@
 module Unison.CommandLine.OutputMessages where
 
 import Control.Lens hiding (at)
-import Control.Monad.State
 import Control.Monad.State.Strict qualified as State
-import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
@@ -37,10 +35,12 @@ import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
+import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
@@ -61,8 +61,9 @@ import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Editor.TodoOutput qualified as TO
-import Unison.Codebase.GitError
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
@@ -72,11 +73,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError (..),
-  )
 import Unison.Codebase.TermEdit qualified as TermEdit
-import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
@@ -127,7 +124,6 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult' qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
-import Unison.ShortHash qualified as ShortHash
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (toText, unsafeFromVar)
@@ -348,7 +344,7 @@ notifyNumbered = \case
             ]
         branchHashes :: [CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, displayBranchHash <$> branchHashes)
+     in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
       toSCH h = SCH.fromHash schLength h
@@ -404,10 +400,9 @@ notifyNumbered = \case
           ],
       numberedArgsForEndangerments ppeDecl endangerments
     )
-  ListEdits patch ppe -> showListEdits patch ppe
   ListProjects projects ->
     ( P.numberedList (map (prettyProjectName . view #name) projects),
-      map (Text.unpack . into @Text . view #name) projects
+      map (SA.Project . view #name) projects
     )
   ListBranches projectName branches ->
     ( P.columnNHeader
@@ -423,7 +418,9 @@ notifyNumbered = \case
                 ]
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
-      map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
+      map
+        (SA.ProjectBranch . ProjectAndBranch (pure projectName) . fst)
+        branches
     )
   AmbiguousSwitch project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
@@ -448,8 +445,9 @@ notifyNumbered = \case
               <> switch ["2"]
               <> " to pick one of these."
           ),
-      [ Text.unpack (Text.cons '/' (into @Text branch)),
-        Text.unpack (into @Text (ProjectAndBranch project (UnsafeProjectBranchName "main")))
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.ProjectBranch . ProjectAndBranch (pure project) $
+          UnsafeProjectBranchName "main"
       ]
     )
     where
@@ -478,8 +476,8 @@ notifyNumbered = \case
               <> reset (resetArgs ["2"])
               <> " to pick one of these."
           ),
-      [ Text.unpack (Text.cons '/' (into @Text branch)),
-        Text.unpack (into @Text (show absPath0))
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.AbsolutePath absPath0
       ]
     )
     where
@@ -515,13 +513,13 @@ notifyNumbered = \case
                     newNextNum = nextNum + length unnumberedNames
                  in ( newNextNum,
                       ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
-                        args <> fmap Name.toText unnumberedNames
+                        args <> unnumberedNames
                       )
                     )
             )
             (1, (mempty, mempty))
           & snd
-          & over (_2 . mapped) Text.unpack
+          & over (_2 . mapped) SA.Name
       externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
       externalDepsTable = ifoldMap $ \ld dependents ->
         [(prettyLD ld, prettyDependents dependents)]
@@ -549,99 +547,6 @@ undoTip =
       <> "or"
       <> IP.makeExample' IP.viewReflog
       <> "to undo this change."
-
-showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
-showListEdits patch ppe =
-  ( P.sepNonEmpty
-      "\n\n"
-      [ if null types
-          then mempty
-          else
-            "Edited Types:"
-              `P.hang` P.column2 typeOutputs,
-        if null terms
-          then mempty
-          else
-            "Edited Terms:"
-              `P.hang` P.column2 termOutputs,
-        if null types && null terms
-          then "This patch is empty."
-          else
-            tip . P.string $
-              "To remove entries from a patch, use "
-                <> IP.deleteTermReplacementCommand
-                <> " or "
-                <> IP.deleteTypeReplacementCommand
-                <> ", as appropriate."
-      ],
-    numberedArgsCol1 <> numberedArgsCol2
-  )
-  where
-    typeOutputs, termOutputs :: [(Pretty, Pretty)]
-    numberedArgsCol1, numberedArgsCol2 :: NumberedArgs
-    -- We use the output of the first column's count as the first number in the second
-    -- column's count. Laziness allows this since they're used independently of one another.
-    (((typeOutputs, termOutputs), (lastNumberInFirstColumn, _)), (numberedArgsCol1, numberedArgsCol2)) =
-      runWriter . flip runStateT (1, lastNumberInFirstColumn) $ do
-        typeOutputs <- traverse prettyTypeEdit types
-        termOutputs <- traverse prettyTermEdit terms
-        pure (typeOutputs, termOutputs)
-    types :: [(Reference, TypeEdit.TypeEdit)]
-    types = R.toList $ Patch._typeEdits patch
-    terms :: [(Reference, TermEdit.TermEdit)]
-    terms = R.toList $ Patch._termEdits patch
-    showNum :: Int -> Pretty
-    showNum n = P.hiBlack (P.shown n <> ". ")
-
-    prettyTermEdit ::
-      (Reference.TermReference, TermEdit.TermEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
-    prettyTermEdit (lhsRef, termEdit) = do
-      n1 <- gets fst <* modify (first succ)
-      let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
-      -- We use the shortHash of the lhs rather than its name for numbered args,
-      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
-      case termEdit of
-        TermEdit.Deprecate -> do
-          lift $ tell ([lhsHash], [])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
-              "-> (deprecated)"
-            )
-        TermEdit.Replace rhsRef _typing -> do
-          n2 <- gets snd <* modify (second succ)
-          let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
-          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTermName)])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
-              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
-            )
-
-    prettyTypeEdit ::
-      (Reference, TypeEdit.TypeEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
-    prettyTypeEdit (lhsRef, typeEdit) = do
-      n1 <- gets fst <* modify (first succ)
-      let lhsTypeName = PPE.typeName ppe lhsRef
-      -- We use the shortHash of the lhs rather than its name for numbered args,
-      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
-      let lhsHash = Text.unpack . ShortHash.toText . Reference.toShortHash $ lhsRef
-      case typeEdit of
-        TypeEdit.Deprecate -> do
-          lift $ tell ([lhsHash], [])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
-              "-> (deprecated)"
-            )
-        TypeEdit.Replace rhsRef -> do
-          n2 <- gets snd <* modify (second succ)
-          let rhsTypeName = PPE.typeName ppe rhsRef
-          lift $ tell ([lhsHash], [Text.unpack (HQ.toText rhsTypeName)])
-          pure
-            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
-              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
-            )
 
 notifyUser :: FilePath -> Output -> IO Pretty
 notifyUser dir = \case
@@ -684,49 +589,6 @@ notifyUser dir = \case
           $ "The namespaces "
             <> P.commas (prettyBranchId <$> ps)
             <> " are empty. Was there a typo?"
-  WarnIncomingRootBranch current hashes ->
-    pure $
-      if null hashes
-        then
-          P.wrap $
-            "Please let someone know I generated an empty IncomingRootBranch"
-              <> " event, which shouldn't be possible!"
-        else
-          P.lines
-            [ P.wrap $
-                (if length hashes == 1 then "A" else "Some")
-                  <> "codebase"
-                  <> P.plural hashes "root"
-                  <> "appeared unexpectedly"
-                  <> "with"
-                  <> P.group (P.plural hashes "hash" <> ":"),
-              "",
-              (P.indentN 2 . P.oxfordCommas)
-                (map prettySCH $ toList hashes),
-              "",
-              P.wrap $
-                "and I'm not sure what to do about it."
-                  <> "The last root namespace hash that I knew about was:",
-              "",
-              P.indentN 2 $ prettySCH current,
-              "",
-              P.wrap $ "Now might be a good time to make a backup of your codebase. 😬",
-              "",
-              P.wrap $
-                "After that, you might try using the"
-                  <> makeExample' IP.forkLocal
-                  <> "command to inspect the namespaces listed above, and decide which"
-                  <> "one you want as your root."
-                  <> "You can also use"
-                  <> makeExample' IP.viewReflog
-                  <> "to see the"
-                  <> "last few root namespace hashes on record.",
-              "",
-              P.wrap $
-                "Once you find one you like, you can use the"
-                  <> makeExample' IP.resetRoot
-                  <> "command to set it."
-            ]
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
       P.lines
@@ -824,13 +686,6 @@ notifyUser dir = \case
             <> " by someone else. Trying your command again might fix it."
       ]
   EvaluationFailure err -> pure err
-  TypeTermMismatch typeName termName ->
-    pure $
-      P.warnCallout "I was expecting either two types or two terms but was given a type "
-        <> P.syntaxToColor (prettyHashQualified typeName)
-        <> " and a term "
-        <> P.syntaxToColor (prettyHashQualified termName)
-        <> "."
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure $
@@ -856,8 +711,6 @@ notifyUser dir = \case
           P.warnCallout typeOrTermMsg
             <> P.newline
             <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
-  PatchNotFound _ ->
-    pure . P.warnCallout $ "I don't know about that patch."
   NameNotFound _ ->
     pure . P.warnCallout $ "I don't know about that name."
   NamesNotFound hqs ->
@@ -875,8 +728,6 @@ notifyUser dir = \case
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
     pure . P.warnCallout $ "A type by that name already exists."
-  PatchAlreadyExists _ ->
-    pure . P.warnCallout $ "A patch by that name already exists."
   BranchEmpty b ->
     pure . P.warnCallout . P.wrap $
       P.group (prettyWhichBranchEmpty b) <> "is an empty namespace."
@@ -888,21 +739,21 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $
             "I looked for a function"
-              <> P.backticked (P.text main)
+              <> P.backticked (P.text $ HQ.toText main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
-          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   BadMainFunction what main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
-          P.indentN 2 $ P.text main <> " : " <> TypePrinter.pretty ppe ty,
+          P.indentN 2 $ P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe ty,
           "",
           P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
           "",
-          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
@@ -1187,8 +1038,6 @@ notifyUser dir = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  -- TODO: Present conflicting TermEdits and TypeEdits
-  -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     let containsWatchExpressions = notNull $ UF.watchComponents uf
@@ -1221,8 +1070,7 @@ notifyUser dir = \case
                                 <> IP.makeExample' IP.add
                                 <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would"
-                                <> "change:",
+                                <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
                           ]
               ]
@@ -1242,133 +1090,6 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  GitError e -> pure $ case e of
-    GitSqliteCodebaseError e -> case e of
-      CodebaseFileLockFailed ->
-        P.wrap $
-          "It looks to me like another ucm process is using this codebase. Only one ucm process can use a codebase at a time."
-      NoDatabaseFile repo localPath ->
-        P.wrap $
-          "I didn't find a codebase in the repository at"
-            <> prettyReadGitRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      CodebaseRequiresMigration (SchemaVersion fromSv) (SchemaVersion toSv) -> do
-        P.wrap $
-          "The specified codebase codebase is on version "
-            <> P.shown fromSv
-            <> " but needs to be on version "
-            <> P.shown toSv
-      UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
-        P.wrap $
-          "I don't know how to interpret schema version "
-            <> P.shown v
-            <> "in the repository at"
-            <> prettyReadGitRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      GitCouldntParseRootBranchHash repo s ->
-        P.wrap $
-          "I couldn't parse the string"
-            <> P.red (P.string s)
-            <> "into a namespace hash, when opening the repository at"
-            <> P.group (prettyReadGitRepo repo <> ".")
-    GitProtocolError e -> case e of
-      NoGit ->
-        P.wrap $
-          "I couldn't find git. Make sure it's installed and on your path."
-      CleanupError e ->
-        P.wrap $
-          "I encountered an exception while trying to clean up a git cache directory:"
-            <> P.group (P.shown e)
-      CloneException repo msg ->
-        P.wrap $
-          "I couldn't clone the repository at"
-            <> prettyReadGitRepo repo
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      CopyException srcRepoPath destPath msg ->
-        P.wrap $
-          "I couldn't copy the repository at"
-            <> P.string srcRepoPath
-            <> "into"
-            <> P.string destPath
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      PushNoOp repo ->
-        P.wrap $
-          "The repository at" <> prettyWriteGitRepo repo <> "is already up-to-date."
-      PushException repo msg ->
-        P.wrap $
-          "I couldn't push to the repository at"
-            <> prettyWriteGitRepo repo
-            <> ";"
-            <> "the error was:"
-            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-      RemoteRefNotFound repo ref ->
-        P.wrap $
-          "I couldn't find the ref " <> P.green (P.text ref) <> " in the repository at " <> P.blue (P.text repo) <> ";"
-      UnrecognizableCacheDir uri localPath ->
-        P.wrap $
-          "A cache directory for"
-            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
-            <> "already exists at"
-            <> P.backticked' (P.string localPath) ","
-            <> "but it doesn't seem to"
-            <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-      UnrecognizableCheckoutDir uri localPath ->
-        P.wrap $
-          "I tried to clone"
-            <> P.backticked (P.text $ RemoteRepo.printReadGitRepo uri)
-            <> "into a cache directory at"
-            <> P.backticked' (P.string localPath) ","
-            <> "but I can't recognize the"
-            <> "result as a git repository, so I'm not sure what to do next."
-      PushDestinationHasNewStuff repo ->
-        P.callout "⏸" . P.lines $
-          [ P.wrap $
-              "The repository at"
-                <> prettyWriteGitRepo repo
-                <> "has some changes I don't know about.",
-            "",
-            P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
-          ]
-        where
-          push = P.group . P.backticked . IP.patternName $ IP.push
-          pull = P.group . P.backticked . IP.patternName $ IP.pull
-    GitCodebaseError e -> case e of
-      CouldntFindRemoteBranch repo path ->
-        P.wrap $
-          "I couldn't find the remote branch at"
-            <> P.shown path
-            <> "in the repository at"
-            <> prettyReadGitRepo repo
-      NoRemoteNamespaceWithHash repo sch ->
-        P.wrap $
-          "The repository at"
-            <> prettyReadGitRepo repo
-            <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . P.text . SCH.toText) sch
-      RemoteNamespaceHashAmbiguous repo sch hashes ->
-        P.lines
-          [ P.wrap $
-              "The namespace hash"
-                <> prettySCH sch
-                <> "at"
-                <> prettyReadGitRepo repo
-                <> "is ambiguous."
-                <> "Did you mean one of these hashes?",
-            "",
-            P.indentN 2 $
-              P.lines
-                ( prettySCH . SCH.fromHash ((Text.length . SCH.toText) sch * 2)
-                    <$> Set.toList hashes
-                ),
-            "",
-            P.wrap "Try again with a few more hash characters to disambiguate."
-          ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -1398,17 +1119,6 @@ notifyUser dir = \case
             "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new),
             "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
           ]
-  ListOfPatches patches ->
-    pure $
-      if null patches
-        then P.lit "nothing to show"
-        else numberedPatches patches
-    where
-      numberedPatches :: Set Name -> Pretty
-      numberedPatches patches =
-        (P.column2 . fmap format) ([(1 :: Integer) ..] `zip` (toList patches))
-        where
-          format (i, p) = (P.hiBlack . fromString $ show i <> ".", prettyName p)
   NoConfiguredRemoteMapping pp p -> do
     let (localPathExample, sharePathExample) =
           if Path.isRoot p
@@ -1428,7 +1138,7 @@ notifyUser dir = \case
           "Type `help " <> PushPull.fold "push" "pull" pp <> "` for more information."
         ]
 
-  --  | ConfiguredGitUrlParseError PushPull Path' Text String
+  --  | ConfiguredRemoteMappingParseError PushPull Path' Text String
   ConfiguredRemoteMappingParseError pp p url err ->
     pure . P.fatalCallout . P.lines $
       [ P.wrap $
@@ -1542,12 +1252,6 @@ notifyUser dir = \case
       "I could't find a type with hash "
         <> (prettyShortHash sh)
   AboutToPropagatePatch -> pure "Applying changes from patch..."
-  NothingToPatch _patchPath dest ->
-    pure $
-      P.callout "😶" . P.wrap $
-        "This had no effect. Perhaps the patch has already been applied"
-          <> "or it doesn't intersect with the definitions in"
-          <> P.group (prettyPath' dest <> ".")
   PatchNeedsToBeConflictFree ->
     pure . P.wrap $
       "I tried to auto-apply the patch, but couldn't because it contained"
@@ -1605,35 +1309,75 @@ notifyUser dir = \case
   PullAlreadyUpToDate ns dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "was already up-to-date with"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   PullSuccessful ns dest ->
     pure . P.okCallout $
       P.wrap $
         "Successfully updated"
-          <> prettyNamespaceKey dest
+          <> prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
   AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
-        "Successfully pulled into " <> P.group (prettyNamespaceKey dest <> ", which was empty.")
+        "Successfully pulled into "
+          <> P.group
+            ( prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
+                <> ", which was empty."
+            )
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        either prettyPath' prettyProjectAndBranchName dest
           <> "was already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
-  MergeConflictedAliases branch name1 name2 ->
-    pure . P.wrap $
-      "On"
-        <> P.group (prettyProjectBranchName branch <> ",")
-        <> prettyName name1
-        <> "and"
-        <> prettyName name2
-        <> "are not aliases, but they used to be."
+          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
+  MergeAlreadyUpToDate2 aliceAndBob ->
+    pure . P.callout "😶" $
+      P.wrap $
+        prettyProjectAndBranchName aliceAndBob.alice
+          <> "was already up-to-date with"
+          <> P.group (prettyMergeSource aliceAndBob.bob <> ".")
+  MergeConflictedAliases aliceOrBob name1 name2 ->
+    pure $
+      P.wrap "Sorry, I wasn't able to perform the merge:"
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "On the merge ancestor,"
+              <> prettyName name1
+              <> "and"
+              <> prettyName name2
+              <> "were aliases for the same definition, but on"
+              <> prettyMergeSourceOrTarget aliceOrBob
+              <> "the names have different definitions currently. I'd need just a single new definition to use in their"
+              <> "dependents when I merge."
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap ("Please fix up" <> prettyMergeSourceOrTarget aliceOrBob <> "to resolve this. For example,")
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.bulleted
+              [ P.wrap
+                  ( IP.makeExample' IP.update
+                      <> "the definitions to be the same again, so that there's nothing for me to decide."
+                  ),
+                P.wrap
+                  ( IP.makeExample' IP.moveAll
+                      <> "or"
+                      <> IP.makeExample' IP.delete
+                      <> "all but one of the definitions; I'll use the remaining name when propagating updates."
+                  )
+              ]
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "and then try merging again."
   MergeConflictedTermName name _refs ->
     pure . P.wrap $
       "The term name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
@@ -1641,49 +1385,101 @@ notifyUser dir = \case
     pure . P.wrap $
       "The type name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
   MergeConflictInvolvingBuiltin name ->
-    pure . P.wrap $
-      "There's a merge conflict on"
-        <> P.group (prettyName name <> ",")
-        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias maybeBranch name1 name2 ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap
+          ( "There's a merge conflict on"
+              <> P.group (prettyName name <> ",")
+              <> "but it's a builtin on one or both branches. I can't yet handle merge conflicts involving builtins."
+          ),
+        "",
+        P.wrap
+          ( "Please eliminate this conflict by updating one branch or the other, making"
+              <> prettyName name
+              <> "the same on both branches, or making neither of them a builtin, and then try the merge again."
+          )
+      ]
+  MergeConstructorAlias aliceOrBob typeName conName1 conName2 ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the type"
+            <> prettyName typeName
+            <> "has a constructor with multiple names, and I can't perform a merge in this situation:",
+        "",
+        P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
+        "",
+        P.wrap "Please delete all but one name for each constructor, and then try merging again."
+      ]
+  MergeDefnsInLib aliceOrBob ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "there's a type or term at the top level of the `lib` namespace, where I only expect to find"
+            <> "subnamespaces representing library dependencies.",
+        "",
+        P.wrap "Please move or remove it and then try merging again."
+      ]
+  MergeMissingConstructorName aliceOrBob name ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the type"
+            <> prettyName name
+            <> "has some constructors with missing names, and I can't perform a merge in this situation.",
+        "",
+        P.wrap $
+          "You can use"
+            <> IP.makeExample IP.view [prettyName name]
+            <> "and"
+            <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
+            <> "to give names to each unnamed constructor, and then try the merge again."
+      ]
+  MergeNestedDeclAlias aliceOrBob shorterName longerName ->
     pure . P.wrap $
       "On"
-        <> case maybeBranch of
-          Nothing -> "the LCA,"
-          Just branch -> P.group (prettyProjectBranchName branch <> ",")
-        <> prettyName name1
-        <> "and"
-        <> prettyName name2
-        <> "are aliases. Every type declaration must have exactly one name for each constructor."
-  MergeDefnsInLib ->
-    pure . P.wrap $
-      "There's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
-        <> "Please remove it before merging."
-  MergeMissingConstructorName name ->
-    pure . P.wrap $
-      "The type"
-        <> prettyName name
-        <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias shorterName longerName ->
-    pure . P.wrap $
-      "The type"
+        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+        <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
-        <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor name ->
-    pure . P.wrap $
-      "The constructor"
-        <> prettyName name
-        <> "is not in a subnamespace of a name of its type."
-        <> "Please either delete it or rename it before merging."
+        <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
+        <> "delete one copy, and then try merging again."
+  MergeStrayConstructor aliceOrBob name ->
+    pure . P.lines $
+      [ P.wrap $
+          "Sorry, I wasn't able to perform the merge, because I need all constructor names to be nested somewhere"
+            <> "beneath the corresponding type name.",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the constructor"
+            <> prettyName name
+            <> "is not nested beneath the corresponding type name. Please either use"
+            <> IP.makeExample' IP.moveAll
+            <> "to move it, or if it's an extra copy, you can simply"
+            <> IP.makeExample' IP.delete
+            <> "it. Then try the merge again."
+      ]
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
         prettyNamespaceKey dest
           <> "is already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
-  DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
+  DumpNumberedArgs schLength args ->
+    pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat
@@ -1805,7 +1601,7 @@ notifyUser dir = \case
   ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare shareRef ->
     pure $
-      "View it on Unison Share: " <> case shareRef of
+      "View it here: " <> case shareRef of
         Left repoPath -> prettyShareLink repoPath
         Right branchInfo -> prettyRemoteBranchInfo branchInfo
   IntegrityCheck result -> pure $ case result of
@@ -1931,12 +1727,17 @@ notifyUser dir = \case
       "I just created"
         <> prettyProjectName projectName
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
   CreatedRemoteProjectBranch host projectAndBranch ->
     pure . P.wrap $
-      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host
+      "I just created" <> prettyProjectAndBranchName projectAndBranch <> "on" <> prettyShareURI host
   RemoteProjectBranchIsUpToDate host projectAndBranch ->
-    pure (P.wrap (prettyProjectAndBranchName projectAndBranch <> "on" <> prettyURI host <> "is already up-to-date."))
+    pure $
+      P.wrap $
+        prettyProjectAndBranchName projectAndBranch
+          <> "on"
+          <> prettyShareURI host
+          <> "is already up-to-date."
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
   ProjectNameAlreadyExists name ->
@@ -1956,12 +1757,12 @@ notifyUser dir = \case
   NotOnProjectBranch -> pure (P.wrap "You are not currently on a branch.")
   NoAssociatedRemoteProject host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "isn't associated with any project on" <> prettyShareURI host
   NoAssociatedRemoteProjectBranch host (ProjectAndBranch project branch) ->
     pure . P.wrap $
       prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
         <> "isn't associated with any branch on"
-        <> prettyURI host
+        <> prettyShareURI host
   LocalProjectDoesntExist project ->
     pure . P.wrap $
       prettyProjectName project <> "does not exist."
@@ -1977,17 +1778,17 @@ notifyUser dir = \case
         <> "exists."
   RemoteProjectDoesntExist host project ->
     pure . P.wrap $
-      prettyProjectName project <> "does not exist on" <> prettyURI host
+      prettyProjectName project <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist host projectAndBranch ->
     pure . P.wrap $
-      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyURI host
+      prettyProjectAndBranchName projectAndBranch <> "does not exist on" <> prettyShareURI host
   RemoteProjectBranchDoesntExist'Push host projectAndBranch ->
     let push = P.group . P.backticked . IP.patternName $ IP.push
      in pure . P.wrap $
           "The previous push target named"
             <> prettyProjectAndBranchName projectAndBranch
             <> "has been deleted from"
-            <> P.group (prettyURI host <> ".")
+            <> P.group (prettyShareURI host <> ".")
             <> "I've deleted the invalid push target."
             <> "Run the"
             <> push
@@ -1996,14 +1797,14 @@ notifyUser dir = \case
     pure . P.wrap $
       prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has some history that I don't know about."
   RemoteProjectPublishedReleaseCannotBeChanged host projectAndBranch ->
     pure . P.wrap $
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has already been published and cannot be changed."
         <> "Consider making a new release instead."
   RemoteProjectReleaseIsDeprecated host projectAndBranch ->
@@ -2011,7 +1812,7 @@ notifyUser dir = \case
       "The release"
         <> prettyProjectAndBranchName projectAndBranch
         <> "on"
-        <> prettyURI host
+        <> prettyShareURI host
         <> "has been deprecated."
   Unauthorized message ->
     pure . P.wrap $
@@ -2260,32 +2061,34 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path base target ->
+  MergeFailure path aliceAndBob ->
     pure . P.wrap $
       "I couldn't automatically merge"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
         <> "However, I've added the definitions that need attention to the top of"
         <> P.group (prettyFilePath path <> ".")
-  MergeSuccess base target ->
+  MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
-  MergeSuccessFastForward base target ->
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+  MergeSuccessFastForward aliceAndBob ->
     pure . P.wrap $
       "I fast-forward merged"
-        <> prettyProjectBranchName (view #branch target)
+        <> prettyMergeSource aliceAndBob.bob
         <> "into"
-        <> P.group (prettyProjectBranchName (view #branch base) <> ".")
+        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
   InstalledLibdep libdep segment ->
     pure . P.wrap $
       "I installed"
         <> prettyProjectAndBranchName libdep
         <> "as"
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
+  NoUpgradeInProgress ->
+    pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
@@ -2770,7 +2573,7 @@ renderNameConflicts ppe conflictedNames = do
       P.lines <$> do
         for (Map.toList conflictedNames) $ \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
-            n <- addNumberedArg (Text.unpack (HQ.toText hash))
+            n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
           pure . P.wrap $
             ( "The "
@@ -2802,7 +2605,7 @@ renderEditConflicts ppe Patch {..} = do
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
     numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
     numberedHQName hqName = do
-      n <- addNumberedArg (Text.unpack (HQ.toText hqName))
+      n <- addNumberedArg $ SA.HashQualified hqName
       pure $ formatNum n <> styleHashQualified P.bold hqName
     formatTypeEdits ::
       (Reference, Set TypeEdit.TypeEdit) ->
@@ -2841,9 +2644,9 @@ renderEditConflicts ppe Patch {..} = do
       Numbered Pretty
     formatConflict = either formatTypeEdits formatTermEdits
 
-type Numbered = State.State (Int, Seq.Seq String)
+type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 
-addNumberedArg :: String -> Numbered Int
+addNumberedArg :: StructuredArgument -> Numbered Int
 addNumberedArg s = do
   (n, args) <- State.get
   State.put (n + 1, args Seq.|> s)
@@ -2915,11 +2718,11 @@ todoOutput ppe todo = runNumbered do
     todoEdits :: Numbered Pretty
     todoEdits = do
       numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
-        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.typeName ppeu ref))
+        n <- addNumberedArg . SA.HashQualified $ PPE.typeName ppeu ref
         pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
       let filteredTerms = goodTerms (unscore <$> dirtyTerms)
       termNumbers <- for filteredTerms \(ref, _, _) -> do
-        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.termName ppeu ref))
+        n <- addNumberedArg . SA.HashQualified $ PPE.termName ppeu ref
         pure $ formatNum n
       let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
@@ -3324,21 +3127,13 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg' $ prefixBranchId prefix name
+      addNumberedArg' $ SA.NameWithBranchPrefix prefix name
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
-      addNumberedArg' . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
+      addNumberedArg' . SA.HashQualifiedWithBranchPrefix prefix $ HQ'.requalify hq r
 
-    -- E.g.
-    -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef.base.List.map"
-    -- prefixBranchId ".base" "List.map" -> ".base.List.map"
-    prefixBranchId :: Input.AbsBranchId -> Name -> String
-    prefixBranchId branchId name = case branchId of
-      Left sch -> "#" <> SCH.toString sch <> ":" <> Text.unpack (Name.toText (Name.makeAbsolute name))
-      Right pathPrefix -> Text.unpack (Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name))
-
-    addNumberedArg' :: String -> Numbered Pretty
+    addNumberedArg' :: StructuredArgument -> Numbered Pretty
     addNumberedArg' s = case sn of
       ShowNumbers -> do
         n <- addNumberedArg s
@@ -3593,7 +3388,7 @@ numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
-    & fmap (Text.unpack . HQ.toText . PPE.labeledRefName ppe)
+    & fmap (SA.HashQualified . PPE.labeledRefName ppe)
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::
