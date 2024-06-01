@@ -135,8 +135,9 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment (docSegment, libSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -203,6 +204,10 @@ data ShallowListEntry v a
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
+-- __TODO__: This is only used for sorting, and it seems like it might be better
+--           to avoid `Text` and instead
+--        1. compare as `Name` (using `Name.fromSegment`) and
+--        2. make that the `Ord` instance.
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
   ShallowTermEntry te -> termEntryDisplayName te
@@ -278,7 +283,7 @@ data TermEntry v a = TermEntry
   }
   deriving (Eq, Ord, Show, Generic)
 
-termEntryLabeledDependencies :: Ord v => TermEntry v a -> Set LD.LabeledDependency
+termEntryLabeledDependencies :: (Ord v) => TermEntry v a -> Set LD.LabeledDependency
 termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag, termEntryName} =
   foldMap Type.labeledDependencies termEntryType
     <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
@@ -728,7 +733,7 @@ mungeSyntaxText ::
 mungeSyntaxText = fmap Syntax.convertElement
 
 mkTypeDefinition ::
-  MonadIO m =>
+  (MonadIO m) =>
   Codebase IO Symbol Ann ->
   PPED.PrettyPrintEnvDecl ->
   Width ->
@@ -844,7 +849,7 @@ docsForDefinitionName ::
   Name ->
   Sqlite.Transaction [TermReference]
 docsForDefinitionName codebase (NameSearch {termSearch}) searchType name = do
-  let potentialDocNames = [name, name Cons.:> "doc"]
+  let potentialDocNames = [name, name Cons.:> NameSegment.docSegment]
   refs <-
     potentialDocNames & foldMapM \name ->
       lookupRelativeHQRefs' termSearch searchType (HQ'.NameOnly name)
@@ -1272,7 +1277,7 @@ loadTypeDisplayObject c = \case
       <$> Codebase.getTypeDeclaration c id
 
 -- | Get the causal hash a given project branch points to
-causalHashForProjectBranchName :: MonadIO m => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
+causalHashForProjectBranchName :: (MonadIO m) => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
 causalHashForProjectBranchName (ProjectAndBranch projectName branchName) = do
   Q.loadProjectBranchByNames projectName branchName >>= \case
     Nothing -> pure Nothing

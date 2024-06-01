@@ -51,7 +51,8 @@ import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment qualified as NameSegment (docSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -441,7 +442,7 @@ lexemes' eof =
         (Just (WordyId tname))
           | isTopLevel ->
               beforeStartToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) "doc")) <$ openTok, Open "=" <$ openTok]
+                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) NameSegment.docSegment)) <$ openTok, Open "=" <$ openTok]
                 <> [openTok]
                 <> bodyToks0
                 <> [closeTok]

@@ -24,7 +24,8 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment qualified as NameSegment (libSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -96,7 +97,7 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
 
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
-fresh :: Ord a => (Int -> a -> a) -> Set a -> a -> a
+fresh :: (Ord a) => (Int -> a -> a) -> Set a -> a -> a
 fresh bump taken x =
   fromJust (List.find (\y -> not (Set.member y taken)) (x : map (\i -> bump i x) [2 ..]))
 

@@ -47,7 +47,7 @@ import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)

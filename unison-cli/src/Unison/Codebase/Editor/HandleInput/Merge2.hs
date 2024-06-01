@@ -99,8 +99,9 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
@@ -339,7 +340,7 @@ doMerge info = do
       Cli.runTransaction do
         for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
           let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent codebase) Operations.expectDeclComponent
-          in (,) <$> hydrate conflicts1 <*> hydrate dependents1
+           in (,) <$> hydrate conflicts1 <*> hydrate dependents1
 
     let (renderedConflicts, renderedDependents) =
           let honk declNameLookup ppe defns =
@@ -359,11 +360,11 @@ doMerge info = do
                         if Set.member name accessorNames
                           then Nothing
                           else Just (renderTermBinding ppe.suffixifiedPPE name term typ)
-                in Defns {terms, types}
-          in unzip $
+                 in Defns {terms, types}
+           in unzip $
                 ( \declNameLookup (conflicts, dependents) ppe ->
                     let honk1 = honk declNameLookup ppe
-                    in (honk1 conflicts, honk1 dependents)
+                     in (honk1 conflicts, honk1 dependents)
                 )
                   <$> declNameLookups
                   <*> hydratedThings
@@ -393,7 +394,7 @@ doMerge info = do
       let thisMergeHasConflicts =
             -- Eh, they'd either both be null, or neither, but just check both maps anyway
             not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
-      in if thisMergeHasConflicts
+       in if thisMergeHasConflicts
             then pure Nothing
             else do
               currentPath <- Cli.getCurrentPath
@@ -543,7 +544,7 @@ renderTermBinding ppe (HQ.NameOnly -> name) term typ =
         else TermPrinter.prettyBinding ppe name term
 
 renderTypeBinding ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Name ->
   TypeReferenceId ->
@@ -701,7 +702,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
       branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
    in branch2
   where
-    go :: Ord v => Map Name v -> Nametree (Map NameSegment v)
+    go :: (Ord v) => Map Name v -> Nametree (Map NameSegment v)
     go =
       unflattenNametree . BiMultimap.fromRange
 
@@ -765,7 +766,7 @@ identifyDependents defns conflicts unconflicts = do
             -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
             -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
             -- that when that conflict is resolved, it will propagate to bar.
-            let f :: Foldable t => t Reference.Id -> Set Reference
+            let f :: (Foldable t) => t Reference.Id -> Set Reference
                 f =
                   List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
              in bifoldMap f f <$> conflicts

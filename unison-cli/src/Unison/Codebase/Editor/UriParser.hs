@@ -21,7 +21,7 @@ import Unison.Codebase.Editor.RemoteRepo
     WriteShareRemoteNamespace (..),
   )
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified

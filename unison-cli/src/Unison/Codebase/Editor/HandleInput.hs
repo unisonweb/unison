@@ -162,7 +162,7 @@ import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Lexer qualified as Lexer
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -615,8 +615,8 @@ loop e = do
               -- add the new definitions to the codebase and to the namespace
               Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder])
               authorPath <- Cli.resolveSplit' authorPath'
-              copyrightHolderPath <- Cli.resolveSplit' (base |> "copyrightHolders" |> authorNameSegment)
-              guidPath <- Cli.resolveSplit' (authorPath' |> "guid")
+              copyrightHolderPath <- Cli.resolveSplit' (base |> NameSegment.copyrightHoldersSegment |> authorNameSegment)
+              guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.guidSegment)
               Cli.stepManyAt
                 description
                 [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
@@ -636,8 +636,8 @@ loop e = do
               where
                 d :: Reference.Id -> Referent
                 d = Referent.Ref . Reference.DerivedId
-                base :: Path.Split' = (Path.relativeEmpty', "metadata")
-                authorPath' = base |> "authors" |> authorNameSegment
+                base :: Path.Split' = (Path.relativeEmpty', NameSegment.metadataSegment)
+                authorPath' = base |> NameSegment.authorsSegment |> authorNameSegment
             MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
             MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
             MoveAllI src' dest' -> do
@@ -776,7 +776,7 @@ loop e = do
               currentPath <- Cli.getCurrentPath
               let destPath = case opath of
                     Just path -> Path.resolve currentPath (Path.Relative path)
-                    Nothing -> currentPath `snoc` "builtin"
+                    Nothing -> currentPath `snoc` NameSegment.builtinSegment
               _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
@@ -803,7 +803,7 @@ loop e = do
               currentPath <- Cli.getCurrentPath
               let destPath = case opath of
                     Just path -> Path.resolve currentPath (Path.Relative path)
-                    Nothing -> currentPath `snoc` "builtin"
+                    Nothing -> currentPath `snoc` NameSegment.builtinSegment
               _ <- Cli.updateAtM description destPath \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
@@ -1769,7 +1769,7 @@ docsI src = do
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
     dotDoc :: HQ.HashQualified Name
-    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment "doc"
+    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do

@@ -21,7 +21,7 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NamesWithHistory (SearchType (ExactName, IncludeSuffixes))
 import Unison.Prelude
 import Unison.Reference (Reference)

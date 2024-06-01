@@ -136,7 +136,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 projectBranchLibBaseObject =
                   over
                     Branch.children
-                    (Map.insert "base" baseLatestReleaseBranchObject)
+                    (Map.insert NameSegment.baseSegment baseLatestReleaseBranchObject)
                     Branch.empty0
                 projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
              in over
