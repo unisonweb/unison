@@ -133,5 +133,7 @@
             // {
               default = self.devShells."${system}".only-tools-nixpkgs;
             };
+
+          formatter = pkgs.alejandra;
         });
 }
