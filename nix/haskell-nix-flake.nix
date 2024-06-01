@@ -51,8 +51,7 @@
 
   shellFor = args: pkgs.unison-project.shellFor (commonShellArgs args);
 
-  localPackages = with pkgs.lib;
-    filterAttrs (k: v: v.isLocal or false) pkgs.unison-project.hsPkgs;
+  localPackages = with pkgs.lib; filterAttrs (k: v: v.isLocal or false) pkgs.unison-project.hsPkgs;
   localPackageNames = builtins.attrNames localPackages;
   devShells = let
     mkDevShell = pkgName:

@@ -30,8 +30,7 @@ final: prev: {
           # `unison-cli:unison` and somehow haskell.nix
           # decides to add some file sharing package
           # `unison` as a build-tool dependency.
-          packages.unison-cli.components.exes.cli-integration-tests.build-tools =
-            lib.mkForce [];
+          packages.unison-cli.components.exes.cli-integration-tests.build-tools = lib.mkForce [];
         })
       ];
       branchMap = {

@@ -1,11 +1,11 @@
 {
   description = "Unison";
+
   nixConfig = {
     extra-substituters = ["https://unison.cachix.org"];
-    extra-trusted-public-keys = [
-      "unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="
-    ];
+    extra-trusted-public-keys = ["unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="];
   };
+
   inputs = {
     haskellNix.url = "github:input-output-hk/haskell.nix";
     nixpkgs.follows = "haskellNix/nixpkgs-unstable";
@@ -16,6 +16,7 @@
       flake = false;
     };
   };
+
   outputs = {
     self,
     nixpkgs,
@@ -131,16 +132,12 @@
 
         apps =
           renameAttrs (name: "component-${name}") haskell-nix-flake.apps
-          // {
-            default = self.apps."${system}"."component-unison-cli-main:exe:unison";
-          };
+          // {default = self.apps."${system}"."component-unison-cli-main:exe:unison";};
 
         devShells =
           nixpkgs-devShells
           // renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
-          // {
-            default = self.devShells."${system}".only-tools-nixpkgs;
-          };
+          // {default = self.devShells."${system}".only-tools-nixpkgs;};
 
         formatter = pkgs.alejandra;
       });
