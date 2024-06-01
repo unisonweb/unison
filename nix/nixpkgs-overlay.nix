@@ -1,20 +1,24 @@
-{ versions }:
-final: prev: {
+{versions}: final: prev: {
   unison-hls = final.haskell-language-server.override {
     # build with our overridden haskellPackages that have our pinned
     # version of ormolu and hls
     haskellPackages = final.haskell.packages."ghc${versions.ghc}";
     dynamic = true;
-    supportedGhcVersions = [ versions.ghc ];
+    supportedGhcVersions = [versions.ghc];
   };
-  haskell = prev.haskell // {
-    packages = prev.haskell.packages // {
-      ghcunison = prev.haskell.packages."ghc${versions.ghc}".extend (hfinal: hprev:
-        let inherit (prev.haskell.lib) overrideCabal; in {
-          # dependency overrides for ormolu 0.5.2.0
-          haskell-language-server =
-            let
-              p = hfinal.callHackageDirect
+  haskell =
+    prev.haskell
+    // {
+      packages =
+        prev.haskell.packages
+        // {
+          ghcunison = prev.haskell.packages."ghc${versions.ghc}".extend (hfinal: hprev: let
+            inherit (prev.haskell.lib) overrideCabal;
+          in {
+            # dependency overrides for ormolu 0.5.2.0
+            haskell-language-server = let
+              p =
+                hfinal.callHackageDirect
                 {
                   pkg = "haskell-language-server";
                   ver = versions.hls;
@@ -28,16 +32,18 @@ final: prev: {
                 };
               override = drv: {
                 doCheck = false;
-                configureFlags = (drv.configureFlags or [ ]) ++ [
-                  "-f-fourmolu"
-                  "-f-stylishhaskell"
-                  "-f-hlint"
-                  "-f-floskell"
-                ];
+                configureFlags =
+                  (drv.configureFlags or [])
+                  ++ [
+                    "-f-fourmolu"
+                    "-f-stylishhaskell"
+                    "-f-hlint"
+                    "-f-floskell"
+                  ];
               };
             in
-            overrideCabal p override;
-        });
+              overrideCabal p override;
+          });
+        };
     };
-  };
 }
