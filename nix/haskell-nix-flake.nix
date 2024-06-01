@@ -73,10 +73,25 @@
       };
     }
     // localPackageDevShells;
+
+  checks =
+    haskell-nix-flake.checks
+    // {
+      ## This check has a test that tries to write to $HOME, so we give it a fake one.
+      "unison-cli:test:cli-tests" = haskell-nix-flake.checks."unison-cli:test:cli-tests".overrideAttrs (old: {
+        ## The builder here doesn’t `runHook preBuild`, so we just prepend onto `buildPhase`.
+        buildPhase =
+          ''
+            export HOME="$TMP/fake-home"
+            mkdir -p "$HOME"
+          ''
+          + old.buildPhase or "";
+      });
+    };
 in
   haskell-nix-flake
   // {
     defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
     inherit (pkgs) unison-project;
-    inherit devShells localPackageNames;
+    inherit checks devShells localPackageNames;
   }
