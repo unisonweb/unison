@@ -11,10 +11,6 @@
     nixpkgs.follows = "haskellNix/nixpkgs-unstable";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
   };
 
   outputs = {
@@ -22,7 +18,6 @@
     nixpkgs,
     flake-utils,
     haskellNix,
-    flake-compat,
     nixpkgs-unstable,
   }:
     flake-utils.lib.eachSystem [
