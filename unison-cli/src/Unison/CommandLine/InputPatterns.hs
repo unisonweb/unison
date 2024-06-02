@@ -2725,7 +2725,7 @@ saveExecuteResult =
     I.Visible
     [("new name", Required, newNameArg)]
     ( "`add.run name` adds to the codebase the result of the most recent `run` command"
-        <> "as `name`."
+        <> " as `name`."
     )
     $ \case
       [w] -> Input.SaveExecuteResultI <$> handleNameArg w
