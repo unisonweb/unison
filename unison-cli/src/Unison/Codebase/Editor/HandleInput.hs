@@ -965,7 +965,7 @@ loop e = do
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
             UpgradeCommitI -> handleCommitUpgrade
-            LibInstallI libdep -> handleInstallLib libdep
+            LibInstallI remind libdep -> handleInstallLib remind libdep
 
 inputDescription :: Input -> Cli Text
 inputDescription input =

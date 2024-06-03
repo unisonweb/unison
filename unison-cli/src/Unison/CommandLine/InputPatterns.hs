@@ -157,7 +157,7 @@ import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import Unison.Cli.Pretty (prettyProjectAndBranchName, prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
+import Unison.Cli.Pretty (prettyPath', prettyProjectAndBranchName, prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -1569,7 +1569,7 @@ libInstallInputPattern =
               ]
           ],
       parse = \case
-        [arg] -> Input.LibInstallI <$> handleProjectMaybeBranchArg arg
+        [arg] -> Input.LibInstallI False <$> handleProjectMaybeBranchArg arg
         _ -> Left (I.help libInstallInputPattern)
     }
 
@@ -1682,54 +1682,70 @@ pullImpl name aliases pullMode addendum = do
                 "",
                 explainRemote Pull
               ],
-          parse =
-            fmap
-              (flip Input.PullI pullMode)
-              . ( \case
-                    [] -> pure $ Input.PullSourceTarget0
-                    [sourceString] -> Input.PullSourceTarget1 <$> handlePullSourceArg sourceString
-                    [sourceString, targetString] -> do
-                      source <- handlePullSourceArg sourceString
-                      target <-
-                        handleMaybeProjectBranchArg targetString & mapLeft \err ->
-                          -- You used to be able to pull into a path, so...
-                          case handlePath'Arg targetString of
-                            -- Parsing as a path didn't work either, just show the original parse error
-                            Left _ -> err
-                            -- The user is trying to pull into `lib`, but you can't do that anymore. Suggest using
-                            -- `lib.install` instead (though
-                            -- user is trying to pull into the `lib` namespace, suggest using `lib.install`.
-                            Right (Path.RelativePath' (Path.Relative (Path.toList -> lib : _)))
-                              | lib == NameSegment.libSegment -> undefined
-                              | otherwise ->
-                                  P.wrap $ "I think you're wanting to merge"
-                            -- I think you're wanting to merge @unison/base/releases/latest into the `a.b` subnamespace; but
-                            -- the `pull` command only supports merging into the top level of a local project branch.
-                            Right path ->
-                              I.help self
-                                <> P.newline
-                                <> P.newline
-                                <> P.newline
-                                <> let pullingIntoLib =
-                                         case path of
-                                           Path.RelativePath'
-                                             ( Path.Relative
-                                                 (Path.toList -> lib : _)
-                                               ) -> lib == NameSegment.libSegment
-                                           _ -> False
-                                    in -- Use `help pull` to see some examples.
-                                       P.wrap $
-                                         "You may only"
-                                           <> makeExample' pull
-                                           <> "into a branch."
-                                           <> if pullingIntoLib
-                                             then
-                                               "Did you mean to run"
-                                                 <> P.group (makeExample libInstallInputPattern [P.string $ unifyArgument sourceString] <> "?")
-                                             else mempty
-                      pure (Input.PullSourceTarget2 source target)
-                    _ -> Left $ I.help self
-                )
+          parse = \case
+            [] -> pure $ Input.PullI Input.PullSourceTarget0 pullMode
+            [sourceArg] -> do
+              source <- handlePullSourceArg sourceArg
+              pure (Input.PullI (Input.PullSourceTarget1 source) pullMode)
+            [sourceArg, targetArg] ->
+              -- You used to be able to pull into a path, so this arg parser is a little complicated, because
+              -- we want to provide helpful suggestions if you are doing a deprecated or invalid thing.
+              case ( handlePullSourceArg sourceArg,
+                     handleMaybeProjectBranchArg targetArg,
+                     handlePath'Arg targetArg
+                   ) of
+                (Right source, Right target, _) -> Right (Input.PullI (Input.PullSourceTarget2 source target) pullMode)
+                (Left err, _, _) -> Left err
+                -- Parsing as a path didn't work either; just show the branch parse error
+                (Right _, Left err, Left _) -> Left err
+                -- The user is trying to pull a branch into `lib`, but you can't do that anymore. We will ignore
+                -- the name they've chosed (e.g. "lib.base"), and instead run `lib.install` (which picks a
+                -- name), with a reminder message that `lib.install` is the new way.
+                --
+                -- Oops we're ignoring the "pull mode" but `pull.without-history` shouldn't really be a `pull` anyway...
+                ( Right (RemoteRepo.ReadShare'ProjectBranch source),
+                  Left _,
+                  Right (Path.RelativePath' (Path.Relative (Path.toList -> NameSegment.LibSegment : _)))
+                  ) ->
+                    case source of
+                      This sourceProject -> Right (Input.LibInstallI True (ProjectAndBranch sourceProject Nothing))
+                      -- Nice, since we can `pull /branch` but can't `lib.install /branch`, we fail here after all.
+                      That _sourceBranch ->
+                        Left $
+                          P.wrap
+                            ( "The use of"
+                                <> makeExample' pull
+                                <> "to install libraries is now deprecated. Going forward, you can use"
+                                <> P.group (makeExample libInstallInputPattern ["@user/project/branch-or-release"] <> ".")
+                            )
+                      These sourceProject sourceBranch ->
+                        Right (Input.LibInstallI True (ProjectAndBranch sourceProject (Just sourceBranch)))
+                (Right source, Left _, Right path) ->
+                  Left $
+                    P.wrap
+                      ( "I think you're wanting to merge"
+                          <> case source of
+                            RemoteRepo.ReadShare'LooseCode _sourcePath -> "some non-project code"
+                            RemoteRepo.ReadShare'ProjectBranch (This sourceProject) ->
+                              prettyProjectNameSlash sourceProject
+                            RemoteRepo.ReadShare'ProjectBranch (That ProjectBranchNameOrLatestRelease'LatestRelease) ->
+                              "the latest release"
+                            RemoteRepo.ReadShare'ProjectBranch (That (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
+                              prettySlashProjectBranchName sourceBranch
+                            RemoteRepo.ReadShare'ProjectBranch (These sourceProject ProjectBranchNameOrLatestRelease'LatestRelease) ->
+                              "the latest release of" <> prettyProjectName sourceProject
+                            RemoteRepo.ReadShare'ProjectBranch (These sourceProject (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
+                              prettyProjectAndBranchName (ProjectAndBranch sourceProject sourceBranch)
+                          <> "into the"
+                          <> prettyPath' path
+                          <> "namespace, but the"
+                          <> makeExample' pull
+                          <> "command only supports merging into the top level of a local project branch."
+                      )
+                      <> P.newline
+                      <> P.newline
+                      <> P.wrap "Use `help pull` to see some examples."
+            _ -> Left $ I.help self
         }
 
 debugTabCompletion :: InputPattern

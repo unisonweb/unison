@@ -2089,6 +2089,12 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
   NoUpgradeInProgress ->
     pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
+  UseLibInstallNotPull libdep ->
+    pure . P.wrap $
+      "The use of"
+        <> IP.makeExample' IP.pull
+        <> "to install libraries is now deprecated. Going forward, you can use"
+        <> P.group (IP.makeExample IP.libInstallInputPattern [prettyProjectAndBranchName libdep] <> ".")
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

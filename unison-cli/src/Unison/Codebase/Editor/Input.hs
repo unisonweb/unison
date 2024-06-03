@@ -224,7 +224,9 @@ data Input
   | EditNamespaceI [Path.Path]
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
+  | LibInstallI
+      !Bool -- Remind the user to use `lib.install` next time, not `pull`?
+      !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
   deriving (Eq, Show)
 

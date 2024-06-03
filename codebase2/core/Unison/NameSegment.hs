@@ -5,6 +5,7 @@ module Unison.NameSegment
     defaultPatchSegment,
     docSegment,
     libSegment,
+    pattern LibSegment,
     publicLooseCodeSegment,
     baseSegment,
     snocSegment,
@@ -35,6 +36,9 @@ docSegment = NameSegment "doc"
 
 libSegment :: NameSegment
 libSegment = NameSegment "lib"
+
+pattern LibSegment :: NameSegment
+pattern LibSegment = NameSegment "lib"
 
 publicLooseCodeSegment :: NameSegment
 publicLooseCodeSegment = NameSegment "public"
