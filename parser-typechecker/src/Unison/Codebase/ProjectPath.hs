@@ -11,18 +11,25 @@ module Unison.Codebase.ProjectPath
     toIds,
     toNames,
     asProjectAndBranch_,
+    projectPathParser,
+    parseProjectPath,
   )
 where
 
 import Control.Lens
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
+import Data.Text qualified as Text
+import Text.Megaparsec qualified as Megaparsec
+import Text.Megaparsec.Char qualified as Megaparsec
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project qualified as Project
 
 data ProjectPathG proj branch = ProjectPath
   { project :: proj,
@@ -81,3 +88,24 @@ projectAndBranch_ = lens go set
   where
     go (ProjectPath proj branch _) = ProjectAndBranch proj branch
     set (ProjectPath _ _ p) (ProjectAndBranch proj branch) = ProjectPath proj branch p
+
+type Parser = Megaparsec.Parsec Void Text
+
+projectPathParser :: Parser ProjectPathNames
+projectPathParser = do
+  (projName, hasTrailingSlash) <- Project.projectNameParser
+  projBranchName <- Project.projectBranchNameParser (not hasTrailingSlash)
+  _ <- Megaparsec.char ':'
+  path' >>= \case
+    Path.AbsolutePath' p -> pure $ ProjectPath projName projBranchName p
+    Path.RelativePath' {} -> fail "Expected an absolute path"
+  where
+    path' :: Parser Path.Path'
+    path' = do
+      pathStr <- Megaparsec.takeRest
+      case Path.parsePath' (Text.unpack pathStr) of
+        Left err -> fail (Text.unpack err)
+        Right x -> pure x
+
+parseProjectPath :: Text -> Either Text ProjectPathNames
+parseProjectPath txt = first (Text.pack . Megaparsec.errorBundlePretty) $ Megaparsec.parse projectPathParser "" txt
