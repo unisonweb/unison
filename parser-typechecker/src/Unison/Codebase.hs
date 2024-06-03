@@ -48,17 +48,13 @@ module Unison.Codebase
     SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
     getShallowCausalAtPath,
-    getBranchAtPath,
     Operations.expectCausalBranchByCausalHash,
     getShallowCausalAtPathFromRootHash,
-    getShallowRootBranch,
-    getShallowRootCausal,
     getShallowProjectRootBranch,
     getShallowBranchAtProjectPath,
     getShallowProjectRootByNames,
 
     -- * Root branch
-    Operations.expectRootCausalHash,
     SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
@@ -113,7 +109,6 @@ where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -182,36 +177,22 @@ getShallowCausalAtPathFromRootHash ::
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 getShallowCausalAtPathFromRootHash rootCausalHash p = do
   rootCausal <- Operations.expectCausalBranchByCausalHash rootCausalHash
-  getShallowCausalAtPath p (Just rootCausal)
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Sqlite.Transaction (V2.Branch Sqlite.Transaction)
-getShallowRootBranch = do
-  getShallowRootCausal >>= V2Causal.value
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootCausal :: Sqlite.Transaction (V2.CausalBranch Sqlite.Transaction)
-getShallowRootCausal = do
-  hash <- Operations.expectRootCausalHash
-  Operations.expectCausalBranchByCausalHash hash
+  getShallowCausalAtPath p rootCausal
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
 getShallowCausalAtPath ::
   Path ->
-  Maybe (V2Branch.CausalBranch Sqlite.Transaction) ->
+  (V2Branch.CausalBranch Sqlite.Transaction) ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalAtPath path mayCausal = do
-  causal <- whenNothing mayCausal getShallowRootCausal
+getShallowCausalAtPath path causal = do
   case path of
     Path.Empty -> pure causal
     ns Path.:< p -> do
       b <- V2Causal.value causal
       case V2Branch.childAt ns b of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
-        Just childCausal -> getShallowCausalAtPath p (Just childCausal)
+        Just childCausal -> getShallowCausalAtPath p childCausal
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
@@ -248,16 +229,6 @@ getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMayb
   ProjectBranch {causalHashId} <- MaybeT $ Q.loadProjectBranchByNames projectName branchName
   causalHash <- lift $ Q.expectCausalHash causalHashId
   lift $ Operations.expectCausalBranchByCausalHash causalHash
-
--- | Get a v1 branch from the root following the given path.
-getBranchAtPath ::
-  (MonadIO m) =>
-  Codebase m v a ->
-  Path.Absolute ->
-  m (Branch m)
-getBranchAtPath codebase path = do
-  V2Causal.Causal {causalHash} <- runTransaction codebase $ getShallowCausalAtPath (Path.unabsolute path) Nothing
-  expectBranchForHash codebase causalHash
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
 expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)

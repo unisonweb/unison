@@ -379,14 +379,6 @@ tryFlushDeclBuffer termBuffer declBuffer =
           h
    in loop
 
-uncachedLoadRootBranch ::
-  BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  Transaction (Branch Transaction)
-uncachedLoadRootBranch branchCache getDeclType = do
-  causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 branchCache getDeclType causal2
-
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
