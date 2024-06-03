@@ -31,7 +31,6 @@ module Unison.Cli.Share.Projects
   )
 where
 
-import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Proxy
 import Network.HTTP.Client qualified as Http.Client

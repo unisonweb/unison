@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Run
   )
 where
 
-import Control.Lens (view, (.=), _1)
+import Control.Lens ((.=), _1)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set

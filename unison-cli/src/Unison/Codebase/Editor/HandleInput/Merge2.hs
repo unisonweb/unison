@@ -11,7 +11,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (mapped, over, set, view, _1)
+import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Control.Monad.Writer (Writer)
 import Control.Monad.Writer qualified as Writer

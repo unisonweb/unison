@@ -8,7 +8,6 @@ module Unison.CommandLine.BranchRelativePath
   )
 where
 
-import Control.Lens (view)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))

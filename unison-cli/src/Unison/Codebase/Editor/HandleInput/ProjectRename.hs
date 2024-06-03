@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.ProjectRename
   )
 where
 
-import Control.Lens ((^.))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli

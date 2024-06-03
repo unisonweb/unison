@@ -37,7 +37,7 @@ module Unison.DataDeclaration
   )
 where
 
-import Control.Lens (Iso', Lens', imap, iso, lens, over, set, _2, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, _2, _3)
 import Control.Monad.State (evalState)
 import Data.Map qualified as Map
 import Data.Set qualified as Set

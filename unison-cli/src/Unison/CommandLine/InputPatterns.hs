@@ -137,7 +137,7 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review, (^.))
+import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -191,8 +191,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Prelude hiding (view)
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectAndBranchNames (..),
