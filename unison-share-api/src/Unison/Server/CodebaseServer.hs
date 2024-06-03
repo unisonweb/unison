@@ -119,15 +119,12 @@ import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, List
 import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
 import Unison.Server.NameSearch (NameSearch (..))
 import Unison.Server.NameSearch.FromNames qualified as Names
-import Unison.Server.Types (TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
+import Unison.Server.Types (RequiredQueryParam, TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty qualified as Pretty
-
--- | Fail the route with a reasonable error if the query param is missing.
-type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
 
 -- HTML content type
 data HTML = HTML
@@ -567,12 +564,12 @@ serveLooseCode ::
   Rt.Runtime Symbol ->
   ServerT LooseCodeAPI (Backend IO)
 serveLooseCode codebase rt =
-  (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
-    :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
-    :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left <$> mayRoot) relativePath rawHqns renderWidth suff)
-    :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
+  (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left root) rel name)
+    :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left mayRoot) renderWidth)
+    :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left mayRoot) relativePath rawHqns renderWidth suff)
+    :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left mayRoot) relativePath limit renderWidth query)
+    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left mayRoot) relativeTo renderWidth)
+    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left mayRoot) relativeTo renderWidth)
 
 serveProjectsCodebaseServerAPI ::
   Codebase IO Symbol Ann ->
@@ -591,26 +588,26 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
     projectAndBranchName = ProjectAndBranch projectName branchName
     namespaceListingEndpoint _rootParam rel name = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> NamespaceListing.serve codebase (Just . Right $ root) rel name
+      setCacheControl <$> NamespaceListing.serve codebase (Right $ root) rel name
     namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just . Right $ root) renderWidth
+      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Right $ root) renderWidth
 
     serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> serveDefinitions rt codebase (Just . Right $ root) relativePath rawHqns renderWidth suff
+      setCacheControl <$> serveDefinitions rt codebase (Right $ root) relativePath rawHqns renderWidth suff
 
     serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> serveFuzzyFind codebase (Just . Right $ root) relativePath limit renderWidth query
+      setCacheControl <$> serveFuzzyFind codebase (Right $ root) relativePath limit renderWidth query
 
     serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
+      setCacheControl <$> serveTermSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
     serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
-      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
+      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
 resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO (V2.CausalBranch Sqlite.Transaction)
 resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do

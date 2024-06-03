@@ -35,6 +35,7 @@ import Unison.Server.Local.Definitions qualified as Local
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
+    RequiredQueryParam,
     Suffixify (..),
     defaultWidth,
   )
@@ -44,7 +45,7 @@ import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
   "getDefinition"
-    :> QueryParam "rootBranch" ShortCausalHash
+    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
@@ -96,7 +97,7 @@ instance ToParam (QueryParam "namespace" Path.Path) where
       )
       Normal
 
-instance ToParam (QueryParam "rootBranch" ShortCausalHash) where
+instance ToParam (RequiredQueryParam "rootBranch" ShortCausalHash) where
   toParam _ =
     DocQueryParam
       "rootBranch"
@@ -120,15 +121,15 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->
   [HQ.HashQualified Name] ->
   Maybe Width ->
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
-serveDefinitions rt codebase mayRoot relativePath hqns width suff =
+serveDefinitions rt codebase root relativePath hqns width suff =
   do
-    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ mayRoot
+    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ root
     hqns
       & foldMapM
         ( Local.prettyDefinitionsForHQName
