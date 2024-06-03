@@ -1687,42 +1687,47 @@ pullImpl name aliases pullMode addendum = do
               (flip Input.PullI pullMode)
               . ( \case
                     [] -> pure $ Input.PullSourceTarget0
-                    [sourceString] ->
-                      bimap (\err -> I.help self <> P.newline <> err) Input.PullSourceTarget1 $
-                        handlePullSourceArg sourceString
-                    [sourceString, targetString] ->
-                      Input.PullSourceTarget2
-                        <$> first (\err -> I.help self <> P.newline <> err) (handlePullSourceArg sourceString)
-                        <*> first
-                          ( \err ->
-                              -- You used to be able to pull into a path. So if target parsing fails, but path parsing succeeds,
-                              -- explain that the command has changed. Furthermore, in the special case that the user is trying to
-                              -- pull into the `lib` namespace, suggest using `lib.install`.
-                              case handlePath'Arg targetString of
-                                Left _ -> I.help self <> P.newline <> err
-                                Right path ->
-                                  I.help self
-                                    <> P.newline
-                                    <> P.newline
-                                    <> P.newline
-                                    <> let pullingIntoLib =
-                                             case path of
-                                               Path.RelativePath'
-                                                 ( Path.Relative
-                                                     (Path.toList -> lib : _)
-                                                   ) -> lib == NameSegment.libSegment
-                                               _ -> False
-                                        in P.wrap $
-                                             "You may only"
-                                               <> makeExample' pull
-                                               <> "into a branch."
-                                               <> if pullingIntoLib
-                                                 then
-                                                   "Did you mean to run"
-                                                     <> P.group (makeExample libInstallInputPattern [P.string $ unifyArgument sourceString] <> "?")
-                                                 else mempty
-                          )
-                          (handleMaybeProjectBranchArg targetString)
+                    [sourceString] -> Input.PullSourceTarget1 <$> handlePullSourceArg sourceString
+                    [sourceString, targetString] -> do
+                      source <- handlePullSourceArg sourceString
+                      target <-
+                        handleMaybeProjectBranchArg targetString & mapLeft \err ->
+                          -- You used to be able to pull into a path, so...
+                          case handlePath'Arg targetString of
+                            -- Parsing as a path didn't work either, just show the original parse error
+                            Left _ -> err
+                            -- The user is trying to pull into `lib`, but you can't do that anymore. Suggest using
+                            -- `lib.install` instead (though
+                            -- user is trying to pull into the `lib` namespace, suggest using `lib.install`.
+                            Right (Path.RelativePath' (Path.Relative (Path.toList -> lib : _)))
+                              | lib == NameSegment.libSegment -> undefined
+                              | otherwise ->
+                                  P.wrap $ "I think you're wanting to merge"
+                            -- I think you're wanting to merge @unison/base/releases/latest into the `a.b` subnamespace; but
+                            -- the `pull` command only supports merging into the top level of a local project branch.
+                            Right path ->
+                              I.help self
+                                <> P.newline
+                                <> P.newline
+                                <> P.newline
+                                <> let pullingIntoLib =
+                                         case path of
+                                           Path.RelativePath'
+                                             ( Path.Relative
+                                                 (Path.toList -> lib : _)
+                                               ) -> lib == NameSegment.libSegment
+                                           _ -> False
+                                    in -- Use `help pull` to see some examples.
+                                       P.wrap $
+                                         "You may only"
+                                           <> makeExample' pull
+                                           <> "into a branch."
+                                           <> if pullingIntoLib
+                                             then
+                                               "Did you mean to run"
+                                                 <> P.group (makeExample libInstallInputPattern [P.string $ unifyArgument sourceString] <> "?")
+                                             else mempty
+                      pure (Input.PullSourceTarget2 source target)
                     _ -> Left $ I.help self
                 )
         }
