@@ -282,7 +282,7 @@ getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
   Cli.Env {codebase} <- ask
   pp <- getCurrentProjectPath
-  liftIO $ Codebase.getBranchAtProjectPath codebase pp
+  fromMaybe Branch.empty <$> liftIO (Codebase.getBranchAtProjectPath codebase pp)
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)
@@ -449,7 +449,7 @@ stepManyAtMNoSync actions = do
 syncRoot :: Text -> Cli ()
 syncRoot description = do
   rootBranch <- getProjectRoot
-  updateCurrentProjectRoot rootBranch description
+  updateCurrentProjectBranchRoot rootBranch description
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
@@ -461,7 +461,7 @@ updateAtM ::
 updateAtM reason pp f = do
   b <- getBranchFromProjectPath (pp & PP.absPath_ .~ Path.absoluteEmpty)
   b' <- Branch.modifyAtM (pp ^. PP.path_) f b
-  updateCurrentProjectRoot b' reason
+  updateCurrentProjectBranchRoot b' reason
   pure $ b /= b'
 
 -- | Update a branch at the given path, returning `True` if
@@ -488,10 +488,19 @@ updateAndStepAt reason updates steps = do
   ProjectPath _ projBranch _ <- getCurrentProjectPath
   updateProjectBranchRoot projBranch root reason
 
+updateCurrentProjectBranchRoot :: Branch IO -> Text -> Cli ()
+updateCurrentProjectBranchRoot new reason = do
+  pp <- getCurrentProjectPath
+  updateProjectBranchRoot (pp ^. #branch) new reason
+
 updateProjectBranchRoot :: ProjectBranch -> Branch IO -> Text -> Cli ()
-updateProjectBranchRoot projectBranch new reason =
+updateProjectBranchRoot projectBranch new _reason = do
+  Cli.Env {codebase} <- ask
   Cli.time "updateCurrentProjectRoot" do
-    runTransaction $ Q.setProjectBranchHead (projectBranch ^. #branchId) (Branch.headHash new)
+    liftIO $ Codebase.putBranch codebase new
+    Cli.runTransaction $ do
+      causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
+      Q.setProjectBranchHead (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
     setCurrentProjectRoot new
 
 ------------------------------------------------------------------------------------------------------------------------
