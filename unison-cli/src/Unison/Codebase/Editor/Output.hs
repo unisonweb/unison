@@ -395,7 +395,7 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !FilePath !NameSegment !NameSegment
+  | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
   | MergeFailure !FilePath !MergeSourceAndTarget

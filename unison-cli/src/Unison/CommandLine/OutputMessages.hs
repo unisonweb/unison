@@ -2256,14 +2256,53 @@ notifyUser dir = \case
                   <> operationName
                   <> "again."
             ]
-  UpgradeFailure path old new ->
-    pure . P.wrap $
-      "I couldn't automatically upgrade"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  UpgradeFailure main temp path old new ->
+    pure $
+      P.lines
+        [ P.wrap $
+            "I couldn't automatically upgrade"
+              <> P.text (NameSegment.toEscapedText old)
+              <> "to"
+              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you cun run",
+          "",
+          P.indentN
+            2
+            ( P.bulleted
+                [ IP.makeExampleNoBackticks IP.projectSwitch [prettySlashProjectBranchName main],
+                  IP.makeExampleNoBackticks IP.mergeInputPattern [prettySlashProjectBranchName temp],
+                  IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]
+                ]
+            ),
+          "",
+          "or (equivalently)",
+          "",
+          P.indentN
+            2
+            ( P.bulleted
+                [ IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []
+                ]
+            ),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> P.group (prettyProjectBranchName main <> ".")
+              <> "Or, if you'd like to abandon the upgrade instead, you can run",
+          "",
+          P.indentN
+            2
+            ( P.bulleted [IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]]
+            ),
+          "",
+          P.wrap $
+            "to delete"
+              <> prettyProjectBranchName temp
+              <> "and switch back to"
+              <> P.group (prettyProjectBranchName main <> ".")
+        ]
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"

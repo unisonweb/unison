@@ -35,6 +35,23 @@ proj/main> upgrade old new
   I couldn't automatically upgrade old to new. However, I've
   added the definitions that need attention to the top of
   scratch.u.
+  
+  When you're done, you cun run
+  
+    * switch /main
+    * merge /upgrade-old-to-new
+    * delete.branch /upgrade-old-to-new
+  
+  or (equivalently)
+  
+    * upgrade.commit
+  
+  to merge your changes back into main. Or, if you'd like to
+  abandon the upgrade instead, you can run
+  
+    * delete.branch /upgrade-old-to-new
+  
+  to delete upgrade-old-to-new and switch back to main.
 
 ```
 ```unison:added-by-ucm scratch.u
