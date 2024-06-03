@@ -12,7 +12,6 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch qualified as ProjectSwitch
-import Unison.Codebase.Editor.HandleInput.Update2 qualified as Update
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
@@ -35,10 +34,6 @@ handleCommitMerge = do
 
   let parentProjectAndBranch =
         ProjectAndBranch mergeProjectAndBranch.project parentBranch
-
-  -- Run `update`
-
-  Update.handleUpdate2
 
   -- Switch to the parent
 
