@@ -38,20 +38,15 @@ proj/main> upgrade old new
   
   When you're done, you can run
   
-    * switch /main
-    * merge /upgrade-old-to-new
-    * delete.branch /upgrade-old-to-new
+    upgrade.commit
   
-  or (equivalently)
+  to merge your changes back into main and delete the temporary
+  branch. Or, if you decide to cancel the upgrade instead, you
+  can run
   
-    * upgrade.commit
+    delete.branch /upgrade-old-to-new
   
-  to merge your changes back into main. Or, if you'd like to
-  abandon the upgrade instead, you can run
-  
-    * delete.branch /upgrade-old-to-new
-  
-  to delete upgrade-old-to-new and switch back to main.
+  to delete the temporary branch and switch back to main.
 
 ```
 ```unison:added-by-ucm scratch.u

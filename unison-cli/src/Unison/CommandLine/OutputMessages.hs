@@ -2269,38 +2269,17 @@ notifyUser dir = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN
-            2
-            ( P.bulleted
-                [ IP.makeExampleNoBackticks IP.projectSwitch [prettySlashProjectBranchName main],
-                  IP.makeExampleNoBackticks IP.mergeInputPattern [prettySlashProjectBranchName temp],
-                  IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]
-                ]
-            ),
-          "",
-          "or (equivalently)",
-          "",
-          P.indentN
-            2
-            ( P.bulleted
-                [ IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []
-                ]
-            ),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []),
           "",
           P.wrap $
             "to merge your changes back into"
-              <> P.group (prettyProjectBranchName main <> ".")
-              <> "Or, if you'd like to abandon the upgrade instead, you can run",
+              <> prettyProjectBranchName main
+              <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
           "",
-          P.indentN
-            2
-            ( P.bulleted [IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]]
-            ),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
           "",
           P.wrap $
-            "to delete"
-              <> prettyProjectBranchName temp
-              <> "and switch back to"
+            "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName main <> ".")
         ]
   UpgradeSuccess old new ->
