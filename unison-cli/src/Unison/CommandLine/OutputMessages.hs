@@ -2267,7 +2267,7 @@ notifyUser dir = \case
               <> "However, I've added the definitions that need attention to the top of"
               <> P.group (prettyFilePath path <> "."),
           "",
-          P.wrap "When you're done, you cun run",
+          P.wrap "When you're done, you can run",
           "",
           P.indentN
             2

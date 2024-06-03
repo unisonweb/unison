@@ -36,7 +36,7 @@ proj/main> upgrade old new
   added the definitions that need attention to the top of
   scratch.u.
   
-  When you're done, you cun run
+  When you're done, you can run
   
     * switch /main
     * merge /upgrade-old-to-new
