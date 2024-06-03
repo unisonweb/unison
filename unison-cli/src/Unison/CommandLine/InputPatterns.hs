@@ -207,7 +207,6 @@ import Unison.Project
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segmentP)
-import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend

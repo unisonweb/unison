@@ -27,9 +27,8 @@ import System.Console.Haskeline qualified as Line
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
-import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
-import Unison.Codebase.Path as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT

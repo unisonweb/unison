@@ -280,9 +280,9 @@ modifyProjectRoot f = do
 -- | Get the current branch.
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
-  path <- getCurrentPath
   Cli.Env {codebase} <- ask
-  liftIO $ Codebase.getBranchAtPath codebase path
+  pp <- getCurrentProjectPath
+  liftIO $ Codebase.getBranchAtProjectPath codebase pp
 
 -- | Get the current branch0.
 getCurrentBranch0 :: Cli (Branch0 IO)

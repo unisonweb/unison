@@ -46,9 +46,8 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
-import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Editor.Output (NumberedArgs)
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
@@ -133,7 +132,7 @@ parseInput ::
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
   IO (Either (P.Pretty CT.ColorText) (Maybe (InputPattern.Arguments, Input)))
- parseInput codebase projPath currentProjectRoot numberedArgs patterns segments = runExceptT do
+parseInput codebase projPath currentProjectRoot numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
         projRoot <- currentProjectRoot
