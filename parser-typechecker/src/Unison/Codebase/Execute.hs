@@ -12,10 +12,9 @@ import Unison.Codebase.MainTerm (getMainTerm)
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.Names qualified as Names
-import Unison.Names (Names)
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Symbol (Symbol)
