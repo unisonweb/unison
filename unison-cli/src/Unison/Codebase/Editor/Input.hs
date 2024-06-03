@@ -1,8 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
     BranchSourceI (..),
-    DiffNamespaceToPatchInput (..),
-    GistInput (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
@@ -32,9 +30,8 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
-import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteGitRepo, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -52,7 +49,6 @@ import Unison.Util.Pretty qualified as P
 
 data Event
   = UnisonFileChanged SourceName Source
-  | IncomingRootBranch (Set CausalHash)
   deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
@@ -144,8 +140,6 @@ data Input
     MoveTermI Path.HQSplit' Path.Split'
   | MoveTypeI Path.HQSplit' Path.Split'
   | MoveBranchI Path.Path' Path.Path'
-  | MovePatchI Path.Split' Path.Split'
-  | CopyPatchI Path.Split' Path.Split'
   | -- delete = unname
     DeleteI DeleteTarget
   | -- edits stuff:
@@ -157,20 +151,12 @@ data Input
   | Update2I
   | PreviewUpdateI (Set Name)
   | TodoI (Maybe PatchPath) Path'
-  | PropagatePatchI PatchPath Path'
-  | ListEditsI (Maybe PatchPath)
-  | -- -- create and remove update directives
-    DeprecateTermI PatchPath Path.HQSplit'
-  | DeprecateTypeI PatchPath Path.HQSplit'
-  | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
-  | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
-  | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
-    ExecuteI Text [String]
+    ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]
@@ -180,7 +166,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI Text [String]
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI Text (HQ.HashQualified Name)
   | TestI TestInput
@@ -188,11 +174,10 @@ data Input
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | -- Display docs for provided terms.
-    DocsI (NonEmpty Path.HQSplit')
+    DocsI (NonEmpty Name)
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
-  | FindPatchI
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions.
@@ -224,10 +209,8 @@ data Input
   | UiI Path'
   | DocToMarkdownI Name
   | DocsToHtmlI Path' FilePath
-  | GistI GistInput
   | AuthLoginI
   | VersionI
-  | DiffNamespaceToPatchI DiffNamespaceToPatchInput
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
   | ProjectRenameI ProjectName
   | ProjectSwitchI ProjectAndBranchNames
@@ -254,22 +237,6 @@ data BranchSourceI
     BranchSourceI'Empty
   | -- | Create a branch from this loose-code-or-project
     BranchSourceI'LooseCodeOrProject LooseCodeOrProject
-  deriving stock (Eq, Show)
-
-data DiffNamespaceToPatchInput = DiffNamespaceToPatchInput
-  { -- The first/earlier namespace.
-    branchId1 :: BranchId,
-    -- The second/later namespace.
-    branchId2 :: BranchId,
-    -- Where to store the patch that corresponds to the diff between the namespaces.
-    patch :: Path.Split'
-  }
-  deriving stock (Eq, Generic, Show)
-
--- | @"push.gist repo"@ pushes the contents of the current namespace to @repo@.
-data GistInput = GistInput
-  { repo :: WriteGitRepo
-  }
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.
@@ -335,8 +302,7 @@ data DeleteTarget
   = DeleteTarget'TermOrType DeleteOutput [Path.HQSplit']
   | DeleteTarget'Term DeleteOutput [Path.HQSplit']
   | DeleteTarget'Type DeleteOutput [Path.HQSplit']
-  | DeleteTarget'Namespace Insistence (Maybe Path.Split')
-  | DeleteTarget'Patch Path.Split'
+  | DeleteTarget'Namespace Insistence (Maybe Path.Split)
   | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | DeleteTarget'Project ProjectName
   deriving stock (Eq, Show)

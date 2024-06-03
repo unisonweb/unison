@@ -394,8 +394,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
 import Unison.Util.Alternative qualified as Alternative
@@ -4264,7 +4264,7 @@ expectMostRecentNamespace =
         Right namespace -> Right (map NameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
-setMostRecentNamespace :: [Text] -> Transaction ()
+setMostRecentNamespace :: [NameSegment] -> Transaction ()
 setMostRecentNamespace namespace =
   execute
     [sql|
@@ -4274,7 +4274,7 @@ setMostRecentNamespace namespace =
   where
     json :: Text
     json =
-      Text.Lazy.toStrict (Aeson.encodeToLazyText namespace)
+      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> namespace)
 
 -- | Get the causal hash result from squashing the provided branch hash if we've squashed it
 -- at some point in the past.

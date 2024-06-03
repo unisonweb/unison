@@ -24,7 +24,8 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment qualified as NameSegment (libSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -96,7 +97,7 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
 
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
-fresh :: Ord a => (Int -> a -> a) -> Set a -> a -> a
+fresh :: (Ord a) => (Int -> a -> a) -> Set a -> a -> a
 fresh bump taken x =
   fromJust (List.find (\y -> not (Set.member y taken)) (x : map (\i -> bump i x) [2 ..]))
 
@@ -117,25 +118,22 @@ fresh bump taken x =
 makeDependencyName :: ProjectName -> ProjectBranchName -> NameSegment
 makeDependencyName projectName branchName =
   NameSegment.unsafeParseText $
-    Text.intercalate "_" $
-      fold
-        [ case projectNameToUserProjectSlugs projectName of
-            (user, project) ->
-              fold
-                [ if Text.null user then [] else [user],
-                  [project]
-                ],
-          case classifyProjectBranchName branchName of
-            ProjectBranchNameKind'Contributor user branch -> [user, underscorify branch]
-            ProjectBranchNameKind'DraftRelease ver -> semverSegments ver ++ ["draft"]
-            ProjectBranchNameKind'Release ver -> semverSegments ver
-            ProjectBranchNameKind'NothingSpecial -> [underscorify branchName]
-        ]
+    Text.replace "-" "_" $
+      Text.intercalate "_" $
+        fold
+          [ case projectNameToUserProjectSlugs projectName of
+              (user, project) ->
+                fold
+                  [ if Text.null user then [] else [user],
+                    [project]
+                  ],
+            case classifyProjectBranchName branchName of
+              ProjectBranchNameKind'Contributor user branch -> [user, into @Text branch]
+              ProjectBranchNameKind'DraftRelease ver -> semverSegments ver ++ ["draft"]
+              ProjectBranchNameKind'Release ver -> semverSegments ver
+              ProjectBranchNameKind'NothingSpecial -> [into @Text branchName]
+          ]
   where
     semverSegments :: Semver -> [Text]
     semverSegments (Semver x y z) =
       [tShow x, tShow y, tShow z]
-
-    underscorify :: ProjectBranchName -> Text
-    underscorify =
-      Text.replace "-" "_" . into @Text

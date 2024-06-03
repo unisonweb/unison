@@ -40,7 +40,8 @@ import Unison.DataDeclaration qualified as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
 import Unison.Hashing.V2 qualified as Hashing
 import Unison.Kind qualified as Memory.Kind
-import Unison.NameSegment qualified as Memory.NameSegment
+import Unison.NameSegment qualified as Memory (NameSegment)
+import Unison.NameSegment.Internal qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
 import Unison.Reference qualified as Memory.Reference
@@ -373,7 +374,7 @@ m2hBranch0 b =
   where
     -- is there a more readable way to structure these that's also linear?
     doTerms ::
-      Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment.NameSegment ->
+      Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment ->
       Map Hashing.NameSegment (Map Hashing.Referent Hashing.MdValues)
     doTerms s =
       Map.fromList
@@ -388,7 +389,7 @@ m2hBranch0 b =
         ]
 
     doTypes ::
-      Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment.NameSegment ->
+      Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment ->
       Map Hashing.NameSegment (Map Hashing.Reference Hashing.MdValues)
     doTypes s =
       Map.fromList
@@ -409,10 +410,10 @@ m2hBranch0 b =
     doPatches = Map.bimap m2hNameSegment (unPatchHash . fst)
 
     doChildren ::
-      Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
+      Map Memory.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.NameSegment Hash
     doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
-m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
+m2hNameSegment :: Memory.NameSegment -> Hashing.NameSegment
 m2hNameSegment =
   Hashing.NameSegment . Memory.NameSegment.toUnescapedText

@@ -14,7 +14,6 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.UniqueTypeGuidLookup qualified as Codebase
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
@@ -37,7 +36,6 @@ loadUniqueTypeGuid currentPath name0 = do
   -- This ought to probably lean somewhat on a cache (so long as the caller is aware of the cache, and discrads it at
   -- an appropriate time, such as after the current unison file finishes parsing).
   let loadBranchAtPath :: [NameSegment] -> Sqlite.Transaction (Maybe (Codebase.Branch.Branch Sqlite.Transaction))
-      loadBranchAtPath segments =
-        Operations.loadBranchAtPath Nothing (map NameSegment.toUnescapedText segments)
+      loadBranchAtPath = Operations.loadBranchAtPath Nothing
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath (Foldable.toList @Seq branchPath) name

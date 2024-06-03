@@ -126,9 +126,9 @@ This is specified with the normal
 
 Some examples:
 ```
-nix build '.#haskell-nix.unison-cli:lib:unison-cli'
-nix build '.#haskell-nix.unison-syntax:test:syntax-tests'
-nix build '.#haskell-nix.unison-cli:exe:transcripts'
+nix build '.#component-unison-cli:lib:unison-cli'
+nix build '.#component-unison-syntax:test:syntax-tests'
+nix build '.#component-unison-cli:exe:transcripts'
 ```
 
 ### Development environments
@@ -154,7 +154,7 @@ all non-local haskell dependencies (including profiling dependencies)
 are provided in the nix shell.
 
 ```
-nix develop '.#haskell-nix.local'
+nix develop '.#cabal-local'
 ```
 
 #### Get into a development environment for building a specific package
@@ -164,17 +164,17 @@ all haskell dependencies of this package are provided by the nix shell
 (including profiling dependencies).
 
 ```
-nix develop '.#haskell-nix.<package-name>'
+nix develop '.#cabal-<package-name>'
 ```
 
 for example:
 
 ```
-nix develop '.#haskell-nix.unison-cli'
+nix develop '.#cabal-unison-cli'
 ```
 or
 ```
-nix develop '.#haskell-nix.unison-parser-typechecker'
+nix develop '.#cabal-unison-parser-typechecker'
 ```
 
 This is useful if you wanted to profile a package. For example, if you
@@ -183,7 +183,7 @@ shells, cd into its directory, then run the program with
 profiling.
 
 ```
-nix develop '.#unison-parser-typechecker'
+nix develop '.#cabal-unison-parser-typechecker'
 cd unison-cli
 cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
 ```

@@ -16,6 +16,7 @@ import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -243,7 +244,7 @@ watched = P.try do
   kind <- (fmap . fmap . fmap) (Text.unpack . Name.toText) (optional importWordyId)
   guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead importSymbolyId)
-  guard (op == Just (Name.fromSegment ">"))
+  guard (op == Just (Name.fromSegment NameSegment.watchSegment))
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)

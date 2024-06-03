@@ -201,6 +201,7 @@ import U.Util.Serialization qualified as S
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
@@ -243,13 +244,13 @@ loadRootCausalHash =
 
 -- | Load the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-loadCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
 loadCausalHashAtPath mayRootCausalHash =
-  let go :: Db.CausalHashId -> [Text] -> MaybeT Transaction CausalHash
+  let go :: Db.CausalHashId -> [NameSegment] -> MaybeT Transaction CausalHash
       go hashId = \case
         [] -> lift (Q.expectCausalHash hashId)
         t : ts -> do
-          tid <- MaybeT (Q.loadTextId t)
+          tid <- MaybeT (Q.loadTextId $ NameSegment.toUnescapedText t)
           S.Branch {children} <- MaybeT (loadDbBranchByCausalHashId hashId)
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
@@ -261,13 +262,13 @@ loadCausalHashAtPath mayRootCausalHash =
 
 -- | Expect the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-expectCausalHashAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction CausalHash
+expectCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction CausalHash
 expectCausalHashAtPath mayRootCausalHash =
-  let go :: Db.CausalHashId -> [Text] -> Transaction CausalHash
+  let go :: Db.CausalHashId -> [NameSegment] -> Transaction CausalHash
       go hashId = \case
         [] -> Q.expectCausalHash hashId
         t : ts -> do
-          tid <- Q.expectTextId t
+          tid <- Q.expectTextId $ NameSegment.toUnescapedText t
           S.Branch {children} <- expectDbBranchByCausalHashId hashId
           let (_, hashId') = children Map.! tid
           go hashId' ts
@@ -279,14 +280,14 @@ expectCausalHashAtPath mayRootCausalHash =
 
 loadCausalBranchAtPath ::
   Maybe CausalHash ->
-  Q.TextPathSegments ->
+  [NameSegment] ->
   Transaction (Maybe (C.Branch.CausalBranch Transaction))
 loadCausalBranchAtPath maybeRootCausalHash path =
   loadCausalHashAtPath maybeRootCausalHash path >>= \case
     Nothing -> pure Nothing
     Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
 
-loadBranchAtPath :: Maybe CausalHash -> Q.TextPathSegments -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
 loadBranchAtPath maybeRootCausalHash path =
   loadCausalBranchAtPath maybeRootCausalHash path >>= \case
     Nothing -> pure Nothing

@@ -52,7 +52,7 @@ We can also delete the fork if we're done with it. (Don't worry, even though the
 it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
-.> delete.namespace .feature1
+.> delete.namespace feature1
 .> history .feature1
 .> history
 ```

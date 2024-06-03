@@ -66,7 +66,7 @@ import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
@@ -349,7 +349,7 @@ searchByRankedSuffix suffix rel =
 
 -- | precondition: input list is deduped, and so is the Name list in
 -- the tuple
-preferShallowLibDepth :: Ord r => [([Name], r)] -> Set r
+preferShallowLibDepth :: (Ord r) => [([Name], r)] -> Set r
 preferShallowLibDepth = \case
   [] -> Set.empty
   [x] -> Set.singleton (snd x)

@@ -34,6 +34,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -45,7 +46,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.TypeParser qualified as TypeParser
@@ -992,9 +993,12 @@ bang = P.label "bang" do
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
-  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment ":+")))
-    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment "+:")))
-    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment "++")))
+  Pattern.Snoc
+    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
+    <|> Pattern.Cons
+      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
+    <|> Pattern.Concat
+      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf

@@ -1,7 +1,6 @@
 -- | @.unisonConfig@ file utilities
 module Unison.Cli.UnisonConfigUtils
-  ( gitUrlKey,
-    remoteMappingKey,
+  ( remoteMappingKey,
     resolveConfiguredUrl,
   )
 where
@@ -33,9 +32,6 @@ configKey k p =
         NameSegment.toEscapedText
         (Path.toSeq $ Path.unabsolute p)
 
-gitUrlKey :: Path.Absolute -> Text
-gitUrlKey = configKey "GitUrl"
-
 remoteMappingKey :: Path.Absolute -> Text
 remoteMappingKey = configKey "RemoteMapping"
 
@@ -46,13 +42,7 @@ resolveConfiguredUrl :: PushPull -> Path' -> Cli (WriteRemoteNamespace Void)
 resolveConfiguredUrl pushPull destPath' = do
   destPath <- Cli.resolvePath' destPath'
   whenNothingM (remoteMappingForPath pushPull destPath) do
-    let gitUrlConfigKey = gitUrlKey destPath
-    -- Fall back to deprecated GitUrl key
-    Cli.getConfig gitUrlConfigKey >>= \case
-      Just url ->
-        (WriteRemoteNamespaceGit <$> P.parse UriParser.deprecatedWriteGitRemoteNamespace (Text.unpack gitUrlConfigKey) url) & onLeft \err ->
-          Cli.returnEarly (ConfiguredRemoteMappingParseError pushPull destPath url (show err))
-      Nothing -> Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
+    Cli.returnEarly (NoConfiguredRemoteMapping pushPull destPath)
 
 -- | Tries to look up a remote mapping for a given path.
 -- Will also resolve paths relative to any mapping which is configured for a parent of that

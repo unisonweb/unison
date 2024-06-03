@@ -62,7 +62,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchAdds,
   )
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.RemoteRepo (ReadGitRemoteNamespace (..), ReadShareLooseCode (..))
+import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
@@ -77,7 +77,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency)
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency, lenientCheckDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -99,8 +99,9 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
@@ -244,47 +245,45 @@ doMerge info = do
           done (Output.MergeDefnsInLib who)
 
       -- Load Alice/Bob/LCA definitions and decl name lookups
-      (defns3, declNameLookups3) <- do
+      (defns3, declNameLookups, lcaDeclToConstructors) <- do
+        let emptyNametree = Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
+        let loadDefns branch =
+              Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch) & onLeftM \conflictedName ->
+                done case conflictedName of
+                  ConflictedName'Term name refs -> Output.MergeConflictedTermName name refs
+                  ConflictedName'Type name refs -> Output.MergeConflictedTypeName name refs
         let load = \case
-              Nothing ->
-                pure
-                  ( Nametree {value = Defns Map.empty Map.empty, children = Map.empty},
-                    DeclNameLookup Map.empty Map.empty
-                  )
+              Nothing -> pure (emptyNametree, DeclNameLookup Map.empty Map.empty)
               Just (who, branch) -> do
-                defns <-
-                  Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch) & onLeftM \conflictedName ->
-                    done case conflictedName of
-                      ConflictedName'Term name refs -> Output.MergeConflictedTermName name refs
-                      ConflictedName'Type name refs -> Output.MergeConflictedTypeName name refs
+                defns <- loadDefns branch
                 declNameLookup <-
                   Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
                     done case err of
-                      IncoherentDeclReason'ConstructorAlias name1 name2 ->
-                        Output.MergeConstructorAlias who name1 name2
+                      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+                        Output.MergeConstructorAlias who typeName conName1 conName2
                       IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
                       IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
                         Output.MergeNestedDeclAlias who shorterName longerName
                       IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor who name
                 pure (defns, declNameLookup)
 
-        (aliceDefns0, aliceDeclNameLookup) <- load (Just (Just mergeTarget, branches.alice))
-        (bobDefns0, bobDeclNameLookup) <- load (Just (Just mergeSource, branches.bob))
-        (lcaDefns0, lcaDeclNameLookup) <- load ((Nothing,) <$> branches.lca)
+        (aliceDefns0, aliceDeclNameLookup) <- load (Just (mergeTarget, branches.alice))
+        (bobDefns0, bobDeclNameLookup) <- load (Just (mergeSource, branches.bob))
+        lcaDefns0 <- maybe (pure emptyNametree) loadDefns branches.lca
+        lcaDeclToConstructors <- Cli.runTransaction (lenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
 
         let flatten defns = Defns (flattenNametree (view #terms) defns) (flattenNametree (view #types) defns)
         let defns3 = flatten <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
-        let declNameLookups3 = ThreeWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup, lca = lcaDeclNameLookup}
+        let declNameLookups = TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup}
 
-        pure (defns3, declNameLookups3)
+        pure (defns3, declNameLookups, lcaDeclToConstructors)
 
       let defns = ThreeWay.forgetLca defns3
-      let declNameLookups = ThreeWay.forgetLca declNameLookups3
 
-      liftIO (debugFunctions.debugDefns defns3 declNameLookups3)
+      liftIO (debugFunctions.debugDefns defns3 declNameLookups lcaDeclToConstructors)
 
       -- Diff LCA->Alice and LCA->Bob
-      diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups3 defns3)
+      diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups lcaDeclToConstructors defns3)
 
       liftIO (debugFunctions.debugDiffs diffs)
 
@@ -381,10 +380,6 @@ doMerge info = do
                         | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
                         | otherwise -> into @Text bobBranchNames
                       MergeSource'RemoteLooseCode info ->
-                        case Path.toName info.path of
-                          Nothing -> "<root>"
-                          Just name -> Name.toText name
-                      MergeSource'RemoteGitRepo info ->
                         case Path.toName info.path of
                           Nothing -> "<root>"
                           Just name -> Name.toText name
@@ -550,7 +545,7 @@ renderTermBinding ppe (HQ.NameOnly -> name) term typ =
         else TermPrinter.prettyBinding ppe name term
 
 renderTypeBinding ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnvDecl ->
   Name ->
   TypeReferenceId ->
@@ -708,7 +703,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
       branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
    in branch2
   where
-    go :: Ord v => Map Name v -> Nametree (Map NameSegment v)
+    go :: (Ord v) => Map Name v -> Nametree (Map NameSegment v)
     go =
       unflattenNametree . BiMultimap.fromRange
 
@@ -772,7 +767,7 @@ identifyDependents defns conflicts unconflicts = do
             -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
             -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
             -- that when that conflict is resolved, it will propagate to bar.
-            let f :: Foldable t => t Reference.Id -> Set Reference
+            let f :: (Foldable t) => t Reference.Id -> Set Reference
                 f =
                   List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
              in bifoldMap f f <$> conflicts
@@ -863,7 +858,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
       MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
       MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
       MergeSource'RemoteLooseCode info -> manglePath info.path
-      MergeSource'RemoteGitRepo info -> manglePath info.path
     mangleBranchName :: ProjectBranchName -> Text.Builder
     mangleBranchName name =
       case classifyProjectBranchName name of
@@ -893,7 +887,7 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
 -- Fails if there is a conflicted name.
 loadNamespaceDefinitions ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
   m (Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
@@ -1041,7 +1035,8 @@ data DebugFunctions = DebugFunctions
   { debugCausals :: TwoOrThreeWay (V2.CausalBranch Transaction) -> IO (),
     debugDefns ::
       ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-      ThreeWay DeclNameLookup ->
+      TwoWay DeclNameLookup ->
+      Map Name [Maybe Name] ->
       IO (),
     debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
     debugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
@@ -1082,9 +1077,10 @@ realDebugCausals causals = do
 
 realDebugDefns ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  ThreeWay DeclNameLookup ->
+  TwoWay DeclNameLookup ->
+  Map Name [Maybe Name] ->
   IO ()
-realDebugDefns defns declNameLookups = do
+realDebugDefns defns declNameLookups _lcaDeclNameLookup = do
   Text.putStrLn (Text.bold "\n=== Alice definitions ===")
   debugDefns1 (bimap BiMultimap.range BiMultimap.range defns.alice)
 

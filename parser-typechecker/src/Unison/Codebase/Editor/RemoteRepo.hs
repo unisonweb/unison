@@ -2,22 +2,13 @@ module Unison.Codebase.Editor.RemoteRepo where
 
 import Control.Lens (Lens')
 import Control.Lens qualified as Lens
-import Data.Text qualified as Text
 import Data.Void (absurd)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
-import Unison.Util.Monoid qualified as Monoid
-
-data ReadRepo
-  = ReadRepoGit ReadGitRepo
-  | ReadRepoShare ShareCodeserver
-  deriving stock (Eq, Ord, Show)
 
 data ShareCodeserver
   = DefaultCodeserver
@@ -44,58 +35,21 @@ displayShareCodeserver cs shareUser path =
         CustomCodeserver cu -> "share(" <> tShow cu <> ")."
    in shareServer <> shareUserHandleToText shareUser <> maybePrintPath path
 
-data ReadGitRepo = ReadGitRepo {url :: Text, ref :: Maybe Text}
-  deriving stock (Eq, Ord, Show)
-
-data WriteRepo
-  = WriteRepoGit WriteGitRepo
-  | WriteRepoShare ShareCodeserver
-  deriving stock (Eq, Ord, Show)
-
-data WriteGitRepo = WriteGitRepo {url :: Text, branch :: Maybe Text}
-  deriving stock (Eq, Ord, Show)
-
-writeToRead :: WriteRepo -> ReadRepo
-writeToRead = \case
-  WriteRepoGit repo -> ReadRepoGit (writeToReadGit repo)
-  WriteRepoShare repo -> ReadRepoShare repo
-
-writeToReadGit :: WriteGitRepo -> ReadGitRepo
-writeToReadGit = \case
-  WriteGitRepo {url, branch} -> ReadGitRepo {url = url, ref = branch}
-
 writeNamespaceToRead :: WriteRemoteNamespace Void -> ReadRemoteNamespace void
 writeNamespaceToRead = \case
-  WriteRemoteNamespaceGit WriteGitRemoteNamespace {repo, path} ->
-    ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo = writeToReadGit repo, sch = Nothing, path}
   WriteRemoteNamespaceShare WriteShareRemoteNamespace {server, repo, path} ->
     ReadShare'LooseCode ReadShareLooseCode {server, repo, path}
   WriteRemoteProjectBranch v -> absurd v
 
-printReadGitRepo :: ReadGitRepo -> Text
-printReadGitRepo ReadGitRepo {url, ref} =
-  "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> ref) <> ")"
-
-printWriteGitRepo :: WriteGitRepo -> Text
-printWriteGitRepo WriteGitRepo {url, branch} = "git(" <> url <> Monoid.fromMaybe (Text.cons ':' <$> branch) <> ")"
-
 -- | print remote namespace
 printReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
 printReadRemoteNamespace printProject = \case
-  ReadRemoteNamespaceGit ReadGitRemoteNamespace {repo, sch, path} ->
-    printReadGitRepo repo <> maybePrintSCH sch <> maybePrintPath path
-    where
-      maybePrintSCH = \case
-        Nothing -> mempty
-        Just sch -> "#" <> SCH.toText sch
   ReadShare'LooseCode ReadShareLooseCode {server, repo, path} -> displayShareCodeserver server repo path
   ReadShare'ProjectBranch project -> printProject project
 
 -- | Render a 'WriteRemoteNamespace' as text.
 printWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Text
 printWriteRemoteNamespace = \case
-  WriteRemoteNamespaceGit (WriteGitRemoteNamespace {repo, path}) ->
-    printWriteGitRepo repo <> maybePrintPath path
   WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server, repo, path}) ->
     displayShareCodeserver server repo path
   WriteRemoteProjectBranch projectAndBranch -> into @Text projectAndBranch
@@ -107,19 +61,11 @@ maybePrintPath path =
     else "." <> Path.toText path
 
 data ReadRemoteNamespace a
-  = ReadRemoteNamespaceGit !ReadGitRemoteNamespace
-  | ReadShare'LooseCode !ReadShareLooseCode
+  = ReadShare'LooseCode !ReadShareLooseCode
   | -- | A remote project+branch, specified by name (e.g. @unison/base/main).
     -- Currently assumed to be hosted on Share, though we could include a ShareCodeserver in here, too.
     ReadShare'ProjectBranch !a
   deriving stock (Eq, Functor, Show, Generic)
-
-data ReadGitRemoteNamespace = ReadGitRemoteNamespace
-  { repo :: !ReadGitRepo,
-    sch :: !(Maybe ShortCausalHash),
-    path :: !Path
-  }
-  deriving stock (Eq, Show)
 
 data ReadShareLooseCode = ReadShareLooseCode
   { server :: !ShareCodeserver,
@@ -132,12 +78,11 @@ data ReadShareLooseCode = ReadShareLooseCode
 isPublic :: ReadShareLooseCode -> Bool
 isPublic ReadShareLooseCode {path} =
   case path of
-    ((NameSegment.toUnescapedText -> "public") Path.:< _) -> True
+    (segment Path.:< _) -> segment == NameSegment.publicLooseCodeSegment
     _ -> False
 
 data WriteRemoteNamespace a
-  = WriteRemoteNamespaceGit !WriteGitRemoteNamespace
-  | WriteRemoteNamespaceShare !WriteShareRemoteNamespace
+  = WriteRemoteNamespaceShare !WriteShareRemoteNamespace
   | WriteRemoteProjectBranch a
   deriving stock (Eq, Functor, Show)
 
@@ -146,22 +91,13 @@ remotePath_ :: Lens' (WriteRemoteNamespace Void) Path
 remotePath_ = Lens.lens getter setter
   where
     getter = \case
-      WriteRemoteNamespaceGit (WriteGitRemoteNamespace _ path) -> path
       WriteRemoteNamespaceShare (WriteShareRemoteNamespace _ _ path) -> path
       WriteRemoteProjectBranch v -> absurd v
     setter remote path =
       case remote of
-        WriteRemoteNamespaceGit (WriteGitRemoteNamespace repo _) ->
-          WriteRemoteNamespaceGit $ WriteGitRemoteNamespace repo path
         WriteRemoteNamespaceShare (WriteShareRemoteNamespace server repo _) ->
           WriteRemoteNamespaceShare $ WriteShareRemoteNamespace server repo path
         WriteRemoteProjectBranch v -> absurd v
-
-data WriteGitRemoteNamespace = WriteGitRemoteNamespace
-  { repo :: !WriteGitRepo,
-    path :: !Path
-  }
-  deriving stock (Eq, Generic, Show)
 
 data WriteShareRemoteNamespace = WriteShareRemoteNamespace
   { server :: !ShareCodeserver,

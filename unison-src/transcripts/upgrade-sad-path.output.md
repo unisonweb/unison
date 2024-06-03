@@ -65,12 +65,14 @@ thingy = foo + +10
 
 ```
 ```ucm
-proj/upgrade-old-to-new> upgrade.commit
+proj/upgrade-old-to-new> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
+
+proj/upgrade-old-to-new> upgrade.commit
 
   I fast-forward merged proj/upgrade-old-to-new into proj/main.
 

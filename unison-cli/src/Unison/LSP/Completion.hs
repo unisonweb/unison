@@ -32,8 +32,9 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -194,8 +195,7 @@ namesToCompletionTree Names {terms, types} =
     -- Special docs like "README" will still appear since they're not named 'doc'
     isDefinitionDoc name =
       case Name.reverseSegments name of
-        ((NameSegment.toUnescapedText -> "doc") :| _) -> True
-        _ -> False
+        (doc :| _) -> doc == NameSegment.docSegment
 
 nameToCompletionTree :: Name -> LabeledDependency -> CompletionTree
 nameToCompletionTree name ref =
@@ -244,7 +244,7 @@ matchCompletions (CompletionTree tree) txt =
            in (current <> mkDefMatches subtreeMap)
         [prefix] ->
           Map.dropWhileAntitone (< prefix) subtreeMap
-            & Map.takeWhileAntitone (NameSegment.isPrefixOf prefix)
+            & Map.takeWhileAntitone (Text.isPrefixOf (NameSegment.toUnescapedText prefix) . NameSegment.toUnescapedText)
             & \matchingSubtrees ->
               let subMatches = ifoldMap (\ns subTree -> matchSegments [] subTree & consPathPrefix ns) matchingSubtrees
                in subMatches
