@@ -42,7 +42,6 @@ import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -452,7 +451,7 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
-  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch _pn0 _bn0, path) (ProjectAndBranch currentProject branch) ->
     ( P.wrap
         ( openingLine
             <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
@@ -492,7 +491,7 @@ notifyNumbered = \case
         E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
       reset = IP.makeExample IP.reset
       relPath0 = prettyPath path
-      absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
+      absPath0 = Path.Absolute path
   ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
   ListNamespaceDependencies ppe path' externalDependencies ->
     ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
@@ -803,7 +802,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
-      "☝️  The namespace " <> prettyAbsoluteStripProject path <> " is empty."
+      "☝️  The namespace " <> prettyAbsolute path <> " is empty."
   -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do

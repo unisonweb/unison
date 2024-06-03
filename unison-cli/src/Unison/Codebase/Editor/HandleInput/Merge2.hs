@@ -65,6 +65,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
@@ -138,11 +139,14 @@ import Unison.Util.SyntaxText (SyntaxText')
 import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import qualified U.Codebase.Sqlite.Queries as Q
 
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   -- Assert that Alice (us) is on a project branch, and grab the causal hash.
-  (aliceProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
+  ProjectPath aliceProject aliceProjectBranch _path <- Cli.getCurrentProjectPath
+  let aliceProjectAndBranch = ProjectAndBranch aliceProject aliceProjectBranch
+  aliceCausalHash <- Cli.runTransaction (projectBranchToCausalHash aliceProjectBranch)
 
   -- Resolve Bob's maybe-project-name + branch-name to the info the merge algorithm needs: the project name, branch
   -- name, and causal hash.
@@ -162,6 +166,10 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
       { alice = aliceProjectAndBranch,
         bob = bobProjectAndBranch
       }
+  where
+    projectBranchToCausalHash :: ProjectBranch -> Transaction CausalHash
+    projectBranchToCausalHash branch = do
+      Q.expectCausalHash (branch ^. causalHashId)
 
 data MergeInfo = MergeInfo
   { alice :: !AliceMergeInfo,

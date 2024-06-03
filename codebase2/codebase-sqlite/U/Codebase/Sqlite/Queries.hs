@@ -135,6 +135,7 @@ module U.Codebase.Sqlite.Queries
     insertProjectBranch,
     renameProjectBranch,
     deleteProjectBranch,
+    setProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
 
@@ -235,9 +236,9 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
-    -- * most recent namespace
-    expectMostRecentNamespace,
-    setMostRecentNamespace,
+    -- * current project path
+    loadCurrentProjectPath,
+    setCurrentProjectPath,
 
     -- * migrations
     createSchema,
@@ -252,6 +253,7 @@ module U.Codebase.Sqlite.Queries
     addSquashResultTable,
     addSquashResultTableIfNotExists,
     cdToProjectRoot,
+    addCurrentProjectPathTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -487,6 +489,10 @@ schemaVersion =
       SELECT version
       FROM schema_version
     |]
+
+addCurrentProjectPathTable :: Transaction ()
+addCurrentProjectPathTable =
+  executeStatements $(embedProjectStringFile "sql/012-add-current-project-path-table.sql")
 
 data UnexpectedSchemaVersion = UnexpectedSchemaVersion
   { actual :: SchemaVersion,
@@ -3525,7 +3531,8 @@ loadProjectBranchSql projectId branchId =
       project_branch.project_id,
       project_branch.branch_id,
       project_branch.name,
-      project_branch_parent.parent_branch_id
+      project_branch_parent.parent_branch_id,
+      project_branch.causal_hash_id
     FROM
       project_branch
       LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
@@ -3680,11 +3687,11 @@ loadProjectAndBranchNames projectId branchId =
 
 -- | Insert a project branch.
 insertProjectBranch :: ProjectBranch -> Transaction ()
-insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId causalHashId) = do
   execute
     [sql|
-      INSERT INTO project_branch (project_id, branch_id, name)
-        VALUES (:projectId, :branchId, :branchName)
+      INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
+        VALUES (:projectId, :branchId, :branchName, :causalHashId)
     |]
   whenJust maybeParentBranchId \parentBranchId ->
     execute
@@ -3761,6 +3768,16 @@ deleteProjectBranch projectId branchId = do
   execute
     [sql|
       DELETE FROM project_branch
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+
+-- | Set project branch HEAD
+setProjectBranchHead :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchHead projectId branchId causalHashId =
+  execute
+    [sql|
+      UPDATE project_branch
+      SET causal_hash_id = :causalHashId
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
 
@@ -4248,33 +4265,39 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectMostRecentNamespace :: Transaction [NameSegment]
-expectMostRecentNamespace =
-  queryOneColCheck
+loadCurrentProjectPath :: Transaction (Maybe (ProjectId, ProjectBranchId, [NameSegment]))
+loadCurrentProjectPath =
+  queryMaybeRowCheck
     [sql|
-      SELECT namespace
-      FROM most_recent_namespace
+      SELECT project_id, branch_id, path
+      FROM current_project_path
     |]
     check
   where
-    check :: Text -> Either JsonParseFailure [NameSegment]
-    check bytes =
-      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
-        Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
-        Right namespace -> Right (map NameSegment namespace)
+    check :: (ProjectId, ProjectBranchId, Text) -> Either JsonParseFailure (ProjectId, ProjectBranchId, [NameSegment])
+    check (projId, branchId, pathText) =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 pathText) of
+        Left failure -> Left JsonParseFailure {bytes = pathText, failure = Text.pack failure}
+        Right namespace -> Right (projId, branchId, map NameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
-setMostRecentNamespace :: [NameSegment] -> Transaction ()
-setMostRecentNamespace namespace =
+setCurrentProjectPath ::
+  ProjectId ->
+  ProjectBranchId ->
+  [NameSegment] ->
+  Transaction ()
+setCurrentProjectPath projId branchId path = do
+  execute
+    [sql| TRUNCATE TABLE current_project_path |]
   execute
     [sql|
-      UPDATE most_recent_namespace
-      SET namespace = :json
+      INSERT INTO most_recent_namespace(project_id, branch_id, path)
+      VALUES (:projId, :branchId, :jsonPath)
     |]
   where
-    json :: Text
-    json =
-      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> namespace)
+    jsonPath :: Text
+    jsonPath =
+      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> path)
 
 -- | Get the causal hash result from squashing the provided branch hash if we've squashed it
 -- at some point in the past.

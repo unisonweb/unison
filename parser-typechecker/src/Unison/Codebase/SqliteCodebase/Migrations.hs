@@ -21,6 +21,7 @@ import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17 (migrateSchema16To17)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
@@ -81,7 +82,8 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 13 Q.addMostRecentNamespaceTable,
       sqlMigration 14 Q.addSquashResultTable,
       sqlMigration 15 Q.addSquashResultTableIfNotExists,
-      sqlMigration 16 Q.cdToProjectRoot
+      sqlMigration 16 Q.cdToProjectRoot,
+      sqlMigration 17 migrateSchema16To17
     ]
   where
     sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Transaction ())

@@ -17,7 +17,7 @@ moveBranchFunc hasConfirmed src' dest' = do
   let isRootMove = (Path.isRoot srcAbs || Path.isRoot destAbs)
   when (isRootMove && not hasConfirmed) do
     Cli.returnEarly MoveRootBranchConfirmation
-  Cli.getMaybeBranchAt srcAbs >>= traverse \srcBranch -> do
+  Cli.getMaybeBranchFromProjectRootPath srcAbs >>= traverse \srcBranch -> do
     -- We want the move to appear as a single step in the root namespace, but we need to make
     -- surgical changes in both the root and the destination, so we make our modifications at the shared parent of
     -- those changes such that they appear as a single change in the root.

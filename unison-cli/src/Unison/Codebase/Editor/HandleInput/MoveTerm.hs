@@ -9,13 +9,14 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path, Path')
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.HashQualified' qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 
-moveTermSteps :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Cli [(Path, Branch0 m -> Branch0 m)]
+moveTermSteps :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Cli [(Path.Absolute, Branch0 m -> Branch0 m)]
 moveTermSteps src' dest' = do
   src <- Cli.resolveSplit' src'
   srcTerms <- Cli.getTermsAt src
@@ -29,7 +30,7 @@ moveTermSteps src' dest' = do
       destTerms <- Cli.getTermsAt (Path.convert dest)
       when (not (Set.null destTerms)) do
         Cli.returnEarly (Output.TermAlreadyExists dest' destTerms)
-      let p = Path.convert src
+      let p = src & _1 %~ view PP.absPath_
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,

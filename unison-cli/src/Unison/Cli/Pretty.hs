@@ -5,7 +5,7 @@
 module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
-    prettyAbsoluteStripProject,
+    prettyProjectPath,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
@@ -71,7 +71,6 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -86,6 +85,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Core.Project (ProjectBranchName)
@@ -211,6 +211,9 @@ prettyRelative = P.blue . P.shown
 
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
+
+prettyProjectPath :: PP.ProjectPath -> Pretty
+prettyProjectPath = P.blue . P.shown
 
 prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
@@ -392,15 +395,6 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
         <> P.shown host
-
-stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
-stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
-
-prettyAbsoluteStripProject :: Path.Absolute -> Pretty
-prettyAbsoluteStripProject path =
-  P.blue case stripProjectBranchInfo path of
-    Just p -> P.shown p
-    Nothing -> P.shown path
 
 prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
 prettyLabeledDependencies ppe lds =

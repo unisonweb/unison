@@ -390,7 +390,7 @@ prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveCodebase = d
   tmp <- case shouldSaveCodebase of
     SaveCodebase (Just path) -> pure path
     _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
-  let cbInit = SC.init
+  let cbInit = SC.initWithSetup bootstrapNewCodebase
   case shouldFork of
     UseFork -> do
       -- A forked codebase does not need to Create a codebase, because it already exists
@@ -571,7 +571,8 @@ getConfigFilePath mcodepath = (</> ".unisonConfig") <$> Codebase.getCodebaseDir 
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions SC.DoLock migrationStrategy \case
+  let cbInit = SC.initWithSetup bootstrapNewCodebase
+  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions SC.DoLock migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
@@ -652,3 +653,6 @@ codebasePathOptionToPath codebasePathOption =
   case codebasePathOption of
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p
+
+bootstrapNewCodebase :: _
+bootstrapNewCodebase = error "Implement bootstrapNewCodebase."
