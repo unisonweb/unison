@@ -23,9 +23,17 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectBranchByNames,
     expectRemoteProjectBranchByTheseNames,
 
+    -- * Projecting out common things
+    justTheIds,
+    justTheIds',
+    justTheNames,
+
     -- * Other helpers
     findTemporaryBranchName,
     expectLatestReleaseBranchName,
+
+    -- * Upgrade branch utils
+    getUpgradeBranchParent,
   )
 where
 
@@ -33,7 +41,10 @@ import Control.Lens
 import Data.List qualified as List
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.These (These (..))
+import U.Codebase.Causal qualified
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project (Project)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -44,6 +55,8 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects (IncludeSquashedHead)
 import Unison.Cli.Share.Projects qualified as Share
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.Input (LooseCodeOrProject)
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -68,6 +81,18 @@ resolveBranchRelativePath brp = do
     UnqualifiedPath newPath' -> do
       pp <- Cli.getCurrentProjectPath
       pure $ pp & PP.absPath_ %~ \curPath -> Path.resolve curPath newPath'
+
+justTheIds :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
+justTheIds x =
+  ProjectAndBranch x.project.projectId x.branch.branchId
+
+justTheIds' :: Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
+justTheIds' x =
+  ProjectAndBranch x.projectId x.branchId
+
+justTheNames :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectName ProjectBranchName
+justTheNames x =
+  ProjectAndBranch x.project.name x.branch.name
 
 -- @findTemporaryBranchName projectId preferred@ finds some unused branch name in @projectId@ with a name
 -- like @preferred@.
@@ -174,6 +199,13 @@ resolveProjectBranch defaultProj (ProjectAndBranch mayProjectName mayBranchName)
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
   projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
   pure projectAndBranch
+
+-- | Get the causal hash of a project branch.
+getProjectBranchCausalHash :: ProjectAndBranch ProjectId ProjectBranchId -> Transaction CausalHash
+getProjectBranchCausalHash branch = do
+  let path = projectBranchPath branch
+  causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
+  pure causal.causalHash
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils
@@ -285,3 +317,14 @@ expectLatestReleaseBranchName remoteProject =
   case remoteProject.latestRelease of
     Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases remoteProject.projectName)
     Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))
+
+-- | @getUpgradeBranchParent branch@ returns the parent branch of an "upgrade" branch.
+--
+-- When an upgrade fails, we put you on a branch called `upgrade-<old>-to-<new>`. That's an "upgrade" branch. It's not
+-- currently distinguished in the database, so we first just switch on whether its name begins with "upgrade-". If it
+-- does, then we get the branch's parent, which should exist, but perhaps wouldn't if the user had manually made a
+-- parentless branch called "upgrade-whatever" for whatever reason.
+getUpgradeBranchParent :: Sqlite.ProjectBranch -> Maybe ProjectBranchId
+getUpgradeBranchParent branch = do
+  guard ("upgrade-" `Text.isPrefixOf` into @Text branch.name)
+  branch.parentBranchId

@@ -52,7 +52,7 @@ import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server

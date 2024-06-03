@@ -78,7 +78,7 @@ data ReadShareLooseCode = ReadShareLooseCode
 isPublic :: ReadShareLooseCode -> Bool
 isPublic ReadShareLooseCode {path} =
   case path of
-    ((NameSegment.toUnescapedText -> "public") Path.:< _) -> True
+    (segment Path.:< _) -> segment == NameSegment.publicLooseCodeSegment
     _ -> False
 
 data WriteRemoteNamespace a

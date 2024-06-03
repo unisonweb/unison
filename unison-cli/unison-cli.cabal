@@ -55,6 +55,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DeleteBranch
@@ -97,6 +98,7 @@ library
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
+      Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser

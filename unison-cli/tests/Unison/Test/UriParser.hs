@@ -6,12 +6,19 @@ import Data.These (These (..))
 import Data.Void (Void)
 import EasyTest
 import Text.Megaparsec qualified as P
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), ShareCodeserver (..), ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..), pattern ReadShareLooseCode)
+import Unison.Codebase.Editor.RemoteRepo
+  ( ReadRemoteNamespace (..),
+    ShareCodeserver (..),
+    ShareUserHandle (..),
+    WriteRemoteNamespace (..),
+    WriteShareRemoteNamespace (..),
+    pattern ReadShareLooseCode,
+  )
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Project (ProjectBranchSpecifier (..))
 
 test :: Test ()
@@ -38,13 +45,16 @@ test =
         ]
     ]
 
-looseR :: Text -> [NameSegment] -> ReadRemoteNamespace void
-looseR user path =
-  ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle user) (Path.fromList path))
+mkPath :: [Text] -> Path.Path
+mkPath = Path.fromList . fmap NameSegment
 
-looseW :: Text -> [NameSegment] -> WriteRemoteNamespace void
+looseR :: Text -> [Text] -> ReadRemoteNamespace void
+looseR user path =
+  ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle user) (mkPath path))
+
+looseW :: Text -> [Text] -> WriteRemoteNamespace void
 looseW user path =
-  WriteRemoteNamespaceShare (WriteShareRemoteNamespace DefaultCodeserver (ShareUserHandle user) (Path.fromList path))
+  WriteRemoteNamespaceShare (WriteShareRemoteNamespace DefaultCodeserver (ShareUserHandle user) (mkPath path))
 
 branchR :: These Text Text -> ReadRemoteNamespace (These ProjectName ProjectBranchName)
 branchR =

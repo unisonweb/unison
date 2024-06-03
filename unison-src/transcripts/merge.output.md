@@ -964,8 +964,21 @@ baz = "baz"
 ```ucm
 project/alice> merge /bob
 
-  On project/alice, bar and foo are not aliases, but they used
-  to be.
+  Sorry, I wasn't able to perform the merge:
+  
+  On the merge ancestor, bar and foo were aliases for the same
+  definition, but on project/alice the names have different
+  definitions currently. I'd need just a single new definition
+  to use in their dependents when I merge.
+  
+  Please fix up project/alice to resolve this. For example,
+  
+    * `update` the definitions to be the same again, so that
+      there's nothing for me to decide.
+    * `move` or `delete` all but one of the definitions; I'll
+      use the remaining name when propagating updates.
+  
+  and then try merging again.
 
 ```
 ### Conflict involving builtin
@@ -990,9 +1003,15 @@ unique type MyNat = MyNat Nat
 ```ucm
 project/alice> merge /bob
 
+  Sorry, I wasn't able to perform the merge:
+  
   There's a merge conflict on MyNat, but it's a builtin on one
-  or both branches. We can't yet handle merge conflicts on
+  or both branches. I can't yet handle merge conflicts involving
   builtins.
+  
+  Please eliminate this conflict by updating one branch or the
+  other, making MyNat the same on both branches, or making
+  neither of them a builtin, and then try the merge again.
 
 ```
 ### Constructor alias
@@ -1019,9 +1038,16 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On project/alice, Foo.Bar and Foo.some.other.Alias are
-  aliases. Every type declaration must have exactly one name for
-  each constructor.
+  Sorry, I wasn't able to perform the merge:
+  
+  On project/alice, the type Foo has a constructor with multiple
+  names, and I can't perform a merge in this situation:
+  
+    * Foo.Bar
+    * Foo.some.other.Alias
+  
+  Please delete all but one name for each constructor, and then
+  try merging again.
 
 ```
 ### Missing constructor name
@@ -1048,8 +1074,14 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On project/alice, the type Foo is missing a name for one of
-  its constructors. Please add one before merging.
+  Sorry, I wasn't able to perform the merge:
+  
+  On project/alice, the type Foo has some constructors with
+  missing names, and I can't perform a merge in this situation.
+  
+  You can use `view Foo` and
+  `alias.term <hash> Foo.<ConstructorName>` to give names to
+  each unnamed constructor, and then try the merge again.
 
 ```
 ### Nested decl alias
@@ -1081,9 +1113,10 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On project/alice, the type A.inner.X is an alias of A. Type
-  aliases cannot be nested. Please make them disjoint before
-  merging.
+  On project/alice, the type A.inner.X is an alias of A. I'm not
+  able to perform a merge when a type exists nested under an
+  alias of itself. Please separate them or delete one copy, and
+  then try merging again.
 
 ```
 ### Stray constructor alias
@@ -1115,9 +1148,14 @@ project/bob> add
 ```ucm
 project/alice> merge bob
 
+  Sorry, I wasn't able to perform the merge, because I need all
+  constructor names to be nested somewhere beneath the
+  corresponding type name.
+  
   On project/alice, the constructor AliasOutsideFooNamespace is
-  not in a subnamespace of a name of its type. Please either
-  delete it or rename it before merging.
+  not nested beneath the corresponding type name. Please either
+  use `move` to move it, or if it's an extra copy, you can
+  simply `delete` it. Then try the merge again.
 
 ```
 ### Term or type in `lib`
@@ -1139,8 +1177,148 @@ bob = 100
 ```ucm
 project/alice> merge /bob
 
-  On project/alice, there's a type or term directly in the `lib`
-  namespace, but I expected only library dependencies to be in
-  there. Please remove it before merging.
+  Sorry, I wasn't able to perform the merge:
+  
+  On project/alice, there's a type or term at the top level of
+  the `lib` namespace, where I only expect to find subnamespaces
+  representing library dependencies.
+  
+  Please move or remove it and then try merging again.
+
+```
+## LCA precondition violations
+
+The LCA is not subject to most precondition violations, which is good, because the user can't easily manipulate it!
+
+Here's an example. We'll delete a constructor name from the LCA and still be able to merge Alice and Bob's stuff
+together.
+
+LCA:
+
+```unison
+structural type Foo = Bar Nat | Baz Nat Nat
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo
+
+project/main> delete.term Foo.Baz
+
+  Done.
+
+```
+Alice's branch:
+
+```ucm
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+project/alice> delete.type Foo
+
+  Done.
+
+project/alice> delete.term Foo.Bar
+
+  Done.
+
+```
+```unison
+alice : Nat
+alice = 100
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      alice : Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    alice : Nat
+
+```
+Bob's branch:
+
+```ucm
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+project/bob> delete.type Foo
+
+  Done.
+
+project/bob> delete.term Foo.Bar
+
+  Done.
+
+```
+```unison
+bob : Nat
+bob = 101
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
+Now we merge:
+
+```ucm
+project/alice> merge /bob
+
+  I merged project/bob into project/alice.
 
 ```

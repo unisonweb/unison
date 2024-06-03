@@ -155,7 +155,7 @@ data Input
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- execute an IO thunk with args
-    ExecuteI Text [String]
+    ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]
@@ -165,7 +165,7 @@ data Input
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
-    ExecuteSchemeI Text [String]
+    ExecuteSchemeI (HQ.HashQualified Name) [String]
   | -- compile to a scheme file
     CompileSchemeI Text (HQ.HashQualified Name)
   | TestI TestInput
@@ -173,7 +173,7 @@ data Input
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | -- Display docs for provided terms.
-    DocsI (NonEmpty Path.HQSplit')
+    DocsI (NonEmpty Name)
   | -- other
     FindI Bool FindScope [String] -- FindI isVerbose findScope query
   | FindShallowI Path'
@@ -224,6 +224,7 @@ data Input
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | LibInstallI !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
+  | UpgradeCommitI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

@@ -43,7 +43,6 @@ import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
-import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -640,7 +639,7 @@ loadCausalHashToPush path =
     Nothing -> Nothing
     Just (CausalHash hash) -> Just (Hash32.fromHash hash)
   where
-    segments = coerce @[NameSegment] @[Text] (Path.toList (Path.unabsolute path))
+    segments = Path.toList (Path.unabsolute path)
 
 -- Were we to try to advance `remoteBranchHead` to `localBranchHead`, would it *not* be a fast-forward?
 wouldNotBeFastForward :: Hash32 -> Hash32 -> Sqlite.Transaction Bool

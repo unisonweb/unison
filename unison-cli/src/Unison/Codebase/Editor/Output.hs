@@ -36,6 +36,7 @@ import Unison.Codebase.Editor.Output.PushPull (PushPull)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as SR
+import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
@@ -82,7 +83,12 @@ type ListDetailed = Bool
 
 type SourceName = Text
 
-type NumberedArgs = [String]
+-- |
+--
+--  __NB__: This only temporarily holds `Text`. Until all of the inputs are
+--          updated to handle `StructuredArgument`s, we need to ensure that the
+--          serialization remains unchanged.
+type NumberedArgs = [StructuredArgument]
 
 type HashLength = Int
 
@@ -151,13 +157,13 @@ data Output
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
-    NoMainFunction Text PPE.PrettyPrintEnv [Type Symbol Ann]
+    NoMainFunction (HQ.HashQualified Name) PPE.PrettyPrintEnv [Type Symbol Ann]
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
       Text
       -- ^ what we were trying to do (e.g. "run", "io.test")
-      Text
+      (HQ.HashQualified Name)
       -- ^ name of function
       (Type Symbol Ann)
       -- ^ bad type of function
@@ -294,7 +300,7 @@ data Output
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
   | -- | List dependents of a type or term.
     ListDependents PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
-  | DumpNumberedArgs NumberedArgs
+  | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName Text
@@ -393,12 +399,13 @@ data Output
   | MergeConflictedTermName !Name !(NESet Referent)
   | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !(Maybe MergeSourceOrTarget) !Name !Name
+  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
-  | MergeMissingConstructorName !(Maybe MergeSourceOrTarget) !Name
-  | MergeNestedDeclAlias !(Maybe MergeSourceOrTarget) !Name !Name
-  | MergeStrayConstructor !(Maybe MergeSourceOrTarget) !Name
+  | MergeMissingConstructorName !MergeSourceOrTarget !Name
+  | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
+  | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
+  | NoUpgradeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -635,6 +642,7 @@ isFailure o = case o of
   MergeNestedDeclAlias {} -> True
   MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
+  NoUpgradeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

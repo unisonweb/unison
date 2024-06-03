@@ -1,11 +1,13 @@
 -- | @switch@ input handler
 module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   ( projectSwitch,
+    switchToProjectBranch,
   )
 where
 
-import Control.Lens ((^.))
 import Data.These (These (..))
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Project qualified
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -31,21 +33,20 @@ projectSwitch projectNames = do
       ProjectUtils.getCurrentProjectBranch >>= \case
         Nothing -> switchToProjectAndBranchByTheseNames (This projectName)
         Just (ProjectAndBranch currentProject _currentBranch, _restPath) -> do
-          let currentProjectName = currentProject ^. #name
           (projectExists, branchExists) <-
             Cli.runTransaction do
               (,)
                 <$> Queries.projectExistsByName projectName
-                <*> Queries.projectBranchExistsByName (currentProject ^. #projectId) branchName
+                <*> Queries.projectBranchExistsByName currentProject.projectId branchName
           case (projectExists, branchExists) of
             (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
-            (False, True) -> switchToProjectAndBranchByTheseNames (These currentProjectName branchName)
+            (False, True) -> switchToProjectAndBranchByTheseNames (These currentProject.name branchName)
             (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
             (True, True) ->
               Cli.respondNumbered $
                 Output.AmbiguousSwitch
                   projectName
-                  (ProjectAndBranch currentProjectName branchName)
+                  (ProjectAndBranch currentProject.name branchName)
     ProjectAndBranchNames'Unambiguous projectAndBranchNames0 ->
       switchToProjectAndBranchByTheseNames projectAndBranchNames0
 

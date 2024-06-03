@@ -22,7 +22,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode, shareUserHandleToT
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectAndBranch (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver

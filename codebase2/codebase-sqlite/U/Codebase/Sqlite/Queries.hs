@@ -396,8 +396,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
 import Unison.Util.Alternative qualified as Alternative
@@ -4297,7 +4297,7 @@ setCurrentProjectPath projId branchId path = do
   where
     jsonPath :: Text
     jsonPath =
-      Text.Lazy.toStrict (Aeson.encodeToLazyText $ map NameSegment.toUnescapedText path)
+      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> path)
 
 -- | Get the causal hash result from squashing the provided branch hash if we've squashed it
 -- at some point in the past.

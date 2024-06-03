@@ -62,8 +62,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
-import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)

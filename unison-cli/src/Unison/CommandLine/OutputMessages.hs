@@ -60,6 +60,8 @@ import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
+import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch (Patch (..))
@@ -88,8 +90,8 @@ import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
 import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -136,7 +138,7 @@ import Unison.Syntax.NamePrinter
     prettyShortHash,
     styleHashQualified,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -299,7 +301,7 @@ notifyNumbered = \case
               "",
               tip $
                 "Add"
-                  <> prettyName (Name.fromSegment "License")
+                  <> prettyName (Name.fromSegment NameSegment.licenseSegment)
                   <> "values for"
                   <> prettyName (Name.fromSegment authorNS)
                   <> "under"
@@ -341,7 +343,7 @@ notifyNumbered = \case
             ]
         branchHashes :: [CausalHash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, displayBranchHash <$> branchHashes)
+     in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
       toSCH h = SCH.fromHash schLength h
@@ -399,7 +401,7 @@ notifyNumbered = \case
     )
   ListProjects projects ->
     ( P.numberedList (map (prettyProjectName . view #name) projects),
-      map (Text.unpack . into @Text . view #name) projects
+      map (SA.Project . view #name) projects
     )
   ListBranches projectName branches ->
     ( P.columnNHeader
@@ -415,7 +417,9 @@ notifyNumbered = \case
                 ]
                   : map (\branch -> ["", "", prettyRemoteBranchInfo branch]) remoteBranches
         ),
-      map (\(branchName, _) -> Text.unpack (into @Text (ProjectAndBranch projectName branchName))) branches
+      map
+        (SA.ProjectBranch . ProjectAndBranch (pure projectName) . fst)
+        branches
     )
   AmbiguousSwitch project (ProjectAndBranch currentProject branch) ->
     ( P.wrap
@@ -440,8 +444,9 @@ notifyNumbered = \case
               <> switch ["2"]
               <> " to pick one of these."
           ),
-      [ Text.unpack (Text.cons '/' (into @Text branch)),
-        Text.unpack (into @Text (ProjectAndBranch project (UnsafeProjectBranchName "main")))
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.ProjectBranch . ProjectAndBranch (pure project) $
+          UnsafeProjectBranchName "main"
       ]
     )
     where
@@ -470,8 +475,8 @@ notifyNumbered = \case
               <> reset (resetArgs ["2"])
               <> " to pick one of these."
           ),
-      [ Text.unpack (Text.cons '/' (into @Text branch)),
-        Text.unpack (into @Text (show absPath0))
+      [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
+        SA.AbsolutePath absPath0
       ]
     )
     where
@@ -507,13 +512,13 @@ notifyNumbered = \case
                     newNextNum = nextNum + length unnumberedNames
                  in ( newNextNum,
                       ( nameToNum <> (Map.fromList (zip unnumberedNames [nextNum ..])),
-                        args <> fmap Name.toText unnumberedNames
+                        args <> unnumberedNames
                       )
                     )
             )
             (1, (mempty, mempty))
           & snd
-          & over (_2 . mapped) Text.unpack
+          & over (_2 . mapped) SA.Name
       externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
       externalDepsTable = ifoldMap $ \ld dependents ->
         [(prettyLD ld, prettyDependents dependents)]
@@ -733,21 +738,21 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $
             "I looked for a function"
-              <> P.backticked (P.text main)
+              <> P.backticked (P.text $ HQ.toText main)
               <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
           "",
-          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   BadMainFunction what main ty ppe ts ->
     pure . P.callout "😶" $
       P.lines
         [ P.string "I found this function:",
           "",
-          P.indentN 2 $ P.text main <> " : " <> TypePrinter.pretty ppe ty,
+          P.indentN 2 $ P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe ty,
           "",
           P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
           "",
-          P.indentN 2 $ P.lines [P.text main <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
@@ -1032,8 +1037,6 @@ notifyUser dir = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  -- TODO: Present conflicting TermEdits and TypeEdits
-  -- if we ever allow users to edit hashes directly.
   Typechecked sourceName ppe slurpResult uf -> do
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     let containsWatchExpressions = notNull $ UF.watchComponents uf
@@ -1066,8 +1069,7 @@ notifyUser dir = \case
                                 <> IP.makeExample' IP.add
                                 <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would"
-                                <> "change:",
+                                <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
                           ]
               ]
@@ -1338,13 +1340,43 @@ notifyUser dir = \case
           <> "was already up-to-date with"
           <> P.group (prettyMergeSource aliceAndBob.bob <> ".")
   MergeConflictedAliases aliceOrBob name1 name2 ->
-    pure . P.wrap $
-      "On"
-        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> prettyName name1
-        <> "and"
-        <> prettyName name2
-        <> "are not aliases, but they used to be."
+    pure $
+      P.wrap "Sorry, I wasn't able to perform the merge:"
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "On the merge ancestor,"
+              <> prettyName name1
+              <> "and"
+              <> prettyName name2
+              <> "were aliases for the same definition, but on"
+              <> prettyMergeSourceOrTarget aliceOrBob
+              <> "the names have different definitions currently. I'd need just a single new definition to use in their"
+              <> "dependents when I merge."
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap ("Please fix up" <> prettyMergeSourceOrTarget aliceOrBob <> "to resolve this. For example,")
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.bulleted
+              [ P.wrap
+                  ( IP.makeExample' IP.update
+                      <> "the definitions to be the same again, so that there's nothing for me to decide."
+                  ),
+                P.wrap
+                  ( IP.makeExample' IP.moveAll
+                      <> "or"
+                      <> IP.makeExample' IP.delete
+                      <> "all but one of the definitions; I'll use the remaining name when propagating updates."
+                  )
+              ]
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "and then try merging again."
   MergeConflictedTermName name _refs ->
     pure . P.wrap $
       "The term name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
@@ -1352,63 +1384,101 @@ notifyUser dir = \case
     pure . P.wrap $
       "The type name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
   MergeConflictInvolvingBuiltin name ->
-    pure . P.wrap $
-      "There's a merge conflict on"
-        <> P.group (prettyName name <> ",")
-        <> "but it's a builtin on one or both branches. We can't yet handle merge conflicts on builtins."
-  MergeConstructorAlias maybeAliceOrBob name1 name2 ->
-    pure . P.wrap $
-      "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> prettyName name1
-        <> "and"
-        <> prettyName name2
-        <> "are aliases. Every type declaration must have exactly one name for each constructor."
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap
+          ( "There's a merge conflict on"
+              <> P.group (prettyName name <> ",")
+              <> "but it's a builtin on one or both branches. I can't yet handle merge conflicts involving builtins."
+          ),
+        "",
+        P.wrap
+          ( "Please eliminate this conflict by updating one branch or the other, making"
+              <> prettyName name
+              <> "the same on both branches, or making neither of them a builtin, and then try the merge again."
+          )
+      ]
+  MergeConstructorAlias aliceOrBob typeName conName1 conName2 ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the type"
+            <> prettyName typeName
+            <> "has a constructor with multiple names, and I can't perform a merge in this situation:",
+        "",
+        P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
+        "",
+        P.wrap "Please delete all but one name for each constructor, and then try merging again."
+      ]
   MergeDefnsInLib aliceOrBob ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "there's a type or term at the top level of the `lib` namespace, where I only expect to find"
+            <> "subnamespaces representing library dependencies.",
+        "",
+        P.wrap "Please move or remove it and then try merging again."
+      ]
+  MergeMissingConstructorName aliceOrBob name ->
+    pure . P.lines $
+      [ P.wrap "Sorry, I wasn't able to perform the merge:",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the type"
+            <> prettyName name
+            <> "has some constructors with missing names, and I can't perform a merge in this situation.",
+        "",
+        P.wrap $
+          "You can use"
+            <> IP.makeExample IP.view [prettyName name]
+            <> "and"
+            <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
+            <> "to give names to each unnamed constructor, and then try the merge again."
+      ]
+  MergeNestedDeclAlias aliceOrBob shorterName longerName ->
     pure . P.wrap $
       "On"
         <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> "there's a type or term directly in the `lib` namespace, but I expected only library dependencies to be in there."
-        <> "Please remove it before merging."
-  MergeMissingConstructorName maybeAliceOrBob name ->
-    pure . P.wrap $
-      "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> "the type"
-        <> prettyName name
-        <> "is missing a name for one of its constructors. Please add one before merging."
-  MergeNestedDeclAlias maybeAliceOrBob shorterName longerName ->
-    pure . P.wrap $
-      "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
         <> "the type"
         <> prettyName longerName
         <> "is an alias of"
         <> P.group (prettyName shorterName <> ".")
-        <> "Type aliases cannot be nested. Please make them disjoint before merging."
-  MergeStrayConstructor maybeAliceOrBob name ->
-    pure . P.wrap $
-      "On"
-        <> case maybeAliceOrBob of
-          Nothing -> "the LCA,"
-          Just aliceOrBob -> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> "the constructor"
-        <> prettyName name
-        <> "is not in a subnamespace of a name of its type."
-        <> "Please either delete it or rename it before merging."
+        <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
+        <> "delete one copy, and then try merging again."
+  MergeStrayConstructor aliceOrBob name ->
+    pure . P.lines $
+      [ P.wrap $
+          "Sorry, I wasn't able to perform the merge, because I need all constructor names to be nested somewhere"
+            <> "beneath the corresponding type name.",
+        "",
+        P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the constructor"
+            <> prettyName name
+            <> "is not nested beneath the corresponding type name. Please either use"
+            <> IP.makeExample' IP.moveAll
+            <> "to move it, or if it's an extra copy, you can simply"
+            <> IP.makeExample' IP.delete
+            <> "it. Then try the merge again."
+      ]
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
         prettyNamespaceKey dest
           <> "is already up-to-date with"
           <> P.group (prettyNamespaceKey src <> ".")
-  DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
+  DumpNumberedArgs schLength args ->
+    pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat
@@ -2016,6 +2086,8 @@ notifyUser dir = \case
         <> prettyProjectAndBranchName libdep
         <> "as"
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
+  NoUpgradeInProgress ->
+    pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
@@ -2500,7 +2572,7 @@ renderNameConflicts ppe conflictedNames = do
       P.lines <$> do
         for (Map.toList conflictedNames) $ \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
-            n <- addNumberedArg (Text.unpack (HQ.toText hash))
+            n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
           pure . P.wrap $
             ( "The "
@@ -2532,7 +2604,7 @@ renderEditConflicts ppe Patch {..} = do
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
     numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
     numberedHQName hqName = do
-      n <- addNumberedArg (Text.unpack (HQ.toText hqName))
+      n <- addNumberedArg $ SA.HashQualified hqName
       pure $ formatNum n <> styleHashQualified P.bold hqName
     formatTypeEdits ::
       (Reference, Set TypeEdit.TypeEdit) ->
@@ -2571,9 +2643,9 @@ renderEditConflicts ppe Patch {..} = do
       Numbered Pretty
     formatConflict = either formatTypeEdits formatTermEdits
 
-type Numbered = State.State (Int, Seq.Seq String)
+type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 
-addNumberedArg :: String -> Numbered Int
+addNumberedArg :: StructuredArgument -> Numbered Int
 addNumberedArg s = do
   (n, args) <- State.get
   State.put (n + 1, args Seq.|> s)
@@ -2645,11 +2717,11 @@ todoOutput ppe todo = runNumbered do
     todoEdits :: Numbered Pretty
     todoEdits = do
       numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
-        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.typeName ppeu ref))
+        n <- addNumberedArg . SA.HashQualified $ PPE.typeName ppeu ref
         pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
       let filteredTerms = goodTerms (unscore <$> dirtyTerms)
       termNumbers <- for filteredTerms \(ref, _, _) -> do
-        n <- addNumberedArg (Text.unpack (HQ.toText $ PPE.termName ppeu ref))
+        n <- addNumberedArg . SA.HashQualified $ PPE.termName ppeu ref
         pure $ formatNum n
       let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
           numberedTerms = zipWith (<>) termNumbers formattedTerms
@@ -2949,7 +3021,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
             [] -> mempty
             x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
       pure $ n <> P.bold " patch " <> prettyName name <> message
-    -- 	18. patch q
+    --          18. patch q
     prettyNamePatch prefix (name, _patchDiff) = do
       n <- numPatch prefix name
       pure $ n <> P.bold " patch " <> prettyName name
@@ -3054,21 +3126,13 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg' $ prefixBranchId prefix name
+      addNumberedArg' $ SA.NameWithBranchPrefix prefix name
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
-      addNumberedArg' . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
+      addNumberedArg' . SA.HashQualifiedWithBranchPrefix prefix $ HQ'.requalify hq r
 
-    -- E.g.
-    -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef.base.List.map"
-    -- prefixBranchId ".base" "List.map" -> ".base.List.map"
-    prefixBranchId :: Input.AbsBranchId -> Name -> String
-    prefixBranchId branchId name = case branchId of
-      Left sch -> "#" <> SCH.toString sch <> ":" <> Text.unpack (Name.toText (Name.makeAbsolute name))
-      Right pathPrefix -> Text.unpack (Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name))
-
-    addNumberedArg' :: String -> Numbered Pretty
+    addNumberedArg' :: StructuredArgument -> Numbered Pretty
     addNumberedArg' s = case sn of
       ShowNumbers -> do
         n <- addNumberedArg s
@@ -3323,7 +3387,7 @@ numberedArgsForEndangerments (PPED.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
-    & fmap (Text.unpack . HQ.toText . PPE.labeledRefName ppe)
+    & fmap (SA.HashQualified . PPE.labeledRefName ppe)
 
 -- | Format and render all dependents which are endangered by references going extinct.
 endangeredDependentsTable ::

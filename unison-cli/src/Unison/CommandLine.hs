@@ -47,6 +47,8 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.ProjectPath qualified as PP
+import Unison.Codebase.Editor.Output (NumberedArgs)
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
@@ -123,15 +125,15 @@ parseInput ::
   PP.ProjectPath ->
   IO (Branch.Branch IO) ->
   -- | Numbered arguments
-  [String] ->
+  NumberedArgs ->
   -- | Input Pattern Map
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
-  IO (Either (P.Pretty CT.ColorText) (Maybe ([String], Input)))
-parseInput codebase projPath currentProjectRoot numberedArgs patterns segments = runExceptT do
+  IO (Either (P.Pretty CT.ColorText) (Maybe (InputPattern.Arguments, Input)))
+ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
         projRoot <- currentProjectRoot
@@ -141,16 +143,16 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments =
     [] -> throwE ""
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse, help}) -> do
-        let expandedNumbers :: [String]
+        let expandedNumbers :: InputPattern.Arguments
             expandedNumbers =
-              foldMap (expandNumber numberedArgs) args
+              foldMap (\arg -> maybe [Left arg] (fmap pure) $ expandNumber numberedArgs arg) args
         lift (fzfResolve codebase projPath getCurrentBranch0 pat expandedNumbers) >>= \case
           Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
           Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing
           Right resolvedArgs -> do
             parsedInput <- except . parse $ resolvedArgs
-            pure $ Just (command : resolvedArgs, parsedInput)
+            pure $ Just (Left command : resolvedArgs, parsedInput)
       Nothing ->
         throwE
           . warn
@@ -169,11 +171,9 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments =
           ]
 
 -- Expand a numeric argument like `1` or a range like `3-9`
-expandNumber :: [String] -> String -> [String]
-expandNumber numberedArgs s = case expandedNumber of
-  Nothing -> [s]
-  Just nums ->
-    [s | i <- nums, Just s <- [vargs Vector.!? (i - 1)]]
+expandNumber :: NumberedArgs -> String -> Maybe NumberedArgs
+expandNumber numberedArgs s =
+  (\nums -> [arg | i <- nums, Just arg <- [vargs Vector.!? (i - 1)]]) <$> expandedNumber
   where
     vargs = Vector.fromList numberedArgs
     rangeRegex = "([0-9]+)-([0-9]+)" :: String
@@ -194,13 +194,13 @@ data FZFResolveFailure
   | NoFZFOptions Text {- argument description -}
   | FZFCancelled
 
-fzfResolve :: Codebase IO Symbol Ann -> PP.ProjectPath -> (IO (Branch0 IO)) -> InputPattern -> [String] -> IO (Either FZFResolveFailure [String])
+fzfResolve :: Codebase IO Symbol Ann -> PP.ProjectPath -> (IO (Branch0 IO)) -> InputPattern -> InputPattern.Arguments -> IO (Either FZFResolveFailure InputPattern.Arguments)
 fzfResolve codebase ppCtx getCurrentBranch pat args = runExceptT do
   -- We resolve args in two steps, first we check that all arguments that will require a fzf
   -- resolver have one, and only if so do we prompt the user to actually do a fuzzy search.
   -- Otherwise, we might ask the user to perform a search only to realize we don't have a resolver
   -- for a later arg.
-  argumentResolvers :: [ExceptT FZFResolveFailure IO [String]] <-
+  argumentResolvers :: [ExceptT FZFResolveFailure IO InputPattern.Arguments] <-
     (Align.align (InputPattern.args pat) args)
       & traverse \case
         This (argName, opt, InputPattern.ArgumentType {fzfResolver})
@@ -213,7 +213,7 @@ fzfResolve codebase ppCtx getCurrentBranch pat args = runExceptT do
         These _ arg -> pure $ pure [arg]
   argumentResolvers & foldMapM id
   where
-    fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO [String]
+    fuzzyFillArg :: InputPattern.IsOptional -> Text -> InputPattern.FZFResolver -> ExceptT FZFResolveFailure IO InputPattern.Arguments
     fuzzyFillArg opt argDesc InputPattern.FZFResolver {getOptions} = do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
       options <- liftIO $ getOptions codebase ppCtx currentBranch
@@ -224,8 +224,9 @@ fzfResolve codebase ppCtx getCurrentBranch pat args = runExceptT do
           `whenNothingM` throwError FZFCancelled
       -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing execution
       -- with no arguments.
-      when (null results) $ throwError FZFCancelled
-      pure (Text.unpack <$> results)
+      if null results
+        then throwError FZFCancelled
+        else pure (Left . Text.unpack <$> results)
 
     multiSelectForOptional :: InputPattern.IsOptional -> Bool
     multiSelectForOptional = \case
