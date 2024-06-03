@@ -12,6 +12,7 @@ module Unison.Cli.ProjectUtils
     expectProjectAndBranchByIds,
     getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
+    getProjectBranchCausalHash,
 
     -- * Loading remote project info
     expectRemoteProjectById,
@@ -43,20 +44,19 @@ import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
-import U.Codebase.Causal qualified
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project (Project)
 import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects (IncludeSquashedHead)
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.Input (LooseCodeOrProject)
 import Unison.Codebase.Editor.Output (Output (LocalProjectBranchDoesntExist))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
@@ -201,11 +201,9 @@ resolveProjectBranch defaultProj (ProjectAndBranch mayProjectName mayBranchName)
   pure projectAndBranch
 
 -- | Get the causal hash of a project branch.
-getProjectBranchCausalHash :: ProjectAndBranch ProjectId ProjectBranchId -> Transaction CausalHash
-getProjectBranchCausalHash branch = do
-  let path = projectBranchPath branch
-  causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute path)
-  pure causal.causalHash
+getProjectBranchCausalHash :: ProjectBranch -> Transaction CausalHash
+getProjectBranchCausalHash ProjectBranch {causalHashId} = do
+  Q.expectCausalHash causalHashId
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Remote project utils

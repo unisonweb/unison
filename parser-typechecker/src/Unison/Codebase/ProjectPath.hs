@@ -4,6 +4,7 @@ module Unison.Codebase.ProjectPath
     ProjectPathNames,
     ProjectPath,
     fromProjectAndBranch,
+    projectBranchRoot,
     absPath_,
     path_,
     projectAndBranch_,
@@ -43,6 +44,9 @@ type ProjectPathIds = ProjectPathG ProjectId ProjectBranchId
 type ProjectPathNames = ProjectPathG ProjectName ProjectBranchName
 
 type ProjectPath = ProjectPathG Project ProjectBranch
+
+projectBranchRoot :: ProjectAndBranch Project ProjectBranch -> ProjectPath
+projectBranchRoot (ProjectAndBranch proj branch) = ProjectPath proj branch Path.absoluteEmpty
 
 fromProjectAndBranch :: ProjectAndBranch Project ProjectBranch -> Path.Absolute -> ProjectPath
 fromProjectAndBranch (ProjectAndBranch proj branch) path = ProjectPath proj branch path
