@@ -38,12 +38,21 @@ module Unison.Prelude
     throwEitherMWith,
     throwExceptT,
     throwExceptTWith,
+
+    -- * Basic lensy stuff we use all over
+    (^.),
+    (.~),
+    (%~),
+    view,
+    set,
+    over,
   )
 where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
+import Control.Lens (over, set, view, (%~), (.~), (^.))
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))

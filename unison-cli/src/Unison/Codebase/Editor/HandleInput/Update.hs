@@ -20,7 +20,7 @@ import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input

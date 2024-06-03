@@ -7,7 +7,6 @@ module Unison.Merge.Unconflicts
   )
 where
 
-import Control.Lens (view)
 import Data.Map.Strict qualified as Map
 import Unison.Merge.TwoWay (TwoWay)
 import Unison.Merge.TwoWayI (TwoWayI (..))

@@ -13,7 +13,7 @@ module Unison.Syntax.TermPrinter
   )
 where
 
-import Control.Lens (unsnoc, (^.))
+import Control.Lens (unsnoc)
 import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Data.Char (isPrint)

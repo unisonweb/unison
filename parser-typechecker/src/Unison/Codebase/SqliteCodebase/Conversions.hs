@@ -1,5 +1,6 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
+import Control.Lens
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (pack)
@@ -20,6 +21,7 @@ import U.Codebase.TypeEdit qualified as V2.TypeEdit
 import U.Codebase.WatchKind qualified as V2
 import U.Codebase.WatchKind qualified as V2.WatchKind
 import U.Core.ABT qualified as ABT
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch qualified as V1.Branch
 import Unison.Codebase.Causal.Type qualified as V1.Causal
 import Unison.Codebase.Metadata qualified as V1.Metadata
@@ -425,10 +427,10 @@ causalbranch1to2 (V1.Branch.Branch c) =
     branch1to2 b =
       pure $
         V2.Branch.Branch
-          (doTerms (V1.Branch._terms b))
-          (doTypes (V1.Branch._types b))
-          (doPatches (V1.Branch._edits b))
-          (doChildren (V1.Branch._children b))
+          (doTerms (b ^. Branch.terms))
+          (doTypes (b ^. Branch.types))
+          (doPatches (b ^. Branch.edits))
+          (doChildren (b ^. Branch.children))
       where
         -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent NameSegment -> Map NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))

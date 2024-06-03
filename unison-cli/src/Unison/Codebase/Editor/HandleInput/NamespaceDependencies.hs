@@ -3,7 +3,6 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   )
 where
 
-import Control.Lens (over)
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import Data.Map qualified as Map

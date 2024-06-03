@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Branch
   )
 where
 
-import Control.Lens
+import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite

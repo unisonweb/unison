@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm, moveTermSteps) where
 
-import Control.Lens
+import Control.Lens (_2)
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli

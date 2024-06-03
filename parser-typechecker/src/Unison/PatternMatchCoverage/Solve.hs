@@ -9,7 +9,6 @@ module Unison.PatternMatchCoverage.Solve
   )
 where
 
-import Control.Lens (view)
 import Control.Monad.State
 import Control.Monad.Trans.Compose
 import Control.Monad.Trans.Maybe

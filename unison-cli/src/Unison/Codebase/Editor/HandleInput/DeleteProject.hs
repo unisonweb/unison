@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.DeleteProject
   )
 where
 
-import Control.Lens (view, (^.))
 import Data.Function (on)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)

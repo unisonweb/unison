@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Branches
   )
 where
 
-import Control.Lens (mapped, over, (^.), _2)
+import Control.Lens (mapped, _2)
 import Data.Map.Strict qualified as Map
 import Network.URI (URI)
 import U.Codebase.Sqlite.Queries qualified as Queries

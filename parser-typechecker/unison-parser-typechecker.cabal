@@ -133,7 +133,6 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
-      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Rehash

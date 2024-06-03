@@ -98,7 +98,7 @@ import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch (..), Branch0 (..))
+import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input qualified as Input

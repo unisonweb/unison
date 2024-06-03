@@ -6,6 +6,7 @@ module Unison.Codebase.Branch.Names
 where
 
 import Unison.Codebase.Branch
+import Unison.Codebase.Branch.Type qualified as Branch
 import Unison.Names (Names (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -24,8 +25,8 @@ toPrettyPrintEnvDecl hashLength b =
 toNames :: Branch0 m -> Names
 toNames b =
   Names
-    (R.swap . deepTerms $ b)
-    (R.swap . deepTypes $ b)
+    (R.swap . Branch.deepTerms $ b)
+    (R.swap . Branch.deepTypes $ b)
 
 namesDiff :: Branch m -> Branch m -> Names.Diff
 namesDiff b1 b2 = Names.diff (toNames (head b1)) (toNames (head b2))

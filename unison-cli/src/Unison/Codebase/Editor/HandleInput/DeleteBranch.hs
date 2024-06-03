@@ -5,7 +5,6 @@ module Unison.Codebase.Editor.HandleInput.DeleteBranch
   )
 where
 
-import Control.Lens
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import Data.Map.Strict qualified as Map
 import Data.These (These (..))

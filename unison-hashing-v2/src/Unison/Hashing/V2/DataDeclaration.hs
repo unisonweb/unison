@@ -7,7 +7,7 @@ module Unison.Hashing.V2.DataDeclaration
   )
 where
 
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Hash (Hash)

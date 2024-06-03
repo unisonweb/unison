@@ -3,7 +3,6 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
   )
 where
 
-import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Char qualified as Char
 import Data.List.NonEmpty (pattern (:|))
