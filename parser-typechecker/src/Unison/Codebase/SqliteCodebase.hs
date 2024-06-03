@@ -18,12 +18,9 @@ import Data.Either.Extra ()
 import Data.IORef
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Time (getCurrentTime)
 import System.Console.ANSI qualified as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
-import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Sync22 qualified as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -37,10 +34,8 @@ import Unison.Codebase.Init qualified as Codebase
 import Unison.Codebase.Init.CreateCodebaseError qualified as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase1
-import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
-import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
@@ -107,7 +102,6 @@ createCodebaseOrError onCreate debugName path lockOption action = do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
           Q.createSchema
-          void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
           onCreate
 
       sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
@@ -167,7 +161,6 @@ sqliteCodebase ::
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
-  rootBranchCache <- newEmptyRootBranchCacheIO
   branchCache <- newBranchCache
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
@@ -238,20 +231,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             putTypeDeclarationComponent =
               CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getRootBranch :: m (Branch m)
-            getRootBranch =
-              Branch.transform runTransaction
-                <$> fetchRootBranch
-                  rootBranchCache
-                  (runTransaction (CodebaseOps.uncachedLoadRootBranch branchCache getDeclType))
-
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: CausalHash -> m (Maybe (Branch m))
             getBranchForHash h =
               fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
 
-            putBranch :: Branch m -> m CausalHash
+            putBranch :: Branch m -> m ()
             putBranch branch =
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
