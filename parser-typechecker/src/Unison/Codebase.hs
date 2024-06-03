@@ -53,6 +53,8 @@ module Unison.Codebase
     getShallowProjectRootBranch,
     getShallowBranchAtProjectPath,
     getShallowProjectRootByNames,
+    getProjectBranchRoot,
+    expectProjectBranchRoot,
 
     -- * Root branch
     SqliteCodebase.Operations.namesAtPath,
@@ -229,6 +231,16 @@ getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMayb
   ProjectBranch {causalHashId} <- MaybeT $ Q.loadProjectBranchByNames projectName branchName
   causalHash <- lift $ Q.expectCausalHash causalHashId
   lift $ Operations.expectCausalBranchByCausalHash causalHash
+
+getProjectBranchRoot :: (MonadIO m) => Codebase m v a -> ProjectBranch -> m (Maybe (Branch m))
+getProjectBranchRoot codebase ProjectBranch {causalHashId} = do
+  causalHash <- runTransaction codebase $ Q.expectCausalHash causalHashId
+  getBranchForHash codebase causalHash
+
+expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> ProjectBranch -> m (Branch m)
+expectProjectBranchRoot codebase ProjectBranch {causalHashId} = do
+  causalHash <- runTransaction codebase $ Q.expectCausalHash causalHashId
+  expectBranchForHash codebase causalHash
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
 expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
