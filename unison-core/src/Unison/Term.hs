@@ -3,7 +3,7 @@
 
 module Unison.Term where
 
-import Control.Lens (Lens', Prism', lens, view, _2)
+import Control.Lens (Lens', Prism', lens, _2)
 import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer

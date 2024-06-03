@@ -13,7 +13,7 @@ import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchDiff qualified as BranchDiff
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff

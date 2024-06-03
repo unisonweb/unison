@@ -12,20 +12,15 @@ module Unison.Runtime.Pattern
   )
 where
 
-import Control.Lens ((<&>), (^.))
 import Control.Monad.State (State, evalState, modify, runState, state)
 import Data.List (transpose)
 import Data.Map.Strict
-  ( Map,
-    fromListWith,
+  ( fromListWith,
     insertWith,
-    toList,
   )
 import Data.Map.Strict qualified as Map
-import Data.Maybe (catMaybes, listToMaybe)
-import Data.Set (Set, member)
+import Data.Set (member)
 import Data.Set qualified as Set
-import Data.Word (Word64)
 import Unison.ABT
   ( absChain',
     renames,
@@ -38,6 +33,7 @@ import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
 import Unison.Pattern qualified as P
+import Unison.Prelude hiding (guard)
 import Unison.Reference (Reference, Reference' (Builtin, DerivedId))
 import Unison.Runtime.ANF (internalBug)
 import Unison.Term hiding (Term, matchPattern)
@@ -417,7 +413,7 @@ splitMatrixBuiltin ::
   [(P.Pattern (), [(v, PType)], PatternMatrix v)]
 splitMatrixBuiltin v (PM rs) =
   fmap (\(a, (b, c)) -> (a, b, c))
-    . toList
+    . Map.toList
     . fmap buildMatrix
     . fromListWith (flip (++))
     . expandIrrefutable

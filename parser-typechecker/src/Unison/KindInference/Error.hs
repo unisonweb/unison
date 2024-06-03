@@ -6,7 +6,6 @@ module Unison.KindInference.Error
   )
 where
 
-import Control.Lens ((^.))
 import Unison.ABT qualified as ABT
 import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
@@ -18,6 +17,7 @@ import Unison.KindInference.Solve.Monad
     Solve (..),
   )
 import Unison.KindInference.UVar (UVar (..))
+import Unison.Prelude
 import Unison.Type (Type)
 import Unison.Var (Var)
 
