@@ -137,7 +137,6 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -192,8 +191,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Prelude hiding (view)
 import Unison.Parser.Ann (Ann)
+import Unison.Prelude hiding (view)
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectAndBranchNames (..),
@@ -204,9 +203,6 @@ import Unison.Project
     Semver,
     branchWithOptionalProjectParser,
   )
-import Unison.Syntax.HashQualified qualified as HQ (parseText)
-import Unison.Syntax.Name qualified as Name (parseText, unsafeParseText)
-import Unison.Syntax.NameSegment qualified as NameSegment (renderParseErr, segmentP)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
@@ -351,15 +347,6 @@ handleProjectArg =
       SA.Project project -> pure project
       otherArgType -> Left $ wrongStructuredArgument "a project" otherArgType
 
-handleLooseCodeOrProjectArg :: I.Argument -> Either (P.Pretty CT.ColorText) Input.LooseCodeOrProject
-handleLooseCodeOrProjectArg =
-  either
-    (maybe (Left $ P.text "invalid path or project branch") pure . parseLooseCodeOrProject)
-    \case
-      SA.AbsolutePath path -> pure . This $ Path.absoluteToPath' path
-      SA.ProjectBranch pb -> pure $ That pb
-      otherArgType -> Left $ wrongStructuredArgument "a path or project branch" otherArgType
-
 handleMaybeProjectBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
 handleMaybeProjectBranchArg =
@@ -393,7 +380,6 @@ handleHashQualifiedNameArg =
         pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Name.makeAbsolute . Path.prefixName prefix) hqname mprefix
       SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
       otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
-
 
 handlePathArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Path
 handlePathArg =
@@ -510,13 +496,15 @@ handleBranchId2Arg =
     Input.parseBranchId2
     \case
       SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . pure . LoosePath $ Path.absoluteToPath' path
-      SA.Name name -> pure . pure . LoosePath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . pure . LoosePath $ Path.fromName' name
+      SA.AbsolutePath path -> pure . pure . UnqualifiedPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (Left _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        pure . pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
+        case mproject of
+          Just proj -> pure . pure $ QualifiedBranchPath proj branch Path.absoluteEmpty
+          Nothing -> pure . pure $ BranchPathInCurrentProject branch Path.absoluteEmpty
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleBranchRelativePathArg :: I.Argument -> Either (P.Pretty P.ColorText) BranchRelativePath
@@ -524,13 +512,15 @@ handleBranchRelativePathArg =
   either
     parseBranchRelativePath
     \case
-      SA.AbsolutePath path -> pure . LoosePath $ Path.absoluteToPath' path
-      SA.Name name -> pure . LoosePath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . LoosePath $ Path.fromName' name
+      SA.AbsolutePath path -> pure . UnqualifiedPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (Left _) name -> pure . UnqualifiedPath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
+        case mproject of
+          Just proj -> pure $ QualifiedBranchPath proj branch Path.absoluteEmpty
+          Nothing -> pure $ BranchPathInCurrentProject branch Path.absoluteEmpty
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 hqNameToSplit' :: HQ.HashQualified Name -> Either ShortHash Path.HQSplit'
@@ -1484,7 +1474,7 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence = \case
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence . pure <$> handleSplitArg p
+  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence <$> handleSplitArg p
   _ -> Left helpText
 
 renameBranch :: InputPattern
@@ -1975,10 +1965,15 @@ mergeOldSquashInputPattern =
             <> "The resulting `dest` will have (at most) 1"
             <> "additional history entry.",
       parse = \case
+        [src] ->
+          Input.MergeLocalBranchI
+            <$> handleMaybeProjectBranchArg src
+            <*> pure Nothing
+            <*> pure Branch.SquashMerge
         [src, dest] ->
           Input.MergeLocalBranchI
             <$> handleMaybeProjectBranchArg src
-            <*> handleMaybeProjectBranchArg dest
+            <*> (Just <$> handleMaybeProjectBranchArg dest)
             <*> pure Branch.SquashMerge
         _ -> Left $ I.help mergeOldSquashInputPattern
     }
@@ -2018,12 +2013,12 @@ mergeOldInputPattern =
         [src] ->
           Input.MergeLocalBranchI
             <$> handleMaybeProjectBranchArg src
-            <*> pure (This Path.relativeEmpty')
+            <*> pure Nothing
             <*> pure Branch.RegularMerge
         [src, dest] ->
           Input.MergeLocalBranchI
             <$> handleMaybeProjectBranchArg src
-            <*> handleMaybeProjectBranchArg dest
+            <*> (Just <$> handleMaybeProjectBranchArg dest)
             <*> pure Branch.RegularMerge
         _ -> Left $ I.help mergeOldInputPattern
     )
@@ -2106,9 +2101,9 @@ mergeOldPreviewInputPattern =
         ]
     )
     ( \case
-        [src] -> Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> pure (This Path.relativeEmpty')
+        [src] -> Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> pure Nothing
         [src, dest] ->
-          Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> handleLooseCodeOrProjectArg dest
+          Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> (Just <$> handleMaybeProjectBranchArg dest)
         _ -> Left $ I.help mergeOldPreviewInputPattern
     )
   where
@@ -3005,7 +3000,7 @@ branchInputPattern =
           ],
       parse = \case
         [source0, name] ->
-          Input.BranchI . Input.BranchSourceI'LooseCodeOrProject
+          Input.BranchI . Input.BranchSourceI'UnresolvedProjectBranch
             <$> handleMaybeProjectBranchArg source0
             <*> handleMaybeProjectBranchArg name
         [name] -> Input.BranchI Input.BranchSourceI'CurrentContext <$> handleMaybeProjectBranchArg name
