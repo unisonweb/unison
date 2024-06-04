@@ -2117,12 +2117,10 @@ notifyUser dir = \case
     pure . P.wrap $
       "I think you're wanting to merge"
         <> sourcePretty
-        <> "into"
-        <> P.group (targetPretty <> ",")
-        <> "but"
+        <> "into the"
         <> targetPretty
-        <> "doesn't exist. If you want, you can create it with"
-        <> (IP.makeExample IP.branchEmptyInputPattern [targetPretty] <> ",")
+        <> "branch, but it doesn't exist. If you want, you can create it with"
+        <> P.group (IP.makeExample IP.branchEmptyInputPattern [targetPretty] <> ",")
         <> "and then"
         <> IP.makeExample' IP.pull
         <> "again."

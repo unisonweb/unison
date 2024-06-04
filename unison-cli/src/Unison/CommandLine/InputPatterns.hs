@@ -1729,7 +1729,7 @@ pullImpl name aliases pullMode addendum = do
                       These sourceProject sourceBranch ->
                         Right (Input.LibInstallI True (ProjectAndBranch sourceProject (Just sourceBranch)))
                 (Right source, Left _, Right path) ->
-                  Left $
+                  Left . P.indentN 2 $
                     P.wrap
                       ( "I think you're wanting to merge"
                           <> case source of
