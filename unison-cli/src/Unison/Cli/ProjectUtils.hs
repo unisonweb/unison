@@ -202,7 +202,8 @@ resolveProjectBranch defaultProj (ProjectAndBranch mayProjectName mayBranchName)
 
 -- | Get the causal hash of a project branch.
 getProjectBranchCausalHash :: ProjectBranch -> Transaction CausalHash
-getProjectBranchCausalHash ProjectBranch {causalHashId} = do
+getProjectBranchCausalHash ProjectBranch {projectId, branchId} = do
+  causalHashId <- Q.expectProjectBranchHead projectId branchId
   Q.expectCausalHash causalHashId
 
 ------------------------------------------------------------------------------------------------------------------------

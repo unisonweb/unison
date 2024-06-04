@@ -136,6 +136,7 @@ module U.Codebase.Sqlite.Queries
     renameProjectBranch,
     deleteProjectBranch,
     setProjectBranchHead,
+    expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
 
@@ -3686,8 +3687,8 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: ProjectBranch -> Transaction ()
-insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId causalHashId) = do
+insertProjectBranch :: CausalHashId -> ProjectBranch -> Transaction ()
+insertProjectBranch causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
   execute
     [sql|
       INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
@@ -3778,6 +3779,15 @@ setProjectBranchHead projectId branchId causalHashId =
     [sql|
       UPDATE project_branch
       SET causal_hash_id = :causalHashId
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+
+expectProjectBranchHead :: ProjectId -> ProjectBranchId -> Transaction CausalHashId
+expectProjectBranchHead projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT causal_hash_id
+      FROM project_branch
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
 
