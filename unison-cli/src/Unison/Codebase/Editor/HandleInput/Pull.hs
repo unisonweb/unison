@@ -157,14 +157,14 @@ resolveSourceAndTarget ::
 resolveSourceAndTarget includeSquashed = \case
   Input.PullSourceTarget0 -> liftA2 (,) (resolveImplicitSource includeSquashed) resolveImplicitTarget
   Input.PullSourceTarget1 source -> liftA2 (,) (resolveExplicitSource includeSquashed source) resolveImplicitTarget
-  Input.PullSourceTarget2 source target ->
-    liftA2
-      (,)
-      (resolveExplicitSource includeSquashed source)
-      ( ProjectUtils.expectProjectAndBranchByTheseNames case target of
-          ProjectAndBranch Nothing branch -> That branch
-          ProjectAndBranch (Just project) branch -> These project branch
-      )
+  Input.PullSourceTarget2 source0 target0 -> do
+    source <- resolveExplicitSource includeSquashed source0
+    maybeTarget <-
+      ProjectUtils.getProjectAndBranchByTheseNames case target0 of
+        ProjectAndBranch Nothing branch -> That branch
+        ProjectAndBranch (Just project) branch -> These project branch
+    target <- maybeTarget & onNothing (Cli.returnEarly (Output.PullIntoMissingBranch source target0))
+    pure (source, target)
 
 resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource includeSquashed =
