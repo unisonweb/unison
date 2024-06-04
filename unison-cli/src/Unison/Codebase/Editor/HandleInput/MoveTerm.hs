@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm, moveTermSteps) where
 
-import Control.Lens (_2)
+import Control.Lens (_1, _2)
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -34,7 +34,7 @@ moveTermSteps src' dest' = do
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-          BranchUtil.makeAddTermName (Path.convert dest) srcTerm
+          BranchUtil.makeAddTermName (over _1 (view PP.absPath_) dest) srcTerm
         ]
 
 doMoveTerm :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()
