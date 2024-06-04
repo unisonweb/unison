@@ -25,10 +25,11 @@ module Unison.Cli.MonadUtils
     -- ** Getting/setting branches
     setCurrentProjectRoot,
     modifyProjectRoot,
-    getProjectRoot,
-    getProjectRoot0,
+    getCurrentProjectRoot,
+    getCurrentProjectRoot0,
     getCurrentBranch,
     getCurrentBranch0,
+    getProjectBranchRoot,
     getBranchFromProjectPath,
     getBranch0FromProjectPath,
     getMaybeBranchFromProjectPath,
@@ -249,14 +250,14 @@ resolveShortCausalHashToCausalHash rollback shortHash = do
 -- Getting/Setting branches
 
 -- | Get the root branch.
-getProjectRoot :: Cli (Branch IO)
-getProjectRoot = do
+getCurrentProjectRoot :: Cli (Branch IO)
+getCurrentProjectRoot = do
   use #currentProjectRoot >>= atomically . readTMVar
 
 -- | Get the root branch0.
-getProjectRoot0 :: Cli (Branch0 IO)
-getProjectRoot0 =
-  Branch.head <$> getProjectRoot
+getCurrentProjectRoot0 :: Cli (Branch0 IO)
+getCurrentProjectRoot0 =
+  Branch.head <$> getCurrentProjectRoot
 
 -- | Set a new root branch.
 --
@@ -299,19 +300,16 @@ getBranch0FromProjectPath :: PP.ProjectPath -> Cli (Branch0 IO)
 getBranch0FromProjectPath pp =
   Branch.head <$> getBranchFromProjectPath pp
 
-getRootBranchForProjectBranch :: ProjectBranch -> Cli (Branch IO)
-getRootBranchForProjectBranch ProjectBranch {projectId, branchId} = do
-  Cli.runTransaction do
-    _
+getProjectBranchRoot :: ProjectBranch -> Cli (Branch IO)
+getProjectBranchRoot projectBranch = do
+  Cli.Env {codebase} <- ask
+  liftIO $ Codebase.expectProjectBranchRoot codebase projectBranch
 
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchFromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch IO))
 getMaybeBranchFromProjectPath pp = do
   Cli.Env {codebase} <- ask
-  let ProjectBranch {causalHashId} = pp ^. #branch
-  causalHash <- Cli.runTransaction $ Q.expectCausalHash causalHashId
-  rootBranch <- liftIO $ Codebase.expectBranchForHash codebase causalHash
-  pure (Branch.getAt (pp ^. PP.path_) rootBranch)
+  liftIO $ Codebase.getBranchAtProjectPath codebase pp
 
 -- | Get the maybe-branch0 at an absolute path.
 getMaybeBranch0FromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch0 IO))
@@ -419,7 +417,7 @@ stepManyAtNoSync' ::
   f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAtNoSync' actions = do
-  origRoot <- getProjectRoot
+  origRoot <- getCurrentProjectRoot
   newRoot <- Branch.stepManyAtM (relativizeActions actions) origRoot
   setCurrentProjectRoot newRoot
   pure (origRoot /= newRoot)
@@ -446,15 +444,15 @@ stepManyAtMNoSync ::
   f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtMNoSync actions = do
-  oldRoot <- getProjectRoot
+  oldRoot <- getCurrentProjectRoot
   newRoot <- liftIO (Branch.stepManyAtM (relativizeActions actions) oldRoot)
   setCurrentProjectRoot newRoot
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli ()
 syncRoot description = do
-  rootBranch <- getProjectRoot
-  updateCurrentProjectBranchRoot rootBranch description
+  rootBranch <- getCurrentProjectRoot
+  updateCurrentProjectBranchRoot description (const rootBranch)
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
@@ -464,10 +462,10 @@ updateAtM ::
   (Branch IO -> Cli (Branch IO)) ->
   Cli Bool
 updateAtM reason pp f = do
-  b <- getBranchFromProjectPath (pp & PP.absPath_ .~ Path.absoluteEmpty)
-  b' <- Branch.modifyAtM (pp ^. PP.path_) f b
-  updateCurrentProjectBranchRoot b' reason
-  pure $ b /= b'
+  old <- getBranchFromProjectPath (pp & PP.absPath_ .~ Path.absoluteEmpty)
+  new <- Branch.modifyAtM (pp ^. PP.path_) f old
+  updateCurrentProjectBranchRoot reason (const new)
+  pure $ old /= new
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
@@ -503,6 +501,8 @@ updateProjectBranchRoot reason projectBranch f = do
   error "implement project-branch reflog" reason
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
+    old <- getProjectBranchRoot projectBranch
+    let new = f old
     liftIO $ Codebase.putBranch codebase new
     Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
