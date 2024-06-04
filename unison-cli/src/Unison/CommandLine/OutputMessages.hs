@@ -2107,6 +2107,29 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
   NoUpgradeInProgress ->
     pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
+  UseLibInstallNotPull libdep ->
+    pure . P.wrap $
+      "The use of"
+        <> IP.makeExample' IP.pull
+        <> "to install libraries is now deprecated. Going forward, you can use"
+        <> P.group (IP.makeExample IP.libInstallInputPattern [prettyProjectAndBranchName libdep] <> ".")
+  PullIntoMissingBranch source (ProjectAndBranch maybeTargetProject targetBranch) ->
+    pure . P.wrap $
+      "I think you're wanting to merge"
+        <> sourcePretty
+        <> "into the"
+        <> targetPretty
+        <> "branch, but it doesn't exist. If you want, you can create it with"
+        <> P.group (IP.makeExample IP.branchEmptyInputPattern [targetPretty] <> ",")
+        <> "and then"
+        <> IP.makeExample' IP.pull
+        <> "again."
+    where
+      sourcePretty = prettyReadRemoteNamespace source
+      targetPretty =
+        case maybeTargetProject of
+          Nothing -> prettyProjectBranchName targetBranch
+          Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

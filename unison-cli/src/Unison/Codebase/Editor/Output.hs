@@ -406,6 +406,9 @@ data Output
   | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress
+  | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
+  | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -643,6 +646,8 @@ isFailure o = case o of
   MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
   NoUpgradeInProgress {} -> True
+  UseLibInstallNotPull {} -> False
+  PullIntoMissingBranch {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

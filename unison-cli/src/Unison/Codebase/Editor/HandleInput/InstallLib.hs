@@ -38,8 +38,8 @@ import Unison.Project
   )
 import Unison.Syntax.NameSegment qualified as NameSegment (unsafeParseText)
 
-handleInstallLib :: ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
-handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
+handleInstallLib :: Bool -> ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
+handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
   (currentProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
 
   let currentProjectBranchPath =
@@ -62,6 +62,9 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
     ProjectUtils.expectRemoteProjectBranchByName
       Share.IncludeSquashedHead
       (ProjectAndBranch (libdepProject.projectId, libdepProjectName) libdepBranchName)
+
+  when remind do
+    Cli.respond (Output.UseLibInstallNotPull (ProjectAndBranch libdepProjectName libdepBranchName))
 
   Cli.Env {codebase} <- ask
 
