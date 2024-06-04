@@ -42,7 +42,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, view, _2)
+import Control.Lens (_2)
 import Control.Monad.Fail qualified as MonadFail
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State

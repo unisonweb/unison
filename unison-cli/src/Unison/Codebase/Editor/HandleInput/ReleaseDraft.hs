@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.ReleaseDraft
   )
 where
 
-import Control.Lens ((^.))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils

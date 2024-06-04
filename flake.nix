@@ -134,6 +134,8 @@
           // renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
           // {default = self.devShells."${system}".only-tools-nixpkgs;};
 
+        checks = renameAttrs (name: "component-${name}") haskell-nix-flake.checks;
+
         formatter = pkgs.alejandra;
       });
 }

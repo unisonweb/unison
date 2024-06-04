@@ -86,7 +86,7 @@ module Unison.Merge.DeclCoherencyCheck
   )
 where
 
-import Control.Lens (over, view, (%=), (.=), _2)
+import Control.Lens ((%=), (.=), _2)
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Except qualified as Except
 import Control.Monad.State.Strict (StateT)

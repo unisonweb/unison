@@ -15,17 +15,11 @@ module Unison.Hashing.V2.Convert
 where
 
 import Control.Applicative
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Control.Lens qualified as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
-import Data.Bifunctor (bimap)
-import Data.Foldable (toList)
-import Data.Function ((&))
-import Data.Functor ((<&>))
-import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Set (Set)
 import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import Unison.ABT qualified as ABT
@@ -44,6 +38,7 @@ import Unison.NameSegment qualified as Memory (NameSegment)
 import Unison.NameSegment.Internal qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
+import Unison.Prelude
 import Unison.Reference qualified as Memory.Reference
 import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
@@ -367,10 +362,10 @@ hashCausal e tails =
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch
 m2hBranch0 b =
   Hashing.Branch
-    (doTerms (Memory.Branch._terms b))
-    (doTypes (Memory.Branch._types b))
-    (doPatches (Memory.Branch._edits b))
-    (doChildren (Memory.Branch._children b))
+    (doTerms (b ^. Memory.Branch.terms))
+    (doTypes (b ^. Memory.Branch.types))
+    (doPatches (b ^. Memory.Branch.edits))
+    (doChildren (b ^. Memory.Branch.children))
   where
     -- is there a more readable way to structure these that's also linear?
     doTerms ::

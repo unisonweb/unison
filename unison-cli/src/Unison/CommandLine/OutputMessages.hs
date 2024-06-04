@@ -2035,14 +2035,32 @@ notifyUser dir = \case
                   <> operationName
                   <> "again."
             ]
-  UpgradeFailure path old new ->
-    pure . P.wrap $
-      "I couldn't automatically upgrade"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  UpgradeFailure main temp path old new ->
+    pure $
+      P.lines
+        [ P.wrap $
+            "I couldn't automatically upgrade"
+              <> P.text (NameSegment.toEscapedText old)
+              <> "to"
+              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName main
+              <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName main <> ".")
+        ]
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"

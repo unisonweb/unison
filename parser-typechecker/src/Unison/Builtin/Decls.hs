@@ -1,11 +1,10 @@
 module Unison.Builtin.Decls where
 
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Data.List (elemIndex, find)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
-import Data.Sequence (Seq)
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -14,6 +13,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls, typeToReference)
 import Unison.Pattern qualified as Pattern
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)

@@ -12,7 +12,7 @@ module Unison.Merge.TwoWay
   )
 where
 
-import Control.Lens (Lens', view)
+import Control.Lens (Lens')
 import Data.Semialign (Semialign, alignWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (These))

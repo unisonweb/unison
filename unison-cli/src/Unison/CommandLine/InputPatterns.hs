@@ -137,7 +137,7 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review, (^.))
+import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -157,7 +157,15 @@ import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
-import Unison.Cli.Pretty (prettyPath', prettyProjectAndBranchName, prettyProjectName, prettyProjectNameSlash, prettySlashProjectBranchName, prettyURI)
+import Unison.Cli.Pretty
+  ( prettyPath',
+    prettyProjectAndBranchName,
+    prettyProjectBranchName,
+    prettyProjectName,
+    prettyProjectNameSlash,
+    prettySlashProjectBranchName,
+    prettyURI,
+  )
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -185,6 +193,7 @@ import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
+import Unison.Core.Project (ProjectBranchName (..))
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.Name (Name)
@@ -192,11 +201,10 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude
+import Unison.Prelude hiding (view)
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectAndBranchNames (..),
-    ProjectBranchName,
     ProjectBranchNameOrLatestRelease (..),
     ProjectBranchSpecifier (..),
     ProjectName,
@@ -3169,7 +3177,36 @@ upgradeCommitInputPattern =
       aliases = ["commit.upgrade"],
       visibility = I.Visible,
       args = [],
-      help = P.wrap $ makeExample' upgradeCommitInputPattern <> "commits the current upgrade.",
+      help =
+        let mainBranch = UnsafeProjectBranchName "main"
+            tempBranch = UnsafeProjectBranchName "upgrade-foo-to-bar"
+         in P.wrap
+              ( makeExample' upgradeCommitInputPattern
+                  <> "merges a temporary branch created by the"
+                  <> makeExample' upgrade
+                  <> "command back into its parent branch, and removes the temporary branch."
+              )
+              <> P.newline
+              <> P.newline
+              <> P.wrap
+                ( "For example, if you've done"
+                    <> makeExample upgrade ["foo", "bar"]
+                    <> "from"
+                    <> P.group (prettyProjectBranchName mainBranch <> ",")
+                    <> "then"
+                    <> makeExample' upgradeCommitInputPattern
+                    <> "is equivalent to doing"
+                )
+              <> P.newline
+              <> P.newline
+              <> P.indentN
+                2
+                ( P.bulleted
+                    [ makeExampleNoBackticks projectSwitch [prettySlashProjectBranchName mainBranch],
+                      makeExampleNoBackticks mergeInputPattern [prettySlashProjectBranchName tempBranch],
+                      makeExampleNoBackticks deleteBranch [prettySlashProjectBranchName tempBranch]
+                    ]
+                ),
       parse = \case
         [] -> Right Input.UpgradeCommitI
         _ -> Left (I.help upgradeCommitInputPattern)

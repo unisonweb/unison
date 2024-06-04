@@ -8,7 +8,6 @@ module Unison.Server.CodebaseServer where
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
-import Control.Lens ((.~))
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
 import Data.Aeson ()
