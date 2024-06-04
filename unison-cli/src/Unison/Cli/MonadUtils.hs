@@ -299,6 +299,11 @@ getBranch0FromProjectPath :: PP.ProjectPath -> Cli (Branch0 IO)
 getBranch0FromProjectPath pp =
   Branch.head <$> getBranchFromProjectPath pp
 
+getRootBranchForProjectBranch :: ProjectBranch -> Cli (Branch IO)
+getRootBranchForProjectBranch ProjectBranch {projectId, branchId} = do
+  Cli.runTransaction do
+    _
+
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchFromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch IO))
 getMaybeBranchFromProjectPath pp = do
@@ -481,22 +486,23 @@ updateAndStepAt ::
   g (Path, Branch0 IO -> Branch0 IO) ->
   Cli ()
 updateAndStepAt reason updates steps = do
-  root <-
-    (Branch.stepManyAt steps)
-      . (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
-      <$> getProjectRoot
+  let f b =
+        b
+          & (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
+          & (Branch.stepManyAt steps)
   ProjectPath _ projBranch _ <- getCurrentProjectPath
-  updateProjectBranchRoot projBranch root reason
+  updateProjectBranchRoot reason projBranch f
 
-updateCurrentProjectBranchRoot :: Branch IO -> Text -> Cli ()
-updateCurrentProjectBranchRoot new reason = do
+updateCurrentProjectBranchRoot :: Text -> (Branch IO -> Branch IO) -> Cli ()
+updateCurrentProjectBranchRoot reason f = do
   pp <- getCurrentProjectPath
-  updateProjectBranchRoot (pp ^. #branch) new reason
+  updateProjectBranchRoot reason (pp ^. #branch) f
 
-updateProjectBranchRoot :: ProjectBranch -> Branch IO -> Text -> Cli ()
-updateProjectBranchRoot projectBranch new _reason = do
+updateProjectBranchRoot :: Text -> ProjectBranch -> (Branch IO -> Branch IO) -> Cli ()
+updateProjectBranchRoot reason projectBranch f = do
+  error "implement project-branch reflog" reason
   Cli.Env {codebase} <- ask
-  Cli.time "updateCurrentProjectRoot" do
+  Cli.time "updateProjectBranchRoot" do
     liftIO $ Codebase.putBranch codebase new
     Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)

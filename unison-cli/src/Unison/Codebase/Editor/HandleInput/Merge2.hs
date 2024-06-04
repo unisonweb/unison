@@ -425,10 +425,10 @@ doMerge info = do
         Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
         let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
         _ <-
-          Cli.updateAt
-            info.description
+          Cli.updateProjectBranchRoot
             info.alice.projectAndBranch
             (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+            info.description
         Cli.respond (Output.MergeSuccess mergeSourceAndTarget)
 
 doMergeLocalBranch :: TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()

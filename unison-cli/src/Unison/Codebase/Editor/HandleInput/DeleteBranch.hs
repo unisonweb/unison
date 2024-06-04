@@ -6,8 +6,6 @@ module Unison.Codebase.Editor.HandleInput.DeleteBranch
 where
 
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
-import Data.Map.Strict qualified as Map
-import Data.These (These (..))
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -17,9 +15,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.HandleInput.ProjectCreate
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
-import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path qualified as Path
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Sqlite qualified as Sqlite
@@ -33,7 +28,7 @@ import Witch (unsafeFrom)
 handleDeleteBranch :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleDeleteBranch projectAndBranchNamesToDelete = do
   ProjectPath currentProject currentBranch _ <- Cli.getCurrentProjectPath
-  projectAndBranchToDelete <- ProjectUtils.resolveProjectBranch currentProject (projectAndBranchNames & #branch %~ Just)
+  projectAndBranchToDelete@(ProjectAndBranch _projectToDelete branchToDelete) <- ProjectUtils.resolveProjectBranch currentProject (projectAndBranchNamesToDelete & #branch %~ Just)
   doDeleteProjectBranch projectAndBranchToDelete
 
   -- If the user is on the branch that they're deleting, we have to cd somewhere; try these in order:
@@ -46,10 +41,11 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
     mayNextLocation <-
       Cli.runTransaction . runMaybeT $
         asum
-          [ parentBranch projectId (branchToDelete ^. #parentBranchId),
-            findMainBranchInProject projectId,
-            findAnyBranchInProject projectId,
-            findAnyBranchInCodebase
+          [ parentBranch (branchToDelete ^. #projectId) (branchToDelete ^. #parentBranchId),
+            findMainBranchInProject (currentProject ^. #projectId),
+            findAnyBranchInProject (currentProject ^. #projectId),
+            findAnyBranchInCodebase,
+            createDummyProject
           ]
     nextLoc <- mayNextLocation `whenNothing` projectCreate False Nothing
     Cli.switchProject nextLoc
@@ -71,14 +67,10 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
     findAnyBranchInCodebase = do
       (_, pbIds) <- MaybeT . fmap listToMaybe $ Queries.loadAllProjectBranchNamePairs
       pure pbIds
+    createDummyProject = error "TODO: create new branch or project if we  delete the last branch you're on."
 
 -- | Delete a project branch and record an entry in the reflog.
 doDeleteProjectBranch :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Cli ()
 doDeleteProjectBranch projectAndBranch = do
   Cli.runTransaction do
     Queries.deleteProjectBranch projectAndBranch.project.projectId projectAndBranch.branch.branchId
-  Cli.stepAt
-    ("delete.branch " <> into @Text (ProjectUtils.justTheNames projectAndBranch))
-    ( Path.unabsolute (ProjectUtils.projectBranchesPath projectAndBranch.project.projectId),
-      over Branch.children (Map.delete (ProjectUtils.projectBranchSegment projectAndBranch.branch.branchId))
-    )
