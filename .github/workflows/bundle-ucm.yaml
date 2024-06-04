@@ -234,7 +234,7 @@ jobs:
           content: |
             #!/bin/bash
             unison_root="$(dirname "$(readlink -f "$0")")"
-            "${unison_root}/unison/unison" --runtime-path "${unison_root}/runtime/bin/unison-runtime" "$@"
+            "${unison_root}/unison/unison" --ui "${unison_root}/ui" --runtime-path "${unison_root}/runtime/bin/unison-runtime" "$@"
       - name: create startup script (Windows)
         if: runner.os == 'Windows'
         uses: 1arp/create-a-file-action@0.4.4
@@ -243,7 +243,7 @@ jobs:
           file: ucm.cmd
           content: |
             @echo off
-            "%~dp0unison\unison.exe" --runtime-path "%~dp0runtime\unison-runtime.exe" %*
+            "%~dp0unison\unison.exe" --ui "%~dp0ui" --runtime-path "%~dp0runtime\unison-runtime.exe" %*
       - name: package everything together
         run: |
           if [[ ${{runner.os}} = 'Windows' ]]; then
