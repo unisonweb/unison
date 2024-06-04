@@ -81,15 +81,17 @@ import Network.Simple.TCP as SYS
     send,
   )
 import Network.Socket as SYS
-  ( Socket,
+  ( PortNumber,
+    Socket,
     accept,
-    socketPort, PortNumber,
+    socketPort,
   )
 import Network.TLS as TLS
+import Network.TLS.Extra.Cipher as Cipher
 import Network.UDP as UDP
-  ( UDPSocket (..),
-    ClientSockAddr,
+  ( ClientSockAddr,
     ListenSocket,
+    UDPSocket (..),
     clientSocket,
     close,
     recv,
@@ -99,8 +101,6 @@ import Network.UDP as UDP
     serverSocket,
     stop,
   )
-
-import Network.TLS.Extra.Cipher as Cipher
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
@@ -154,7 +154,6 @@ import System.Process as SYS
   )
 import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
-import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
@@ -164,6 +163,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
+import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
   ( Foreign (Wrap),
@@ -1561,13 +1561,13 @@ outIoFailBool stack1 stack2 stack3 extra fail result =
         )
       ]
 
-outIoFailTup :: forall v . (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailTup :: forall v. (Var v) => v -> v -> v -> v -> v -> v -> v -> v -> ANormal v
 outIoFailTup stack1 stack2 stack3 stack4 stack5 extra fail result =
   TMatch result . MatchSum $
     mapFromList
       [ failureCase stack1 stack2 stack3 extra fail,
         ( 1,
-          ([BX, BX],
+          ( [BX, BX],
             TAbss [stack1, stack2]
               . TLetD stack3 BX (TCon Ty.unitRef 0 [])
               . TLetD stack4 BX (TCon Ty.pairRef 0 [stack2, stack3])
@@ -1575,7 +1575,7 @@ outIoFailTup stack1 stack2 stack3 stack4 stack5 extra fail result =
               $ right stack5
           )
         )
-      ] 
+      ]
 
 outIoFailG ::
   (Var v) =>
@@ -2346,7 +2346,7 @@ declareUdpForeigns = do
     $ \(host :: Util.Text.Text, port :: Util.Text.Text) ->
       let hostStr = Util.Text.toString host
           portStr = Util.Text.toString port
-      in UDP.clientSocket hostStr portStr True
+       in UDP.clientSocket hostStr portStr True
 
   declareForeign Tracked "IO.UDP.UDPSocket.recv.impl.v1" boxToEFBox
     . mkForeignIOF
@@ -2374,25 +2374,27 @@ declareUdpForeigns = do
     $ \(ip :: Util.Text.Text, port :: Util.Text.Text) ->
       let maybeIp = readMaybe $ Util.Text.toString ip :: Maybe IP
           maybePort = readMaybe $ Util.Text.toString port :: Maybe PortNumber
-      in case (maybeIp, maybePort) of
-        (Nothing, _) -> fail "Invalid IP Address"
-        (_, Nothing) -> fail "Invalid Port Number"
-        (Just ip, Just pt) -> UDP.serverSocket (ip, pt)
+       in case (maybeIp, maybePort) of
+            (Nothing, _) -> fail "Invalid IP Address"
+            (_, Nothing) -> fail "Invalid Port Number"
+            (Just ip, Just pt) -> UDP.serverSocket (ip, pt)
 
   declareForeign Tracked "IO.UDP.ListenSocket.toText.impl.v1" boxDirect
     . mkForeign
     $ \(sock :: ListenSocket) -> pure $ show sock
 
-  declareForeign Tracked "IO.UDP.ListenSocket.recvFrom.impl.v1" boxToEFTup .
-    mkForeignIOF $ fmap (first Bytes.fromArray) <$> UDP.recvFrom
+  declareForeign Tracked "IO.UDP.ListenSocket.recvFrom.impl.v1" boxToEFTup
+    . mkForeignIOF
+    $ fmap (first Bytes.fromArray) <$> UDP.recvFrom
 
   declareForeign Tracked "IO.UDP.ClientSockAddr.toText.v1" boxDirect
     . mkForeign
     $ \(sock :: ClientSockAddr) -> pure $ show sock
 
-  declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v1" boxBoxBoxToEF0 .
-    mkForeignIOF $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) ->
-        UDP.sendTo socket (Bytes.toArray bytes) addr
+  declareForeign Tracked "IO.UDP.ListenSocket.sendTo.impl.v1" boxBoxBoxToEF0
+    . mkForeignIOF
+    $ \(socket :: ListenSocket, bytes :: Bytes.Bytes, addr :: ClientSockAddr) ->
+      UDP.sendTo socket (Bytes.toArray bytes) addr
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do

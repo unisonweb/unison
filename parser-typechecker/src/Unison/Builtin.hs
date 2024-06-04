@@ -1073,7 +1073,6 @@ handle = Type.fileHandle ()
 phandle = Type.processHandle ()
 unit = DD.unitType ()
 
-
 udpSocket, udpListenSocket, udpClientSockAddr :: Type
 udpSocket = Type.udpSocket ()
 udpListenSocket = Type.udpListenSocket ()
