@@ -1431,7 +1431,7 @@ cd =
                 "descends into foo.bar from the current namespace."
               ),
               ( makeExample cd [".cat.dog"],
-                "sets the current namespace to the abolute namespace .cat.dog."
+                "sets the current namespace to the absolute namespace .cat.dog."
               ),
               ( makeExample cd [".."],
                 "moves to the parent of the current namespace. E.g. moves from '.cat.dog' to '.cat'"
@@ -2528,7 +2528,7 @@ debugFileHashes =
     []
     I.Visible
     []
-    "View details about the most recent succesfully typechecked file."
+    "View details about the most recent successfully typechecked file."
     (const $ Right Input.DebugTypecheckedUnisonFileI)
 
 debugDumpNamespace :: InputPattern
@@ -2754,7 +2754,7 @@ saveExecuteResult =
     I.Visible
     [("new name", Required, newNameArg)]
     ( "`add.run name` adds to the codebase the result of the most recent `run` command"
-        <> "as `name`."
+        <> " as `name`."
     )
     $ \case
       [w] -> Input.SaveExecuteResultI <$> handleNameArg w
@@ -3023,7 +3023,7 @@ branchesInputPattern =
       help =
         P.wrapColumn2
           [ ("`branches`", "lists all branches in the current project"),
-            ("`branches foo", "lists all branches in the project `foo`")
+            ("`branches foo`", "lists all branches in the project `foo`")
           ],
       parse = \case
         [] -> Right (Input.BranchesI Nothing)
