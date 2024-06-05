@@ -79,7 +79,7 @@ resolveTerm name = do
   case lookupTerm name names of
     [] -> Cli.returnEarly (TermNotFound $ fromJust parsed)
       where
-        parsed = hqSplitFromName' =<< HQ.toName name
+        parsed = hqSplitFromName' <$> HQ.toName name
     [rf] -> pure rf
     rfs ->
       Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfs))
@@ -92,7 +92,7 @@ resolveCon name = do
   case lookupCon name names of
     ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
       where
-        parsed = hqSplitFromName' =<< HQ.toName name
+        parsed = hqSplitFromName' <$> HQ.toName name
     ([co], _) -> pure co
     (_, rfts) ->
       Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfts))
@@ -105,7 +105,7 @@ resolveTermRef name = do
   case lookupTermRefs name names of
     ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
       where
-        parsed = hqSplitFromName' =<< HQ.toName name
+        parsed = hqSplitFromName' <$> HQ.toName name
     ([rf], _) -> pure rf
     (_, rfts) ->
       Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfts))

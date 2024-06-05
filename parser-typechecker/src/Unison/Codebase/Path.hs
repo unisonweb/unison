@@ -90,7 +90,7 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
 import Unison.HashQualified' qualified as HQ'
-import Unison.Name (Convert (..), Name, Parse)
+import Unison.Name (Convert (..), Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
@@ -244,8 +244,8 @@ fromList = Path . Seq.fromList
 ancestors :: Absolute -> Seq Absolute
 ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
-hqSplitFromName' :: Name -> Maybe HQSplit'
-hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
+hqSplitFromName' :: Name -> HQSplit'
+hqSplitFromName' = fmap HQ'.fromName . splitFromName'
 
 -- |
 -- >>> splitFromName "a.b.c"
@@ -546,5 +546,3 @@ instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
 instance (Convert path0 path1) => Convert (path0, name) (path1, name) where
   convert =
     over _1 convert
-
-instance Parse Name HQSplit' where parse = hqSplitFromName'
