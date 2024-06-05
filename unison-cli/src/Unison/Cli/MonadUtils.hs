@@ -44,6 +44,7 @@ module Unison.Cli.MonadUtils
     stepAt,
     stepAtM,
     stepManyAt,
+    stepManyAtM,
     syncRoot,
     updateRoot,
     updateAtM,
@@ -359,7 +360,7 @@ stepManyAt ::
   f (Path, Branch0 IO -> Branch0 IO) ->
   Cli ()
 stepManyAt reason actions = do
-  stepManyAtNoSync actions
+  void . modifyRootBranch $ Branch.stepManyAt actions
   syncRoot reason
 
 stepManyAt' ::
@@ -368,27 +369,11 @@ stepManyAt' ::
   f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepManyAt' reason actions = do
-  res <- stepManyAtNoSync' actions
-  syncRoot reason
-  pure res
-
-stepManyAtNoSync' ::
-  (Foldable f) =>
-  f (Path, Branch0 IO -> Cli (Branch0 IO)) ->
-  Cli Bool
-stepManyAtNoSync' actions = do
   origRoot <- getRootBranch
   newRoot <- Branch.stepManyAtM actions origRoot
   setRootBranch newRoot
+  syncRoot reason
   pure (origRoot /= newRoot)
-
--- Like stepManyAt, but doesn't update the last saved root
-stepManyAtNoSync ::
-  (Foldable f) =>
-  f (Path, Branch0 IO -> Branch0 IO) ->
-  Cli ()
-stepManyAtNoSync actions =
-  void . modifyRootBranch $ Branch.stepManyAt actions
 
 stepManyAtM ::
   (Foldable f) =>
@@ -396,17 +381,10 @@ stepManyAtM ::
   f (Path, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
 stepManyAtM reason actions = do
-  stepManyAtMNoSync actions
-  syncRoot reason
-
-stepManyAtMNoSync ::
-  (Foldable f) =>
-  f (Path, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli ()
-stepManyAtMNoSync actions = do
   oldRoot <- getRootBranch
   newRoot <- liftIO (Branch.stepManyAtM actions oldRoot)
   setRootBranch newRoot
+  syncRoot reason
 
 -- | Sync the in-memory root branch.
 syncRoot :: Text -> Cli ()
