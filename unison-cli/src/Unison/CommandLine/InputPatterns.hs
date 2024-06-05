@@ -139,6 +139,7 @@ where
 
 import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
+import Data.Bitraversable (bitraverse)
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
@@ -180,7 +181,7 @@ import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Editor.UriParser (readRemoteNamespaceParser)
 import Unison.Codebase.Editor.UriParser qualified as UriParser
-import Unison.Codebase.Path (Path, Path')
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
@@ -250,7 +251,7 @@ formatStructuredArgument schLength = \case
       Left sch -> "#" <> SCH.toText sch <> ":" <> Name.toText (Name.makeAbsolute name)
       Right pathPrefix -> Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
-    entryToHQText :: Path' -> ShallowListEntry v Ann -> Text
+    entryToHQText :: Path.Absolute -> ShallowListEntry v Ann -> Text
     entryToHQText pathArg =
       fixup . \case
         ShallowTypeEntry te -> Backend.typeEntryDisplayName te
@@ -282,6 +283,13 @@ showPatternHelp i =
           ),
       I.help i
     ]
+
+shallowListEntryToHQ' :: ShallowListEntry v Ann -> HQ'.HashQualified Name
+shallowListEntryToHQ' = \case
+  ShallowTermEntry termEntry -> Backend.termEntryHQName termEntry
+  ShallowTypeEntry typeEntry -> Backend.typeEntryHQName typeEntry
+  ShallowBranchEntry ns _ _ -> HQ'.fromName $ Name.fromSegment ns
+  ShallowPatchEntry ns -> HQ'.fromName $ Name.fromSegment ns
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQ :: Maybe Path -> SearchResult -> HQ.HashQualified Name
@@ -322,7 +330,7 @@ wrongStructuredArgument expected actual =
       SA.HashQualified _ -> "a hash-qualified name"
       SA.NameWithBranchPrefix _ _ -> "a name"
       SA.HashQualifiedWithBranchPrefix _ _ -> "a hash-qualified name"
-      SA.ShallowListEntry _ _ -> "an annotated symbol"
+      SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
 
 patternName :: InputPattern -> P.Pretty P.ColorText
@@ -396,6 +404,8 @@ handleHashQualifiedNameArg =
       SA.HashQualified hqname -> pure hqname
       SA.HashQualifiedWithBranchPrefix mprefix hqname ->
         pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Name.makeAbsolute . Path.prefixName prefix) hqname mprefix
+      SA.ShallowListEntry prefix entry ->
+        pure . HQ'.toHQ . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
       otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
 
@@ -564,10 +574,13 @@ handleHashQualifiedSplit'Arg =
   either
     (first P.text . Path.parseHQSplit')
     \case
+      SA.Name name -> pure $ Path.hqSplitFromName' name
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit' $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
+      SA.ShallowListEntry prefix entry ->
+        pure . hq'NameToSplit' . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
@@ -577,10 +590,19 @@ handleHashQualifiedSplitArg =
   either
     (first P.text . Path.parseHQSplit)
     \case
+      n@(SA.Name name) ->
+        bitraverse
+          ( \case
+              Path.AbsolutePath' _ -> Left $ expectedButActually "a relative name" n "an absolute name"
+              Path.RelativePath' p -> pure $ Path.unrelative p
+          )
+          pure
+          $ Path.hqSplitFromName' name
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
+      SA.ShallowListEntry _ entry -> pure . hq'NameToSplit $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
@@ -603,6 +625,8 @@ handleShortHashOrHQSplit'Arg =
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure . pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . pure $ hq'NameToSplit' (Name.makeAbsolute . Path.prefixName prefix <$> hqname)
+      SA.ShallowListEntry prefix entry ->
+        pure . pure . hq'NameToSplit' . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
 
@@ -626,6 +650,8 @@ handleNameArg =
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ HQ'.toName hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . Name.makeAbsolute . Path.prefixName prefix $ HQ'.toName hqname
+      SA.ShallowListEntry prefix entry ->
+        pure . HQ'.toName . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result ->
         maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg

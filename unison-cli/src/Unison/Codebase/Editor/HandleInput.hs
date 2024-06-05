@@ -695,7 +695,7 @@ loop e = do
 
               pathArgAbs <- Cli.resolvePath' pathArg
               entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
+              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArgAbs) entries
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               -- This used to be a delayed action which only forced the loading of the root
