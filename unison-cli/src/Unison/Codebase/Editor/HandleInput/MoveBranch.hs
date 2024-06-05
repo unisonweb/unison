@@ -10,10 +10,12 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Prelude
 
-moveBranchFunc :: Path.Path' -> Path.Path' -> Cli (Maybe (PP.ProjectPath, Branch IO -> Branch IO))
+-- | Note: Currently only allows moving within the same project-branch, should be easy to change in the future if
+-- needed.
+moveBranchFunc :: Path.Path' -> Path.Path' -> Cli (Maybe (Path.Absolute, Branch IO -> Branch IO))
 moveBranchFunc src' dest' = do
   -- We currently only support moving within the same project branch.
-  srcPP@(PP.ProjectPath proj projBranch srcAbs) <- Cli.resolvePath' src'
+  srcPP@(PP.ProjectPath _proj _projBranch srcAbs) <- Cli.resolvePath' src'
   PP.ProjectPath _ _ destAbs <- Cli.resolvePath' dest'
   destBranchExists <- Cli.branchExistsAtPath' dest'
   Cli.getMaybeBranchFromProjectPath srcPP >>= traverse \srcBranch -> do
@@ -28,7 +30,7 @@ moveBranchFunc src' dest' = do
     if destBranchExists
       then Cli.respond (MovedOverExistingBranch dest')
       else pure ()
-    pure (PP.ProjectPath proj projBranch $ Path.Absolute changeRootPath, doMove)
+    pure (Path.Absolute changeRootPath, doMove)
 
 -- | Moves a branch and its history from one location to another, and saves the new root
 -- branch.
@@ -36,6 +38,7 @@ doMoveBranch :: Text -> Path.Path' -> Path.Path' -> Cli ()
 doMoveBranch actionDescription src' dest' = do
   moveBranchFunc src' dest' >>= \case
     Nothing -> Cli.respond (BranchNotFound src')
-    Just (path, func) -> do
-      _ <- Cli.updateAt actionDescription path func
+    Just (absPath, func) -> do
+      pp <- Cli.resolvePath' (Path.AbsolutePath' absPath)
+      _ <- Cli.updateAt actionDescription pp func
       Cli.respond Success

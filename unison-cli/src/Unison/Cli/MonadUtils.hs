@@ -108,7 +108,7 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ProjectPath (ProjectPath, ProjectPathG (..))
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -478,18 +478,18 @@ updateAt reason p f = do
   updateAtM reason p (pure . f)
 
 updateAndStepAt ::
-  (Foldable f, Foldable g) =>
+  (Foldable f, Foldable g, Functor g) =>
   Text ->
+  ProjectBranch ->
   f (Path.Absolute, Branch IO -> Branch IO) ->
-  g (Path, Branch0 IO -> Branch0 IO) ->
+  g (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
-updateAndStepAt reason updates steps = do
+updateAndStepAt reason projectBranch updates steps = do
   let f b =
         b
           & (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
-          & (Branch.stepManyAt steps)
-  ProjectPath _ projBranch _ <- getCurrentProjectPath
-  updateProjectBranchRoot reason projBranch f
+          & (Branch.stepManyAt (first Path.unabsolute <$> steps))
+  updateProjectBranchRoot reason projectBranch f
 
 updateCurrentProjectBranchRoot :: Text -> (Branch IO -> Branch IO) -> Cli ()
 updateCurrentProjectBranchRoot reason f = do
