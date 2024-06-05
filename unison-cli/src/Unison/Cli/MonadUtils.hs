@@ -433,9 +433,10 @@ stepManyAtNoSync actions = do
 stepManyAtM ::
   (Foldable f) =>
   Text ->
+  ProjectBranch ->
   f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
-stepManyAtM reason actions = do
+stepManyAtM pb reason actions = do
   stepManyAtMNoSync actions
   syncRoot reason
 
@@ -449,8 +450,8 @@ stepManyAtMNoSync actions = do
   setCurrentProjectRoot newRoot
 
 -- | Sync the in-memory root branch.
-syncRoot :: Text -> Cli ()
-syncRoot description = do
+syncRoot :: ProjectBranch -> Text -> Cli ()
+syncRoot pb description = do
   rootBranch <- getCurrentProjectRoot
   updateCurrentProjectBranchRoot description (const rootBranch)
 
