@@ -405,7 +405,7 @@ handleHashQualifiedNameArg =
       SA.HashQualifiedWithBranchPrefix mprefix hqname ->
         pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Name.makeAbsolute . Path.prefixName prefix) hqname mprefix
       SA.ShallowListEntry prefix entry ->
-        pure . HQ'.toHQ . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
+        pure . HQ'.toHQ . fmap (Name.makeAbsolute . Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
       otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
 
@@ -580,7 +580,7 @@ handleHashQualifiedSplit'Arg =
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit' $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
       SA.ShallowListEntry prefix entry ->
-        pure . hq'NameToSplit' . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
+        pure . hq'NameToSplit' . fmap (Name.makeAbsolute . Path.prefixName prefix) $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
@@ -626,7 +626,7 @@ handleShortHashOrHQSplit'Arg =
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . pure $ hq'NameToSplit' (Name.makeAbsolute . Path.prefixName prefix <$> hqname)
       SA.ShallowListEntry prefix entry ->
-        pure . pure . hq'NameToSplit' . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
+        pure . pure . hq'NameToSplit' . fmap (Name.makeAbsolute . Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
 
@@ -651,7 +651,7 @@ handleNameArg =
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . Name.makeAbsolute . Path.prefixName prefix $ HQ'.toName hqname
       SA.ShallowListEntry prefix entry ->
-        pure . HQ'.toName . fmap (Path.prefixName prefix) $ shallowListEntryToHQ' entry
+        pure . HQ'.toName . fmap (Name.makeAbsolute . Path.prefixName prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result ->
         maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
