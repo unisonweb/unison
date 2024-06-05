@@ -259,7 +259,8 @@ cloneInto localProjectBranch remoteProjectBranch = do
           { projectId = localProjectId,
             branchId = localBranchId,
             name = localProjectBranch.branch,
-            parentBranchId = Nothing
+            parentBranchId = Nothing,
+            rootCausalHash = error "Add causal hash id in cloneInto"
           }
       Queries.insertBranchRemoteMapping
         localProjectId

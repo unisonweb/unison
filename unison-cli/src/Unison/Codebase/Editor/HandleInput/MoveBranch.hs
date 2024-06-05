@@ -7,17 +7,16 @@ import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Prelude
 
-moveBranchFunc :: Bool -> Path.Path' -> Path.Path' -> Cli (Maybe (Path.Absolute, Branch IO -> Branch IO))
-moveBranchFunc hasConfirmed src' dest' = do
-  srcAbs <- Cli.resolvePath' src'
-  destAbs <- Cli.resolvePath' dest'
+moveBranchFunc :: Path.Path' -> Path.Path' -> Cli (Maybe (PP.ProjectPath, Branch IO -> Branch IO))
+moveBranchFunc src' dest' = do
+  -- We currently only support moving within the same project branch.
+  srcPP@(PP.ProjectPath proj projBranch srcAbs) <- Cli.resolvePath' src'
+  PP.ProjectPath _ _ destAbs <- Cli.resolvePath' dest'
   destBranchExists <- Cli.branchExistsAtPath' dest'
-  let isRootMove = (Path.isRoot srcAbs || Path.isRoot destAbs)
-  when (isRootMove && not hasConfirmed) do
-    Cli.returnEarly MoveRootBranchConfirmation
-  Cli.getMaybeBranchAt srcAbs >>= traverse \srcBranch -> do
+  Cli.getMaybeBranchFromProjectPath srcPP >>= traverse \srcBranch -> do
     -- We want the move to appear as a single step in the root namespace, but we need to make
     -- surgical changes in both the root and the destination, so we make our modifications at the shared parent of
     -- those changes such that they appear as a single change in the root.
@@ -26,16 +25,16 @@ moveBranchFunc hasConfirmed src' dest' = do
           changeRoot
             & Branch.modifyAt srcLoc (const Branch.empty)
             & Branch.modifyAt destLoc (const srcBranch)
-    if (destBranchExists && not isRootMove)
+    if destBranchExists
       then Cli.respond (MovedOverExistingBranch dest')
       else pure ()
-    pure (Path.Absolute changeRootPath, doMove)
+    pure (PP.ProjectPath proj projBranch $ Path.Absolute changeRootPath, doMove)
 
 -- | Moves a branch and its history from one location to another, and saves the new root
 -- branch.
-doMoveBranch :: Text -> Bool -> Path.Path' -> Path.Path' -> Cli ()
-doMoveBranch actionDescription hasConfirmed src' dest' = do
-  moveBranchFunc hasConfirmed src' dest' >>= \case
+doMoveBranch :: Text -> Path.Path' -> Path.Path' -> Cli ()
+doMoveBranch actionDescription src' dest' = do
+  moveBranchFunc src' dest' >>= \case
     Nothing -> Cli.respond (BranchNotFound src')
     Just (path, func) -> do
       _ <- Cli.updateAt actionDescription path func

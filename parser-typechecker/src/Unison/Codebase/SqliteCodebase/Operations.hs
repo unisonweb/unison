@@ -379,25 +379,6 @@ tryFlushDeclBuffer termBuffer declBuffer =
           h
    in loop
 
-uncachedLoadRootBranch ::
-  BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  Transaction (Branch Transaction)
-uncachedLoadRootBranch branchCache getDeclType = do
-  causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 branchCache getDeclType causal2
-
--- | Get whether the root branch exists.
-getRootBranchExists :: Transaction Bool
-getRootBranchExists =
-  isJust <$> Ops.loadRootCausalHash
-
-putRootBranch :: Branch Transaction -> Transaction ()
-putRootBranch branch1 = do
-  -- todo: check to see if root namespace hash has been externally modified
-  -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
-
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::

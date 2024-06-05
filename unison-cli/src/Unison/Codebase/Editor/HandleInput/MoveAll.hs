@@ -11,9 +11,9 @@ import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified' qualified as HQ'
 import Unison.Prelude
 
-handleMoveAll :: Bool -> Path.Path' -> Path.Path' -> Text -> Cli ()
-handleMoveAll hasConfirmed src' dest' description = do
-  moveBranchFunc <- moveBranchFunc hasConfirmed src' dest'
+handleMoveAll :: Path.Path' -> Path.Path' -> Text -> Cli ()
+handleMoveAll src' dest' description = do
+  moveBranchFunc <- moveBranchFunc src' dest'
   moveTermTypeSteps <- case (,) <$> Path.toSplit' src' <*> Path.toSplit' dest' of
     Nothing -> pure []
     Just (fmap HQ'.NameOnly -> src, dest) -> do

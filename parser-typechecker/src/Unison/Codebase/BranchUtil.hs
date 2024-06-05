@@ -26,6 +26,7 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
+import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
@@ -69,10 +70,10 @@ getBranch (p, seg) b = case Path.toList p of
     (Branch.head <$> Map.lookup h (b ^. Branch.children))
       >>= getBranch (Path.fromList p, seg)
 
-makeAddTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeAddTermName :: (p, NameSegment) -> Referent -> (p, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r = (p, Branch.addTermName r name)
 
-makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTermName :: (p, NameSegment) -> Referent -> (p, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
 makeAnnihilateTermName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
@@ -81,10 +82,10 @@ makeAnnihilateTermName (p, name) = (p, Branch.annihilateTermName name)
 makeAnnihilateTypeName :: Path.Split -> (Path, Branch0 m -> Branch0 m)
 makeAnnihilateTypeName (p, name) = (p, Branch.annihilateTypeName name)
 
-makeAddTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeAddTypeName :: (p, NameSegment) -> Reference -> (p, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)
 
-makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTypeName :: (p, NameSegment) -> Reference -> (p, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 makeSetBranch :: Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)

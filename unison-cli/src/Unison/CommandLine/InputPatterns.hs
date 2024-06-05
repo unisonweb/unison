@@ -137,7 +137,6 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
@@ -183,6 +182,8 @@ import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -211,7 +212,6 @@ import Unison.Project
     Semver,
     branchWithOptionalProjectParser,
   )
-import Unison.Project.Util (ProjectContext (..), projectContextFromPath)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.Backend qualified as Backend
@@ -355,15 +355,6 @@ handleProjectArg =
     \case
       SA.Project project -> pure project
       otherArgType -> Left $ wrongStructuredArgument "a project" otherArgType
-
-handleLooseCodeOrProjectArg :: I.Argument -> Either (P.Pretty CT.ColorText) Input.LooseCodeOrProject
-handleLooseCodeOrProjectArg =
-  either
-    (maybe (Left $ P.text "invalid path or project branch") pure . parseLooseCodeOrProject)
-    \case
-      SA.AbsolutePath path -> pure . This $ Path.absoluteToPath' path
-      SA.ProjectBranch pb -> pure $ That pb
-      otherArgType -> Left $ wrongStructuredArgument "a path or project branch" otherArgType
 
 handleMaybeProjectBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
@@ -514,13 +505,15 @@ handleBranchId2Arg =
     Input.parseBranchId2
     \case
       SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . pure . LoosePath $ Path.absoluteToPath' path
-      SA.Name name -> pure . pure . LoosePath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . pure . LoosePath $ Path.fromName' name
+      SA.AbsolutePath path -> pure . pure . UnqualifiedPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (Left _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        pure . pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
+        case mproject of
+          Just proj -> pure . pure $ QualifiedBranchPath proj branch Path.absoluteEmpty
+          Nothing -> pure . pure $ BranchPathInCurrentProject branch Path.absoluteEmpty
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleBranchRelativePathArg :: I.Argument -> Either (P.Pretty P.ColorText) BranchRelativePath
@@ -528,13 +521,15 @@ handleBranchRelativePathArg =
   either
     parseBranchRelativePath
     \case
-      SA.AbsolutePath path -> pure . LoosePath $ Path.absoluteToPath' path
-      SA.Name name -> pure . LoosePath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . LoosePath $ Path.fromName' name
+      SA.AbsolutePath path -> pure . UnqualifiedPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (Left _) name -> pure . UnqualifiedPath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
+        case mproject of
+          Just proj -> pure $ QualifiedBranchPath proj branch Path.absoluteEmpty
+          Nothing -> pure $ BranchPathInCurrentProject branch Path.absoluteEmpty
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 hqNameToSplit' :: HQ.HashQualified Name -> Either ShortHash Path.HQSplit'
@@ -1488,8 +1483,7 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence = \case
-  [Left "."] -> first fromString . pure $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence . pure <$> handleSplitArg p
+  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence <$> handleSplitArg p
   _ -> Left helpText
 
 renameBranch :: InputPattern
@@ -1599,7 +1593,7 @@ reset =
     )
     \case
       [arg0] -> Input.ResetI <$> handleBranchIdOrProjectArg arg0 <*> pure Nothing
-      [arg0, arg1] -> Input.ResetI <$> handleBranchIdOrProjectArg arg0 <*> fmap pure (handleLooseCodeOrProjectArg arg1)
+      [arg0, arg1] -> Input.ResetI <$> handleBranchIdOrProjectArg arg0 <*> fmap pure (handleMaybeProjectBranchArg arg1)
       _ -> Left $ I.help reset
   where
     config =
@@ -2001,10 +1995,15 @@ mergeOldSquashInputPattern =
             <> "The resulting `dest` will have (at most) 1"
             <> "additional history entry.",
       parse = \case
+        [src] ->
+          Input.MergeLocalBranchI
+            <$> handleMaybeProjectBranchArg src
+            <*> pure Nothing
+            <*> pure Branch.SquashMerge
         [src, dest] ->
           Input.MergeLocalBranchI
-            <$> handleLooseCodeOrProjectArg src
-            <*> handleLooseCodeOrProjectArg dest
+            <$> handleMaybeProjectBranchArg src
+            <*> (Just <$> handleMaybeProjectBranchArg dest)
             <*> pure Branch.SquashMerge
         _ -> Left $ I.help mergeOldSquashInputPattern
     }
@@ -2037,25 +2036,19 @@ mergeOldInputPattern =
           ),
           ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
             "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
-          ),
-          ( makeExample mergeOldInputPattern [".src"],
-            "merges `.src` namespace into the current namespace"
-          ),
-          ( makeExample mergeOldInputPattern [".src", ".dest"],
-            "merges `.src` namespace into the `dest` namespace"
           )
         ]
     )
     ( \case
         [src] ->
           Input.MergeLocalBranchI
-            <$> handleLooseCodeOrProjectArg src
-            <*> pure (This Path.relativeEmpty')
+            <$> handleMaybeProjectBranchArg src
+            <*> pure Nothing
             <*> pure Branch.RegularMerge
         [src, dest] ->
           Input.MergeLocalBranchI
-            <$> handleLooseCodeOrProjectArg src
-            <*> handleLooseCodeOrProjectArg dest
+            <$> handleMaybeProjectBranchArg src
+            <*> (Just <$> handleMaybeProjectBranchArg dest)
             <*> pure Branch.RegularMerge
         _ -> Left $ I.help mergeOldInputPattern
     )
@@ -2091,17 +2084,6 @@ mergeInputPattern =
             Input.MergeI <$> handleMaybeProjectBranchArg branchString
           _ -> Left $ I.help mergeInputPattern
     }
-
-parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
-parseLooseCodeOrProject inputString =
-  case (asLooseCode, asBranch) of
-    (Right path, Left _) -> Just (This path)
-    (Left _, Right branch) -> Just (That branch)
-    (Right path, Right branch) -> Just (These path branch)
-    (Left _, Left _) -> Nothing
-  where
-    asLooseCode = Path.parsePath' inputString
-    asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -2149,9 +2131,9 @@ mergeOldPreviewInputPattern =
         ]
     )
     ( \case
-        [src] -> Input.PreviewMergeLocalBranchI <$> handleLooseCodeOrProjectArg src <*> pure (This Path.relativeEmpty')
+        [src] -> Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> pure Nothing
         [src, dest] ->
-          Input.PreviewMergeLocalBranchI <$> handleLooseCodeOrProjectArg src <*> handleLooseCodeOrProjectArg dest
+          Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> (Just <$> handleMaybeProjectBranchArg dest)
         _ -> Left $ I.help mergeOldPreviewInputPattern
     )
   where
@@ -3044,13 +3026,12 @@ branchInputPattern =
       help =
         P.wrapColumn2
           [ ("`branch foo`", "forks the current project branch to a new branch `foo`"),
-            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`"),
-            ("`branch .bar foo`", "forks the path `.bar` of the current project to a new branch `foo`")
+            ("`branch /bar foo`", "forks the branch `bar` of the current project to a new branch `foo`")
           ],
       parse = \case
         [source0, name] ->
-          Input.BranchI . Input.BranchSourceI'LooseCodeOrProject
-            <$> handleLooseCodeOrProjectArg source0
+          Input.BranchI . Input.BranchSourceI'UnresolvedProjectBranch
+            <$> handleMaybeProjectBranchArg source0
             <*> handleMaybeProjectBranchArg name
         [name] -> Input.BranchI Input.BranchSourceI'CurrentContext <$> handleMaybeProjectBranchArg name
         _ -> Left $ showPatternHelp branchInputPattern
@@ -3415,7 +3396,7 @@ namespaceOrProjectBranchArg config =
   ArgumentType
     { typeName = "namespace or branch",
       suggestions =
-        let namespaceSuggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteNamespace q p)
+        let namespaceSuggestions = \q cb _http pp -> Codebase.runTransaction cb (prefixCompleteNamespace q pp)
          in unionSuggestions
               [ projectAndOrBranchSuggestions config,
                 namespaceSuggestions
@@ -3441,8 +3422,8 @@ dependencyArg :: ArgumentType
 dependencyArg =
   ArgumentType
     { typeName = "project dependency",
-      suggestions = \q cb _http p -> Codebase.runTransaction cb do
-        prefixCompleteNamespace q (p Path.:> NameSegment.libSegment),
+      suggestions = \q cb _http pp -> Codebase.runTransaction cb do
+        prefixCompleteNamespace q (pp & PP.path_ .~ Path.singleton NameSegment.libSegment),
       fzfResolver = Just Resolvers.projectDependencyResolver
     }
 
@@ -3501,14 +3482,14 @@ projectAndOrBranchSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute -> -- Current path
+  ProjectPath ->
   m [Line.Completion]
-projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
+projectAndOrBranchSuggestions config inputStr codebase _httpClient pp = do
   case Text.uncons input of
     -- Things like "/foo" would be parsed as unambiguous branches in the logic below, except we also want to
     -- handle "/<TAB>" and "/@<TAB>" inputs, which aren't valid branch names, but are valid branch prefixes. So,
     -- if the input begins with a forward slash, just rip it off and treat the rest as the branch prefix.
-    Just ('/', input1) -> handleBranchesComplete input1 codebase path
+    Just ('/', input1) -> handleBranchesComplete input1 codebase pp
     _ ->
       case tryInto @ProjectAndBranchNames input of
         -- This case handles inputs like "", "@", and possibly other things that don't look like a valid project
@@ -3529,12 +3510,12 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap (filterBranches config path) do
+                  fmap (filterBranches config pp) do
                     Queries.loadAllProjectBranchesBeginningWith projectId Nothing
           pure (map (projectBranchToCompletion projectName) branches)
         -- This branch is probably dead due to intercepting inputs that begin with "/" above
         Right (ProjectAndBranchNames'Unambiguous (That branchName)) ->
-          handleBranchesComplete (into @Text branchName) codebase path
+          handleBranchesComplete (into @Text branchName) codebase pp
         Right (ProjectAndBranchNames'Unambiguous (These projectName branchName)) -> do
           branches <-
             Codebase.runTransaction codebase do
@@ -3542,15 +3523,11 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap (filterBranches config path) do
+                  fmap (filterBranches config pp) do
                     Queries.loadAllProjectBranchesBeginningWith projectId (Just $ into @Text branchName)
           pure (map (projectBranchToCompletion projectName) branches)
   where
     input = Text.strip . Text.pack $ inputStr
-
-    (mayCurrentProjectId, _mayCurrentBranchId) = case projectContextFromPath path of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
 
     handleAmbiguousComplete ::
       (MonadIO m) =>
@@ -3561,14 +3538,10 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
       (branches, projects) <-
         Codebase.runTransaction codebase do
           branches <-
-            case mayCurrentProjectId of
-              Nothing -> pure []
-              Just currentProjectId ->
-                fmap (filterBranches config path) do
-                  Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
-          projects <- case (projectInclusion config, mayCurrentProjectId) of
-            (OnlyWithinCurrentProject, Just currentProjectId) -> Queries.loadProject currentProjectId <&> maybeToList
-            (OnlyWithinCurrentProject, Nothing) -> pure []
+            fmap (filterBranches config pp) do
+              Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just input)
+          projects <- case projectInclusion config of
+            OnlyWithinCurrentProject -> Queries.loadProject currentProjectId <&> maybeToList
             _ -> Queries.loadAllProjectsBeginningWith (Just input) <&> filterProjects
           pure (branches, projects)
       let branchCompletions = map currentProjectBranchToCompletion branches
@@ -3642,27 +3615,27 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient path = do
           then projectCompletions
           else branchCompletions ++ projectCompletions
 
-    handleBranchesComplete :: (MonadIO m) => Text -> Codebase m v a -> Path.Absolute -> m [Completion]
-    handleBranchesComplete branchName codebase path = do
+    -- Complete the text into a branch name within the provided project
+    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> PP.ProjectPath -> m [Completion]
+    handleBranchesComplete branchName codebase pp = do
+      let projId = pp ^. #project . #projectId
       branches <-
-        case preview ProjectUtils.projectBranchPathPrism path of
-          Nothing -> pure []
-          Just (ProjectAndBranch currentProjectId _, _) ->
-            Codebase.runTransaction codebase do
-              fmap (filterBranches config path) do
-                Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
+        Codebase.runTransaction codebase do
+          fmap (filterBranches config pp) do
+            Queries.loadAllProjectBranchesBeginningWith projId (Just branchName)
       pure (map currentProjectBranchToCompletion branches)
 
     filterProjects :: [Sqlite.Project] -> [Sqlite.Project]
     filterProjects projects =
-      case (mayCurrentProjectId, projectInclusion config) of
-        (_, AllProjects) -> projects
-        (Nothing, _) -> projects
-        (Just currentProjId, OnlyOutsideCurrentProject) -> projects & filter (\Sqlite.Project {projectId} -> projectId /= currentProjId)
-        (Just currentBranchId, OnlyWithinCurrentProject) ->
+      case (projectInclusion config) of
+        AllProjects -> projects
+        OnlyOutsideCurrentProject -> projects & filter (\Sqlite.Project {projectId} -> projectId /= currentProjectId)
+        OnlyWithinCurrentProject ->
           projects
-            & List.find (\Sqlite.Project {projectId} -> projectId == currentBranchId)
+            & List.find (\Sqlite.Project {projectId} -> projectId == currentProjectId)
             & maybeToList
+
+    PP.ProjectPath currentProjectId _currentBranchId _currentPath = PP.toIds pp
 
 projectToCompletion :: Sqlite.Project -> Completion
 projectToCompletion project =
@@ -3687,28 +3660,22 @@ handleBranchesComplete ::
   ProjectBranchSuggestionsConfig ->
   Text ->
   Codebase m v a ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   m [Completion]
-handleBranchesComplete config branchName codebase path = do
+handleBranchesComplete config branchName codebase pp = do
   branches <-
-    case preview ProjectUtils.projectBranchPathPrism path of
-      Nothing -> pure []
-      Just (ProjectAndBranch currentProjectId _, _) ->
-        Codebase.runTransaction codebase do
-          fmap (filterBranches config path) do
-            Queries.loadAllProjectBranchesBeginningWith currentProjectId (Just branchName)
+    Codebase.runTransaction codebase do
+      fmap (filterBranches config pp) do
+        Queries.loadAllProjectBranchesBeginningWith (pp ^. #project . #projectId) (Just branchName)
   pure (map currentProjectBranchToCompletion branches)
 
-filterBranches :: ProjectBranchSuggestionsConfig -> Path.Absolute -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
-filterBranches config path branches =
-  case (mayCurrentBranchId, branchInclusion config) of
-    (_, AllBranches) -> branches
-    (Nothing, _) -> branches
-    (Just currentBranchId, ExcludeCurrentBranch) -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
+filterBranches :: ProjectBranchSuggestionsConfig -> PP.ProjectPath -> [(ProjectBranchId, a)] -> [(ProjectBranchId, a)]
+filterBranches config pp branches =
+  case (branchInclusion config) of
+    AllBranches -> branches
+    ExcludeCurrentBranch -> branches & filter (\(branchId, _) -> branchId /= currentBranchId)
   where
-    (_mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath path of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
+    currentBranchId = pp ^. #branch . #branchId
 
 currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Completion
 currentProjectBranchToCompletion (_, branchName) =
@@ -3724,22 +3691,22 @@ branchRelativePathSuggestions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   m [Line.Completion]
-branchRelativePathSuggestions config inputStr codebase _httpClient currentPath = do
+branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
   case parseIncrementalBranchRelativePath inputStr of
     Left _ -> pure []
     Right ibrp -> case ibrp of
-      BranchRelativePath.ProjectOrRelative _txt _path -> do
-        namespaceSuggestions <- Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
+      BranchRelativePath.ProjectOrPath' _txt _path -> do
+        namespaceSuggestions <- Codebase.runTransaction codebase (prefixCompleteNamespace inputStr pp)
         projectSuggestions <- projectNameSuggestions WithSlash inputStr codebase
         pure (namespaceSuggestions ++ projectSuggestions)
-      BranchRelativePath.LooseCode _path ->
-        Codebase.runTransaction codebase (prefixCompleteNamespace inputStr currentPath)
+      BranchRelativePath.OnlyPath' _path ->
+        Codebase.runTransaction codebase (prefixCompleteNamespace inputStr pp)
       BranchRelativePath.IncompleteProject _proj ->
         projectNameSuggestions WithSlash inputStr codebase
       BranchRelativePath.IncompleteBranch mproj mbranch -> case mproj of
-        Nothing -> map suffixPathSep <$> handleBranchesComplete config (maybe "" into mbranch) codebase currentPath
+        Nothing -> map suffixPathSep <$> handleBranchesComplete config (maybe "" into mbranch) codebase pp
         Just projectName -> do
           branches <-
             Codebase.runTransaction codebase do
@@ -3747,40 +3714,16 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
                 Nothing -> pure []
                 Just project -> do
                   let projectId = project ^. #projectId
-                  fmap (filterBranches config currentPath) do
+                  fmap (filterBranches config pp) do
                     Queries.loadAllProjectBranchesBeginningWith projectId (into @Text <$> mbranch)
           pure (map (projectBranchToCompletionWithSep projectName) branches)
       BranchRelativePath.PathRelativeToCurrentBranch relPath -> Codebase.runTransaction codebase do
-        mprojectBranch <- runMaybeT do
-          (projectId, branchId) <- MaybeT (pure $ (,) <$> mayCurrentProjectId <*> mayCurrentBranchId)
-          MaybeT (Queries.loadProjectBranch projectId branchId)
-        case mprojectBranch of
-          Nothing -> pure []
-          Just projectBranch -> do
-            let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
-                projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+        -- TODO: Verify this works as intendid
+        map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) pp
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
-          mprojectBranch <- runMaybeT do
-            case projStuff of
-              Left names@(ProjectAndBranch projectName branchName) -> do
-                (,Left names) <$> MaybeT (Queries.loadProjectBranchByNames projectName branchName)
-              Right branchName -> do
-                currentProjectId <- MaybeT (pure mayCurrentProjectId)
-                projectBranch <- MaybeT (Queries.loadProjectBranchByName currentProjectId branchName)
-                pure (projectBranch, Right (projectBranch ^. #name))
-          case mprojectBranch of
-            Nothing -> pure []
-            Just (projectBranch, prefix) -> do
-              let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
-                  projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+          map (addBranchPrefix projStuff) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) pp
   where
-    (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
-      LooseCodePath {} -> (Nothing, Nothing)
-      ProjectBranchPath projectId branchId _ -> (Just projectId, Just branchId)
-
     projectBranchToCompletionWithSep :: ProjectName -> (ProjectBranchId, ProjectBranchName) -> Completion
     projectBranchToCompletionWithSep projectName (_, branchName) =
       Completion

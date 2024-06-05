@@ -5,7 +5,9 @@ module Unison.Codebase.Path
     Path' (..),
     Absolute (..),
     pattern AbsolutePath',
+    absPath_,
     Relative (..),
+    relPath_,
     pattern RelativePath',
     Resolve (..),
     pattern Empty,
@@ -27,6 +29,7 @@ module Unison.Codebase.Path
     prefixName2,
     unprefixName,
     HQSplit,
+    AbsSplit,
     Split,
     Split',
     HQSplit',
@@ -57,6 +60,8 @@ module Unison.Codebase.Path
     unsafeToName',
     toText,
     toText',
+    absToText,
+    relToText,
     unsplit,
     unsplit',
     unsplitAbsolute,
@@ -109,9 +114,16 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
+-- | A path absolute to the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+absPath_ :: Lens' Absolute Path
+absPath_ = lens unabsolute (\_ new -> Absolute new)
+
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
+
+relPath_ :: Lens' Relative Path
+relPath_ = lens unrelative (\_ new -> Relative new)
 
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
@@ -141,14 +153,14 @@ absoluteToPath' = AbsolutePath'
 
 instance Show Path' where
   show = \case
-    AbsolutePath' abs -> show abs
-    RelativePath' rel -> show rel
+    AbsolutePath' abs -> Text.unpack $ absToText abs
+    RelativePath' rel -> Text.unpack $ relToText rel
 
 instance Show Absolute where
-  show s = "." ++ show (unabsolute s)
+  show s = Text.unpack $ absToText s
 
 instance Show Relative where
-  show = show . unrelative
+  show = Text.unpack . relToText
 
 unsplit' :: Split' -> Path'
 unsplit' = \case
@@ -167,6 +179,8 @@ unsplitHQ (p, a) = fmap (snoc p) a
 
 unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
 unsplitHQ' (p, a) = fmap (snoc' p) a
+
+type AbsSplit = (Absolute, NameSegment)
 
 type Split = (Path, NameSegment)
 
@@ -362,6 +376,12 @@ toText :: Path -> Text
 toText =
   maybe Text.empty Name.toText . toName
 
+absToText :: Absolute -> Text
+absToText abs = "." <> toText (unabsolute abs)
+
+relToText :: Relative -> Text
+relToText rel = toText (unrelative rel)
+
 unsafeParseText :: Text -> Path
 unsafeParseText = \case
   "" -> empty
@@ -497,6 +517,9 @@ instance Resolve Absolute Relative Absolute where
 
 instance Resolve Absolute Relative Path' where
   resolve l r = AbsolutePath' (resolve l r)
+
+instance Resolve Absolute Path Absolute where
+  resolve (Absolute l) r = Absolute (resolve l r)
 
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a

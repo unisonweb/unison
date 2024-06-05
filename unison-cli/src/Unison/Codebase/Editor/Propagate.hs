@@ -14,7 +14,7 @@ import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -241,7 +241,7 @@ propagate patch b = case validatePatch patch of
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
-    rootNames <- Branch.toNames <$> Cli.getRootBranch0
+    rootNames <- Cli.projectRootNames
 
     let -- TODO: these are just used for tracing, could be deleted if we don't care
         -- about printing meaningful names for definitions during propagation, or if
