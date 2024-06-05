@@ -41,6 +41,7 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.NameSegment qualified as NameSegment
@@ -76,8 +77,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
   when remoteBranchIsEmpty (Cli.respond (PulledEmptyBranch source))
 
-  let targetAbsolutePath =
-        ProjectUtils.projectBranchPath (ProjectAndBranch target.project.projectId target.branch.branchId)
+  let targetProjectPath = PP.projectBranchRoot (ProjectAndBranch target.project target.branch)
 
   let description =
         Text.unwords
@@ -92,9 +92,9 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
   case pullMode of
     Input.PullWithHistory -> do
-      targetBranchObject <- Cli.getBranch0At targetAbsolutePath
+      targetBranch <- Cli.getBranchFromProjectPath targetProjectPath
 
-      if Branch.isEmpty0 targetBranchObject
+      if Branch.isEmpty0 $ Branch.head targetBranchObject
         then do
           Cli.Env {codebase} <- ask
           remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
@@ -103,11 +103,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
         else do
           Cli.respond AboutToMerge
 
-          aliceCausalHash <-
-            Cli.runTransaction do
-              causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute targetAbsolutePath)
-              pure causal.causalHash
-
+          let aliceCausalHash = Branch.headHash targetBranch
           lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash remoteCausalHash)
 
           doMerge
@@ -167,30 +163,29 @@ resolveSourceAndTarget includeSquashed = \case
     pure (source, target)
 
 resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
-resolveImplicitSource includeSquashed =
-  ProjectUtils.getCurrentProjectBranch >>= \case
-    Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (localProjectAndBranch, _restPath) -> do
-      (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
-        Cli.runTransactionWithRollback \rollback -> do
-          let localProjectId = localProjectAndBranch.project.projectId
-          let localBranchId = localProjectAndBranch.branch.branchId
-          Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
-            Just (remoteProjectId, Just remoteBranchId) -> do
-              remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
-              remoteBranchName <-
-                Queries.expectRemoteProjectBranchName
-                  Share.hardCodedUri
-                  remoteProjectId
-                  remoteBranchId
-              pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName)
-            _ -> rollback (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
-      remoteBranch <-
-        ProjectUtils.expectRemoteProjectBranchById includeSquashed $
-          ProjectAndBranch
-            (remoteProjectId, remoteProjectName)
-            (remoteBranchId, remoteBranchName)
-      pure (ReadShare'ProjectBranch remoteBranch)
+resolveImplicitSource includeSquashed = do
+  pp <- Cli.getCurrentProjectPath
+  let localProjectAndBranch = pp ^. PP.asProjectAndBranch_
+  (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
+    Cli.runTransactionWithRollback \rollback -> do
+      let localProjectId = localProjectAndBranch.project.projectId
+      let localBranchId = localProjectAndBranch.branch.branchId
+      Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
+        Just (remoteProjectId, Just remoteBranchId) -> do
+          remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
+          remoteBranchName <-
+            Queries.expectRemoteProjectBranchName
+              Share.hardCodedUri
+              remoteProjectId
+              remoteBranchId
+          pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName)
+        _ -> rollback (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
+  remoteBranch <-
+    ProjectUtils.expectRemoteProjectBranchById includeSquashed $
+      ProjectAndBranch
+        (remoteProjectId, remoteProjectName)
+        (remoteBranchId, remoteBranchName)
+  pure (ReadShare'ProjectBranch remoteBranch)
 
 resolveExplicitSource ::
   Share.IncludeSquashedHead ->
@@ -208,7 +203,7 @@ resolveExplicitSource includeSquashed = \case
         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
-    (localProjectAndBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
+    localProjectAndBranch <- view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
     let localProjectId = localProjectAndBranch.project.projectId
     let localBranchId = localProjectAndBranch.branch.branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
@@ -243,8 +238,7 @@ resolveExplicitSource includeSquashed = \case
 
 resolveImplicitTarget :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
 resolveImplicitTarget = do
-  (projectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
-  pure projectAndBranch
+  view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
@@ -253,8 +247,8 @@ mergeBranchAndPropagateDefaultPatch ::
   Text ->
   Maybe Output ->
   Branch IO ->
-  Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  Path.Absolute ->
+  Maybe (Either PP.ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
+  PP.ProjectPath ->
   Cli ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
   ifM
