@@ -60,6 +60,7 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.List (elemIndex)
 import Data.Set qualified as Set
 import Data.Vector (Vector)
+import U.Codebase.Decl (Modifier)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Kind (Kind)
 import U.Codebase.Kind qualified as Kind
@@ -94,7 +95,6 @@ import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
-import U.Codebase.Decl (Modifier)
 
 debug :: Bool
 debug = False

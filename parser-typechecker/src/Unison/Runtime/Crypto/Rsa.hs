@@ -1,8 +1,9 @@
-module Unison.Runtime.Crypto.Rsa (
-  parseRsaPublicKey,
-  parseRsaPrivateKey,
-  rsaErrorToText,
-) where
+module Unison.Runtime.Crypto.Rsa
+  ( parseRsaPublicKey,
+    parseRsaPrivateKey,
+    rsaErrorToText,
+  )
+where
 
 import Crypto.Number.Basic qualified as Crypto
 import Crypto.PubKey.RSA qualified as RSA
