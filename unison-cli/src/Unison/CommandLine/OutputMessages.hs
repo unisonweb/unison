@@ -953,7 +953,6 @@ notifyUser dir = \case
   SlurpOutput input ppe s ->
     let isPast = case input of
           Input.AddI {} -> True
-          Input.UpdateI {} -> True
           Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s

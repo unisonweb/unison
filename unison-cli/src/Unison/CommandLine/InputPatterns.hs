@@ -82,7 +82,6 @@ module Unison.CommandLine.InputPatterns
     names,
     namespaceDependencies,
     previewAdd,
-    previewUpdate,
     printVersion,
     projectCreate,
     projectCreateEmptyInputPattern,
@@ -114,8 +113,6 @@ module Unison.CommandLine.InputPatterns
     up,
     update,
     updateBuiltins,
-    updateOld,
-    updateOldNoPatch,
     upgrade,
     upgradeCommitInputPattern,
     view,
@@ -828,85 +825,6 @@ update =
         [] -> pure Input.Update2I
         _ -> Left $ I.help update
     }
-
-updateOldNoPatch :: InputPattern
-updateOldNoPatch =
-  InputPattern
-    "update.old.nopatch"
-    []
-    I.Visible
-    [("definition", ZeroPlus, noCompletionsArg)]
-    ( P.wrap
-        ( makeExample' updateOldNoPatch
-            <> "works like"
-            <> P.group (makeExample' updateOld <> ",")
-            <> "except it doesn't add a patch entry for any updates. "
-            <> "Use this when you want to make changes to definitions without "
-            <> "pushing those changes to dependents beyond your codebase. "
-            <> "An example is when updating docs, or when updating a term you "
-            <> "just added."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOldNoPatch,
-              "updates all definitions in the .u file."
-            ),
-            ( makeExample updateOldNoPatch ["foo", "bar"],
-              "updates `foo`, `bar`, and their dependents from the .u file."
-            )
-          ]
-    )
-    $ fmap (Input.UpdateI Input.NoPatch . Set.fromList) . traverse handleNameArg
-
-updateOld :: InputPattern
-updateOld =
-  InputPattern
-    "update.old"
-    []
-    I.Visible
-    [("patch", Optional, patchArg), ("definition", ZeroPlus, noCompletionsArg)]
-    ( P.wrap
-        ( makeExample' updateOld
-            <> "works like"
-            <> P.group (makeExample' add <> ",")
-            <> "except that if a definition in the file has the same name as an"
-            <> "existing definition, the name gets updated to point to the new"
-            <> "definition. If the old definition has any dependents, `update` will"
-            <> "add those dependents to a refactoring session, specified by an"
-            <> "optional patch."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOld,
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "default patch for the current namespace."
-            ),
-            ( makeExample updateOld ["<patch>"],
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "specified patch."
-            ),
-            ( makeExample updateOld ["<patch>", "foo", "bar"],
-              "adds `foo`, `bar`, and their dependents from the .u file, noting"
-                <> "any replacements into the specified patch."
-            )
-          ]
-    )
-    \case
-      patchStr : ws ->
-        Input.UpdateI . Input.UsePatch <$> handleSplit'Arg patchStr <*> fmap Set.fromList (traverse handleNameArg ws)
-      [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
-
-previewUpdate :: InputPattern
-previewUpdate =
-  InputPattern
-    "update.old.preview"
-    []
-    I.Visible
-    [("definition", ZeroPlus, noCompletionsArg)]
-    ( "`update.old.preview` previews updates to the codebase from the most "
-        <> "recently typechecked file. This command only displays cached "
-        <> "typechecking results. Use `load` to reparse & typecheck the file if "
-        <> "the context has changed."
-    )
-    $ fmap (Input.PreviewUpdateI . Set.fromList) . traverse handleNameArg
 
 view :: InputPattern
 view =
@@ -3296,7 +3214,6 @@ validInputs =
       names True, -- names.global
       namespaceDependencies,
       previewAdd,
-      previewUpdate,
       printVersion,
       projectCreate,
       projectCreateEmptyInputPattern,
@@ -3327,8 +3244,6 @@ validInputs =
       up,
       update,
       updateBuiltins,
-      updateOld,
-      updateOldNoPatch,
       upgrade,
       upgradeCommitInputPattern,
       view,
