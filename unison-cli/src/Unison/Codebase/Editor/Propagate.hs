@@ -86,7 +86,7 @@ propagateAndApply ::
   Branch0 IO ->
   Cli (Branch0 IO)
 propagateAndApply rootNames patch branch = do
-  edits <- propagate patch branch
+  edits <- propagate rootNames patch branch
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 

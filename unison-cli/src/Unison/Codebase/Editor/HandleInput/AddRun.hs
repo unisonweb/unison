@@ -41,12 +41,12 @@ handleAddRun input resultName = do
   currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
   let adds = SlurpResult.adds sr
-  Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+  let description = (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
+  Cli.stepAt description (Path.unabsolute currentPath, doSlurpAdds adds uf)
   let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
   let suffixifiedPPE = PPE.suffixifiedPPE pped
-  Cli.syncRoot (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
 
 addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
