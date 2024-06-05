@@ -149,7 +149,19 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
           Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing
           Right resolvedArgs -> do
-            parsedInput <- except . parse $ resolvedArgs
+            parsedInput <-
+              except
+                . first
+                  ( \msg ->
+                      P.indentN 2 $
+                        P.wrap (P.text "Sorry, I couldn’t understand your request. " <> msg)
+                          <> P.newline
+                          <> P.newline
+                          <> P.text "Usage:"
+                          <> P.newline
+                          <> P.indentN 2 help
+                  )
+                $ parse resolvedArgs
             pure $ Just (Left command : resolvedArgs, parsedInput)
       Nothing ->
         throwE

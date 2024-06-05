@@ -1732,30 +1732,25 @@ pullImpl name aliases pullMode addendum = do
                       These sourceProject sourceBranch ->
                         Right (Input.LibInstallI True (ProjectAndBranch sourceProject (Just sourceBranch)))
                 (Right source, Left _, Right path) ->
-                  Left . P.indentN 2 $
-                    P.wrap
-                      ( "I think you're wanting to merge"
-                          <> case source of
-                            RemoteRepo.ReadShare'LooseCode _sourcePath -> "some non-project code"
-                            RemoteRepo.ReadShare'ProjectBranch (This sourceProject) ->
-                              prettyProjectNameSlash sourceProject
-                            RemoteRepo.ReadShare'ProjectBranch (That ProjectBranchNameOrLatestRelease'LatestRelease) ->
-                              "the latest release"
-                            RemoteRepo.ReadShare'ProjectBranch (That (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
-                              prettySlashProjectBranchName sourceBranch
-                            RemoteRepo.ReadShare'ProjectBranch (These sourceProject ProjectBranchNameOrLatestRelease'LatestRelease) ->
-                              "the latest release of" <> prettyProjectName sourceProject
-                            RemoteRepo.ReadShare'ProjectBranch (These sourceProject (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
-                              prettyProjectAndBranchName (ProjectAndBranch sourceProject sourceBranch)
-                          <> "into the"
-                          <> prettyPath' path
-                          <> "namespace, but the"
-                          <> makeExample' pull
-                          <> "command only supports merging into the top level of a local project branch."
-                      )
-                      <> P.newline
-                      <> P.newline
-                      <> P.wrap "Use `help pull` to see some examples."
+                  Left $
+                    "I think you're wanting to merge"
+                      <> case source of
+                        RemoteRepo.ReadShare'LooseCode _sourcePath -> "some non-project code"
+                        RemoteRepo.ReadShare'ProjectBranch (This sourceProject) ->
+                          prettyProjectNameSlash sourceProject
+                        RemoteRepo.ReadShare'ProjectBranch (That ProjectBranchNameOrLatestRelease'LatestRelease) ->
+                          "the latest release"
+                        RemoteRepo.ReadShare'ProjectBranch (That (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
+                          prettySlashProjectBranchName sourceBranch
+                        RemoteRepo.ReadShare'ProjectBranch (These sourceProject ProjectBranchNameOrLatestRelease'LatestRelease) ->
+                          "the latest release of" <> prettyProjectName sourceProject
+                        RemoteRepo.ReadShare'ProjectBranch (These sourceProject (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
+                          prettyProjectAndBranchName (ProjectAndBranch sourceProject sourceBranch)
+                      <> "into the"
+                      <> prettyPath' path
+                      <> "namespace, but the"
+                      <> makeExample' pull
+                      <> "command only supports merging into the top level of a local project branch."
             args -> wrongArgsLength "no more than two arguments" args
         }
 
