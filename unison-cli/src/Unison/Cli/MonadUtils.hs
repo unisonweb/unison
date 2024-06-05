@@ -43,11 +43,7 @@ module Unison.Cli.MonadUtils
     stepAt',
     stepAt,
     stepAtM,
-    stepAtNoSync',
-    stepAtNoSync,
     stepManyAt,
-    stepManyAtMNoSync,
-    stepManyAtNoSync,
     syncRoot,
     updateRoot,
     updateAtM,
@@ -350,16 +346,6 @@ stepAt' ::
   (Path, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
 stepAt' cause = stepManyAt' @[] cause . pure
-
-stepAtNoSync' ::
-  (Path, Branch0 IO -> Cli (Branch0 IO)) ->
-  Cli Bool
-stepAtNoSync' = stepManyAtNoSync' @[] . pure
-
-stepAtNoSync ::
-  (Path, Branch0 IO -> Branch0 IO) ->
-  Cli ()
-stepAtNoSync = stepManyAtNoSync @[] . pure
 
 stepAtM ::
   Text ->
