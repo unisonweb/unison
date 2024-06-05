@@ -240,6 +240,7 @@ propagate rootNames patch b = case validatePatch patch of
     Cli.respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
+    -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
     let -- TODO: these are just used for tracing, could be deleted if we don't care
         -- about printing meaningful names for definitions during propagation, or if
         -- we want to just remove the tracing.

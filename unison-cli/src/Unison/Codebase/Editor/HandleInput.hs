@@ -719,12 +719,11 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
-              Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+              Cli.stepAt description (Path.unabsolute currentPath, doSlurpAdds adds uf)
               pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf currentNames
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respond $ SlurpOutput input suffixifiedPPE sr
-              Cli.syncRoot description
             SaveExecuteResultI resultName -> handleAddRun input resultName
             PreviewAddI requestedNames -> do
               (sourceName, _) <- Cli.expectLatestFile
