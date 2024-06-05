@@ -100,16 +100,16 @@ createBranchFromParent mayParentBranch project newBranchName = do
           -- `bar`, so the fork will succeed.
           newBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           newBranchCausalHashId <-
-            (ProjectBranch.causalHashId <$> mayParentBranch) `whenNothing` do
+            (for mayParentBranch (\ProjectBranch {projectId, branchId} -> Q.expectProjectBranchHead projectId branchId)) `whenNothingM` do
               (_, causalHashId) <- Codebase.emptyCausalHash
               pure causalHashId
           Queries.insertProjectBranch
+            newBranchCausalHashId
             Sqlite.ProjectBranch
               { projectId,
                 branchId = newBranchId,
                 name = newBranchName,
-                parentBranchId = ProjectBranch.branchId <$> mayParentBranch,
-                causalHashId = newBranchCausalHashId
+                parentBranchId = ProjectBranch.branchId <$> mayParentBranch
               }
           pure newBranchId
 
@@ -131,12 +131,12 @@ createBranchFromNamespace project getBranchName branch = do
           newProjectBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
           newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash causalHash
           Queries.insertProjectBranch
+            newBranchCausalHashId
             Sqlite.ProjectBranch
               { projectId,
                 branchId = newProjectBranchId,
                 name = branchName,
-                parentBranchId = Nothing,
-                causalHashId = newBranchCausalHashId
+                parentBranchId = Nothing
               }
           pure newProjectBranchId
 
