@@ -21,7 +21,12 @@ ping : Nat
 ping = 3
 ```
 
-```ucm
-.> update.old
+Updating only part of a cycle should bring the rest of the cycle into scope:
+
+```ucm:error
+.> update
+```
+
+```
 .> view ping pong
 ```

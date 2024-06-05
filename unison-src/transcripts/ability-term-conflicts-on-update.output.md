@@ -65,31 +65,18 @@ thing _ = send 1
       ability Channels
 
 ```
-These should fail with a term/ctor conflict since we exclude the ability from the update.
+We should be able to update everything at once.
 
 ```ucm
-.ns> update.old patch Channels.send
+.ns> update
 
-  x These definitions failed:
-  
-    Reason
-    term/ctor collision   Channels.send   : a -> ()
-  
-    Tip: Use `help filestatus` to learn more.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.ns> update.old patch thing
-
-  ⍟ I've added these definitions:
-  
-    Channels.send : a -> ()
-    thing         : '{Channels} ()
-  
-  ⍟ I've updated these names to your new definition:
-  
-    ability Channels
+  Done.
 
 ```
-If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+If `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
 
 ```unison
 unique ability Channels where
@@ -119,48 +106,15 @@ thing _ = send 1
       thing         : '{Channels} ()
 
 ```
-These updates should succeed since `Channels` is a dependency.
+We should be able to successfully update the whole thing.
 
 ```ucm
-.ns> update.old.preview patch Channels.send
+.ns> update
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⊡ Previously added definitions will be ignored: Channels
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      Channels.send : a ->{Channels} ()
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.ns> update.old.preview patch thing
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⊡ Previously added definitions will be ignored: Channels
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      Channels.send : a ->{Channels} ()
-      thing         : '{Channels} ()
-
-```
-We should also be able to successfully update the whole thing.
-
-```ucm
-.ns> update.old
-
-  ⊡ Ignored previously added definitions: Channels
-  
-  ⍟ I've updated these names to your new definition:
-  
-    Channels.send : a ->{Channels} ()
-    thing         : '{Channels} ()
+  Done.
 
 ```
 # Constructor-term conflict

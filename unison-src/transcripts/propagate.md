@@ -30,7 +30,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update.old
+.subpath> update
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
@@ -68,7 +68,7 @@ preserve.someTerm _ = None
 Update...
 
 ```ucm
-.subpath> update.old
+.subpath> update
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -85,23 +85,23 @@ Cleaning up a bit...
 
 ```ucm
 .> delete.namespace subpath
-.subpath.lib> builtins.merge
+.subpath.one.lib> builtins.merge
 ```
 
 Now, we make two terms, where one depends on the other.
 
 ```unison
-one.someTerm : Optional foo -> Optional foo
-one.someTerm x = x
+someTerm : Optional foo -> Optional foo
+someTerm x = x
 
-one.otherTerm : Optional baz -> Optional baz
-one.otherTerm y = someTerm y
+otherTerm : Optional baz -> Optional baz
+otherTerm y = someTerm y
 ```
 
 We'll make two copies of this namespace.
 
 ```ucm
-.subpath> add
+.subpath.one> add
 .subpath> fork one two
 ```
 
@@ -115,7 +115,7 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update.old
+.subpath.one> update
 ```
 
 The other namespace should be left alone.

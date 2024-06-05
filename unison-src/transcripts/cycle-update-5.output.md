@@ -54,11 +54,12 @@ inner.ping _ = !pong + 3
 
 ```
 ```ucm
-.inner> update.old
+.inner> update
 
-  ⍟ I've added these definitions:
-  
-    inner.ping : '##Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> view inner.ping
 

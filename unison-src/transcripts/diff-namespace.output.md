@@ -113,17 +113,21 @@ structural ability X a1 a2 where x : ()
 ```ucm
   ☝️  The namespace .ns1 is empty.
 
+.ns1> builtins.merge
+
+  Done.
+
 .ns1> add
 
   ⍟ I've added these definitions:
   
     structural type A a
     structural ability X a1 a2
-    b          : ##Nat
-    bdependent : ##Nat
-    c          : ##Nat
-    fromJust   : ##Nat
-    helloWorld : ##Text
+    b          : Nat
+    bdependent : Nat
+    c          : Nat
+    fromJust   : Nat
+    helloWorld : Text
 
 .ns1> alias.term fromJust fromJust'
 
@@ -189,6 +193,7 @@ fromJust = "asldkfjasldkfj"
 ```unison
 fromJust = 99
 b = "oog"
+bdependent = b
 d = 4
 e = 5
 f = 6
@@ -196,20 +201,12 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update.old
+.ns2> update
 
-  ⍟ I've added these definitions:
-  
-    type Y a b
-    d : ##Nat
-    e : ##Nat
-    f : ##Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    b        : ##Text
-    fromJust : ##Nat
-      (The old definition was also named fromJust'.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> diff.namespace ns1 ns2
 
@@ -226,9 +223,9 @@ unique type Y a b = Y a b
         ↓
     5.  b : Text
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Text
   
   Added definitions:
   
@@ -238,7 +235,11 @@ unique type Y a b = Y a b
     11. e   : Nat
     12. f   : Nat
   
-    13. patch patch (added 2 updates)
+  Name changes:
+  
+    Original                   Changes
+    13. fromJust'           ┐  14. fromJust#gjmq673r1v (removed)
+    15. fromJust#gjmq673r1v ┘  
 
 .> alias.term ns2.d ns2.d'
 
@@ -267,9 +268,9 @@ unique type Y a b = Y a b
         ↓
     5.  b : Text
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Text
   
   Added definitions:
   
@@ -280,14 +281,15 @@ unique type Y a b = Y a b
     12. e    : Nat
     13. f    : Nat
   
-    14. patch patch (added 2 updates)
-  
   Name changes:
   
-    Original  Changes
-    15. A     16. A' (added)
+    Original                   Changes
+    14. A                      15. A' (added)
     
-    17. X    18. X' (added)
+    16. X                      17. X' (added)
+    
+    18. fromJust'           ┐  19. fromJust#gjmq673r1v (removed)
+    20. fromJust#gjmq673r1v ┘  
 
 .> alias.type ns1.X ns1.X2
 
@@ -309,12 +311,12 @@ unique type Y a b = Y a b
 
   Name changes:
   
-    Original            Changes
-    1. ns2.fromJust  ┐  2. ns2.fromJust' (removed)
-    3. ns2.fromJust' │  
-    4. ns2.yoohoo    │  
-    5. ns3.fromJust  │  
-    6. ns3.fromJust' ┘  
+    Original                      Changes
+    1. ns1.fromJust'           ┐  2. ns2.fromJust' (removed)
+    3. ns2.fromJust'           │  
+    4. ns2.yoohoo              │  
+    5. ns3.fromJust'           │  
+    6. ns1.fromJust#gjmq673r1v ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -323,8 +325,8 @@ unique type Y a b = Y a b
   Name changes:
   
     Original        Changes
-    1. fromJust  ┐  2. yoohoo (added)
-    3. fromJust' ┘  4. fromJust' (removed)
+    1. fromJust'    2. yoohoo (added)
+                    3. fromJust' (removed)
 
 ```
 ```unison
@@ -332,162 +334,26 @@ bdependent = "banana"
 ```
 
 ```ucm
-.ns3> update.old
+.ns3> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    bdependent : ##Text
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> diff.namespace ns2 ns3
 
   Updates:
   
-    1. bdependent : Nat
+    1. bdependent : Text
        ↓
     2. bdependent : Text
   
-    3. patch patch (added 1 updates)
-  
   Name changes:
   
-    Original       Changes
-    4. fromJust ┐  5. fromJust' (added)
-    6. yoohoo   ┘  7. yoohoo (removed)
-
-```
-## Two different auto-propagated changes creating a name conflict
-Currently, the auto-propagated name-conflicted definitions are not explicitly
-shown, only their also-conflicted dependency is shown.
-```unison
-a = 333
-b = a + 1
-```
-
-```ucm
-  ☝️  The namespace .nsx is empty.
-
-.nsx> add
-
-  ⍟ I've added these definitions:
-  
-    a : ##Nat
-    b : ##Nat
-
-.> fork nsx nsy
-
-  Done.
-
-.> fork nsx nsz
-
-  Done.
-
-```
-```unison
-a = 444
-```
-
-```ucm
-.nsy> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Nat
-
-```
-```unison
-a = 555
-```
-
-```ucm
-.nsz> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Nat
-
-.> merge.old nsy nsw
-
-  Here's what's changed in nsw after the merge:
-  
-  Added definitions:
-  
-    1. a : Nat
-    2. b : Nat
-  
-    3. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
-
-```
-```ucm
-.> merge.old nsz nsw
-
-  Here's what's changed in nsw after the merge:
-  
-  New name conflicts:
-  
-    1. a#mdl4vqtu00 : Nat
-       ↓
-    2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
-    
-    4. b#unkqhuu66p : Nat
-       ↓
-    5. ┌ b#aapqletas7 : Nat
-    6. └ b#unkqhuu66p : Nat
-  
-  Updates:
-  
-    7. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
-
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
-
-```
-```ucm
-.> diff.namespace nsx nsw
-
-  New name conflicts:
-  
-    1. a#uiiiv8a86s : Nat
-       ↓
-    2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
-    
-    4. b#lhigeb1let : Nat
-       ↓
-    5. ┌ b#aapqletas7 : Nat
-    6. └ b#unkqhuu66p : Nat
-  
-  Added definitions:
-  
-    7. patch patch (added 2 updates)
-
-.nsw> view a b
-
-  a#mdl4vqtu00 : ##Nat
-  a#mdl4vqtu00 = 444
-  
-  a#vrs8gtkl2t : ##Nat
-  a#vrs8gtkl2t = 555
-  
-  b#aapqletas7 : ##Nat
-  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
-  
-  b#unkqhuu66p : ##Nat
-  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
+    Original     Changes
+    3. yoohoo    4. fromJust' (added)
+                 5. yoohoo (removed)
 
 ```
 ## Should be able to diff a namespace hash from history.
@@ -506,7 +372,9 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : ##Nat
+      x : Nat
+        (also named ns1.fromJust , ns1.fromJust' , ns3.fromJust'
+        , and ns2.yoohoo)
 
 ```
 ```ucm

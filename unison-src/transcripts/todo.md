@@ -28,7 +28,7 @@ type MyType = MyType Text
 ```
 
 ```ucm:error
-.simple> update.old
+.simple> update
 .simple> todo
 ```
 
@@ -58,7 +58,7 @@ type MyType = MyType Nat
 ```
 
 ```ucm:hide
-.mergeA> update.old
+.mergeA> update
 ```
 
 ```unison:hide
@@ -67,7 +67,7 @@ type MyType = MyType Int
 ```
 
 ```ucm:hide
-.mergeB> update.old
+.mergeB> update
 ```
 
 ```ucm:error
@@ -94,7 +94,7 @@ foo = 802
 ```
 
 ```ucm
-.lhs> update.old
+.lhs> update
 ```
 
 ```unison
@@ -106,7 +106,7 @@ oldfoo = 801
 .lhs> todo
 ```
 
-## A type-changing update to one element of a cycle, which doesn't propagate to the other
+## A type-changing update to one element of a cycle
 
 ```ucm:hide
 .cycle2> builtins.merge
@@ -130,10 +130,21 @@ odd = cases
 even = 17
 ```
 
-```ucm
-.cycle2> update.old
-```
+Updating should bring the other half into scope.
 
 ```ucm:error
+.cycle2> update
+```
+
+We can manually break the cycle:
+
+```unison
+odd = 22
+
+even = 17
+```
+
+```ucm
+.cycle2> update
 .cycle2> todo
 ```

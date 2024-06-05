@@ -44,6 +44,7 @@ structural ability X a1 a2 where x : ()
 ```
 
 ```ucm
+.ns1> builtins.merge
 .ns1> add
 .ns1> alias.term fromJust fromJust'
 .ns1> alias.term helloWorld helloWorld2
@@ -72,6 +73,7 @@ fromJust = "asldkfjasldkfj"
 ```unison:hide
 fromJust = 99
 b = "oog"
+bdependent = b
 d = 4
 e = 5
 f = 6
@@ -79,7 +81,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update.old
+.ns2> update
 .> diff.namespace ns1 ns2
 .> alias.term ns2.d ns2.d'
 .> alias.type ns2.A ns2.A'
@@ -96,42 +98,8 @@ unique type Y a b = Y a b
 bdependent = "banana"
 ```
 ```ucm
-.ns3> update.old
+.ns3> update
 .> diff.namespace ns2 ns3
-```
-
-
-## Two different auto-propagated changes creating a name conflict
-Currently, the auto-propagated name-conflicted definitions are not explicitly
-shown, only their also-conflicted dependency is shown.
-```unison:hide
-a = 333
-b = a + 1
-```
-```ucm
-.nsx> add
-.> fork nsx nsy
-.> fork nsx nsz
-```
-```unison:hide
-a = 444
-```
-```ucm
-.nsy> update.old
-```
-```unison:hide
-a = 555
-```
-```ucm
-.nsz> update.old
-.> merge.old nsy nsw
-```
-```ucm:error
-.> merge.old nsz nsw
-```
-```ucm
-.> diff.namespace nsx nsw
-.nsw> view a b
 ```
 
 ## Should be able to diff a namespace hash from history.
