@@ -391,7 +391,6 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
-  | LooseCodePushDeprecated
   | MergeFailure !FilePath !MergeSourceAndTarget
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
@@ -630,7 +629,6 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
-  LooseCodePushDeprecated -> True
   MergeFailure {} -> True
   MergeSuccess {} -> False
   MergeSuccessFastForward {} -> False

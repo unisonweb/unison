@@ -23,7 +23,6 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
 import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
   ( PushRemoteBranchInput (..),
@@ -67,31 +66,17 @@ handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
 handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
   case sourceTarget of
     -- push <implicit> to <implicit>
-    PushSourceTarget0 ->
-      ProjectUtils.getCurrentProjectBranch >>= \case
-        Nothing -> do
-          localPath <- Cli.getCurrentPath
-          UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
-            WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
-            WriteRemoteProjectBranch v -> absurd v
-        Just (localProjectAndBranch, _restPath) ->
-          pushProjectBranchToProjectBranch
-            force
-            localProjectAndBranch
-            Nothing
+    PushSourceTarget0 -> do
+      localProjectAndBranch <- Cli.getCurrentProjectAndBranch
+      pushProjectBranchToProjectBranch force localProjectAndBranch Nothing
     -- push <implicit> to .some.path (share)
     PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.getCurrentPath
       pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push <implicit> to @some/project
-    PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) ->
-      ProjectUtils.getCurrentProjectBranch >>= \case
-        Nothing -> do
-          localPath <- Cli.getCurrentPath
-          remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
-          pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
-        Just (localProjectAndBranch, _restPath) ->
-          pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
+    PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
+      localProjectAndBranch <- Cli.getCurrentProjectAndBranch
+      pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push .some.path to .some.path (share)
     PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
       localPath <- Cli.resolvePath' localPath0
@@ -118,11 +103,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
         PushBehavior.ForcePush -> True
         PushBehavior.RequireEmpty -> False
         PushBehavior.RequireNonEmpty -> False
-
--- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
-pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemoteNamespace -> PushBehavior -> Cli ()
-pushLooseCodeToShareLooseCode _ _ _ = do
-  Cli.returnEarly LooseCodePushDeprecated
 
 -- Push a local namespace ("loose code") to a remote project branch.
 pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()

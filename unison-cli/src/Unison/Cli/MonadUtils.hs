@@ -13,6 +13,10 @@ module Unison.Cli.MonadUtils
     resolvePath',
     resolveSplit',
 
+    -- * Project and branch resolution
+    getCurrentProjectAndBranch,
+    getCurrentProjectBranch,
+
     -- * Branches
 
     -- ** Resolving branch identifiers
@@ -150,6 +154,14 @@ getCurrentProjectPath = do
     branch <- MaybeT $ Q.loadProjectBranch projId branchId
     pure (project, branch)
   pure (PP.ProjectPath proj branch path)
+
+getCurrentProjectAndBranch :: Cli (ProjectAndBranch Project ProjectBranch)
+getCurrentProjectAndBranch = do
+  view PP.asProjectAndBranch_ <$> getCurrentProjectPath
+
+getCurrentProjectBranch :: Cli ProjectBranch
+getCurrentProjectBranch = do
+  view #branch <$> getCurrentProjectPath
 
 -- | Get the current path relative to the current project.
 getCurrentPath :: Cli Path.Absolute
