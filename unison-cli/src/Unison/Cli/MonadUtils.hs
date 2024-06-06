@@ -45,12 +45,8 @@ module Unison.Cli.MonadUtils
     stepAt',
     stepAt,
     stepAtM,
-    stepAtNoSync',
-    stepAtNoSync,
     stepManyAt,
-    stepManyAtMNoSync,
-    stepManyAtNoSync,
-    syncRoot,
+    stepManyAtM,
     updateProjectBranchRoot,
     updateAtM,
     updateAt,
@@ -360,100 +356,59 @@ branchExistsAtPath' path' = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Updating branches
 
-relativizeActions :: (Foldable f) => f (Path.Absolute, x) -> [(Path, x)]
-relativizeActions actions =
-  toList actions
-    & traversed . _1 %~ Path.unabsolute
+makeActionsUnabsolute :: Functor f => f (Path.Absolute, x) -> f (Path, x)
+makeActionsUnabsolute = fmap (first Path.unabsolute)
 
 stepAt ::
+  ProjectBranch ->
   Text ->
   (Path.Absolute, Branch0 IO -> Branch0 IO) ->
   Cli ()
-stepAt cause = stepManyAt @[] cause . pure
+stepAt pb cause action = stepManyAt pb cause [action]
 
 stepAt' ::
+  ProjectBranch ->
   Text ->
   (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
-stepAt' cause = stepManyAt' @[] cause . pure
-
-stepAtNoSync' ::
-  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
-  Cli Bool
-stepAtNoSync' = stepManyAtNoSync' @[] . pure
-
-stepAtNoSync ::
-  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
-  Cli ()
-stepAtNoSync = stepManyAtNoSync @[] . pure
+stepAt' pb cause action = stepManyAt' pb cause [action]
 
 stepAtM ::
+  ProjectBranch ->
   Text ->
   (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
-stepAtM cause = stepManyAtM @[] cause . pure
+stepAtM pb cause action = stepManyAtM pb cause [action]
 
 stepManyAt ::
-  (Foldable f) =>
+  ProjectBranch ->
   Text ->
-  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
+  [(Path.Absolute, Branch0 IO -> Branch0 IO)] ->
   Cli ()
-stepManyAt reason actions = do
-  stepManyAtNoSync actions
-  syncRoot reason
+stepManyAt pb reason actions = do
+  updateProjectBranchRoot_ reason pb $ Branch.stepManyAt (makeActionsUnabsolute actions)
 
 stepManyAt' ::
-  (Foldable f) =>
+  ProjectBranch ->
   Text ->
-  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
+  [(Path.Absolute, Branch0 IO -> Cli (Branch0 IO))] ->
   Cli Bool
-stepManyAt' reason actions = do
-  res <- stepManyAtNoSync' actions
-  syncRoot reason
-  pure res
-
-stepManyAtNoSync' ::
-  (Foldable f) =>
-  f (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
-  Cli Bool
-stepManyAtNoSync' actions = do
-  origRoot <- getCurrentProjectRoot
-  newRoot <- Branch.stepManyAtM (relativizeActions actions) origRoot
-  setCurrentProjectRoot newRoot
-  pure (origRoot /= newRoot)
+stepManyAt' pb reason actions = do
+  origRoot <- getProjectBranchRoot pb
+  newRoot <- Branch.stepManyAtM (makeActionsUnabsolute actions) origRoot
+  didChange <- updateProjectBranchRoot reason pb (\oldRoot -> pure (newRoot, oldRoot /= newRoot))
+  pure didChange
 
 -- Like stepManyAt, but doesn't update the last saved root
-stepManyAtNoSync ::
-  (Foldable f) =>
-  f (Path.Absolute, Branch0 IO -> Branch0 IO) ->
-  Cli ()
-stepManyAtNoSync actions = do
-  void . modifyProjectRoot $ Branch.stepManyAt (relativizeActions actions)
-
 stepManyAtM ::
-  (Foldable f) =>
-  Text ->
   ProjectBranch ->
-  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
+  Text ->
+  [(Path.Absolute, Branch0 IO -> IO (Branch0 IO))] ->
   Cli ()
 stepManyAtM pb reason actions = do
-  stepManyAtMNoSync actions
-  syncRoot reason
-
-stepManyAtMNoSync ::
-  (Foldable f) =>
-  f (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli ()
-stepManyAtMNoSync actions = do
-  oldRoot <- getCurrentProjectRoot
-  newRoot <- liftIO (Branch.stepManyAtM (relativizeActions actions) oldRoot)
-  setCurrentProjectRoot newRoot
-
--- | Sync the in-memory root branch.
-syncRoot :: ProjectBranch -> Text -> Cli ()
-syncRoot pb description = do
-  rootBranch <- getCurrentProjectRoot
-  updateCurrentProjectBranchRoot description (const rootBranch)
+  updateProjectBranchRoot reason pb \oldRoot -> do
+    newRoot <- liftIO (Branch.stepManyAtM (makeActionsUnabsolute actions) oldRoot)
+    pure (newRoot, ())
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
@@ -490,25 +445,30 @@ updateAndStepAt reason projectBranch updates steps = do
         b
           & (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
           & (Branch.stepManyAt (first Path.unabsolute <$> steps))
-  updateProjectBranchRoot reason projectBranch f
+  updateProjectBranchRoot_ reason projectBranch f
 
 updateCurrentProjectBranchRoot :: Text -> (Branch IO -> Branch IO) -> Cli ()
 updateCurrentProjectBranchRoot reason f = do
   pp <- getCurrentProjectPath
-  updateProjectBranchRoot reason (pp ^. #branch) f
+  updateProjectBranchRoot_ reason (pp ^. #branch) f
 
-updateProjectBranchRoot :: Text -> ProjectBranch -> (Branch IO -> Branch IO) -> Cli ()
+updateProjectBranchRoot :: Text -> ProjectBranch -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
 updateProjectBranchRoot reason projectBranch f = do
   error "implement project-branch reflog" reason
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
     old <- getProjectBranchRoot projectBranch
-    let new = f old
+    (new, result) <- f old
     liftIO $ Codebase.putBranch codebase new
     Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
       Q.setProjectBranchHead (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
     setCurrentProjectRoot new
+    pure result
+
+updateProjectBranchRoot_ :: Text -> ProjectBranch -> (Branch IO -> Branch IO) -> Cli ()
+updateProjectBranchRoot_ reason projectBranch f = do
+  updateProjectBranchRoot reason projectBranch (\b -> pure (f b, ()))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms

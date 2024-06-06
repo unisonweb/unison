@@ -28,6 +28,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Merge2 (AliceMergeInfo (..), BobMergeInfo (..), LcaMergeInfo (..), MergeInfo (..), doMerge)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
@@ -295,6 +296,7 @@ propagatePatch ::
   Cli Bool
 propagatePatch inputDescription patch scopePath = do
   Cli.time "propagatePatch" do
+    rootNames <- Branch.toNames <$> Cli.getRootBranch0
     Cli.stepAt'
       (inputDescription <> " (applying patch)")
-      (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+      (Path.unabsolute scopePath, Propagate.propagateAndApply rootNames patch)
