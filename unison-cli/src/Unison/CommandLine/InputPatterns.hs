@@ -416,7 +416,16 @@ handlePathArg =
     \case
       SA.Name name -> pure $ Path.fromName name
       SA.NameWithBranchPrefix _ name -> pure $ Path.fromName name
-      otherArgType -> Left $ wrongStructuredArgument "a relative path" otherArgType
+      otherArgType ->
+        either
+          (const . Left $ wrongStructuredArgument "a relative path" otherArgType)
+          ( \name ->
+              if Name.isRelative name
+                then pure $ Path.fromName name
+                else Left $ wrongStructuredArgument "a relative path" otherArgType
+          )
+          . handleNameArg
+          $ pure otherArgType
 
 handlePath'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
 handlePath'Arg =
@@ -427,7 +436,8 @@ handlePath'Arg =
       SA.Name name -> pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
         pure . Path.fromName' $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
-      otherArgType -> Left $ wrongStructuredArgument "a namespace" otherArgType
+      otherArgType ->
+        bimap (const $ wrongStructuredArgument "a path" otherArgType) Path.fromName' . handleNameArg $ pure otherArgType
 
 handleNewName :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Split'
 handleNewName =

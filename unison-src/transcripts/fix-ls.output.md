@@ -54,12 +54,7 @@ test-ls/main> ls foo
 
 test-ls/main> ls 1
 
+  1. add      (Int -> Int -> Int)
+  2. subtract (Int -> Int -> Int)
+
 ```
-
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-Expected a namespace, but the numbered arg resulted in foo.bar, which is a name.
