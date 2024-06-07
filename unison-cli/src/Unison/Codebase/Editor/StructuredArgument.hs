@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.StructuredArgument where
 import GHC.Generics (Generic)
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Editor.Input
-import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
@@ -24,6 +24,6 @@ data StructuredArgument
   | Namespace CausalHash
   | NameWithBranchPrefix AbsBranchId Name
   | HashQualifiedWithBranchPrefix AbsBranchId (HQ'.HashQualified Name)
-  | ShallowListEntry Path.Absolute (ShallowListEntry Symbol Ann)
-  | SearchResult (Maybe Path) SearchResult
+  | ShallowListEntry Path' (ShallowListEntry Symbol Ann)
+  | SearchResult (Maybe Path') SearchResult
   deriving (Eq, Generic, Show)

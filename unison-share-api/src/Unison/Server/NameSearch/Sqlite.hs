@@ -130,7 +130,8 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
 
     -- Fully qualify a name by prepending the current namespace perspective's path
     fullyQualifyName :: Name -> Name
-    fullyQualifyName name = Path.prefixName (Path.Absolute (Path.fromList . coerce $ pathToMountedNameLookup)) name
+    fullyQualifyName =
+      Path.prefixNameIfRel (Path.AbsolutePath' . Path.Absolute . Path.fromList $ coerce pathToMountedNameLookup)
 
 -- | Look up types in the codebase by short hash, and include builtins.
 typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)

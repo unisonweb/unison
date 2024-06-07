@@ -45,7 +45,7 @@ relocateToNameRoot perspective query rootBranch = do
         (_sharedPrefix, remainder, Path.Empty) -> do
           -- Since the project is higher up, we need to prefix the query
           -- with the remainder of the path
-          pure . Right $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
+          pure $ Right (projectRoot, query <&> Path.prefixNameIfRel (Path.AbsolutePath' $ Path.Absolute remainder))
         -- The namesRoot and project root are disjoint, this shouldn't ever happen.
         (_, _, _) -> pure $ Left (DisjointProjectAndPerspective perspective projectRoot)
 
