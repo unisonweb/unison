@@ -3687,8 +3687,9 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: CausalHashId -> ProjectBranch -> Transaction ()
-insertProjectBranch causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch :: Text -> CausalHashId -> ProjectBranch -> Transaction ()
+insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+  error "Implement Project Reflog on creation" description
   execute
     [sql|
       INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
