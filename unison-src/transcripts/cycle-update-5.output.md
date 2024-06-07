@@ -62,10 +62,8 @@ inner.ping _ = !pong + 3
 
 .> view inner.ping
 
-  inner.ping : 'Nat
-  inner.ping _ =
-    use Nat +
-    !pong + 1
+  inner.inner.ping : '##Nat
+  inner.inner.ping _ = ##Nat.+ !#4t465jk908 3
 
 ```
 The bug here is that `inner.ping` still refers to `pong` by name. But if we properly identified the nameless (in the

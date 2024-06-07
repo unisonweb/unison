@@ -4,24 +4,23 @@ module Unison.Codebase.Editor.HandleInput.ProjectCreate
   )
 where
 
+import Control.Lens
 import Control.Monad.Reader (ask)
-import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
 import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries (expectCausalHashIdByCausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli (stepAt)
-import Unison.Cli.ProjectUtils (projectBranchPath)
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -56,12 +55,13 @@ import Witch (unsafeFrom)
 --
 -- For now, it doesn't seem worth it to do (1) or (2), since we want to do (3) eventually, and we'd rather not waste too
 -- much time getting everything perfectly correct before we get there.
-projectCreate :: Bool -> Maybe ProjectName -> Cli ()
+projectCreate :: Bool -> Maybe ProjectName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
 projectCreate tryDownloadingBase maybeProjectName = do
   projectId <- liftIO (ProjectId <$> UUID.nextRandom)
   branchId <- liftIO (ProjectBranchId <$> UUID.nextRandom)
 
   let branchName = unsafeFrom @Text "main"
+  (_, emptyCausalHashId) <- Cli.runTransaction Codebase.emptyCausalHash
 
   projectName <-
     case maybeProjectName of
@@ -73,7 +73,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 projectName : projectNames ->
                   Queries.projectExistsByName projectName >>= \case
                     False -> do
-                      insertProjectAndBranch projectId projectName branchId branchName
+                      insertProjectAndBranch projectId projectName branchId branchName emptyCausalHashId
                       pure projectName
                     True -> loop projectNames
           loop randomProjectNames
@@ -81,13 +81,12 @@ projectCreate tryDownloadingBase maybeProjectName = do
         Cli.runTransactionWithRollback \rollback -> do
           Queries.projectExistsByName projectName >>= \case
             False -> do
-              insertProjectAndBranch projectId projectName branchId branchName
+              insertProjectAndBranch projectId projectName branchId branchName emptyCausalHashId
               pure projectName
             True -> rollback (Output.ProjectNameAlreadyExists projectName)
 
-  let path = projectBranchPath ProjectAndBranch {project = projectId, branch = branchId}
   Cli.respond (Output.CreatedProject (isNothing maybeProjectName) projectName)
-  Cli.cd path
+  Cli.switchProject (ProjectAndBranch projectId branchId)
 
   maybeBaseLatestReleaseBranchObject <-
     if tryDownloadingBase
@@ -127,35 +126,36 @@ projectCreate tryDownloadingBase maybeProjectName = do
         pure maybeBaseLatestReleaseBranchObject
       else pure Nothing
 
-  let projectBranchObject =
-        case maybeBaseLatestReleaseBranchObject of
-          Nothing -> Branch.empty0
-          Just baseLatestReleaseBranchObject ->
-            let -- lib.base
-                projectBranchLibBaseObject =
-                  over
-                    Branch.children
-                    (Map.insert NameSegment.baseSegment baseLatestReleaseBranchObject)
-                    Branch.empty0
-                projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
-             in over
-                  Branch.children
-                  (Map.insert NameSegment.libSegment projectBranchLibObject)
-                  Branch.empty0
-
-  Cli.stepAt reflogDescription (Path.unabsolute path, const projectBranchObject)
+  for_ maybeBaseLatestReleaseBranchObject \baseLatestReleaseBranchObject -> do
+    -- lib.base
+    let projectBranchLibBaseObject =
+          Branch.empty0
+            & Branch.children
+              . at NameSegment.baseSegment
+              .~ Just baseLatestReleaseBranchObject
+        projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
+    let branchWithBase =
+          Branch.empty
+            & Branch.history
+              . Causal.head_
+              . Branch.children
+              . at NameSegment.libSegment
+              .~ Just projectBranchLibObject
+    Cli.Env {codebase} <- ask
+    liftIO $ Codebase.putBranch codebase branchWithBase
+    Cli.runTransaction $ do
+      baseBranchCausalHashId <- expectCausalHashIdByCausalHash (Branch.headHash branchWithBase)
+      Queries.setProjectBranchHead "Include latest base library" projectId branchId baseBranchCausalHashId
 
   Cli.respond Output.HappyCoding
-  where
-    reflogDescription =
-      case maybeProjectName of
-        Nothing -> "project.create"
-        Just projectName -> "project.create " <> into @Text projectName
+  pure ProjectAndBranch {project = projectId, branch = branchId}
 
-insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
-insertProjectAndBranch projectId projectName branchId branchName = do
+insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> CausalHashId -> Sqlite.Transaction ()
+insertProjectAndBranch projectId projectName branchId branchName chId = do
   Queries.insertProject projectId projectName
   Queries.insertProjectBranch
+    "Project Created"
+    chId
     Sqlite.ProjectBranch
       { projectId,
         branchId,
