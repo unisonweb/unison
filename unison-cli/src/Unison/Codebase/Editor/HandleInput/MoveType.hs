@@ -42,5 +42,6 @@ doMoveType src' dest' description = do
   steps <- moveTypeSteps src' dest'
   when (null steps) do
     Cli.returnEarly (Output.TypeNotFound src')
-  Cli.stepManyAt description steps
+  pb <- Cli.getCurrentProjectBranch
+  Cli.stepManyAt pb description steps
   Cli.respond Output.Success

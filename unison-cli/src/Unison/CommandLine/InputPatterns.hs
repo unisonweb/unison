@@ -165,7 +165,6 @@ import Unison.Cli.Pretty
     prettySlashProjectBranchName,
     prettyURI,
   )
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Merge qualified as Branch

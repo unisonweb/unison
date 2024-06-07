@@ -243,7 +243,9 @@ cloneInto localProjectBranch remoteProjectBranch = do
           Right localProject -> pure (localProject.projectId, localProject.name)
       localBranchId <- Sqlite.unsafeIO (ProjectBranchId <$> UUID.nextRandom)
       causalHashId <- Q.expectCausalHashIdByCausalHash branchHead
+      let description = "Cloned from " <> into @Text (ProjectAndBranch remoteProjectName remoteBranchName)
       Queries.insertProjectBranch
+        description
         causalHashId
         Sqlite.ProjectBranch
           { projectId = localProjectId,

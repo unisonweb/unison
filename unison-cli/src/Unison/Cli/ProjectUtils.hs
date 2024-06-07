@@ -11,6 +11,7 @@ module Unison.Cli.ProjectUtils
     -- * Loading local project info
     expectProjectAndBranchByIds,
     getProjectAndBranchByTheseNames,
+    getProjectAndBranchByNames,
     expectProjectAndBranchByTheseNames,
     getProjectBranchCausalHash,
 

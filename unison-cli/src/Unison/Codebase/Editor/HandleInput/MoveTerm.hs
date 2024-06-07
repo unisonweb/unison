@@ -42,5 +42,6 @@ doMoveTerm src' dest' description = do
   steps <- moveTermSteps src' dest'
   when (null steps) do
     Cli.returnEarly (Output.TermNotFound src')
-  Cli.stepManyAt description steps
+  pb <- Cli.getCurrentProjectBranch
+  Cli.stepManyAt pb description steps
   Cli.respond Output.Success
