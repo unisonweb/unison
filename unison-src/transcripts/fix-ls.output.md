@@ -1,7 +1,7 @@
 ```ucm
-.> project.create-empty test-5055
+.> project.create-empty test-ls
 
-  🎉 I've created the project test-5055.
+  🎉 I've created the project test-ls.
 
   🎨 Type `ui` to explore this project's code in your browser.
   🔭 Discover libraries at https://share.unison-lang.org
@@ -15,15 +15,15 @@
   
   🎉 🥳 Happy coding!
 
-test-5055/main> builtins.merge
+test-ls/main> builtins.merge
 
   Done.
 
 ```
 ```unison
-foo.add x y = x Int.+ y
+foo.bar.add x y = x Int.+ y
 
-foo.subtract x y = x Int.- y
+foo.bar.subtract x y = x Int.- y
 ```
 
 ```ucm
@@ -36,28 +36,25 @@ foo.subtract x y = x Int.- y
   
     ⍟ These new definitions are ok to `add`:
     
-      foo.add      : Int -> Int -> Int
-      foo.subtract : Int -> Int -> Int
+      foo.bar.add      : Int -> Int -> Int
+      foo.bar.subtract : Int -> Int -> Int
 
 ```
 ```ucm
-test-5055/main> add
+test-ls/main> add
 
   ⍟ I've added these definitions:
   
-    foo.add      : Int -> Int -> Int
-    foo.subtract : Int -> Int -> Int
+    foo.bar.add      : Int -> Int -> Int
+    foo.bar.subtract : Int -> Int -> Int
 
-test-5055/main> ls foo
+test-ls/main> ls foo
+
+  1. bar/ (2 terms)
+
+test-ls/main> ls 1
 
   1. add      (Int -> Int -> Int)
   2. subtract (Int -> Int -> Int)
-
-test-5055/main> view 1
-
-  foo.add : Int -> Int -> Int
-  foo.add x y =
-    use Int +
-    x + y
 
 ```

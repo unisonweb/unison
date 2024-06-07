@@ -284,8 +284,8 @@ data OutputLocation
   deriving (Eq, Show)
 
 data FindScope
-  = FindLocal Path
-  | FindLocalAndDeps Path
+  = FindLocal Path'
+  | FindLocalAndDeps Path'
   | FindGlobal
   deriving stock (Eq, Show)
 
