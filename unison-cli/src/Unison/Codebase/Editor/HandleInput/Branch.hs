@@ -1,6 +1,7 @@
 -- | @branch@ input handler
 module Unison.Codebase.Editor.HandleInput.Branch
-  ( handleBranch,
+  ( CreateFrom (..),
+    handleBranch,
     createBranch,
   )
 where
@@ -68,10 +69,10 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
   case maySrcProjectAndBranch of
     Just srcProjectAndBranch -> do
       let description = "Branch created from " <> into @Text (srcProjectAndBranch & bimap (view #name) (view #name))
-      void $ createBranch description (CreateFrom'ParentBranch (view #branch srcProjectAndBranch)) destProject newBranchName
+      void $ createBranch description (CreateFrom'ParentBranch (view #branch srcProjectAndBranch)) destProject (pure newBranchName)
     Nothing -> do
       let description = "Empty branch created"
-      void $ createBranch description CreateFrom'Nothingness destProject newBranchName
+      void $ createBranch description CreateFrom'Nothingness destProject (pure newBranchName)
 
   Cli.respond $
     Output.CreatedProjectBranch
@@ -97,9 +98,9 @@ createBranch ::
   Text ->
   CreateFrom ->
   Sqlite.Project ->
-  ProjectBranchName ->
+  Sqlite.Transaction ProjectBranchName ->
   Cli ProjectBranchId
-createBranch description createFrom project newBranchName = do
+createBranch description createFrom project getNewBranchName = do
   let projectId = project ^. #projectId
   Cli.Env {codebase} <- ask
   (mayParentBranchId, newBranchCausalHashId) <- case createFrom of
@@ -122,6 +123,7 @@ createBranch description createFrom project newBranchName = do
         pure (Nothing, newBranchCausalHashId)
   newBranchId <-
     Cli.runTransactionWithRollback \rollback -> do
+      newBranchName <- getNewBranchName
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
         True -> rollback (Output.ProjectAndBranchNameAlreadyExists (ProjectAndBranch (project ^. #name) newBranchName))
         False -> do

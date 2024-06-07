@@ -52,6 +52,7 @@ module Unison.Cli.MonadUtils
     stepManyAt,
     stepManyAtM,
     updateProjectBranchRoot,
+    updateProjectBranchRoot_,
     updateAtM,
     updateAt,
     updateAndStepAt,

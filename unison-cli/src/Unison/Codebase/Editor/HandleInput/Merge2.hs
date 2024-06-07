@@ -42,7 +42,6 @@ import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
-import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin.Decls qualified as Builtin.Decls
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
@@ -411,10 +410,12 @@ doMerge info = do
       Nothing -> do
         Cli.Env {writeSource} <- ask
         _temporaryBranchId <-
-          HandleInput.Branch.createBranchFromNamespace
+          HandleInput.Branch.createBranch
+            info.description
+            (HandleInput.Branch.CreateFrom'Namespace (Branch.mergeNode stageOneBranch parents.alice parents.bob))
             info.alice.projectAndBranch.project
             (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
-            (Branch.mergeNode stageOneBranch parents.alice parents.bob)
+
         scratchFilePath <-
           Cli.getLatestFile <&> \case
             Nothing -> "scratch.u"
@@ -424,11 +425,10 @@ doMerge info = do
       Just tuf -> do
         Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
         let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
-        _ <-
-          Cli.updateProjectBranchRoot
-            info.alice.projectAndBranch
-            (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
-            info.description
+        Cli.updateProjectBranchRoot_
+          info.alice.projectAndBranch.branch
+          info.description
+          (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
         Cli.respond (Output.MergeSuccess mergeSourceAndTarget)
 
 doMergeLocalBranch :: TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
