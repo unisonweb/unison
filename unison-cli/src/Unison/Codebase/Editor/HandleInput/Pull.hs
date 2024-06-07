@@ -21,23 +21,21 @@ import Unison.Cli.MergeTypes (MergeSource (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Merge2 (AliceMergeInfo (..), BobMergeInfo (..), LcaMergeInfo (..), MergeInfo (..), doMerge)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.Propagate qualified as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), printReadRemoteNamespace)
-import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
@@ -260,7 +258,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     mergeBranch =
       Cli.time "mergeBranch" do
         Cli.Env {codebase} <- ask
-        destb <- Cli.getBranchAt dest
+        destb <- Cli.getBranchFromProjectPath dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
         b <- Cli.updateAtM inputDescription dest (const $ pure merged)
         for_ maybeDest0 \dest0 -> do
@@ -271,18 +269,18 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 loadPropagateDiffDefaultPatch ::
   Text ->
   Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
   Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
-    original <- Cli.getBranch0At dest
+    original <- Cli.getBranch0FromProjectPath dest
     patch <- liftIO $ Branch.getPatch NameSegment.defaultPatchSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
         Cli.respond Output.CalculatingDiff
-        patched <- Cli.getBranchAt dest
+        patched <- Cli.getBranchFromProjectPath dest
         let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [NameSegment.defaultPatchSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
@@ -291,11 +289,13 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 propagatePatch ::
   Text ->
   Patch ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Cli Bool
 propagatePatch inputDescription patch scopePath = do
+  let pb = scopePath ^. #branch
   Cli.time "propagatePatch" do
-    rootNames <- Branch.toNames <$> Cli.getRootBranch0
+    rootNames <- Cli.projectBranchNames pb
     Cli.stepAt'
+      pb
       (inputDescription <> " (applying patch)")
-      (Path.unabsolute scopePath, Propagate.propagateAndApply rootNames patch)
+      (scopePath ^. PP.absPath_, Propagate.propagateAndApply rootNames patch)

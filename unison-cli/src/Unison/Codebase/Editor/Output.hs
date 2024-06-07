@@ -105,7 +105,7 @@ data NumberedOutput
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePropagate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      ProjectPath
       Path.Path'
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
