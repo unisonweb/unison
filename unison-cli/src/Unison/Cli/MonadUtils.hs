@@ -108,7 +108,6 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -398,7 +397,7 @@ stepManyAt ::
   [(Path.Absolute, Branch0 IO -> Branch0 IO)] ->
   Cli ()
 stepManyAt pb reason actions = do
-  updateProjectBranchRoot_ reason pb $ Branch.stepManyAt (makeActionsUnabsolute actions)
+  updateProjectBranchRoot_ pb reason $ Branch.stepManyAt (makeActionsUnabsolute actions)
 
 stepManyAt' ::
   ProjectBranch ->
@@ -408,7 +407,7 @@ stepManyAt' ::
 stepManyAt' pb reason actions = do
   origRoot <- getProjectBranchRoot pb
   newRoot <- Branch.stepManyAtM (makeActionsUnabsolute actions) origRoot
-  didChange <- updateProjectBranchRoot reason pb (\oldRoot -> pure (newRoot, oldRoot /= newRoot))
+  didChange <- updateProjectBranchRoot pb reason (\oldRoot -> pure (newRoot, oldRoot /= newRoot))
   pure didChange
 
 -- Like stepManyAt, but doesn't update the last saved root
@@ -418,32 +417,34 @@ stepManyAtM ::
   [(Path.Absolute, Branch0 IO -> IO (Branch0 IO))] ->
   Cli ()
 stepManyAtM pb reason actions = do
-  updateProjectBranchRoot reason pb \oldRoot -> do
+  updateProjectBranchRoot pb reason \oldRoot -> do
     newRoot <- liftIO (Branch.stepManyAtM (makeActionsUnabsolute actions) oldRoot)
     pure (newRoot, ())
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
+  ProjectBranch ->
   Text ->
-  ProjectPath ->
+  Path.Absolute ->
   (Branch IO -> Cli (Branch IO)) ->
   Cli Bool
-updateAtM reason pp f = do
-  old <- getBranchFromProjectPath (pp & PP.absPath_ .~ Path.absoluteEmpty)
-  new <- Branch.modifyAtM (pp ^. PP.path_) f old
-  updateCurrentProjectBranchRoot reason (const new)
-  pure $ old /= new
+updateAtM pb reason path f = do
+  oldRootBranch <- getProjectBranchRoot pb
+  newRootBranch <- Branch.modifyAtM (Path.unabsolute path) f oldRootBranch
+  updateProjectBranchRoot_ pb reason (const newRootBranch)
+  pure $ oldRootBranch /= newRootBranch
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAt ::
+  ProjectBranch ->
   Text ->
-  ProjectPath ->
+  Path.Absolute ->
   (Branch IO -> Branch IO) ->
   Cli Bool
-updateAt reason p f = do
-  updateAtM reason p (pure . f)
+updateAt pb reason p f = do
+  updateAtM pb reason p (pure . f)
 
 updateAndStepAt ::
   (Foldable f, Foldable g, Functor g) =>
@@ -457,15 +458,10 @@ updateAndStepAt reason projectBranch updates steps = do
         b
           & (\root -> foldl' (\b (Path.Absolute p, f) -> Branch.modifyAt p f b) root updates)
           & (Branch.stepManyAt (first Path.unabsolute <$> steps))
-  updateProjectBranchRoot_ reason projectBranch f
+  updateProjectBranchRoot_ projectBranch reason f
 
-updateCurrentProjectBranchRoot :: Text -> (Branch IO -> Branch IO) -> Cli ()
-updateCurrentProjectBranchRoot reason f = do
-  pp <- getCurrentProjectPath
-  updateProjectBranchRoot_ reason (pp ^. #branch) f
-
-updateProjectBranchRoot :: Text -> ProjectBranch -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
-updateProjectBranchRoot reason projectBranch f = do
+updateProjectBranchRoot :: ProjectBranch -> Text -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
+updateProjectBranchRoot projectBranch reason f = do
   error "implement project-branch reflog" reason
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
@@ -478,9 +474,9 @@ updateProjectBranchRoot reason projectBranch f = do
     setCurrentProjectRoot new
     pure result
 
-updateProjectBranchRoot_ :: Text -> ProjectBranch -> (Branch IO -> Branch IO) -> Cli ()
-updateProjectBranchRoot_ reason projectBranch f = do
-  updateProjectBranchRoot reason projectBranch (\b -> pure (f b, ()))
+updateProjectBranchRoot_ :: ProjectBranch -> Text -> (Branch IO -> Branch IO) -> Cli ()
+updateProjectBranchRoot_ projectBranch reason f = do
+  updateProjectBranchRoot projectBranch reason (\b -> pure (f b, ()))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting terms
