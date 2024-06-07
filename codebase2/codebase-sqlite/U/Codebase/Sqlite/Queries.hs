@@ -3688,8 +3688,12 @@ loadProjectAndBranchNames projectId branchId =
 
 -- | Insert a project branch.
 insertProjectBranch :: Text -> CausalHashId -> ProjectBranch -> Transaction ()
-insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
-  error "Implement Project Reflog on creation" description
+insertProjectBranch _description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+  -- Ensure we never point at a causal we don't have the branch for.
+  _ <- expectBranchObjectIdByCausalHashId causalHashId
+
+  error "Implement project branch reflog"
+
   execute
     [sql|
       INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
@@ -3774,8 +3778,11 @@ deleteProjectBranch projectId branchId = do
     |]
 
 -- | Set project branch HEAD
-setProjectBranchHead :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
-setProjectBranchHead projectId branchId causalHashId =
+setProjectBranchHead :: Text -> ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchHead _description projectId branchId causalHashId = do
+  error "Implement project branch reflog"
+  -- Ensure we never point at a causal we don't have the branch for.
+  _ <- expectBranchObjectIdByCausalHashId causalHashId
   execute
     [sql|
       UPDATE project_branch
