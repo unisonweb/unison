@@ -168,7 +168,7 @@ import Unison.Cli.Pretty
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
+import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
@@ -246,8 +246,13 @@ formatStructuredArgument schLength = \case
     -- prefixBranchId ".base" "List.map" -> ".base.List.map"
     prefixBranchId :: Input.AbsBranchId -> Name -> Text
     prefixBranchId branchId name = case branchId of
-      Left sch -> "#" <> SCH.toText sch <> ":" <> Name.toText (Name.makeAbsolute name)
-      Right pathPrefix -> Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
+      BranchAtSCH sch -> "#" <> SCH.toText sch <> ":" <> Name.toText (Name.makeAbsolute name)
+      BranchAtPath pathPrefix -> Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
+      BranchAtProjectPath pp ->
+        pp
+          & PP.absPath_ %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+          & PP.toNames
+          & into @Text
 
     entryToHQText :: Path' -> ShallowListEntry v Ann -> Text
     entryToHQText pathArg =
@@ -428,8 +433,8 @@ handleSplitArg =
     (first P.text . Path.parseSplit)
     \case
       SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
-      SA.NameWithBranchPrefix (Left _) name | Name.isRelative name -> pure $ Path.splitFromName name
-      SA.NameWithBranchPrefix (Right prefix) name
+      SA.NameWithBranchPrefix (BranchAtSCH _) name | Name.isRelative name -> pure $ Path.splitFromName name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name
         | Name.isRelative name -> pure . Path.splitFromName . Name.makeAbsolute $ Path.prefixName prefix name
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
@@ -439,8 +444,8 @@ handleSplit'Arg =
     (first P.text . Path.parseSplit')
     \case
       SA.Name name -> pure $ Path.splitFromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure $ Path.splitFromName' name
-      SA.NameWithBranchPrefix (Right prefix) name ->
+      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure $ Path.splitFromName' name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
         pure . Path.splitFromName' . Name.makeAbsolute $ Path.prefixName prefix name
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
 
@@ -457,11 +462,17 @@ handleBranchIdArg =
   either
     (first P.text . Input.parseBranchId)
     \case
-      SA.AbsolutePath path -> pure . pure $ Path.absoluteToPath' path
-      SA.Name name -> pure . pure $ Path.fromName' name
+      SA.AbsolutePath path -> pure . BranchAtPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . BranchAtPath $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
-        pure . pure . Path.fromName' $ either (const name) (Name.makeAbsolute . flip Path.prefixName name) mprefix
-      SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
+        pure $ case mprefix of
+          BranchAtSCH _sch -> BranchAtPath . Path.fromName' $ name
+          BranchAtPath prefix -> BranchAtPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+          BranchAtProjectPath pp ->
+            pp
+              & PP.absPath_ %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+              & BranchAtProjectPath
+      SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleBranchIdOrProjectArg ::
@@ -471,13 +482,13 @@ handleBranchIdOrProjectArg =
   either
     (maybe (Left $ P.text "Expected a branch or project, but it’s not") pure . branchIdOrProject)
     \case
-      SA.Namespace hash -> pure . This . Left $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . This . pure $ Path.absoluteToPath' path
-      SA.Name name -> pure . This . pure $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . This . pure $ Path.fromName' name
-      SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . This . pure . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
-      SA.ProjectBranch pb -> pure $ pure pb
+      SA.Namespace hash -> pure . This . BranchAtSCH $ SCH.fromFullHash hash
+      SA.AbsolutePath path -> pure . This . BranchAtPath $ Path.absoluteToPath' path
+      SA.Name name -> pure . This . BranchAtPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . This . BranchAtPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
+        pure . This . BranchAtPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+      SA.ProjectBranch pb -> pure $ That pb
       otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
   where
     branchIdOrProject ::
@@ -506,8 +517,8 @@ handleBranchId2Arg =
       SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
       SA.AbsolutePath path -> pure . pure . UnqualifiedPath $ Path.absoluteToPath' path
       SA.Name name -> pure . pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Right prefix) name ->
+      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
         pure . pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
         case mproject of
@@ -522,8 +533,8 @@ handleBranchRelativePathArg =
     \case
       SA.AbsolutePath path -> pure . UnqualifiedPath $ Path.absoluteToPath' path
       SA.Name name -> pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (Right prefix) name ->
+      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . UnqualifiedPath $ Path.fromName' name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
         pure . UnqualifiedPath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
         case mproject of
@@ -559,8 +570,8 @@ handleHashQualifiedSplit'Arg =
     (first P.text . Path.parseHQSplit')
     \case
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
-      SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit' hqname
-      SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
+      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ hq'NameToSplit' hqname
+      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
         pure . hq'NameToSplit' $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
@@ -572,8 +583,8 @@ handleHashQualifiedSplitArg =
     (first P.text . Path.parseHQSplit)
     \case
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit name
-      SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit hqname
-      SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
+      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ hq'NameToSplit hqname
+      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
         pure . hq'NameToSplit $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit $ searchResultToHQ mpath result
@@ -594,8 +605,8 @@ handleShortHashOrHQSplit'Arg =
     (first P.text . Path.parseShortHashOrHQSplit')
     \case
       SA.HashQualified name -> pure $ hqNameToSplit' name
-      SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure . pure $ hq'NameToSplit' hqname
-      SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
+      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure . pure $ hq'NameToSplit' hqname
+      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
         pure . pure $ hq'NameToSplit' (Name.makeAbsolute . Path.prefixName prefix <$> hqname)
       SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
@@ -614,11 +625,11 @@ handleNameArg =
     (first P.text . Name.parseTextEither . Text.pack)
     \case
       SA.Name name -> pure name
-      SA.NameWithBranchPrefix (Left _) name -> pure name
-      SA.NameWithBranchPrefix (Right prefix) name -> pure . Name.makeAbsolute $ Path.prefixName prefix name
+      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure name
+      SA.NameWithBranchPrefix (BranchAtPath prefix) name -> pure . Name.makeAbsolute $ Path.prefixName prefix name
       SA.HashQualified hqname -> maybe (Left "can’t find a name from the numbered arg") pure $ HQ.toName hqname
-      SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ HQ'.toName hqname
-      SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
+      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ HQ'.toName hqname
+      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
         pure . Name.makeAbsolute . Path.prefixName prefix $ HQ'.toName hqname
       SA.SearchResult mpath result ->
         maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
@@ -1510,7 +1521,7 @@ history =
     )
     \case
       [src] -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
-      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.currentPath)
       _ -> Left (I.help history)
 
 forkLocal :: InputPattern
@@ -2097,7 +2108,7 @@ diffNamespace =
     )
     ( \case
         [before, after] -> Input.DiffNamespaceI <$> handleBranchIdArg before <*> handleBranchIdArg after
-        [before] -> Input.DiffNamespaceI <$> handleBranchIdArg before <*> pure (pure Path.currentPath)
+        [before] -> Input.DiffNamespaceI <$> handleBranchIdArg before <*> pure (BranchAtPath Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
   where

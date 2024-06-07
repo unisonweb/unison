@@ -187,8 +187,9 @@ prettyNamespaceKey = \case
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
-  Left sch -> prettySCH sch
-  Right absPath -> prettyAbsolute $ absPath
+  Input.BranchAtSCH sch -> prettySCH sch
+  Input.BranchAtPath absPath -> prettyAbsolute $ absPath
+  Input.BranchAtProjectPath pp -> prettyProjectPath pp
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown

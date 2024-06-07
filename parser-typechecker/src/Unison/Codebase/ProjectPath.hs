@@ -43,6 +43,10 @@ type ProjectPathIds = ProjectPathG ProjectId ProjectBranchId
 
 type ProjectPathNames = ProjectPathG ProjectName ProjectBranchName
 
+instance From ProjectPathNames Text where
+  from (ProjectPath proj branch path) =
+    into @Text (ProjectAndBranch proj branch) <> ":" <> Path.absToText path
+
 type ProjectPath = ProjectPathG Project ProjectBranch
 
 projectBranchRoot :: ProjectAndBranch Project ProjectBranch -> ProjectPath

@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Input
     Event (..),
     OutputLocation (..),
     PatchPath,
+    BranchIdG (..),
     BranchId,
     AbsBranchId,
     UnresolvedProjectBranch,
@@ -35,6 +36,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -60,14 +62,18 @@ type PatchPath = Path.Split'
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
-type BranchId = Either ShortCausalHash Path'
+data BranchIdG p
+  = BranchAtSCH ShortCausalHash
+  | BranchAtPath p
+  | BranchAtProjectPath ProjectPath
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+type BranchId = BranchIdG Path'
+
+type AbsBranchId = BranchIdG Path.Absolute
 
 -- | An unambiguous project branch name, use the current project name if not provided.
 type UnresolvedProjectBranch = ProjectAndBranch (Maybe ProjectName) ProjectBranchName
-
--- | TODO: You should probably use a `ProjectPath` instead of a `Path.Absolute` in most
--- cases.
-type AbsBranchId = Either ShortCausalHash Path.Absolute
 
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
@@ -78,8 +84,8 @@ data Insistence = Force | Try
 parseBranchId :: String -> Either Text BranchId
 parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
-  Just h -> pure $ Left h
-parseBranchId s = Right <$> Path.parsePath' s
+  Just h -> pure $ BranchAtSCH h
+parseBranchId s = BranchAtPath <$> Path.parsePath' s
 
 parseBranchId2 :: String -> Either (P.Pretty P.ColorText) (Either ShortCausalHash BranchRelativePath)
 parseBranchId2 ('#' : s) = case SCH.fromText (Text.pack s) of
@@ -110,10 +116,10 @@ data Input
   | DiffNamespaceI BranchId BranchId -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
-  | ResetRootI (Either ShortCausalHash Path')
+  | ResetRootI BranchId
   | ResetI
       ( These
-          (Either ShortCausalHash Path')
+          BranchId
           (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
       )
       (Maybe UnresolvedProjectBranch)

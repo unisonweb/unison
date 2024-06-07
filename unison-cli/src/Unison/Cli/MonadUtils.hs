@@ -201,10 +201,11 @@ resolveSplit' =
 -- branches by path are OK - the empty branch will be returned).
 resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
 resolveAbsBranchId = \case
-  Left hash -> resolveShortCausalHash hash
-  Right absPath -> do
+  Input.BranchAtSCH hash -> resolveShortCausalHash hash
+  Input.BranchAtPath absPath -> do
     pp <- resolvePath' (Path' (Left absPath))
     getBranchFromProjectPath pp
+  Input.BranchAtProjectPath pp -> getBranchFromProjectPath pp
 
 -- | V2 version of 'resolveAbsBranchId2'.
 resolveAbsBranchIdV2 ::
@@ -213,13 +214,14 @@ resolveAbsBranchIdV2 ::
   Input.AbsBranchId ->
   Sqlite.Transaction (V2.Branch Sqlite.Transaction)
 resolveAbsBranchIdV2 rollback (ProjectAndBranch proj branch) = \case
-  Left shortHash -> do
+  Input.BranchAtSCH shortHash -> do
     hash <- resolveShortCausalHashToCausalHash rollback shortHash
     causal <- (Codebase.expectCausalBranchByCausalHash hash)
     V2Causal.value causal
-  Right absPath -> do
+  Input.BranchAtPath absPath -> do
     let pp = PP.ProjectPath proj branch absPath
     Codebase.getShallowBranchAtProjectPath pp
+  Input.BranchAtProjectPath pp -> Codebase.getShallowBranchAtProjectPath pp
 
 -- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
 -- branches by path are OK - the empty branch will be returned).
@@ -231,7 +233,7 @@ resolveBranchId branchId = do
 -- | Resolve a @BranchId@ to an @AbsBranchId@.
 resolveBranchIdToAbsBranchId :: Input.BranchId -> Cli Input.AbsBranchId
 resolveBranchIdToAbsBranchId =
-  traverseOf _Right (fmap (view PP.absPath_) . resolvePath')
+  traverse (fmap (view PP.absPath_) . resolvePath')
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
