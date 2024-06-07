@@ -247,8 +247,7 @@ data PullSourceTarget
   deriving stock (Eq, Show)
 
 data PushSource
-  = PathySource Path'
-  | ProjySource (These ProjectName ProjectBranchName)
+  = ProjySource (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 -- | Push source and target: either neither is specified, or only a target, or both.

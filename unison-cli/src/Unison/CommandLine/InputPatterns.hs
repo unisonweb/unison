@@ -171,7 +171,7 @@ import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
@@ -640,11 +640,11 @@ handlePullSourceArg =
       otherNumArg -> Left $ wrongStructuredArgument "a source to pull from" otherNumArg
 
 handlePushTargetArg ::
-  I.Argument -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  I.Argument -> Either (P.Pretty CT.ColorText) (These ProjectName ProjectBranchName)
 handlePushTargetArg =
   either
     (maybe (Left "Wanted a source to push from, but this ain’t it.") pure . parsePushTarget)
-    $ fmap RemoteRepo.WriteRemoteProjectBranch . \case
+    $ \case
       SA.Project project -> pure $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) -> pure $ maybe That These project branch
       otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
@@ -654,11 +654,6 @@ handlePushSourceArg =
   either
     (maybe (Left $ P.text "Wanted a source to push from, but this ain’t it.") pure . parsePushSource)
     \case
-      SA.AbsolutePath path -> pure . Input.PathySource $ Path.absoluteToPath' path
-      SA.Name name -> pure . Input.PathySource $ Path.fromName' name
-      SA.NameWithBranchPrefix (Left _) name -> pure . Input.PathySource $ Path.fromName' name
-      SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . Input.PathySource . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
       SA.Project project -> pure . Input.ProjySource $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) -> pure . Input.ProjySource $ maybe That These project branch
       otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
@@ -3847,12 +3842,11 @@ projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
 parsePushSource :: String -> Maybe Input.PushSource
 parsePushSource sourceStr =
   fixup Input.ProjySource (tryFrom $ Text.pack sourceStr)
-    <|> fixup Input.PathySource (Path.parsePath' sourceStr)
   where
     fixup = either (const Nothing) . (pure .)
 
 -- | Parse a push target.
-parsePushTarget :: String -> Maybe (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+parsePushTarget :: String -> Maybe (These ProjectName ProjectBranchName)
 parsePushTarget = Megaparsec.parseMaybe UriParser.writeRemoteNamespace . Text.pack
 
 parseHashQualifiedName ::

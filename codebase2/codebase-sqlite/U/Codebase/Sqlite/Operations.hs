@@ -96,6 +96,7 @@ module U.Codebase.Sqlite.Operations
 
     -- * Projects
     expectProjectAndBranchNames,
+    expectProjectBranchHead,
 
     -- * reflog
     getReflog,
@@ -1524,3 +1525,8 @@ expectProjectAndBranchNames projectId projectBranchId = do
   Project {name = pName} <- Q.expectProject projectId
   ProjectBranch {name = bName} <- Q.expectProjectBranch projectId projectBranchId
   pure (pName, bName)
+
+expectProjectBranchHead :: Db.ProjectId -> Db.ProjectBranchId -> Transaction CausalHash
+expectProjectBranchHead projId projectBranchId = do
+  chId <- Q.expectProjectBranchHead projId projectBranchId
+  Q.expectCausalHash chId

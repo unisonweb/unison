@@ -426,9 +426,7 @@ data WhichBranchEmpty
   | WhichBranchEmptyPath (Either ProjectPath Path')
 
 data ShareError
-  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
-  | ShareErrorDownloadEntities Share.DownloadEntitiesError
-  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  = ShareErrorDownloadEntities Share.DownloadEntitiesError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError

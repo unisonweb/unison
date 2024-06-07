@@ -57,8 +57,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as E
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
-import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
@@ -67,7 +65,6 @@ import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrit
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -91,7 +88,6 @@ import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -1533,11 +1529,6 @@ notifyUser dir = \case
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush pushBehavior path ->
-    (pure . P.warnCallout) case pushBehavior of
-      PushBehavior.ForcePush -> error "impossible: refused to push due to ForcePush?"
-      PushBehavior.RequireEmpty -> expectedEmptyPushDest path
-      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
     pure $
       P.lines
@@ -1599,10 +1590,7 @@ notifyUser dir = \case
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare shareRef ->
-    pure $
-      "View it here: " <> case shareRef of
-        Left repoPath -> prettyShareLink repoPath
-        Right branchInfo -> prettyRemoteBranchInfo branchInfo
+    pure $ "View it here: " <> prettyRemoteBranchInfo shareRef
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -2120,38 +2108,15 @@ notifyUser dir = \case
           Nothing -> prettyProjectBranchName targetBranch
           Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
 
-expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-expectedEmptyPushDest namespace =
-  P.lines
-    [ "The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is not empty.",
-      "",
-      "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-    ]
-
-expectedNonEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-expectedNonEmptyPushDest namespace =
-  P.lines
-    [ P.wrap ("The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is empty."),
-      "",
-      P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
-    ]
-
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
   P.fatalCallout . \case
-    ShareErrorCheckAndSetPush err -> prettyCheckAndSetPushError err
     ShareErrorDownloadEntities err -> prettyDownloadEntitiesError err
-    ShareErrorFastForwardPush err -> prettyFastForwardPushError err
     ShareErrorGetCausalHashByPath err -> prettyGetCausalHashByPathError err
     ShareErrorPull err -> prettyPullError err
     ShareErrorTransport err -> prettyTransportError err
     ShareErrorUploadEntities err -> prettyUploadEntitiesError err
     ShareExpectedSquashedHead -> "The server failed to provide a squashed branch head when requested. Please report this as a bug to the Unison team."
-
-prettyCheckAndSetPushError :: Share.CheckAndSetPushError -> Pretty
-prettyCheckAndSetPushError = \case
-  Share.CheckAndSetPushError'UpdatePath repoInfo err -> prettyUpdatePathError repoInfo err
-  Share.CheckAndSetPushError'UploadEntities err -> prettyUploadEntitiesError err
 
 prettyDownloadEntitiesError :: Share.DownloadEntitiesError -> Pretty
 prettyDownloadEntitiesError = \case
@@ -2160,27 +2125,6 @@ prettyDownloadEntitiesError = \case
   Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
   Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
   Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationFailure err
-
-prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
-prettyFastForwardPathError path = \case
-  Share.FastForwardPathError'InvalidParentage Share.InvalidParentage {child, parent} ->
-    P.lines
-      [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-        "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
-      ]
-  Share.FastForwardPathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-  Share.FastForwardPathError'MissingDependencies dependencies -> needDependencies dependencies
-  Share.FastForwardPathError'NoHistory -> expectedNonEmptyPushDest (sharePathToWriteRemotePathShare path)
-  Share.FastForwardPathError'NoWritePermission path -> noWritePermissionForPath path
-  Share.FastForwardPathError'NotFastForward _hashJwt -> notFastForward path
-  Share.FastForwardPathError'UserNotFound -> shareUserNotFound (Share.pathRepoInfo path)
-
-prettyFastForwardPushError :: Share.FastForwardPushError -> Pretty
-prettyFastForwardPushError = \case
-  Share.FastForwardPushError'FastForwardPath path err -> prettyFastForwardPathError path err
-  Share.FastForwardPushError'GetCausalHash err -> prettyGetCausalHashByPathError err
-  Share.FastForwardPushError'NotFastForward path -> notFastForward path
-  Share.FastForwardPushError'UploadEntities err -> prettyUploadEntitiesError err
 
 prettyGetCausalHashByPathError :: Share.GetCausalHashByPathError -> Pretty
 prettyGetCausalHashByPathError = \case
@@ -2194,21 +2138,6 @@ prettyPullError = \case
   Share.PullError'GetCausalHash err -> prettyGetCausalHashByPathError err
   Share.PullError'NoHistoryAtPath sharePath ->
     P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
-
-prettyUpdatePathError :: Share.RepoInfo -> Share.UpdatePathError -> Pretty
-prettyUpdatePathError repoInfo = \case
-  Share.UpdatePathError'HashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash} ->
-    case (expectedHash, actualHash) of
-      (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-      _ ->
-        P.wrap $
-          P.text "It looks like someone modified"
-            <> prettySharePath sharePath
-            <> P.text "an instant before you. Pull and try again? 🤞"
-  Share.UpdatePathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-  Share.UpdatePathError'MissingDependencies dependencies -> needDependencies dependencies
-  Share.UpdatePathError'NoWritePermission path -> noWritePermissionForPath path
-  Share.UpdatePathError'UserNotFound -> shareUserNotFound repoInfo
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
@@ -2406,17 +2335,6 @@ shareProjectNotFound projectShortHand =
 shareUserNotFound :: Share.RepoInfo -> Pretty
 shareUserNotFound repoInfo =
   P.wrap ("User" <> prettyRepoInfo repoInfo <> "does not exist.")
-
-sharePathToWriteRemotePathShare :: Share.Path -> WriteRemoteNamespace void
-sharePathToWriteRemotePathShare sharePath =
-  -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
-  -- client code that doesn't know about WriteRemotePath
-  WriteRemoteNamespaceShare
-    WriteShareRemoteNamespace
-      { server = RemoteRepo.DefaultCodeserver,
-        repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
-        path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
-      }
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
