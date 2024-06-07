@@ -99,7 +99,7 @@ createBranch ::
   CreateFrom ->
   Sqlite.Project ->
   Sqlite.Transaction ProjectBranchName ->
-  Cli ProjectBranchId
+  Cli (ProjectBranchName, ProjectBranchId)
 createBranch description createFrom project getNewBranchName = do
   let projectId = project ^. #projectId
   Cli.Env {codebase} <- ask
@@ -121,7 +121,7 @@ createBranch description createFrom project getNewBranchName = do
       Cli.runTransaction $ do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash branch)
         pure (Nothing, newBranchCausalHashId)
-  newBranchId <-
+  (newBranchName, newBranchId) <-
     Cli.runTransactionWithRollback \rollback -> do
       newBranchName <- getNewBranchName
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
@@ -139,7 +139,7 @@ createBranch description createFrom project getNewBranchName = do
                 name = newBranchName,
                 parentBranchId = mayParentBranchId
               }
-          pure newBranchId
+          pure (newBranchName, newBranchId)
 
   Cli.switchProject (ProjectAndBranch projectId newBranchId)
-  pure newBranchId
+  pure (newBranchName, newBranchId)

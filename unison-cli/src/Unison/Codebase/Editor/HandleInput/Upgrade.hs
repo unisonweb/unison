@@ -18,6 +18,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (CreateFrom'ParentBranch))
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
@@ -148,26 +149,24 @@ handleUpgrade oldName newName = do
             `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
         )
 
-  pp@(PP.ProjectPath project branch pathInProject) <- Cli.getCurrentProjectPath
+  (PP.ProjectPath project projectBranch pathInProject) <- Cli.getCurrentProjectPath
   parsingEnv <- makeParsingEnv pathInProject currentDeepNamesSansOld
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
-      -- Small race condition: since picking a branch name and creating the branch happen in different
-      -- transactions, creating could fail.
-      temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName (project ^. #projectId) oldName newName)
-      temporaryBranchId <-
-        HandleInput.Branch.createBranchFromParent
+      let getTemporaryBranchName = findTemporaryBranchName (project ^. #projectId) oldName newName
+      (temporaryBranchName, _temporaryBranchId) <-
+        HandleInput.Branch.createBranch
           textualDescriptionOfUpgrade
-          (Just branch)
+          (CreateFrom'ParentBranch projectBranch)
           project
-          temporaryBranchName
+          getTemporaryBranchName
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
       Cli.returnEarly $
-        Output.UpgradeFailure branch.name temporaryBranchName scratchFilePath oldName newName
+        Output.UpgradeFailure (projectBranch ^. #name) temporaryBranchName scratchFilePath oldName newName
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
@@ -177,8 +176,9 @@ handleUpgrade oldName newName = do
         (findCtorNamesMaybe Output.UOUUpgrade currentLocalNames currentLocalConstructorNames Nothing)
         typecheckedUnisonFile
   Cli.stepAt
+    projectBranch
     textualDescriptionOfUpgrade
-    ( Path.unabsolute projectPath,
+    ( Path.absoluteEmpty,
       Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
     )
   Cli.respond (Output.UpgradeSuccess oldName newName)
