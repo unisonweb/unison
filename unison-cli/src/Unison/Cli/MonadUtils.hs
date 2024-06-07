@@ -461,7 +461,6 @@ updateAndStepAt reason projectBranch updates steps = do
 
 updateProjectBranchRoot :: ProjectBranch -> Text -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
 updateProjectBranchRoot projectBranch reason f = do
-  error "implement project-branch reflog" reason
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
     old <- getProjectBranchRoot projectBranch
@@ -469,7 +468,7 @@ updateProjectBranchRoot projectBranch reason f = do
     liftIO $ Codebase.putBranch codebase new
     Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
-      Q.setProjectBranchHead (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
+      Q.setProjectBranchHead reason (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
     setCurrentProjectRoot new
     pure result
 
