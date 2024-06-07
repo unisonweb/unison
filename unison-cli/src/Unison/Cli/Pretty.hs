@@ -33,7 +33,6 @@ module Unison.Cli.Pretty
     prettyRepoInfo,
     prettySCH,
     prettySemver,
-    prettyShareLink,
     prettySharePath,
     prettyShareURI,
     prettySlashProjectBranchName,
@@ -57,12 +56,10 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Network.URI (URI)
 import Network.URI qualified as URI
-import Network.URI.Encode qualified as URI
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -76,10 +73,6 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
-    ShareUserHandle (..),
-    WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-    shareUserHandleToText,
   )
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path (Path')
@@ -150,7 +143,7 @@ prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
   P.group . P.blue . P.text . RemoteRepo.printReadRemoteNamespace printProject
 
-prettyWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyWriteRemoteNamespace :: (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyWriteRemoteNamespace =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemoteNamespace
 
@@ -160,14 +153,6 @@ shareOrigin = "https://share.unison-lang.org"
 prettyRepoInfo :: Share.RepoInfo -> Pretty
 prettyRepoInfo (Share.RepoInfo repoInfo) =
   P.blue (P.text repoInfo)
-
-prettyShareLink :: WriteShareRemoteNamespace -> Pretty
-prettyShareLink WriteShareRemoteNamespace {repo, path} =
-  let encodedPath =
-        Path.toList path
-          & fmap (URI.encodeText . NameSegment.toUnescapedText)
-          & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettySharePath :: Share.Path -> Pretty
 prettySharePath =

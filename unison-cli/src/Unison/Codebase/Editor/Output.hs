@@ -42,7 +42,6 @@ import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
-import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -268,7 +267,7 @@ data Output
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | ShareError ShareError
-  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
+  | ViewOnShare (URI, ProjectName, ProjectBranchName)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | TermMissingType Reference
@@ -309,8 +308,6 @@ data Output
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
-  | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior (WriteRemoteNamespace Void)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
@@ -566,7 +563,6 @@ isFailure o = case o of
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
-  RefusedToPush {} -> True
   GistCreated {} -> False
   InitiateAuthFlow {} -> False
   UnknownCodeServer {} -> True

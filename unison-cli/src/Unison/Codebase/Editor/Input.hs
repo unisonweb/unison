@@ -31,7 +31,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -254,8 +254,8 @@ data PushSource
 -- | Push source and target: either neither is specified, or only a target, or both.
 data PushSourceTarget
   = PushSourceTarget0
-  | PushSourceTarget1 (WriteRemoteNamespace (These ProjectName ProjectBranchName))
-  | PushSourceTarget2 PushSource (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  | PushSourceTarget1 (These ProjectName ProjectBranchName)
+  | PushSourceTarget2 PushSource (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 data PushRemoteBranchInput = PushRemoteBranchInput

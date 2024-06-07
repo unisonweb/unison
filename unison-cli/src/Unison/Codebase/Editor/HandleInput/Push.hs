@@ -32,10 +32,6 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
-import Unison.Codebase.Editor.RemoteRepo
-  ( WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-  )
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.PushBehavior qualified as PushBehavior
@@ -70,31 +66,17 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
       localProjectAndBranch <- Cli.getCurrentProjectAndBranch
       pushProjectBranchToProjectBranch force localProjectAndBranch Nothing
     -- push <implicit> to .some.path (share)
-    PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
-      localPath <- Cli.getCurrentPath
-      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push <implicit> to @some/project
-    PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
+    PushSourceTarget1 remoteProjectAndBranch0 -> do
       localProjectAndBranch <- Cli.getCurrentProjectAndBranch
       pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
-    -- push .some.path to .some.path (share)
-    PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
-      localPath <- Cli.resolvePath' localPath0
-      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push .some.path to @some/project
-    PushSourceTarget2 (PathySource localPath0) (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
+    PushSourceTarget2 (PathySource localPath0) remoteProjectAndBranch0 -> do
       localPath <- Cli.resolvePath' localPath0
       remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
       pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
-    -- push @some/project to .some.path (share)
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
-      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
-      pushLooseCodeToShareLooseCode
-        (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
-        namespace
-        pushBehavior
     -- push @some/project to @some/project
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteProjectBranch remoteProjectAndBranch) -> do
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) remoteProjectAndBranch -> do
       localProjectAndBranch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
       pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch)
   where
