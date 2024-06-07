@@ -346,7 +346,10 @@ prettyTypeName ppe r =
 prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
   WhichBranchEmptyHash hash -> P.shown hash
-  WhichBranchEmptyPath path -> prettyPath' path
+  WhichBranchEmptyPath p ->
+    case p of
+      Left pp -> prettyProjectPath pp
+      Right path' -> prettyPath' path'
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: CausalHash -> Text

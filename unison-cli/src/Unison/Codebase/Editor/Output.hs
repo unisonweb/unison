@@ -41,6 +41,7 @@ import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
@@ -138,7 +139,7 @@ data NumberedOutput
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
+      ProjectPath -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
 
 data AmbiguousReset'Argument
@@ -425,7 +426,7 @@ data CreatedProjectBranchFrom
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
-  | WhichBranchEmptyPath Path'
+  | WhichBranchEmptyPath (Either ProjectPath Path')
 
 data ShareError
   = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError

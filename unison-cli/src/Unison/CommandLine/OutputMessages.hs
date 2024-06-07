@@ -494,7 +494,7 @@ notifyNumbered = \case
       absPath0 = Path.Absolute path
   ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
   ListNamespaceDependencies ppe path' externalDependencies ->
-    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyProjectPath path') $
         List.intersperse spacer (externalDepsTable externalDependencies),
       numberedArgs
     )
@@ -2068,16 +2068,6 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
         <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
-  LooseCodePushDeprecated ->
-    pure . P.warnCallout $
-      P.lines $
-        [ P.wrap $ "Unison Share's projects are now the new preferred way to store code, and storing code outside of a project has been deprecated.",
-          "",
-          P.wrap $ "Learn how to convert existing code into a project using this guide: ",
-          "https://www.unison-lang.org/docs/tooling/projects-library-migration/",
-          "",
-          "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
-        ]
   MergeFailure path aliceAndBob ->
     pure . P.wrap $
       "I couldn't automatically merge"

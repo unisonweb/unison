@@ -108,6 +108,7 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -424,27 +425,25 @@ stepManyAtM pb reason actions = do
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
-  ProjectBranch ->
   Text ->
-  Path.Absolute ->
+  ProjectPath ->
   (Branch IO -> Cli (Branch IO)) ->
   Cli Bool
-updateAtM pb reason path f = do
-  oldRootBranch <- getProjectBranchRoot pb
-  newRootBranch <- Branch.modifyAtM (Path.unabsolute path) f oldRootBranch
-  updateProjectBranchRoot_ pb reason (const newRootBranch)
+updateAtM reason pp f = do
+  oldRootBranch <- getProjectBranchRoot (pp ^. #branch)
+  newRootBranch <- Branch.modifyAtM (pp ^. PP.path_) f oldRootBranch
+  updateProjectBranchRoot_ (pp ^. #branch) reason (const newRootBranch)
   pure $ oldRootBranch /= newRootBranch
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAt ::
-  ProjectBranch ->
   Text ->
-  Path.Absolute ->
+  ProjectPath ->
   (Branch IO -> Branch IO) ->
   Cli Bool
-updateAt pb reason p f = do
-  updateAtM pb reason p (pure . f)
+updateAt reason pp f = do
+  updateAtM reason pp (pure . f)
 
 updateAndStepAt ::
   (Foldable f, Foldable g, Functor g) =>

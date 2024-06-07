@@ -20,6 +20,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (libSegment)
@@ -69,7 +70,7 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
   --
   -- For example, if the best name is "foo", and libdeps "foo" and "foo__2" already exist, then we'll get "foo__3".
   libdepNameSegment :: NameSegment <- do
-    currentBranchObject <- Cli.getProjectRoot0
+    currentBranchObject <- Cli.getCurrentProjectRoot0
     pure $
       fresh
         (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
@@ -83,7 +84,9 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
       libdepPath = Path.Absolute $ Path.fromList [NameSegment.libSegment, libdepNameSegment]
 
   let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
-  _didUpdate <- Cli.updateAt reflogDescription libdepPath (\_empty -> remoteBranchObject)
+  pp <- Cli.getCurrentProjectPath
+  let libDepPP = pp & PP.absPath_ .~ libdepPath
+  _didUpdate <- Cli.updateAt reflogDescription libDepPP (\_empty -> remoteBranchObject)
 
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
