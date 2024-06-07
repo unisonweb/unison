@@ -74,6 +74,7 @@ import Unison.WatchKind (WatchKind)
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
+  pp <- Cli.getCurrentProjectPath
   currentPath' <- Cli.getCurrentPath
   let patchPath =
         case optionalPatch of
@@ -211,7 +212,7 @@ handleUpdate input optionalPatch requestedNames = do
             & Path.unsplit'
             & Path.resolve @_ @_ @Path.Absolute currentPath'
             & tShow
-  Cli.updateRoot branchWithPropagatedPatch description
+  void $ Cli.updateAt description pp (const branchWithPropagatedPatch)
 
 getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
