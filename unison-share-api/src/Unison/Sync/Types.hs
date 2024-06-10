@@ -742,9 +742,9 @@ instance FromJSON HashMismatchForEntity where
     Aeson.withObject "HashMismatchForEntity" \obj ->
       HashMismatchForEntity
         <$> obj
-        .: "supplied"
+          .: "supplied"
         <*> obj
-        .: "computed"
+          .: "computed"
 
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
