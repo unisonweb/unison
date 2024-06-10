@@ -41,7 +41,7 @@ import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -105,13 +105,13 @@ data NumberedOutput
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePropagate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      ProjectPath
       Path.Path'
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      ProjectPath
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -138,7 +138,7 @@ data NumberedOutput
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
+      ProjectPath -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
 
 data AmbiguousReset'Argument
@@ -267,7 +267,7 @@ data Output
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | ShareError ShareError
-  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
+  | ViewOnShare (URI, ProjectName, ProjectBranchName)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | TermMissingType Reference
@@ -308,8 +308,6 @@ data Output
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
-  | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior (WriteRemoteNamespace Void)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
@@ -391,7 +389,6 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
-  | LooseCodePushDeprecated
   | MergeFailure !FilePath !MergeSourceAndTarget
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
@@ -426,12 +423,10 @@ data CreatedProjectBranchFrom
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
-  | WhichBranchEmptyPath Path'
+  | WhichBranchEmptyPath (Either ProjectPath Path')
 
 data ShareError
-  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
-  | ShareErrorDownloadEntities Share.DownloadEntitiesError
-  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  = ShareErrorDownloadEntities Share.DownloadEntitiesError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
@@ -566,7 +561,6 @@ isFailure o = case o of
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
-  RefusedToPush {} -> True
   GistCreated {} -> False
   InitiateAuthFlow {} -> False
   UnknownCodeServer {} -> True
@@ -630,7 +624,6 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
-  LooseCodePushDeprecated -> True
   MergeFailure {} -> True
   MergeSuccess {} -> False
   MergeSuccessFastForward {} -> False

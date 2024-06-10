@@ -11,16 +11,14 @@ import U.Codebase.Reference qualified as V2 (Reference)
 import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Referent qualified as V2.Referent
 import U.Codebase.Sqlite.Project qualified as Project
-import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as ProjectBranch
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.ProjectUtils qualified as Project
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.ConstructorType qualified as ConstructorType
 import Unison.HashQualified qualified as HQ
@@ -28,8 +26,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch)
-import Unison.Project.Util (projectBranchPath)
+import Unison.Project (ProjectAndBranch (ProjectAndBranch))
 import Unison.Referent qualified as Referent
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
@@ -39,39 +36,27 @@ import Web.Browser (openBrowser)
 openUI :: Path.Path' -> Cli ()
 openUI path' = do
   Cli.Env {serverBaseUrl} <- ask
-  currentPath <- Cli.getCurrentPath
-  let absPath = Path.resolve currentPath path'
+  defnPath <- Cli.resolvePath' path'
+  pp <- Cli.getCurrentProjectPath
   whenJust serverBaseUrl \url -> do
-    Project.getProjectBranchForPath absPath >>= \case
-      Nothing -> openUIForLooseCode url path'
-      Just (projectBranch, pathWithinBranch) -> openUIForProject url projectBranch pathWithinBranch
+    openUIForProject url pp (defnPath ^. PP.absPath_)
 
-openUIForProject :: Server.BaseUrl -> ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Path.Path -> Cli ()
-openUIForProject url projectAndBranch pathFromProjectRoot = do
-  currentPath <- Cli.getCurrentPath
-  perspective <-
-    Project.getProjectBranchForPath currentPath <&> \case
-      Nothing ->
-        -- The current path is outside the project the argument was in. Use the project root
-        -- as the perspective.
-        Path.empty
-      Just (_projectBranch, pathWithinBranch) -> pathWithinBranch
+openUIForProject :: Server.BaseUrl -> PP.ProjectPath -> Path.Absolute -> Cli ()
+openUIForProject url pp@(PP.ProjectPath project projectBranch perspective) defnPath = do
   mayDefinitionRef <- getDefinitionRef perspective
-  let projectBranchNames = bimap Project.name ProjectBranch.name projectAndBranch
+  let projectBranchNames = bimap Project.name ProjectBranch.name (ProjectAndBranch project projectBranch)
   _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames perspective mayDefinitionRef) url
   pure ()
   where
-    pathToBranchFromCodebaseRoot :: Path.Absolute
-    pathToBranchFromCodebaseRoot = projectBranchPath (bimap Project.projectId ProjectBranch.branchId projectAndBranch)
     -- If the provided ui path matches a definition, find it.
-    getDefinitionRef :: Path.Path -> Cli (Maybe (Server.DefinitionReference))
+    getDefinitionRef :: Path.Absolute -> Cli (Maybe (Server.DefinitionReference))
     getDefinitionRef perspective = runMaybeT $ do
       Cli.Env {codebase} <- lift ask
-      let absPathToDefinition = Path.unabsolute $ Path.resolve pathToBranchFromCodebaseRoot (Path.Relative pathFromProjectRoot)
-      (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc absPathToDefinition
-      namespaceBranch <- lift $ Cli.runTransaction (Codebase.getShallowBranchAtPath pathToDefinitionNamespace Nothing)
+      (pathToDefinitionNamespace, _nameSeg) <- hoistMaybe $ Lens.unsnoc defnPath
+      let defnNamespaceProjectPath = pp & PP.absPath_ .~ pathToDefinitionNamespace
+      namespaceBranch <- lift . Cli.runTransaction $ Codebase.getShallowBranchAtProjectPath defnNamespaceProjectPath
       fqn <- hoistMaybe $ do
-        pathFromPerspective <- List.stripPrefix (Path.toList perspective) (Path.toList pathFromProjectRoot)
+        pathFromPerspective <- List.stripPrefix (Path.toList (Path.unabsolute perspective)) (Path.toList $ Path.unabsolute defnPath)
         Path.toName . Path.fromList $ pathFromPerspective
       def <- MaybeT $ getTermOrTypeRef codebase namespaceBranch fqn
       pure def
@@ -88,35 +73,6 @@ getTermOrTypeRef codebase namespaceBranch fqn = runMaybeT $ do
         oneType <- hoistMaybe $ Set.lookupMin $ Map.keysSet matchingTypes
         pure (toTypeReference fqn oneType)
   terms <|> types
-
-openUIForLooseCode :: Server.BaseUrl -> Path.Path' -> Cli ()
-openUIForLooseCode url path' = do
-  Cli.Env {codebase} <- ask
-  currentPath <- Cli.getCurrentPath
-  (perspective, definitionRef) <- getUIUrlParts currentPath path' codebase
-  _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.LooseCodeUI perspective definitionRef) url
-  pure ()
-
-getUIUrlParts :: Path.Absolute -> Path.Path' -> Codebase m Symbol Ann -> Cli (Path.Absolute, Maybe (Server.DefinitionReference))
-getUIUrlParts startPath definitionPath' codebase = do
-  let absPath = Path.resolve startPath definitionPath'
-  let perspective =
-        if Path.isAbsolute definitionPath'
-          then Path.absoluteEmpty
-          else startPath
-  case Lens.unsnoc absPath of
-    Just (abs, _nameSeg) -> do
-      namespaceBranch <-
-        Cli.runTransaction
-          (Codebase.getShallowBranchAtPath (Path.unabsolute abs) Nothing)
-      mayDefRef <- runMaybeT do
-        name <- hoistMaybe $ Path.toName $ Path.fromPath' definitionPath'
-        MaybeT $ getTermOrTypeRef codebase namespaceBranch name
-      case mayDefRef of
-        Nothing -> pure (absPath, Nothing)
-        Just defRef -> pure (perspective, Just defRef)
-    Nothing ->
-      pure (absPath, Nothing)
 
 toTypeReference :: Name -> V2.Reference -> Server.DefinitionReference
 toTypeReference name reference =

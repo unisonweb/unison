@@ -5,7 +5,7 @@
 module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
-    prettyAbsoluteStripProject,
+    prettyProjectPath,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
@@ -33,7 +33,6 @@ module Unison.Cli.Pretty
     prettyRepoInfo,
     prettySCH,
     prettySemver,
-    prettyShareLink,
     prettySharePath,
     prettyShareURI,
     prettySlashProjectBranchName,
@@ -57,12 +56,10 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Network.URI (URI)
 import Network.URI qualified as URI
-import Network.URI.Encode qualified as URI
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -70,21 +67,17 @@ import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
-    ShareUserHandle (..),
-    WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-    shareUserHandleToText,
   )
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Core.Project (ProjectBranchName)
@@ -150,7 +143,7 @@ prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
   P.group . P.blue . P.text . RemoteRepo.printReadRemoteNamespace printProject
 
-prettyWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
+prettyWriteRemoteNamespace :: (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
 prettyWriteRemoteNamespace =
   P.group . P.blue . P.text . RemoteRepo.printWriteRemoteNamespace
 
@@ -160,14 +153,6 @@ shareOrigin = "https://share.unison-lang.org"
 prettyRepoInfo :: Share.RepoInfo -> Pretty
 prettyRepoInfo (Share.RepoInfo repoInfo) =
   P.blue (P.text repoInfo)
-
-prettyShareLink :: WriteShareRemoteNamespace -> Pretty
-prettyShareLink WriteShareRemoteNamespace {repo, path} =
-  let encodedPath =
-        Path.toList path
-          & fmap (URI.encodeText . NameSegment.toUnescapedText)
-          & Text.intercalate "/"
-   in P.green . P.text $ shareOrigin <> "/@" <> shareUserHandleToText repo <> "/p/code/latest/namespaces/" <> encodedPath
 
 prettySharePath :: Share.Path -> Pretty
 prettySharePath =
@@ -202,14 +187,18 @@ prettyNamespaceKey = \case
 
 prettyBranchId :: Input.AbsBranchId -> Pretty
 prettyBranchId = \case
-  Left sch -> prettySCH sch
-  Right absPath -> prettyAbsolute $ absPath
+  Input.BranchAtSCH sch -> prettySCH sch
+  Input.BranchAtPath absPath -> prettyAbsolute $ absPath
+  Input.BranchAtProjectPath pp -> prettyProjectPath pp
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
 
 prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
+
+prettyProjectPath :: PP.ProjectPath -> Pretty
+prettyProjectPath = P.blue . P.shown
 
 prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
@@ -343,7 +332,10 @@ prettyTypeName ppe r =
 prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
   WhichBranchEmptyHash hash -> P.shown hash
-  WhichBranchEmptyPath path -> prettyPath' path
+  WhichBranchEmptyPath p ->
+    case p of
+      Left pp -> prettyProjectPath pp
+      Right path' -> prettyPath' path'
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: CausalHash -> Text
@@ -388,15 +380,6 @@ prettyRemoteBranchInfo (host, remoteProject, remoteBranch) =
       prettyProjectAndBranchName (ProjectAndBranch remoteProject remoteBranch)
         <> " on "
         <> P.shown host
-
-stripProjectBranchInfo :: Path.Absolute -> Maybe Path.Path
-stripProjectBranchInfo = fmap snd . preview projectBranchPathPrism
-
-prettyAbsoluteStripProject :: Path.Absolute -> Pretty
-prettyAbsoluteStripProject path =
-  P.blue case stripProjectBranchInfo path of
-    Just p -> P.shown p
-    Nothing -> P.shown path
 
 prettyLabeledDependencies :: PPE.PrettyPrintEnv -> Set LabeledDependency -> Pretty
 prettyLabeledDependencies ppe lds =

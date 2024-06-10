@@ -54,6 +54,8 @@ import Stats
 import System.Environment (lookupEnv)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathNames)
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.HashQualified (HashQualified)
 import Unison.LSP (LspFormattingConfig (..))
@@ -68,7 +70,7 @@ import Unison.Util.Pretty (Width (..))
 -- | Valid ways to provide source code to the run command
 data RunSource
   = RunFromPipe (HashQualified Name)
-  | RunFromSymbol (HashQualified Name)
+  | RunFromSymbol ProjectPathNames
   | RunFromFile FilePath (HashQualified Name)
   | RunCompiled FilePath
   deriving (Show, Eq)
@@ -374,9 +376,13 @@ runHQParser :: Parser (HashQualified Name)
 runHQParser =
   argument (maybeReader (HQ.parseText . Text.pack)) (metavar "SYMBOL")
 
+runProjectPathParser :: Parser PP.ProjectPathNames
+runProjectPathParser =
+  argument (maybeReader (eitherToMaybe . PP.parseProjectPath . Text.pack)) (metavar "@myproject/mybranch:.path.in.project")
+
 runSymbolParser :: Parser Command
 runSymbolParser =
-  Run . RunFromSymbol <$> runHQParser <*> runArgumentParser
+  Run . RunFromSymbol <$> runProjectPathParser <*> runArgumentParser
 
 runFileParser :: Parser Command
 runFileParser =

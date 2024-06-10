@@ -21,9 +21,9 @@ import Unison.Cli.MergeTypes (MergeSource (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Cli.UnisonConfigUtils (resolveConfiguredUrl)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
@@ -34,13 +34,12 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
 import Unison.Codebase.Editor.Propagate qualified as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), printReadRemoteNamespace)
-import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.NameSegment qualified as NameSegment
@@ -76,8 +75,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
   when remoteBranchIsEmpty (Cli.respond (PulledEmptyBranch source))
 
-  let targetAbsolutePath =
-        ProjectUtils.projectBranchPath (ProjectAndBranch target.project.projectId target.branch.branchId)
+  let targetProjectPath = PP.projectBranchRoot (ProjectAndBranch target.project target.branch)
 
   let description =
         Text.unwords
@@ -92,9 +90,9 @@ handlePull unresolvedSourceAndTarget pullMode = do
 
   case pullMode of
     Input.PullWithHistory -> do
-      targetBranchObject <- Cli.getBranch0At targetAbsolutePath
+      targetBranch <- Cli.getBranchFromProjectPath targetProjectPath
 
-      if Branch.isEmpty0 targetBranchObject
+      if Branch.isEmpty0 $ Branch.head targetBranchObject
         then do
           Cli.Env {codebase} <- ask
           remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
@@ -103,11 +101,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
         else do
           Cli.respond AboutToMerge
 
-          aliceCausalHash <-
-            Cli.runTransaction do
-              causal <- Codebase.getShallowCausalFromRoot Nothing (Path.unabsolute targetAbsolutePath)
-              pure causal.causalHash
-
+          let aliceCausalHash = Branch.headHash targetBranch
           lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash remoteCausalHash)
 
           doMerge
@@ -167,30 +161,29 @@ resolveSourceAndTarget includeSquashed = \case
     pure (source, target)
 
 resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
-resolveImplicitSource includeSquashed =
-  ProjectUtils.getCurrentProjectBranch >>= \case
-    Nothing -> RemoteRepo.writeNamespaceToRead <$> resolveConfiguredUrl PushPull.Pull Path.currentPath
-    Just (localProjectAndBranch, _restPath) -> do
-      (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
-        Cli.runTransactionWithRollback \rollback -> do
-          let localProjectId = localProjectAndBranch.project.projectId
-          let localBranchId = localProjectAndBranch.branch.branchId
-          Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
-            Just (remoteProjectId, Just remoteBranchId) -> do
-              remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
-              remoteBranchName <-
-                Queries.expectRemoteProjectBranchName
-                  Share.hardCodedUri
-                  remoteProjectId
-                  remoteBranchId
-              pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName)
-            _ -> rollback (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
-      remoteBranch <-
-        ProjectUtils.expectRemoteProjectBranchById includeSquashed $
-          ProjectAndBranch
-            (remoteProjectId, remoteProjectName)
-            (remoteBranchId, remoteBranchName)
-      pure (ReadShare'ProjectBranch remoteBranch)
+resolveImplicitSource includeSquashed = do
+  pp <- Cli.getCurrentProjectPath
+  let localProjectAndBranch = pp ^. PP.asProjectAndBranch_
+  (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
+    Cli.runTransactionWithRollback \rollback -> do
+      let localProjectId = localProjectAndBranch.project.projectId
+      let localBranchId = localProjectAndBranch.branch.branchId
+      Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId >>= \case
+        Just (remoteProjectId, Just remoteBranchId) -> do
+          remoteProjectName <- Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri
+          remoteBranchName <-
+            Queries.expectRemoteProjectBranchName
+              Share.hardCodedUri
+              remoteProjectId
+              remoteBranchId
+          pure (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName)
+        _ -> rollback (Output.NoAssociatedRemoteProjectBranch Share.hardCodedUri localProjectAndBranch)
+  remoteBranch <-
+    ProjectUtils.expectRemoteProjectBranchById includeSquashed $
+      ProjectAndBranch
+        (remoteProjectId, remoteProjectName)
+        (remoteBranchId, remoteBranchName)
+  pure (ReadShare'ProjectBranch remoteBranch)
 
 resolveExplicitSource ::
   Share.IncludeSquashedHead ->
@@ -208,7 +201,7 @@ resolveExplicitSource includeSquashed = \case
         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
-    (localProjectAndBranch, _restPath) <- ProjectUtils.expectCurrentProjectBranch
+    localProjectAndBranch <- view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
     let localProjectId = localProjectAndBranch.project.projectId
     let localBranchId = localProjectAndBranch.branch.branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
@@ -243,8 +236,7 @@ resolveExplicitSource includeSquashed = \case
 
 resolveImplicitTarget :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
 resolveImplicitTarget = do
-  (projectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
-  pure projectAndBranch
+  view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
@@ -253,8 +245,8 @@ mergeBranchAndPropagateDefaultPatch ::
   Text ->
   Maybe Output ->
   Branch IO ->
-  Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  Path.Absolute ->
+  Maybe (Either PP.ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
+  PP.ProjectPath ->
   Cli ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
   ifM
@@ -266,7 +258,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     mergeBranch =
       Cli.time "mergeBranch" do
         Cli.Env {codebase} <- ask
-        destb <- Cli.getBranchAt dest
+        destb <- Cli.getBranchFromProjectPath dest
         merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
         b <- Cli.updateAtM inputDescription dest (const $ pure merged)
         for_ maybeDest0 \dest0 -> do
@@ -277,18 +269,18 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 loadPropagateDiffDefaultPatch ::
   Text ->
   Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
   Cli.respond Output.AboutToPropagatePatch
   Cli.time "loadPropagateDiffDefaultPatch" do
-    original <- Cli.getBranch0At dest
+    original <- Cli.getBranch0FromProjectPath dest
     patch <- liftIO $ Branch.getPatch NameSegment.defaultPatchSegment original
     patchDidChange <- propagatePatch inputDescription patch dest
     when patchDidChange do
       whenJust maybeDest0 \dest0 -> do
         Cli.respond Output.CalculatingDiff
-        patched <- Cli.getBranchAt dest
+        patched <- Cli.getBranchFromProjectPath dest
         let patchPath = Path.Path' (Right (Path.Relative (Path.fromList [NameSegment.defaultPatchSegment])))
         (ppe, diff) <- diffHelper original (Branch.head patched)
         Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
@@ -297,10 +289,13 @@ loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
 propagatePatch ::
   Text ->
   Patch ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Cli Bool
 propagatePatch inputDescription patch scopePath = do
+  let pb = scopePath ^. #branch
   Cli.time "propagatePatch" do
+    rootNames <- Cli.projectBranchNames pb
     Cli.stepAt'
+      pb
       (inputDescription <> " (applying patch)")
-      (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+      (scopePath ^. PP.absPath_, Propagate.propagateAndApply rootNames patch)
