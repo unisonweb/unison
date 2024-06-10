@@ -42,7 +42,7 @@ If applicable, add screenshots to help explain your problem.
 **Environment (please complete the following information):**
  - `ucm --version` [e.g. "0.5.21", or "1cb2437 (built on 2024-06-03)"]
  - OS/Architecture: [e.g. "macOS 14.5, Intel"]
- - Browser, if applicable: [e.g. "chrome 125.0.6422.142"]
+ - Browser, if applicable: [e.g. "chrome 125.0.6422.142"] (Version numbers are typically found the about menu option)
 
 **Additional context**
 Add any other context about the problem here.
