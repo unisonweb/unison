@@ -28,7 +28,7 @@ import Witch (unsafeFrom)
 handleDeleteBranch :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleDeleteBranch projectAndBranchNamesToDelete = do
   ProjectPath currentProject currentBranch _ <- Cli.getCurrentProjectPath
-  projectAndBranchToDelete@(ProjectAndBranch _projectToDelete branchToDelete) <- ProjectUtils.resolveProjectBranch currentProject (projectAndBranchNamesToDelete & #branch %~ Just)
+  projectAndBranchToDelete@(ProjectAndBranch _projectToDelete branchToDelete) <- ProjectUtils.resolveProjectBranchInProject currentProject (projectAndBranchNamesToDelete & #branch %~ Just)
   doDeleteProjectBranch projectAndBranchToDelete
 
   -- If the user is on the branch that they're deleting, we have to cd somewhere; try these in order:

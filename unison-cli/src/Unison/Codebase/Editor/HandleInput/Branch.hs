@@ -64,7 +64,7 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
       Input.BranchSourceI'Empty -> pure Nothing
       Input.BranchSourceI'UnresolvedProjectBranch unresolvedProjectBranch -> do
         pp <- Cli.getCurrentProjectPath
-        Just <$> ProjectUtils.resolveProjectBranch (pp ^. #project) (unresolvedProjectBranch & #branch %~ Just)
+        Just <$> ProjectUtils.resolveProjectBranchInProject (pp ^. #project) (unresolvedProjectBranch & #branch %~ Just)
 
   case maySrcProjectAndBranch of
     Just srcProjectAndBranch -> do
