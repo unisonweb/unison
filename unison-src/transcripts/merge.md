@@ -1406,7 +1406,7 @@ bob = 101
 project/bob> add
 ```
 
-```ucm:error
+```ucm
 project/alice> merge /bob
 ```
 

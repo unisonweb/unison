@@ -1428,20 +1428,6 @@ project/bob> add
 ```ucm
 project/alice> merge /bob
 
-  Sorry, I wasn't able to perform the merge:
-  
-  On the merge ancestor, foo and bar were aliases for the same
-  definition, but on project/alice the names have different
-  definitions currently. I'd need just a single new definition
-  to use in their dependents when I merge.
-  
-  Please fix up project/alice to resolve this. For example,
-  
-    * `update` the definitions to be the same again, so that
-      there's nothing for me to decide.
-    * `move` or `delete` all but one of the definitions; I'll
-      use the remaining name when propagating updates.
-  
-  and then try merging again.
+  I merged project/bob into project/alice.
 
 ```
