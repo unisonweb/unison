@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-**Describe and demonstrated the bug**
+**Describe and demonstrate the bug**
 Please attach a [ucm transcript](https://www.unison-lang.org/docs/tooling/transcripts/) if possible, calling out the unexpected behavior in the text. e.g.
 
 Input:
