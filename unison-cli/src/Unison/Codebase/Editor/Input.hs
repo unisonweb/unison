@@ -111,8 +111,8 @@ data Input
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | -- merge first causal into destination
-    MergeLocalBranchI UnresolvedProjectBranch (Maybe UnresolvedProjectBranch) Branch.MergeMode
-  | PreviewMergeLocalBranchI UnresolvedProjectBranch (Maybe UnresolvedProjectBranch)
+    MergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath) Branch.MergeMode
+  | PreviewMergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath)
   | DiffNamespaceI BranchId BranchId -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput

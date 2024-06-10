@@ -7,6 +7,7 @@ module Unison.Codebase.ProjectPath
     projectBranchRoot,
     absPath_,
     path_,
+    path,
     projectAndBranch_,
     toText,
     toIds,
@@ -83,10 +84,12 @@ toText (ProjectPath proj branch path) =
   into @Text (proj ^. #name) <> "/" <> into @Text (branch ^. #name) <> ":" <> Path.absToText path
 
 absPath_ :: Lens' (ProjectPathG p b) Path.Absolute
-absPath_ = lens go set
+absPath_ = lens absPath set
   where
-    go (ProjectPath _ _ p) = p
     set (ProjectPath n b _) p = ProjectPath n b p
+
+path :: (ProjectPathG p b) -> Path.Path
+path (ProjectPath _ _ p) = Path.unabsolute p
 
 path_ :: Lens' (ProjectPathG p b) Path.Path
 path_ = absPath_ . Path.absPath_

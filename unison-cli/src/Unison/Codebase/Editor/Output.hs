@@ -45,6 +45,7 @@ import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -93,7 +94,7 @@ type NumberedArgs = [StructuredArgument]
 type HashLength = Int
 
 data NumberedOutput
-  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -285,14 +286,10 @@ data Output
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | MergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+  | MergeAlreadyUpToDate BranchRelativePath BranchRelativePath
   | -- This will replace the above once `merge.old` is deleted
     MergeAlreadyUpToDate2 !MergeSourceAndTarget
-  | PreviewMergeAlreadyUpToDate
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | PreviewMergeAlreadyUpToDate ProjectPath ProjectPath
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented
@@ -306,7 +303,7 @@ data Output
   | BadName Text
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
-  | NamespaceEmpty (NonEmpty AbsBranchId)
+  | NamespaceEmpty (NonEmpty (Either ShortCausalHash ProjectPath))
   | NoOp
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated (ReadRemoteNamespace Void)
@@ -423,7 +420,7 @@ data CreatedProjectBranchFrom
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
-  | WhichBranchEmptyPath (Either ProjectPath Path')
+  | WhichBranchEmptyPath ProjectPath
 
 data ShareError
   = ShareErrorDownloadEntities Share.DownloadEntitiesError

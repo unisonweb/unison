@@ -11,6 +11,7 @@ module Unison.Cli.MonadUtils
     getCurrentProjectPath,
     resolvePath,
     resolvePath',
+    resolvePath'ToAbsolute,
     resolveSplit',
 
     -- * Project and branch resolution
@@ -186,6 +187,10 @@ resolvePath' :: Path' -> Cli PP.ProjectPath
 resolvePath' path' = do
   pp <- getCurrentProjectPath
   pure $ pp & PP.absPath_ %~ \p -> Path.resolve p path'
+
+resolvePath'ToAbsolute :: Path' -> Cli Path.Absolute
+resolvePath'ToAbsolute path' = do
+  view PP.absPath_ <$> resolvePath' path'
 
 -- | Resolve a path split, per the current path.
 resolveSplit' :: (Path', a) -> Cli (PP.ProjectPath, a)
