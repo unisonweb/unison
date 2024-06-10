@@ -6,6 +6,7 @@ module Unison.Cli.Pretty
   ( displayBranchHash,
     prettyAbsolute,
     prettyProjectPath,
+    prettyBranchRelativePath,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
@@ -80,6 +81,7 @@ import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.Core.Project (ProjectBranchName)
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
@@ -260,6 +262,9 @@ prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> 
 prettyProjectAndBranchName (ProjectAndBranch project branch) =
   P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
 
+prettyBranchRelativePath :: BranchRelativePath -> Pretty
+prettyBranchRelativePath = P.blue . P.text . into @Text
+
 -- produces:
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
 -- Optional.None, Maybe.Nothing : Maybe a
@@ -332,10 +337,7 @@ prettyTypeName ppe r =
 prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
   WhichBranchEmptyHash hash -> P.shown hash
-  WhichBranchEmptyPath p ->
-    case p of
-      Left pp -> prettyProjectPath pp
-      Right path' -> prettyPath' path'
+  WhichBranchEmptyPath pp -> prettyProjectPath pp
 
 -- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
 displayBranchHash :: CausalHash -> Text

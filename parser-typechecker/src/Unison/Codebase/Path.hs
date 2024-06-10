@@ -32,6 +32,7 @@ module Unison.Codebase.Path
     prefixNameIfRel,
     unprefixName,
     HQSplit,
+    HQSplitAbsolute,
     AbsSplit,
     Split,
     Split',
@@ -389,6 +390,18 @@ empty = Path mempty
 
 instance Show Path where
   show = Text.unpack . toText
+
+instance From Path Text where
+  from = toText
+
+instance From Absolute Text where
+  from = absToText
+
+instance From Relative Text where
+  from = relToText
+
+instance From Path' Text where
+  from = toText'
 
 -- | Note: This treats the path as relative.
 toText :: Path -> Text

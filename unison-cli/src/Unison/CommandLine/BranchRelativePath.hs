@@ -4,6 +4,7 @@ module Unison.CommandLine.BranchRelativePath
     branchRelativePathParser,
     parseIncrementalBranchRelativePath,
     IncrementalBranchRelativePath (..),
+    toText,
   )
 where
 
@@ -15,6 +16,7 @@ import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Project qualified as Project
@@ -233,3 +235,9 @@ branchRelativePathParser =
           pure $ QualifiedBranchPath projName branchName (fromMaybe Path.absoluteEmpty mpath)
         Right branch ->
           pure $ BranchPathInCurrentProject branch (fromMaybe Path.absoluteEmpty mpath)
+
+toText :: BranchRelativePath -> Text
+toText = \case
+  BranchPathInCurrentProject pbName absPath -> ProjectPath () pbName absPath & into @Text
+  QualifiedBranchPath projName pbName absPath -> ProjectPath projName pbName absPath & into @Text
+  UnqualifiedPath path' -> Path.toText' path'

@@ -21,7 +21,6 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
-import Data.These (These (..))
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
 import Text.Megaparsec qualified as Megaparsec
@@ -137,7 +136,6 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Project (ProjectAndBranch (..))
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -297,7 +295,7 @@ loop e = do
               description <- inputDescription input
               srcPP <- ProjectUtils.resolveBranchRelativePath unresolvedSrc
               (destPP, destBRP) <- case mayUnresolvedDest of
-                Nothing -> Cli.getCurrentProjectPath <&> \pp -> (pp, QualifiedBranchPath pp.project.name pp.branch.name (pp ^. PP.absPath_))
+                Nothing -> Cli.getCurrentProjectPath <&> \pp -> (pp, QualifiedBranchPath (pp ^. #project . #name) (pp ^. #branch . #name) (pp ^. PP.absPath_))
                 Just unresolvedDest -> do
                   ProjectUtils.resolveBranchRelativePath unresolvedDest <&> \pp -> (pp, unresolvedDest)
               srcBranch <- Cli.getProjectBranchRoot srcPP.branch
@@ -431,7 +429,7 @@ loop e = do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
               pb <- Cli.getCurrentProjectBranch
-              Cli.stepAt pb description (BranchUtil.makeAddTermName (Path.convert dest) srcTerm)
+              Cli.stepAt pb description (BranchUtil.makeAddTermName (first PP.absPath dest) srcTerm)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -455,7 +453,7 @@ loop e = do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
               pb <- Cli.getCurrentProjectBranch
-              Cli.stepAt pb description (BranchUtil.makeAddTypeName (Path.convert dest) srcType)
+              Cli.stepAt pb description (BranchUtil.makeAddTypeName (first PP.absPath dest) srcType)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -466,11 +464,11 @@ loop e = do
               destPP <- Cli.resolvePath' dest'
               old <- Cli.getBranch0FromProjectPath destPP
               description <- inputDescription input
-              let (unknown, actions) = foldl' (go root0 currentBranch0 (destPP ^. PP.absPath_)) mempty srcs
+              let (unknown, actions) = foldl' (go root0 currentBranch0 (PP.absPath destPP)) mempty srcs
               Cli.stepManyAt destPP.branch description actions
               new <- Cli.getBranch0FromProjectPath destPP
               (ppe, diff) <- diffHelper old new
-              Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destPP.absPath ppe diff)
+              Cli.respondNumbered (ShowDiffAfterModifyBranch dest' (destPP.absPath) ppe diff)
               when (not (null unknown)) do
                 Cli.respond . SearchTermsNotFound . fmap fixupOutput $ unknown
               where
@@ -483,24 +481,25 @@ loop e = do
                   Path.HQSplit ->
                   ([Path.HQSplit], [(Path.Absolute, Branch0 m -> Branch0 m)])
                 go root0 currentBranch0 dest (missingSrcs, actions) hqsrc =
-                  let proposedDest :: Path.Split
+                  let proposedDest :: Path.AbsSplit
                       proposedDest = second HQ'.toName hqProposedDest
-                      hqProposedDest :: Path.HQSplit
-                      hqProposedDest = first Path.unabsolute $ Path.resolve dest hqsrc
+                      hqProposedDest :: Path.HQSplitAbsolute
+                      hqProposedDest = Path.resolve dest hqsrc
                       -- `Nothing` if src doesn't exist
-                      doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
+                      doType :: Maybe [(Path.Absolute, Branch0 m -> Branch0 m)]
                       doType = case ( BranchUtil.getType hqsrc currentBranch0,
-                                      BranchUtil.getType hqProposedDest root0
+                                      BranchUtil.getType (first Path.unabsolute hqProposedDest) root0
                                     ) of
                         (null -> True, _) -> Nothing -- missing src
                         (rsrcs, existing) ->
                           -- happy path
                           Just . map addAlias . toList $ Set.difference rsrcs existing
                           where
+                            addAlias :: Reference -> (Path.Absolute, Branch0 m -> Branch0 m)
                             addAlias r = BranchUtil.makeAddTypeName proposedDest r
-                      doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
+                      doTerm :: Maybe [(Path.Absolute, Branch0 m -> Branch0 m)]
                       doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0,
-                                      BranchUtil.getTerm hqProposedDest root0
+                                      BranchUtil.getTerm (first Path.unabsolute hqProposedDest) root0
                                     ) of
                         (null -> True, _) -> Nothing -- missing src
                         (rsrcs, existing) ->
@@ -550,11 +549,13 @@ loop e = do
               authorPath <- Cli.resolveSplit' authorPath'
               copyrightHolderPath <- Cli.resolveSplit' (base |> NameSegment.copyrightHoldersSegment |> authorNameSegment)
               guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.guidSegment)
+              pb <- Cli.getCurrentProjectBranch
               Cli.stepManyAt
+                pb
                 description
-                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
-                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef),
-                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef)
+                [ BranchUtil.makeAddTermName (first PP.absPath authorPath) (d authorRef),
+                  BranchUtil.makeAddTermName (first PP.absPath copyrightHolderPath) (d copyrightHolderRef),
+                  BranchUtil.makeAddTermName (first PP.absPath guidPath) (d guidRef)
                 ]
               currentPath <- Cli.getCurrentPath
               finalBranch <- Cli.getCurrentBranch0
@@ -574,61 +575,56 @@ loop e = do
             MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
             MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
             MoveAllI src' dest' -> do
-              hasConfirmed <- confirmedCommand input
               desc <- inputDescription input
-              handleMoveAll hasConfirmed src' dest' desc
-            DeleteI dtarget -> case dtarget of
-              DeleteTarget'TermOrType doutput hqs -> delete input doutput Cli.getTermsAt Cli.getTypesAt hqs
-              DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) Cli.getTypesAt hqs
-              DeleteTarget'Term doutput hqs -> delete input doutput Cli.getTermsAt (const (pure Set.empty)) hqs
-              DeleteTarget'Namespace insistence Nothing -> do
-                hasConfirmed <- confirmedCommand input
-                if hasConfirmed || insistence == Force
-                  then do
-                    description <- inputDescription input
-                    pb <- Cli.getCurrentProjectBranch
-                    Cli.updateProjectBranchRoot pb Branch.empty description
-                    Cli.respond DeletedEverything
-                  else Cli.respond DeleteEverythingConfirmation
-              DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
-                branch <- Cli.expectBranchAtPath (Path.unsplit p)
-                description <- inputDescription input
-                let toDelete =
-                      Names.prefix0
-                        (Path.unsafeToName (Path.unsplit (p)))
-                        (Branch.toNames (Branch.head branch))
-                afterDelete <- do
-                  names <- Cli.currentNames
-                  endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty names)
-                  case (null endangerments, insistence) of
-                    (True, _) -> pure (Cli.respond Success)
-                    (False, Force) -> do
-                      ppeDecl <- Cli.currentPrettyPrintEnvDecl
-                      pure do
-                        Cli.respond Success
-                        Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
-                    (False, Try) -> do
-                      ppeDecl <- Cli.currentPrettyPrintEnvDecl
-                      Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
-                      Cli.returnEarlyWithoutOutput
-                parentPathAbs <- Cli.resolvePath parentPath
-                -- We have to modify the parent in order to also wipe out the history at the
-                -- child.
-                Cli.updateAt description parentPathAbs \parentBranch ->
-                  parentBranch
-                    & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
-                afterDelete
-              DeleteTarget'ProjectBranch name -> handleDeleteBranch name
-              DeleteTarget'Project name -> handleDeleteProject name
+              handleMoveAll src' dest' desc
+            DeleteI dtarget -> do
+              pp <- Cli.getCurrentProjectPath
+              let getTerms (absPath, seg) = Cli.getTermsAt (set PP.absPath_ absPath pp, seg)
+              let getTypes (absPath, seg) = Cli.getTypesAt (set PP.absPath_ absPath pp, seg)
+              case dtarget of
+                DeleteTarget'TermOrType doutput hqs -> do
+                  delete input doutput getTerms getTypes hqs
+                DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) getTypes hqs
+                DeleteTarget'Term doutput hqs -> delete input doutput getTerms (const (pure Set.empty)) hqs
+                DeleteTarget'Namespace insistence p@(parentPath, childName) -> do
+                  branch <- Cli.expectBranchAtPath (Path.unsplit p)
+                  description <- inputDescription input
+                  let toDelete =
+                        Names.prefix0
+                          (Path.unsafeToName (Path.unsplit (p)))
+                          (Branch.toNames (Branch.head branch))
+                  afterDelete <- do
+                    names <- Cli.currentNames
+                    endangerments <- Cli.runTransaction (getEndangeredDependents toDelete Set.empty names)
+                    case (null endangerments, insistence) of
+                      (True, _) -> pure (Cli.respond Success)
+                      (False, Force) -> do
+                        ppeDecl <- Cli.currentPrettyPrintEnvDecl
+                        pure do
+                          Cli.respond Success
+                          Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
+                      (False, Try) -> do
+                        ppeDecl <- Cli.currentPrettyPrintEnvDecl
+                        Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
+                        Cli.returnEarlyWithoutOutput
+                  parentPathAbs <- Cli.resolvePath parentPath
+                  -- We have to modify the parent in order to also wipe out the history at the
+                  -- child.
+                  Cli.updateAt description parentPathAbs \parentBranch ->
+                    parentBranch
+                      & Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty
+                  afterDelete
+                DeleteTarget'ProjectBranch name -> handleDeleteBranch name
+                DeleteTarget'Project name -> handleDeleteProject name
             DisplayI outputLoc namesToDisplay -> do
               traverse_ (displayI outputLoc) namesToDisplay
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
             FindShallowI pathArg -> do
               Cli.Env {codebase} <- ask
-
-              pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
+              pp <- Cli.resolvePath' pathArg
+              projectRootBranch <- Cli.runTransaction $ Codebase.expectShallowProjectBranchRoot pp.branch
+              entries <- liftIO (Backend.lsAtPath codebase projectRootBranch (pp.absPath))
               Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
               pped <- Cli.currentPrettyPrintEnvDecl
               let suffixifiedPPE = PPED.suffixifiedPPE pped
@@ -654,7 +650,8 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              Cli.stepAt description (Path.unabsolute currentPath, doSlurpAdds adds uf)
+              pb <- getCurrentProjectBranch
+              Cli.stepAt pb description (currentPath, doSlurpAdds adds uf)
               pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf currentNames
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respond $ SlurpOutput input suffixifiedPPE sr
@@ -677,8 +674,8 @@ loop e = do
               previewResponse sourceName sr uf
             TodoI patchPath branchPath' -> do
               patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath patchPath)
-              branchPath <- Cli.resolvePath' branchPath'
-              doShowTodoOutput patch branchPath
+              pp <- Cli.resolvePath' branchPath'
+              doShowTodoOutput patch pp.absPath
             TestI testInput -> Tests.handleTest testInput
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
@@ -710,7 +707,8 @@ loop e = do
               let destPath = case opath of
                     Just path -> Path.resolve currentPath (Path.Relative path)
                     Nothing -> currentPath `snoc` NameSegment.builtinSegment
-              _ <- Cli.updateAtM description destPath \destb ->
+              pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
+              _ <- Cli.updateAtM description pp \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             MergeIOBuiltinsI opath -> do
@@ -737,7 +735,8 @@ loop e = do
               let destPath = case opath of
                     Just path -> Path.resolve currentPath (Path.Relative path)
                     Nothing -> currentPath `snoc` NameSegment.builtinSegment
-              _ <- Cli.updateAtM description destPath \destb ->
+              pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
+              _ <- Cli.updateAtM description pp \destb ->
                 liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               Cli.respond Success
             PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
@@ -887,7 +886,7 @@ loop e = do
               Cli.respond $ PrintVersion ucmVersion
             ProjectRenameI name -> handleProjectRename name
             ProjectSwitchI name -> projectSwitch name
-            ProjectCreateI tryDownloadingBase name -> projectCreate tryDownloadingBase name
+            ProjectCreateI tryDownloadingBase name -> void $ projectCreate tryDownloadingBase name
             ProjectsI -> handleProjects
             BranchI source name -> handleBranch source name
             BranchRenameI name -> handleBranchRename name
@@ -907,8 +906,8 @@ inputDescription input =
       dest <- brp dest0
       pure ("fork " <> src <> " " <> dest)
     MergeLocalBranchI src0 dest0 mode -> do
-      src <- looseCodeOrProjectToText src0
-      dest <- looseCodeOrProjectToText dest0
+      let src = into @Text src0
+      let dest = maybe "" (into @Text) dest0
       let command =
             case mode of
               Branch.RegularMerge -> "merge"
@@ -916,17 +915,17 @@ inputDescription input =
       pure (command <> " " <> src <> " " <> dest)
     ResetI hash tgt -> do
       hashTxt <- case hash of
-        This hash -> hp' hash
-        That pr -> pure (into @Text pr)
-        These hash _pr -> hp' hash
+        BranchAtSCH hash -> hp' $ Left hash
+        BranchAtPath pr -> pure $ into @Text pr
+        BranchAtProjectPath pp -> pure $ into @Text pp
       tgt <- case tgt of
         Nothing -> pure ""
         Just tgt -> do
-          tgt <- looseCodeOrProjectToText tgt
-          pure (" " <> tgt)
+          let tgtText = into @Text tgt
+          pure (" " <> tgtText)
       pure ("reset " <> hashTxt <> tgt)
     ResetRootI src0 -> do
-      src <- hp' src0
+      let src = into @Text src0
       pure ("reset-root " <> src)
     AliasTermI src0 dest0 -> do
       src <- hhqs' src0
@@ -977,10 +976,10 @@ inputDescription input =
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Namespace Try opath0 -> do
-          opath <- ops opath0
+          opath <- ps opath0
           pure ("delete.namespace " <> opath)
         DeleteTarget'Namespace Force opath0 -> do
-          opath <- ops opath0
+          opath <- ps opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
@@ -1081,9 +1080,7 @@ inputDescription input =
     p' :: Path' -> Cli Text
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
-    brp = fmap from . ProjectUtils.resolveBranchRelativePath
-    ops :: Maybe Path.Split -> Cli Text
-    ops = maybe (pure ".") ps
+    brp = fmap (into @Text) . ProjectUtils.resolveBranchRelativePath
     wat = error $ show input ++ " is not expected to alter the branch"
     hhqs' :: Either SH.ShortHash Path.HQSplit' -> Cli Text
     hhqs' = \case
@@ -1096,10 +1093,6 @@ inputDescription input =
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
     ps = p . Path.unsplit
-    unresolvedProjectBranchText :: UnresolvedProjectBranch -> Cli Text
-    unresolvedProjectBranchText (ProjectAndBranch mayProjName pbName) = case mayProjName of
-      Nothing -> pure $ into @Text pbName
-      Just projName -> into @Text $ ProjectAndBranch projName pbName
 
 handleFindI ::
   Bool ->
@@ -1414,11 +1407,6 @@ checkTodo codebase patch names0 = do
     edited :: Set Reference
     edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
 
-confirmedCommand :: Input -> Cli Bool
-confirmedCommand i = do
-  loopState <- State.get
-  pure $ Just i == (loopState ^. #lastInput)
-
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
 _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
@@ -1531,8 +1519,8 @@ delete input doutput getTerms getTypes hqs' = do
     traverse
       ( \hq -> do
           absolute <- Cli.resolveSplit' hq
-          types <- getTypes absolute
-          terms <- getTerms absolute
+          types <- getTypes ( first PP.absPath absolute)
+          terms <- getTerms( first PP.absPath absolute)
           return (hq, types, terms)
       )
       hqs'
@@ -1551,10 +1539,11 @@ checkDeletes :: [(Path.HQSplit', Set Reference, Set Referent)] -> DeleteOutput -
 checkDeletes typesTermsTuples doutput inputs = do
   let toSplitName ::
         (Path.HQSplit', Set Reference, Set Referent) ->
-        Cli (Path.Split, Name, Set Reference, Set Referent)
+        Cli (Path.AbsSplit, Name, Set Reference, Set Referent)
       toSplitName hq = do
-        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
-        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
+        (pp, ns) <- Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
+        let resolvedSplit = (pp.absPath, ns)
+        return (resolvedSplit, Path.unsafeToName (Path.unsplit (first Path.unabsolute resolvedSplit)), hq ^. _2, hq ^. _3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
   let toRel :: (Ord ref) => Set ref -> Name -> R.Relation Name ref
@@ -1585,7 +1574,8 @@ checkDeletes typesTermsTuples doutput inputs = do
                   )
       before <- Cli.getCurrentBranch0
       description <- inputDescription inputs
-      Cli.stepManyAt description deleteTypesTerms
+      pb <- Cli.getCurrentProjectBranch
+      Cli.stepManyAt pb description deleteTypesTerms
       case doutput of
         DeleteOutput'Diff -> do
           after <- Cli.getCurrentBranch0

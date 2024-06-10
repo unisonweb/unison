@@ -170,7 +170,7 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
-    showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
+    showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
   ShowDiffAfterDeleteDefinitions ppe diff ->
     first
       ( \p ->
@@ -577,13 +577,13 @@ notifyUser dir = \case
         pure
           . P.warnCallout
           $ "The namespace "
-            <> prettyBranchId p0
+            <> either prettySCH prettyProjectPath p0
             <> " is empty. Was there a typo?"
       ps ->
         pure
           . P.warnCallout
           $ "The namespaces "
-            <> P.commas (prettyBranchId <$> ps)
+            <> P.commas (either prettySCH prettyProjectPath <$> ps)
             <> " are empty. Was there a typo?"
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
@@ -1327,9 +1327,9 @@ notifyUser dir = \case
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        either prettyPath' prettyProjectAndBranchName dest
+        prettyBranchRelativePath dest
           <> "was already up-to-date with"
-          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
+          <> P.group (prettyBranchRelativePath src <> ".")
   MergeAlreadyUpToDate2 aliceAndBob ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1471,9 +1471,9 @@ notifyUser dir = \case
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectPath dest
           <> "is already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
+          <> P.group (prettyProjectPath src)
   DumpNumberedArgs schLength args ->
     pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   NoConflictsOrEdits ->

@@ -68,6 +68,12 @@ data BranchIdG p
   | BranchAtProjectPath ProjectPath
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
+instance From p Text => From (BranchIdG p) Text where
+  from = \case
+    BranchAtSCH h -> "#" <> SCH.toText h
+    BranchAtPath p -> from p
+    BranchAtProjectPath pp -> from pp
+
 type BranchId = BranchIdG Path'
 
 type AbsBranchId = BranchIdG Path.Absolute

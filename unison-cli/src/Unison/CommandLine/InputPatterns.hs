@@ -493,10 +493,11 @@ handleBranchIdArg =
       SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
-handleBranchIdOrProjectArg ::
+-- | TODO: Maybe remove?
+_handleBranchIdOrProjectArg ::
   I.Argument ->
   Either (P.Pretty CT.ColorText) (These Input.BranchId (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
-handleBranchIdOrProjectArg =
+_handleBranchIdOrProjectArg =
   either
     (maybe (Left $ P.text "Expected a branch or project, but it’s not") pure . branchIdOrProject)
     \case
@@ -1631,8 +1632,8 @@ reset =
         ]
     )
     \case
-      [arg0] -> Input.ResetI <$> handleBranchIdOrProjectArg arg0 <*> pure Nothing
-      [arg0, arg1] -> Input.ResetI <$> handleBranchIdOrProjectArg arg0 <*> fmap pure (handleMaybeProjectBranchArg arg1)
+      [arg0] -> Input.ResetI <$> handleBranchIdArg arg0 <*> pure Nothing
+      [arg0, arg1] -> Input.ResetI <$> handleBranchIdArg arg0 <*> fmap pure (handleMaybeProjectBranchArg arg1)
       _ -> Left $ I.help reset
   where
     config =
@@ -2036,13 +2037,13 @@ mergeOldSquashInputPattern =
       parse = \case
         [src] ->
           Input.MergeLocalBranchI
-            <$> handleMaybeProjectBranchArg src
+            <$> handleBranchRelativePathArg src
             <*> pure Nothing
             <*> pure Branch.SquashMerge
         [src, dest] ->
           Input.MergeLocalBranchI
-            <$> handleMaybeProjectBranchArg src
-            <*> (Just <$> handleMaybeProjectBranchArg dest)
+            <$> handleBranchRelativePathArg src
+            <*> (Just <$> handleBranchRelativePathArg dest)
             <*> pure Branch.SquashMerge
         _ -> Left $ I.help mergeOldSquashInputPattern
     }
@@ -2081,13 +2082,13 @@ mergeOldInputPattern =
     ( \case
         [src] ->
           Input.MergeLocalBranchI
-            <$> handleMaybeProjectBranchArg src
+            <$> handleBranchRelativePathArg src
             <*> pure Nothing
             <*> pure Branch.RegularMerge
         [src, dest] ->
           Input.MergeLocalBranchI
-            <$> handleMaybeProjectBranchArg src
-            <*> (Just <$> handleMaybeProjectBranchArg dest)
+            <$> handleBranchRelativePathArg src
+            <*> (Just <$> handleBranchRelativePathArg dest)
             <*> pure Branch.RegularMerge
         _ -> Left $ I.help mergeOldInputPattern
     )
@@ -2170,9 +2171,9 @@ mergeOldPreviewInputPattern =
         ]
     )
     ( \case
-        [src] -> Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> pure Nothing
+        [src] -> Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> pure Nothing
         [src, dest] ->
-          Input.PreviewMergeLocalBranchI <$> handleMaybeProjectBranchArg src <*> (Just <$> handleMaybeProjectBranchArg dest)
+          Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> (Just <$> handleBranchRelativePathArg dest)
         _ -> Left $ I.help mergeOldPreviewInputPattern
     )
   where

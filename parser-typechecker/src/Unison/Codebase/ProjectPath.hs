@@ -18,7 +18,7 @@ module Unison.Codebase.ProjectPath
   )
 where
 
-import Control.Lens
+import Control.Lens hiding (from)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
@@ -44,9 +44,16 @@ type ProjectPathIds = ProjectPathG ProjectId ProjectBranchId
 
 type ProjectPathNames = ProjectPathG ProjectName ProjectBranchName
 
+instance From ProjectPath Text where
+  from = from . toNames
+
 instance From ProjectPathNames Text where
   from (ProjectPath proj branch path) =
     into @Text (ProjectAndBranch proj branch) <> ":" <> Path.absToText path
+
+instance From (ProjectPathG () ProjectBranchName) Text where
+  from (ProjectPath () branch path) =
+    "/" <> into @Text branch <> ":" <> Path.absToText path
 
 type ProjectPath = ProjectPathG Project ProjectBranch
 

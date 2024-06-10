@@ -37,7 +37,7 @@ handleNamespaceDependencies namespacePath' = do
   let pb = pp ^. #branch
   branch <-
     Cli.getMaybeBranch0FromProjectPath pp & onNothingM do
-      Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath (Left pp)))
+      Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath pp))
   externalDependencies <-
     Cli.runTransaction (namespaceDependencies codebase branch)
   pped <- Cli.projectBranchPPED pb
