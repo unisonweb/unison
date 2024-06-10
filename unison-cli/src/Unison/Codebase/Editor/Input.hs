@@ -117,12 +117,7 @@ data Input
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI BranchId
-  | ResetI
-      ( These
-          BranchId
-          (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-      )
-      (Maybe UnresolvedProjectBranch)
+  | ResetI BranchId (Maybe UnresolvedProjectBranch)
   | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user

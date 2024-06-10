@@ -257,75 +257,17 @@ loop e = do
             ResetI newRoot mtarget -> do
               newRoot <-
                 case newRoot of
-                  This newRoot -> case newRoot of
-                    Left hash -> Cli.resolveShortCausalHash hash
-                    Right path' -> Cli.expectBranchAtPath' path'
-                  That (ProjectAndBranch mProjectName branchName) -> do
-                    newProjectAndBranch <- ProjectUtils.resolveProjectBranch mProjectName (Just branchName)
-                    Cli.getProjectBranchRoot newProjectAndBranch.branch
-                  These branchId (ProjectAndBranch mProjectName branchName) -> Cli.label \jump -> do
-                    absPath <- case branchId of
-                      Left hash -> jump =<< Cli.resolveShortCausalHash hash
-                      Right path' -> Cli.resolvePath' path'
-                    mrelativePath <-
-                      Cli.getMaybeBranchAt absPath <&> \case
-                        Nothing -> Nothing
-                        Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
-                    projectAndBranch <- do
-                      let arg = case mProjectName of
-                            Nothing -> That branchName
-                            Just projectName -> These projectName branchName
-                      ProjectUtils.getProjectAndBranchByTheseNames arg
-                    thePath <- case (mrelativePath, projectAndBranch) of
-                      (Nothing, Nothing) ->
-                        ProjectUtils.getCurrentProject >>= \case
-                          Nothing -> pure absPath
-                          Just project ->
-                            Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
-                      (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
-                        projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
-                        Cli.respondNumbered (AmbiguousReset AmbiguousReset'Hash (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
-                        Cli.returnEarlyWithoutOutput
-                      (Just _relativePath, Nothing) -> pure absPath
-                      (Nothing, Just (ProjectAndBranch project branch)) ->
-                        pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
-                    Cli.expectBranchAtPath' (Path.absoluteToPath' thePath)
-
+                  BranchAtPath p -> do
+                    pp <- Cli.resolvePath' p
+                    Cli.getBranchFromProjectPath pp
+                  BranchAtSCH sch -> Cli.resolveShortCausalHash hash
+                  BranchAtProjectPath pp -> Cli.getBranchFromProjectPath pp
               target <-
                 case mtarget of
                   Nothing -> Cli.getCurrentPath
-                  Just looseCodeOrProject -> case looseCodeOrProject of
-                    This path' -> Cli.resolvePath' path'
-                    That (ProjectAndBranch mProjectName branchName) -> do
-                      let arg = case mProjectName of
-                            Nothing -> That branchName
-                            Just projectName -> These projectName branchName
-                      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
-                      pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
-                    These path' (ProjectAndBranch mProjectName branchName) -> do
-                      absPath <- Cli.resolvePath' path'
-                      mrelativePath <-
-                        Cli.getMaybeBranchAt absPath <&> \case
-                          Nothing -> Nothing
-                          Just _ -> preview ProjectUtils.projectBranchPathPrism absPath
-                      projectAndBranch <- do
-                        let arg = case mProjectName of
-                              Nothing -> That branchName
-                              Just projectName -> These projectName branchName
-                        ProjectUtils.getProjectAndBranchByTheseNames arg
-                      case (mrelativePath, projectAndBranch) of
-                        (Nothing, Nothing) ->
-                          ProjectUtils.getCurrentProject >>= \case
-                            Nothing -> pure absPath
-                            Just project ->
-                              Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch (project ^. #name) branchName))
-                        (Just (projectAndBranch0, relPath), Just (ProjectAndBranch project branch)) -> do
-                          projectAndBranch0 <- Cli.runTransaction (ProjectUtils.expectProjectAndBranchByIds projectAndBranch0)
-                          Cli.respondNumbered (AmbiguousReset AmbiguousReset'Target (projectAndBranch0, relPath) (ProjectAndBranch (project ^. #name) (branch ^. #name)))
-                          Cli.returnEarlyWithoutOutput
-                        (Just _relativePath, Nothing) -> pure absPath
-                        (Nothing, Just (ProjectAndBranch project branch)) ->
-                          pure (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
+                  Just unresolvedProjectAndBranch -> do
+                    targetProjectAndBranch <- ProjectUtils.resolveProjectBranch (second Just unresolvedProjectAndBranch)
+                    pure $ PP.projectBranchRoot targetProjectAndBranch
               description <- inputDescription input
               _ <- Cli.updateAt description target (const newRoot)
               Cli.respond Success
@@ -1415,8 +1357,9 @@ doDisplay outputLoc names tm = do
 -- | Show todo output if there are any conflicts or edits.
 doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
 doShowTodoOutput patch scopePath = do
+  pp <- Cli.resolvePath' (Path.AbsolutePath' scopePath)
   Cli.Env {codebase} <- ask
-  names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
+  names0 <- Branch.toNames <$> Cli.getBranch0FromProjectPath pp
   todo <- Cli.runTransaction (checkTodo codebase patch names0)
   if TO.noConflicts todo && TO.noEdits todo
     then Cli.respond NoConflictsOrEdits
