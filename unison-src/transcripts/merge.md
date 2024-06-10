@@ -1367,3 +1367,49 @@ project/alice> merge /bob
 ```ucm:hide
 .> project.delete project
 ```
+
+## Regression tests
+
+### Delete one alias and update the other
+
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```unison
+foo = 17
+bar = 17
+```
+
+```ucm
+project/main> add
+project/main> branch alice
+project/alice> delete.term bar
+```
+
+```unison
+foo = 18
+```
+
+```ucm
+project/alice> update
+project/main> branch bob
+```
+
+```unison
+bob = 101
+```
+
+```ucm
+project/bob> add
+```
+
+```ucm:error
+project/alice> merge /bob
+```
+
+```ucm:hide
+.> project.delete project
+```
