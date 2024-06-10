@@ -32,11 +32,15 @@ import Unison.Referent (Referent)
 ------------------------------------------------------------------------------------------------------------------------
 -- Namer
 
+-- | A "namer" associates a set of (possibly hash-qualified) names with a referent / type reference.
 data Namer = Namer
   { nameTerm :: Referent -> Set (HQ'.HashQualified Name),
     nameType :: TypeReference -> Set (HQ'.HashQualified Name)
   }
 
+-- | Make a "namer" out of a collection of names, ignoring conflicted names. That is, if references #foo and #bar are
+-- both associated with name "baz", then the returned namer maps #foo too "baz" (not "baz"#foo) and #bar to "baz" (not
+-- "baz"#bar).
 namer :: Names -> Namer
 namer names =
   Namer
@@ -44,6 +48,9 @@ namer names =
       nameType = Set.map HQ'.fromName . Names.namesForReference names
     }
 
+-- | Make a "namer" out of a collection of names, respecting conflicted names. That is, if references #foo and #bar are
+-- both associated with name "baz", then the returned namer maps #foo too "baz"#foo and #bar to "baz"#bar, but otherwise
+-- if a reference #qux has a single name "qux", then the returned namer maps #qux to "qux" (not "qux"#qux).
 hqNamer :: Int -> Names -> Namer
 hqNamer hashLen names =
   Namer
