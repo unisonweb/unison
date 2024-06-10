@@ -452,22 +452,23 @@ data UploadPlan = UploadPlan
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
 executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
-  numUploaded <-
+  (uploadResult, numUploaded) <-
     Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
-      let upload =
-            Share.uploadEntities
-              (codeserverBaseURL Codeserver.defaultCodeserver)
-              -- On the wire, the remote branch is encoded as e.g.
-              --   { "repo_info": "@unison/base/@arya/topic", ... }
-              (Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))))
-              (Set.NonEmpty.singleton causalHash)
-              uploadedCallback
-      upload & onLeftM \err0 -> do
-        (Cli.returnEarly . Output.ShareError) case err0 of
-          Share.SyncError err -> ShareErrorUploadEntities err
-          Share.TransportError err -> ShareErrorTransport err
-      liftIO getNumUploaded
+      uploadResult <-
+        Share.uploadEntities
+          (codeserverBaseURL Codeserver.defaultCodeserver)
+          -- On the wire, the remote branch is encoded as e.g.
+          --   { "repo_info": "@unison/base/@arya/topic", ... }
+          (Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))))
+          (Set.NonEmpty.singleton causalHash)
+          uploadedCallback
+      numUploaded <- liftIO getNumUploaded
+      pure (uploadResult, numUploaded)
   Cli.respond (Output.UploadedEntities numUploaded)
+  uploadResult & onLeft \err0 -> do
+    (Cli.returnEarly . Output.ShareError) case err0 of
+      Share.SyncError err -> ShareErrorUploadEntities err
+      Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Right (Share.hardCodedUri, projectName, branchName)))
