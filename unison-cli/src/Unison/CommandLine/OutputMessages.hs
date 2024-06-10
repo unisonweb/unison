@@ -150,6 +150,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Unison.Codebase.Editor.Input (BranchIdG(..))
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -228,7 +229,7 @@ notifyNumbered = \case
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
     first
       ( \p ->
@@ -255,7 +256,7 @@ notifyNumbered = \case
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
     first
       ( \p ->
@@ -265,7 +266,7 @@ notifyNumbered = \case
               p
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
@@ -532,7 +533,7 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   where
-    absPathToBranchId = Right
+    absPathToBranchId = BranchAtPath
 
 undoTip :: P.Pretty P.ColorText
 undoTip =

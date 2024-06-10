@@ -99,18 +99,18 @@ data NumberedOutput
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMerge
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      ProjectPath
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePropagate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       ProjectPath
       Path.Path'
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       ProjectPath
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
@@ -291,8 +291,8 @@ data Output
   | -- This will replace the above once `merge.old` is deleted
     MergeAlreadyUpToDate2 !MergeSourceAndTarget
   | PreviewMergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
   | NotImplemented

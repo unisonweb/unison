@@ -37,7 +37,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Propagate qualified as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), printReadRemoteNamespace)
 import Unison.Codebase.Patch (Patch (..))
-import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
@@ -92,11 +91,11 @@ handlePull unresolvedSourceAndTarget pullMode = do
     Input.PullWithHistory -> do
       targetBranch <- Cli.getBranchFromProjectPath targetProjectPath
 
-      if Branch.isEmpty0 $ Branch.head targetBranchObject
+      if Branch.isEmpty0 $ Branch.head targetBranch
         then do
           Cli.Env {codebase} <- ask
           remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase remoteCausalHash)
-          void $ Cli.updateAtM description targetAbsolutePath (const $ pure remoteBranchObject)
+          void $ Cli.updateAtM description targetProjectPath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
         else do
           Cli.respond AboutToMerge
@@ -133,7 +132,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
       didUpdate <-
         Cli.updateAtM
           description
-          targetAbsolutePath
+          targetProjectPath
           (\targetBranchObject -> pure $ remoteBranchObject `Branch.consBranchSnapshot` targetBranchObject)
 
       Cli.respond
@@ -268,7 +267,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 
 loadPropagateDiffDefaultPatch ::
   Text ->
-  Maybe (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
+  Maybe (Either PP.ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
   PP.ProjectPath ->
   Cli ()
 loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do

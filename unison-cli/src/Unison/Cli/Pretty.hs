@@ -75,8 +75,8 @@ import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
   )
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
-import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -179,9 +179,9 @@ prettyPath' p' =
     then "the current namespace"
     else P.blue (P.shown p')
 
-prettyNamespaceKey :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
+prettyNamespaceKey :: Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Pretty
 prettyNamespaceKey = \case
-  Left path -> prettyPath' path
+  Left path -> prettyProjectPath path
   Right (ProjectAndBranch project branch) ->
     prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
 
