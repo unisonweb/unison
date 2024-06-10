@@ -229,8 +229,8 @@ getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMayb
   causalHash <- lift $ Q.expectCausalHash causalHashId
   lift $ Operations.expectCausalBranchByCausalHash causalHash
 
-expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> ProjectBranch -> m (Branch m)
-expectProjectBranchRoot codebase ProjectBranch {projectId, branchId} = do
+expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> Db.ProjectId -> Db.ProjectBranchId -> m (Branch m)
+expectProjectBranchRoot codebase projectId branchId = do
   causalHash <- runTransaction codebase $ do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
@@ -254,7 +254,7 @@ getBranchAtProjectPath ::
   PP.ProjectPath ->
   m (Maybe (Branch m))
 getBranchAtProjectPath codebase pp = runMaybeT do
-  rootBranch <- lift $ expectProjectBranchRoot codebase (pp ^. #branch)
+  rootBranch <- lift $ expectProjectBranchRoot codebase pp.branch.projectId pp.branch.branchId
   hoistMaybe $ Branch.getAt (pp ^. PP.path_) rootBranch
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.

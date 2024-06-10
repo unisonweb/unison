@@ -162,7 +162,7 @@ resolveSourceAndTarget includeSquashed = \case
 resolveImplicitSource :: Share.IncludeSquashedHead -> Cli (ReadRemoteNamespace Share.RemoteProjectBranch)
 resolveImplicitSource includeSquashed = do
   pp <- Cli.getCurrentProjectPath
-  let localProjectAndBranch = pp ^. PP.asProjectAndBranch_
+  let localProjectAndBranch = PP.toProjectAndBranch pp
   (remoteProjectId, remoteProjectName, remoteBranchId, remoteBranchName) <-
     Cli.runTransactionWithRollback \rollback -> do
       let localProjectId = localProjectAndBranch.project.projectId
@@ -200,7 +200,7 @@ resolveExplicitSource includeSquashed = \case
         (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
     pure (ReadShare'ProjectBranch remoteProjectBranch)
   ReadShare'ProjectBranch (That branchNameOrLatestRelease) -> do
-    localProjectAndBranch <- view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
+    localProjectAndBranch <- PP.toProjectAndBranch <$> Cli.getCurrentProjectPath
     let localProjectId = localProjectAndBranch.project.projectId
     let localBranchId = localProjectAndBranch.branch.branchId
     Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
@@ -235,7 +235,7 @@ resolveExplicitSource includeSquashed = \case
 
 resolveImplicitTarget :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
 resolveImplicitTarget = do
-  view PP.asProjectAndBranch_ <$> Cli.getCurrentProjectPath
+  PP.toProjectAndBranch <$> Cli.getCurrentProjectPath
 
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect

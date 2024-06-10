@@ -6,7 +6,8 @@ where
 import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
-import Control.Lens (preview, (?~))
+import Control.Lens ((?~))
+import Control.Lens.Lens
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -20,16 +21,13 @@ import System.Console.Haskeline.History qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Operations qualified as Operations
-import U.Codebase.Sqlite.Operations qualified as Ops
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.Pretty (prettyProjectAndBranchName)
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
+import Unison.Cli.Pretty qualified as P
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -38,7 +36,6 @@ import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
@@ -50,7 +47,6 @@ import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..))
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -68,7 +64,7 @@ getUserInput ::
   IO (Branch IO) ->
   NumberedArgs ->
   IO Input
-getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
+getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -83,15 +79,7 @@ getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
         Just a -> pure a
     go :: Line.InputT IO Input
     go = do
-      let (PP.ProjectPath projectName projectBranchName path) =  PP.toNames ppCtx
-      let promptString =
-            P.sep
-              ":"
-              ( catMaybes
-                  [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName projectBranchName)),
-                    (Just . P.green . P.shown) path
-                  ]
-              )
+      let promptString = P.prettyProjectPath pp
       let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
       line <- Line.getInputLine fullPrompt
       case line of
@@ -99,7 +87,7 @@ getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase ppCtx currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
@@ -123,7 +111,15 @@ getUserInput codebase authHTTPClient ppCtx currentProjectRoot numberedArgs =
           historyFile = Just ".unisonHistory",
           autoAddHistory = False
         }
-    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient ppCtx
+    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient pp
+
+loopStateProjectPath ::
+  Codebase IO Symbol Ann ->
+  Cli.LoopState ->
+  IO PP.ProjectPath
+loopStateProjectPath codebase loopState = do
+  let ppIds = NEL.head $ Cli.projectPathStack loopState
+  ppIds & PP.projectAndBranch_ %%~ \pabIds -> liftIO . Codebase.runTransaction codebase $ ProjectUtils.expectProjectAndBranchByIds pabIds
 
 main ::
   FilePath ->
@@ -138,22 +134,22 @@ main ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (CausalHash -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
+  (PP.ProjectPath -> STM ()) ->
   ShouldWatchFiles ->
   IO ()
 main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
   rootVar <- newEmptyTMVarIO
   _ <- Ki.fork scope do
-    root <- Codebase.getRootBranch codebase
+    projectRoot <- Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch
     atomically do
       -- Try putting the root, but if someone else as already written over the root, don't
       -- overwrite it.
-      void $ tryPutTMVar rootVar root
+      void $ tryPutTMVar rootVar projectRoot
     -- Start forcing thunks in a background thread.
     -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
     -- recursive "deep*" things.
     UnliftIO.concurrently_
-      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate projectRoot)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
   let initialState = Cli.loopState0 rootVar ppIds
   Ki.fork_ scope do
@@ -184,11 +180,11 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
         currentEcho <- hGetEcho stdin
         liftIO $ restoreEcho currentEcho
         let getProjectRoot = atomically $ readTMVar rootVar
-        Codebase.runTransaction codebase Ops.expectProjectAndBranchNames
+        pp <- loopStateProjectPath codebase loopState
         getUserInput
           codebase
           authHTTPClient
-          (NEL.head $ Cli.projectPathStack loopState)
+          pp
           getProjectRoot
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
@@ -283,7 +279,9 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
               Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
               loop0 s0
             Right (Right (result, s1)) -> do
-              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
+              oldPP <- loopStateProjectPath codebase s0
+              newPP <- loopStateProjectPath codebase s1
+              when (oldPP /= newPP) (atomically . notifyPathChange $ newPP)
               case result of
                 Cli.Success () -> loop0 s1
                 Cli.Continue -> loop0 s1

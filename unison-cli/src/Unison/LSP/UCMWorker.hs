@@ -31,7 +31,7 @@ ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestPro
   Env {codebase, completionsVar} <- ask
   let loop :: ProjectPath -> Lsp a
       loop currentProjectPath = do
-        currentBranch <- liftIO $ Codebase.expectProjectBranchRoot codebase (currentProjectPath ^. #branch)
+        currentBranch <- liftIO $ Codebase.expectProjectBranchRoot codebase (currentProjectPath ^. #branch . #projectId) (currentProjectPath ^. #branch . #branchId)
         Debug.debugM Debug.LSP "LSP path: " currentProjectPath
         let currentBranch0 = Branch.head currentBranch
         let currentNames = Branch.toNames currentBranch0

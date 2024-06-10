@@ -8,11 +8,11 @@ module Unison.Codebase.ProjectPath
     absPath_,
     path_,
     path,
+    toProjectAndBranch,
     projectAndBranch_,
     toText,
     toIds,
     toNames,
-    asProjectAndBranch_,
     projectPathParser,
     parseProjectPath,
   )
@@ -71,11 +71,8 @@ toIds (ProjectPath proj branch path) = ProjectPath (proj ^. #projectId) (branch 
 toNames :: ProjectPath -> ProjectPathNames
 toNames (ProjectPath proj branch path) = ProjectPath (proj ^. #name) (branch ^. #name) path
 
-asProjectAndBranch_ :: Lens' ProjectPath (ProjectAndBranch Project ProjectBranch)
-asProjectAndBranch_ = lens get set
-  where
-    get (ProjectPath proj branch _) = ProjectAndBranch proj branch
-    set p (ProjectAndBranch proj branch) = p & #project .~ proj & #branch .~ branch
+toProjectAndBranch :: ProjectPathG p b -> ProjectAndBranch p b
+toProjectAndBranch (ProjectPath proj branch _) = ProjectAndBranch proj branch
 
 instance Bifunctor ProjectPathG where
   bimap f g (ProjectPath p b path) = ProjectPath (f p) (g b) path
@@ -101,7 +98,7 @@ path (ProjectPath _ _ p) = Path.unabsolute p
 path_ :: Lens' (ProjectPathG p b) Path.Path
 path_ = absPath_ . Path.absPath_
 
-projectAndBranch_ :: Lens' (ProjectPathG p b) (ProjectAndBranch p b)
+projectAndBranch_ :: Lens (ProjectPathG p b) (ProjectPathG p' b') (ProjectAndBranch p b) (ProjectAndBranch p' b')
 projectAndBranch_ = lens go set
   where
     go (ProjectPath proj branch _) = ProjectAndBranch proj branch

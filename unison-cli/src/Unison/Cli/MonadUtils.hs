@@ -157,7 +157,7 @@ getCurrentProjectPath = do
 
 getCurrentProjectAndBranch :: Cli (ProjectAndBranch Project ProjectBranch)
 getCurrentProjectAndBranch = do
-  view PP.asProjectAndBranch_ <$> getCurrentProjectPath
+  PP.toProjectAndBranch <$> getCurrentProjectPath
 
 getCurrentProjectBranch :: Cli ProjectBranch
 getCurrentProjectBranch = do
@@ -298,7 +298,7 @@ getBranch0FromProjectPath pp =
 getProjectBranchRoot :: ProjectBranch -> Cli (Branch IO)
 getProjectBranchRoot projectBranch = do
   Cli.Env {codebase} <- ask
-  liftIO $ Codebase.expectProjectBranchRoot codebase projectBranch
+  liftIO $ Codebase.expectProjectBranchRoot codebase projectBranch.projectId projectBranch.branchId
 
 -- | Get the maybe-branch at an absolute path.
 getMaybeBranchFromProjectPath :: PP.ProjectPath -> Cli (Maybe (Branch IO))
