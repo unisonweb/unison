@@ -27,8 +27,6 @@ module Unison.Cli.MonadUtils
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
-    setCurrentProjectRoot,
-    modifyProjectRoot,
     getCurrentProjectRoot,
     getCurrentProjectRoot0,
     getCurrentBranch,
@@ -270,25 +268,6 @@ getCurrentProjectRoot0 :: Cli (Branch0 IO)
 getCurrentProjectRoot0 =
   Branch.head <$> getCurrentProjectRoot
 
--- | Set a new root branch.
---
--- Note: This does _not_ update the codebase, the caller is responsible for that.
-setCurrentProjectRoot :: Branch IO -> Cli ()
-setCurrentProjectRoot b = do
-  void $ modifyProjectRoot (const b)
-
--- | Modify the root branch.
---
--- Note: This does _not_ update the codebase, the caller is responsible for that.
-modifyProjectRoot :: (Branch IO -> Branch IO) -> Cli (Branch IO)
-modifyProjectRoot f = do
-  rootVar <- use #currentProjectRoot
-  atomically do
-    root <- takeTMVar rootVar
-    let !newRoot = f root
-    putTMVar rootVar newRoot
-    pure newRoot
-
 -- | Get the current branch.
 getCurrentBranch :: Cli (Branch IO)
 getCurrentBranch = do
@@ -464,6 +443,7 @@ updateAndStepAt reason projectBranch updates steps = do
 
 updateProjectBranchRoot :: ProjectBranch -> Text -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
 updateProjectBranchRoot projectBranch reason f = do
+  currentPB <- getCurrentProjectBranch
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
     old <- getProjectBranchRoot projectBranch
@@ -472,8 +452,16 @@ updateProjectBranchRoot projectBranch reason f = do
     Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
       Q.setProjectBranchHead reason (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
-    setCurrentProjectRoot new
+    if projectBranch.branchId == currentPB.branchId
+      then setCurrentProjectRoot new
+      else pure ()
     pure result
+  where
+    setCurrentProjectRoot :: Branch IO -> Cli ()
+    setCurrentProjectRoot !newRoot = do
+      rootVar <- use #currentProjectRoot
+      atomically do
+        void $ swapTMVar rootVar newRoot
 
 updateProjectBranchRoot_ :: ProjectBranch -> Text -> (Branch IO -> Branch IO) -> Cli ()
 updateProjectBranchRoot_ projectBranch reason f = do
