@@ -4,6 +4,7 @@ module Unison.Cli.ProjectUtils
     expectProjectBranchByName,
     resolveBranchRelativePath,
     resolveProjectBranch,
+    resolveProjectBranchInProject,
 
     -- * Name hydration
     hydrateNames,
@@ -201,12 +202,22 @@ expectProjectAndBranchByTheseNames = \case
 --   1. If the project is missing, use the provided project.
 --   2. If we have an unambiguous `/branch` or `project/branch`, resolve it using the provided
 --      project, defaulting to 'main' if branch is unspecified.
-resolveProjectBranch :: Project -> ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-resolveProjectBranch defaultProj (ProjectAndBranch mayProjectName mayBranchName) = do
+resolveProjectBranchInProject :: Project -> ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+resolveProjectBranchInProject defaultProj (ProjectAndBranch mayProjectName mayBranchName) = do
   let branchName = fromMaybe (unsafeFrom @Text "main") mayBranchName
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
   projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
   pure projectAndBranch
+
+-- | Expect/resolve branch reference with the following rules:
+--
+--   1. If the project is missing, use the current project.
+--   2. If we have an unambiguous `/branch` or `project/branch`, resolve it using the current
+--      project, defaulting to 'main' if branch is unspecified.
+resolveProjectBranch :: ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+resolveProjectBranch pab = do
+  pp <- Cli.getCurrentProjectPath
+  resolveProjectBranchInProject (pp ^. #project) pab
 
 -- | Get the causal hash of a project branch.
 getProjectBranchCausalHash :: ProjectBranch -> Transaction CausalHash

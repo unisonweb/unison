@@ -37,6 +37,7 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils (getCurrentProjectBranch)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
@@ -108,6 +109,7 @@ import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as HQSplit'
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
@@ -259,16 +261,8 @@ loop e = do
                     Left hash -> Cli.resolveShortCausalHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                   That (ProjectAndBranch mProjectName branchName) -> do
-                    let arg = case mProjectName of
-                          Nothing -> That branchName
-                          Just projectName -> These projectName branchName
-                    ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames arg
-                    Cli.expectBranchAtPath'
-                      ( Path.absoluteToPath'
-                          ( ProjectUtils.projectBranchPath
-                              (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId))
-                          )
-                      )
+                    newProjectAndBranch <- ProjectUtils.resolveProjectBranch mProjectName (Just branchName)
+                    Cli.getProjectBranchRoot newProjectAndBranch.branch
                   These branchId (ProjectAndBranch mProjectName branchName) -> Cli.label \jump -> do
                     absPath <- case branchId of
                       Left hash -> jump =<< Cli.resolveShortCausalHash hash
@@ -342,33 +336,30 @@ loop e = do
                     Left hash -> Cli.resolveShortCausalHash hash
                     Right path' -> Cli.expectBranchAtPath' path'
                 description <- inputDescription input
-                Cli.updateCurrentProjectRoot newRoot description
+                pb <- getCurrentProjectBranch
+                Cli.updateAtM "reset-root" (PP.projectBranchRoot pb) newRoot description
                 Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               (srcb, branchEmpty) <-
                 case src0 of
                   Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
                   Right path' -> do
-                    absPath <- ProjectUtils.branchRelativePathToAbsolute path'
-                    let srcp = Path.convert absPath
-                    srcb <- Cli.expectBranchAtPath' srcp
+                    srcPP <- ProjectUtils.resolveBranchRelativePath path'
+                    srcb <- Cli.getBranchFromProjectPath srcPP `whenNothingM` pure Branch.empty
                     pure (srcb, WhichBranchEmptyPath srcp)
               description <- inputDescription input
-              dest <- ProjectUtils.branchRelativePathToAbsolute dest0
+              dest <- ProjectUtils.resolveBranchRelativePath dest0
               ok <- Cli.updateAtM description dest (const $ pure srcb)
               Cli.respond
                 if ok
                   then Success
                   else BranchEmpty branchEmpty
             MergeI branch -> handleMerge branch
-            MergeLocalBranchI src0 dest0 mergeMode -> do
+            MergeLocalBranchI unresolvedSrc unresolvedDest mergeMode -> do
               description <- inputDescription input
-              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
-              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
-              let srcp = looseCodeOrProjectToPath src0
-              let destp = looseCodeOrProjectToPath dest0
-              srcb <- Cli.expectBranchAtPath' srcp
-              dest <- Cli.resolvePath' destp
+              srcPaB <- ProjectUtils.resolveProjectBranch (second Just src0)
+              destPaB <- ProjectUtils.resolveProjectBranch (second Just dest0)
+              srcBranch <- Cli.getProjectBranchRoot srcPaB.branch
               let err =
                     Just $
                       MergeAlreadyUpToDate
@@ -377,11 +368,9 @@ loop e = do
               mergeBranchAndPropagateDefaultPatch mergeMode description err srcb (Just dest0) dest
             PreviewMergeLocalBranchI src0 dest0 -> do
               Cli.Env {codebase} <- ask
-              src0 <- ProjectUtils.expectLooseCodeOrProjectBranch src0
-              dest0 <- ProjectUtils.expectLooseCodeOrProjectBranch dest0
-              srcb <- Cli.expectBranchAtPath' $ looseCodeOrProjectToPath src0
-              dest <- Cli.resolvePath' $ looseCodeOrProjectToPath dest0
-              destb <- Cli.getBranchAt dest
+              srcPaB <- ProjectUtils.resolveProjectBranch (second Just src0)
+              destPaB <- ProjectUtils.resolveProjectBranch (second Just dest0)
+              srcBranch <- Cli.getProjectBranchRoot srcPaB.branch
               merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
               if merged == destb
                 then Cli.respond (PreviewMergeAlreadyUpToDate src0 dest0)
@@ -421,8 +410,8 @@ loop e = do
                 case from of
                   Left hash -> Cli.resolveShortCausalHash hash
                   Right path' -> do
-                    path <- Cli.resolvePath' path'
-                    Cli.getMaybeBranchAt path & onNothingM (Cli.returnEarly (CreatedNewBranch path))
+                    pp <- Cli.resolvePath' path'
+                    Cli.getBranchFromProjectPath pp
               schLength <- Cli.runTransaction Codebase.branchHashLength
               history <- liftIO (doHistory schLength 0 branch [])
               Cli.respondNumbered history
@@ -440,7 +429,7 @@ loop e = do
                         let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory schLength (n + 1) b' (elem : acc)
             UndoI -> do
-              rootBranch <- Cli.getProjectRoot
+              rootBranch <- Cli.getCurrentProjectRoot
               (_, prev) <-
                 liftIO (Branch.uncons rootBranch) & onNothingM do
                   Cli.returnEarly . CantUndo $
@@ -448,7 +437,8 @@ loop e = do
                       then CantUndoPastStart
                       else CantUndoPastMerge
               description <- inputDescription input
-              Cli.updateCurrentProjectRoot prev description
+              pb <- getCurrentProjectBranch
+              Cli.updateProjectBranchRoot pb prev description
               (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
               Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
             UiI path' -> openUI path'
@@ -467,8 +457,8 @@ loop e = do
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
-              absPath <- Cli.resolvePath' namespacePath'
-              branch <- liftIO $ Codebase.getBranchAtPath codebase absPath
+              projPath <- Cli.resolvePath' namespacePath'
+              branch <- Cli.getBranchFromProjectPath projPath
               _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase branch sourceDirectory)
               pure ()
             AliasTermI src' dest' -> do
@@ -522,14 +512,14 @@ loop e = do
             -- this implementation will happily produce name conflicts,
             -- but will surface them in a normal diff at the end of the operation.
             AliasManyI srcs dest' -> do
-              root0 <- Cli.getProjectRoot0
+              root0 <- Cli.getCurrentProjectRoot0
               currentBranch0 <- Cli.getCurrentBranch0
-              destAbs <- Cli.resolvePath' dest'
-              old <- Cli.getBranch0At destAbs
+              destPP <- Cli.resolvePath' dest'
+              old <- Cli.getBranch0FromProjectPath destPP
               description <- inputDescription input
               let (unknown, actions) = foldl' (go root0 currentBranch0 destAbs) mempty srcs
               Cli.stepManyAt description actions
-              new <- Cli.getBranch0At destAbs
+              new <- Cli.getBranch0FromProjectPath destPP
               (ppe, diff) <- diffHelper old new
               Cli.respondNumbered (ShowDiffAfterModifyBranch dest' destAbs ppe diff)
               when (not (null unknown)) do
@@ -579,14 +569,9 @@ loop e = do
             NamesI global query -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               (names, pped) <-
-                if global || any Name.isAbsolute query
+                if global
                   then do
-                    -- TODO: Use some global names index here
-                    root0 <- Cli.getProjectRoot0
-                    -- Use an absolutely qualified ppe for view.global
-                    let names = Names.makeAbsolute $ Branch.toNames root0
-                    let pped = PPED.makePPED (PPE.hqNamer hqLength names) (PPE.suffixifyByHash names)
-                    pure (names, pped)
+                    error "TODO: Implement names.global."
                   else do
                     names <- Cli.currentNames
                     pped <- Cli.prettyPrintEnvDeclFromNames names
@@ -652,7 +637,8 @@ loop e = do
                 if hasConfirmed || insistence == Force
                   then do
                     description <- inputDescription input
-                    Cli.updateRoot Branch.empty description
+                    pb <- Cli.getCurrentProjectBranch
+                    Cli.updateProjectBranchRoot pb Branch.empty description
                     Cli.respond DeletedEverything
                   else Cli.respond DeleteEverythingConfirmation
               DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
@@ -824,8 +810,8 @@ loop e = do
               Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
             DebugTabCompletionI inputs -> do
               Cli.Env {authHTTPClient, codebase} <- ask
-              ppCtx <- Cli.getProjectPath
-              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient ppCtx
+              pp <- Cli.getCurrentProjectPath
+              let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient pp
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
             DebugFuzzyOptionsI command args -> do
@@ -835,8 +821,8 @@ loop e = do
                 Just (IP.InputPattern {args = argTypes}) -> do
                   zip argTypes args & Monoid.foldMapM \case
                     ((argName, _, IP.ArgumentType {fzfResolver = Just IP.FZFResolver {getOptions}}), "_") -> do
-                      ppCtx <- Cli.getProjectPath
-                      results <- liftIO $ getOptions codebase ppCtx currentBranch
+                      pp <- Cli.getCurrentProjectPath
+                      results <- liftIO $ getOptions codebase pp currentBranch
                       Cli.respond (DebugDisplayFuzzyOptions argName (Text.unpack <$> results))
                     ((_, _, IP.ArgumentType {fzfResolver = Nothing}), "_") -> do
                       Cli.respond DebugFuzzyOptionsNoResolver
@@ -906,10 +892,10 @@ loop e = do
                       prettyRef renderR r = P.indentN 2 $ P.text (renderR r)
                       prettyDefn renderR (r, Foldable.toList -> names) =
                         P.lines (P.text <$> if null names then ["<unnamed>"] else NameSegment.toEscapedText <$> names) <> P.newline <> prettyRef renderR r
-              projectRoot <- Cli.getProjectRoot
+              projectRoot <- Cli.getCurrentProjectRoot
               void . liftIO . flip State.execStateT mempty $ goCausal [getCausal projectRoot]
             DebugDumpNamespaceSimpleI -> do
-              projectRootBranch0 <- Cli.getProjectRoot0
+              projectRootBranch0 <- Cli.getCurrentProjectRoot0
               for_ (Relation.toList . Branch.deepTypes $ projectRootBranch0) \(r, name) ->
                 traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
               for_ (Relation.toList . Branch.deepTerms $ projectRootBranch0) \(r, name) ->
@@ -1161,12 +1147,10 @@ inputDescription input =
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
     ps = p . Path.unsplit
-    looseCodeOrProjectToText :: Input.LooseCodeOrProject -> Cli Text
-    looseCodeOrProjectToText = \case
-      This path -> p' path
-      That branch -> pure (into @Text branch)
-      -- just trying to recover the syntax the user wrote
-      These path _branch -> pure (Path.toText' path)
+    unresolvedProjectBranchText :: UnresolvedProjectBranch -> Cli Text
+    unresolvedProjectBranchText (ProjectAndBranch mayProjName pbName) = case mayProjName of
+      Nothing -> pure $ into @Text pbName
+      Just projName -> into @Text $ ProjectAndBranch projName pbName
 
 handleFindI ::
   Bool ->
@@ -1179,7 +1163,7 @@ handleFindI isVerbose fscope ws input = do
   (pped, names, searchRoot, branch0) <- case fscope of
     FindLocal p -> do
       searchRoot <- Cli.resolvePath' p
-      branch0 <- Cli.getBranch0At searchRoot
+      branch0 <- Cli.getBranch0FromProjectPath searchRoot
       let names = Branch.toNames (Branch.withoutLib branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
@@ -1187,7 +1171,7 @@ handleFindI isVerbose fscope ws input = do
       pure (pped, names, Just p, branch0)
     FindLocalAndDeps p -> do
       searchRoot <- Cli.resolvePath' p
-      branch0 <- Cli.getBranch0At searchRoot
+      branch0 <- Cli.getBranch0FromProjectPath searchRoot
       let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
@@ -1195,7 +1179,7 @@ handleFindI isVerbose fscope ws input = do
       pure (pped, names, Just p, branch0)
     FindGlobal -> do
       -- TODO: Rewrite to be properly global again
-      projectRootNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getProjectRoot0
+      projectRootNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getCurrentProjectRoot0
       pped <- Cli.prettyPrintEnvDeclFromNames projectRootNames
       currentBranch0 <- Cli.getCurrentBranch0
       pure (pped, projectRootNames, Nothing, currentBranch0)
@@ -1336,14 +1320,14 @@ handleShowDefinition outputLoc showDefinitionScope query = do
   (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
     -- TODO: We should instead print each definition using the names from its project-branch root.
     (True, _) -> do
-      root <- Cli.getProjectRoot
+      root <- Cli.getCurrentProjectRoot
       let root0 = Branch.head root
       let names = Names.makeAbsolute $ Branch.toNames root0
       pped <- Cli.prettyPrintEnvDeclFromNames names
       pure (names, pped)
     (_, ShowDefinitionGlobal) -> do
       -- TODO: Maybe rewrite to be properly global
-      root <- Cli.getProjectRoot
+      root <- Cli.getCurrentProjectRoot
       let root0 = Branch.head root
       let names = Names.makeAbsolute $ Branch.toNames root0
       pped <- Cli.prettyPrintEnvDeclFromNames names
@@ -1627,7 +1611,7 @@ checkDeletes typesTermsTuples doutput inputs = do
       toRel setRef name = R.fromList (fmap (name,) (toList setRef))
   let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
   -- make sure endangered is compeletely contained in paths
-  projectNames <- Branch.toNames <$> Cli.getProjectRoot0
+  projectNames <- Branch.toNames <$> Cli.getCurrentProjectRoot0
   -- get only once for the entire deletion set
   let allTermsToDelete :: Set LabeledDependency
       allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
@@ -1721,7 +1705,7 @@ displayI outputLoc hq = do
   (names, pped) <-
     if useRoot
       then do
-        root <- Cli.getProjectRoot
+        root <- Cli.getCurrentProjectRoot
         let root0 = Branch.head root
         let names = Names.makeAbsolute $ Branch.toNames root0
         pped <- Cli.prettyPrintEnvDeclFromNames names
@@ -1853,15 +1837,3 @@ addWatch watchName (Just uf) = do
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
-
-looseCodeOrProjectToPath :: Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch) -> Path'
-looseCodeOrProjectToPath = \case
-  Left pth -> pth
-  Right (ProjectAndBranch prj br) ->
-    Path.absoluteToPath'
-      ( ProjectUtils.projectBranchPath
-          ( ProjectAndBranch
-              (prj ^. #projectId)
-              (br ^. #branchId)
-          )
-      )
