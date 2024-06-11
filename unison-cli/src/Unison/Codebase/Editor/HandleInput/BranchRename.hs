@@ -7,14 +7,15 @@ where
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), classifyProjectBranchName)
 
 handleBranchRename :: ProjectBranchName -> Cli ()
 handleBranchRename newBranchName = do
-  (ProjectAndBranch project branch, _path) <- ProjectUtils.expectCurrentProjectBranch
+  PP.ProjectPath project branch _path <- Cli.getCurrentProjectPath
 
   case classifyProjectBranchName newBranchName of
     ProjectBranchNameKind'Contributor {} -> pure ()

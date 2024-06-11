@@ -22,6 +22,7 @@ import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -73,6 +74,7 @@ import Unison.WatchKind (WatchKind)
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
+  pp <- Cli.getCurrentProjectPath
   currentPath' <- Cli.getCurrentPath
   let patchPath =
         case optionalPatch of
@@ -171,37 +173,46 @@ handleUpdate input optionalPatch requestedNames = do
     pure (updatePatch ye'ol'Patch, updatePatches, p)
 
   when (Slurp.hasAddsOrUpdates sr) $ do
-    -- take a look at the `updates` from the SlurpResult
-    -- and make a patch diff to record a replacement from the old to new references
-    Cli.stepManyAtMNoSync
-      ( [ ( Path.unabsolute currentPath',
-            pure . doSlurpUpdates typeEdits termEdits termDeprecations
-          ),
-          ( Path.unabsolute currentPath',
-            pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
-          )
-        ]
-          ++ case patchOps of
-            Nothing -> []
-            Just (_, update, p) -> [(Path.unabsolute p, update)]
-      )
+    -- First add the new definitions to the codebase
     Cli.runTransaction
       . Codebase.addDefsToCodebase codebase
       . Slurp.filterUnisonFile sr
       $ Slurp.originalFile sr
+  currentBranch <- Cli.getCurrentBranch
+  -- take a look at the `updates` from the SlurpResult
+  -- and make a patch diff to record a replacement from the old to new references
+  updatedBranch <-
+    currentBranch
+      & Branch.stepManyAtM
+        ( [ ( Path.unabsolute currentPath',
+              pure . doSlurpUpdates typeEdits termEdits termDeprecations
+            ),
+            ( Path.unabsolute currentPath',
+              pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
+            )
+          ]
+            ++ case patchOps of
+              Nothing -> []
+              Just (_, update, p) -> [(Path.unabsolute p, update)]
+        )
+      & liftIO
+
   let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) currentCodebaseNames
   pped <- Cli.prettyPrintEnvDeclFromNames codebaseAndFileNames
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
-  whenJust patchOps \(updatedPatch, _, _) ->
-    void $ propagatePatchNoSync updatedPatch currentPath'
-  Cli.syncRoot case patchPath of
-    Nothing -> "update.nopatch"
-    Just p ->
-      p
-        & Path.unsplit'
-        & Path.resolve @_ @_ @Path.Absolute currentPath'
-        & tShow
+  branchWithPropagatedPatch <- case patchOps of
+    Nothing -> pure updatedBranch
+    Just (updatedPatch, _, _) -> do
+      propagatePatch updatedPatch (Path.unabsolute currentPath') updatedBranch
+  let description = case patchPath of
+        Nothing -> "update.nopatch"
+        Just p ->
+          p
+            & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPath'
+            & tShow
+  void $ Cli.updateAt description pp (const branchWithPropagatedPatch)
 
 getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
@@ -646,10 +657,11 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         split = Path.splitFromName n
 
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
-propagatePatchNoSync patch scopePath =
+propagatePatch :: Patch -> Path.Path -> Branch.Branch IO -> Cli (Branch.Branch IO)
+propagatePatch patch scopePath b = do
   Cli.time "propagatePatchNoSync" do
-    Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+    let names = Branch.toNames $ Branch.head b
+    Branch.stepManyAtM [(scopePath, Propagate.propagateAndApply names patch)] b
 
 recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
 recomponentize =

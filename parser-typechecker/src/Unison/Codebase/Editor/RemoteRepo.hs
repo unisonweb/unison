@@ -1,8 +1,5 @@
 module Unison.Codebase.Editor.RemoteRepo where
 
-import Control.Lens (Lens')
-import Control.Lens qualified as Lens
-import Data.Void (absurd)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment qualified as NameSegment
@@ -35,12 +32,6 @@ displayShareCodeserver cs shareUser path =
         CustomCodeserver cu -> "share(" <> tShow cu <> ")."
    in shareServer <> shareUserHandleToText shareUser <> maybePrintPath path
 
-writeNamespaceToRead :: WriteRemoteNamespace Void -> ReadRemoteNamespace void
-writeNamespaceToRead = \case
-  WriteRemoteNamespaceShare WriteShareRemoteNamespace {server, repo, path} ->
-    ReadShare'LooseCode ReadShareLooseCode {server, repo, path}
-  WriteRemoteProjectBranch v -> absurd v
-
 -- | print remote namespace
 printReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
 printReadRemoteNamespace printProject = \case
@@ -48,11 +39,8 @@ printReadRemoteNamespace printProject = \case
   ReadShare'ProjectBranch project -> printProject project
 
 -- | Render a 'WriteRemoteNamespace' as text.
-printWriteRemoteNamespace :: WriteRemoteNamespace (ProjectAndBranch ProjectName ProjectBranchName) -> Text
-printWriteRemoteNamespace = \case
-  WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server, repo, path}) ->
-    displayShareCodeserver server repo path
-  WriteRemoteProjectBranch projectAndBranch -> into @Text projectAndBranch
+printWriteRemoteNamespace :: (ProjectAndBranch ProjectName ProjectBranchName) -> Text
+printWriteRemoteNamespace projectAndBranch = into @Text projectAndBranch
 
 maybePrintPath :: Path -> Text
 maybePrintPath path =
@@ -80,28 +68,3 @@ isPublic ReadShareLooseCode {path} =
   case path of
     (segment Path.:< _) -> segment == NameSegment.publicLooseCodeSegment
     _ -> False
-
-data WriteRemoteNamespace a
-  = WriteRemoteNamespaceShare !WriteShareRemoteNamespace
-  | WriteRemoteProjectBranch a
-  deriving stock (Eq, Functor, Show)
-
--- | A lens which focuses the path of a remote namespace.
-remotePath_ :: Lens' (WriteRemoteNamespace Void) Path
-remotePath_ = Lens.lens getter setter
-  where
-    getter = \case
-      WriteRemoteNamespaceShare (WriteShareRemoteNamespace _ _ path) -> path
-      WriteRemoteProjectBranch v -> absurd v
-    setter remote path =
-      case remote of
-        WriteRemoteNamespaceShare (WriteShareRemoteNamespace server repo _) ->
-          WriteRemoteNamespaceShare $ WriteShareRemoteNamespace server repo path
-        WriteRemoteProjectBranch v -> absurd v
-
-data WriteShareRemoteNamespace = WriteShareRemoteNamespace
-  { server :: !ShareCodeserver,
-    repo :: !ShareUserHandle,
-    path :: !Path
-  }
-  deriving stock (Eq, Show)

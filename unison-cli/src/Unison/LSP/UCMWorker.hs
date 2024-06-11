@@ -1,16 +1,16 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
-import U.Codebase.HashTags
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Completion
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
+import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -24,21 +24,21 @@ ucmWorker ::
   TMVar PrettyPrintEnvDecl ->
   TMVar Names ->
   TMVar (NameSearch Sqlite.Transaction) ->
-  TMVar Path.Absolute ->
-  STM CausalHash ->
-  STM Path.Absolute ->
+  TMVar ProjectPath ->
+  STM ProjectPath ->
   Lsp ()
-ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestRoot getLatestPath = do
+ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestProjectPath = do
   Env {codebase, completionsVar} <- ask
-  let loop :: (CausalHash, Path.Absolute) -> Lsp a
-      loop (currentRoot, currentPath) = do
-        Debug.debugM Debug.LSP "LSP path: " currentPath
-        currentBranch0 <- fmap Branch.head . liftIO $ (Codebase.getBranchAtPath codebase currentPath)
+  let loop :: ProjectPath -> Lsp a
+      loop currentProjectPath = do
+        currentBranch <- liftIO $ Codebase.expectProjectBranchRoot codebase (currentProjectPath ^. #branch . #projectId) (currentProjectPath ^. #branch . #branchId)
+        Debug.debugM Debug.LSP "LSP path: " currentProjectPath
+        let currentBranch0 = Branch.head currentBranch
         let currentNames = Branch.toNames currentBranch0
         hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
         let pped = PPED.makePPED (PPE.hqNamer hl currentNames) (PPE.suffixifyByHash currentNames)
         atomically $ do
-          writeTMVar currentPathVar currentPath
+          writeTMVar currentPathVar currentProjectPath
           writeTMVar currentNamesVar currentNames
           writeTMVar ppedVar pped
           writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl currentNames)
@@ -48,17 +48,15 @@ ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestRoo
           writeTMVar completionsVar (namesToCompletionTree currentNames)
         Debug.debugLogM Debug.LSP "LSP Initialized"
         latest <- atomically $ do
-          latestRoot <- getLatestRoot
-          latestPath <- getLatestPath
-          guard $ (currentRoot /= latestRoot || currentPath /= latestPath)
-          pure (latestRoot, latestPath)
+          latestPath <- getLatestProjectPath
+          guard $ (currentProjectPath /= latestPath)
+          pure latestPath
         Debug.debugLogM Debug.LSP "LSP Change detected"
         loop latest
-  (rootBranch, currentPath) <- atomically $ do
-    rootBranch <- getLatestRoot
-    currentPath <- getLatestPath
-    pure (rootBranch, currentPath)
-  loop (rootBranch, currentPath)
+  currentProjectPath <- atomically $ do
+    currentProjectPath <- getLatestProjectPath
+    pure currentProjectPath
+  loop currentProjectPath
   where
     -- This is added in stm-2.5.1, remove this if we upgrade.
     writeTMVar :: TMVar a -> a -> STM ()

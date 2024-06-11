@@ -107,7 +107,7 @@ handleUpdate2 = do
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   currentPath <- Cli.getCurrentPath
-  currentBranch0 <- Cli.getBranch0At currentPath
+  currentBranch0 <- Cli.getCurrentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
@@ -205,7 +205,8 @@ saveTuf getConstructors tuf = do
     Cli.runTransactionWithRollback \abort -> do
       Codebase.addDefsToCodebase codebase tuf
       typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
-  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)
+  pb <- Cli.getCurrentProjectBranch
+  Cli.stepAt pb "update" (currentPath, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
