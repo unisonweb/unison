@@ -37,7 +37,7 @@ scratch/main> debug.tab-complete view subnamespace2
 scratch/main> debug.tab-complete view subnamespace.some
 scratch/main> debug.tab-complete view subnamespace.someOther
 -- Should tab complete absolute names
-.othernamespace> debug.tab-complete view .subnamespace.some
+scratch/main othernamespace> debug.tab-complete view .subnamespace.some
 ```
 
 ## Tab complete namespaces

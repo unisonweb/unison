@@ -13,15 +13,15 @@ scratch/main> ls
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:
 
 ```ucm
-.foo> builtins.merge
-.foo> ls
+scratch/main foo> builtins.merge
+scratch/main foo> ls
 ```
 
 And for a limited time, you can get even more builtin goodies:
 
 ```ucm
-.foo> builtins.mergeio
-.foo> ls
+scratch/main foo> builtins.mergeio
+scratch/main foo> ls
 ```
 
 More typically, you'd start out by pulling `base`.

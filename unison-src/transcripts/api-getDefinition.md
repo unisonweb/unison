@@ -1,7 +1,7 @@
 # Get Definitions Test
 
 ```ucm:hide
-.nested> builtins.mergeio
+scratch/main nested> builtins.mergeio
 ```
 
 ```unison:hide
@@ -10,7 +10,7 @@ names.x = 42
 ```
 
 ```ucm:hide
-.nested> add
+scratch/main nested> add
 ```
 
 ```api
@@ -25,7 +25,7 @@ GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 ```
 
 ```ucm:hide
-.doctest> builtins.mergeio
+scratch/main doctest> builtins.mergeio
 ```
 
 ```unison:hide
@@ -38,7 +38,7 @@ otherstuff.thing = "A different thing"
 ```
 
 ```ucm:hide
-.doctest> add
+scratch/main doctest> add
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.

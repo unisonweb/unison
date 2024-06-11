@@ -12,8 +12,8 @@ someterm = 18
 ```
 
 ```ucm
-.some.loose.code.lib> builtins.merge
-.some.loose.code> add
+scratch/main some.loose.code.lib> builtins.merge
+scratch/main some.loose.code> add
 ```
 
 Now, the `branch` demo:
@@ -40,7 +40,7 @@ bar/main> branch foo/main topic2
 bar/main> branch foo/main /topic3
 scratch/main> branch foo/main bar/topic4
 
-.some.loose.code> branch foo/topic13
+scratch/main some.loose.code> branch foo/topic13
 foo/main> branch .some.loose.code topic14
 foo/main> branch .some.loose.code /topic15
 scratch/main> branch .some.loose.code foo/topic16

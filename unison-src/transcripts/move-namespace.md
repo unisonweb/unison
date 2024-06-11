@@ -1,9 +1,9 @@
 # Tests for `move.namespace`
 
 ```ucm:hide
-.happy> builtins.merge
-.history> builtins.merge
-.existing> builtins.merge
+scratch/main happy> builtins.merge
+scratch/main history> builtins.merge
+scratch/main existing> builtins.merge
 ```
 
 ## Happy path
@@ -16,7 +16,7 @@ unique type a.T = T
 ```
 
 ```ucm
-.happy> add
+scratch/main happy> add
 ```
 
 ```unison
@@ -25,15 +25,15 @@ unique type a.T = T1 | T2
 ```
 
 ```ucm
-.happy> update
+scratch/main happy> update
 ```
 
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
 
 ```ucm
-.happy> move.namespace a b
-.happy> ls b
-.happy> history b
+scratch/main happy> move.namespace a b
+scratch/main happy> ls b
+scratch/main happy> history b
 ```
 
 
@@ -48,7 +48,7 @@ b.termInB = 10
 ```
 
 ```ucm
-.history> add
+scratch/main history> add
 ```
 
 ```unison
@@ -57,24 +57,24 @@ b.termInB = 11
 ```
 
 ```ucm
-.history> update
+scratch/main history> update
 ```
 
 Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
-of the moved namespace. 
+of the moved namespace.
 
 ```ucm
-.history> delete.namespace b
-.history> move.namespace a b
+scratch/main history> delete.namespace b
+scratch/main history> move.namespace a b
 -- Should be the history from 'a'
-.history> history b
+scratch/main history> history b
 -- Should be empty
-.history> history a
+scratch/main history> history a
 ```
 
 
-## Moving over an existing branch 
+## Moving over an existing branch
 
 Create some namespace and add some history to them
 
@@ -84,7 +84,7 @@ b.termInB = 10
 ```
 
 ```ucm
-.existing> add
+scratch/main existing> add
 ```
 
 ```unison
@@ -93,11 +93,11 @@ b.termInB = 11
 ```
 
 ```ucm
-.existing> update
-.existing> move.namespace a b
+scratch/main existing> update
+scratch/main existing> move.namespace a b
 ```
 
-## Moving the Root 
+## Moving the Root
 
 I should be able to move the root into a sub-namespace
 

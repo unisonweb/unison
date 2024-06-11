@@ -2,7 +2,7 @@
 
 ```ucm:hide
 scratch/main> builtins.merge
-.merged> builtins.merge
+scratch/main merged> builtins.merge
 ```
 
 ```unison
@@ -13,8 +13,8 @@ b.x = 2
 Cause a conflict:
 ```ucm
 scratch/main> add
-.merged> merge.old .a
-.merged> merge.old .b
+scratch/main merged> merge.old .a
+scratch/main merged> merge.old .b
 ```
 
 Updating conflicted definitions works fine.
@@ -24,5 +24,5 @@ x = 3
 ```
 
 ```ucm
-.merged> update
+scratch/main merged> update
 ```

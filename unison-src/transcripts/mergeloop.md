@@ -9,7 +9,7 @@ a = 1
 ```
 
 ```ucm
-.x> add
+scratch/main x> add
 ```
 
 ```unison
@@ -17,7 +17,7 @@ b = 2
 ```
 
 ```ucm
-.x> add
+scratch/main x> add
 ```
 
 ```unison
@@ -25,7 +25,7 @@ b = 2
 ```
 
 ```ucm
-.y> add
+scratch/main y> add
 ```
 
 ```unison
@@ -33,7 +33,7 @@ a = 1
 ```
 
 ```ucm
-.y> add
+scratch/main y> add
 ```
 
 ```unison
@@ -42,7 +42,7 @@ b = 2
 ```
 
 ```ucm
-.z> add
+scratch/main z> add
 scratch/main> merge.old x y
 scratch/main> merge.old y z
 scratch/main> history z

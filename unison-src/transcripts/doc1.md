@@ -7,7 +7,7 @@ scratch/main> builtins.merge
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ```ucm
-.builtin> view Doc
+scratch/main builtin> view Doc
 ```
 
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
@@ -42,7 +42,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 ```
 
 ```ucm
-.builtin> add
+scratch/main builtin> add
 ```
 
 And now let's write our docs and reference these examples:
@@ -67,17 +67,17 @@ List.take.doc = [:
 Let's add it to the codebase.
 
 ```ucm
-.builtin> add
+scratch/main builtin> add
 ```
 
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ```ucm
-.builtin> docs List.take
+scratch/main builtin> docs List.take
 ```
 
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ```ucm
-.builtin> view List.take
+scratch/main builtin> view List.take
 ```

@@ -36,7 +36,7 @@ testInLib = [Ok "testInLib"]
 ```
 
 ```ucm:hide
-.lib> add
+scratch/main lib> add
 ```
 
 ```ucm
@@ -47,7 +47,7 @@ scratch/main> test.all
 `test` WILL run tests within `lib` if ucm is cd'd inside.
 
 ```ucm
-.lib> test
+scratch/main lib> test
 ```
 
 `test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.

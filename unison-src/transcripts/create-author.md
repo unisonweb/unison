@@ -5,6 +5,6 @@ scratch/main> builtins.mergeio
 Demonstrating `create.author`:
 
 ```ucm
-.foo> create.author alicecoder "Alice McGee"
-.foo> view 2
+scratch/main foo> create.author alicecoder "Alice McGee"
+scratch/main foo> view 2
 ```

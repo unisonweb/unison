@@ -20,9 +20,9 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
 
 ```ucm
 scratch/main> fork builtin mybuiltin
-.mybuiltin> rename.term Nat.+ Nat.frobnicate
-.mybuiltin> rename.term Nat.frobnicate Nat.+
-.mybuiltin> history
+scratch/main mybuiltin> rename.term Nat.+ Nat.frobnicate
+scratch/main mybuiltin> rename.term Nat.frobnicate Nat.+
+scratch/main mybuiltin> history
 ```
 
 If we merge that back into `builtin`, we get that same chain of history:
@@ -50,7 +50,7 @@ x = 1
 ```
 
 ```ucm
-.trunk> add
+scratch/main trunk> add
 scratch/main> fork trunk alice
 scratch/main> fork trunk bob
 ```
@@ -64,9 +64,9 @@ neatoFun x = x
 ```
 
 ```ucm
-.alice> add
-.alice> rename.term radNumber superRadNumber
-.alice> rename.term neatoFun productionReadyId
+scratch/main alice> add
+scratch/main alice> rename.term radNumber superRadNumber
+scratch/main alice> rename.term neatoFun productionReadyId
 ```
 
 Meanwhile, Bob does his own hacking:
@@ -78,7 +78,7 @@ no more = no more
 ```
 
 ```ucm
-.bob> add
+scratch/main bob> add
 ```
 
 At this point, Alice and Bob both have some history beyond what's in trunk:
@@ -132,12 +132,12 @@ There's nothing really special here, `squash src dest` discards `src` history th
 This checks to see that squashing correctly preserves deletions:
 
 ```ucm
-.delete> builtins.merge
-.delete> fork builtin builtin2
-.delete> delete.term.verbose builtin2.Nat.+
-.delete> delete.term.verbose builtin2.Nat.*
-.delete> merge.old.squash builtin2 builtin
-.delete> history builtin
+scratch/main delete> builtins.merge
+scratch/main delete> fork builtin builtin2
+scratch/main delete> delete.term.verbose builtin2.Nat.+
+scratch/main delete> delete.term.verbose builtin2.Nat.*
+scratch/main delete> merge.old.squash builtin2 builtin
+scratch/main delete> history builtin
 ```
 
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
@@ -145,11 +145,11 @@ Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them delet
 Just confirming that those two definitions are in fact removed:
 
 ```ucm:error
-.delete> view .delete.builtin.Nat.+
+scratch/main delete> view .delete.builtin.Nat.+
 ```
 
 ```ucm:error
-.delete> view .delete.builtin.Nat.*
+scratch/main delete> view .delete.builtin.Nat.*
 ```
 
 ## Caveats

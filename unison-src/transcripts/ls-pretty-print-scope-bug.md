@@ -3,7 +3,7 @@ unique type Foo = Foo
 ```
 
 ```ucm
-.a.b> add
+scratch/main a.b> add
 scratch/main> fork .a.b .c.d.f
 .c.g.f>
 ```
@@ -13,7 +13,7 @@ unique type Foo = Foo
 ```
 
 ```ucm
-.c.g.f> add
+scratch/main c.g.f> add
 .c>
 ```
 
@@ -22,7 +22,7 @@ foo = .d.f.Foo.Foo
 ```
 
 ```ucm
-.c> add
+scratch/main c> add
 ```
 
 At this point we have:
@@ -40,5 +40,5 @@ namespace rooted at `.c`.
 
 ```ucm
 scratch/main> ls c
-.c> ls
+scratch/main c> ls
 ```

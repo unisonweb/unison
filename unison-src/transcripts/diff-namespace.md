@@ -109,7 +109,7 @@ a = 333
 b = a + 1
 ```
 ```ucm
-.nsx> add
+scratch/main nsx> add
 scratch/main> fork nsx nsy
 scratch/main> fork nsx nsz
 ```
@@ -117,13 +117,13 @@ scratch/main> fork nsx nsz
 a = 444
 ```
 ```ucm
-.nsy> update.old
+scratch/main nsy> update.old
 ```
 ```unison:hide
 a = 555
 ```
 ```ucm
-.nsz> update.old
+scratch/main nsz> update.old
 scratch/main> merge.old nsy nsw
 ```
 ```ucm:error
@@ -131,7 +131,7 @@ scratch/main> merge.old nsz nsw
 ```
 ```ucm
 scratch/main> diff.namespace nsx nsw
-.nsw> view a b
+scratch/main nsw> view a b
 ```
 
 ## Should be able to diff a namespace hash from history.
@@ -141,7 +141,7 @@ x = 1
 ```
 
 ```ucm
-.hashdiff> add
+scratch/main hashdiff> add
 ```
 
 ```unison
@@ -149,9 +149,9 @@ y = 2
 ```
 
 ```ucm
-.hashdiff> add
-.hashdiff> history
-.hashdiff> diff.namespace 2 1
+scratch/main hashdiff> add
+scratch/main hashdiff> history
+scratch/main hashdiff> diff.namespace 2 1
 ```
 
 ##

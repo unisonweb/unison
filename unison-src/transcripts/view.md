@@ -17,9 +17,9 @@ scratch/main> add
 -- Should suffix-search and find values in sub-namespaces
 scratch/main> view thing
 -- Should be local to namespace
-.a> view thing
+scratch/main a> view thing
 -- view.global should search globally and be absolutely qualified
-.a> view.global thing
+scratch/main a> view.global thing
 -- Should support absolute paths outside of current namespace
-.a> view .b.thing
+scratch/main a> view .b.thing
 ```

@@ -16,7 +16,7 @@ opening an empty fuzzy-select.
 ```ucm
   ☝️  The namespace .empty is empty.
 
-.empty> view
+scratch/main empty> view
 
 ⚠️
 
@@ -35,7 +35,7 @@ Definition args
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     nested.optionTwo : ##Nat
     optionOne        : ##Nat
 
@@ -66,7 +66,7 @@ Project Branch args
 myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
-  
+
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /mybranch`.
 

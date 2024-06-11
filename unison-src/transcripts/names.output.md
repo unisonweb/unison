@@ -19,9 +19,9 @@ somewhere.y = 2
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
-    
+
       some.otherplace.x : ##Nat
       some.otherplace.y : ##Nat
       some.place.x      : ##Nat
@@ -33,7 +33,7 @@ somewhere.y = 2
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     some.otherplace.x : ##Nat
     some.otherplace.y : ##Nat
     some.place.x      : ##Nat
@@ -48,12 +48,12 @@ scratch/main> add
 -- But we don't see somewhere.z which is has the same value but is out of our namespace
   ☝️  The namespace .some is empty.
 
-.some> names x
+scratch/main some> names x
 
   😶
-  
+
   I couldn't find anything by that name.
-  
+
   Tip: Use `names.global` to see more results.
 
 ```
@@ -69,8 +69,8 @@ The transcript failed due to an error in the stanza above. The error is:
 
 
   😶
-  
+
   I couldn't find anything by that name.
-  
+
   Tip: Use `names.global` to see more results.
 

@@ -32,8 +32,8 @@ scratch/main> view 1
 ```
 
 ```ucm
-.somewhere> find bar
-.somewhere> find.global bar
+scratch/main somewhere> find bar
+scratch/main somewhere> find.global bar
 ```
 
 ```ucm

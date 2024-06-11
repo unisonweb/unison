@@ -35,7 +35,7 @@ foo = 1
 ```
 
 ```ucm
-.a> add
+scratch/main a> add
 ```
 
 ```unison:hide
@@ -43,8 +43,8 @@ foo = 2
 ```
 
 ```ucm
-.b> add
-.a> merge.old .b
+scratch/main b> add
+scratch/main a> merge.old .b
 ```
 
 A delete should remove both versions of the term.
@@ -54,7 +54,7 @@ scratch/main> delete.verbose a.foo
 ```
 
 ```ucm:error
-.a> ls
+scratch/main a> ls
 ```
 
 Let's repeat all that on a type, for completeness.
@@ -64,7 +64,7 @@ structural type Foo = Foo ()
 ```
 
 ```ucm
-.a> add
+scratch/main a> add
 ```
 
 ```unison:hide
@@ -72,8 +72,8 @@ structural type Foo = Foo
 ```
 
 ```ucm
-.b> add
-.a> merge.old .b
+scratch/main b> add
+scratch/main a> merge.old .b
 ```
 
 ```ucm

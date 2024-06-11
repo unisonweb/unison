@@ -44,10 +44,10 @@ bonk = 5
 ```
 
 ```ucm
-.z> builtins.merge
-.z> add
-.z> move bonk zonk
-.z> ls
+z/main> builtins.merge
+z/main> add
+z/main> move bonk zonk
+z/main> ls
 ```
 
 ## Happy Path - Just namespace
@@ -57,11 +57,11 @@ bonk.zonk = 5
 ```
 
 ```ucm
-.a> builtins.merge
-.a> add
-.a> move bonk zonk
-.a> ls
-.a> view zonk.zonk
+a/main> builtins.merge
+a/main> add
+a/main> move bonk zonk
+a/main> ls
+a/main> view zonk.zonk
 ```
 
 ## Sad Path - No term, type, or namespace named src

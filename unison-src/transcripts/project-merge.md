@@ -9,7 +9,7 @@ zonk = 0
 ```
 
 ```ucm
-.foo> add
+scratch/main foo> add
 scratch/main> project.create-empty foo
 scratch/main> merge.old foo foo/main
 ```
@@ -35,5 +35,5 @@ xonk = 1
 ```ucm
 bar/main> add
 bar/topic> merge.old /main
-.bar> merge.old foo/main
+scratch/main bar> merge.old foo/main
 ```

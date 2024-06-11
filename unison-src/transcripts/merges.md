@@ -1,7 +1,7 @@
 # Forking and merging namespaces in `ucm`
 
 ```ucm:hide
-.master> builtins.merge
+scratch/main master> builtins.merge
 ```
 
 The Unison namespace is a versioned tree of names that map to Unison definitions. You can change this namespace and fork and merge subtrees of it. Let's start by introducing a few definitions into a new namespace, `foo`:
@@ -40,8 +40,8 @@ y = "hello"
 
 ```ucm
 .feature1> add
-.master> merge.old .feature1
-.master> view y
+scratch/main master> merge.old .feature1
+scratch/main master> view y
 ```
 
 > Note: `merge src`, with one argument, merges `src` into the current namespace. You can also do `merge src dest` to merge into any destination namespace.

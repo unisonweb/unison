@@ -95,7 +95,7 @@ List.takeWhile p xs =
   go xs []
 ```
 ```ucm:hide
-.stuff> add
+scratch/main stuff> add
 ```
 
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
