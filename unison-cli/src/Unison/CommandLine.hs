@@ -154,10 +154,16 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
                 . first
                   ( \msg ->
                       P.indentN 2 $
-                        P.wrap (P.text "Sorry, I couldn’t understand your request. " <> msg)
+                        P.wrap (P.text "Sorry, I wasn’t sure how to process your request. " <> msg)
                           <> P.newline
                           <> P.newline
-                          <> P.text "Usage:"
+                          <> P.text
+                            ( "You can run `help "
+                                <> Text.pack command
+                                <> "` for more information on using `"
+                                <> Text.pack command
+                                <> "`"
+                            )
                           <> P.newline
                           <> P.indentN 2 help
                   )

@@ -30,12 +30,12 @@ test/main> pull @aryairani/test-almost-empty/main lib.base_latest
 
 test/main> pull @aryairani/test-almost-empty/main a.b
 
-  Sorry, I couldn’t understand your request. I think you're
-  wanting to merge @aryairani/test-almost-empty/main into the
-  a.b namespace, but the `pull` command only supports merging
-  into the top level of a local project branch.
+  Sorry, I wasn’t sure how to process your request. I think
+  you're wanting to merge @aryairani/test-almost-empty/main into
+  the a.b namespace, but the `pull` command only supports
+  merging into the top level of a local project branch.
   
-  Usage:
+  You can run `help pull` for more information on using `pull`
     The `pull` command merges a remote namespace into a local
     branch
     
@@ -67,12 +67,12 @@ test/main> pull @aryairani/test-almost-empty/main a
 
 test/main> pull @aryairani/test-almost-empty/main .a
 
-  Sorry, I couldn’t understand your request. I think you're
-  wanting to merge @aryairani/test-almost-empty/main into the .a
-  namespace, but the `pull` command only supports merging into
-  the top level of a local project branch.
+  Sorry, I wasn’t sure how to process your request. I think
+  you're wanting to merge @aryairani/test-almost-empty/main into
+  the .a namespace, but the `pull` command only supports merging
+  into the top level of a local project branch.
   
-  Usage:
+  You can run `help pull` for more information on using `pull`
     The `pull` command merges a remote namespace into a local
     branch
     
