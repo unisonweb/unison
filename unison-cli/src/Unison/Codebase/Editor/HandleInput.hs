@@ -1181,7 +1181,7 @@ handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
   (pped, names, searchRoot, branch0) <- case fscope of
     FindLocal p -> do
-      searchRoot <- Cli.resolvePath p
+      searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0At searchRoot
       let names = Branch.toNames (Branch.withoutLib branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
@@ -1189,7 +1189,7 @@ handleFindI isVerbose fscope ws input = do
       pped <- Cli.currentPrettyPrintEnvDecl
       pure (pped, names, Just p, branch0)
     FindLocalAndDeps p -> do
-      searchRoot <- Cli.resolvePath p
+      searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0At searchRoot
       let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for

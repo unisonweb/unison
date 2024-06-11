@@ -136,6 +136,7 @@ where
 
 import Control.Lens (preview, review)
 import Control.Lens.Cons qualified as Cons
+import Data.Bitraversable (bitraverse)
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
@@ -245,7 +246,7 @@ formatStructuredArgument schLength = \case
     prefixBranchId :: Input.AbsBranchId -> Name -> Text
     prefixBranchId branchId name = case branchId of
       Left sch -> "#" <> SCH.toText sch <> ":" <> Name.toText (Name.makeAbsolute name)
-      Right pathPrefix -> Name.toText (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
+      Right pathPrefix -> Name.toText (Path.prefixNameIfRel (Path.AbsolutePath' pathPrefix) name)
 
     entryToHQText :: Path' -> ShallowListEntry v Ann -> Text
     entryToHQText pathArg =
@@ -280,15 +281,22 @@ showPatternHelp i =
       I.help i
     ]
 
+shallowListEntryToHQ' :: ShallowListEntry v Ann -> HQ'.HashQualified Name
+shallowListEntryToHQ' = \case
+  ShallowTermEntry termEntry -> Backend.termEntryHQName termEntry
+  ShallowTypeEntry typeEntry -> Backend.typeEntryHQName typeEntry
+  ShallowBranchEntry ns _ _ -> HQ'.fromName $ Name.fromSegment ns
+  ShallowPatchEntry ns -> HQ'.fromName $ Name.fromSegment ns
+
 -- | restores the full hash to these search results, for _numberedArgs purposes
-searchResultToHQ :: Maybe Path -> SearchResult -> HQ.HashQualified Name
+searchResultToHQ :: Maybe Path' -> SearchResult -> HQ.HashQualified Name
 searchResultToHQ oprefix = \case
   SR.Tm' n r _ -> HQ.requalify (addPrefix <$> n) r
   SR.Tp' n r _ -> HQ.requalify (addPrefix <$> n) (Referent.Ref r)
   _ -> error "impossible match failure"
   where
     addPrefix :: Name -> Name
-    addPrefix = maybe id Path.prefixName2 oprefix
+    addPrefix = maybe id Path.prefixNameIfRel oprefix
 
 unsupportedStructuredArgument :: Text -> Text -> I.Argument -> Either (P.Pretty CT.ColorText) String
 unsupportedStructuredArgument command expected =
@@ -328,7 +336,7 @@ wrongStructuredArgument expected actual =
       SA.HashQualified _ -> "a hash-qualified name"
       SA.NameWithBranchPrefix _ _ -> "a name"
       SA.HashQualifiedWithBranchPrefix _ _ -> "a hash-qualified name"
-      SA.ShallowListEntry _ _ -> "an annotated symbol"
+      SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
@@ -399,23 +407,34 @@ handleHashQualifiedNameArg =
     \case
       SA.Name name -> pure $ HQ.NameOnly name
       SA.NameWithBranchPrefix mprefix name ->
-        pure . HQ.NameOnly $ foldr (\prefix -> Name.makeAbsolute . Path.prefixName prefix) name mprefix
+        pure . HQ.NameOnly $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
       SA.HashQualified hqname -> pure hqname
       SA.HashQualifiedWithBranchPrefix mprefix hqname ->
-        pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Name.makeAbsolute . Path.prefixName prefix) hqname mprefix
+        pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Path.prefixNameIfRel (Path.AbsolutePath' prefix)) hqname mprefix
+      SA.ShallowListEntry prefix entry ->
+        pure . HQ'.toHQ . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
       otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
 
-handlePathArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Path
+handlePathArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path
 handlePathArg =
   either
     (first P.text . Path.parsePath)
     \case
       SA.Name name -> pure $ Path.fromName name
-      SA.NameWithBranchPrefix mprefix name -> pure . Path.fromName $ foldr Path.prefixName name mprefix
-      otherArgType -> Left $ wrongStructuredArgument "a relative path" otherArgType
+      SA.NameWithBranchPrefix _ name -> pure $ Path.fromName name
+      otherArgType ->
+        either
+          (const . Left $ wrongStructuredArgument "a relative path" otherArgType)
+          ( \name ->
+              if Name.isRelative name
+                then pure $ Path.fromName name
+                else Left $ wrongStructuredArgument "a relative path" otherArgType
+          )
+          . handleNameArg
+          $ pure otherArgType
 
-handlePath'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Path'
+handlePath'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
 handlePath'Arg =
   either
     (first P.text . Path.parsePath')
@@ -423,8 +442,9 @@ handlePath'Arg =
       SA.AbsolutePath path -> pure $ Path.absoluteToPath' path
       SA.Name name -> pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
-        pure . Path.fromName' $ foldr (\prefix -> Name.makeAbsolute . Path.prefixName prefix) name mprefix
-      otherArgType -> Left $ wrongStructuredArgument "a namespace" otherArgType
+        pure . Path.fromName' $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
+      otherArgType ->
+        bimap (const $ wrongStructuredArgument "a path" otherArgType) Path.fromName' . handleNameArg $ pure otherArgType
 
 handleNewName :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Split'
 handleNewName =
@@ -432,7 +452,7 @@ handleNewName =
     (first P.text . Path.parseSplit')
     (const . Left $ "can’t use a numbered argument for a new name")
 
-handleNewPath :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Path'
+handleNewPath :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
 handleNewPath =
   either
     (first P.text . Path.parsePath')
@@ -445,9 +465,7 @@ handleSplitArg =
     (first P.text . Path.parseSplit)
     \case
       SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
-      SA.NameWithBranchPrefix (Left _) name | Name.isRelative name -> pure $ Path.splitFromName name
-      SA.NameWithBranchPrefix (Right prefix) name
-        | Name.isRelative name -> pure . Path.splitFromName . Name.makeAbsolute $ Path.prefixName prefix name
+      SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Split'
@@ -458,7 +476,7 @@ handleSplit'Arg =
       SA.Name name -> pure $ Path.splitFromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure $ Path.splitFromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . Path.splitFromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . Path.splitFromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
 
 handleProjectBranchNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectBranchName
@@ -477,7 +495,7 @@ handleBranchIdArg =
       SA.AbsolutePath path -> pure . pure $ Path.absoluteToPath' path
       SA.Name name -> pure . pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
-        pure . pure . Path.fromName' $ either (const name) (Name.makeAbsolute . flip Path.prefixName name) mprefix
+        pure . pure . Path.fromName' $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
       SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
@@ -493,7 +511,7 @@ handleBranchIdOrProjectArg =
       SA.Name name -> pure . This . pure $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . This . pure $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . This . pure . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . This . pure . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.ProjectBranch pb -> pure $ pure pb
       otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
   where
@@ -525,7 +543,7 @@ handleBranchId2Arg =
       SA.Name name -> pure . pure . LoosePath $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . pure . LoosePath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . pure . LoosePath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
         pure . pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
@@ -539,7 +557,7 @@ handleBranchRelativePathArg =
       SA.Name name -> pure . LoosePath $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . LoosePath $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . LoosePath . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . LoosePath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.ProjectBranch (ProjectAndBranch mproject branch) ->
         pure . BranchRelative . This $ maybe (Left branch) (pure . (,branch)) mproject
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
@@ -571,10 +589,13 @@ handleHashQualifiedSplit'Arg =
   either
     (first P.text . Path.parseHQSplit')
     \case
+      SA.Name name -> pure $ Path.hqSplitFromName' name
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
-        pure . hq'NameToSplit' $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
+        pure . hq'NameToSplit' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
+      SA.ShallowListEntry prefix entry ->
+        pure . hq'NameToSplit' . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
@@ -584,10 +605,19 @@ handleHashQualifiedSplitArg =
   either
     (first P.text . Path.parseHQSplit)
     \case
+      n@(SA.Name name) ->
+        bitraverse
+          ( \case
+              Path.AbsolutePath' _ -> Left $ expectedButActually "a relative name" n "an absolute name"
+              Path.RelativePath' p -> pure $ Path.unrelative p
+          )
+          pure
+          $ Path.hqSplitFromName' name
       hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
-        pure . hq'NameToSplit $ Name.makeAbsolute . Path.prefixName prefix <$> hqname
+        pure . hq'NameToSplit $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
+      SA.ShallowListEntry _ entry -> pure . hq'NameToSplit $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
@@ -609,7 +639,9 @@ handleShortHashOrHQSplit'Arg =
       SA.HashQualified name -> pure $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure . pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
-        pure . pure $ hq'NameToSplit' (Name.makeAbsolute . Path.prefixName prefix <$> hqname)
+        pure . pure $ hq'NameToSplit' (Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname)
+      SA.ShallowListEntry prefix entry ->
+        pure . pure . hq'NameToSplit' . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
 
@@ -628,11 +660,13 @@ handleNameArg =
     \case
       SA.Name name -> pure name
       SA.NameWithBranchPrefix (Left _) name -> pure name
-      SA.NameWithBranchPrefix (Right prefix) name -> pure . Name.makeAbsolute $ Path.prefixName prefix name
+      SA.NameWithBranchPrefix (Right prefix) name -> pure $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.HashQualified hqname -> maybe (Left "can’t find a name from the numbered arg") pure $ HQ.toName hqname
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ HQ'.toName hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
-        pure . Name.makeAbsolute . Path.prefixName prefix $ HQ'.toName hqname
+        pure . Path.prefixNameIfRel (Path.AbsolutePath' prefix) $ HQ'.toName hqname
+      SA.ShallowListEntry prefix entry ->
+        pure . HQ'.toName . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result ->
         maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
       otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
@@ -671,7 +705,7 @@ handlePushSourceArg =
       SA.Name name -> pure . Input.PathySource $ Path.fromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure . Input.PathySource $ Path.fromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
-        pure . Input.PathySource . Path.fromName' . Name.makeAbsolute $ Path.prefixName prefix name
+        pure . Input.PathySource . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.Project project -> pure . Input.ProjySource $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) -> pure . Input.ProjySource $ maybe That These project branch
       otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
@@ -1054,7 +1088,7 @@ sfind =
   InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
   where
     parse = \case
-      [q] -> Input.StructuredFindI (Input.FindLocal Path.empty) <$> handleHashQualifiedNameArg q
+      [q] -> Input.StructuredFindI (Input.FindLocal Path.relativeEmpty') <$> handleHashQualifiedNameArg q
       args -> wrongArgsLength "exactly one argument" args
     msg =
       P.lines
@@ -1112,10 +1146,10 @@ sfindReplace =
         ]
 
 find :: InputPattern
-find = find' "find" (Input.FindLocal Path.empty)
+find = find' "find" (Input.FindLocal Path.relativeEmpty')
 
 findAll :: InputPattern
-findAll = find' "find.all" (Input.FindLocalAndDeps Path.empty)
+findAll = find' "find.all" (Input.FindLocalAndDeps Path.relativeEmpty')
 
 findGlobal :: InputPattern
 findGlobal = find' "find.global" Input.FindGlobal
@@ -1124,7 +1158,7 @@ findIn, findInAll :: InputPattern
 findIn = findIn' "find-in" Input.FindLocal
 findInAll = findIn' "find-in.all" Input.FindLocalAndDeps
 
-findIn' :: String -> (Path.Path -> Input.FindScope) -> InputPattern
+findIn' :: String -> (Path' -> Input.FindScope) -> InputPattern
 findIn' cmd mkfscope =
   InputPattern
     cmd
@@ -1133,7 +1167,7 @@ findIn' cmd mkfscope =
     [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
     findHelp
     \case
-      p : args -> Input.FindI False . mkfscope <$> handlePathArg p <*> pure (unifyArgument <$> args)
+      p : args -> Input.FindI False . mkfscope <$> handlePath'Arg p <*> pure (unifyArgument <$> args)
       args -> wrongArgsLength "at least one argument" args
 
 findHelp :: P.Pretty CT.ColorText
@@ -1211,7 +1245,7 @@ findVerbose =
     ( "`find.verbose` searches for definitions like `find`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True (Input.FindLocal Path.empty) . fmap unifyArgument)
+    (pure . Input.FindI True (Input.FindLocal Path.relativeEmpty') . fmap unifyArgument)
 
 findVerboseAll :: InputPattern
 findVerboseAll =
@@ -1223,7 +1257,7 @@ findVerboseAll =
     ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
         <> "and aliases in the results."
     )
-    (pure . Input.FindI True (Input.FindLocalAndDeps Path.empty) . fmap unifyArgument)
+    (pure . Input.FindI True (Input.FindLocalAndDeps Path.relativeEmpty') . fmap unifyArgument)
 
 renameTerm :: InputPattern
 renameTerm =

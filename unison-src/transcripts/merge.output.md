@@ -976,7 +976,8 @@ project/alice> merge /bob
     * `update` the definitions to be the same again, so that
       there's nothing for me to decide.
     * `move` or `delete` all but one of the definitions; I'll
-      use the remaining name when propagating updates.
+      use the remaining name when propagating updates. (You can
+      `rename` it back after the merge.)
   
   and then try merging again.
 
@@ -1316,6 +1317,115 @@ project/bob> add
 ```
 Now we merge:
 
+```ucm
+project/alice> merge /bob
+
+  I merged project/bob into project/alice.
+
+```
+## Regression tests
+
+### Delete one alias and update the other
+
+
+```unison
+foo = 17
+bar = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      foo : Nat
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    foo : Nat
+
+project/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+project/alice> delete.term bar
+
+  Done.
+
+```
+```unison
+foo = 18
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      foo : Nat
+
+```
+```ucm
+project/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+project/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+```
+```unison
+bob = 101
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bob : Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    bob : Nat
+
+```
 ```ucm
 project/alice> merge /bob
 

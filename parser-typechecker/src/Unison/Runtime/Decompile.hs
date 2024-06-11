@@ -21,9 +21,9 @@ import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Array
-  ( Array
-  , ByteArray
-  , byteArrayToList
+  ( Array,
+    ByteArray,
+    byteArrayToList,
   )
 import Unison.Runtime.Foreign
   ( Foreign (..),
@@ -64,13 +64,13 @@ import Unison.Type
     booleanRef,
     charRef,
     floatRef,
+    iarrayRef,
+    ibytearrayRef,
     intRef,
     listRef,
     natRef,
     termLinkRef,
     typeLinkRef,
-    iarrayRef,
-    ibytearrayRef,
   )
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Pretty (indentN, lines, lit, syntaxToColor, wrap)
@@ -219,8 +219,8 @@ decompileForeign backref topTerms f
   | Just l <- maybeUnwrapForeign typeLinkRef f =
       pure $ typeLink () l
   | Just (a :: Array Closure) <- maybeUnwrapForeign iarrayRef f =
-      app () (ref () iarrayFromListRef) . list () <$>
-        traverse (decompile backref topTerms) (toList a)
+      app () (ref () iarrayFromListRef) . list ()
+        <$> traverse (decompile backref topTerms) (toList a)
   | Just (a :: ByteArray) <- maybeUnwrapForeign ibytearrayRef f =
       pure $
         app

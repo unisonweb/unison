@@ -974,6 +974,8 @@ findConflictedAlias defns diff =
             g hashed1 alias =
               case Map.lookup alias diff of
                 Just (DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
+                -- If "foo" was updated but its alias "bar" was deleted, that's ok
+                Just (DiffOp'Delete _) -> Nothing
                 _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't

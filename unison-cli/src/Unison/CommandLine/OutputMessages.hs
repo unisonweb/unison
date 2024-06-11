@@ -1372,6 +1372,7 @@ notifyUser dir = \case
                       <> "or"
                       <> IP.makeExample' IP.delete
                       <> "all but one of the definitions; I'll use the remaining name when propagating updates."
+                      <> "(You can `rename` it back after the merge.)"
                   )
               ]
           )
