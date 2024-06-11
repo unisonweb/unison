@@ -10,7 +10,6 @@ import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
 import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
 import Unison.Cli.Monad (Cli)
@@ -22,11 +21,11 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName)
 import Unison.Share.API.Hash qualified as Share.API
-import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common qualified as Sync.Common
 import Witch (unsafeFrom)
 
@@ -73,7 +72,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 projectName : projectNames ->
                   Queries.projectExistsByName projectName >>= \case
                     False -> do
-                      insertProjectAndBranch projectId projectName branchId branchName
+                      Ops.insertProjectAndBranch projectId projectName branchId branchName
                       pure projectName
                     True -> loop projectNames
           loop randomProjectNames
@@ -81,7 +80,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
         Cli.runTransactionWithRollback \rollback -> do
           Queries.projectExistsByName projectName >>= \case
             False -> do
-              insertProjectAndBranch projectId projectName branchId branchName
+              Ops.insertProjectAndBranch projectId projectName branchId branchName
               pure projectName
             True -> rollback (Output.ProjectNameAlreadyExists projectName)
 
@@ -151,18 +150,6 @@ projectCreate tryDownloadingBase maybeProjectName = do
       case maybeProjectName of
         Nothing -> "project.create"
         Just projectName -> "project.create " <> into @Text projectName
-
-insertProjectAndBranch :: ProjectId -> ProjectName -> ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
-insertProjectAndBranch projectId projectName branchId branchName = do
-  Queries.insertProject projectId projectName
-  Queries.insertProjectBranch
-    Sqlite.ProjectBranch
-      { projectId,
-        branchId,
-        name = branchName,
-        parentBranchId = Nothing
-      }
-  Queries.setMostRecentBranch projectId branchId
 
 -- An infinite list of random project names that looks like
 --
