@@ -977,7 +977,7 @@ project/alice> merge /bob
       there's nothing for me to decide.
     * `move` or `delete` all but one of the definitions; I'll
       use the remaining name when propagating updates. (You can
-      `rename` it back after the merge.)
+      `move` it back after the merge.)
   
   and then try merging again.
 
