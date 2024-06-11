@@ -2,7 +2,6 @@ If `foo#old` exists in old, and `foo#new` exists in new, you might think `upgrad
 `#old` with references to `#new`. And it will... !!unless!! `#old` still exists in new.
 
 ```ucm:hide
-.> project.create-empty foo
 foo/main> builtins.merge lib.builtin
 ```
 
