@@ -252,7 +252,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
         "Running the provided transcript file...",
         ""
       ]
-  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
   rootVar <- newEmptyTMVarIO
   void $ Ki.fork scope do
     root <- Codebase.getRootBranch codebase
