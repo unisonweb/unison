@@ -31,6 +31,7 @@ import Data.List (isSubsequenceOf)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.These (These (..))
+import Data.UUID.V4 qualified as UUID
 import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
@@ -39,7 +40,11 @@ import System.Exit (die)
 import System.IO qualified as IO
 import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
@@ -70,6 +75,7 @@ import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndB
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as Pretty
@@ -349,10 +355,24 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       if curPath == path
                         then pure Nothing
                         else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
-                    UcmContextProject (ProjectAndBranch projectName branchName) -> do
-                      ProjectAndBranch project branch <-
-                        ProjectUtils.expectProjectAndBranchByTheseNames (These projectName branchName)
-                      let projectAndBranchIds = ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)
+                    UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
+                      Project {projectId, name = projectName} <-
+                        Q.loadProjectByName projectName
+                          >>= \case
+                            Nothing -> do
+                              projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
+                              Q.insertProject projectId projectName
+                              pure $ Project {projectId, name = projectName}
+                            Just project -> pure project
+                      projectBranch <-
+                        Q.loadProjectBranchByName projectId branchName >>= \case
+                          Nothing -> do
+                            branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
+                            let projectBranch = ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                            Q.insertProjectBranch projectBranch
+                            pure projectBranch
+                          Just projBranch -> pure projBranch
+                      let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
                       pure
                         if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
                           then Nothing
