@@ -63,17 +63,17 @@ scratch/main> reflog
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #86h1kthpsh .old`   to make an old namespace
+    `fork #hbahg20drn .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #86h1kthpsh`  to reset the root namespace and
+    `reset-root #hbahg20drn`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Root Hash     Action
-  1.   now    #0de5f40rcr   add
-  2.   now    #86h1kthpsh   add
-  3.   now    #ei3jcs9f6v   builtins.merge
+  1.   now    #vci96hc5m3   add
+  2.   now    #hbahg20drn   add
+  3.   now    #bc5vrbcbbf   builtins.merge
   4.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between

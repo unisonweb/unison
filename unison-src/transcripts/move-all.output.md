@@ -127,23 +127,21 @@ bonk = 5
 
 ```
 ```ucm
-  ☝️  The namespace .z is empty.
-
-.z> builtins.merge
+z/main> builtins.merge
 
   Done.
 
-.z> add
+z/main> add
 
   ⍟ I've added these definitions:
   
     bonk : Nat
 
-.z> move bonk zonk
+z/main> move bonk zonk
 
   Done.
 
-.z> ls
+z/main> ls
 
   1. builtin/ (469 terms, 74 types)
   2. zonk     (Nat)
@@ -170,28 +168,26 @@ bonk.zonk = 5
 
 ```
 ```ucm
-  ☝️  The namespace .a is empty.
-
-.a> builtins.merge
+a/main> builtins.merge
 
   Done.
 
-.a> add
+a/main> add
 
   ⍟ I've added these definitions:
   
     bonk.zonk : Nat
 
-.a> move bonk zonk
+a/main> move bonk zonk
 
   Done.
 
-.a> ls
+a/main> ls
 
   1. builtin/ (469 terms, 74 types)
   2. zonk/    (1 term)
 
-.a> view zonk.zonk
+a/main> view zonk.zonk
 
   zonk.zonk : Nat
   zonk.zonk = 5
