@@ -11,7 +11,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (mapped, over, set, view, _1)
+import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Control.Monad.Writer (Writer)
 import Control.Monad.Writer qualified as Writer
@@ -406,7 +406,7 @@ doMerge info = do
       case maybeTypecheckedUnisonFile of
         Nothing -> do
           Cli.Env {writeSource} <- ask
-          _temporaryBranchId <-
+          (_temporaryBranchId, temporaryBranchName) <-
             HandleInput.Branch.doCreateBranch'
               (Branch.mergeNode stageOneBranch parents.alice parents.bob)
               (Just info.alice.projectAndBranch.branch.branchId)
@@ -418,7 +418,7 @@ doMerge info = do
               Nothing -> "scratch.u"
               Just (file, _) -> file
           liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-          pure (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
+          pure (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
         Just tuf -> do
           Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
           let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
@@ -975,6 +975,8 @@ findConflictedAlias defns diff =
             g hashed1 alias =
               case Map.lookup alias diff of
                 Just (DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
+                -- If "foo" was updated but its alias "bar" was deleted, that's ok
+                Just (DiffOp'Delete _) -> Nothing
                 _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't

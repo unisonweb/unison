@@ -1,9 +1,11 @@
 module Unison.Codebase.Branch.BranchDiff where
 
+import Control.Lens
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Map.Merge.Lazy qualified as MapMerge
-import Unison.Codebase.Branch.Type (Branch0 (_edits, _terms, _types))
+import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch qualified as Patch
 import Unison.NameSegment (NameSegment)
@@ -27,8 +29,8 @@ data BranchDiff = BranchDiff
 
 diff0 :: (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = do
-  newEdits <- sequenceA $ snd <$> _edits new
-  oldEdits <- sequenceA $ snd <$> _edits old
+  newEdits <- sequenceA $ snd <$> new ^. Branch.edits
+  oldEdits <- sequenceA $ snd <$> old ^. Branch.edits
   let diffEdits =
         MapMerge.merge
           (MapMerge.mapMissing $ \_ p -> Patch.diff p mempty)
@@ -38,10 +40,10 @@ diff0 old new = do
           oldEdits
   pure $
     BranchDiff
-      { addedTerms = Star2.difference (_terms new) (_terms old),
-        removedTerms = Star2.difference (_terms old) (_terms new),
-        addedTypes = Star2.difference (_types new) (_types old),
-        removedTypes = Star2.difference (_types old) (_types new),
+      { addedTerms = Star2.difference (new ^. Branch.terms) (old ^. Branch.terms),
+        removedTerms = Star2.difference (old ^. Branch.terms) (new ^. Branch.terms),
+        addedTypes = Star2.difference (new ^. Branch.types) (old ^. Branch.types),
+        removedTypes = Star2.difference (old ^. Branch.types) (new ^. Branch.types),
         changedPatches = diffEdits
       }
 

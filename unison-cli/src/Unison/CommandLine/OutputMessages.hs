@@ -1372,6 +1372,9 @@ notifyUser dir = \case
                       <> "or"
                       <> IP.makeExample' IP.delete
                       <> "all but one of the definitions; I'll use the remaining name when propagating updates."
+                      <> "(You can"
+                      <> IP.makeExample' IP.moveAll
+                      <> "it back after the merge.)"
                   )
               ]
           )
@@ -2035,14 +2038,32 @@ notifyUser dir = \case
                   <> operationName
                   <> "again."
             ]
-  UpgradeFailure path old new ->
-    pure . P.wrap $
-      "I couldn't automatically upgrade"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  UpgradeFailure main temp path old new ->
+    pure $
+      P.lines
+        [ P.wrap $
+            "I couldn't automatically upgrade"
+              <> P.text (NameSegment.toEscapedText old)
+              <> "to"
+              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName main
+              <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName main <> ".")
+        ]
   UpgradeSuccess old new ->
     pure . P.wrap $
       "I upgraded"
@@ -2061,14 +2082,32 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path aliceAndBob ->
-    pure . P.wrap $
-      "I couldn't automatically merge"
-        <> prettyMergeSource aliceAndBob.bob
-        <> "into"
-        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  MergeFailure path aliceAndBob temp ->
+    pure $
+      P.lines $
+        [ P.wrap $
+            "I couldn't automatically merge"
+              <> prettyMergeSource aliceAndBob.bob
+              <> "into"
+              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName aliceAndBob.alice.branch
+              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+        ]
   MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
@@ -2089,6 +2128,29 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
   NoUpgradeInProgress ->
     pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
+  UseLibInstallNotPull libdep ->
+    pure . P.wrap $
+      "The use of"
+        <> IP.makeExample' IP.pull
+        <> "to install libraries is now deprecated. Going forward, you can use"
+        <> P.group (IP.makeExample IP.libInstallInputPattern [prettyProjectAndBranchName libdep] <> ".")
+  PullIntoMissingBranch source (ProjectAndBranch maybeTargetProject targetBranch) ->
+    pure . P.wrap $
+      "I think you're wanting to merge"
+        <> sourcePretty
+        <> "into the"
+        <> targetPretty
+        <> "branch, but it doesn't exist. If you want, you can create it with"
+        <> P.group (IP.makeExample IP.branchEmptyInputPattern [targetPretty] <> ",")
+        <> "and then"
+        <> IP.makeExample' IP.pull
+        <> "again."
+    where
+      sourcePretty = prettyReadRemoteNamespace source
+      targetPretty =
+        case maybeTargetProject of
+          Nothing -> prettyProjectBranchName targetBranch
+          Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
   NoMergeInProgress ->
     pure . P.wrap $ "It doesn't look like there's a merge in progress."
 

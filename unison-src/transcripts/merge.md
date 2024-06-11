@@ -1,7 +1,12 @@
 # The `merge` command
 
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
-branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`.
+branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
+
+```ucm:error
+.> help merge
+.> help merge.commit
+```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
 contains both additions.
@@ -971,8 +976,8 @@ project/alice> merge bob
 
 ## `merge.commit` example
 
-After merge conflicts are resolved, you can use `merge.commit` rather than `update` + `switch` + `merge` +
-`branch.delete` to "commit" your changes.
+After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
+"commit" your changes.
 
 ```ucm:hide
 .> project.create-empty project
@@ -1025,6 +1030,7 @@ foo = "alice and bobs foo"
 ```
 
 ```ucm
+project/merge-bob-into-alice> update
 project/merge-bob-into-alice> merge.commit
 project/alice> view foo
 project/alice> branches
@@ -1425,6 +1431,52 @@ project/bob> add
 ```
 
 Now we merge:
+
+```ucm
+project/alice> merge /bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## Regression tests
+
+### Delete one alias and update the other
+
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```unison
+foo = 17
+bar = 17
+```
+
+```ucm
+project/main> add
+project/main> branch alice
+project/alice> delete.term bar
+```
+
+```unison
+foo = 18
+```
+
+```ucm
+project/alice> update
+project/main> branch bob
+```
+
+```unison
+bob = 101
+```
+
+```ucm
+project/bob> add
+```
 
 ```ucm
 project/alice> merge /bob

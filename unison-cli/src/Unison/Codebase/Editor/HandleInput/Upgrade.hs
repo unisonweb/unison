@@ -3,7 +3,6 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
   )
 where
 
-import Control.Lens ((^.))
 import Control.Monad.Reader (ask)
 import Data.Char qualified as Char
 import Data.List.NonEmpty (pattern (:|))
@@ -12,6 +11,8 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Builder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
+import U.Codebase.Sqlite.Project qualified
+import U.Codebase.Sqlite.ProjectBranch qualified
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -66,8 +67,8 @@ handleUpgrade oldName newName = do
   Cli.Env {codebase, writeSource} <- ask
 
   (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
-  let projectId = projectAndBranch ^. #project . #projectId
-  let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId (projectAndBranch ^. #branch . #branchId))
+  let projectId = projectAndBranch.project.projectId
+  let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId projectAndBranch.branch.branchId)
   let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, oldName]))
   let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, newName]))
 
@@ -160,7 +161,7 @@ handleUpgrade oldName newName = do
       temporaryBranchId <-
         HandleInput.Branch.doCreateBranch
           (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
-          (projectAndBranch ^. #project)
+          projectAndBranch.project
           temporaryBranchName
           textualDescriptionOfUpgrade
       let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
@@ -170,7 +171,8 @@ handleUpgrade oldName newName = do
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-      Cli.returnEarly (Output.UpgradeFailure scratchFilePath oldName newName)
+      Cli.returnEarly $
+        Output.UpgradeFailure projectAndBranch.branch.name temporaryBranchName scratchFilePath oldName newName
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do

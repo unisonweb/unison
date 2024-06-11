@@ -18,7 +18,6 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (over, (%~), (.~))
 import Control.Lens qualified as Lens
 import Control.Monad.RWS (ask)
 import Data.Bifoldable (bifoldMap)
@@ -42,9 +41,9 @@ import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Branch.Type (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output

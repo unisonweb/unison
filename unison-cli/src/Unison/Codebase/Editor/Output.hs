@@ -389,10 +389,10 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingSuccess
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !FilePath !NameSegment !NameSegment
+  | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
-  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
@@ -406,6 +406,8 @@ data Output
   | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress
+  | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
+  | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
@@ -644,6 +646,8 @@ isFailure o = case o of
   MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
   NoUpgradeInProgress {} -> True
+  UseLibInstallNotPull {} -> False
+  PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool

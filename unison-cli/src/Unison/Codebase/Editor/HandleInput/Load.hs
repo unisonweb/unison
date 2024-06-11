@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Load
   )
 where
 
-import Control.Lens ((.=), (.~))
+import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
 import Data.Map.Strict qualified as Map

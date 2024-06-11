@@ -22,9 +22,12 @@ module Unison.Codebase.Path
     relativeEmpty',
     currentPath,
     prefix,
+    prefixAbs,
+    prefixRel,
+    maybePrefix,
     unprefix,
-    prefixName,
-    prefixName2,
+    maybePrefixName,
+    prefixNameIfRel,
     unprefixName,
     HQSplit,
     Split,
@@ -62,8 +65,7 @@ module Unison.Codebase.Path
     unsplitAbsolute,
     unsplitHQ,
     unsplitHQ',
-
-    -- * things that could be replaced with `Parse` instances
+    nameFromSplit',
     splitFromName,
     splitFromName',
     hqSplitFromName',
@@ -81,6 +83,7 @@ where
 
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import Control.Lens qualified as Lens
+import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -90,7 +93,7 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
 import Unison.HashQualified' qualified as HQ'
-import Unison.Name (Convert (..), Name, Parse)
+import Unison.Name (Convert (..), Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
@@ -187,16 +190,25 @@ unprefix (Absolute prefix) = \case
   AbsolutePath' abs -> unabsolute abs
   RelativePath' rel -> fromList $ dropPrefix (toList prefix) (toList (unrelative rel))
 
--- too many types
-prefix :: Absolute -> Path' -> Path
-prefix (Absolute (Path prefix)) = \case
-  AbsolutePath' abs -> unabsolute abs
-  RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
+prefixAbs :: Absolute -> Relative -> Absolute
+prefixAbs prefix = Absolute . Path . (toSeq (unabsolute prefix) <>) . toSeq . unrelative
 
-prefix2 :: Path -> Path' -> Path
-prefix2 (Path prefix) = \case
-  AbsolutePath' abs -> unabsolute abs
-  RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
+prefixRel :: Relative -> Relative -> Relative
+prefixRel prefix = Relative . Path . (toSeq (unrelative prefix) <>) . toSeq . unrelative
+
+-- | This always prefixes, since the secend argument can never be Absolute.
+prefix :: Path' -> Relative -> Path'
+prefix prefix =
+  Path' . case prefix of
+    AbsolutePath' abs -> Left . prefixAbs abs
+    RelativePath' rel -> pure . prefixRel rel
+
+-- | Returns `Nothing` if the second argument is absolute. A common pattern is
+--   @fromMaybe path $ maybePrefix prefix path@ to use the unmodified path in that case.
+maybePrefix :: Path' -> Path' -> Maybe Path'
+maybePrefix pre = \case
+  AbsolutePath' _ -> Nothing
+  RelativePath' rel -> pure $ prefix pre rel
 
 -- | Finds the longest shared path prefix of two paths.
 -- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
@@ -244,8 +256,8 @@ fromList = Path . Seq.fromList
 ancestors :: Absolute -> Seq Absolute
 ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
-hqSplitFromName' :: Name -> Maybe HQSplit'
-hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
+hqSplitFromName' :: Name -> HQSplit'
+hqSplitFromName' = fmap HQ'.fromName . splitFromName'
 
 -- |
 -- >>> splitFromName "a.b.c"
@@ -268,6 +280,11 @@ splitFromName' name =
             seg
           )
 
+nameFromSplit' :: Split' -> Name
+nameFromSplit' (path', seg) = case path' of
+  AbsolutePath' abs -> Name.makeAbsolute . Name.fromReverseSegments $ seg :| reverse (toList $ unabsolute abs)
+  RelativePath' rel -> Name.makeRelative . Name.fromReverseSegments $ seg :| reverse (toList $ unrelative rel)
+
 -- | Remove a path prefix from a name.
 -- Returns 'Nothing' if there are no remaining segments to construct the name from.
 --
@@ -276,11 +293,13 @@ splitFromName' name =
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
-prefixName :: Absolute -> Name -> Name
-prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
+-- | Returns `Nothing` if the second argument is absolute. A common pattern is
+--   @fromMaybe name $ maybePrefixName prefix name@ to use the unmodified path in that case.
+maybePrefixName :: Path' -> Name -> Maybe Name
+maybePrefixName pre = fmap nameFromSplit' . bitraverse (maybePrefix pre) pure . splitFromName'
 
-prefixName2 :: Path -> Name -> Name
-prefixName2 p n = fromMaybe n . toName . prefix2 p . fromName' $ n
+prefixNameIfRel :: Path' -> Name -> Name
+prefixNameIfRel p name = fromMaybe name $ maybePrefixName p name
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
@@ -546,5 +565,3 @@ instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
 instance (Convert path0 path1) => Convert (path0, name) (path1, name) where
   convert =
     over _1 convert
-
-instance Parse Name HQSplit' where parse = hqSplitFromName'

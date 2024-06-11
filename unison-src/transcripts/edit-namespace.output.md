@@ -12,43 +12,76 @@ simple.y = 20
 
 -- Shouldn't edit things in lib
 lib.project.ignoreMe = 30
+
+-- Shouldn't render record accessors
+unique type Foo = { bar : Nat, baz : Nat }
 ```
 
-Edit current namespace
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+      Foo.bar               : Foo -> Nat
+      Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+      Foo.bar.set           : Nat -> Foo -> Foo
+      Foo.baz               : Foo -> Nat
+      Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+      Foo.baz.set           : Nat -> Foo -> Foo
+      lib.project.ignoreMe  : Nat
+      nested.cycle.ping     : Nat -> Nat
+      nested.cycle.ping.doc : Doc2
+      nested.cycle.pong     : Nat -> Nat
+      nested.cycle.pong.doc : Doc2
+      simple.x              : Nat
+      simple.y              : Nat
+      toplevel              : Text
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+    Foo.bar               : Foo -> Nat
+    Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+    Foo.bar.set           : Nat -> Foo -> Foo
+    Foo.baz               : Foo -> Nat
+    Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+    Foo.baz.set           : Nat -> Foo -> Foo
+    lib.project.ignoreMe  : Nat
+    nested.cycle.ping     : Nat -> Nat
+    nested.cycle.ping.doc : Doc2
+    nested.cycle.pong     : Nat -> Nat
+    nested.cycle.pong.doc : Doc2
+    simple.x              : Nat
+    simple.y              : Nat
+    toplevel              : Text
+
+```
+`edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ```ucm
-.simple> edit.namespace
+project/main> edit.namespace
 
   ☝️
   
-  I added 2 definitions to the top of scratch.u
+  I added 8 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 ```
 ```unison:added-by-ucm scratch.u
-x : ##Nat
-x = 10
+type Foo = { bar : Nat, baz : Nat }
 
-y : ##Nat
-y = 20
-```
-
-Edit should hit things recursively
-
-```ucm
-.> edit.namespace
-
-  ☝️
-  
-  I added 7 definitions to the top of scratch.u
-  
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
-
-```
-```unison:added-by-ucm scratch.u
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
   use Nat +
@@ -75,10 +108,10 @@ toplevel : Text
 toplevel = "hi"
 ```
 
-Edit should handle multiple explicit paths at once.
+`edit.namespace` can also accept explicit paths
 
 ```ucm
-.> edit.namespace nested.cycle simple
+project/main> edit.namespace nested simple
 
   ☝️
   

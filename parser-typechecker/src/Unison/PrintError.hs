@@ -14,7 +14,6 @@ module Unison.PrintError
   )
 where
 
-import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
 import Data.Foldable qualified as Foldable
 import Data.Function (on)

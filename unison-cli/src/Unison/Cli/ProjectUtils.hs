@@ -24,6 +24,7 @@ module Unison.Cli.ProjectUtils
     expectProjectAndBranchByIds,
     getProjectAndBranchByTheseNames,
     expectProjectAndBranchByTheseNames,
+    getProjectAndBranchByNames,
     expectLooseCodeOrProjectBranch,
     getProjectBranchCausalHash,
 
@@ -217,6 +218,13 @@ hydrateNames = \case
     pure (ProjectAndBranch (project ^. #name) branchName)
   These projectName branchName -> pure (ProjectAndBranch projectName branchName)
 
+getProjectAndBranchByNames :: ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+getProjectAndBranchByNames (ProjectAndBranch projectName branchName) =
+  runMaybeT do
+    project <- MaybeT (Queries.loadProjectByName projectName)
+    branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+    pure (ProjectAndBranch project branch)
+
 -- Expect a local project+branch by ids.
 expectProjectAndBranchByIds ::
   ProjectAndBranch ProjectId ProjectBranchId ->
@@ -239,12 +247,8 @@ getProjectAndBranchByTheseNames = \case
     (ProjectAndBranch project _branch, _restPath) <- MaybeT getCurrentProjectBranch
     branch <- MaybeT (Cli.runTransaction (Queries.loadProjectBranchByName (project ^. #projectId) branchName))
     pure (ProjectAndBranch project branch)
-  These projectName branchName -> do
-    Cli.runTransaction do
-      runMaybeT do
-        project <- MaybeT (Queries.loadProjectByName projectName)
-        branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
-        pure (ProjectAndBranch project branch)
+  These projectName branchName ->
+    Cli.runTransaction (getProjectAndBranchByNames (ProjectAndBranch projectName branchName))
 
 -- Expect a local project branch by a "these names", using the following defaults if a name is missing:
 --
