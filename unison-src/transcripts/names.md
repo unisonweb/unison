@@ -13,7 +13,7 @@ somewhere.y = 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 

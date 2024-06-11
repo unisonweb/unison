@@ -31,7 +31,7 @@ term2 _ = ()
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -40,7 +40,7 @@ term2 _ = ()
     term1 : '{Bar, Foo} ()
     term2 : '{Bar, Foo} ()
 
-.> names term1
+scratch/main> names term1
 
   Term
   Hash:   #8hum58rlih

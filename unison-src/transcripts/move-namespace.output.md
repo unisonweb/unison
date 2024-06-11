@@ -264,202 +264,32 @@ I should be able to move the root into a sub-namespace
 
 ```ucm
 -- Should request confirmation
-.> move.namespace . .root.at.path
+scratch/main> move.namespace . .root.at.path
 
   ⚠️
   
   Moves which affect the root branch cannot be undone, are you sure?
   Re-run the same command to proceed.
 
-.> move.namespace . .root.at.path
+scratch/main> move.namespace . .root.at.path
 
   Done.
 
-.> ls
-
-  1. root/ (1412 terms, 223 types)
-
-.> history
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  
-  
-  □ 1. #o7cku9c0t9 (start of history)
-
-```
-```ucm
-.> ls .root.at.path
-
-  1. existing/ (470 terms, 74 types)
-  2. happy/    (472 terms, 75 types)
-  3. history/  (470 terms, 74 types)
-
-.> history .root.at.path
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #fv72cqfto4
-  
-    - Deletes:
-    
-      existing.b.termInB
-    
-    > Moves:
-    
-      Original name      New name
-      existing.a.termInA existing.b.termInA
-  
-  ⊙ 2. #12iqsb3l9g
-  
-    + Adds / updates:
-    
-      existing.a.termInA existing.b.termInB
-    
-    = Copies:
-    
-      Original name     New name(s)
-      happy.b.termInA   existing.a.termInA
-      history.b.termInA existing.a.termInA
-  
-  ⊙ 3. #r9jmgtco5u
-  
-    + Adds / updates:
-    
-      existing.a.termInA existing.b.termInB
-  
-  ⊙ 4. #1k6kae1vn4
-  
-    > Moves:
-    
-      Original name     New name
-      history.a.termInA history.b.termInA
-  
-  ⊙ 5. #ua9re7leg7
-  
-    - Deletes:
-    
-      history.b.termInB
-  
-  ⊙ 6. #3k8ouql6cc
-  
-    + Adds / updates:
-    
-      history.a.termInA history.b.termInB
-    
-    = Copies:
-    
-      Original name   New name(s)
-      happy.b.termInA history.a.termInA
-  
-  ⊙ 7. #fp2331i1ek
-  
-    + Adds / updates:
-    
-      history.a.termInA history.b.termInB
-  
-  ⊙ 8. #5sj5jefgcu
-  
-    > Moves:
-    
-      Original name   New name
-      happy.a.T       happy.b.T
-      happy.a.T.T1    happy.b.T.T1
-      happy.a.T.T2    happy.b.T.T2
-      happy.a.termInA happy.b.termInA
-  
-  ⊙ 9. #ell48pttus
-  
-    + Adds / updates:
-    
-      happy.a.T happy.a.T.T1 happy.a.T.T2 happy.a.termInA
-    
-    - Deletes:
-    
-      happy.a.T.T
-  
-  ⊙ 10. #al8eguoh70
-  
-    + Adds / updates:
-    
-      happy.a.T happy.a.T.T happy.a.termInA
-  
-  There's more history before the versions shown here. Use
-  `history #som3n4m3space` to view history starting from a given
-  namespace hash.
-  
-  ⠇
-  
-  ⊙ 11. #okceqk39nf
-  
-
-```
-I should be able to move a sub namespace _over_ the root.
-
-```ucm
--- Should request confirmation
-.> move.namespace .root.at.path.happy .
-
-  ⚠️
-  
-  Moves which affect the root branch cannot be undone, are you sure?
-  Re-run the same command to proceed.
-
-.> move.namespace .root.at.path.happy .
-
-  Done.
-
-.> ls
-
-  1. b/       (3 terms, 1 type)
-  2. builtin/ (469 terms, 74 types)
-
-.> history
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #0rvi5q5une
-  
-    + Adds / updates:
-    
-      b.T b.T.T1 b.T.T2 b.termInA
-  
-  ⊙ 2. #oaa8ltdusf
-  
-    - Deletes:
-    
-      a.T a.T.T1 a.T.T2 a.termInA
-  
-  ⊙ 3. #t1c91ou7ri
-  
-    + Adds / updates:
-    
-      a.T a.T.T1 a.T.T2 a.termInA
-    
-    - Deletes:
-    
-      a.T.T
-  
-  ⊙ 4. #hovh08jep4
-  
-    + Adds / updates:
-    
-      a.T a.T.T a.termInA
-  
-  □ 5. #4bigcpnl7t (start of history)
-
-```
-```ucm
--- should be empty
-.> ls .root.at.path.happy
+scratch/main> ls
 
   nothing to show
 
-.> history .root.at.path.happy
-
-  ☝️  The namespace .root.at.path.happy is empty.
-
 ```
+
+```ucm
+-- Should request confirmationscratch/main> move.namespace . .root.at.pathscratch/main> move.namespace . .root.at.pathscratch/main> lsscratch/main> history
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  nothing to show
+

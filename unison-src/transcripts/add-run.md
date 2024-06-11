@@ -3,7 +3,7 @@
 ## Basic usage
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -20,26 +20,26 @@ is2even = '(even 2)
 it errors if there isn't a previous run
 
 ```ucm:error
-.> add.run foo
+scratch/main> add.run foo
 ```
 
 ```ucm
-.> run is2even
+scratch/main> run is2even
 ```
 
 it errors if the desired result name conflicts with a name in the
 unison file
 ```ucm:error
-.> add.run is2even
+scratch/main> add.run is2even
 ```
 
 otherwise, the result is successfully persisted
 ```ucm
-.> add.run foo.bar.baz
+scratch/main> add.run foo.bar.baz
 ```
 
 ```ucm
-.> view foo.bar.baz
+scratch/main> view foo.bar.baz
 ```
 
 ## It resolves references within the unison file
@@ -56,8 +56,8 @@ main _ = y
 ```
 
 ```ucm
-.> run main
-.> add.run result
+scratch/main> run main
+scratch/main> add.run result
 ```
 
 ## It resolves references within the codebase
@@ -68,7 +68,7 @@ inc x = x + 1
 ```
 
 ```ucm
-.> add inc
+scratch/main> add inc
 ```
 
 ```unison
@@ -77,9 +77,9 @@ main _ x = inc x
 ```
 
 ```ucm
-.> run main
-.> add.run natfoo
-.> view natfoo
+scratch/main> run main
+scratch/main> add.run natfoo
+scratch/main> view natfoo
 ```
 
 ## It captures scratch file dependencies at run time
@@ -91,7 +91,7 @@ main = 'y
 ```
 
 ```ucm
-.> run main
+scratch/main> run main
 ```
 
 
@@ -101,8 +101,8 @@ x = 50
 
 this saves 2 to xres, rather than 100
 ```ucm
-.> add.run xres
-.> view xres
+scratch/main> add.run xres
+scratch/main> view xres
 ```
 
 ## It fails with a message if add cannot complete cleanly
@@ -112,8 +112,8 @@ main = '5
 ```
 
 ```ucm:error
-.> run main
-.> add.run xres
+scratch/main> run main
+scratch/main> add.run xres
 ```
 
 ## It works with absolute names
@@ -123,7 +123,7 @@ main = '5
 ```
 
 ```ucm
-.> run main
-.> add.run .an.absolute.name
-.> view .an.absolute.name
+scratch/main> run main
+scratch/main> add.run .an.absolute.name
+scratch/main> view .an.absolute.name
 ```

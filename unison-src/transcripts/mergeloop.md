@@ -43,9 +43,9 @@ b = 2
 
 ```ucm
 .z> add
-.> merge.old x y
-.> merge.old y z
-.> history z
+scratch/main> merge.old x y
+scratch/main> merge.old y z
+scratch/main> history z
 ```
 
 

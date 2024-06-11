@@ -27,8 +27,8 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
 ```
-.> fork a a2
-.> fork a a3
+scratch/main> fork a a2
+scratch/main> fork a a3
 ```
 
 ```unison:hide
@@ -59,7 +59,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ```ucm
-.> view a b c d
+scratch/main> view a b c d
 ```
 
 ## Name biasing

@@ -180,92 +180,25 @@ type of `otherTerm` should remain the same.
 Cleaning up a bit...
 
 ```ucm
-.> delete.namespace subpath
+scratch/main> delete.namespace subpath
 
-  Done.
-
-  ☝️  The namespace .subpath.lib is empty.
-
-.subpath.lib> builtins.merge
-
-  Done.
-
-```
-Now, we make two terms, where one depends on the other.
-
-```unison
-one.someTerm : Optional foo -> Optional foo
-one.someTerm x = x
-
-one.otherTerm : Optional baz -> Optional baz
-one.otherTerm y = someTerm y
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  ⚠️
   
-    ⍟ These new definitions are ok to `add`:
-    
-      one.otherTerm : Optional baz -> Optional baz
-      one.someTerm  : Optional foo -> Optional foo
+  The namespace subpath doesn't exist.
 
 ```
-We'll make two copies of this namespace.
 
 ```ucm
-.subpath> add
+scratch/main> delete.namespace subpath.subpath.lib> builtins.merge
+```
 
-  ⍟ I've added these definitions:
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  ⚠️
   
-    one.otherTerm : Optional baz -> Optional baz
-    one.someTerm  : Optional foo -> Optional foo
+  The namespace subpath doesn't exist.
 
-.subpath> fork one two
-
-  Done.
-
-```
-Now let's edit one of the terms...
-
-```unison
-someTerm : Optional x -> Optional x
-someTerm _ = None
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      someTerm : Optional x -> Optional x
-
-```
-... in one of the namespaces...
-
-```ucm
-.subpath.one> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
-
-```
-The other namespace should be left alone.
-
-```ucm
-.subpath> view two.someTerm
-
-  two.someTerm : Optional foo -> Optional foo
-  two.someTerm x = x
-
-```

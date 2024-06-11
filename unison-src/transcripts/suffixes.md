@@ -1,7 +1,7 @@
 # Suffix-based resolution of names
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Any unique name suffix can be used to refer to a definition. For instance:
@@ -20,15 +20,15 @@ optional.isNone = cases
 This also affects commands like find. Notice lack of qualified names in output:
 
 ```ucm
-.> add
-.> find take
+scratch/main> add
+scratch/main> find take
 ```
 
 The `view` and `display` commands also benefit from this:
 
 ```ucm
-.> view List.drop
-.> display bar.a
+scratch/main> view List.drop
+scratch/main> display bar.a
 ```
 
 In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name is still shown for each search result though.
@@ -36,7 +36,7 @@ In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
 
 ```ucm
-.> find : Nat -> [a] -> [a]
+scratch/main> find : Nat -> [a] -> [a]
 ```
 
 ## Preferring names not in `lib.*.lib.*`
@@ -51,7 +51,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison:error
@@ -63,15 +63,15 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
 ```ucm
-.> view abra.cadabra
-.> view baz.qux
+scratch/main> view abra.cadabra
+scratch/main> view baz.qux
 ```
 
 Note that we can always still view indirect dependencies by using more name segments:
 
 ```ucm
-.> view distributed.abra.cadabra
-.> names distributed.lib.baz.qux
+scratch/main> view distributed.abra.cadabra
+scratch/main> names distributed.lib.baz.qux
 ```
 
 ## Corner cases
@@ -86,7 +86,7 @@ bar = 100
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison

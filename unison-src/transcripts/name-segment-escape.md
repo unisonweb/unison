@@ -1,8 +1,8 @@
 You can use a keyword or reserved operator as a name segment if you surround it with backticks.
 
 ```ucm:error
-.> view `match`
-.> view `=`
+scratch/main> view `match`
+scratch/main> view `=`
 ```
 
 You can also use backticks to expand the set of valid symbols in a symboly name segment to include these three: `.()`
@@ -10,6 +10,6 @@ You can also use backticks to expand the set of valid symbols in a symboly name 
 This allows you to spell `.` or `()` as name segments (which historically have appeared in the namespace).
 
 ```ucm:error
-.> view `.`
-.> view `()`
+scratch/main> view `.`
+scratch/main> view `()`
 ```

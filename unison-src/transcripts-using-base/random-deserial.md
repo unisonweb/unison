@@ -56,6 +56,6 @@ serialTests = do
 ```
 
 ```ucm
-.> add
-.> io.test serialTests
+scratch/main> add
+scratch/main> io.test serialTests
 ```

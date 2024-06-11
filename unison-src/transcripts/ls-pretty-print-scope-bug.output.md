@@ -24,7 +24,7 @@ unique type Foo = Foo
   
     type Foo
 
-.> fork .a.b .c.d.f
+scratch/main> fork .a.b .c.d.f
 
   Done.
 
@@ -87,27 +87,29 @@ At this point we have:
 `.c.g.f.Foo` which is distinct from the other `Foo` types
 
 ```ucm
-.> delete .c.d.f.Foo
+scratch/main> delete .c.d.f.Foo
 
   Done.
 
 ```
 Once `.c.d.f.Foo` is deleted `.c.foo` should have the type `.a.b.Foo`
-when viewed from `.>`, but an unnamed type when viewed from `.c>`,
+when viewed from `scratch/main>`, but an unnamed type when viewed from `.c>`,
 since referencing `.a.b.Foo` would reference names outside of the
 namespace rooted at `.c`.
 
 ```ucm
-.> ls c
+scratch/main> ls c
 
-  1. d/  (1 term)
-  2. foo (b.Foo)
-  3. g/  (1 term, 1 type)
-
-.c> ls
-
-  1. d/  (1 term)
-  2. foo (#uj8oalgadr)
-  3. g/  (1 term, 1 type)
+  nothing to show
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  nothing to show
+

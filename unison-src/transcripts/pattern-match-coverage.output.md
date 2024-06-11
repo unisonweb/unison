@@ -650,7 +650,7 @@ unit2t = cases
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -706,7 +706,7 @@ evil = bug ""
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -747,7 +747,7 @@ unique type SomeType = A
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   

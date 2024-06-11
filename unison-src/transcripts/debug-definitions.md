@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison:hide
@@ -17,12 +17,12 @@ ability Ask a where
 ```
 
 ```ucm
-.> add
-.> debug.term.abt Nat.+
-.> debug.term.abt y
-.> debug.term.abt Some
-.> debug.term.abt ask
-.> debug.type.abt Nat
-.> debug.type.abt Optional
-.> debug.type.abt Ask
+scratch/main> add
+scratch/main> debug.term.abt Nat.+
+scratch/main> debug.term.abt y
+scratch/main> debug.term.abt Some
+scratch/main> debug.term.abt ask
+scratch/main> debug.type.abt Nat
+scratch/main> debug.type.abt Optional
+scratch/main> debug.type.abt Ask
 ```

@@ -35,9 +35,7 @@ foo/main> branch topic
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
-  ☝️  The namespace . is empty.
-
-.> delete.branch foo/topic
+scratch/main> delete.branch foo/topic
 
 ```
 You can delete the only branch in a project.

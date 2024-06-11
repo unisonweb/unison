@@ -7,6 +7,6 @@ unique type Foo = { bar : Nat }
 ```
 
 ```ucm
-.> update
-.> view Foo
+scratch/main> update
+scratch/main> view Foo
 ```

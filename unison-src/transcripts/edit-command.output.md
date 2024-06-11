@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 
   Done.
 
@@ -33,7 +33,7 @@ mytest = [Ok "ok"]
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -41,7 +41,7 @@ mytest = [Ok "ok"]
     foo    : Nat
     mytest : [Result]
 
-.> edit foo bar
+scratch/main> edit foo bar
 
   ☝️
   
@@ -50,7 +50,7 @@ mytest = [Ok "ok"]
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
-.> edit mytest
+scratch/main> edit mytest
 
   ☝️
   
@@ -73,7 +73,7 @@ test> mytest = [Ok "ok"]
 ```
 
 ```ucm
-.> edit missing
+scratch/main> edit missing
 
   ⚠️
   

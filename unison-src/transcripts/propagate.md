@@ -84,7 +84,7 @@ type of `otherTerm` should remain the same.
 Cleaning up a bit...
 
 ```ucm
-.> delete.namespace subpath
+scratch/main> delete.namespace subpath
 .subpath.lib> builtins.merge
 ```
 

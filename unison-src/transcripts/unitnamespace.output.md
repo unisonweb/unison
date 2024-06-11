@@ -24,18 +24,38 @@ foo = "bar"
   
     foo : ##Text
 
-.> find
+scratch/main> find
 
-  1. `()`.foo : ##Text
+  ☝️
   
+  I couldn't find matches in this namespace, searching in
+  'lib'...
 
-.> find-in `()`
-
-  1. foo : ##Text
+  😶
   
-
-.> delete.namespace `()`
-
-  Done.
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
 
 ```
+
+```ucm
+.`()`> addscratch/main> findscratch/main> find-in `()`scratch/main> delete.namespace `()`
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+  
+  `find.global` can be used to search outside the current
+  namespace.
+

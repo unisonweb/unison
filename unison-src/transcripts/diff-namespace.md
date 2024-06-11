@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison:hide
@@ -9,7 +9,7 @@ x = 23
 ```ucm
 .b1> add
 .b1> alias.term x fslkdjflskdjflksjdf
-.> fork b1 b2
+scratch/main> fork b1 b2
 .b2> alias.term x abc
 ```
 ```unison:hide
@@ -17,8 +17,8 @@ fslkdjflskdjflksjdf = 663
 ```
 ```ucm
 .b0> add
-.> merge.old b0 b1
-.> diff.namespace b1 b2
+scratch/main> merge.old b0 b1
+scratch/main> diff.namespace b1 b2
 .b2> diff.namespace .b1
 ```
 Things we want to test:
@@ -53,11 +53,11 @@ structural ability X a1 a2 where x : ()
 Here's what we've done so far:
 
 ```ucm:error
-.> diff.namespace nothing ns1
+scratch/main> diff.namespace nothing ns1
 ```
 
 ```ucm:error
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace ns1 ns2
 ```
 
 ```unison:hide
@@ -66,7 +66,7 @@ fromJust = "asldkfjasldkfj"
 
 ```ucm
 .ns1b> add
-.> merge.old ns1b ns1
+scratch/main> merge.old ns1b ns1
 ```
 
 ```unison:hide
@@ -80,24 +80,24 @@ unique type Y a b = Y a b
 
 ```ucm
 .ns2> update.old
-.> diff.namespace ns1 ns2
-.> alias.term ns2.d ns2.d'
-.> alias.type ns2.A ns2.A'
-.> alias.type ns2.X ns2.X'
-.> diff.namespace ns1 ns2
-.> alias.type ns1.X ns1.X2
-.> alias.type ns2.A' ns2.A''
-.> fork ns2 ns3
-.> alias.term ns2.fromJust' ns2.yoohoo
-.> delete.term.verbose ns2.fromJust'
-.> diff.namespace ns3 ns2
+scratch/main> diff.namespace ns1 ns2
+scratch/main> alias.term ns2.d ns2.d'
+scratch/main> alias.type ns2.A ns2.A'
+scratch/main> alias.type ns2.X ns2.X'
+scratch/main> diff.namespace ns1 ns2
+scratch/main> alias.type ns1.X ns1.X2
+scratch/main> alias.type ns2.A' ns2.A''
+scratch/main> fork ns2 ns3
+scratch/main> alias.term ns2.fromJust' ns2.yoohoo
+scratch/main> delete.term.verbose ns2.fromJust'
+scratch/main> diff.namespace ns3 ns2
 ```
 ```unison:hide
 bdependent = "banana"
 ```
 ```ucm
 .ns3> update.old
-.> diff.namespace ns2 ns3
+scratch/main> diff.namespace ns2 ns3
 ```
 
 
@@ -110,8 +110,8 @@ b = a + 1
 ```
 ```ucm
 .nsx> add
-.> fork nsx nsy
-.> fork nsx nsz
+scratch/main> fork nsx nsy
+scratch/main> fork nsx nsz
 ```
 ```unison:hide
 a = 444
@@ -124,13 +124,13 @@ a = 555
 ```
 ```ucm
 .nsz> update.old
-.> merge.old nsy nsw
+scratch/main> merge.old nsy nsw
 ```
 ```ucm:error
-.> merge.old nsz nsw
+scratch/main> merge.old nsz nsw
 ```
 ```ucm
-.> diff.namespace nsx nsw
+scratch/main> diff.namespace nsx nsw
 .nsw> view a b
 ```
 

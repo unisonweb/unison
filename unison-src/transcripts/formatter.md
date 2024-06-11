@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison:hide
@@ -88,7 +88,7 @@ with a strike-through block~
 ```
 
 ```ucm
-.> debug.format
+scratch/main> debug.format
 ```
 
 Formatter should leave things alone if the file doesn't typecheck.
@@ -98,5 +98,5 @@ brokenDoc = {{ hello }} + 1
 ```
 
 ```ucm
-.> debug.format
+scratch/main> debug.format
 ```

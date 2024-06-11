@@ -3,7 +3,7 @@ the project organization convention that dependencies are put in "lib"; it's muc
 one's own code if the "lib" namespace is simply ignored.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -12,7 +12,7 @@ lib.foo = 100
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -20,6 +20,6 @@ foo = 200
 ```
 
 ```ucm
-.> update
-.> names foo
+scratch/main> update
+scratch/main> names foo
 ```

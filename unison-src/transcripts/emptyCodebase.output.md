@@ -7,7 +7,7 @@ Not even `Nat` or `+`!
 BEHOLD!!!
 
 ```ucm
-.> ls
+scratch/main> ls
 
   nothing to show
 

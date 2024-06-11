@@ -1,7 +1,7 @@
 # Update on conflict
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 .merged> builtins.merge
 ```
 
@@ -12,7 +12,7 @@ b.x = 2
 
 Cause a conflict:
 ```ucm
-.> add
+scratch/main> add
 .merged> merge.old .a
 .merged> merge.old .b
 ```

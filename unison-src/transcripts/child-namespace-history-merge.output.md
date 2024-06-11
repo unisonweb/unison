@@ -16,14 +16,14 @@ parent.child.thing = "parent.child.thing"
 The child branch has a single history node representing the addition of `parent.child.thing`.
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     parent.child.thing : Text
     parent.top         : Text
 
-.> history parent.child
+scratch/main> history parent.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -40,13 +40,13 @@ parent.child.thing2 = "parent.child.thing2"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     parent.child.thing2 : Text
 
-.> history parent
+scratch/main> history parent
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -59,7 +59,7 @@ parent.child.thing2 = "parent.child.thing2"
   
   □ 2. #i9lji1bli0 (start of history)
 
-.> history parent.child
+scratch/main> history parent.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -78,7 +78,7 @@ parent.child.thing2 = "parent.child.thing2"
 Now we fork the parent namespace to make some changes.
 
 ```ucm
-.> fork parent parent_fork
+scratch/main> fork parent parent_fork
 
   Done.
 
@@ -90,13 +90,13 @@ parent_fork.child.thing3 = "parent_fork.child.thing3"
 The child should have a new history node after adding `thing3`
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     parent_fork.child.thing3 : Text
 
-.> history parent_fork.child
+scratch/main> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -125,7 +125,7 @@ Split off two separate forks, one for testing squash merges, one for standard me
 For a squash merge, when I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.old.squash parent_fork parent_squash_base
+scratch/main> merge.old.squash parent_fork parent_squash_base
 
   Here's what's changed in parent_squash_base after the merge:
   
@@ -140,7 +140,7 @@ For a squash merge, when I squash-merge back into parent, we expect `parent_fork
 
   Applying changes from patch...
 
-.> history parent_squash_base
+scratch/main> history parent_squash_base
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -163,7 +163,7 @@ For a squash merge, when I squash-merge back into parent, we expect `parent_fork
 Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
 
 ```ucm
-.> history parent.child
+scratch/main> history parent.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -176,7 +176,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
   
   □ 2. #0r73mam57g (start of history)
 
-.> history parent_fork.child
+scratch/main> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -195,7 +195,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
   
   □ 3. #0r73mam57g (start of history)
 
-.> history parent_squash_base.child
+scratch/main> history parent_squash_base.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -210,7 +210,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
 For a standard merge, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.old parent_fork parent_merge_base
+scratch/main> merge.old parent_fork parent_merge_base
 
   Here's what's changed in parent_merge_base after the merge:
   
@@ -225,7 +225,7 @@ For a standard merge, if I merge back into parent, we expect `parent_fork.child.
 
   Applying changes from patch...
 
-.> history parent_merge_base
+scratch/main> history parent_merge_base
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -248,7 +248,7 @@ For a standard merge, if I merge back into parent, we expect `parent_fork.child.
 Child histories should also be *merged*.
 
 ```ucm
-.> history parent.child
+scratch/main> history parent.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -261,7 +261,7 @@ Child histories should also be *merged*.
   
   □ 2. #0r73mam57g (start of history)
 
-.> history parent_fork.child
+scratch/main> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -280,7 +280,7 @@ Child histories should also be *merged*.
   
   □ 3. #0r73mam57g (start of history)
 
-.> history parent_merge_base.child
+scratch/main> history parent_merge_base.child
 
   Note: The most recent namespace hash is immediately below this
         message.

@@ -8,7 +8,7 @@ joey.yaml.zz = 45
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api

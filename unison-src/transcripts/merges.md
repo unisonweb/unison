@@ -11,13 +11,13 @@ x = 42
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Let's move `x` into a new namespace, `master`:
 
 ```ucm
-.> rename.term x master.x
+scratch/main> rename.term x master.x
 ```
 
 If you want to do some experimental work in a namespace without disturbing anyone else, you can `fork` it (which is a shorthand for `copy.namespace`). This creates a copy of it, preserving its history.
@@ -27,9 +27,9 @@ If you want to do some experimental work in a namespace without disturbing anyon
 Let's go ahead and do this:
 
 ```
-.> fork master feature1
-.> view master.x
-.> view feature1.x
+scratch/main> fork master feature1
+scratch/main> view master.x
+scratch/main> view feature1.x
 ```
 
 Great! We can now do some further work in the `feature1` branch, then merge it back into `master` when we're ready.
@@ -52,9 +52,9 @@ We can also delete the fork if we're done with it. (Don't worry, even though the
 it's still in the `history` of the parent namespace and can be resurrected at any time.)
 
 ```ucm
-.> delete.namespace feature1
-.> history .feature1
-.> history
+scratch/main> delete.namespace feature1
+scratch/main> history .feature1
+scratch/main> history
 ```
 
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.
@@ -68,7 +68,7 @@ In the above scenario the destination namespace (`master`) was strictly behind t
 Let's see how this works. We are going to create a copy of `master`, add and delete some definitions in `master` and in the fork, then merge.
 
 ```ucm
-.> fork master feature2
+scratch/main> fork master feature2
 ```
 
 Here's one fork, we add `z` and delete `x`:
@@ -90,29 +90,29 @@ master.frobnicate n = n + 1
 ```
 
 ```ucm
-.> update
-.> view master.y
-.> view master.frobnicate
+scratch/main> update
+scratch/main> view master.y
+scratch/main> view master.frobnicate
 ```
 
 At this point, `master` and `feature2` both have some changes the other doesn't know about. Let's merge them.
 
 ```ucm
-.> merge.old feature2 master
+scratch/main> merge.old feature2 master
 ```
 
 Notice that `x` is deleted in the merged branch (it was deleted in `feature2` and untouched by `master`):
 
 ```ucm:error
-.> view master.x
+scratch/main> view master.x
 ```
 
 And notice that `y` has the most recent value, and that `z` and `frobnicate` both exist as well:
 
 ```ucm
-.> view master.y
-.> view master.z
-.> view master.frobnicate
+scratch/main> view master.y
+scratch/main> view master.z
+scratch/main> view master.frobnicate
 ```
 
 ## FAQ

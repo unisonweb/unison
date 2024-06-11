@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 # Squash merges
@@ -10,8 +10,8 @@
 Let's look at some examples. We'll start with a namespace with just the builtins. Let's take a look at the hash of this namespace:
 
 ```ucm
-.> history builtin
-.> fork builtin builtin2
+scratch/main> history builtin
+scratch/main> fork builtin builtin2
 ```
 
 (We make a copy of `builtin` for use later in this transcript.)
@@ -19,7 +19,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
 Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, then rename it back. Notice this produces multiple entries in the history:
 
 ```ucm
-.> fork builtin mybuiltin
+scratch/main> fork builtin mybuiltin
 .mybuiltin> rename.term Nat.+ Nat.frobnicate
 .mybuiltin> rename.term Nat.frobnicate Nat.+
 .mybuiltin> history
@@ -28,15 +28,15 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
 If we merge that back into `builtin`, we get that same chain of history:
 
 ```ucm
-.> merge.old mybuiltin builtin
-.> history builtin
+scratch/main> merge.old mybuiltin builtin
+scratch/main> history builtin
 ```
 
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
 
 ```ucm
-.> merge.old.squash mybuiltin builtin2
-.> history builtin2
+scratch/main> merge.old.squash mybuiltin builtin2
+scratch/main> history builtin2
 ```
 
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -51,8 +51,8 @@ x = 1
 
 ```ucm
 .trunk> add
-.> fork trunk alice
-.> fork trunk bob
+scratch/main> fork trunk alice
+scratch/main> fork trunk bob
 ```
 
 Alice now does some hacking:
@@ -84,34 +84,34 @@ no more = no more
 At this point, Alice and Bob both have some history beyond what's in trunk:
 
 ```ucm
-.> history trunk
-.> history alice
-.> history bob
+scratch/main> history trunk
+scratch/main> history alice
+scratch/main> history bob
 ```
 
 Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob both made their changes in one single commit.
 
 ```ucm
-.> merge.old.squash alice trunk
-.> history trunk
-.> merge.old.squash bob trunk
-.> history trunk
+scratch/main> merge.old.squash alice trunk
+scratch/main> history trunk
+scratch/main> merge.old.squash bob trunk
+scratch/main> history trunk
 ```
 
 Since squash merges don't produce any merge nodes, we can `undo` a couple times to get back to our starting state:
 
 ```ucm
-.> undo
-.> undo
-.> history trunk
+scratch/main> undo
+scratch/main> undo
+scratch/main> history trunk
 ```
 
 This time, we'll first squash Alice and Bob's changes together before squashing their combined changes into `trunk`. The resulting `trunk` will have just a single entry in it, combining both Alice and Bob's changes:
 
 ```ucm
-.> merge.old.squash alice bob
-.> merge.old.squash bob trunk
-.> history trunk
+scratch/main> merge.old.squash alice bob
+scratch/main> merge.old.squash bob trunk
+scratch/main> history trunk
 ```
 
 So, there you have it. With squashing, you can control the granularity of your history.
@@ -121,8 +121,8 @@ So, there you have it. With squashing, you can control the granularity of your h
 Another thing we can do is `squash` into an empty namespace. This effectively makes a copy of the namespace, but without any of its history:
 
 ```ucm
-.> merge.old.squash alice nohistoryalice
-.> history nohistoryalice
+scratch/main> merge.old.squash alice nohistoryalice
+scratch/main> history nohistoryalice
 ```
 
 There's nothing really special here, `squash src dest` discards `src` history that comes after the LCA of `src` and `dest`, it's just that in the case of an empty namespace, that LCA is the beginning of time (the empty namespace), so all the history of `src` is discarded.

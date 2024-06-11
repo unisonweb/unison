@@ -126,32 +126,25 @@ b = 2
     a : ##Nat
     b : ##Nat
 
-.> merge.old x y
+scratch/main> merge.old x y
 
-  Nothing changed as a result of the merge.
-
-  Applying changes from patch...
-
-.> merge.old y z
-
-  Nothing changed as a result of the merge.
-
-  Applying changes from patch...
-
-.> history z
-
-  Note: The most recent namespace hash is immediately below this
-        message.
+  ⚠️
   
-  
-  
-  This segment of history starts with a merge. Use
-  `history #som3n4m3space` to view history starting from a given
-  namespace hash.
-  
-  ⊙ 1. #b7fr6ifj87
-  ⑃
-  2. #9npggauqo9
-  3. #dm4u1eokg1
+  The namespace x doesn't exist.
 
 ```
+
+```ucm
+.z> addscratch/main> merge.old x yscratch/main> merge.old y zscratch/main> history z
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  ⚠️
+  
+  The namespace x doesn't exist.
+

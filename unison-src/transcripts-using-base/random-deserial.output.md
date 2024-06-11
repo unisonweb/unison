@@ -74,7 +74,7 @@ serialTests = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -85,7 +85,7 @@ serialTests = do
     serialTests    : '{IO, Exception} [Result]
     shuffle        : Nat -> [a] -> [a]
 
-.> io.test serialTests
+scratch/main> io.test serialTests
 
     New test results:
   

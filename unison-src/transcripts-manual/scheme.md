@@ -2,8 +2,8 @@ This transcript executes very slowly, because the compiler has an
 entire copy of base (and other stuff) within it.
 
 ```ucm:hide
-.> builtins.merge
-.> pull.without-history unison.public.base.trunk base
+scratch/main> builtins.merge
+scratch/main> pull.without-history unison.public.base.trunk base
 ```
 
 ```unison
@@ -55,7 +55,7 @@ multiAddUp = repeat 35 '(printAddUp 3000000)
 ```
 
 ```ucm
-.> add
-.> run singleAddUp
-.> run.native multiAddUp
+scratch/main> add
+scratch/main> run singleAddUp
+scratch/main> run.native multiAddUp
 ```

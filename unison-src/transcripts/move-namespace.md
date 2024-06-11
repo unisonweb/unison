@@ -103,30 +103,30 @@ I should be able to move the root into a sub-namespace
 
 ```ucm
 -- Should request confirmation
-.> move.namespace . .root.at.path
-.> move.namespace . .root.at.path
-.> ls
-.> history
+scratch/main> move.namespace . .root.at.path
+scratch/main> move.namespace . .root.at.path
+scratch/main> ls
+scratch/main> history
 ```
 
 ```ucm
-.> ls .root.at.path
-.> history .root.at.path
+scratch/main> ls .root.at.path
+scratch/main> history .root.at.path
 ```
 
 I should be able to move a sub namespace _over_ the root.
 
 ```ucm
 -- Should request confirmation
-.> move.namespace .root.at.path.happy .
-.> move.namespace .root.at.path.happy .
-.> ls
-.> history
+scratch/main> move.namespace .root.at.path.happy .
+scratch/main> move.namespace .root.at.path.happy .
+scratch/main> ls
+scratch/main> history
 ```
 
 
 ```ucm:error
 -- should be empty
-.> ls .root.at.path.happy
-.> history .root.at.path.happy
+scratch/main> ls .root.at.path.happy
+scratch/main> history .root.at.path.happy
 ```

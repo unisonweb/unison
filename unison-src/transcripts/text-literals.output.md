@@ -87,14 +87,14 @@ lit2 = """"
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     lit1 : Text
     lit2 : Text
 
-.> view lit1 lit2
+scratch/main> view lit1 lit2
 
   lit1 : Text
   lit1 =

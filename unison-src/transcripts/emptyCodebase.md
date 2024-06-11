@@ -7,7 +7,7 @@ Not even `Nat` or `+`!
 BEHOLD!!!
 
 ```ucm:error
-.> ls
+scratch/main> ls
 ```
 
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:

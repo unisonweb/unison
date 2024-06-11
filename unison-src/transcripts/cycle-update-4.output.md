@@ -23,7 +23,7 @@ pong _ = !ping + 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -58,7 +58,7 @@ clang _ = !pong + 3
 
 ```
 ```ucm
-.> update.old ping
+scratch/main> update.old ping
 
   ⍟ I've added these definitions:
   
@@ -69,7 +69,7 @@ clang _ = !pong + 3
     ping : 'Nat
     pong : 'Nat
 
-.> view ping pong clang
+scratch/main> view ping pong clang
 
   clang : 'Nat
   clang _ =

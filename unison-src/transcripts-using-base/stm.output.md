@@ -44,7 +44,7 @@ body k out v =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -106,7 +106,7 @@ tests = '(map spawn nats)
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,7 +115,7 @@ tests = '(map spawn nats)
     spawn   : Nat ->{IO} Result
     tests   : '{IO} [Result]
 
-.> io.test tests
+scratch/main> io.test tests
 
     New test results:
   

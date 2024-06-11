@@ -4,7 +4,7 @@ foo = "bar"
 
 ```ucm
 .`()`> add
-.> find
-.> find-in `()`
-.> delete.namespace `()`
+scratch/main> find
+scratch/main> find-in `()`
+scratch/main> delete.namespace `()`
 ```

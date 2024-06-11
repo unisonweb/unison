@@ -18,7 +18,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   

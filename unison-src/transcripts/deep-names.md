@@ -12,7 +12,7 @@ http.z = 8
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Our `app1` project includes the text library twice and the http library twice as direct dependencies.

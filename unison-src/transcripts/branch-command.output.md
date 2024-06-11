@@ -103,7 +103,7 @@ foo/main> branch foo/main /topic11
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic11`.
 
-.> branch foo/main foo/topic12
+scratch/main> branch foo/main foo/topic12
 
   Done. I've created the topic12 branch based off of main.
   
@@ -122,7 +122,7 @@ bar/main> branch foo/main /topic3
 
   Done. I've created the bar/topic3 branch based off foo/main.
 
-.> branch foo/main bar/topic4
+scratch/main> branch foo/main bar/topic4
 
   Done. I've created the bar/topic4 branch based off foo/main.
 
@@ -141,7 +141,7 @@ foo/main> branch .some.loose.code /topic15
   Done. I've created the foo/topic15 branch from the namespace
   .some.loose.code.
 
-.> branch .some.loose.code foo/topic16
+scratch/main> branch .some.loose.code foo/topic16
 
   Done. I've created the foo/topic16 branch from the namespace
   .some.loose.code.
@@ -164,7 +164,7 @@ foo/main> branch.empty foo/empty3
   
   Tip: Use `merge /somebranch` to initialize this branch.
 
-.> branch.empty foo/empty4
+scratch/main> branch.empty foo/empty4
 
   Done. I've created an empty branch foo/empty4.
   

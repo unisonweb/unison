@@ -1,5 +1,5 @@
 ```ucm:hide
-.> alias.type ##Text builtin.Text
+scratch/main> alias.type ##Text builtin.Text
 ```
 
 ```unison:hide
@@ -17,11 +17,11 @@ baz = cases
 ```
 
 ```ucm
-.> add
-.> find : Text -> A
-.> find : A -> Text
-.> find : A
+scratch/main> add
+scratch/main> find : Text -> A
+scratch/main> find : A -> Text
+scratch/main> find : A
 ```
 ```ucm:error
-.> find : Text
+scratch/main> find : Text
 ```

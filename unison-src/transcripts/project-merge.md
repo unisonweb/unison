@@ -1,7 +1,7 @@
 # projects merge
 
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -10,8 +10,8 @@ zonk = 0
 
 ```ucm
 .foo> add
-.> project.create-empty foo
-.> merge.old foo foo/main
+scratch/main> project.create-empty foo
+scratch/main> merge.old foo foo/main
 ```
 
 ```unison
@@ -23,7 +23,7 @@ foo/main> add
 ```
 
 ```ucm
-.> project.create-empty bar
+scratch/main> project.create-empty bar
 bar/main> merge.old foo/main
 bar/main> branch /topic
 ```

@@ -30,7 +30,7 @@ somewhere.y = 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -46,62 +46,31 @@ somewhere.y = 2
 ```ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
 -- But we don't see somewhere.z which is has the same value but is out of our namespace
+  ☝️  The namespace .some is empty.
+
 .some> names x
 
-  Terms
-  Hash:   #gjmq673r1v
-  Names:  otherplace.y place.x
+  😶
   
-  Hash:   #pi25gcdv0o
-  Names:  otherplace.x
-  
-  Tip: Use `names.global` to see more results.
-
--- We can search by hash, and see all aliases of that hash
-.some> names #gjmq673r1v
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  otherplace.y place.x
-  
-  Tip: Use `names.global` to see more results.
-
--- If the query is absolute, treat it as a `names.global`
-.some> names .some.place.x
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
+  I couldn't find anything by that name.
   
   Tip: Use `names.global` to see more results.
 
 ```
-`names.global` searches from the root, and absolutely qualifies results
-
 
 ```ucm
--- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.
-.some> names.global x
-
-  Terms
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-  
-  Hash:   #pi25gcdv0o
-  Names:  .some.otherplace.x
-
--- We can search by hash, and see all aliases of that hash in the codebase
-.some> names.global #gjmq673r1v
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-
--- We can search using an absolute name
-.some> names.global .some.place.x
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-
+-- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.-- But we don't see somewhere.z which is has the same value but is out of our namespace.some> names x-- We can search by hash, and see all aliases of that hash.some> names #gjmq673r1v-- If the query is absolute, treat it as a `names.global`.some> names .some.place.x
 ```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  😶
+  
+  I couldn't find anything by that name.
+  
+  Tip: Use `names.global` to see more results.
+

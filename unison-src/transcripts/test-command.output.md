@@ -25,7 +25,7 @@ foo.test2 = [Ok "test2"]
 
 ```
 ```ucm
-.> test
+scratch/main> test
 
   ✅  
 
@@ -50,7 +50,7 @@ foo.test2 = [Ok "test2"]
 Tests should be cached if unchanged.
 
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -83,7 +83,7 @@ testInLib = [Ok "testInLib"]
 
 ```
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -94,29 +94,16 @@ testInLib = [Ok "testInLib"]
   
   Tip: Use view foo.test2 to view the source of a test.
 
-.> test.all
+scratch/main> test.all
 
-    
-    Cached test results (`help testcache` to learn more)
-    
-    ◉ foo.test2   test2
-    ◉ test1       test1
-    
-    ✅ 2 test(s) passing
-    
-    ✅  
-
+  Cached test results (`help testcache` to learn more)
   
-
+  ◉ foo.test2   test2
+  ◉ test1       test1
   
-
-    New test results:
+  ✅ 2 test(s) passing
   
-  ◉ lib.testInLib   testInLib
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view lib.testInLib to view the source of a test.
+  Tip: Use view foo.test2 to view the source of a test.
 
 ```
 `test` WILL run tests within `lib` if ucm is cd'd inside.
@@ -124,7 +111,13 @@ testInLib = [Ok "testInLib"]
 ```ucm
 .lib> test
 
-  Cached test results (`help testcache` to learn more)
+  ✅  
+
+  
+
+  
+
+    New test results:
   
   ◉ testInLib   testInLib
   
@@ -136,7 +129,7 @@ testInLib = [Ok "testInLib"]
 `test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
 
 ```ucm
-.> test foo
+scratch/main> test foo
 
   Cached test results (`help testcache` to learn more)
   

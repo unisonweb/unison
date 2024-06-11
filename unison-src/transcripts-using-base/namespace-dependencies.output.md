@@ -6,20 +6,31 @@ mynamespace.dependsOnText = external.mynat Nat.+ 10
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     external.mynat            : Nat
     mynamespace.dependsOnText : Nat
 
+  ☝️  The namespace .mynamespace is empty.
+
 .mynamespace> namespace.dependencies
 
-  External dependency   Dependents in .mynamespace
-  .builtin.Nat          1. dependsOnText
-                        
-  .builtin.Nat.+        1. dependsOnText
-                        
-  .external.mynat       1. dependsOnText
+  ⚠️
+  
+  .mynamespace is an empty namespace.
 
 ```
+
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+
+  ⚠️
+  
+  .mynamespace is an empty namespace.
+

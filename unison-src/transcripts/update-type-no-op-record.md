@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -7,11 +7,11 @@ unique type Foo = { bar : Nat }
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Bug: this no-op update should (of course) succeed.
 
 ```ucm
-.> update
+scratch/main> update
 ```

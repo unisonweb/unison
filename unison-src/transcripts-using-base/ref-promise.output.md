@@ -32,13 +32,13 @@ casTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     casTest : '{IO} [Result]
 
-.> io.test casTest
+scratch/main> io.test casTest
 
     New test results:
   
@@ -95,14 +95,14 @@ promiseConcurrentTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     promiseConcurrentTest : '{IO} [Result]
     promiseSequentialTest : '{IO} [Result]
 
-.> io.test promiseSequentialTest
+scratch/main> io.test promiseSequentialTest
 
     New test results:
   
@@ -114,7 +114,7 @@ promiseConcurrentTest = do
   Tip: Use view promiseSequentialTest to view the source of a
        test.
 
-.> io.test promiseConcurrentTest
+scratch/main> io.test promiseConcurrentTest
 
     New test results:
   
@@ -150,7 +150,7 @@ atomicUpdate ref f =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -189,7 +189,7 @@ spawnN n fa =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -238,13 +238,13 @@ fullTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     fullTest : '{IO} [Result]
 
-.> io.test fullTest
+scratch/main> io.test fullTest
 
     New test results:
   

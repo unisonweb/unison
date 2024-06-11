@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 First we make two changes to the codebase, so that there's more than one line
@@ -9,23 +9,23 @@ for the `reflog` command to display:
 x = 1
 ```
 ```ucm
-.> add
+scratch/main> add
 ```
 ```unison
 y = 2
 ```
 ```ucm
-.> add
-.> view y
+scratch/main> add
+scratch/main> view y
 ```
 ```ucm
-.> reflog
+scratch/main> reflog
 ```
 
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-.> reset-root 2
+scratch/main> reset-root 2
 ```
 ```ucm:error
-.> view y
+scratch/main> view y
 ```

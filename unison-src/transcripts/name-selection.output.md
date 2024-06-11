@@ -33,9 +33,9 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 ```
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-```
-.> fork a a2
-.> fork a a3
+```scratch
+/main> fork a a2
+scratch/main> fork a a3
 
 ```
 
@@ -104,114 +104,30 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ```ucm
-.> view a b c d
+scratch/main> view a b c d
 
-  a.a : Nat
-  a.a =
-    use Nat +
-    b + 1
+  ⚠️
   
-  a.b : Nat
-  a.b =
-    use Nat +
-    0 + 1
-  
-  a2.c : Nat
-  a2.c = 1
-  
-  a2.d : Nat
-  a2.d =
-    use Nat +
-    a2.c + 10
-  
-  a3.c#dcgdua2lj6 : Nat
-  a3.c#dcgdua2lj6 = 2
-  
-  a3.d#9ivhgvhthc : Nat
-  a3.d#9ivhgvhthc =
-    use Nat +
-    c#dcgdua2lj6 + 10
+  The following names were not found in the codebase. Check your spelling.
+    a
+    b
+    c
+    d
 
 ```
-## Name biasing
 
-```unison
-deeply.nested.term =
-  a + 1
 
-deeply.nested.num = 10
 
-a = 10
-```
+🛑
 
-```ucm
+The transcript failed due to an error in the stanza above. The error is:
 
-  Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  ⚠️
   
-    ⍟ These new definitions are ok to `add`:
-    
-      a                  : Nat
-      deeply.nested.num  : Nat
-      deeply.nested.term : Nat
+  The following names were not found in the codebase. Check your spelling.
+    a
+    b
+    c
+    d
 
-```
-```ucm
-.biasing> add
-
-  ⍟ I've added these definitions:
-  
-    a                  : Nat
-    deeply.nested.num  : Nat
-    deeply.nested.term : Nat
-
--- Despite being saved with name `a`,
--- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
--- It's closer to the term being printed.
-.biasing> view deeply.nested.term
-
-  deeply.nested.term : Nat
-  deeply.nested.term =
-    use Nat +
-    num + 1
-
-```
-Add another term with `num` suffix to force longer suffixification of `deeply.nested.num`
-
-```unison
-other.num = 20
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      other.num : Nat
-
-```
-```ucm
-.biasing> add
-
-  ⍟ I've added these definitions:
-  
-    other.num : Nat
-
--- nested.num should be preferred over the shorter name `a` due to biasing
--- because `deeply.nested.num` is nearby to the term being viewed.
-.biasing> view deeply.nested.term
-
-  deeply.nested.term : Nat
-  deeply.nested.term =
-    use Nat +
-    nested.num + 1
-
-```
