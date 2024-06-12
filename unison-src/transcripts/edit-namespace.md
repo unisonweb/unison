@@ -1,5 +1,4 @@
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio lib.builtin
 ```
 

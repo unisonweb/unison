@@ -69,7 +69,6 @@ add b = b
 ## Tab complete projects and branches
 
 ```ucm
-.> project.create-empty myproject
 myproject/main> branch mybranch
 myproject/main> debug.tab-complete branch.delete /mybr
 myproject/main> debug.tab-complete project.rename my

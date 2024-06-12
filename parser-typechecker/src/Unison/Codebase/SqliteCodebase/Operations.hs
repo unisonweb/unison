@@ -24,11 +24,13 @@ import U.Codebase.Projects qualified as Projects
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as OT
 import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
@@ -41,6 +43,7 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
@@ -731,3 +734,15 @@ makeMaybeCachedTransaction size action = do
   pure \x -> do
     conn <- Sqlite.unsafeGetConnection
     Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
+
+insertProjectAndBranch :: Db.ProjectId -> ProjectName -> Db.ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
+insertProjectAndBranch projectId projectName branchId branchName = do
+  Q.insertProject projectId projectName
+  Q.insertProjectBranch
+    ProjectBranch
+      { projectId,
+        branchId,
+        name = branchName,
+        parentBranchId = Nothing
+      }
+  Q.setMostRecentBranch projectId branchId

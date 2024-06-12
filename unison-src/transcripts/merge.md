@@ -9,7 +9,6 @@ contains both additions.
 ## Basic merge: two unconflicted adds
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -52,7 +51,6 @@ project/alice> view foo bar
 If Alice and Bob also happen to add the same definition, that's not a conflict.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 project/main> branch alice
 ```
@@ -94,7 +92,6 @@ project/alice> view foo bar
 Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new dependent `bar` of the original `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his `bar`.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -150,7 +147,6 @@ We classify something as an update if its "syntactic hash"—not its normal Unis
 Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice updates `bar` (propagating to `foo`), and Bob updates `baz` (propagating to `foo`). When we merge their updates, both updates will be reflected in the final `foo`.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -215,7 +211,6 @@ project/alice> display foo
 Of course, it's also possible for Alice's update to propagate to one of Bob's updates. In this example, `foo` depends on `bar` which depends on `baz`. Alice updates `baz`, propagating to `bar` and `foo`, while Bob updates `bar` (to something that still depends on `foo`), propagating to `baz`. The merged result will have Alice's update to `foo` incorporated into Bob's updated `bar`, and both updates will propagate to `baz`.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -286,7 +281,6 @@ project/alice> display foo
 We don't currently consider "update + delete" a conflict like Git does. In this situation, the delete is just ignored, allowing the update to proceed.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -334,7 +328,6 @@ In a future version, we'd like to give the user a warning at least.
 Library dependencies don't cause merge conflicts, the library dependencies are just unioned together. If two library dependencies have the same name but different namespace hashes, then the merge algorithm makes up two fresh names.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -389,7 +382,6 @@ project/alice> view foo bar baz
 If Bob is equals Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -408,7 +400,6 @@ project/alice> merge /bob
 If Bob is behind Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -437,7 +428,6 @@ project/alice> merge /bob
 If Bob is ahead of Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -470,7 +460,6 @@ This can cause merge failures due to out-of-scope identifiers, and the user may 
 In this example, Alice deletes `foo`, while Bob adds a new dependent of `foo`.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -514,7 +503,6 @@ It may be Alice's and Bob's changes merge together cleanly in the sense that the
 In this example, Alice updates a `Text` to a `Nat`, while Bob adds a new dependent of the `Text`. Upon merging, propagating Alice's update to Bob's dependent causes a typechecking failure.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -564,7 +552,6 @@ Alice and Bob may disagree about the definition of a term. In this case, the con
 are presented to the user to resolve.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -629,7 +616,6 @@ project/merge-bob-into-alice> view bar baz
 Ditto for types; if the hashes don't match, it's a conflict. In this example, Alice and Bob do different things to the same constructor. However, any explicit changes to the same type will result in a conflict, including changes that could concievably be merged (e.g. Alice and Bob both add a new constructor, or edit different constructors).
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -673,7 +659,6 @@ project/alice> merge /bob
 We model the renaming of a type's constructor as an update, so if Alice updates a type and Bob renames one of its constructors (even without changing its structure), we consider it a conflict.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -717,7 +702,6 @@ project/alice> merge /bob
 Here is another example demonstrating that constructor renames are modeled as updates.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -756,7 +740,6 @@ project/alice> merge bob
 A constructor on one side can conflict with a regular term definition on the other.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -798,7 +781,6 @@ project/alice> merge bob
 Here's a subtle situation where a new type is added on each side of the merge, and an existing term is replaced with a constructor of one of the types.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -848,7 +830,6 @@ project/alice> merge bob
 Here's a more involved example that demonstrates the same idea.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -928,7 +909,6 @@ which is a parse error.
 We will resolve this situation automatically in a future version.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -978,7 +958,6 @@ There are a number of conditions under which we can't perform a merge, and the u
 If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1036,7 +1015,6 @@ conflict involving a builtin, we can't perform a merge.
 One way to fix this in the future would be to introduce a syntax for defining aliases in the scratch file.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1075,7 +1053,6 @@ project/alice> merge /bob
 Each naming of a decl may not have more than one name for each constructor, within the decl's namespace.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1122,7 +1099,6 @@ project/alice> merge /bob
 Each naming of a decl must have a name for each constructor, within the decl's namespace.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1170,7 +1146,6 @@ project/alice> merge /bob
 A decl cannot be aliased within the namespace of another of its aliased.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1219,7 +1194,6 @@ project/alice> merge /bob
 Constructors may only exist within the corresponding decl's namespace.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1264,7 +1238,6 @@ project/alice> merge bob
 By convention, `lib` can only namespaces; each of these represents a library dependencies. Individual terms and types are not allowed at the top level of `lib`.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1309,7 +1282,6 @@ Here's an example. We'll delete a constructor name from the LCA and still be abl
 together.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 
@@ -1374,7 +1346,6 @@ project/alice> merge /bob
 
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio
 ```
 

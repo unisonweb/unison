@@ -1,8 +1,6 @@
 The `switch` command switches to an existing project or branch.
 
 ```ucm:hide
-.> project.create-empty foo
-.> project.create-empty bar
 foo/main> builtins.merge
 bar/main> builtins.merge
 ```

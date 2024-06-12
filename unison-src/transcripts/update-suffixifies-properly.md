@@ -1,5 +1,4 @@
 ```ucm:hide
-.> project.create-empty myproject
 myproject/main> builtins.merge lib.builtin
 ```
 
