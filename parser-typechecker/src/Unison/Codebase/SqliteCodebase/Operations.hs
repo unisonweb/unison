@@ -16,6 +16,7 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as BranchDiff
@@ -30,6 +31,8 @@ import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as OT
 import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.Project qualified as Project
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -382,25 +385,6 @@ tryFlushDeclBuffer termBuffer declBuffer =
           h
    in loop
 
-uncachedLoadRootBranch ::
-  BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  Transaction (Branch Transaction)
-uncachedLoadRootBranch branchCache getDeclType = do
-  causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 branchCache getDeclType causal2
-
--- | Get whether the root branch exists.
-getRootBranchExists :: Transaction Bool
-getRootBranchExists =
-  isJust <$> Ops.loadRootCausalHash
-
-putRootBranch :: Branch Transaction -> Transaction ()
-putRootBranch branch1 = do
-  -- todo: check to see if root namespace hash has been externally modified
-  -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
-
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
 getBranchForHash ::
@@ -735,14 +719,24 @@ makeMaybeCachedTransaction size action = do
     conn <- Sqlite.unsafeGetConnection
     Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
 
-insertProjectAndBranch :: Db.ProjectId -> ProjectName -> Db.ProjectBranchId -> ProjectBranchName -> Sqlite.Transaction ()
-insertProjectAndBranch projectId projectName branchId branchName = do
-  Q.insertProject projectId projectName
+-- | Creates a project by name if one doesn't already exist, creates a branch in that project, then returns the project and branch ids. Fails if a branch by that name already exists in the project.
+insertProjectAndBranch :: ProjectName -> ProjectBranchName -> Db.CausalHashId -> Sqlite.Transaction (Project, ProjectBranch)
+insertProjectAndBranch projectName branchName chId = do
+  projectId <- whenNothingM (fmap Project.projectId <$> Q.loadProjectByName projectName) do
+    projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
+    Q.insertProject projectId projectName
+    pure projectId
+  branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
+  let projectBranch =
+        ProjectBranch
+          { projectId,
+            branchId,
+            name = branchName,
+            parentBranchId = Nothing
+          }
   Q.insertProjectBranch
-    ProjectBranch
-      { projectId,
-        branchId,
-        name = branchName,
-        parentBranchId = Nothing
-      }
+    "Project Created"
+    chId
+    projectBranch
   Q.setMostRecentBranch projectId branchId
+  pure (Project {name = projectName, projectId}, ProjectBranch {projectId, name = branchName, branchId, parentBranchId = Nothing})
