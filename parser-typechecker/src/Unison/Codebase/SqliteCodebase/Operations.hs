@@ -1,4 +1,6 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | This module contains sqlite-specific operations on high-level "parser-typechecker" types all in the Transaction
 -- monad.
@@ -38,6 +40,7 @@ import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Codebase.Branch (Branch (..))
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -46,7 +49,7 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.Core.Project (ProjectBranchName, ProjectName)
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
@@ -76,6 +79,32 @@ import Unison.Util.Relation qualified as Rel
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as UF
 import UnliftIO.STM
+
+createSchema :: Transaction ()
+createSchema = do
+  Q.runCreateSql
+  Q.addTempEntityTables
+  Q.addNamespaceStatsTables
+  Q.addReflogTable
+  Q.fixScopedNameLookupTables
+  Q.addProjectTables
+  Q.addMostRecentBranchTable
+  Q.addNameLookupMountTables
+  Q.addMostRecentNamespaceTable
+  Sqlite.execute insertSchemaVersionSql
+  Q.addSquashResultTable
+  (_, emptyCausalHashId) <- emptyCausalHash
+  void $ insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
+  Q.addProjectBranchReflogTable
+  where
+    scratchProjectName = UnsafeProjectName "scratch"
+    scratchBranchName = UnsafeProjectBranchName "main"
+    currentSchemaVersion = Q.currentSchemaVersion
+    insertSchemaVersionSql =
+      [Sqlite.sql|
+        INSERT INTO schema_version (version)
+        VALUES (:currentSchemaVersion)
+      |]
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Buffer entry
@@ -740,3 +769,13 @@ insertProjectAndBranch projectName branchName chId = do
     projectBranch
   Q.setMostRecentBranch projectId branchId
   pure (Project {name = projectName, projectId}, ProjectBranch {projectId, name = branchName, branchId, parentBranchId = Nothing})
+
+-- | Often we need to assign something to an empty causal, this ensures the empty causal
+-- exists in the codebase and returns its hash.
+emptyCausalHash :: Sqlite.Transaction (CausalHash, Db.CausalHashId)
+emptyCausalHash = do
+  let emptyBranch = Branch.empty
+  putBranch emptyBranch
+  let causalHash = Branch.headHash emptyBranch
+  causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+  pure (causalHash, causalHashId)

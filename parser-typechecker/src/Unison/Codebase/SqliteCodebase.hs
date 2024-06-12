@@ -101,7 +101,7 @@ createCodebaseOrError onCreate debugName path lockOption action = do
       withConnection (debugName ++ ".createSchema") path \conn -> do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
-          Q.createSchema
+          CodebaseOps.createSchema
           onCreate
 
       sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
@@ -130,7 +130,7 @@ initSchemaIfNotExist path = liftIO do
     createDirectoryIfMissing True (makeCodebaseDirPath path)
   unlessM (doesFileExist $ makeCodebasePath path) $
     withConnection "initSchemaIfNotExist" path \conn ->
-      Sqlite.runTransaction conn Q.createSchema
+      Sqlite.runTransaction conn CodebaseOps.createSchema
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?

@@ -217,6 +217,8 @@ module U.Codebase.Sqlite.Queries
     -- * Reflog
     appendReflog,
     getReflog,
+    appendProjectReflog,
+    getProjectReflog,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -242,7 +244,7 @@ module U.Codebase.Sqlite.Queries
     setCurrentProjectPath,
 
     -- * migrations
-    createSchema,
+    runCreateSql,
     addTempEntityTables,
     addReflogTable,
     addNamespaceStatsTables,
@@ -255,6 +257,7 @@ module U.Codebase.Sqlite.Queries
     addSquashResultTableIfNotExists,
     cdToProjectRoot,
     addCurrentProjectPathTable,
+    addProjectBranchReflogTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -368,6 +371,7 @@ import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import U.Codebase.Sqlite.Reference qualified as Reference
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
@@ -415,27 +419,11 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 16
+currentSchemaVersion = 17
 
-createSchema :: Transaction ()
-createSchema = do
+runCreateSql :: Transaction ()
+runCreateSql =
   executeStatements $(embedProjectStringFile "sql/create.sql")
-  addTempEntityTables
-  addNamespaceStatsTables
-  addReflogTable
-  fixScopedNameLookupTables
-  addProjectTables
-  addMostRecentBranchTable
-  addNameLookupMountTables
-  addMostRecentNamespaceTable
-  execute insertSchemaVersionSql
-  addSquashResultTable
-  where
-    insertSchemaVersionSql =
-      [sql|
-        INSERT INTO schema_version (version)
-        VALUES (:currentSchemaVersion)
-      |]
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
@@ -445,6 +433,7 @@ addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
   executeStatements $(embedProjectStringFile "sql/003-namespace-statistics.sql")
 
+-- | Deprecated in favour of project-branch reflog
 addReflogTable :: Transaction ()
 addReflogTable =
   executeStatements $(embedProjectStringFile "sql/002-reflog-table.sql")
@@ -483,6 +472,15 @@ cdToProjectRoot :: Transaction ()
 cdToProjectRoot =
   executeStatements $(embedProjectStringFile "sql/011-cd-to-project-root.sql")
 
+addCurrentProjectPathTable :: Transaction ()
+addCurrentProjectPathTable =
+  executeStatements $(embedProjectStringFile "sql/012-add-current-project-path-table.sql")
+
+-- | Deprecated in favour of project-branch reflog
+addProjectBranchReflogTable :: Transaction ()
+addProjectBranchReflogTable =
+  executeStatements $(embedProjectStringFile "sql/013-add-project-branch-reflog-table.sql")
+
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
   queryOneCol
@@ -490,10 +488,6 @@ schemaVersion =
       SELECT version
       FROM schema_version
     |]
-
-addCurrentProjectPathTable :: Transaction ()
-addCurrentProjectPathTable =
-  executeStatements $(embedProjectStringFile "sql/012-add-current-project-path-table.sql")
 
 data UnexpectedSchemaVersion = UnexpectedSchemaVersion
   { actual :: SchemaVersion,
@@ -3397,6 +3391,24 @@ getReflog numEntries =
       LIMIT :numEntries
     |]
 
+appendProjectReflog :: ProjectReflog.Entry CausalHashId -> Transaction ()
+appendProjectReflog entry =
+  execute
+    [sql|
+      INSERT INTO project_branch_reflog (project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason)
+      VALUES (@entry, @, @, @, @, @)
+    |]
+
+getProjectReflog :: Int -> Transaction [ProjectReflog.Entry CausalHashId]
+getProjectReflog numEntries =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
+      ORDER BY time DESC
+      LIMIT :numEntries
+    |]
+
 -- | Does a project exist with this id?
 projectExists :: ProjectId -> Transaction Bool
 projectExists projectId =
@@ -4283,7 +4295,7 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectCurrentProjectPath :: Transaction (ProjectId, ProjectBranchId, [NameSegment])
+expectCurrentProjectPath :: HasCallStack => Transaction (ProjectId, ProjectBranchId, [NameSegment])
 expectCurrentProjectPath =
   queryOneRowCheck
     [sql|

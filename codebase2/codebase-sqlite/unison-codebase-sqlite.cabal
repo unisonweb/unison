@@ -22,6 +22,7 @@ extra-source-files:
     sql/010-ensure-squash-cache-table.sql
     sql/011-cd-to-project-root.sql
     sql/012-add-current-project-path-table.sql
+    sql/013-add-project-branch-reflog-table.sql
     sql/create.sql
 
 source-repository head
@@ -55,6 +56,7 @@ library
       U.Codebase.Sqlite.Patch.TypeEdit
       U.Codebase.Sqlite.Project
       U.Codebase.Sqlite.ProjectBranch
+      U.Codebase.Sqlite.ProjectReflog
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
@@ -121,6 +123,7 @@ library
     , nonempty-containers
     , safe
     , text
+    , time
     , transformers
     , unison-codebase
     , unison-codebase-sync

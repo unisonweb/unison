@@ -106,7 +106,7 @@ module Unison.Codebase
     toCodeLookup,
     typeLookupForDependencies,
     unsafeGetComponentLength,
-    emptyCausalHash,
+    SqliteCodebase.Operations.emptyCausalHash,
   )
 where
 
@@ -536,7 +536,7 @@ unsafeGetTermComponent codebase hash =
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
 
-expectCurrentProjectPath :: Sqlite.Transaction PP.ProjectPath
+expectCurrentProjectPath :: HasCallStack => Sqlite.Transaction PP.ProjectPath
 expectCurrentProjectPath = do
   (projectId, projectBranchId, path) <- Q.expectCurrentProjectPath
   proj <- Q.expectProject projectId
@@ -547,13 +547,3 @@ expectCurrentProjectPath = do
 setCurrentProjectPath :: PP.ProjectPathIds -> Sqlite.Transaction ()
 setCurrentProjectPath (PP.ProjectPath projectId projectBranchId path) =
   Q.setCurrentProjectPath projectId projectBranchId (Path.toList (Path.unabsolute path))
-
--- | Often we need to assign something to an empty causal, this ensures the empty causal
--- exists in the codebase and returns its hash.
-emptyCausalHash :: Sqlite.Transaction (CausalHash, Db.CausalHashId)
-emptyCausalHash = do
-  let emptyBranch = Branch.empty
-  SqliteCodebase.Operations.putBranch emptyBranch
-  let causalHash = Branch.headHash emptyBranch
-  causalHashId <- Queries.expectCausalHashIdByCausalHash causalHash
-  pure (causalHash, causalHashId)

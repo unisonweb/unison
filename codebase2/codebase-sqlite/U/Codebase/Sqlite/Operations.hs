@@ -101,6 +101,8 @@ module U.Codebase.Sqlite.Operations
     -- * reflog
     getReflog,
     appendReflog,
+    getProjectReflog,
+    appendProjectReflog,
 
     -- * low-level stuff
     expectDbBranch,
@@ -183,6 +185,7 @@ import U.Codebase.Sqlite.Patch.TypeEdit qualified as S
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
@@ -1454,6 +1457,17 @@ appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
 appendReflog entry = do
   dbEntry <- (bitraverse Q.saveCausalHash pure) entry
   Q.appendReflog dbEntry
+
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
+getProjectReflog :: Int -> Transaction [ProjectReflog.Entry CausalHash]
+getProjectReflog numEntries = do
+  entries <- Q.getProjectReflog numEntries
+  (traverse . traverse) Q.expectCausalHash entries
+
+appendProjectReflog :: ProjectReflog.Entry CausalHash -> Transaction ()
+appendProjectReflog entry = do
+  dbEntry <- traverse Q.saveCausalHash entry
+  Q.appendProjectReflog dbEntry
 
 -- | Delete any name lookup that's not in the provided list.
 --
