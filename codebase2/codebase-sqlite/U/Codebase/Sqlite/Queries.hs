@@ -319,6 +319,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
+import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
@@ -405,6 +406,7 @@ import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
@@ -3700,11 +3702,9 @@ loadProjectAndBranchNames projectId branchId =
 
 -- | Insert a project branch.
 insertProjectBranch :: Text -> CausalHashId -> ProjectBranch -> Transaction ()
-insertProjectBranch _description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
   -- Ensure we never point at a causal we don't have the branch for.
   _ <- expectBranchObjectIdByCausalHashId causalHashId
-
-  error "Implement project branch reflog"
 
   execute
     [sql|
@@ -3717,6 +3717,16 @@ insertProjectBranch _description causalHashId (ProjectBranch projectId branchId 
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
+  time <- Sqlite.unsafeIO $ Time.getCurrentTime
+  appendProjectReflog $
+    ProjectReflog.Entry
+      { project = projectId,
+        branch = branchId,
+        time,
+        fromRootCausalHash = Nothing,
+        toRootCausalHash = causalHashId,
+        reason = description
+      }
 
 -- | Rename a project branch.
 --
@@ -3791,16 +3801,26 @@ deleteProjectBranch projectId branchId = do
 
 -- | Set project branch HEAD
 setProjectBranchHead :: Text -> ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
-setProjectBranchHead _description projectId branchId causalHashId = do
-  error "Implement project branch reflog"
+setProjectBranchHead description projectId branchId causalHashId = do
   -- Ensure we never point at a causal we don't have the branch for.
   _ <- expectBranchObjectIdByCausalHashId causalHashId
+  oldRootCausalHashId <- expectProjectBranchHead projectId branchId
   execute
     [sql|
       UPDATE project_branch
       SET causal_hash_id = :causalHashId
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
+  time <- Sqlite.unsafeIO $ Time.getCurrentTime
+  appendProjectReflog $
+    ProjectReflog.Entry
+      { project = projectId,
+        branch = branchId,
+        time = time,
+        fromRootCausalHash = Just oldRootCausalHashId,
+        toRootCausalHash = causalHashId,
+        reason = description
+      }
 
 expectProjectBranchHead :: ProjectId -> ProjectBranchId -> Transaction CausalHashId
 expectProjectBranchHead projectId branchId =

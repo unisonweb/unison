@@ -3,7 +3,6 @@
 
 module U.Codebase.Sqlite.ProjectReflog where
 
-import Control.Lens
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId, ProjectId)
@@ -13,7 +12,7 @@ data Entry causal = Entry
   { project :: ProjectId,
     branch :: ProjectBranchId,
     time :: UTCTime,
-    fromRootCausalHash :: causal,
+    fromRootCausalHash :: Maybe causal,
     toRootCausalHash :: causal,
     reason :: Text
   }
@@ -32,6 +31,3 @@ instance FromRow (Entry CausalHashId) where
     toRootCausalHash <- field
     reason <- field
     pure $ Entry {..}
-
-causals_ :: Traversal (Entry causal) (Entry causal') causal causal'
-causals_ f (Entry {..}) = Entry project branch time <$> f fromRootCausalHash <*> f toRootCausalHash <*> pure reason
