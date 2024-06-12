@@ -1,6 +1,7 @@
 module Unison.LSP.UCMWorker where
 
 import Control.Monad.Reader
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -25,12 +26,13 @@ ucmWorker ::
   TMVar Names ->
   TMVar (NameSearch Sqlite.Transaction) ->
   TMVar ProjectPath ->
+  STM CausalHash ->
   STM ProjectPath ->
   Lsp ()
-ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestProjectPath = do
+ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestProjectRootHash getLatestProjectPath = do
   Env {codebase, completionsVar} <- ask
-  let loop :: ProjectPath -> Lsp a
-      loop currentProjectPath = do
+  let loop :: CausalHash -> ProjectPath -> Lsp a
+      loop currentProjectRootHash currentProjectPath = do
         currentBranch <- liftIO $ Codebase.expectProjectBranchRoot codebase (currentProjectPath ^. #branch . #projectId) (currentProjectPath ^. #branch . #branchId)
         Debug.debugM Debug.LSP "LSP path: " currentProjectPath
         let currentBranch0 = Branch.head currentBranch
@@ -47,16 +49,18 @@ ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestPro
         atomically do
           writeTMVar completionsVar (namesToCompletionTree currentNames)
         Debug.debugLogM Debug.LSP "LSP Initialized"
-        latest <- atomically $ do
+        (latestRootHash, latestProjectPath) <- atomically $ do
+          latestRootHash <- getLatestProjectRootHash
           latestPath <- getLatestProjectPath
-          guard $ (currentProjectPath /= latestPath)
-          pure latestPath
+          guard $ (currentProjectRootHash /= latestRootHash || currentProjectPath /= latestPath)
+          pure (latestRootHash, latestPath)
         Debug.debugLogM Debug.LSP "LSP Change detected"
-        loop latest
-  currentProjectPath <- atomically $ do
+        loop latestRootHash latestProjectPath
+  (currentProjectRootHash, currentProjectPath) <- atomically $ do
+    latestProjectRootHash <- getLatestProjectRootHash
     currentProjectPath <- getLatestProjectPath
-    pure currentProjectPath
-  loop currentProjectPath
+    pure (latestProjectRootHash, currentProjectPath)
+  loop currentProjectRootHash currentProjectPath
   where
     -- This is added in stm-2.5.1, remove this if we upgrade.
     writeTMVar :: TMVar a -> a -> STM ()
