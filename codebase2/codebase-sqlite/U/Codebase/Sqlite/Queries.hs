@@ -238,7 +238,7 @@ module U.Codebase.Sqlite.Queries
     elaborateHashes,
 
     -- * current project path
-    loadCurrentProjectPath,
+    expectCurrentProjectPath,
     setCurrentProjectPath,
 
     -- * migrations
@@ -4283,9 +4283,9 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-loadCurrentProjectPath :: Transaction (Maybe (ProjectId, ProjectBranchId, [NameSegment]))
-loadCurrentProjectPath =
-  queryMaybeRowCheck
+expectCurrentProjectPath :: Transaction (ProjectId, ProjectBranchId, [NameSegment])
+expectCurrentProjectPath =
+  queryOneRowCheck
     [sql|
       SELECT project_id, branch_id, path
       FROM current_project_path

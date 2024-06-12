@@ -2,7 +2,7 @@ module Unison.Codebase
   ( Codebase,
 
     -- * UCM session state
-    loadCurrentProjectPath,
+    expectCurrentProjectPath,
     setCurrentProjectPath,
 
     -- * Terms
@@ -536,16 +536,13 @@ unsafeGetTermComponent codebase hash =
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
 
-loadCurrentProjectPath :: Sqlite.Transaction (Maybe PP.ProjectPath)
-loadCurrentProjectPath = do
-  mProjectInfo <- Q.loadCurrentProjectPath
-  case mProjectInfo of
-    Nothing -> pure Nothing
-    Just (projectId, projectBranchId, path) -> do
-      proj <- Q.expectProject projectId
-      projBranch <- Q.expectProjectBranch projectId projectBranchId
-      let absPath = Path.Absolute (Path.fromList path)
-      pure $ Just (PP.ProjectPath proj projBranch absPath)
+expectCurrentProjectPath :: Sqlite.Transaction PP.ProjectPath
+expectCurrentProjectPath = do
+  (projectId, projectBranchId, path) <- Q.expectCurrentProjectPath
+  proj <- Q.expectProject projectId
+  projBranch <- Q.expectProjectBranch projectId projectBranchId
+  let absPath = Path.Absolute (Path.fromList path)
+  pure $ PP.ProjectPath proj projBranch absPath
 
 setCurrentProjectPath :: PP.ProjectPathIds -> Sqlite.Transaction ()
 setCurrentProjectPath (PP.ProjectPath projectId projectBranchId path) =

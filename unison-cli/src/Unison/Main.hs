@@ -70,6 +70,7 @@ import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResul
 import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser qualified as TR
@@ -158,7 +159,7 @@ main version = do
           Run (RunFromSymbol mainName) args -> do
             getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
               RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
-                withArgs args (execute theCodebase runtime mainName) >>= \case
+                withArgs args (execute theCodebase runtime _ mainName) >>= \case
                   Left err -> exitError err
                   Right () -> pure ()
           Run (RunFromFile file mainName) args
@@ -296,8 +297,7 @@ main version = do
                     case mayStartingPath of
                       Just startingPath -> pure startingPath
                       Nothing -> do
-                        segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                        pure (Path.Absolute (Path.fromList segments))
+                        Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                   Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
                 rootCausalHash <- Codebase.runTransaction theCodebase (Queries.expectNamespaceRoot >>= Queries.expectCausalHash)
                 rootCausalHashVar <- newTVarIO rootCausalHash
@@ -512,9 +512,6 @@ runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodeba
             )
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
-defaultInitialPath :: Path.Absolute
-defaultInitialPath = Path.absoluteEmpty
-
 launch ::
   Version ->
   FilePath ->
@@ -525,13 +522,13 @@ launch ::
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
-  Maybe Path.Absolute ->
+  PP.ProjectPathIds ->
   InitResult ->
   (CausalHash -> STM ()) ->
   (Path.Absolute -> STM ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -541,7 +538,7 @@ launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseU
    in CommandLine.main
         dir
         welcome
-        (fromMaybe defaultInitialPath mayStartingPath)
+        startingPath
         config
         inputs
         runtime

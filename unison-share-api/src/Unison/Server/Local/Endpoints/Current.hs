@@ -3,7 +3,6 @@
 
 module Unison.Server.Local.Endpoints.Current where
 
-import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema (..))
@@ -53,11 +52,6 @@ serveCurrent = lift . getCurrentProjectBranch
 
 getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
-  pp <-
-    Codebase.runTransaction codebase Codebase.loadCurrentProjectPath <&> \case
-      Nothing ->
-        -- TODO: Come up with a better solution for this
-        error "No current project path context"
-      Just pp -> pp
-  let (PP.ProjectPath projName branchName path) = PP.toNames pp 
+  pp <- Codebase.runTransaction codebase Codebase.expectCurrentProjectPath
+  let (PP.ProjectPath projName branchName path) = PP.toNames pp
   pure $ Current (Just projName) (Just branchName) path
