@@ -95,7 +95,9 @@ createSchema = do
   Q.addSquashResultTable
   (_, emptyCausalHashId) <- emptyCausalHash
   void $ insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
+  Q.addProjectBranchCausalHashIdColumn
   Q.addProjectBranchReflogTable
+  Q.addProjectBranchCausalHashIdColumn
   where
     scratchProjectName = UnsafeProjectName "scratch"
     scratchBranchName = UnsafeProjectBranchName "main"

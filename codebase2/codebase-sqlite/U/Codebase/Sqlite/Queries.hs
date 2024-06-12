@@ -258,6 +258,7 @@ module U.Codebase.Sqlite.Queries
     cdToProjectRoot,
     addCurrentProjectPathTable,
     addProjectBranchReflogTable,
+    addProjectBranchCausalHashIdColumn,
 
     -- ** schema version
     currentSchemaVersion,
@@ -482,6 +483,10 @@ addCurrentProjectPathTable =
 addProjectBranchReflogTable :: Transaction ()
 addProjectBranchReflogTable =
   executeStatements $(embedProjectStringFile "sql/013-add-project-branch-reflog-table.sql")
+
+addProjectBranchCausalHashIdColumn :: Transaction ()
+addProjectBranchCausalHashIdColumn =
+  executeStatements $(embedProjectStringFile "sql/014-add-project-branch-causal-hash-id.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
