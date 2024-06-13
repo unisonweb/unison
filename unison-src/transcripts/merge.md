@@ -974,7 +974,7 @@ project/alice> merge bob
 .> project.delete project
 ```
 
-## `merge.commit` example
+## `merge.commit` example (success)
 
 After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
 "commit" your changes.
@@ -1034,6 +1034,27 @@ project/merge-bob-into-alice> update
 project/merge-bob-into-alice> merge.commit
 project/alice> view foo
 project/alice> branches
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```ucm
+project/main> branch topic
+```
+
+```ucm:error
+project/topic> merge.commit
 ```
 
 ```ucm:hide

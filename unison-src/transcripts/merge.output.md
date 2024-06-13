@@ -1070,7 +1070,7 @@ bob _ = 19
 
 ```
 
-## `merge.commit` example
+## `merge.commit` example (success)
 
 After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
 "commit" your changes.
@@ -1172,6 +1172,25 @@ project/alice> branches
   1.   alice    
   2.   bob      
   3.   main     
+
+```
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm
+project/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+```
+```ucm
+project/topic> merge.commit
+
+  It doesn't look like there's a merge in progress.
 
 ```
 ## Precondition violations
