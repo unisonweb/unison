@@ -228,6 +228,7 @@ data Input
       !Bool -- Remind the user to use `lib.install` next time, not `pull`?
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
+  | MergeCommitI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

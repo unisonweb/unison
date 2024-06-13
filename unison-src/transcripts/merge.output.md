@@ -1,8 +1,29 @@
 # The `merge` command
 
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
-branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`.
+branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
+```ucm
+.> help merge
+
+merge
+`merge /branch` merges `branch` into the current branch
+
+.> help merge.commit
+
+merge.commit (or commit.merge)
+`merge.commit` merges a temporary branch created by the `merge`
+command back into its parent branch, and removes the temporary
+branch.
+
+For example, if you've done `merge topic` from main, then
+`merge.commit` is equivalent to doing
+
+  * switch /main
+  * merge /merge-topic-into-main
+  * delete.branch /merge-topic-into-main
+
+```
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
 contains both additions.
 
@@ -488,6 +509,18 @@ project/alice> merge /bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -529,6 +562,18 @@ project/alice> merge /bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -582,6 +627,18 @@ project/alice> merge /bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -639,6 +696,18 @@ project/alice> merge /bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -676,6 +745,18 @@ project/alice> merge /bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -717,6 +798,18 @@ project/alice> merge bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -751,6 +844,18 @@ project/alice> merge bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -797,6 +902,18 @@ project/alice> merge bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -859,6 +976,18 @@ project/alice> merge bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -906,6 +1035,18 @@ project/alice> merge bob
   I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -929,6 +1070,129 @@ bob _ = 19
 
 ```
 
+## `merge.commit` example (success)
+
+After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
+"commit" your changes.
+
+Original branch:
+```unison
+foo : Text
+foo = "old foo"
+```
+
+Alice's changes:
+```unison
+foo : Text
+foo = "alices foo"
+```
+
+Bob's changes:
+
+```unison
+foo : Text
+foo = "bobs foo"
+```
+
+Attempt to merge:
+
+```ucm
+project/alice> merge /bob
+
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+foo : Text
+foo = "alices foo"
+
+-- project/bob
+foo : Text
+foo = "bobs foo"
+
+
+```
+
+Resolve conflicts and commit:
+
+```unison
+foo : Text
+foo = "alice and bobs foo"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Text
+
+```
+```ucm
+project/merge-bob-into-alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+project/merge-bob-into-alice> merge.commit
+
+  I fast-forward merged project/merge-bob-into-alice into
+  project/alice.
+
+project/alice> view foo
+
+  foo : Text
+  foo = "alice and bobs foo"
+
+project/alice> branches
+
+       Branch   Remote branch
+  1.   alice    
+  2.   bob      
+  3.   main     
+
+```
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm
+project/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+```
+```ucm
+project/topic> merge.commit
+
+  It doesn't look like there's a merge in progress.
+
+```
 ## Precondition violations
 
 There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.

@@ -1,6 +1,6 @@
--- | @upgrade.commit@ handler.
-module Unison.Codebase.Editor.HandleInput.CommitUpgrade
-  ( handleCommitUpgrade,
+-- | @merge.commit@ handler.
+module Unison.Codebase.Editor.HandleInput.CommitMerge
+  ( handleCommitMerge,
   )
 where
 
@@ -17,36 +17,36 @@ import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..))
 
--- Note: this implementation is similar to `merge.commit`.
+-- Note: this implementation is similar to `upgrade.commit`.
 
-handleCommitUpgrade :: Cli ()
-handleCommitUpgrade = do
-  (upgradeProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
+handleCommitMerge :: Cli ()
+handleCommitMerge = do
+  (mergeProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
 
-  -- Assert that this is an "upgrade" branch and get its parent, which is the branch we were on when we ran `upgrade`.
+  -- Assert that this is a "merge" branch and get its parent, which is the branch we were on when we ran `merge`.
 
   parentBranchId <-
-    ProjectUtils.getUpgradeBranchParent upgradeProjectAndBranch.branch
-      & onNothing (Cli.returnEarly Output.NoUpgradeInProgress)
+    ProjectUtils.getMergeBranchParent mergeProjectAndBranch.branch
+      & onNothing (Cli.returnEarly Output.NoMergeInProgress)
   parentBranch <-
     Cli.runTransaction do
-      Queries.expectProjectBranch upgradeProjectAndBranch.project.projectId parentBranchId
+      Queries.expectProjectBranch mergeProjectAndBranch.project.projectId parentBranchId
 
   let parentProjectAndBranch =
-        ProjectAndBranch upgradeProjectAndBranch.project parentBranch
+        ProjectAndBranch mergeProjectAndBranch.project parentBranch
 
   -- Switch to the parent
 
   ProjectSwitch.switchToProjectBranch (ProjectUtils.justTheIds parentProjectAndBranch)
 
-  -- Merge the upgrade branch into the parent
+  -- Merge the merge branch into the parent
 
   Merge.doMergeLocalBranch
     TwoWay
       { alice = parentProjectAndBranch,
-        bob = upgradeProjectAndBranch
+        bob = mergeProjectAndBranch
       }
 
-  -- Delete the upgrade branch
+  -- Delete the merge branch
 
-  DeleteBranch.doDeleteProjectBranch upgradeProjectAndBranch
+  DeleteBranch.doDeleteProjectBranch mergeProjectAndBranch

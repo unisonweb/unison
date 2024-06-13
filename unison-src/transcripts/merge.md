@@ -1,7 +1,12 @@
 # The `merge` command
 
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
-branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`.
+branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
+
+```ucm:error
+.> help merge
+.> help merge.commit
+```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
 contains both additions.
@@ -948,6 +953,94 @@ project/alice> merge bob
 ```ucm:hide
 .> project.delete project
 ```
+
+## `merge.commit` example (success)
+
+After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
+"commit" your changes.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+Original branch:
+```unison:hide
+foo : Text
+foo = "old foo"
+```
+
+```ucm:hide
+project/main> add
+project/main> branch alice
+```
+
+Alice's changes:
+```unison:hide
+foo : Text
+foo = "alices foo"
+```
+
+```ucm:hide
+project/alice> update
+project/main> branch bob
+```
+
+Bob's changes:
+
+```unison:hide
+foo : Text
+foo = "bobs foo"
+```
+
+Attempt to merge:
+
+```ucm:hide
+project/bob> update
+```
+```ucm:error
+project/alice> merge /bob
+```
+
+Resolve conflicts and commit:
+
+```unison
+foo : Text
+foo = "alice and bobs foo"
+```
+
+```ucm
+project/merge-bob-into-alice> update
+project/merge-bob-into-alice> merge.commit
+project/alice> view foo
+project/alice> branches
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio
+```
+
+```ucm
+project/main> branch topic
+```
+
+```ucm:error
+project/topic> merge.commit
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 
 ## Precondition violations
 
