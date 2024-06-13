@@ -2089,7 +2089,7 @@ notifyUser dir = \case
             "I couldn't automatically merge"
               <> prettyMergeSource aliceAndBob.bob
               <> "into"
-              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
               <> "However, I've added the definitions that need attention to the top of"
               <> P.group (prettyFilePath path <> "."),
           "",

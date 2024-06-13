@@ -506,7 +506,7 @@ project/bob> add
 
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -559,7 +559,7 @@ bar = foo ++ " - " ++ foo
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -624,7 +624,7 @@ baz = "bobs baz"
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -693,7 +693,7 @@ unique type Foo = MkFoo Nat Text
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -742,7 +742,7 @@ unique type Foo = Baz Nat | BobQux Text
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -795,7 +795,7 @@ project/bob> move.term Foo.Qux Foo.Bob
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -841,7 +841,7 @@ unique ability my.cool where
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -899,7 +899,7 @@ These won't cleanly merge.
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -973,7 +973,7 @@ Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she ch
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -1032,7 +1032,7 @@ bob _ = 19
 ```ucm
 project/alice> merge bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -1099,7 +1099,7 @@ Attempt to merge:
 ```ucm
 project/alice> merge /bob
 
-  I couldn't automatically merge project/bob into alice.
+  I couldn't automatically merge project/bob into project/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
