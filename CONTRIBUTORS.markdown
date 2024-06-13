@@ -86,3 +86,4 @@ The format for this list: name, GitHub handle
 * Upendra Upadhyay (@upendra1997)
 * Dan Doel (@dolio)
 * Eric Torreborre (@etorreborre)
+* Eduard Nicodei (@neduard)
