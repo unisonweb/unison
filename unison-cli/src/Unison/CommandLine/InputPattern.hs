@@ -28,7 +28,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
-import Unison.Codebase.Path as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
@@ -78,7 +78,7 @@ data ArgumentType = ArgumentType
       String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute -> -- Current path
+      PP.ProjectPath ->
       m [Line.Completion],
     -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
     -- available.
@@ -157,14 +157,14 @@ unionSuggestions ::
   [ ( String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute ->
+      PP.ProjectPath ->
       m [Line.Completion]
     )
   ] ->
   ( String ->
     Codebase m v a ->
     AuthenticatedHttpClient ->
-    Path.Absolute ->
+    PP.ProjectPath ->
     m [Line.Completion]
   )
 unionSuggestions suggesters inp codebase httpClient path = do
@@ -179,14 +179,14 @@ suggestionFallbacks ::
   [ ( String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute ->
+      PP.ProjectPath ->
       m [Line.Completion]
     )
   ] ->
   ( String ->
     Codebase m v a ->
     AuthenticatedHttpClient ->
-    Path.Absolute ->
+    PP.ProjectPath ->
     m [Line.Completion]
   )
 suggestionFallbacks suggesters inp codebase httpClient path = go suggesters

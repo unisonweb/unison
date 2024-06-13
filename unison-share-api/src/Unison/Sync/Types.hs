@@ -48,11 +48,6 @@ module Unison.Sync.Types
     UploadEntitiesResponse (..),
     UploadEntitiesError (..),
 
-    -- ** Fast-forward path
-    FastForwardPathRequest (..),
-    FastForwardPathResponse (..),
-    FastForwardPathError (..),
-
     -- ** Update path
     UpdatePathRequest (..),
     UpdatePathResponse (..),
@@ -751,110 +746,8 @@ instance FromJSON HashMismatchForEntity where
         <*> obj
           .: "computed"
 
-------------------------------------------------------------------------------------------------------------------------
--- Fast-forward path
-
--- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
--- fast-forward to back to wherever the (client believes the) server is (including the server head, in a separate
--- field).
---
--- For example, if the client wants to update
---
--- @
--- A -> B -> C
--- @
---
--- to
---
--- @
--- A -> B -> C -> D -> E -> F
--- @
---
--- then it would send hashes
---
--- @
--- expectedHash = C
--- hashes = [D, E, F]
--- @
---
--- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
--- instead.
-data FastForwardPathRequest = FastForwardPathRequest
-  { -- | The causal that the client believes exists at `path`
-    expectedHash :: Hash32,
-    -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
-    hashes :: NonEmpty Hash32,
-    -- | The path to fast-forward
-    path :: Path
-  }
-  deriving stock (Show)
-
-instance ToJSON FastForwardPathRequest where
-  toJSON FastForwardPathRequest {expectedHash, hashes, path} =
-    object
-      [ "expected_hash" .= expectedHash,
-        "hashes" .= hashes,
-        "path" .= path
-      ]
-
-instance FromJSON FastForwardPathRequest where
-  parseJSON =
-    Aeson.withObject "FastForwardPathRequest" \o -> do
-      expectedHash <- o .: "expected_hash"
-      hashes <- o .: "hashes"
-      path <- o .: "path"
-      pure FastForwardPathRequest {expectedHash, hashes, path}
-
-data FastForwardPathResponse
-  = FastForwardPathSuccess
-  | FastForwardPathFailure FastForwardPathError
-  deriving stock (Show)
-
-data FastForwardPathError
-  = FastForwardPathError'MissingDependencies (NeedDependencies Hash32)
-  | FastForwardPathError'NoWritePermission Path
-  | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
-    FastForwardPathError'NotFastForward HashJWT
-  | -- | There was no history at this path; the client should use the "update path" endpoint instead.
-    FastForwardPathError'NoHistory
-  | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
-    FastForwardPathError'InvalidParentage InvalidParentage
-  | FastForwardPathError'InvalidRepoInfo Text RepoInfo
-  | FastForwardPathError'UserNotFound
-  deriving stock (Show)
-
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
-
-instance ToJSON FastForwardPathResponse where
-  toJSON = \case
-    FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'MissingDependencies deps)) -> jsonUnion "missing_dependencies" deps
-    (FastForwardPathFailure (FastForwardPathError'NoWritePermission path)) -> jsonUnion "no_write_permission" path
-    (FastForwardPathFailure (FastForwardPathError'NotFastForward hashJwt)) -> jsonUnion "not_fast_forward" hashJwt
-    (FastForwardPathFailure FastForwardPathError'NoHistory) -> jsonUnion "no_history" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'InvalidParentage invalidParentage)) ->
-      jsonUnion "invalid_parentage" invalidParentage
-    (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo)) ->
-      jsonUnion "invalid_repo_info" (msg, repoInfo)
-    (FastForwardPathFailure FastForwardPathError'UserNotFound) ->
-      jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON FastForwardPathResponse where
-  parseJSON =
-    Aeson.withObject "FastForwardPathResponse" \o ->
-      o .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure FastForwardPathSuccess
-        "missing_dependencies" -> FastForwardPathFailure . FastForwardPathError'MissingDependencies <$> o .: "payload"
-        "no_write_permission" -> FastForwardPathFailure . FastForwardPathError'NoWritePermission <$> o .: "payload"
-        "not_fast_forward" -> FastForwardPathFailure . FastForwardPathError'NotFastForward <$> o .: "payload"
-        "no_history" -> pure (FastForwardPathFailure FastForwardPathError'NoHistory)
-        "invalid_parentage" -> FastForwardPathFailure . FastForwardPathError'InvalidParentage <$> o .: "payload"
-        "invalid_repo_info" -> do
-          (msg, repoInfo) <- o .: "payload"
-          pure (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo))
-        "user_not_found" -> pure (FastForwardPathFailure FastForwardPathError'UserNotFound)
-        t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
 
 instance ToJSON InvalidParentage where
   toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]

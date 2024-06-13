@@ -42,7 +42,6 @@ import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -58,8 +57,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as E
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
 import Unison.Codebase.Editor.Output.PushPull qualified as PushPull
-import Unison.Codebase.Editor.RemoteRepo (ShareUserHandle (..), WriteRemoteNamespace (..), WriteShareRemoteNamespace (..))
-import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
@@ -68,7 +65,6 @@ import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrit
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -92,7 +88,6 @@ import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -155,6 +150,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Unison.Codebase.Editor.Input (BranchIdG(..))
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -174,7 +170,7 @@ renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
-    showDiffNamespace ShowNumbers ppe oldPrefix newPrefix diffOutput
+    showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
   ShowDiffAfterDeleteDefinitions ppe diff ->
     first
       ( \p ->
@@ -233,7 +229,7 @@ notifyNumbered = \case
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
     first
       ( \p ->
@@ -260,7 +256,7 @@ notifyNumbered = \case
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
     first
       ( \p ->
@@ -270,7 +266,7 @@ notifyNumbered = \case
               p
             ]
       )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
+      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
@@ -452,7 +448,7 @@ notifyNumbered = \case
     )
     where
       switch = IP.makeExample IP.projectSwitch
-  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch pn0 bn0, path) (ProjectAndBranch currentProject branch) ->
+  AmbiguousReset sourceOfAmbiguity (ProjectAndBranch _pn0 _bn0, path) (ProjectAndBranch currentProject branch) ->
     ( P.wrap
         ( openingLine
             <> prettyProjectAndBranchName (ProjectAndBranch currentProject branch)
@@ -492,10 +488,10 @@ notifyNumbered = \case
         E.AmbiguousReset'Target -> \xs -> "<some hash>" : xs
       reset = IP.makeExample IP.reset
       relPath0 = prettyPath path
-      absPath0 = review ProjectUtils.projectBranchPathPrism (ProjectAndBranch (pn0 ^. #projectId) (bn0 ^. #branchId), path)
+      absPath0 = Path.Absolute path
   ListNamespaceDependencies _ppe _path Empty -> ("This namespace has no external dependencies.", mempty)
   ListNamespaceDependencies ppe path' externalDependencies ->
-    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+    ( P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyProjectPath path') $
         List.intersperse spacer (externalDepsTable externalDependencies),
       numberedArgs
     )
@@ -537,7 +533,7 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   where
-    absPathToBranchId = Right
+    absPathToBranchId = BranchAtPath
 
 undoTip :: P.Pretty P.ColorText
 undoTip =
@@ -581,13 +577,13 @@ notifyUser dir = \case
         pure
           . P.warnCallout
           $ "The namespace "
-            <> prettyBranchId p0
+            <> either prettySCH prettyProjectPath p0
             <> " is empty. Was there a typo?"
       ps ->
         pure
           . P.warnCallout
           $ "The namespaces "
-            <> P.commas (prettyBranchId <$> ps)
+            <> P.commas (either prettySCH prettyProjectPath <$> ps)
             <> " are empty. Was there a typo?"
   LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
     pure $
@@ -803,7 +799,7 @@ notifyUser dir = \case
       prettyProjectAndBranchName projectAndBranch <> "is empty. There is nothing to push."
   CreatedNewBranch path ->
     pure $
-      "☝️  The namespace " <> prettyAbsoluteStripProject path <> " is empty."
+      "☝️  The namespace " <> prettyAbsolute path <> " is empty."
   -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
@@ -1331,9 +1327,9 @@ notifyUser dir = \case
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        either prettyPath' prettyProjectAndBranchName dest
+        prettyBranchRelativePath dest
           <> "was already up-to-date with"
-          <> P.group (either prettyPath' prettyProjectAndBranchName src <> ".")
+          <> P.group (prettyBranchRelativePath src <> ".")
   MergeAlreadyUpToDate2 aliceAndBob ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1478,9 +1474,9 @@ notifyUser dir = \case
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
-        prettyNamespaceKey dest
+        prettyProjectPath dest
           <> "is already up-to-date with"
-          <> P.group (prettyNamespaceKey src <> ".")
+          <> P.group (prettyProjectPath src)
   DumpNumberedArgs schLength args ->
     pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   NoConflictsOrEdits ->
@@ -1537,11 +1533,6 @@ notifyUser dir = \case
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush pushBehavior path ->
-    (pure . P.warnCallout) case pushBehavior of
-      PushBehavior.ForcePush -> error "impossible: refused to push due to ForcePush?"
-      PushBehavior.RequireEmpty -> expectedEmptyPushDest path
-      PushBehavior.RequireNonEmpty -> expectedNonEmptyPushDest path
   GistCreated remoteNamespace ->
     pure $
       P.lines
@@ -1603,10 +1594,7 @@ notifyUser dir = \case
   PrintVersion ucmVersion -> pure (P.text ucmVersion)
   ShareError shareError -> pure (prettyShareError shareError)
   ViewOnShare shareRef ->
-    pure $
-      "View it here: " <> case shareRef of
-        Left repoPath -> prettyShareLink repoPath
-        Right branchInfo -> prettyRemoteBranchInfo branchInfo
+    pure $ "View it here: " <> prettyRemoteBranchInfo shareRef
   IntegrityCheck result -> pure $ case result of
     NoIntegrityErrors -> "🎉 No issues detected 🎉"
     IntegrityErrorDetected ns -> prettyPrintIntegrityErrors ns
@@ -2072,16 +2060,6 @@ notifyUser dir = \case
         <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
         <> "and removed"
         <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
-  LooseCodePushDeprecated ->
-    pure . P.warnCallout $
-      P.lines $
-        [ P.wrap $ "Unison Share's projects are now the new preferred way to store code, and storing code outside of a project has been deprecated.",
-          "",
-          P.wrap $ "Learn how to convert existing code into a project using this guide: ",
-          "https://www.unison-lang.org/docs/tooling/projects-library-migration/",
-          "",
-          "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
-        ]
   MergeFailure path aliceAndBob temp ->
     pure $
       P.lines $
@@ -2154,38 +2132,15 @@ notifyUser dir = \case
   NoMergeInProgress ->
     pure . P.wrap $ "It doesn't look like there's a merge in progress."
 
-expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-expectedEmptyPushDest namespace =
-  P.lines
-    [ "The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is not empty.",
-      "",
-      "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
-    ]
-
-expectedNonEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
-expectedNonEmptyPushDest namespace =
-  P.lines
-    [ P.wrap ("The remote namespace " <> prettyWriteRemoteNamespace (absurd <$> namespace) <> " is empty."),
-      "",
-      P.wrap ("Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?")
-    ]
-
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
   P.fatalCallout . \case
-    ShareErrorCheckAndSetPush err -> prettyCheckAndSetPushError err
     ShareErrorDownloadEntities err -> prettyDownloadEntitiesError err
-    ShareErrorFastForwardPush err -> prettyFastForwardPushError err
     ShareErrorGetCausalHashByPath err -> prettyGetCausalHashByPathError err
     ShareErrorPull err -> prettyPullError err
     ShareErrorTransport err -> prettyTransportError err
     ShareErrorUploadEntities err -> prettyUploadEntitiesError err
     ShareExpectedSquashedHead -> "The server failed to provide a squashed branch head when requested. Please report this as a bug to the Unison team."
-
-prettyCheckAndSetPushError :: Share.CheckAndSetPushError -> Pretty
-prettyCheckAndSetPushError = \case
-  Share.CheckAndSetPushError'UpdatePath repoInfo err -> prettyUpdatePathError repoInfo err
-  Share.CheckAndSetPushError'UploadEntities err -> prettyUploadEntitiesError err
 
 prettyDownloadEntitiesError :: Share.DownloadEntitiesError -> Pretty
 prettyDownloadEntitiesError = \case
@@ -2194,27 +2149,6 @@ prettyDownloadEntitiesError = \case
   Share.DownloadEntitiesUserNotFound userHandle -> shareUserNotFound (Share.RepoInfo userHandle)
   Share.DownloadEntitiesProjectNotFound project -> shareProjectNotFound project
   Share.DownloadEntitiesEntityValidationFailure err -> prettyEntityValidationFailure err
-
-prettyFastForwardPathError :: Share.Path -> Share.FastForwardPathError -> Pretty
-prettyFastForwardPathError path = \case
-  Share.FastForwardPathError'InvalidParentage Share.InvalidParentage {child, parent} ->
-    P.lines
-      [ "The server detected an error in the history being pushed, please report this as a bug in ucm.",
-        "The history in question is the hash: " <> prettyHash32 child <> " with the ancestor: " <> prettyHash32 parent
-      ]
-  Share.FastForwardPathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-  Share.FastForwardPathError'MissingDependencies dependencies -> needDependencies dependencies
-  Share.FastForwardPathError'NoHistory -> expectedNonEmptyPushDest (sharePathToWriteRemotePathShare path)
-  Share.FastForwardPathError'NoWritePermission path -> noWritePermissionForPath path
-  Share.FastForwardPathError'NotFastForward _hashJwt -> notFastForward path
-  Share.FastForwardPathError'UserNotFound -> shareUserNotFound (Share.pathRepoInfo path)
-
-prettyFastForwardPushError :: Share.FastForwardPushError -> Pretty
-prettyFastForwardPushError = \case
-  Share.FastForwardPushError'FastForwardPath path err -> prettyFastForwardPathError path err
-  Share.FastForwardPushError'GetCausalHash err -> prettyGetCausalHashByPathError err
-  Share.FastForwardPushError'NotFastForward path -> notFastForward path
-  Share.FastForwardPushError'UploadEntities err -> prettyUploadEntitiesError err
 
 prettyGetCausalHashByPathError :: Share.GetCausalHashByPathError -> Pretty
 prettyGetCausalHashByPathError = \case
@@ -2228,21 +2162,6 @@ prettyPullError = \case
   Share.PullError'GetCausalHash err -> prettyGetCausalHashByPathError err
   Share.PullError'NoHistoryAtPath sharePath ->
     P.wrap $ P.text "The server didn't find anything at" <> prettySharePath sharePath
-
-prettyUpdatePathError :: Share.RepoInfo -> Share.UpdatePathError -> Pretty
-prettyUpdatePathError repoInfo = \case
-  Share.UpdatePathError'HashMismatch Share.HashMismatch {path = sharePath, expectedHash, actualHash} ->
-    case (expectedHash, actualHash) of
-      (Nothing, Just _) -> expectedEmptyPushDest (sharePathToWriteRemotePathShare sharePath)
-      _ ->
-        P.wrap $
-          P.text "It looks like someone modified"
-            <> prettySharePath sharePath
-            <> P.text "an instant before you. Pull and try again? 🤞"
-  Share.UpdatePathError'InvalidRepoInfo err repoInfo -> invalidRepoInfo err repoInfo
-  Share.UpdatePathError'MissingDependencies dependencies -> needDependencies dependencies
-  Share.UpdatePathError'NoWritePermission path -> noWritePermissionForPath path
-  Share.UpdatePathError'UserNotFound -> shareUserNotFound repoInfo
 
 prettyUploadEntitiesError :: Share.UploadEntitiesError -> Pretty
 prettyUploadEntitiesError = \case
@@ -2440,17 +2359,6 @@ shareProjectNotFound projectShortHand =
 shareUserNotFound :: Share.RepoInfo -> Pretty
 shareUserNotFound repoInfo =
   P.wrap ("User" <> prettyRepoInfo repoInfo <> "does not exist.")
-
-sharePathToWriteRemotePathShare :: Share.Path -> WriteRemoteNamespace void
-sharePathToWriteRemotePathShare sharePath =
-  -- Recover the original WriteRemotePath from the information in the error, which is thrown from generic share
-  -- client code that doesn't know about WriteRemotePath
-  WriteRemoteNamespaceShare
-    WriteShareRemoteNamespace
-      { server = RemoteRepo.DefaultCodeserver,
-        repo = ShareUserHandle $ Share.unRepoInfo (Share.pathRepoInfo sharePath),
-        path = Path.fromList (coerce @[Text] @[NameSegment] (Share.pathCodebasePath sharePath))
-      }
 
 formatMissingStuff ::
   (Show tm, Show typ) =>

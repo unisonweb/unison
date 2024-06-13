@@ -21,6 +21,7 @@ import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17 (migrateSchema16To17)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4 (migrateSchema3To4)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6)
@@ -47,10 +48,10 @@ migrations ::
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   CodebasePath ->
-  Map SchemaVersion (Sqlite.Transaction ())
+  Map SchemaVersion (Sqlite.Connection -> IO ())
 migrations getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
-    [ (2, migrateSchema1To2 getDeclType termBuffer declBuffer),
+    [ (2, runT $ migrateSchema1To2 getDeclType termBuffer declBuffer),
       -- The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
       -- caused an issue:
       --
@@ -67,30 +68,34 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       -- This migration drops all the v1 hash objects to avoid this issue, since these hash objects
       -- weren't being used for anything anyways.
       sqlMigration 3 (Q.removeHashObjectsByHashingVersion (HashVersion 1)),
-      (4, migrateSchema3To4),
+      (4, runT migrateSchema3To4),
       -- The 4 to 5 migration adds initial support for out-of-order sync i.e. Unison Share
       sqlMigration 5 Q.addTempEntityTables,
-      (6, migrateSchema5To6 rootCodebasePath),
-      (7, migrateSchema6To7),
-      (8, migrateSchema7To8),
+      (6, runT $ migrateSchema5To6 rootCodebasePath),
+      (7, runT migrateSchema6To7),
+      (8, runT migrateSchema7To8),
       -- Recreates the name lookup tables because the primary key was missing the root hash id.
       sqlMigration 9 Q.fixScopedNameLookupTables,
       sqlMigration 10 Q.addProjectTables,
       sqlMigration 11 Q.addMostRecentBranchTable,
-      (12, migrateSchema11To12),
+      (12, runT migrateSchema11To12),
       sqlMigration 13 Q.addMostRecentNamespaceTable,
       sqlMigration 14 Q.addSquashResultTable,
       sqlMigration 15 Q.addSquashResultTableIfNotExists,
-      sqlMigration 16 Q.cdToProjectRoot
+      sqlMigration 16 Q.cdToProjectRoot,
+      (17 {- This migration takes a raw sqlite connection -}, \conn -> migrateSchema16To17 conn)
     ]
   where
-    sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Transaction ())
+    runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()
+    runT t conn = Sqlite.runWriteTransaction conn (\run -> run t)
+    sqlMigration :: SchemaVersion -> Sqlite.Transaction () -> (SchemaVersion, Sqlite.Connection -> IO ())
     sqlMigration ver migration =
       ( ver,
-        do
-          Q.expectSchemaVersion (ver - 1)
-          migration
-          Q.setSchemaVersion ver
+        \conn -> Sqlite.runWriteTransaction conn \run -> run
+          do
+            Q.expectSchemaVersion (ver - 1)
+            migration
+            Q.setSchemaVersion ver
       )
 
 data CodebaseVersionStatus
