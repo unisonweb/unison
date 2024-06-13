@@ -41,7 +41,6 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -51,7 +50,6 @@ import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
-import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
@@ -77,6 +75,7 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
+import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch)
@@ -100,11 +99,8 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
-import Unison.Codebase.Patch (Patch (..))
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as HQSplit'
 import Unison.Codebase.Path qualified as Path
@@ -181,7 +177,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
-import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
@@ -742,10 +737,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
               previewResponse sourceName sr uf
-            TodoI patchPath branchPath' -> do
-              patch <- Cli.getPatchAt (fromMaybe Cli.defaultPatchPath patchPath)
-              branchPath <- Cli.resolvePath' branchPath'
-              doShowTodoOutput patch branchPath
+            TodoI patchPath branchPath -> handleTodo patchPath branchPath
             TestI testInput -> Tests.handleTest testInput
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
@@ -1430,58 +1422,6 @@ doDisplay outputLoc names tm = do
         else do
           writeUtf8 filePath txt
 
--- | Show todo output if there are any conflicts or edits.
-doShowTodoOutput :: Patch -> Path.Absolute -> Cli ()
-doShowTodoOutput patch scopePath = do
-  Cli.Env {codebase} <- ask
-  names0 <- Branch.toNames <$> Cli.getBranch0At scopePath
-  todo <- Cli.runTransaction (checkTodo codebase patch names0)
-  if TO.noConflicts todo && TO.noEdits todo
-    then Cli.respond NoConflictsOrEdits
-    else do
-      Cli.setNumberedArgs $
-        SA.HashQualified . HQ.HashOnly . Reference.toShortHash . view _2
-          <$> fst (TO.todoFrontierDependents todo)
-      pped <- Cli.currentPrettyPrintEnvDecl
-      Cli.respondNumbered $ TodoOutput pped todo
-
-checkTodo :: Codebase m Symbol Ann -> Patch -> Names -> Sqlite.Transaction (TO.TodoOutput Symbol Ann)
-checkTodo codebase patch names0 = do
-  let -- Get the dependents of a reference which:
-      --   1. Don't appear on the LHS of this patch
-      --   2. Have a name in this namespace
-      getDependents :: Reference -> Sqlite.Transaction (Set Reference)
-      getDependents ref = do
-        dependents <- Codebase.dependents Queries.ExcludeSelf ref
-        pure (dependents & removeEditedThings & removeNamelessThings)
-  -- (r,r2) ∈ dependsOn if r depends on r2, excluding self-references (i.e. (r,r))
-  dependsOn <- Monoid.foldMapM (\ref -> R.fromManyDom <$> getDependents ref <*> pure ref) edited
-  let dirty = R.dom dependsOn
-  transitiveDirty <- transitiveClosure getDependents dirty
-  (frontierTerms, frontierTypes) <- loadDisplayInfo codebase (R.ran dependsOn)
-  (dirtyTerms, dirtyTypes) <- loadDisplayInfo codebase dirty
-  pure $
-    TO.TodoOutput
-      (Set.size transitiveDirty)
-      (frontierTerms, frontierTypes)
-      (score dirtyTerms, score dirtyTypes)
-      (Names.conflicts names0)
-      (Patch.conflicts patch)
-  where
-    -- Remove from a all references that were edited, i.e. appear on the LHS of this patch.
-    removeEditedThings :: Set Reference -> Set Reference
-    removeEditedThings =
-      (`Set.difference` edited)
-    -- Remove all references that don't have a name in the given namespace
-    removeNamelessThings :: Set Reference -> Set Reference
-    removeNamelessThings =
-      Set.filter (Names.contains names0)
-    -- todo: something more intelligent here?
-    score :: [(a, b)] -> [(TO.Score, a, b)]
-    score = map (\(x, y) -> (1, x, y))
-    edited :: Set Reference
-    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-
 confirmedCommand :: Input -> Cli Bool
 confirmedCommand i = do
   loopState <- State.get
@@ -1779,27 +1719,6 @@ docsI src = do
           -- the hash back to its full name in the file
           displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
         _ -> displayI ConsoleLocation dotDoc
-
-loadDisplayInfo ::
-  Codebase m Symbol Ann ->
-  Set Reference ->
-  Sqlite.Transaction
-    ( [(Reference, Maybe (Type Symbol Ann))],
-      [(Reference, DisplayObject () (DD.Decl Symbol Ann))]
-    )
-loadDisplayInfo codebase refs = do
-  termRefs <- filterM (Codebase.isTerm codebase) (toList refs)
-  typeRefs <- filterM (Codebase.isType codebase) (toList refs)
-  terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm codebase r
-  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayObject codebase r
-  pure (terms, types)
-
-loadTypeDisplayObject :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (DisplayObject () (DD.Decl Symbol Ann))
-loadTypeDisplayObject codebase = \case
-  Reference.Builtin _ -> pure (BuiltinObject ())
-  Reference.DerivedId id ->
-    maybe (MissingObject $ Reference.idToShortHash id) UserObject
-      <$> Codebase.getTypeDeclaration codebase id
 
 lexedSource :: Text -> Text -> Cli (Text, [L.Token L.Lexeme])
 lexedSource name src = do
