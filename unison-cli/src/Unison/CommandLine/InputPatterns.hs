@@ -756,30 +756,15 @@ todo =
     "todo"
     []
     I.Visible
-    [("patch", Optional, patchArg), ("namespace", Optional, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample' todo,
-            "lists the refactor work remaining in the default patch for the current"
-              <> " namespace."
-          ),
-          ( makeExample todo ["<patch>"],
-            "lists the refactor work remaining in the given patch in the current "
-              <> "namespace."
-          ),
-          ( makeExample todo ["<patch>", "[path]"],
-            "lists the refactor work remaining in the given patch in given namespace."
-          )
-        ]
+    []
+    ( P.wrap $
+        makeExample' todo
+          <> "lists the current namespace's outstanding issues, including conflicted names, dependencies with missing"
+          <> "names, and merge precondition violations."
     )
     \case
-      patchStr : ws -> first warn $ do
-        patch <- handleSplit'Arg patchStr
-        branch <- case ws of
-          [] -> pure Path.relativeEmpty'
-          [pathStr] -> handlePath'Arg pathStr
-          _ -> Left "`todo` just takes a patch and one optional namespace"
-        Right $ Input.TodoI (Just patch) branch
-      [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
+      [] -> Right Input.TodoI
+      _ -> Left (I.help todo)
 
 load :: InputPattern
 load =

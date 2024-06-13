@@ -737,7 +737,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
               previewResponse sourceName sr uf
-            TodoI patchPath branchPath -> handleTodo patchPath branchPath
+            TodoI -> handleTodo
             TestI testInput -> Tests.handleTest testInput
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main -> doCompile False output main
