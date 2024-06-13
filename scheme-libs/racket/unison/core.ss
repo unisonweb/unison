@@ -192,7 +192,7 @@
      (string-append "{Value " (describe-value v) "}")]
     [(unison-code v)
      (string-append "{Code " (describe-value v) "}")]
-    [(unison-closure code env)
+    [(unison-closure _ code env)
      (define dc
        (termlink->string (lookup-function-link code) #t))
      (define (f v)

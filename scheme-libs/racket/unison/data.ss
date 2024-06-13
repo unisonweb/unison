@@ -45,9 +45,9 @@
   left?
   either-get
   either-get
-  unit
-  false
-  true
+  sum-unit
+  sum-false
+  sum-true
   bool
   char
   ord
@@ -290,13 +290,10 @@
   (write-string ")" port))
 
 (struct unison-closure
-  (code env)
+  (arity code env)
   #:transparent
   #:methods gen:custom-write
   [(define (write-proc clo port mode)
-     (define code-tl
-       (lookup-function-link (unison-closure-code clo)))
-
      (define rec
        (case mode
          [(#t) write]
@@ -308,12 +305,31 @@
      (write-string " " port)
      (write-sequence (unison-closure-env clo) port mode)
      (write-string ")" port))]
+
+  ; This has essentially becomes the slow path for unison function
+  ; application. The definition macro immediately creates a closure
+  ; for any statically under-saturated call or unapplied occurrence.
+  ; This means that there is never a bare unison function being passed
+  ; as a value. So, we can define the slow path here once and for all.
   #:property prop:procedure
-  (case-lambda
-    [(clo) clo]
-    [(clo . rest)
-     (apply (unison-closure-code clo)
-            (append (unison-closure-env clo) rest))]))
+  (lambda (clo #:pure [pure? #f] #:by-name [by-name? #f] . rest)
+    (define arity (unison-closure-arity clo))
+    (define old-env (unison-closure-env clo))
+    (define code (unison-closure-code clo))
+
+    (define new-env (append old-env rest))
+    (define k (length rest))
+    (define l (length new-env))
+    (cond
+      [(or by-name? (> arity l))
+       (struct-copy unison-closure clo [env new-env])]
+      [(= arity l) ; saturated
+       (apply code #:pure pure? new-env)]
+      [(= k 0) clo] ; special case, 0-applying undersaturated
+      [(< arity l)
+       ; TODO: pending arg annotation if no pure?
+       (define-values (now pending) (split-at new-env arity))
+       (apply (apply code #:pure pure? now) #:pure pure? pending)])))
 
 (struct unison-timespec (sec nsec)
   #:transparent
@@ -344,9 +360,11 @@
             [dname (datum->syntax stx
                      (string->symbol
                        (string-append
-                         "builtin-" txt ":termlink")))])
-       #`(define #,dname
-           (unison-termlink-builtin #,(datum->syntax stx txt))))]))
+                         "builtin-" txt ":termlink"))
+                     #'name)])
+       (quasisyntax/loc stx
+         (define #,dname
+           (unison-termlink-builtin #,(datum->syntax stx txt)))))]))
 
 (define-syntax (declare-builtin-link stx)
   (syntax-case stx ()
@@ -357,7 +375,8 @@
             [dname (datum->syntax stx
                      (string->symbol
                        (string-append txt ":termlink")))])
-       #`(declare-function-link name #,dname))]))
+       (quasisyntax/loc stx
+         (declare-function-link name #,dname)))]))
 
 (define (partial-app f . args) (unison-closure f args))
 
@@ -382,11 +401,11 @@
 
 ; #<void> works as well
 ; Unit
-(define unit (sum 0))
+(define sum-unit (sum 0))
 
 ; Booleans are represented as numbers
-(define false 0)
-(define true 1)
+(define sum-false 0)
+(define sum-true 1)
 
 (define (bool b) (if b 1 0))
 
