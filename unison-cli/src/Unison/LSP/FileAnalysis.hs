@@ -108,7 +108,7 @@ checkFile doc = runMaybeT do
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
             -- This is silly, but after applying TDNR we can just re-typecheck the already substituted file to get the correct types of
             -- local bindings from after TDNR.
-            localBindings <-
+            _localBindings <-
               -- maybeTypecheckedFile & foldMapM \tf -> do
               --   let parsedFile = UF.discardTypes tf
               --   typecheckingEnv' <- computeTypecheckingEnvironment ShouldUseTndr'No cb ambientAbilities parsedFile
@@ -123,8 +123,11 @@ checkFile doc = runMaybeT do
                     Cv.annToRange loc & foldMap (\(LSP.Range start end) -> (keyedSingleton v (start, end) typ))
                   _ -> mempty
                 & pure
-            pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
-  Debug.debugM Debug.Temp "Local Bindings" localBindingTypes
+            pure (mempty, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+
+  Debug.debugM Debug.Temp "BEFORE Local Bindings" ()
+  -- Debug.debugM Debug.Temp "My Local Bindings" localBindingTypes
+  Debug.debugM Debug.Temp "AFTER Local Bindings" ()
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
   (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
   let codeActionRanges =

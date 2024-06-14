@@ -105,7 +105,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import qualified Unison.Debug as Debug
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -1093,7 +1092,7 @@ noteBindingType ::
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteBindingType top span v binding typ = case binding of
+noteBindingType top _span v binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
@@ -1111,16 +1110,16 @@ noteBindingType top span v binding typ = case binding of
       [(Var.reset v, generalizeAndUnTypeVar typ, True)]
   where
     note :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> M v loc ()
-    note infos = do
+    note comps = do
       -- Also note top-level components as standard let bindings for the LSP
-      for_ infos \(v, t, _r) -> noteBinding v span t
-      when top (btw $ topLevelComponent infos)
+      -- for_ comps \(v, t, _r) -> noteVarBinding v span t
+      when top (btw $ topLevelComponent comps)
 
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
-noteBinding :: (Var v) => v -> loc -> Type.Type v loc ->  M v loc ()
-noteBinding v span t = btw $ VarBinding v span t
+_noteVarBinding :: (Var v) => v -> loc -> Type.Type v loc ->  M v loc ()
+_noteVarBinding _v _span _t = pure () -- btw $ VarBinding v span t
 
 synthesizeTop ::
   (Var v) =>
@@ -1348,8 +1347,10 @@ synthesizeWanted e
         else checkWithAbilities [et] body' ot
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
-      let solvedInputType = fromMaybe it . fmap Type.getPolytype $ Map.lookup i . solvedExistentials . info $ ctx
-      noteBinding i l (TypeVar.lowerType $ solvedInputType)
+
+      -- TODO revive
+      -- let solvedInputType = fromMaybe it . fmap Type.getPolytype $ Map.lookup i . solvedExistentials . info $ ctx
+      -- noteVarBinding i l (TypeVar.lowerType $ solvedInputType)
       pure (t, [])
   | Term.If' cond t f <- e = do
       cwant <- scope InIfCond $ check cond (Type.boolean l)
@@ -1852,7 +1853,7 @@ annotateLetRecBindings ::
   Term.IsTop ->
   ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc)) ->
   M v loc (Term v loc)
-annotateLetRecBindings span isTop letrec =
+annotateLetRecBindings _span isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
   -- which asks if the user-provided type annotations were needed.
   if isTop
@@ -1877,8 +1878,9 @@ annotateLetRecBindings span isTop letrec =
             topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
       pure body
     else do -- If this isn't a top-level letrec, then we don't have to do anything special
-      (body, vts) <- annotateLetRecBindings' True
-      for_ vts \(v, t) -> noteBinding v span (TypeVar.lowerType t)
+      (body, _vts) <- annotateLetRecBindings' True
+      -- TODO revive
+      -- for_ vts \(v, t) -> noteVarBinding v span (TypeVar.lowerType t)
       pure body
   where
     annotateLetRecBindings' useUserAnnotations = do
@@ -1924,7 +1926,7 @@ annotateLetRecBindings span isTop letrec =
           bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
           annotations = zipWith Ann vs bindingTypesGeneralized
       -- for_ (zip3 vs bindings bindingTypesGeneralized) \(v, b, t) -> do
-      --   noteBinding v (loc b) (TypeVar.lowerType t)
+      --   noteVarBinding v (loc b) (TypeVar.lowerType t)
       appendContext annotations
       pure (body, vs `zip` bindingTypesGeneralized)
 
@@ -2463,7 +2465,7 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want abt@(Term.Let1Top' top binding m) t = do
+checkWanted want _abt@(Term.Let1Top' top binding m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
@@ -2472,9 +2474,8 @@ checkWanted want abt@(Term.Let1Top' top binding m) t = do
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v tbinding)
-    -- Need to somehow fix the annotation on these
-    Debug.debugM Debug.Temp "checkWanted" $ (v, binding)
-    noteBinding v (ABT.annotation abt) (TypeVar.lowerType tbinding)
+    -- TODO revive
+    -- noteVarBinding v (ABT.annotation abt) (TypeVar.lowerType tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
 checkWanted want (Term.LetRecNamed' [] m) t =
   checkWanted want m t

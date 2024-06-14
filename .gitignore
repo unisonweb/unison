@@ -19,6 +19,9 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+*.prof.html
+*.profiterole.html
+*.profiterole.txt
 /.direnv/
 /.envrc
 

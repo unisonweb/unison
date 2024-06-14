@@ -79,7 +79,6 @@ import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
-import Unison.LSP qualified as LSP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -137,7 +136,7 @@ main version = do
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
       nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
-      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
+      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption} = globalOptions
       withConfig mCodePathOption \config -> do
         currentDir <- getCurrentDirectory
         case command of
@@ -312,7 +311,7 @@ main version = do
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
+                -- void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
