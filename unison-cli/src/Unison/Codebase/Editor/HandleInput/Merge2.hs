@@ -138,6 +138,7 @@ import Unison.Util.SyntaxText (SyntaxText')
 import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
+import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
@@ -245,7 +246,7 @@ doMerge info = do
           done (Output.MergeDefnsInLib who)
 
       -- Load Alice/Bob/LCA definitions and decl name lookups
-      (defns3, declNameLookups, lcaDeclToConstructors) <- do
+      (defns3, declNameLookups, lcaDeclNameLookup) <- do
         let emptyNametree = Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
         let loadDefns branch =
               Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch) & onLeftM \conflictedName ->
@@ -270,20 +271,20 @@ doMerge info = do
         (aliceDefns0, aliceDeclNameLookup) <- load (Just (mergeTarget, branches.alice))
         (bobDefns0, bobDeclNameLookup) <- load (Just (mergeSource, branches.bob))
         lcaDefns0 <- maybe (pure emptyNametree) loadDefns branches.lca
-        lcaDeclToConstructors <- Cli.runTransaction (lenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
+        lcaDeclNameLookup <- Cli.runTransaction (lenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
 
         let flatten defns = Defns (flattenNametree (view #terms) defns) (flattenNametree (view #types) defns)
         let defns3 = flatten <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
         let declNameLookups = TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup}
 
-        pure (defns3, declNameLookups, lcaDeclToConstructors)
+        pure (defns3, declNameLookups, lcaDeclNameLookup)
 
       let defns = ThreeWay.forgetLca defns3
 
-      liftIO (debugFunctions.debugDefns defns3 declNameLookups lcaDeclToConstructors)
+      liftIO (debugFunctions.debugDefns defns3 declNameLookups lcaDeclNameLookup)
 
       -- Diff LCA->Alice and LCA->Bob
-      diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups lcaDeclToConstructors defns3)
+      diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns3)
 
       liftIO (debugFunctions.debugDiffs diffs)
 
@@ -1038,7 +1039,7 @@ data DebugFunctions = DebugFunctions
     debugDefns ::
       ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
       TwoWay DeclNameLookup ->
-      Map Name [Maybe Name] ->
+      PartialDeclNameLookup ->
       IO (),
     debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
     debugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
@@ -1080,7 +1081,7 @@ realDebugCausals causals = do
 realDebugDefns ::
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay DeclNameLookup ->
-  Map Name [Maybe Name] ->
+  PartialDeclNameLookup ->
   IO ()
 realDebugDefns defns declNameLookups _lcaDeclNameLookup = do
   Text.putStrLn (Text.bold "\n=== Alice definitions ===")
@@ -1200,28 +1201,28 @@ realDebugPartitionedDiff conflicts unconflicts = do
   renderConflicts "typeid" conflicts.bob.types (Bob ())
 
   Text.putStrLn (Text.bold "\n=== Alice unconflicts ===")
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice (OnlyAlice ())
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice (OnlyAlice ())
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice (OnlyAlice ())
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice (OnlyAlice ())
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice (OnlyAlice ())
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice (OnlyAlice ())
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.alice
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.alice
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.alice
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.alice
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.alice
 
   Text.putStrLn (Text.bold "\n=== Bob unconflicts ===")
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob (OnlyBob ())
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob (OnlyBob ())
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob (OnlyBob ())
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob (OnlyBob ())
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob (OnlyBob ())
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob (OnlyBob ())
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.bob
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.bob
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.bob
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.bob
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.bob
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.bob
 
   Text.putStrLn (Text.bold "\n=== Alice-and-Bob unconflicts ===")
-  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both (AliceAndBob ())
-  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both (AliceAndBob ())
-  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both (AliceAndBob ())
-  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both (AliceAndBob ())
-  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both (AliceAndBob ())
-  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both (AliceAndBob ())
+  renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.both
+  renderUnconflicts Text.green "+" (const "type") Reference.toText unconflicts.types.adds.both
+  renderUnconflicts Text.red "-" referentLabel Referent.toText unconflicts.terms.deletes.both
+  renderUnconflicts Text.red "-" (const "type") Reference.toText unconflicts.types.deletes.both
+  renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both
+  renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both
   where
     renderConflicts :: Text -> Map Name Reference.Id -> EitherWay () -> IO ()
     renderConflicts label conflicts who =
@@ -1244,9 +1245,8 @@ realDebugPartitionedDiff conflicts unconflicts = do
       (ref -> Text) ->
       (ref -> Text) ->
       Map Name ref ->
-      EitherWayI () ->
       IO ()
-    renderUnconflicts color action label renderRef unconflicts who =
+    renderUnconflicts color action label renderRef unconflicts =
       for_ (Map.toList unconflicts) \(name, ref) ->
         Text.putStrLn $
           color $
@@ -1257,9 +1257,6 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> Name.toText name
               <> " "
               <> renderRef ref
-              <> " ("
-              <> (case who of OnlyAlice () -> "Alice"; OnlyBob () -> "Bob"; AliceAndBob () -> "Alice and Bob")
-              <> ")"
 
 realDebugDependents :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO ()
 realDebugDependents dependents = do

@@ -1255,7 +1255,7 @@ One way to fix this in the future would be to introduce a syntax for defining al
 
 Alice's branch:
 ```ucm
-project/alice> alias.type builtin.Nat MyNat
+project/alice> alias.type lib.builtins.Nat MyNat
 
   Done.
 
@@ -1694,5 +1694,102 @@ project/bob> add
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
+
+```
+### Delete a constructor
+
+
+```unison
+type Foo = Bar | Baz
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+project/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+```
+```unison
+boop = "boop"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      boop : Text
+
+```
+```ucm
+project/topic> add
+
+  ⍟ I've added these definitions:
+  
+    boop : Text
+
+```
+```unison
+type Foo = Bar
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      type Foo
+
+```
+```ucm
+project/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+```ucm
+project/main> merge topic
+
+  I merged project/topic into project/main.
+
+project/main> view Foo
+
+  type Foo = Bar
 
 ```
