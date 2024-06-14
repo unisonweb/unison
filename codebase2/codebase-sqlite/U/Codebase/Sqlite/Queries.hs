@@ -4343,10 +4343,10 @@ setCurrentProjectPath ::
   Transaction ()
 setCurrentProjectPath projId branchId path = do
   execute
-    [sql| TRUNCATE TABLE current_project_path |]
+    [sql| DELETE FROM current_project_path |]
   execute
     [sql|
-      INSERT INTO most_recent_namespace(project_id, branch_id, path)
+      INSERT INTO current_project_path(project_id, branch_id, path)
       VALUES (:projId, :branchId, :jsonPath)
     |]
   where

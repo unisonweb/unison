@@ -4,6 +4,7 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17 (migrateSchema16To17) where
 
 import Control.Lens
+import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
@@ -36,6 +37,8 @@ import UnliftIO qualified as UnsafeIO
 migrateSchema16To17 :: Sqlite.Connection -> IO ()
 migrateSchema16To17 conn = withDisabledForeignKeys $ do
   Q.expectSchemaVersion 16
+  Q.addProjectBranchReflogTable
+  addCausalHashesToProjectBranches
   scratchMain <-
     Q.loadProjectBranchByNames scratchProjectName scratchBranchName >>= \case
       Just pb -> pure pb
@@ -45,8 +48,6 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
         pure pb
   Q.addCurrentProjectPathTable
   Q.setCurrentProjectPath scratchMain.projectId scratchMain.branchId []
-  addCausalHashesToProjectBranches
-  -- TODO: Add causal hash id to project branch table and migrate existing project branches somehow
   Q.setSchemaVersion 17
   where
     scratchProjectName = UnsafeProjectName "scratch"
@@ -91,31 +92,44 @@ without rowid;
       UUIDNameSegment projectIdUUID -> pure $ ProjectId projectIdUUID
       _ -> error $ "Invalid Project Id NameSegment:" <> show projectIdNS
     projectsBranch <- V2Causal.value projectsCausal
-    ifor_ (V2Branch.children projectsBranch) \branchIdNS projectBranchCausal -> void . runMaybeT $ do
-      projectBranchId <- case branchIdNS of
-        UUIDNameSegment branchIdUUID -> pure $ ProjectBranchId branchIdUUID
-        _ -> error $ "Invalid Branch Id NameSegment:" <> show branchIdNS
-      let branchCausalHash = V2Causal.causalHash projectBranchCausal
-      causalHashId <- lift $ Q.expectCausalHashIdByCausalHash branchCausalHash
-      ProjectBranch {name = branchName} <- MaybeT $ Q.loadProjectBranch projectId projectBranchId
-      -- Insert the full project branch with HEAD into the new table
-      lift $
-        Sqlite.execute
-          [Sqlite.sql|
-          INSERT INTO new_project_branch (project_id, branch_id, name, causal_hash_id)
-            VALUES (:projectId, :projectBranchId, :branchName, :causalHashId)
-        |]
+    case (Map.lookup (NameSegment.unsafeParseText "branches") $ V2Branch.children projectsBranch) of
+      Nothing -> pure ()
+      Just branchesCausal -> do
+        branchesBranch <- V2Causal.value branchesCausal
+        ifor_ (V2Branch.children branchesBranch) \branchIdNS projectBranchCausal -> void . runMaybeT $ do
+          projectBranchId <- case branchIdNS of
+            UUIDNameSegment branchIdUUID -> pure $ ProjectBranchId branchIdUUID
+            _ -> error $ "Invalid Branch Id NameSegment:" <> show branchIdNS
+          let branchCausalHash = V2Causal.causalHash projectBranchCausal
+          causalHashId <- lift $ Q.expectCausalHashIdByCausalHash branchCausalHash
+          branchName <-
+            MaybeT $
+              Sqlite.queryMaybeCol @ProjectBranchName
+                [Sqlite.sql|
+                  SELECT project_branch.name
+                  FROM project_branch
+                  WHERE
+                    project_branch.project_id = :projectId
+                    AND project_branch.branch_id = :projectBranchId
+                |]
+          -- Insert the full project branch with HEAD into the new table
+          lift $
+            Sqlite.execute
+              [Sqlite.sql|
+              INSERT INTO new_project_branch (project_id, branch_id, name, causal_hash_id)
+                VALUES (:projectId, :projectBranchId, :branchName, :causalHashId)
+            |]
 
   -- Delete any project branch data that don't have a matching branch in the current root.
   -- This is to make sure any old or invalid project branches get cleared out and won't cause problems when we rewrite
   -- foreign key references.
   -- We have to do this manually since we had to disable foreign key checks to add the new column.
   Sqlite.execute
-    [Sqlite.sql| DELETE FROM project_branch_parent pbp
+    [Sqlite.sql| DELETE FROM project_branch_parent AS pbp
       WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = pbp.project_id AND npb.branch_id = pbp.branch_id)
     |]
   Sqlite.execute
-    [Sqlite.sql| DELETE FROM project_branch_remote_mapping pbrp
+    [Sqlite.sql| DELETE FROM project_branch_remote_mapping AS pbrp
       WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = pbrp.local_project_id AND npb.branch_id = pbrp.local_branch_id)
     |]
 
