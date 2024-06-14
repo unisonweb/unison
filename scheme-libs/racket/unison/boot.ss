@@ -118,6 +118,7 @@
   (for-syntax
     racket/set
     (only-in racket partition flatten split-at)
+    (only-in racket/string string-prefix?)
     (only-in racket/syntax format-id))
   (rename-in
     (except-in racket false true unit any)
@@ -282,7 +283,7 @@
         (syntax/loc loc
           (define-syntax (name stx)
             (syntax-case stx ()
-              [(_ #:by-name . bs)
+              [(_ #:by-name _ . bs)
                (syntax/loc stx
                  (unison-closure arity name:fast (list . bs)))]
               [(_ . bs)
@@ -306,7 +307,7 @@
         (syntax/loc loc
           (define-syntax (name stx)
             (syntax-case stx ()
-              [(_ #:by-name . bs)
+              [(_ #:by-name _ . bs)
                (syntax/loc stx
                  (unison-closure arity name:fast (list . bs)))]
               [(_ . bs)
@@ -364,7 +365,15 @@
 (define-for-syntax
   (make-link-def gen-link? loc name:stx name:link:stx)
 
-  (define name:txt (symbol->string (syntax->datum name:stx)))
+  (define (chop s)
+    (if (string-prefix? s "builtin-")
+      (substring s 8)
+      s))
+
+  (define name:txt
+    (chop
+      (symbol->string
+        (syntax->datum name:stx))))
 
   (cond
     [gen-link?
@@ -433,7 +442,7 @@
   (syntax-case stx ()
     [(name ([v (f . args)] ...) body ...)
      (syntax/loc stx
-       (let ([v (f #:by-name . args)] ...) body ...))]))
+       (let ([v (f #:by-name #t . args)] ...) body ...))]))
 
 ; Wrapper that more closely matches `handle` constructs
 ;
