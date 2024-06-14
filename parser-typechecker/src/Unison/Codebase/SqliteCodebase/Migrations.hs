@@ -36,20 +36,20 @@ import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sqlite.Connection qualified as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
-import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as Pretty
 import UnliftIO qualified
 
 -- | Mapping from schema version to the migration required to get there.
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
+  (MVar Region.ConsoleRegion) ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
   TVar (Map Hash Ops2.TermBufferEntry) ->
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   CodebasePath ->
   Map SchemaVersion (Sqlite.Connection -> IO ())
-migrations getDeclType termBuffer declBuffer rootCodebasePath =
+migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
     [ (2, runT $ migrateSchema1To2 getDeclType termBuffer declBuffer),
       -- The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
@@ -68,11 +68,11 @@ migrations getDeclType termBuffer declBuffer rootCodebasePath =
       -- This migration drops all the v1 hash objects to avoid this issue, since these hash objects
       -- weren't being used for anything anyways.
       sqlMigration 3 (Q.removeHashObjectsByHashingVersion (HashVersion 1)),
-      (4, runT migrateSchema3To4),
+      (4, runT (migrateSchema3To4 *> runIntegrityChecks regionVar)),
       -- The 4 to 5 migration adds initial support for out-of-order sync i.e. Unison Share
       sqlMigration 5 Q.addTempEntityTables,
       (6, runT $ migrateSchema5To6 rootCodebasePath),
-      (7, runT migrateSchema6To7),
+      (7, runT (migrateSchema6To7 *> runIntegrityChecks regionVar)),
       (8, runT migrateSchema7To8),
       -- Recreates the name lookup tables because the primary key was missing the root hash id.
       sqlMigration 9 Q.fixScopedNameLookupTables,
@@ -145,7 +145,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
-        let migs = migrations getDeclType termBuffer declBuffer root
+        let migs = migrations regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.
         let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion
@@ -154,11 +154,10 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
         when shouldPrompt do
           putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
           void $ liftIO getLine
-        ranMigrations <-
-          Sqlite.runWriteTransaction conn \run -> do
+        ranMigrations <- do
+          currentSchemaVersion <- Sqlite.runTransaction conn $ do
             -- Get the schema version again now that we're in a transaction.
-            currentSchemaVersion <- run Q.schemaVersion
-            let migrationsToRun = Map.filterWithKey (\v _ -> v > currentSchemaVersion) migs
+            Q.schemaVersion
             -- This is a bit of a hack, hopefully we can remove this when we have a more
             -- reliable way to freeze old migration code in time.
             -- The problem is that 'saveObject' has been changed to flush temp entity tables,
@@ -168,42 +167,15 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             --
             -- Hopefully we can remove this once we've got better methods of freezing migration
             -- code in time.
-            when (currentSchemaVersion < 5) $ run Q.addTempEntityTables
-            when (currentSchemaVersion < 6) $ run Q.addNamespaceStatsTables
-            for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
-              putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
-              run migration
-            let ranMigrations = not (null migrationsToRun)
-            when ranMigrations do
-              region <-
-                UnliftIO.mask_ do
-                  region <- Region.openConsoleRegion Region.Linear
-                  putMVar regionVar region
-                  pure region
-              result <- do
-                -- Ideally we'd check everything here, but certain codebases are known to have objects
-                -- with missing Hash Objects, we'll want to clean that up in a future migration.
-                -- integrityCheckAllHashObjects,
-                let checks =
-                      Monoid.whenM
-                        (currentSchemaVersion < 7) -- Only certain migrations actually make changes which reasonably need to be checked
-                        [ integrityCheckAllBranches,
-                          integrityCheckAllCausals
-                        ]
-
-                zip [(1 :: Int) ..] checks & foldMapM \(i, check) -> do
-                  Region.setConsoleRegion
-                    region
-                    (Text.pack (printf "🕵️  Checking codebase integrity (step %d of %d)..." i (length checks)))
-                  run check
-              case result of
-                NoIntegrityErrors -> pure ()
-                IntegrityErrorDetected errs -> do
-                  let msg = prettyPrintIntegrityErrors errs
-                  let rendered = Pretty.toPlain 80 (Pretty.border 2 msg)
-                  Region.setConsoleRegion region (Text.pack rendered)
-                  run (abortMigration "Codebase integrity error detected.")
-            pure ranMigrations
+            when (currentSchemaVersion < 5) Q.addTempEntityTables
+            when (currentSchemaVersion < 6) Q.addNamespaceStatsTables
+            pure currentSchemaVersion
+          let migrationsToRun = Map.filterWithKey (\v _ -> v > currentSchemaVersion) migs
+          for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
+            putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
+            migration conn
+          let ranMigrations = not (null migrationsToRun)
+          pure ranMigrations
         when ranMigrations do
           region <- readMVar regionVar
           -- Vacuum once now that any migrations have taken place.
@@ -229,3 +201,34 @@ backupCodebaseIfNecessary backupStrategy localOrRemote conn currentSchemaVersion
             Sqlite.trySetJournalMode backupConn Sqlite.JournalMode'WAL
           putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
           putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
+
+runIntegrityChecks ::
+  (MVar Region.ConsoleRegion) ->
+  Sqlite.Transaction ()
+runIntegrityChecks regionVar = do
+  region <- Sqlite.unsafeIO . UnliftIO.mask_ $ do
+    region <- Region.openConsoleRegion Region.Linear
+    putMVar regionVar region
+    pure region
+  result <- do
+    -- Ideally we'd check everything here, but certain codebases are known to have objects
+    -- with missing Hash Objects, we'll want to clean that up in a future migration.
+    -- integrityCheckAllHashObjects,
+    let checks =
+          [ integrityCheckAllBranches,
+            integrityCheckAllCausals
+          ]
+
+    zip [(1 :: Int) ..] checks & foldMapM \(i, check) -> do
+      Sqlite.unsafeIO $
+        Region.setConsoleRegion
+          region
+          (Text.pack (printf "🕵️  Checking codebase integrity (step %d of %d)..." i (length checks)))
+      check
+  case result of
+    NoIntegrityErrors -> pure ()
+    IntegrityErrorDetected errs -> do
+      let msg = prettyPrintIntegrityErrors errs
+      let rendered = Pretty.toPlain 80 (Pretty.border 2 msg)
+      Sqlite.unsafeIO $ Region.setConsoleRegion region (Text.pack rendered)
+      (abortMigration "Codebase integrity error detected.")
