@@ -17,11 +17,13 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
+import Unison.Debug qualified as Debug
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
+import Unison.Sqlite.Connection qualified as Connection
 import Unison.Syntax.NameSegment qualified as NameSegment
 import UnliftIO qualified
 import UnliftIO qualified as UnsafeIO
@@ -38,7 +40,9 @@ migrateSchema16To17 :: Sqlite.Connection -> IO ()
 migrateSchema16To17 conn = withDisabledForeignKeys $ do
   Q.expectSchemaVersion 16
   Q.addProjectBranchReflogTable
+  Debug.debugLogM Debug.Migration "Adding causal hashes to project branches table."
   addCausalHashesToProjectBranches
+  Debug.debugLogM Debug.Migration "Adding scratch project"
   scratchMain <-
     Q.loadProjectBranchByNames scratchProjectName scratchBranchName >>= \case
       Just pb -> pure pb
@@ -46,16 +50,19 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
         (_, emptyCausalHashId) <- Codebase.emptyCausalHash
         (_proj, pb) <- Ops.insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
         pure pb
+  Debug.debugLogM Debug.Migration "Adding current project path table"
   Q.addCurrentProjectPathTable
+  Debug.debugLogM Debug.Migration "Setting current project path to scratch project"
   Q.setCurrentProjectPath scratchMain.projectId scratchMain.branchId []
+  Debug.debugLogM Debug.Migration "Done migrating to version 17"
   Q.setSchemaVersion 17
   where
     scratchProjectName = UnsafeProjectName "scratch"
     scratchBranchName = UnsafeProjectBranchName "main"
     withDisabledForeignKeys :: Sqlite.Transaction r -> IO r
     withDisabledForeignKeys m = do
-      let disable = Sqlite.runWriteTransaction conn \run -> run $ Sqlite.execute [Sqlite.sql| PRAGMA foreign_keys=OFF |]
-      let enable = Sqlite.runWriteTransaction conn \run -> run $ Sqlite.execute [Sqlite.sql| PRAGMA foreign_keys=ON |]
+      let disable = Connection.execute conn [Sqlite.sql| PRAGMA foreign_keys=OFF |]
+      let enable = Connection.execute conn [Sqlite.sql| PRAGMA foreign_keys=ON |]
       let action = Sqlite.runWriteTransaction conn \run -> run $ m
       UnsafeIO.bracket disable (const enable) (const action)
 
@@ -69,6 +76,7 @@ newtype ForeignKeyFailureException
 
 addCausalHashesToProjectBranches :: Sqlite.Transaction ()
 addCausalHashesToProjectBranches = do
+  Debug.debugLogM Debug.Migration "Creating new_project_branch"
   -- Create the new version of the project_branch table with the causal_hash_id column.
   Sqlite.execute
     [Sqlite.sql|
@@ -91,6 +99,7 @@ without rowid;
     projectId <- case projectIdNS of
       UUIDNameSegment projectIdUUID -> pure $ ProjectId projectIdUUID
       _ -> error $ "Invalid Project Id NameSegment:" <> show projectIdNS
+    Debug.debugM Debug.Migration "Migrating project" projectId
     projectsBranch <- V2Causal.value projectsCausal
     case (Map.lookup (NameSegment.unsafeParseText "branches") $ V2Branch.children projectsBranch) of
       Nothing -> pure ()
@@ -100,6 +109,7 @@ without rowid;
           projectBranchId <- case branchIdNS of
             UUIDNameSegment branchIdUUID -> pure $ ProjectBranchId branchIdUUID
             _ -> error $ "Invalid Branch Id NameSegment:" <> show branchIdNS
+          Debug.debugM Debug.Migration "Migrating project branch" projectBranchId
           let branchCausalHash = V2Causal.causalHash projectBranchCausal
           causalHashId <- lift $ Q.expectCausalHashIdByCausalHash branchCausalHash
           branchName <-
@@ -120,6 +130,7 @@ without rowid;
                 VALUES (:projectId, :projectBranchId, :branchName, :causalHashId)
             |]
 
+  Debug.debugLogM Debug.Migration "Deleting orphaned project branch data"
   -- Delete any project branch data that don't have a matching branch in the current root.
   -- This is to make sure any old or invalid project branches get cleared out and won't cause problems when we rewrite
   -- foreign key references.
@@ -128,14 +139,18 @@ without rowid;
     [Sqlite.sql| DELETE FROM project_branch_parent AS pbp
       WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = pbp.project_id AND npb.branch_id = pbp.branch_id)
     |]
+  Debug.debugLogM Debug.Migration "Deleting orphaned remote mapping data"
   Sqlite.execute
     [Sqlite.sql| DELETE FROM project_branch_remote_mapping AS pbrp
       WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = pbrp.local_project_id AND npb.branch_id = pbrp.local_branch_id)
     |]
+  Sqlite.execute [Sqlite.sql| DELETE FROM most_recent_branch |]
 
+  Debug.debugLogM Debug.Migration "Swapping old and new project branch tables"
   -- Drop the old project_branch table and rename the new one to take its place.
   Sqlite.execute [Sqlite.sql| DROP TABLE project_branch |]
   Sqlite.execute [Sqlite.sql| ALTER TABLE new_project_branch RENAME TO project_branch |]
+  Debug.debugLogM Debug.Migration "Checking foreign keys"
   foreignKeyErrs <- Sqlite.queryListRow [Sqlite.sql| PRAGMA foreign_key_check |]
   when (not . null $ foreignKeyErrs) . Sqlite.unsafeIO . UnliftIO.throwIO $ ForeignKeyFailureException foreignKeyErrs
 

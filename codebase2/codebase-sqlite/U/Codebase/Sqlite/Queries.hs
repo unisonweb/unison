@@ -3551,8 +3551,7 @@ loadProjectBranchSql projectId branchId =
       project_branch.project_id,
       project_branch.branch_id,
       project_branch.name,
-      project_branch_parent.parent_branch_id,
-      project_branch.causal_hash_id
+      project_branch_parent.parent_branch_id
     FROM
       project_branch
       LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id

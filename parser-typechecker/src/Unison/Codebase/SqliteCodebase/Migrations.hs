@@ -31,6 +31,7 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as Ops2
 import Unison.Codebase.SqliteCodebase.Paths (backupCodebasePath)
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
@@ -176,12 +177,20 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
             migration conn
           let ranMigrations = not (null migrationsToRun)
           pure ranMigrations
+        Debug.debugLogM Debug.Migration "Migrations complete"
         when ranMigrations do
-          region <- readMVar regionVar
+          region <-
+            UnliftIO.mask_ do
+              region <- Region.openConsoleRegion Region.Linear
+              putMVar regionVar region
+              pure region
           -- Vacuum once now that any migrations have taken place.
           Region.setConsoleRegion region ("✅ All good, cleaning up..." :: Text)
           case vacuumStrategy of
-            Vacuum -> void $ Sqlite.Connection.vacuum conn
+            Vacuum -> do
+              Debug.debugLogM Debug.Migration "About to VACUUM"
+              void $ Sqlite.Connection.vacuum conn
+              Debug.debugLogM Debug.Migration "Done VACUUM"
             NoVacuum -> pure ()
           Region.setConsoleRegion region ("🏁 Migrations complete 🏁" :: Text)
 
