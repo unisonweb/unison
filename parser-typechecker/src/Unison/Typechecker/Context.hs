@@ -362,7 +362,7 @@ data InfoNote v loc
     -- Note that if interpreting the type of a 'v' at a given usage site, it is the caller's
     -- job to use the binding with the smallest containing scope so as to respect variable
     -- shadowing.
-    LetBinding v loc (Type.Type v loc) RedundantTypeAnnotation
+    LetBinding v loc (Type.Type v loc)
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -1083,36 +1083,39 @@ generalizeExistentials' t =
     isExistential _ = False
 
 noteBindingType ::
-  forall v loc f a.
+  forall v loc.
   (Ord loc, Var v) =>
   Term.IsTop ->
   loc ->
-  ABT.Subst f v a ->
+  v ->
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteBindingType top span e binding typ = case binding of
+noteBindingType top span v binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing -> do
-        let v = Var.reset (ABT.variable e)
+        let v = Var.reset v
         let t = generalizeAndUnTypeVar typ
         let redundant = False
         note [(v, t, redundant)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
-        note [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
+        note [(Var.reset v, generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
   _ ->
     note
-      [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
+      [(Var.reset v, generalizeAndUnTypeVar typ, True)]
   where
     note :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> M v loc ()
     note infos =
       if top
         then btw $ topLevelComponent infos
-        else for_ infos \(v, t, r) -> btw $ LetBinding v span t r
+        else for_ infos \(v, t, _r) -> noteLocalBinding v span t
+
+noteLocalBinding :: (Var v) => v -> loc -> Type.Type v loc ->  M v loc ()
+noteLocalBinding v span t = btw $ LetBinding v span t
 
 synthesizeTop ::
   (Var v) =>
@@ -1230,14 +1233,14 @@ synthesizeWanted abt@(Term.Let1Top' top binding e) = do
   appendContext [Ann v' tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
-  noteBindingType top (ABT.annotation abt) e binding tbinding
+  noteBindingType top (ABT.annotation abt) (ABT.variable e) binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)
 synthesizeWanted (Term.LetRecNamed' [] body) = synthesizeWanted body
-synthesizeWanted (Term.LetRecTop' isTop letrec) = do
+synthesizeWanted abt@(Term.LetRecTop' isTop letrec) = do
   ((t, want), ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
-    e <- annotateLetRecBindings isTop letrec
+    e <- annotateLetRecBindings (ABT.annotation abt) isTop letrec
     synthesize e
   want <- substAndDefaultWanted want ctx2
   pure (generalizeExistentials ctx2 t, want)
@@ -1340,6 +1343,8 @@ synthesizeWanted e
         else checkWithAbilities [et] body' ot
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
+      let solvedInputType = fromMaybe it . fmap Type.getPolytype $ Map.lookup i . solvedExistentials . info $ ctx
+      noteLocalBinding i l (TypeVar.lowerType $ solvedInputType)
       pure (t, [])
   | Term.If' cond t f <- e = do
       cwant <- scope InIfCond $ check cond (Type.boolean l)
@@ -1838,10 +1843,11 @@ resetContextAfter x a = do
 -- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings ::
   (Var v, Ord loc) =>
+    loc ->
   Term.IsTop ->
   ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc)) ->
   M v loc (Term v loc)
-annotateLetRecBindings isTop letrec =
+annotateLetRecBindings span isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
   -- which asks if the user-provided type annotations were needed.
   if isTop
@@ -1865,8 +1871,10 @@ annotateLetRecBindings isTop letrec =
           btw $
             topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
       pure body
-    else -- If this isn't a top-level letrec, then we don't have to do anything special
-      fst <$> annotateLetRecBindings' True
+    else do -- If this isn't a top-level letrec, then we don't have to do anything special
+      (body, vts) <- annotateLetRecBindings' True
+      for_ vts \(v, t) -> noteLocalBinding v span (TypeVar.lowerType t)
+      pure body
   where
     annotateLetRecBindings' useUserAnnotations = do
       (bindings, body) <- letrec freshenVar
@@ -2461,9 +2469,11 @@ checkWanted want (Term.Let1Top' top binding m) t = do
 checkWanted want (Term.LetRecNamed' [] m) t =
   checkWanted want m t
 -- letrec can't have effects, so it doesn't extend the wanted set
-checkWanted want (Term.LetRecTop' isTop lr) t =
+checkWanted want abt@(Term.LetRecTop' isTop lr) t =
   markThenRetractWanted (Var.named "let-rec-marker") $ do
-    e <- annotateLetRecBindings isTop lr
+    -- TODO: I don't think we want to emit types for local bindings from here, but will need
+    -- to refactor to do that properly
+    e <- annotateLetRecBindings (ABT.annotation abt) isTop lr
     checkWanted want e t
 checkWanted want e@(Term.Match' scrut cases) t = do
   (scrutType, swant) <- synthesize scrut
