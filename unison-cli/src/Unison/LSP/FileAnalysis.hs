@@ -7,12 +7,11 @@ import Control.Monad.Reader
 import Crypto.Random qualified as Random
 import Data.Align (alignWith)
 import Data.Foldable
+import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
-import Data.IntervalMap.Lazy qualified as IntervalMap
 import Data.Map qualified as Map
-import Data.Map.Monoidal (MonoidalMap)
-import Data.Map.Monoidal qualified as MonMap
+import Data.Map.Monoidal qualified as MonoidalMap
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
@@ -64,7 +63,6 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
-import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
@@ -97,18 +95,36 @@ checkFile doc = runMaybeT do
             uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
             names = parseNames
           }
-  (notes, parsedFile, typecheckedFile) <- do
+  (localBindingTypes, notes, parsedFile, typecheckedFile) <- do
     liftIO do
       Codebase.runTransaction cb do
         parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
         case Result.fromParsing parseResult of
-          Result.Result parsingNotes Nothing -> pure (parsingNotes, Nothing, Nothing)
+          Result.Result parsingNotes Nothing -> pure (mempty, parsingNotes, Nothing, Nothing)
           Result.Result _ (Just parsedFile) -> do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
-            pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+            -- This is silly, but after applying TDNR we can just re-typecheck the already substituted file to get the correct types of
+            -- local bindings from after TDNR.
+            localBindings <-
+              maybeTypecheckedFile & foldMapM \tf -> do
+                let parsedFile = UF.discardTypes tf
+                typecheckingEnv' <- computeTypecheckingEnvironment ShouldUseTndr'No cb ambientAbilities parsedFile
+                let Result.Result afterTDNRTypecheckingNotes' _maybeTypecheckedFile' = FileParsers.synthesizeFile typecheckingEnv' parsedFile
+                Debug.debugM Debug.Temp "After typechecking notes" afterTDNRTypecheckingNotes'
+                afterTDNRTypecheckingNotes'
+                  & mapMaybe \case
+                    Result.TypeInfo (Context.LetBinding v loc typ _) ->
+                      Cv.annToInterval loc <&> \interval -> (v, (IM.singleton interval typ))
+                    _ -> Nothing
+                  & Foldable.toList
+                  & Debug.debug Debug.Temp "Local Bindings 1"
+                  & MonoidalMap.fromList
+                  & pure
+            pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+  Debug.debugM Debug.Temp "Local Bindings 2" localBindingTypes
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
-  (errDiagnostics, codeActions, localBindingTypes) <- lift $ analyseFile fileUri srcText filePPED notes
+  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
@@ -159,11 +175,11 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction], MonoidalMap Symbol (IntervalMap Position (Type.Type Symbol Ann)))
+analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText pped notes = do
   let ppe = PPED.suffixifiedPPE pped
-  (noteDiags, noteActions, localBindingTypes) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
-  pure (noteDiags, noteActions, localBindingTypes)
+  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
+  pure (noteDiags, noteActions)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
 -- codebase.
@@ -209,111 +225,109 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction], MonoidalMap Symbol (IntervalMap Position (Type.Type Symbol Ann)))
+analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
-  flip foldMapM notes \note -> case note of
-    Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
-      let typeErr = TypeError.typeErrorFromNote errNote
-          ranges = case typeErr of
-            TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-            TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-            TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-            TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
-            TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
-            TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
-            TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
-            TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
-              let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
-              (r, rs) <- withNeighbours (locs >>= aToR)
-              pure (r, ("mismatch",) <$> rs)
-            TypeError.UnguardedLetRecCycle {cycleLocs} -> do
-              let ranges :: [Range]
-                  ranges = cycleLocs >>= aToR
-              (range, cycleRanges) <- withNeighbours ranges
-              pure (range, ("cycle",) <$> cycleRanges)
-            TypeError.UnknownType {typeSite} -> singleRange typeSite
-            TypeError.UnknownTerm {termSite} -> singleRange termSite
-            TypeError.DuplicateDefinitions {defns} -> do
-              (_v, locs) <- toList defns
-              (r, rs) <- withNeighbours (locs >>= aToR)
-              pure (r, ("duplicate definition",) <$> rs)
-            TypeError.RedundantPattern loc -> singleRange loc
-            TypeError.UncoveredPatterns loc _pats -> singleRange loc
-            TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
-            -- These type errors don't have custom type error conversions, but some
-            -- still have valid diagnostics.
-            TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
-              Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
-              Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
-              Context.TypeMismatch {} -> shouldHaveBeenHandled e
-              Context.IllFormedType {} -> shouldHaveBeenHandled e
-              Context.UnknownSymbol loc _ -> singleRange loc
-              Context.UnknownTerm loc _ _ _ -> singleRange loc
-              Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
-              Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
-              Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
-              Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
-              Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e
-              Context.UnguardedLetRecCycle {} -> shouldHaveBeenHandled e
-              Context.ConcatPatternWithoutConstantLength loc _ -> singleRange loc
-              Context.DataEffectMismatch _ _ decl -> singleRange $ DD.annotation decl
-              Context.UncoveredPatterns loc _ -> singleRange loc
-              Context.RedundantPattern loc -> singleRange loc
-              Context.InaccessiblePattern loc -> singleRange loc
-              Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
-          shouldHaveBeenHandled e = do
-            Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
-            empty
-          diags = noteDiagnostic note ranges
-      -- Sort on match accuracy first, then name.
-      codeActions <- case cause of
-        Context.UnknownTerm _ v suggestions typ -> do
-          typeHoleActions <- typeHoleReplacementCodeActions diags v typ
-          pure $
-            nameResolutionCodeActions diags suggestions
-              <> typeHoleActions
-        _ -> pure []
-      pure (diags, codeActions, mempty)
-    Result.NameResolutionFailures {} -> do
-      -- TODO: diagnostics/code actions for resolution failures
-      pure (noteDiagnostic note todoAnnotation, [], mempty)
-    Result.Parsing err -> do
-      let diags = do
-            (errMsg, ranges) <- PrintError.renderParseErrors src err
-            let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
-            range <- ranges
-            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
-      -- TODO: Some parsing errors likely have reasonable code actions
-      pure (diags, [], mempty)
-    Result.UnknownSymbol _ loc ->
-      pure (noteDiagnostic note (singleRange loc), [], mempty)
-    Result.TypeInfo info -> do
-      case info of
-        Context.LetBinding v loc typ _r -> pure . fromMaybe mempty $ do
-          interval <- Cv.annToInterval loc
-          pure ([], [], MonMap.singleton v $ IntervalMap.singleton interval typ)
-        _ -> pure ([], [], mempty)
-    Result.CompilerBug cbug -> do
-      let ranges = case cbug of
-            Result.TopLevelComponentNotFound _ trm -> singleRange $ ABT.annotation trm
-            Result.ResolvedNameNotFound _ loc _ -> singleRange loc
-            Result.TypecheckerBug tcbug -> case tcbug of
-              Context.UnknownDecl _un _ref decls -> decls & foldMap \decl -> singleRange $ DD.annotation decl
-              Context.UnknownConstructor _un _gcr decl -> singleRange $ DD.annotation decl
-              Context.UndeclaredTermVariable _sym _con -> todoAnnotation
-              Context.RetractFailure _el _con -> todoAnnotation
-              Context.EmptyLetRec trm -> singleRange $ ABT.annotation trm
-              Context.PatternMatchFailure -> todoAnnotation
-              Context.EffectConstructorHadMultipleEffects typ -> singleRange $ ABT.annotation typ
-              Context.FreeVarsInTypeAnnotation _set -> todoAnnotation
-              Context.UnannotatedReference _ref -> todoAnnotation
-              Context.MalformedPattern pat -> singleRange $ Pattern.loc pat
-              Context.UnknownTermReference _ref -> todoAnnotation
-              Context.UnknownExistentialVariable _sym _con -> todoAnnotation
-              Context.IllegalContextExtension _con _el _s -> todoAnnotation
-              Context.OtherBug _s -> todoAnnotation
-      pure (noteDiagnostic note ranges, [], mempty)
+  foldMapM go notes
   where
+    go :: Note Symbol Ann -> Lsp ([Diagnostic], [RangedCodeAction])
+    go note = case note of
+      Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
+        let typeErr = TypeError.typeErrorFromNote errNote
+            ranges = case typeErr of
+              TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+              TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+              TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+              TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
+              TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
+              TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+              TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+              TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
+                let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
+                (r, rs) <- withNeighbours (locs >>= aToR)
+                pure (r, ("mismatch",) <$> rs)
+              TypeError.UnguardedLetRecCycle {cycleLocs} -> do
+                let ranges :: [Range]
+                    ranges = cycleLocs >>= aToR
+                (range, cycleRanges) <- withNeighbours ranges
+                pure (range, ("cycle",) <$> cycleRanges)
+              TypeError.UnknownType {typeSite} -> singleRange typeSite
+              TypeError.UnknownTerm {termSite} -> singleRange termSite
+              TypeError.DuplicateDefinitions {defns} -> do
+                (_v, locs) <- toList defns
+                (r, rs) <- withNeighbours (locs >>= aToR)
+                pure (r, ("duplicate definition",) <$> rs)
+              TypeError.RedundantPattern loc -> singleRange loc
+              TypeError.UncoveredPatterns loc _pats -> singleRange loc
+              TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
+              -- These type errors don't have custom type error conversions, but some
+              -- still have valid diagnostics.
+              TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
+                Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
+                Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
+                Context.TypeMismatch {} -> shouldHaveBeenHandled e
+                Context.IllFormedType {} -> shouldHaveBeenHandled e
+                Context.UnknownSymbol loc _ -> singleRange loc
+                Context.UnknownTerm loc _ _ _ -> singleRange loc
+                Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
+                Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
+                Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
+                Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
+                Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e
+                Context.UnguardedLetRecCycle {} -> shouldHaveBeenHandled e
+                Context.ConcatPatternWithoutConstantLength loc _ -> singleRange loc
+                Context.DataEffectMismatch _ _ decl -> singleRange $ DD.annotation decl
+                Context.UncoveredPatterns loc _ -> singleRange loc
+                Context.RedundantPattern loc -> singleRange loc
+                Context.InaccessiblePattern loc -> singleRange loc
+                Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
+            shouldHaveBeenHandled e = do
+              Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
+              empty
+            diags = noteDiagnostic note ranges
+        -- Sort on match accuracy first, then name.
+        codeActions <- case cause of
+          Context.UnknownTerm _ v suggestions typ -> do
+            typeHoleActions <- typeHoleReplacementCodeActions diags v typ
+            pure $
+              nameResolutionCodeActions diags suggestions
+                <> typeHoleActions
+          _ -> pure []
+        pure (diags, codeActions)
+      Result.NameResolutionFailures {} -> do
+        -- TODO: diagnostics/code actions for resolution failures
+        pure (noteDiagnostic note todoAnnotation, [])
+      Result.Parsing err -> do
+        let diags = do
+              (errMsg, ranges) <- PrintError.renderParseErrors src err
+              let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
+              range <- ranges
+              pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
+        -- TODO: Some parsing errors likely have reasonable code actions
+        pure (diags, [])
+      Result.UnknownSymbol _ loc ->
+        pure (noteDiagnostic note (singleRange loc), [])
+      Result.TypeInfo {} -> pure ([], [])
+      Result.CompilerBug cbug -> do
+        let ranges = case cbug of
+              Result.TopLevelComponentNotFound _ trm -> singleRange $ ABT.annotation trm
+              Result.ResolvedNameNotFound _ loc _ -> singleRange loc
+              Result.TypecheckerBug tcbug -> case tcbug of
+                Context.UnknownDecl _un _ref decls -> decls & foldMap \decl -> singleRange $ DD.annotation decl
+                Context.UnknownConstructor _un _gcr decl -> singleRange $ DD.annotation decl
+                Context.UndeclaredTermVariable _sym _con -> todoAnnotation
+                Context.RetractFailure _el _con -> todoAnnotation
+                Context.EmptyLetRec trm -> singleRange $ ABT.annotation trm
+                Context.PatternMatchFailure -> todoAnnotation
+                Context.EffectConstructorHadMultipleEffects typ -> singleRange $ ABT.annotation typ
+                Context.FreeVarsInTypeAnnotation _set -> todoAnnotation
+                Context.UnannotatedReference _ref -> todoAnnotation
+                Context.MalformedPattern pat -> singleRange $ Pattern.loc pat
+                Context.UnknownTermReference _ref -> todoAnnotation
+                Context.UnknownExistentialVariable _sym _con -> todoAnnotation
+                Context.IllegalContextExtension _con _el _s -> todoAnnotation
+                Context.OtherBug _s -> todoAnnotation
+        pure (noteDiagnostic note ranges, [])
+
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
     singleRange :: Ann -> [(Range, [a])]
