@@ -63,6 +63,7 @@ module U.Codebase.Sqlite.Operations
     causalHashesByPrefix,
 
     -- ** dependents index
+    directDependenciesOfScope,
     dependents,
     dependentsOfComponent,
     dependentsWithinScope,
@@ -205,6 +206,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
+import Unison.Util.Defns (DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (foldMapM)
@@ -1120,6 +1122,21 @@ causalHashesByPrefix (ShortCausalHash b32prefix) = do
   hashIds <- Q.causalHashIdByBase32Prefix b32prefix
   hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
   pure $ Set.fromList . map CausalHash $ hashes
+
+directDependenciesOfScope ::
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
+  Transaction (DefnsF Set C.TermReference C.TypeReference)
+directDependenciesOfScope scope0 = do
+  -- Convert C -> S
+  scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
+
+  -- Do the query
+  dependencies0 <- Q.getDirectDependenciesOfScope scope1
+
+  -- Convert S -> C
+  dependencies1 <- bitraverse (Set.traverse s2cReference) (Set.traverse s2cReference) dependencies0
+
+  pure dependencies1
 
 -- | returns a list of known definitions referencing `r`
 dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
