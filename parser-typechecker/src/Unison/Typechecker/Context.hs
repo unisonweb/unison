@@ -358,11 +358,12 @@ data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
-  | -- The inferred type of a local binding, and the scope of that binding as a loc.
+  | -- The inferred type of a let or argument binding, and the scope of that binding as a loc.
     -- Note that if interpreting the type of a 'v' at a given usage site, it is the caller's
     -- job to use the binding with the smallest containing scope so as to respect variable
     -- shadowing.
-    LetBinding v loc (Type.Type v loc)
+    -- This is used in the LSP.
+    VarBinding v loc (Type.Type v loc)
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -1109,13 +1110,16 @@ noteBindingType top span v binding typ = case binding of
       [(Var.reset v, generalizeAndUnTypeVar typ, True)]
   where
     note :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> M v loc ()
-    note infos =
-      if top
-        then btw $ topLevelComponent infos
-        else for_ infos \(v, t, _r) -> noteLocalBinding v span t
+    note infos = do
+      -- Also note top-level components as standard let bindings for the LSP
+      for_ infos \(v, t, _r) -> noteBinding v span t
+      when top (btw $ topLevelComponent infos)
 
-noteLocalBinding :: (Var v) => v -> loc -> Type.Type v loc ->  M v loc ()
-noteLocalBinding v span t = btw $ LetBinding v span t
+-- | Take note of the types and locations of all bindings, including let bindings, letrec
+-- bindings, lambda argument bindings and top-level bindings.
+-- This information is used to provide information to the LSP after typechecking.
+noteBinding :: (Var v) => v -> loc -> Type.Type v loc ->  M v loc ()
+noteBinding v span t = btw $ VarBinding v span t
 
 synthesizeTop ::
   (Var v) =>
@@ -1344,7 +1348,7 @@ synthesizeWanted e
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
       let solvedInputType = fromMaybe it . fmap Type.getPolytype $ Map.lookup i . solvedExistentials . info $ ctx
-      noteLocalBinding i l (TypeVar.lowerType $ solvedInputType)
+      noteBinding i l (TypeVar.lowerType $ solvedInputType)
       pure (t, [])
   | Term.If' cond t f <- e = do
       cwant <- scope InIfCond $ check cond (Type.boolean l)
@@ -1873,7 +1877,7 @@ annotateLetRecBindings span isTop letrec =
       pure body
     else do -- If this isn't a top-level letrec, then we don't have to do anything special
       (body, vts) <- annotateLetRecBindings' True
-      for_ vts \(v, t) -> noteLocalBinding v span (TypeVar.lowerType t)
+      for_ vts \(v, t) -> noteBinding v span (TypeVar.lowerType t)
       pure body
   where
     annotateLetRecBindings' useUserAnnotations = do

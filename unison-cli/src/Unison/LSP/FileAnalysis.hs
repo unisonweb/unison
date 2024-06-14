@@ -11,7 +11,6 @@ import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
-import Data.Map.Monoidal qualified as MonoidalMap
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These
@@ -25,6 +24,7 @@ import Language.LSP.Protocol.Types
     TextDocumentIdentifier (TextDocumentIdentifier),
     Uri (getUri),
   )
+import Language.LSP.Protocol.Types qualified as LSP
 import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
@@ -39,6 +39,7 @@ import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
+import Unison.LSP.Util.IntersectionMap (keyedSingleton)
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -115,12 +116,12 @@ checkFile doc = runMaybeT do
               --   Debug.debugM Debug.Temp "After typechecking notes" afterTDNRTypecheckingNotes'
               --   afterTDNRTypecheckingNotes'
               typecheckingNotes
-                & mapMaybe \case
-                  Result.TypeInfo (Context.LetBinding (Symbol.Symbol _ (Var.User v)) loc typ) ->
-                    Cv.annToInterval loc <&> \interval -> (v, (IM.singleton interval typ))
-                  _ -> Nothing
                 & Foldable.toList
-                & MonoidalMap.fromList
+                & reverse -- Type notes that come later in typechecking have more information filled in.
+                & foldMap \case
+                  Result.TypeInfo (Context.VarBinding (Symbol.Symbol _ (Var.User v)) loc typ) ->
+                    Cv.annToRange loc & foldMap (\(LSP.Range start end) -> (keyedSingleton v (start, end) typ))
+                  _ -> mempty
                 & pure
             pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
   Debug.debugM Debug.Temp "Local Bindings" localBindingTypes

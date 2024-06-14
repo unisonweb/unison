@@ -15,7 +15,6 @@ import Data.Aeson qualified as Aeson
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
-import Data.Map.Monoidal (MonoidalMap)
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens
@@ -29,6 +28,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
+import Unison.LSP.Util.IntersectionMap (KeyedIntersectionMap)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -129,7 +129,7 @@ data FileAnalysis = FileAnalysis
     -- There may be many mentions of the same symbol in the file, and their may be several
     -- bindings which shadow each other, use this map to find the smallest spanning position
     -- which contains the symbol you're interested in.
-    localBindingTypes :: MonoidalMap Text (IntervalMap Position (Type Symbol Ann)),
+    localBindingTypes :: KeyedIntersectionMap Text Position (Type Symbol Ann),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }

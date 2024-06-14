@@ -5,9 +5,6 @@ module Unison.LSP.Hover where
 
 import Control.Lens hiding (List)
 import Control.Monad.Reader
-import Data.IntervalMap.Lazy qualified as IM
-import Data.IntervalMap.Lazy qualified as IntervalMap
-import Data.Map.Monoidal qualified as MonMap
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
@@ -19,6 +16,7 @@ import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
+import Unison.LSP.Util.IntersectionMap qualified as IM
 import Unison.LSP.VFS qualified as VFS
 import Unison.LabeledDependency qualified as LD
 import Unison.Parser.Ann (Ann)
@@ -127,22 +125,21 @@ hoverInfo uri pos =
 
     hoverInfoForLocalVar :: MaybeT Lsp Text
     hoverInfoForLocalVar = do
-      node <- LSPQ.nodeAtPosition uri pos
-      Debug.debugM Debug.Temp "node" node
-      localVar <- case node of
-        LSPQ.TermNode (Term.Var' (Symbol.Symbol _ (Var.User v))) -> pure $ v
-        LSPQ.TermNode {} -> empty
-        LSPQ.TypeNode {} -> empty
-        LSPQ.PatternNode _pat -> empty
+      let varFromNode = do
+            node <- LSPQ.nodeAtPosition uri pos
+            Debug.debugM Debug.Temp "node" node
+            case node of
+              LSPQ.TermNode (Term.Var' (Symbol.Symbol _ (Var.User v))) -> pure $ v
+              LSPQ.TermNode {} -> empty
+              LSPQ.TypeNode {} -> empty
+              LSPQ.PatternNode _pat -> empty
+      let varFromText = VFS.identifierAtPosition uri pos
+      localVar <- varFromNode <|> varFromText
       Debug.debugM Debug.Temp "localVar" localVar
       FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
-      varContexts <- hoistMaybe $ MonMap.lookup localVar localBindingTypes
-
-      Debug.debugM Debug.Temp "varContexts" varContexts
-      -- An interval contining the exact location of the cursor
-      let posInterval = (IM.ClosedInterval pos pos)
-      Debug.debugM Debug.Temp "posInterval" posInterval
-      (_range, typ) <- hoistMaybe $ IntervalMap.lookupLT posInterval varContexts
+      Debug.debugM Debug.Temp "pos" pos
+      Debug.debugM Debug.Temp "localBindingTypes" localBindingTypes
+      (_range, typ) <- hoistMaybe $ IM.keyedSmallestIntersection localVar pos localBindingTypes
       pped <- lift $ ppedForFile uri
       pure $ renderTypeSigForHover pped localVar typ
 
