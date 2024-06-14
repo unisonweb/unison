@@ -13,6 +13,7 @@ import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
@@ -28,6 +29,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
+import Unison.Symbol qualified as Symbol
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.TypePrinter qualified as TypePrinter
@@ -126,19 +128,23 @@ hoverInfo uri pos =
     hoverInfoForLocalVar :: MaybeT Lsp Text
     hoverInfoForLocalVar = do
       node <- LSPQ.nodeAtPosition uri pos
+      Debug.debugM Debug.Temp "node" node
       localVar <- case node of
-        LSPQ.TermNode (Term.Var' v) -> pure $ v
+        LSPQ.TermNode (Term.Var' (Symbol.Symbol _ (Var.User v))) -> pure $ v
         LSPQ.TermNode {} -> empty
         LSPQ.TypeNode {} -> empty
         LSPQ.PatternNode _pat -> empty
-
+      Debug.debugM Debug.Temp "localVar" localVar
       FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
       varContexts <- hoistMaybe $ MonMap.lookup localVar localBindingTypes
+
+      Debug.debugM Debug.Temp "varContexts" varContexts
       -- An interval contining the exact location of the cursor
       let posInterval = (IM.ClosedInterval pos pos)
+      Debug.debugM Debug.Temp "posInterval" posInterval
       (_range, typ) <- hoistMaybe $ IntervalMap.lookupLT posInterval varContexts
       pped <- lift $ ppedForFile uri
-      pure $ renderTypeSigForHover pped (Var.name localVar) typ
+      pure $ renderTypeSigForHover pped localVar typ
 
     hoistMaybe :: Maybe a -> MaybeT Lsp a
     hoistMaybe = MaybeT . pure

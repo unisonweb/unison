@@ -129,7 +129,7 @@ data FileAnalysis = FileAnalysis
     -- There may be many mentions of the same symbol in the file, and their may be several
     -- bindings which shadow each other, use this map to find the smallest spanning position
     -- which contains the symbol you're interested in.
-    localBindingTypes :: MonoidalMap Symbol (IntervalMap Position (Type Symbol Ann)),
+    localBindingTypes :: MonoidalMap Text (IntervalMap Position (Type Symbol Ann)),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }

@@ -57,6 +57,7 @@ import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
+import Unison.Symbol qualified as Symbol
 import Unison.Syntax.HashQualified' qualified as HQ' (toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name
@@ -107,22 +108,22 @@ checkFile doc = runMaybeT do
             -- This is silly, but after applying TDNR we can just re-typecheck the already substituted file to get the correct types of
             -- local bindings from after TDNR.
             localBindings <-
-              maybeTypecheckedFile & foldMapM \tf -> do
-                let parsedFile = UF.discardTypes tf
-                typecheckingEnv' <- computeTypecheckingEnvironment ShouldUseTndr'No cb ambientAbilities parsedFile
-                let Result.Result afterTDNRTypecheckingNotes' _maybeTypecheckedFile' = FileParsers.synthesizeFile typecheckingEnv' parsedFile
-                Debug.debugM Debug.Temp "After typechecking notes" afterTDNRTypecheckingNotes'
-                afterTDNRTypecheckingNotes'
-                  & mapMaybe \case
-                    Result.TypeInfo (Context.LetBinding v loc typ _) ->
-                      Cv.annToInterval loc <&> \interval -> (v, (IM.singleton interval typ))
-                    _ -> Nothing
-                  & Foldable.toList
-                  & Debug.debug Debug.Temp "Local Bindings 1"
-                  & MonoidalMap.fromList
-                  & pure
+              -- maybeTypecheckedFile & foldMapM \tf -> do
+              --   let parsedFile = UF.discardTypes tf
+              --   typecheckingEnv' <- computeTypecheckingEnvironment ShouldUseTndr'No cb ambientAbilities parsedFile
+              --   let Result.Result afterTDNRTypecheckingNotes' _maybeTypecheckedFile' = FileParsers.synthesizeFile typecheckingEnv' parsedFile
+              --   Debug.debugM Debug.Temp "After typechecking notes" afterTDNRTypecheckingNotes'
+              --   afterTDNRTypecheckingNotes'
+              typecheckingNotes
+                & mapMaybe \case
+                  Result.TypeInfo (Context.LetBinding (Symbol.Symbol _ (Var.User v)) loc typ) ->
+                    Cv.annToInterval loc <&> \interval -> (v, (IM.singleton interval typ))
+                  _ -> Nothing
+                & Foldable.toList
+                & MonoidalMap.fromList
+                & pure
             pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
-  Debug.debugM Debug.Temp "Local Bindings 2" localBindingTypes
+  Debug.debugM Debug.Temp "Local Bindings" localBindingTypes
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
   (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
   let codeActionRanges =
