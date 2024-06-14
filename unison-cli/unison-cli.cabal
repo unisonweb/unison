@@ -217,7 +217,6 @@ library
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
-    , monoidal-containers
     , mtl
     , network
     , network-simple
@@ -360,7 +359,6 @@ executable transcripts
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
-    , monoidal-containers
     , mtl
     , network
     , network-simple
@@ -511,7 +509,6 @@ test-suite cli-tests
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
-    , monoidal-containers
     , mtl
     , network
     , network-simple
