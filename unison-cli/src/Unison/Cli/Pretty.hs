@@ -121,6 +121,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -200,7 +201,11 @@ prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
 prettyProjectPath :: PP.ProjectPath -> Pretty
-prettyProjectPath = P.blue . P.shown
+prettyProjectPath (PP.ProjectPath project branch path) =
+  prettyProjectAndBranchName (ProjectAndBranch project.name branch.name)
+    <>
+    -- Only show the path if it's not the root
+    Monoid.whenM (path /= Path.absoluteEmpty) (P.cyan (":" <> P.shown path))
 
 prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)

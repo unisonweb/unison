@@ -48,6 +48,10 @@ module Unison.Cli.Monad
     runTransaction,
     runTransactionWithRollback,
 
+    -- * Internal
+    setMostRecentProjectPath,
+    setInMemoryCurrentProjectRoot,
+
     -- * Misc types
     LoadSourceResult (..),
   )
@@ -81,10 +85,10 @@ import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
+import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..))
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -387,11 +391,21 @@ cd path = do
   setMostRecentProjectPath newPP
   #projectPathStack %= NonEmpty.cons newPP
 
+-- | Set the in-memory project root to the given branch, without updating the database.
+setInMemoryCurrentProjectRoot :: Branch IO -> Cli ()
+setInMemoryCurrentProjectRoot !newRoot = do
+  rootVar <- use #currentProjectRoot
+  atomically do
+    void $ swapTMVar rootVar newRoot
+
 switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
 switchProject (ProjectAndBranch projectId branchId) = do
+  Env {codebase} <- ask
   let newPP = PP.ProjectPath projectId branchId Path.absoluteEmpty
   #projectPathStack %= NonEmpty.cons newPP
   runTransaction $ Q.setMostRecentBranch projectId branchId
+  pbr <- liftIO $ Codebase.expectProjectBranchRoot codebase projectId branchId
+  setInMemoryCurrentProjectRoot pbr
   setMostRecentProjectPath newPP
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
@@ -408,9 +422,8 @@ popd = do
       pure True
 
 setMostRecentProjectPath :: PP.ProjectPathIds -> Cli ()
-setMostRecentProjectPath _loc =
-  -- runTransaction . Queries.setMostRecentLocation . map NameSegment.toUnescapedText . Path.toList . Path.unabsolute
-  error "Implement setMostRecentLocation"
+setMostRecentProjectPath loc =
+  runTransaction $ Codebase.setCurrentProjectPath loc
 
 respond :: Output -> Cli ()
 respond output = do

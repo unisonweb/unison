@@ -458,15 +458,9 @@ updateProjectBranchRoot projectBranch reason f = do
       causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
       Q.setProjectBranchHead reason (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
     if projectBranch.branchId == currentPB.branchId
-      then setCurrentProjectRoot new
+      then Cli.setInMemoryCurrentProjectRoot new
       else pure ()
     pure result
-  where
-    setCurrentProjectRoot :: Branch IO -> Cli ()
-    setCurrentProjectRoot !newRoot = do
-      rootVar <- use #currentProjectRoot
-      atomically do
-        void $ swapTMVar rootVar newRoot
 
 updateProjectBranchRoot_ :: ProjectBranch -> Text -> (Branch IO -> Branch IO) -> Cli ()
 updateProjectBranchRoot_ projectBranch reason f = do
