@@ -1366,31 +1366,45 @@ renderParseErrors s = \case
             <> style ErrorSite (fromString open)
             <> ".\n\n"
             <> excerpt
-        L.InvalidWordyId _id ->
+        L.InvalidWordyId id ->
           Pr.lines
-            [ "This identifier isn't valid syntax: ",
+            [ "The identifier " <> style Code id <> " isn't valid syntax: ",
               "",
               excerpt,
               "Here's a few examples of valid syntax: "
-                <> style Code "abba1', snake_case, Foo.zoink!, 🌻"
+                <> style Code "abba1'"
+                <> ", "
+                <> style Code "snake_case"
+                <> ", "
+                <> style Code "Foo.zoink!"
+                <> ", and "
+                <> style Code "🌻"
             ]
-        L.ReservedWordyId _id ->
+        L.ReservedWordyId id ->
           Pr.lines
-            [ "The identifier used here isn't allowed to be a reserved keyword: ",
-              "",
-              excerpt
-            ]
-        L.InvalidSymbolyId _id ->
-          Pr.lines
-            [ "This infix identifier isn't valid syntax: ",
+            [ "The identifier " <> style Code id <> " used here is a reserved keyword: ",
               "",
               excerpt,
-              "Here's a few valid examples: "
-                <> style Code "++, Float./, `List.map`"
+              Pr.wrap $
+                "You can avoid this problem either by renaming the identifier or wrapping it in backticks (like "
+                  <> style Code ("`" <> id <> "`")
+                  <> ")."
             ]
-        L.ReservedSymbolyId _id ->
+        L.InvalidSymbolyId id ->
           Pr.lines
-            [ "This identifier is reserved by Unison and can't be used as an operator: ",
+            [ "The infix identifier " <> style Code id <> " isn’t valid syntax: ",
+              "",
+              excerpt,
+              "Here are a few valid examples: "
+                <> style Code "++"
+                <> ", "
+                <> style Code "Float./"
+                <> ", and "
+                <> style Code "`List.map`"
+            ]
+        L.ReservedSymbolyId id ->
+          Pr.lines
+            [ "The identifier " <> style Code id <> " is reserved by Unison and can't be used as an operator: ",
               "",
               excerpt
             ]
