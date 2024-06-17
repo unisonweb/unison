@@ -117,8 +117,7 @@ data NumberedOutput
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput Symbol Ann)
+  | TodoOutput !Int !PPE.PrettyPrintEnvDecl !(TO.TodoOutput Symbol Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem

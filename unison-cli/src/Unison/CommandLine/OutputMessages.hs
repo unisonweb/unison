@@ -142,6 +142,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Defns (Defns (..), defnsAreEmpty)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -306,7 +307,7 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
-  TodoOutput names todo -> todoOutput names todo
+  TodoOutput hashLen names todo -> todoOutput hashLen names todo
   CantDeleteDefinitions ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -2590,8 +2591,7 @@ renderNameConflicts ppe conflictedNames = do
         [ prettyConflictedTypes,
           prettyConflictedTerms,
           tip $
-            "This occurs when merging branches that both independently introduce the same name."
-              <> "Use "
+            "Use "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
                     then IP.renameType
@@ -2609,7 +2609,7 @@ renderNameConflicts ppe conflictedNames = do
     showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
     showConflictedNames thingKind conflictedNames =
       P.lines <$> do
-        for (Map.toList conflictedNames) $ \(name, hashes) -> do
+        for (Map.toList conflictedNames) \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
@@ -2627,8 +2627,9 @@ type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 addNumberedArg :: StructuredArgument -> Numbered Int
 addNumberedArg s = do
   (n, args) <- State.get
-  State.put (n + 1, args Seq.|> s)
-  pure $ (n + 1)
+  let !n' = n + 1
+  State.put (n', args Seq.|> s)
+  pure n'
 
 formatNum :: Int -> Pretty
 formatNum n = P.string (show n <> ". ")
@@ -2638,13 +2639,43 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: (Var v) => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
-todoOutput ppe todo = runNumbered do
-  if TO.noConflicts todo
-    then pure mempty
-    else do
-      nameConflicts <- renderNameConflicts ppeu (TO.nameConflicts todo)
-      pure $ P.lines $ P.nonEmpty [nameConflicts]
+todoOutput :: (Var v) => Int -> PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
+todoOutput hashLen ppe todo =
+  runNumbered do
+    prettyConflicts <-
+      if TO.noConflicts todo
+        then pure mempty
+        else renderNameConflicts ppeu todo.nameConflicts
+
+    prettyDirectTermDependenciesWithoutNames <- do
+      if Set.null todo.directDependenciesWithoutNames.terms
+        then pure mempty
+        else do
+          terms <-
+            for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
+              n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
+              pure (formatNum n <> P.syntaxToColor (prettyReference hashLen term))
+          pure $
+            P.wrap "These terms do not have any names in the current namespace:"
+              `P.hang` P.lines terms
+
+    prettyDirectTypeDependenciesWithoutNames <- do
+      if Set.null todo.directDependenciesWithoutNames.types
+        then pure mempty
+        else do
+          types <-
+            for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
+              n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
+              pure (formatNum n <> P.syntaxToColor (prettyReference hashLen typ))
+          pure $
+            P.wrap "These types do not have any names in the current namespace:"
+              `P.hang` P.lines types
+
+    (pure . P.sep "\n\n" . P.nonEmpty)
+      [ prettyConflicts,
+        prettyDirectTermDependenciesWithoutNames,
+        prettyDirectTypeDependenciesWithoutNames
+      ]
   where
     ppeu = PPED.unsuffixifiedPPE ppe
 

@@ -5,9 +5,13 @@ module Unison.Codebase.Editor.TodoOutput
 where
 
 import Unison.Names (Names)
+import Unison.Prelude
+import Unison.Reference (TermReference, TypeReference)
+import Unison.Util.Defns (DefnsF)
 
 data TodoOutput v a = TodoOutput
-  { nameConflicts :: Names
+  { directDependenciesWithoutNames :: DefnsF Set TermReference TypeReference,
+    nameConflicts :: Names
   }
 
 noConflicts :: TodoOutput v a -> Bool
