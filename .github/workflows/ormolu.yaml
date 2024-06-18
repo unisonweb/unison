@@ -23,5 +23,5 @@ jobs:
         with:
           commit-message: automatically run ormolu
           branch: autoformat/${{github.ref_name}}
-          # branch_suffix: random
+          branch-suffix: short-commit-hash
           title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}
