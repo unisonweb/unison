@@ -596,7 +596,7 @@ builtinEffectDecls =
         Structural
         ()
         []
-        [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+        [ ((), v "Exception.raise", Type.forAll () (v "x") (failureType () `arr` self (var "x")))
         ]
 
 pattern UnitRef :: Reference
