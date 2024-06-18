@@ -22,6 +22,12 @@ type Referent' t h = Referent.Referent' (Reference' t h) (Reference' t h)
 data TermEdit' t h = Replace (Referent' t h) Typing | Deprecate
   deriving (Eq, Ord, Show)
 
+instance Functor (TermEdit' t) where
+  fmap :: (a -> b) -> TermEdit' t a -> TermEdit' t b
+  fmap f (Replace (Referent.Ref termRef) typing) = Replace (Referent.Ref (fmap f termRef)) typing
+  fmap f (Replace (Referent.Con typeRef consId) typing) = Replace (Referent.Con (fmap f typeRef) consId) typing
+  fmap _ Deprecate = Deprecate
+
 _Replace :: Prism (TermEdit' t h) (TermEdit' t' h') (Referent' t h, Typing) (Referent' t' h', Typing)
 _Replace = prism embed project
   where
