@@ -4,7 +4,6 @@
 
 module Unison.Server.Local.Endpoints.FuzzyFind where
 
-import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant

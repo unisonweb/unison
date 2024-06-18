@@ -3,7 +3,6 @@
 
 module Unison.Server.Local.Endpoints.Current where
 
-import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema (..))
 import Servant ((:>))

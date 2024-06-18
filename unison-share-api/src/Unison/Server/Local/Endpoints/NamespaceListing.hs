@@ -4,7 +4,6 @@
 
 module Unison.Server.Local.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
 
-import Control.Monad.Except
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import Servant

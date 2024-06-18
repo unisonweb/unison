@@ -104,7 +104,7 @@ data ExactName name ref = ExactName
   { name :: name,
     ref :: ref
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance ToParamSchema (ExactName Name ShortHash) where
   toParamSchema _ =
