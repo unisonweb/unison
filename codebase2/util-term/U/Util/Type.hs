@@ -61,7 +61,7 @@ flattenEffects es = [es]
 generalize :: (Ord v) => [v] -> TypeR r v -> TypeR r v
 generalize vs t = foldr f t vs
   where
-    f v t = if Set.member v (ABT.freeVars t) then forall v t else t
+    f v t = if Set.member v (ABT.freeVars t) then forAll v t else t
 
 -- * Patterns
 
@@ -80,8 +80,8 @@ pattern Effect1' e t <- ABT.Tm' (Effect e t)
 pattern Ref' :: r -> TypeR r v
 pattern Ref' r <- ABT.Tm' (Ref r)
 
-forall :: (Ord v) => v -> TypeR r v -> TypeR r v
-forall v body = ABT.tm () (Forall (ABT.abs () v body))
+forAll :: (Ord v) => v -> TypeR r v -> TypeR r v
+forAll v body = ABT.tm () (Forall (ABT.abs () v body))
 
 unforall' :: TypeR r v -> ([v], TypeR r v)
 unforall' (ForallsNamed' vs t) = (vs, t)

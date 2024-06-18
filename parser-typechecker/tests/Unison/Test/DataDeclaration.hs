@@ -88,7 +88,7 @@ unhashComponentTest =
     inventedVarsFreshnessTest =
       let var = Type.var ()
           app = Type.app ()
-          forall = Type.forall ()
+          forAll = Type.forall ()
           (-->) = Type.arrow ()
           h = Hash.fromByteString (encodeUtf8 "abcd")
           ref = R.Id h 0
@@ -104,8 +104,8 @@ unhashComponentTest =
                 annotation = (),
                 bound = [],
                 constructors' =
-                  [ ((), nil, forall a (listType `app` var a)),
-                    ((), cons, forall b (var b --> listType `app` var b --> listType `app` var b))
+                  [ ((), nil, forAll a (listType `app` var a)),
+                    ((), cons, forAll b (var b --> listType `app` var b --> listType `app` var b))
                   ]
               }
           component :: Map R.Id (Decl Symbol ())
@@ -120,7 +120,7 @@ unhashComponentTest =
        in tests
             [ -- check that `nil` constructor's type did not collapse to `forall a. a a`,
               -- which would happen if the var invented for `listRef` was simply `Var.refNamed listRef`
-              expectEqual (forall z (listType' `app` var z)) nilType',
+              expectEqual (forAll z (listType' `app` var z)) nilType',
               -- check that the variable assigned to `listRef` is different from `cons`,
               -- which would happen if the var invented for `listRef` was simply `Var.refNamed listRef`
               expectNotEqual cons listVar
