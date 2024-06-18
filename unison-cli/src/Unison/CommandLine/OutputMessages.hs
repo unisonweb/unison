@@ -2077,14 +2077,32 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path aliceAndBob ->
-    pure . P.wrap $
-      "I couldn't automatically merge"
-        <> prettyMergeSource aliceAndBob.bob
-        <> "into"
-        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  MergeFailure path aliceAndBob temp ->
+    pure $
+      P.lines $
+        [ P.wrap $
+            "I couldn't automatically merge"
+              <> prettyMergeSource aliceAndBob.bob
+              <> "into"
+              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName aliceAndBob.alice.branch
+              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+        ]
   MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
@@ -2128,6 +2146,8 @@ notifyUser dir = \case
         case maybeTargetProject of
           Nothing -> prettyProjectBranchName targetBranch
           Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
+  NoMergeInProgress ->
+    pure . P.wrap $ "It doesn't look like there's a merge in progress."
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

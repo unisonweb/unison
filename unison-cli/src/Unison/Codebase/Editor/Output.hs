@@ -389,7 +389,7 @@ data Output
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
-  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
@@ -405,6 +405,7 @@ data Output
   | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | NoMergeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -643,6 +644,7 @@ isFailure o = case o of
   NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
+  NoMergeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
