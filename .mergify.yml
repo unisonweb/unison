@@ -1,7 +1,7 @@
 pull_request_rules:
   - name: automatic merge on CI success and review
     conditions:
-      - check-success=Contributor signed CONTRIBUTORS.markdown
+      - check-success=check-contributor
       - check-success=build ucm (ubuntu-20.04)
       - check-success=build ucm (macOS-12)
       - check-success=build ucm (windows-2019)

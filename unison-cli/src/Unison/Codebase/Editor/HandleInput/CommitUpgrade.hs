@@ -17,6 +17,8 @@ import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..))
 
+-- Note: this implementation is similar to `merge.commit`.
+
 handleCommitUpgrade :: Cli ()
 handleCommitUpgrade = do
   (upgradeProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch

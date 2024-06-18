@@ -73,6 +73,7 @@ module Unison.CommandLine.InputPatterns
     load,
     makeStandalone,
     mergeBuiltins,
+    mergeCommitInputPattern,
     mergeIOBuiltins,
     mergeInputPattern,
     mergeOldInputPattern,
@@ -2126,6 +2127,48 @@ mergeInputPattern =
           _ -> Left $ I.help mergeInputPattern
     }
 
+mergeCommitInputPattern :: InputPattern
+mergeCommitInputPattern =
+  InputPattern
+    { patternName = "merge.commit",
+      aliases = ["commit.merge"],
+      visibility = I.Visible,
+      args = [],
+      help =
+        let mainBranch = UnsafeProjectBranchName "main"
+            tempBranch = UnsafeProjectBranchName "merge-topic-into-main"
+         in P.wrap
+              ( makeExample' mergeCommitInputPattern
+                  <> "merges a temporary branch created by the"
+                  <> makeExample' mergeInputPattern
+                  <> "command back into its parent branch, and removes the temporary branch."
+              )
+              <> P.newline
+              <> P.newline
+              <> P.wrap
+                ( "For example, if you've done"
+                    <> makeExample mergeInputPattern ["topic"]
+                    <> "from"
+                    <> P.group (prettyProjectBranchName mainBranch <> ",")
+                    <> "then"
+                    <> makeExample' mergeCommitInputPattern
+                    <> "is equivalent to doing"
+                )
+              <> P.newline
+              <> P.newline
+              <> P.indentN
+                2
+                ( P.bulleted
+                    [ makeExampleNoBackticks projectSwitch [prettySlashProjectBranchName mainBranch],
+                      makeExampleNoBackticks mergeInputPattern [prettySlashProjectBranchName tempBranch],
+                      makeExampleNoBackticks deleteBranch [prettySlashProjectBranchName tempBranch]
+                    ]
+                ),
+      parse = \case
+        [] -> Right Input.MergeCommitI
+        _ -> Left (I.help mergeCommitInputPattern)
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
@@ -3326,6 +3369,7 @@ validInputs =
       mergeOldPreviewInputPattern,
       mergeOldSquashInputPattern,
       mergeInputPattern,
+      mergeCommitInputPattern,
       names False, -- names
       names True, -- names.global
       namespaceDependencies,
