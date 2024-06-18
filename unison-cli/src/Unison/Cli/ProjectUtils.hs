@@ -123,8 +123,8 @@ justTheIds x =
   ProjectAndBranch x.project.projectId x.branch.branchId
 
 justTheIds' :: Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
-justTheIds' x =
-  ProjectAndBranch x.projectId x.branchId
+justTheIds' branch =
+  ProjectAndBranch branch.projectId branch.branchId
 
 justTheNames :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectName ProjectBranchName
 justTheNames x =
