@@ -2599,8 +2599,16 @@ declareForeigns = do
 
   declareForeign Tracked "IO.kill.impl.v3" boxToEF0 $ mkForeignIOF killThread
 
+  let mx :: Word64
+      mx = fromIntegral (maxBound :: Int)
+
+      customDelay :: Word64 -> IO ()
+      customDelay n
+        | n < mx = threadDelay (fromIntegral n)
+        | otherwise = threadDelay maxBound >> customDelay (n - mx)
+
   declareForeign Tracked "IO.delay.impl.v3" natToEFUnit $
-    mkForeignIOF threadDelay
+    mkForeignIOF customDelay
 
   declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign
