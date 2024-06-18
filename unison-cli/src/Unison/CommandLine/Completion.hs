@@ -196,12 +196,6 @@ completeWithinNamespace compTypes query currentPath = do
     namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(CompletionType, Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
-      let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
-          textifyHQ f xs =
-            xs
-              & hashQualifyCompletions f
-              & fmap (HQ'.toTextWith NameSegment.toEscapedText)
-              & fmap (True,)
       pure $
         concat
           [ (NamespaceCompletion,False,) <$> (fmap NameSegment.toEscapedText . Map.keys $ nonEmptyChildren),
@@ -216,6 +210,12 @@ completeWithinNamespace compTypes query currentPath = do
               (fmap ((PatchCompletion,True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
           ]
 
+    textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
+    textifyHQ f xs =
+      xs
+        & hashQualifyCompletions f
+        & fmap (HQ'.toTextWith NameSegment.toEscapedText)
+        & fmap (True,)
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
     hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 (Just hashLen) r)
