@@ -38,6 +38,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.Parser.Ann qualified as Ann
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -48,7 +49,7 @@ import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
-import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser qualified as Parser (seq, uniqueName, seq')
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -439,7 +440,8 @@ resolveHashQualified tok = do
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
-    [ hashQualifiedPrefixTerm,
+    [ forceOrFnApplication,
+      hashQualifiedPrefixTerm,
       text,
       char,
       number,
@@ -990,6 +992,27 @@ bang = P.label "bang" do
   start <- reserved "!"
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
+
+forceOrFnApplication :: forall m v . (Monad m, Var v) => TermP v m
+forceOrFnApplication = P.label "force" do
+  -- `foo sqrt(2.0)` parses as `foo (sqrt 2.0)`
+  -- `forkAt pool() blah` parses as `forkAt (pool ()) blah`
+  -- `foo max(x, y) z` parsed as `foo (max x y) z`
+  -- That is, parens immediately (no space) following a symbol is
+  -- treated as function application, but higher precedence than 
+  -- the usual application syntax where args are separated by spaces 
+  fn <- P.try do 
+    r <- hashQualifiedPrefixTerm
+    P.lookAhead do 
+      tok <- ann <$> openBlockWith "("
+      guard (L.column (Ann.start tok) == L.column (Ann.end (ann r)))
+    pure r
+  Parser.seq' "(" (done fn) term
+  where
+    done :: Term v Ann -> Ann -> [Term v Ann] -> Term v Ann
+    done fn a [] = DD.forceTerm a a fn
+    done fn _ [arg] = Term.apps' fn [arg] 
+    done fn _ args = Term.apps' fn args
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =

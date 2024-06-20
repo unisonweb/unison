@@ -70,6 +70,6 @@ ping _ = 3
   pong : 'Nat
   pong _ =
     use Nat +
-    !ping + 2
+    ping() + 2
 
 ```

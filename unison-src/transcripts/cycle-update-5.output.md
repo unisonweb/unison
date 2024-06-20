@@ -65,7 +65,7 @@ inner.ping _ = !pong + 3
   inner.ping : 'Nat
   inner.ping _ =
     use Nat +
-    !pong + 1
+    pong() + 1
 
 ```
 The bug here is that `inner.ping` still refers to `pong` by name. But if we properly identified the nameless (in the

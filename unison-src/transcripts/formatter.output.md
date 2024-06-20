@@ -142,7 +142,7 @@ provide a action =
   h = cases
     { ask -> resume } -> handle resume a with h
     { r }             -> r
-  handle !action with h
+  handle action() with h
 
 Optional.doc = {{ A Doc before a type }}
 structural type Optional a = More Text | Some | Other a | None Nat 

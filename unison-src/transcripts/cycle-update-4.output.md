@@ -74,16 +74,16 @@ clang _ = !pong + 3
   clang : 'Nat
   clang _ =
     use Nat +
-    !pong + 3
+    pong() + 3
   
   ping : 'Nat
   ping _ =
     use Nat +
-    !clang + 1
+    clang() + 1
   
   pong : 'Nat
   pong _ =
     use Nat +
-    !ping + 2
+    ping() + 2
 
 ```
