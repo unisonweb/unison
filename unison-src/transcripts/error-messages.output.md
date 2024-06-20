@@ -343,10 +343,12 @@ use.keyword.in.namespace = 1
 
   Loading changes detected in scratch.u.
 
-  The identifier used here isn't allowed to be a reserved keyword: 
+  The identifier namespace used here is a reserved keyword: 
   
       1 | use.keyword.in.namespace = 1
   
+  You can avoid this problem either by renaming the identifier
+  or wrapping it in backticks (like `namespace` ).
 
 ```
 ```unison
