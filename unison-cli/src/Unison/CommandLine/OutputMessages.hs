@@ -142,7 +142,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.Util.Defns (Defns (..), defnsAreEmpty)
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
