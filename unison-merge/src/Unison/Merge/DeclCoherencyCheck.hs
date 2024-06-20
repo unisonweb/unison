@@ -104,6 +104,7 @@ import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
+import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -217,21 +218,21 @@ checkDeclCoherency loadDeclNumConstructors =
         fullName name =
           Name.fromReverseSegments (name :| prefix)
 
--- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns a mapping from decl name to
--- constructor names, where constructor names can be missing.
+-- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns partial decl name lookup,
+-- which doesn't require a name for every constructor, and allows a constructor with a nameless decl.
 --
--- This function exists merely to extract a best-effort decl-name-to-constructor-name mapping for the LCA of a merge.
--- We require Alice and Bob to have coherent decls, but their LCA is out of the user's control and may have incoherent
--- decls, and whether or not it does, we still need to compute *some* syntactic hash for its decls.
+-- This function exists merely to extract a best-effort name mapping for the LCA of a merge. We require Alice and Bob to
+-- have coherent decls, but their LCA is out of the user's control and may have incoherent decls, and whether or not it
+-- does, we still need to compute *some* syntactic hash for its decls.
 lenientCheckDeclCoherency ::
   forall m.
   Monad m =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  m (Map Name [Maybe Name])
+  m PartialDeclNameLookup
 lenientCheckDeclCoherency loadDeclNumConstructors =
-  fmap (view #declToConstructors)
-    . (`State.execStateT` LenientDeclCoherencyCheckState Map.empty Map.empty)
+  fmap (view #declNameLookup)
+    . (`State.execStateT` LenientDeclCoherencyCheckState Map.empty (PartialDeclNameLookup Map.empty Map.empty))
     . go []
   where
     go ::
@@ -259,14 +260,14 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
               lift (getCompose (Map.upsertF (\_ -> Compose recordNewDecl) typeRef state.expectedConstructors))
             case whatHappened of
               UninhabitedDecl -> do
-                #declToConstructors %= Map.insert typeName []
+                #declNameLookup . #declToConstructors %= Map.insert typeName []
                 pure Nothing
               InhabitedDecl expectedConstructors1 -> do
                 let child = Map.findWithDefault (Nametree (Defns Map.empty Map.empty) Map.empty) name children
                 #expectedConstructors .= expectedConstructors1
                 go (name : prefix) child
                 state <- State.get
-                let (maybeConstructorNames, expectedConstructors) =
+                let (constructorNames0, expectedConstructors) =
                       Map.alterF f typeRef state.expectedConstructors
                       where
                         f ::
@@ -278,8 +279,21 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
                           fromJust
                             >>> Map.deleteLookupJust typeName
                             >>> over _2 \m -> if Map.null m then Nothing else Just m
+
+                    constructorNames :: [Maybe Name]
+                    constructorNames =
+                      IntMap.elems constructorNames0
+
                 #expectedConstructors .= expectedConstructors
-                #declToConstructors %= Map.insert typeName (IntMap.elems maybeConstructorNames)
+                #declNameLookup . #constructorToDecl %= \constructorToDecl ->
+                  List.foldl'
+                    ( \acc -> \case
+                        Nothing -> acc
+                        Just constructorName -> Map.insert constructorName typeName acc
+                    )
+                    constructorToDecl
+                    constructorNames
+                #declNameLookup . #declToConstructors %= Map.insert typeName constructorNames
                 pure (Just name)
             where
               typeName = fullName name
@@ -298,7 +312,7 @@ data DeclCoherencyCheckState = DeclCoherencyCheckState
 
 data LenientDeclCoherencyCheckState = LenientDeclCoherencyCheckState
   { expectedConstructors :: !(Map TypeReferenceId (Map Name ConstructorNames)),
-    declToConstructors :: !(Map Name [Maybe Name])
+    declNameLookup :: !PartialDeclNameLookup
   }
   deriving stock (Generic)
 
