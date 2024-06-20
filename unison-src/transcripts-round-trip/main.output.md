@@ -24,7 +24,7 @@ So we can see the pretty-printed output:
 
   ☝️
   
-  I added 105 definitions to the top of scratch.u
+  I added 106 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -73,13 +73,13 @@ structural ability Zoink where
 Abort.toDefault! : a -> '{g, Abort} a ->{g} a
 Abort.toDefault! default thunk =
   h x = Abort.toDefault! (handler_1778 default x) thunk
-  handle !thunk with h
+  handle thunk() with h
 
 Abort.toOptional : '{g, Abort} a -> '{g} Optional a
 Abort.toOptional thunk = do toOptional! thunk
 
 Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-Abort.toOptional! thunk = toDefault! None do Some !thunk
+Abort.toOptional! thunk = toDefault! None do Some thunk()
 
 catchAll : x -> Nat
 catchAll x = 99
@@ -87,7 +87,7 @@ catchAll x = 99
 Decode.remainder : '{Ask (Optional Bytes)} Bytes
 Decode.remainder = do match ask with
   None   -> Bytes.empty
-  Some b -> b Bytes.++ !Decode.remainder
+  Some b -> b Bytes.++ Decode.remainder()
 
 ex1 : Nat
 ex1 =
@@ -194,7 +194,7 @@ fix_2650 =
     use Nat +
     y = 12
     13 + y
-  !addNumbers
+  addNumbers()
 
 fix_2650a : tvar -> fun -> ()
 fix_2650a tvar fun = ()
@@ -341,6 +341,16 @@ fix_525_exampleTerm quaffle =
 
 fix_525_exampleType : Id qualifiedName -> Id Fully.qualifiedName
 fix_525_exampleType z = Id (Dontcare () 19)
+
+fnApplicationSyntax : Nat
+fnApplicationSyntax =
+  use Nat +
+  Environment.default = do 1 + 1
+  oog = do 2 + 2
+  blah : Nat -> Float -> Nat
+  blah x y = x + 1
+  _ = blah Environment.default() 1.0
+  blah oog() (max 1.0 2.0)
 
 Foo.bar.qux1 : Nat
 Foo.bar.qux1 = 42
@@ -672,7 +682,7 @@ UUID.random = do UUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  (UUID a (b, _)) = !random
+  (UUID a (b, _)) = random()
   encodeNat64be a Bytes.++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
