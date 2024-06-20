@@ -208,7 +208,7 @@ data Input
   | ApiI
   | UiI Path'
   | DocToMarkdownI Name
-  | DocsToHtmlI Path' FilePath
+  | DocsToHtmlI BranchRelativePath FilePath
   | AuthLoginI
   | VersionI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
