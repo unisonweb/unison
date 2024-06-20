@@ -2640,7 +2640,9 @@ renderNameConflicts ppe conflictedNames = do
                 <> P.green (prettyName name)
                 <> " has conflicting definitions:"
             )
-              `P.hang` P.lines prettyConflicts
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.lines prettyConflicts)
 
 type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 
@@ -2677,7 +2679,9 @@ todoOutput hashLen ppe todo =
               pure (formatNum n <> P.syntaxToColor (prettyReference hashLen term))
           pure $
             P.wrap "These terms do not have any names in the current namespace:"
-              `P.hang` P.lines terms
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.lines terms)
 
     prettyDirectTypeDependenciesWithoutNames <- do
       if Set.null todo.directDependenciesWithoutNames.types
@@ -2689,7 +2693,9 @@ todoOutput hashLen ppe todo =
               pure (formatNum n <> P.syntaxToColor (prettyReference hashLen typ))
           pure $
             P.wrap "These types do not have any names in the current namespace:"
-              `P.hang` P.lines types
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.lines types)
 
     (pure . P.sep "\n\n" . P.nonEmpty)
       [ prettyConflicts,
