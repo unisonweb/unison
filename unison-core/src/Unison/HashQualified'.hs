@@ -2,7 +2,7 @@ module Unison.HashQualified' where
 
 import Data.Text qualified as Text
 import Unison.HashQualified qualified as HQ
-import Unison.Name (Name, Parse)
+import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
@@ -113,6 +113,3 @@ instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
   compareAlphabetical NameOnly {} HashQualified {} = LT
   compareAlphabetical HashQualified {} NameOnly {} = GT
   compareAlphabetical (HashQualified n sh) (HashQualified n2 sh2) = Name.compareAlphabetical n n2 <> compare sh sh2
-
-instance Parse (HQ.HashQualified n) (HashQualified n) where
-  parse = fromHQ
