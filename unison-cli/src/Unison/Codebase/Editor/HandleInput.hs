@@ -474,7 +474,7 @@ loop e = do
               branch <- liftIO $ Codebase.getBranchAtPath codebase absPath
               _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase branch sourceDirectory)
               pure ()
-            AliasTermI src' dest' -> do
+            AliasTermI force src' dest' -> do
               Cli.Env {codebase} <- ask
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTerms <-
@@ -493,7 +493,7 @@ loop e = do
                       pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
               dest <- Cli.resolveSplit' dest'
               destTerms <- Cli.getTermsAt (HQ'.NameOnly <$> dest)
-              when (not (Set.null destTerms)) do
+              when (not force && not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
               Cli.stepAt description (BranchUtil.makeAddTermName (first Path.unabsolute dest) srcTerm)
@@ -998,10 +998,10 @@ inputDescription input =
     ResetRootI src0 -> do
       src <- hp' src0
       pure ("reset-root " <> src)
-    AliasTermI src0 dest0 -> do
+    AliasTermI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0
-      pure ("alias.term " <> src <> " " <> dest)
+      pure ((if force then "alias.term.force " else "alias.term ") <> src <> " " <> dest)
     AliasTypeI src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0

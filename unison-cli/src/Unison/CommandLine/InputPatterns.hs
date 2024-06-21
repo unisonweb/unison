@@ -1397,14 +1397,28 @@ deleteBranch =
 aliasTerm :: InputPattern
 aliasTerm =
   InputPattern
-    "alias.term"
-    []
-    I.Visible
-    [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)]
-    "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
-    $ \case
-      [oldName, newName] -> Input.AliasTermI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-      _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+    { patternName = "alias.term",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
+      help = "`alias.term foo bar` introduces `bar` with the same definition as `foo`.",
+      parse = \case
+        [oldName, newName] -> Input.AliasTermI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+    }
+
+aliasTermForce :: InputPattern
+aliasTermForce =
+  InputPattern
+    { patternName = "alias.term.force",
+      aliases = [],
+      visibility = I.Hidden,
+      args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
+      help = "`alias.term.force foo bar` introduces `bar` with the same definition as `foo`.",
+      parse = \case
+        [oldName, newName] -> Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ -> Left . warn $ P.wrap "`alias.term.force` takes two arguments, like `alias.term.force oldname newname`."
+    }
 
 aliasType :: InputPattern
 aliasType =
@@ -3296,6 +3310,7 @@ validInputs =
     [ add,
       aliasMany,
       aliasTerm,
+      aliasTermForce,
       aliasType,
       api,
       authLogin,
