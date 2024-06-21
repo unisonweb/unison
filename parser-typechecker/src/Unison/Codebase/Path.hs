@@ -98,7 +98,12 @@ import Unison.Prelude hiding (empty, toList)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
 
--- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
+-- | A `Path` is an internal structure representing some namespace in the codebase.
+--
+--  @Foo.Bar.baz@ becomes @["Foo", "Bar", "baz"]@.
+--
+--  __NB__:  This shouldn’t be exposed outside of this module (prefer`Path'`, `Absolute`, or `Relative`), but it’s
+--   currently used pretty widely. Such usage should be replaced when encountered.
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
@@ -110,10 +115,13 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
+-- | A namespace path that starts from the root.
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+-- | A namespace path that doesn’t necessarily start from the root.
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
+-- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
 
