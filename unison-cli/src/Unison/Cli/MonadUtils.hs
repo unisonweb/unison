@@ -481,7 +481,7 @@ updateRoot new reason =
 getTermsAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set Referent)
 getTermsAt path = do
   rootBranch0 <- getRootBranch0
-  pure (BranchUtil.getTerm (Path.convert path) rootBranch0)
+  pure (BranchUtil.getTerm (first Path.unabsolute path) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting types
@@ -489,7 +489,7 @@ getTermsAt path = do
 getTypesAt :: (Path.Absolute, HQ'.HQSegment) -> Cli (Set TypeReference)
 getTypesAt path = do
   rootBranch0 <- getRootBranch0
-  pure (BranchUtil.getType (Path.convert path) rootBranch0)
+  pure (BranchUtil.getType (first Path.unabsolute path) rootBranch0)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting patches

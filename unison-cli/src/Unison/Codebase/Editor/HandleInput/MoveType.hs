@@ -26,14 +26,14 @@ moveTypeSteps src' dest' = do
       Cli.returnEarly (Output.DeleteNameAmbiguous hqLength src' Set.empty srcTypes)
     [srcType] -> do
       dest <- Cli.resolveSplit' dest'
-      destTypes <- Cli.getTypesAt (Path.convert dest)
+      destTypes <- Cli.getTypesAt (HQ'.NameOnly <$> dest)
       when (not (Set.null destTypes)) do
         Cli.returnEarly (Output.TypeAlreadyExists dest' destTypes)
-      let p = Path.convert src
+      let p = first Path.unabsolute src
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-          BranchUtil.makeAddTypeName (Path.convert dest) srcType
+          BranchUtil.makeAddTypeName (first Path.unabsolute dest) srcType
         ]
 
 doMoveType :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()

@@ -225,7 +225,7 @@ longestTermName :: Int -> Referent -> Names -> HQ.HashQualified Name
 longestTermName length r ns =
   case reverse (termNamesByLength length r ns) of
     [] -> HQ.take length (HQ.fromReferent r)
-    (h : _) -> Name.convert h
+    (h : _) -> HQ'.toHQ h
 
 termName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
 termName length r names =
