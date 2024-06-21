@@ -49,7 +49,7 @@ import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
-import Unison.Syntax.Parser qualified as Parser (seq, uniqueName, seq')
+import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -440,7 +440,7 @@ resolveHashQualified tok = do
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
-    [ forceOrFnApplication,
+    [ force,
       hashQualifiedPrefixTerm,
       text,
       char,
@@ -993,26 +993,16 @@ bang = P.label "bang" do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-forceOrFnApplication :: forall m v . (Monad m, Var v) => TermP v m
-forceOrFnApplication = P.label "force" do
-  -- `foo sqrt(2.0)` parses as `foo (sqrt 2.0)`
+force :: forall m v . (Monad m, Var v) => TermP v m
+force = P.label "force" $ P.try do
   -- `forkAt pool() blah` parses as `forkAt (pool ()) blah`
-  -- `foo max(x, y) z` parsed as `foo (max x y) z`
-  -- That is, parens immediately (no space) following a symbol is
-  -- treated as function application, but higher precedence than 
-  -- the usual application syntax where args are separated by spaces 
-  fn <- P.try do 
-    r <- hashQualifiedPrefixTerm
-    P.lookAhead do 
-      tok <- ann <$> openBlockWith "("
-      guard (L.column (Ann.start tok) == L.column (Ann.end (ann r)))
-    pure r
-  Parser.seq' "(" (done fn) term
-  where
-    done :: Term v Ann -> Ann -> [Term v Ann] -> Term v Ann
-    done fn a [] = DD.forceTerm a a fn
-    done fn _ [arg] = Term.apps' fn [arg] 
-    done fn _ args = Term.apps' fn args
+  -- That is, empty parens immediately (no space) following a symbol 
+  -- is treated as high precedence function application of `Unit`
+  fn <- hashQualifiedPrefixTerm
+  tok <- ann <$> openBlockWith "("
+  guard (L.column (Ann.start tok) == L.column (Ann.end (ann fn)))
+  close <- closeBlock
+  pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =

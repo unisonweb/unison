@@ -550,4 +550,4 @@ fnApplicationSyntax =
   blah : Nat -> Float -> Nat
   blah x y = x + 1 
   _ = blah Environment.default() 1.0 
-  blah oog() Float.max(1.0, 2.0)
+  blah oog() (Float.max 1.0 2.0)
