@@ -224,7 +224,7 @@ token'' tok p = do
     pops p = do
       env <- S.get
       let l = layout env
-      if top l == column p && topBlockName l /= Just "(" -- don't emit virtual semis inside parens
+      if top l == column p && topContainsVirtualSemis l
         then pure [Token (Semi True) p p]
         else
           if column p > top l || topHasClosePair l
@@ -233,6 +233,12 @@ token'' tok p = do
               if column p < top l
                 then S.put (env {layout = pop l}) >> ((Token Close p p :) <$> pops p)
                 else error "impossible"
+
+    -- don't emit virtual semis in (, {, or [ blocks
+    topContainsVirtualSemis :: Layout -> Bool
+    topContainsVirtualSemis = \case
+      [] -> False
+      ((name, _) : _) -> name /= "(" && name /= "{" && name /= "["
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
