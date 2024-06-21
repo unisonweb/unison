@@ -5,16 +5,10 @@ defaults:
     shell: bash
 
 on:
-  # Build on every pull request (and new PR commit)
+  # Run on the post-merge result of every PR commit
   pull_request:
-  # Build on new pushes to trunk (E.g. Merge commits)
-  # Without the branch filter, each commit on a branch with a PR is triggered twice.
-  # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
+  # Build on the pre-merge result of every branch commit
   push:
-    branches:
-      - trunk
-    tags:
-      - release/*
   workflow_dispatch:
 
 env:
