@@ -183,7 +183,7 @@ woot1to2 x =
 
 wootEx : Nat ->{Woot2} Nat
 wootEx a =
-  _ = !Woot2.woot2
+  _ = Woot2.woot2()
   blah2
 
 blah = 123
@@ -198,7 +198,7 @@ After adding the rewritten form to the codebase, here's the rewritten `Woot1` to
 
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
-    _ = !woot2
+    _ = woot2()
     blah2
 
 ```
