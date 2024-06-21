@@ -352,7 +352,7 @@ loop e = do
                   Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
                   Right path' -> do
                     absPath <- ProjectUtils.branchRelativePathToAbsolute path'
-                    let srcp = Path.convert absPath
+                    let srcp = Path.AbsolutePath' absPath
                     srcb <- Cli.expectBranchAtPath' srcp
                     pure (srcb, WhichBranchEmptyPath srcp)
               description <- inputDescription input
@@ -492,11 +492,11 @@ loop e = do
                       hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
               dest <- Cli.resolveSplit' dest'
-              destTerms <- Cli.getTermsAt (Path.convert dest)
+              destTerms <- Cli.getTermsAt (HQ'.NameOnly <$> dest)
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
-              Cli.stepAt description (BranchUtil.makeAddTermName (Path.convert dest) srcTerm)
+              Cli.stepAt description (BranchUtil.makeAddTermName (first Path.unabsolute dest) srcTerm)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -515,11 +515,11 @@ loop e = do
                       hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
-              destTypes <- Cli.getTypesAt (Path.convert dest)
+              destTypes <- Cli.getTypesAt (HQ'.NameOnly <$> dest)
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
-              Cli.stepAt description (BranchUtil.makeAddTypeName (Path.convert dest) srcType)
+              Cli.stepAt description (BranchUtil.makeAddTypeName (first Path.unabsolute dest) srcType)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -621,9 +621,9 @@ loop e = do
               guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.guidSegment)
               Cli.stepManyAt
                 description
-                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
-                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef),
-                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef)
+                [ BranchUtil.makeAddTermName (first Path.unabsolute authorPath) (d authorRef),
+                  BranchUtil.makeAddTermName (first Path.unabsolute copyrightHolderPath) (d copyrightHolderRef),
+                  BranchUtil.makeAddTermName (first Path.unabsolute guidPath) (d guidRef)
                 ]
               currentPath <- Cli.getCurrentPath
               finalBranch <- Cli.getCurrentBranch0
@@ -1624,7 +1624,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         (Path.HQSplit', Set Reference, Set Referent) ->
         Cli (Path.Split, Name, Set Reference, Set Referent)
       toSplitName hq = do
-        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
+        resolvedPath <- first Path.unabsolute <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
         return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
@@ -1771,7 +1771,7 @@ docsI src = do
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
     dotDoc :: HQ.HashQualified Name
-    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
+    dotDoc = HQ.NameOnly . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do

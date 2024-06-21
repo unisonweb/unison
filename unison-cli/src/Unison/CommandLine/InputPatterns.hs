@@ -3837,7 +3837,8 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
           Just projectBranch -> do
             let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                 projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+            map prefixPathSep
+              <$> prefixCompleteNamespace (Text.unpack . Path.toText' $ Path.RelativePath' relPath) branchPath
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
           mprojectBranch <- runMaybeT do
@@ -3853,7 +3854,10 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
             Just (projectBranch, prefix) -> do
               let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                   projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+              map (addBranchPrefix prefix)
+                <$> prefixCompleteNamespace
+                  (maybe "" (Text.unpack . Path.toText' . Path.RelativePath') mpath)
+                  branchPath
   where
     (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
       LooseCodePath {} -> (Nothing, Nothing)
