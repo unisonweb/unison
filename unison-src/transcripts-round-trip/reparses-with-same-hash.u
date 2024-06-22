@@ -543,3 +543,5 @@ fix_4384e =
   id : x -> x
   id x = x
   {{ {{ docExampleBlock 0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0) }} }}
+
+fix_4727 = {{ `` 0xs900dc0ffee `` }}
