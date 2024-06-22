@@ -78,7 +78,7 @@ data ParsingEnv = ParsingEnv
     -- are we inside a construct that uses layout?
     inLayout :: Bool,
     -- Use a stack to remember the parent section and
-    -- allow docSections within docSessions.
+    -- allow docSections within docSections.
     -- 1 means we are inside a # Heading 1
     parentSections :: [Int],
     -- 4 means we are inside a list starting at the fourth column
