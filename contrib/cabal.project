@@ -29,6 +29,8 @@ packages:
   parser-typechecker
   unison-core
   unison-cli
+  unison-cli-main
+  unison-merge
   unison-hashing-v2
   unison-share-api
   unison-share-projects-api
@@ -117,6 +119,9 @@ package unison-util-rope
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package parser-typechecker
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-merge
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-cli
