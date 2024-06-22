@@ -24,7 +24,7 @@ So we can see the pretty-printed output:
 
   ☝️
   
-  I added 107 definitions to the top of scratch.u
+  I added 108 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -382,6 +382,29 @@ fix_4729b =
     ## H2A
     
        
+  }}
+
+fix_4729c : Doc2
+fix_4729c =
+  {{
+  # Examples ``
+  docCallout
+    (Some
+      (syntax.docUntitledSection
+        [syntax.docSection (syntax.docParagraph [syntax.docWord "Title"]) []]))
+    (syntax.docUntitledSection
+      [ syntax.docParagraph
+          [ syntax.docWord "This"
+          , syntax.docWord "is"
+          , syntax.docWord "a"
+          , syntax.docWord "callout"
+          , syntax.docWord "with"
+          , syntax.docWord "a"
+          , syntax.docWord "title"
+          ]
+      ]) ``
+  
+    
   }}
 
 Fix_525.bar.quaffle : Nat

@@ -572,3 +572,15 @@ fix_4729b = {{
 
   ## H2A
 }}
+
+fix_4729c = {{
+  # Examples
+  ```
+  docCallout
+    (Some
+      {{
+        # Title
+
+      }}) {{ This is a callout with a title }}
+  ```
+}}
