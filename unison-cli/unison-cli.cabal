@@ -236,7 +236,7 @@ library
     , semialign
     , semigroups
     , servant
-    , servant-client
+    , servant-client >=0.20
     , shellmet
     , stm
     , template-haskell
@@ -378,7 +378,7 @@ executable transcripts
     , semialign
     , semigroups
     , servant
-    , servant-client
+    , servant-client >=0.20
     , shellmet
     , silently
     , stm
@@ -526,7 +526,7 @@ test-suite cli-tests
     , semialign
     , semigroups
     , servant
-    , servant-client
+    , servant-client >=0.20
     , shellmet
     , stm
     , template-haskell

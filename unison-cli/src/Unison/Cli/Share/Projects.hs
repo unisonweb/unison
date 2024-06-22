@@ -256,10 +256,9 @@ servantClientToCli action = do
   let clientEnv :: ClientEnv
       clientEnv =
         (mkClientEnv httpManager hardCodedBaseUrl)
-          { Servant.makeClientRequest = \url request ->
-              (Servant.defaultMakeClientRequest url request)
-                { Http.Client.responseTimeout = Http.Client.responseTimeoutMicro (60 * 1000 * 1000 {- 60s -})
-                }
+          { Servant.makeClientRequest = \url request -> do
+              defaultRequest <- (Servant.defaultMakeClientRequest url request)
+              return defaultRequest { Http.Client.responseTimeout = Http.Client.responseTimeoutMicro (60 * 1000 * 1000 {- 60s -}) }
           }
 
   liftIO (runClientM action clientEnv)

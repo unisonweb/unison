@@ -1,4 +1,5 @@
 packages:
+  ../fuzzyfind
   codebase2/codebase
   codebase2/codebase-sqlite
   codebase2/codebase-sqlite-hashing-v2
@@ -50,7 +51,7 @@ source-repository-package
 constraints:
   fsnotify < 0.4,
   crypton-x509-store <= 1.6.8,
-  servant <= 0.19.1,
+  servant <= 0.20.1,
   optparse-applicative <= 0.17.1.0
 
 -- For now there is no way to apply ghc-options for all local packages

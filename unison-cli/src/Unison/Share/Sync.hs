@@ -1051,10 +1051,10 @@ httpUploadEntities ::
       go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
         (Servant.mkClientEnv httpClient unisonShareUrl)
           { Servant.makeClientRequest = \url request ->
-              -- Disable client-side timeouts
-              (Servant.defaultMakeClientRequest url request)
-                { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
-                }
+              do
+                -- Disable client-side timeouts
+                defaultRequest <- (Servant.defaultMakeClientRequest url request)
+                return defaultRequest {Http.Client.responseTimeout = Http.Client.responseTimeoutNone}
           }
           & runReaderT (f req)
           & runExceptT
