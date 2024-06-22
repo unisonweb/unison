@@ -24,7 +24,7 @@ So we can see the pretty-printed output:
 
   ☝️
   
-  I added 105 definitions to the top of scratch.u
+  I added 106 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -330,6 +330,9 @@ fix_4384e =
     0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0))
   }}
   }}
+
+fix_4727 : Doc2
+fix_4727 = {{ `` 0xs900dc0ffee `` }}
 
 Fix_525.bar.quaffle : Nat
 Fix_525.bar.quaffle = 32
