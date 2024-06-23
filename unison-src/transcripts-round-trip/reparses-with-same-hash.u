@@ -543,3 +543,44 @@ fix_4384e =
   id : x -> x
   id x = x
   {{ {{ docExampleBlock 0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0) }} }}
+
+fix_4729a = {{
+  # H1A
+
+  ## H2A
+
+  ```
+  {{
+    # H1B
+
+    ## B2B
+  }}
+  ```
+
+  ## H2A
+}}
+
+fix_4729b = {{
+  # H1A
+
+  ## H2A
+
+  {{ docTable [
+     [ {{ # HA }}, {{ # HB }} ],
+     [ {{ ## a }}, {{ ## b }} ]
+     ] }}
+
+  ## H2A
+}}
+
+fix_4729c = {{
+  # Examples
+  ```
+  docCallout
+    (Some
+      {{
+        # Title
+
+      }}) {{ This is a callout with a title }}
+  ```
+}}
