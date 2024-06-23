@@ -1,5 +1,5 @@
 
--- A very simple example to start 
+-- A very simple example to start
 simplestPossibleExample = 1 + 1
 
 -- Destructuring binds
@@ -73,7 +73,7 @@ Abort.toDefault! default thunk =
   h x = Abort.toDefault! (handler_1778 default x) thunk
   handle (thunk ()) with h
 
-fix_1778 = 
+fix_1778 =
   '(let
      abort
      0) |> Abort.toOptional
@@ -91,19 +91,19 @@ fix_1536 = 'let
 fix_2271 : Doc2
 fix_2271 =
   {{ # Full doc body indented
-  
+
     ``` raw
-    myVal1 = 42 
+    myVal1 = 42
     myVal2 = 43
     myVal4 = 44
     ```
-    
+
     ``` raw
     indented1= "hi"
     indented2="this is two indents"
     ```
-    
-    I am two spaces over 
+
+    I am two spaces over
   }}
 
 
@@ -156,7 +156,7 @@ fix_525_exampleTerm quaffle = Fix_525.bar.quaffle + 1
 
 -- This demonstrates the same thing for types.
 -- exampleType's signature locally binds the 'qualifiedName' type parameter,
--- so the pretty-printer should use the longer name 'Fully.qualifiedName' 
+-- so the pretty-printer should use the longer name 'Fully.qualifiedName'
 structural type Fully.qualifiedName = Dontcare () Nat
 
 structural type Id a = Id a
@@ -166,10 +166,10 @@ fix_525_exampleType z = Id (Dontcare () 19)
 
 -- We'd get a type error if `exampleTerm` or `exampleType` didn't round-trip, but it typechecks okay!
 
--- Use clauses can't introduce shadowing 
+-- Use clauses can't introduce shadowing
 
 use_clauses_example : Int -> Text -> Nat
-use_clauses_example oo quaffle = 
+use_clauses_example oo quaffle =
   Fix_525.bar.quaffle + Fix_525.bar.quaffle + 1
 
 use_clauses_example2 : Int -> Nat
@@ -193,29 +193,29 @@ Foo'.bar.qux2 = "45"
 Foo.bar.qux3 = 46
 Foo'.bar.qux3 = "47"
 
-ex1 = 
+ex1 =
   a = Foo.bar.qux3 + Foo.bar.qux3
   Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
 
-ex2 = 
-  a = 
+ex2 =
+  a =
     -- use Foo.bar qux3 will get pushed in here since it's already a multiline block
     z = 203993
     Foo.bar.qux3 + Foo.bar.qux3
   Foo.bar.qux1 + Foo.bar.qux1 + Foo.bar.qux2
 
-ex3 = 
+ex3 =
   a = do
     -- use clause gets pushed in here
     x = Foo.bar.qux3 + Foo.bar.qux3
     x + x
   ()
 
-ex3a = 
+ex3a =
   a = do Foo.bar.qux3 + Foo.bar.qux3 -- use clause will get pulled up to top level
   ()
 
--- Make sure use clauses don't show up before a soft hang 
+-- Make sure use clauses don't show up before a soft hang
 -- Regression test for https://github.com/unisonweb/unison/issues/3883
 
 structural type UUID = UUID Nat (Nat, Nat)
@@ -249,7 +249,7 @@ raw_d = """
 
   """
 
--- Fix for wonky treatment of abilities with multi-segment constructor names 
+-- Fix for wonky treatment of abilities with multi-segment constructor names
 -- Regression test for https://github.com/unisonweb/unison/issues/3239
 
 structural ability Zoink where
@@ -387,14 +387,14 @@ softhang21a = handle
     { a } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
     { Abort.abort -> _ } -> "lskdfjlaksjdf al;ksdjf;lkj sa;sldkfja;sldfkj a;lsdkfj asd;lfkj "
 
-softhang2 x f = 0 
+softhang2 x f = 0
 
 softhang22 = softhang2 [0,1,2,3,4,5] cases
   0 -> 0
   1 -> 1
   n -> n + 100
 
-catchAll x = 
+catchAll x =
   99
 
 softhang23 = do
@@ -416,13 +416,13 @@ softhang26 = softhang2 [1,2,3,4] cases
   0 -> 1
   n -> n + 1
 
-forkAt loc c = 
+forkAt loc c =
   x = 99
-  390439034 
+  390439034
 
 softhang27 somewhere = forkAt somewhere do
   x = 1
-  y = 2 
+  y = 2
   x + y
 
 softhang28 = softhang2 [0,1,2,3,4,5] cases
@@ -432,13 +432,13 @@ softhang28 = softhang2 [0,1,2,3,4,5] cases
 
 -- Weirdness reported by Stew with super long lines
 
-longlines x = 
+longlines x =
   u = 92393
   x
 
 longlines_helper x = do x
 
-longlines1 = do 
+longlines1 = do
   longlines !(longlines_helper "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break")
 
 longlines2 =
@@ -456,7 +456,7 @@ test3 = do
 
 -- Regression test for https://github.com/unisonweb/unison/issues/4239
 -- `n` was replaced by `error` but should not be. Instead, render as if
--- a second param, _, had been provided in the definition. 
+-- a second param, _, had been provided in the definition.
 (>>>>) : Nat -> Nat -> ()
 (>>>>) n = cases
   _ -> bug ""
@@ -472,11 +472,11 @@ fix_4352 = {{``+1``}}
 -- regression test to make sure we don't use soft hang between a `do` and `match`
 -- if there's imports that have been inserted there
 
-structural ability Ask a where 
-  ask : a 
+structural ability Ask a where
+  ask : a
 
 Decode.remainder : '{Ask (Optional Bytes)} Bytes
-Decode.remainder = do 
+Decode.remainder = do
   use Bytes ++
   match ask with
     None -> Bytes.empty
@@ -488,7 +488,7 @@ fix_4340 = HandlerWebSocket cases
   1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
   _ -> abort
 
-fix_4258 x y z = 
+fix_4258 x y z =
   _ = "fix_4258"
   ()
 
@@ -497,26 +497,26 @@ fix_4258_example = fix_4258 1 () 2
 -- previously, lexer was emitting virtual semicolons inside parens, which
 -- led to some very odd parse errors in cases like these
 
-stew_issue = 
+stew_issue =
   error x = ()
   (++) a b = 0
   toText a = a
   Debug : a -> b -> ()
   Debug a b = ()
   error
-    (Debug None '(Debug "Failed " -- virtual semicolon here was tripping up parser 
+    (Debug None '(Debug "Failed " -- virtual semicolon here was tripping up parser
                   42))
-stew_issue2 = 
+stew_issue2 =
   error x = ()
   (++) a b = 0
   toText a = a
   Debug : a -> b -> ()
   Debug a b = ()
   error
-    (Debug None '("Failed " ++ 
+    (Debug None '("Failed " ++
            toText 42))
 
-stew_issue3 = 
+stew_issue3 =
   id x = x
   error x = ()
   (++) a b = 0
@@ -525,7 +525,7 @@ stew_issue3 =
   configPath = 0
   Debug a b = ()
   error
-    (Debug None '("Failed to get timestamp of config file " ++ 
+    (Debug None '("Failed to get timestamp of config file " ++
            toText configPath))
 
 fix_4384 = {{ {{ docExampleBlock 0 do 2 }} }}
@@ -539,10 +539,12 @@ fix_4384c = {{ {{ docExampleBlock 0 do
 
 fix_4384d = {{ {{ docExampleBlock 0 '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] }} }}
 
-fix_4384e = 
+fix_4384e =
   id : x -> x
   id x = x
   {{ {{ docExampleBlock 0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0) }} }}
+
+fix_4727 = {{ `` 0xs900dc0ffee `` }}
 
 fix_4729a = {{
   # H1A
