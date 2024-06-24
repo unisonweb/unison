@@ -1918,21 +1918,12 @@ getTransitiveDependentsWithinScope ::
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getTransitiveDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
-  createTemporaryTableOfReferenceIds [sql| dependents_search_scope |] scope
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName scope
 
   -- Populate a temporary table with all of the references in `query`
-  execute
-    [sql|
-      CREATE TEMPORARY TABLE dependencies_query (
-        dependency_builtin INTEGER NULL,
-        dependency_object_id INTEGER NULL,
-        dependency_component_index INTEGER NULL,
-        CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
-        CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
-      )
-    |]
-  for_ query \r ->
-    execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName query
 
   -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
   --
@@ -1959,11 +1950,11 @@ getTransitiveDependentsWithinScope scope query = do
           SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
           FROM dependents_index d
           JOIN object ON d.dependent_object_id = object.id
-          JOIN dependencies_query q
-            ON q.dependency_builtin IS d.dependency_builtin
-            AND q.dependency_object_id IS d.dependency_object_id
-            AND q.dependency_component_index IS d.dependency_component_index
-          JOIN dependents_search_scope s
+          JOIN $queryTableName q
+            ON q.builtin IS d.dependency_builtin
+            AND q.object_id IS d.dependency_object_id
+            AND q.component_index IS d.dependency_component_index
+          JOIN $scopeTableName s
             ON s.object_id = d.dependent_object_id
             AND s.component_index = d.dependent_component_index
 
@@ -1973,15 +1964,15 @@ getTransitiveDependentsWithinScope scope query = do
           JOIN transitive_dependents t
             ON t.dependent_object_id = d.dependency_object_id
             AND t.dependent_component_index = d.dependency_component_index
-          JOIN dependents_search_scope s
+          JOIN $scopeTableName s
             ON s.object_id = d.dependent_object_id
             AND s.component_index = d.dependent_component_index
         )
         SELECT * FROM transitive_dependents
       |]
 
-  execute [sql| DROP TABLE dependents_search_scope |]
-  execute [sql| DROP TABLE dependencies_query |]
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
 
   -- Post-process the query result
   let result1 =
@@ -1996,7 +1987,21 @@ getTransitiveDependentsWithinScope scope query = do
 
   pure result1
 
-{- ORMOLU_DISABLE -}
+createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
+createTemporaryTableOfReferences tableName refs = do
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE $tableName (
+        builtin INTEGER NULL,
+        object_id INTEGER NULL,
+        component_index INTEGER NULL
+        CHECK ((builtin IS NULL) = (object_id IS NOT NULL)),
+        CHECK ((object_id IS NULL) = (component_index IS NULL))
+      )
+    |]
+
+  for_ refs \ref ->
+    execute [sql| INSERT INTO $tableName VALUES (@ref, @, @) |]
 
 createTemporaryTableOfReferenceIds :: Sql -> Set S.Reference.Id -> Transaction ()
 createTemporaryTableOfReferenceIds tableName refs = do
@@ -2010,6 +2015,8 @@ createTemporaryTableOfReferenceIds tableName refs = do
     |]
   for_ refs \ref ->
     execute [sql| INSERT INTO $tableName VALUES (@ref, @) |]
+
+{- ORMOLU_DISABLE -}
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
