@@ -1914,7 +1914,7 @@ getDirectDependenciesOfScope scope = do
 
 -- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
 -- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
-getDependentsWithinScope :: Set S.Reference.Id -> Set S.Reference -> Transaction (Map S.Reference.Id ObjectType)
+getDependentsWithinScope :: Set S.Reference.Id -> Set S.Reference -> Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   createTemporaryTableOfReferenceIds [sql| dependents_search_scope |] scope
@@ -1951,7 +1951,7 @@ getDependentsWithinScope scope query = do
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
 
-  result :: [S.Reference.Id :. Only ObjectType] <- queryListRow [sql|
+  result0 :: [S.Reference.Id :. Only ObjectType] <- queryListRow [sql|
     WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
       SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
       FROM dependents_index d
@@ -1976,9 +1976,22 @@ getDependentsWithinScope scope query = do
     )
     SELECT * FROM transitive_dependents
   |]
+
   execute [sql| DROP TABLE dependents_search_scope |]
   execute [sql| DROP TABLE dependencies_query |]
-  pure . Map.fromList $ [(r, t) | r :. Only t <- result]
+
+  -- Post-process the query result
+  let result1 =
+        List.foldl'
+          ( \deps -> \case
+              dep :. Only TermComponent -> Defns (Set.insert dep deps.terms) deps.types
+              dep :. Only DeclComponent -> Defns deps.terms (Set.insert dep deps.types)
+              _ -> deps -- impossible; could error here
+          )
+          (Defns Set.empty Set.empty)
+          result0
+
+  pure result1
 
 createTemporaryTableOfReferenceIds :: Sql -> Set S.Reference.Id -> Transaction ()
 createTemporaryTableOfReferenceIds tableName refs = do
