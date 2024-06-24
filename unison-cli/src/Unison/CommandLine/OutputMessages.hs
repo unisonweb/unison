@@ -1823,12 +1823,18 @@ notifyUser dir = \case
   ServantClientError err ->
     pure case err of
       Servant.ConnectionError exception ->
-        P.wrap $
-          fromMaybe "Something went wrong with the connection. Try again?" do
-            case ServantClientUtils.classifyConnectionError exception of
-              ServantClientUtils.ConnectionError'Offline -> Just "You appear to be offline."
-              ServantClientUtils.ConnectionError'SomethingElse _ -> Nothing
-              ServantClientUtils.ConnectionError'SomethingEntirelyUnexpected _ -> Nothing
+        case ServantClientUtils.classifyConnectionError exception of
+          ServantClientUtils.ConnectionError'Offline -> P.wrap "You appear to be offline."
+          ServantClientUtils.ConnectionError'SomethingElse content ->
+            P.wrap "Oops, I encountered an unexpected exception from the server."
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.pshown content)
+          ServantClientUtils.ConnectionError'SomethingEntirelyUnexpected _ ->
+            P.wrap "Oops, I encountered an unexpected exception from the server."
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.pshown exception)
       Servant.DecodeFailure message response ->
         P.wrap "Huh, I failed to decode a response from the server."
           <> P.newline
