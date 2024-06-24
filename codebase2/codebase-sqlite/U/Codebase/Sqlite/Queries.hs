@@ -3755,7 +3755,7 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: Text -> CausalHashId -> ProjectBranch -> Transaction ()
+insertProjectBranch :: HasCallStack => Text -> CausalHashId -> ProjectBranch -> Transaction ()
 insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
   -- Ensure we never point at a causal we don't have the branch for.
   _ <- expectBranchObjectIdByCausalHashId causalHashId

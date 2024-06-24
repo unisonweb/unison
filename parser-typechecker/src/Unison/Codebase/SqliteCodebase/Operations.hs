@@ -93,9 +93,10 @@ createSchema = do
   Q.addMostRecentNamespaceTable
   Sqlite.execute insertSchemaVersionSql
   Q.addSquashResultTable
-  (_, emptyCausalHashId) <- emptyCausalHash
-  void $ insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
   Q.addProjectBranchCausalHashIdColumn
+  (_, emptyCausalHashId) <- emptyCausalHash
+  (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
+  Q.setCurrentProjectPath projectId branchId []
   Q.addProjectBranchReflogTable
   Q.addProjectBranchCausalHashIdColumn
   where
