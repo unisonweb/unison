@@ -19,6 +19,7 @@ import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
@@ -160,14 +161,14 @@ bindNames unsafeVarToName keepFreeTerms ns e = do
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
+      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 ->
               pure (v, fromReferent a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of
               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
               Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns refs)))
-      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
+      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | otherwise -> case NES.nonEmptySet rs of

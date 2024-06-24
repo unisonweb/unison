@@ -66,6 +66,7 @@ import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI,
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Ls (handleLs)
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -347,7 +348,7 @@ loop e = do
                   Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
                   Right path' -> do
                     absPath <- ProjectUtils.branchRelativePathToAbsolute path'
-                    let srcp = Path.convert absPath
+                    let srcp = Path.AbsolutePath' absPath
                     srcb <- Cli.expectBranchAtPath' srcp
                     pure (srcb, WhichBranchEmptyPath srcp)
               description <- inputDescription input
@@ -465,7 +466,7 @@ loop e = do
               Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
             DocsToHtmlI namespacePath' sourceDirectory -> do
               Cli.Env {codebase, sandboxedRuntime} <- ask
-              absPath <- Cli.resolvePath' namespacePath'
+              absPath <- ProjectUtils.branchRelativePathToAbsolute namespacePath'
               branch <- liftIO $ Codebase.getBranchAtPath codebase absPath
               _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase branch sourceDirectory)
               pure ()
@@ -487,11 +488,11 @@ loop e = do
                       hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
               dest <- Cli.resolveSplit' dest'
-              destTerms <- Cli.getTermsAt (Path.convert dest)
+              destTerms <- Cli.getTermsAt (HQ'.NameOnly <$> dest)
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
-              Cli.stepAt description (BranchUtil.makeAddTermName (Path.convert dest) srcTerm)
+              Cli.stepAt description (BranchUtil.makeAddTermName (first Path.unabsolute dest) srcTerm)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -510,11 +511,11 @@ loop e = do
                       hqLength <- Cli.runTransaction Codebase.hashLength
                       pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
-              destTypes <- Cli.getTypesAt (Path.convert dest)
+              destTypes <- Cli.getTypesAt (HQ'.NameOnly <$> dest)
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
-              Cli.stepAt description (BranchUtil.makeAddTypeName (Path.convert dest) srcType)
+              Cli.stepAt description (BranchUtil.makeAddTypeName (first Path.unabsolute dest) srcType)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -616,9 +617,9 @@ loop e = do
               guidPath <- Cli.resolveSplit' (authorPath' |> NameSegment.guidSegment)
               Cli.stepManyAt
                 description
-                [ BranchUtil.makeAddTermName (Path.convert authorPath) (d authorRef),
-                  BranchUtil.makeAddTermName (Path.convert copyrightHolderPath) (d copyrightHolderRef),
-                  BranchUtil.makeAddTermName (Path.convert guidPath) (d guidRef)
+                [ BranchUtil.makeAddTermName (first Path.unabsolute authorPath) (d authorRef),
+                  BranchUtil.makeAddTermName (first Path.unabsolute copyrightHolderPath) (d copyrightHolderRef),
+                  BranchUtil.makeAddTermName (first Path.unabsolute guidPath) (d guidRef)
                 ]
               currentPath <- Cli.getCurrentPath
               finalBranch <- Cli.getCurrentBranch0
@@ -687,21 +688,7 @@ loop e = do
               traverse_ (displayI outputLoc) namesToDisplay
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
-            FindShallowI pathArg -> do
-              Cli.Env {codebase} <- ask
-
-              pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
-              pped <- Cli.currentPrettyPrintEnvDecl
-              let suffixifiedPPE = PPED.suffixifiedPPE pped
-              -- This used to be a delayed action which only forced the loading of the root
-              -- branch when it was necessary for printing the results, but that got wiped out
-              -- when we ported to the new Cli monad.
-              -- It would be nice to restore it, but it's pretty rare that it actually results
-              -- in an improvement, so perhaps it's not worth the effort.
-              let buildPPE = pure suffixifiedPPE
-              Cli.respond $ ListShallow buildPPE entries
+            FindShallowI pathArg -> handleLs pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
@@ -1564,7 +1551,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         (Path.HQSplit', Set Reference, Set Referent) ->
         Cli (Path.Split, Name, Set Reference, Set Referent)
       toSplitName hq = do
-        resolvedPath <- Path.convert <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
+        resolvedPath <- first Path.unabsolute <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
         return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
@@ -1711,7 +1698,7 @@ docsI src = do
        (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
     -}
     dotDoc :: HQ.HashQualified Name
-    dotDoc = Name.convert . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
+    dotDoc = HQ.NameOnly . Name.joinDot src $ Name.fromSegment NameSegment.docSegment
 
     findInScratchfileByName :: Cli ()
     findInScratchfileByName = do

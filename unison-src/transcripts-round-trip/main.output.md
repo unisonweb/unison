@@ -24,7 +24,7 @@ So we can see the pretty-printed output:
 
   ☝️
   
-  I added 105 definitions to the top of scratch.u
+  I added 109 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -168,7 +168,7 @@ fix_2271 =
   # Full doc body indented
   
     ``` raw
-    myVal1 = 42 
+    myVal1 = 42
     myVal2 = 43
     myVal4 = 44
     ```
@@ -329,6 +329,85 @@ fix_4384e =
   docExampleBlock
     0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0))
   }}
+  }}
+
+fix_4727 : Doc2
+fix_4727 = {{ `` 0xs900dc0ffee `` }}
+
+fix_4729a : Doc2
+fix_4729a =
+  {{
+  # H1A
+  
+    ## H2A
+    
+       ```
+       {{
+       # H1B
+       
+         ## B2B
+         
+            
+       }}
+       ```
+    
+    ## H2A
+    
+       
+  }}
+
+fix_4729b : Doc2
+fix_4729b =
+  {{
+  # H1A
+  
+    ## H2A
+    
+       {{ docTable
+         [[{{
+             # HA
+             
+               
+             }}, {{
+             # HB
+             
+               
+             }}], [{{
+             # a
+             
+               
+             }}, {{
+             # b
+             
+               
+             }}]] }}
+    
+    ## H2A
+    
+       
+  }}
+
+fix_4729c : Doc2
+fix_4729c =
+  {{
+  # Examples ``
+  docCallout
+    (Some
+      (syntax.docUntitledSection
+        [syntax.docSection (syntax.docParagraph [syntax.docWord "Title"]) []]))
+    (syntax.docUntitledSection
+      [ syntax.docParagraph
+          [ syntax.docWord "This"
+          , syntax.docWord "is"
+          , syntax.docWord "a"
+          , syntax.docWord "callout"
+          , syntax.docWord "with"
+          , syntax.docWord "a"
+          , syntax.docWord "title"
+          ]
+      ]) ``
+  
+    
   }}
 
 Fix_525.bar.quaffle : Nat

@@ -210,7 +210,13 @@ test =
         [Textual "test escaped quotes \"in quotes\""],
       t "\"\\n \\t \\b \\a\"" [Textual "\n \t \b \a"],
       -- Delayed string
-      t "'\"\"" [Reserved "'", Textual ""]
+      t "'\"\"" [Reserved "'", Textual ""],
+      -- https://github.com/unisonweb/unison/issues/4683
+      -- don't emit virtual semis in ability lists or normal lists
+      t "{foo\n,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "{foo\n ,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "[foo\n,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close]
     ]
 
 t :: String -> [Lexeme] -> Test ()

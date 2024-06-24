@@ -1,13 +1,12 @@
 -- | @switch@ input handler
 module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   ( projectSwitch,
-    switchToProjectBranch,
   )
 where
 
 import Data.These (These (..))
-import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -59,21 +58,21 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
           project <-
             Queries.loadProjectByName projectName & onNothingM do
               rollback (Output.LocalProjectDoesntExist projectName)
-          let branchName = unsafeFrom @Text "main"
-          Queries.loadProjectBranchByName project.projectId branchName & onNothingM do
-            rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+          Queries.loadMostRecentBranch project.projectId >>= \case
+            Nothing -> do
+              let branchName = unsafeFrom @Text "main"
+              branch <-
+                Queries.loadProjectBranchByName project.projectId branchName & onNothingM do
+                  rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+              Queries.setMostRecentBranch branch.projectId branch.branchId
+              pure branch
+            Just branchId -> Queries.expectProjectBranch project.projectId branchId
       _ -> do
-        projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
+        projectAndBranchNames <- ProjectUtils.hydrateNames projectAndBranchNames0
         Cli.runTransactionWithRollback \rollback -> do
-          Queries.loadProjectBranchByNames projectName branchName & onNothingM do
-            rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-  switchToProjectBranch (ProjectUtils.justTheIds' branch)
-
--- | Switch to a branch:
---
--- * Record it as the most-recent branch (so it's restored when ucm starts).
--- * Change the current path in the in-memory loop state.
-switchToProjectBranch :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
-switchToProjectBranch x = do
-  Cli.runTransaction (Queries.setMostRecentBranch x.project x.branch)
-  Cli.cd (ProjectUtils.projectBranchPath x)
+          branch <-
+            Queries.loadProjectBranchByNames projectAndBranchNames.project projectAndBranchNames.branch & onNothingM do
+              rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
+          Queries.setMostRecentBranch branch.projectId branch.branchId
+          pure branch
+  Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch branch.projectId branch.branchId))

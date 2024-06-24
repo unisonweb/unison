@@ -21,21 +21,22 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical
 
--- | A name is an absolute-or-relative non-empty list of name segments.
+-- | A name is an absolute-or-relative non-empty list of name segments. It is used to represent the path to a
+--   definition.
+--
+--   A few example names:
+--
+-- - "foo.bar"  --> Name Relative ("bar" :| ["foo"])
+-- - ".foo.bar" --> Name Absolute ("bar" :| ["foo"])
+-- - "|>.<|"    --> Name Relative ("<|" :| ["|>"])
+-- - "."        --> Name Relative ("." :| [])
+-- - ".."       --> Name Absolute (".." :| [])
 data Name
-  = -- A few example names:
-    --
-    --   "foo.bar"  --> Name Relative ["bar", "foo"]
-    --   ".foo.bar" --> Name Absolute ["bar", "foo"]
-    --   "|>.<|"    --> Name Relative ["<|", "|>"]
-    --   "."        --> Name Relative ["."]
-    --   ".."       --> Name Absolute ["."]
-    --
-    Name
-      -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
+  = Name
       Position
-      -- the name segments in reverse order
+      -- ^ whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
       (List.NonEmpty NameSegment)
+      -- ^ the name segments in reverse order
   deriving stock (Eq, Generic, Show)
 
 -- | Compare names (kinda) alphabetically: absolute comes before relative, but otherwise compare the name segments

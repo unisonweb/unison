@@ -26,14 +26,14 @@ moveTermSteps src' dest' = do
       Cli.returnEarly (Output.DeleteNameAmbiguous hqLength src' srcTerms Set.empty)
     [srcTerm] -> do
       dest <- Cli.resolveSplit' dest'
-      destTerms <- Cli.getTermsAt (Path.convert dest)
+      destTerms <- Cli.getTermsAt (HQ'.NameOnly <$> dest)
       when (not (Set.null destTerms)) do
         Cli.returnEarly (Output.TermAlreadyExists dest' destTerms)
-      let p = Path.convert src
+      let p = first Path.unabsolute src
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTermName (over _2 HQ'.toName p) srcTerm,
-          BranchUtil.makeAddTermName (Path.convert dest) srcTerm
+          BranchUtil.makeAddTermName (first Path.unabsolute dest) srcTerm
         ]
 
 doMoveTerm :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()

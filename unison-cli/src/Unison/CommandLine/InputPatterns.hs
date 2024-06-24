@@ -2753,19 +2753,21 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    [("namespace", Required, namespaceArg), ("", Required, filePathArg)]
+    [("namespace", Required, branchRelativePathArg), ("", Required, filePathArg)]
     ( P.wrapColumn2
-        [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
-            "Render all docs contained within a namespace, no matter how deep,"
-              <> "to html files on a file path"
+        [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
+            "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
+          ),
+          ( makeExample docsToHtml ["project0/branch0:a.path", "/tmp/doc-dir"],
+            "Renders all docs anywhere in the namespace `a.path` from `branch0` of `project0` to html in `/tmp/doc-dir`."
           )
         ]
     )
     \case
       [namespacePath, destinationFilePath] ->
         Input.DocsToHtmlI
-          <$> handlePath'Arg namespacePath
-          <*> unsupportedStructuredArgument "a file name" destinationFilePath
+          <$> handleBranchRelativePathArg namespacePath
+          <*> unsupportedStructuredArgument "a directory name" destinationFilePath
       _ -> Left $ showPatternHelp docsToHtml
 
 docToMarkdown :: InputPattern
@@ -3822,7 +3824,8 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
           Just projectBranch -> do
             let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                 projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+            map prefixPathSep
+              <$> prefixCompleteNamespace (Text.unpack . Path.toText' $ Path.RelativePath' relPath) branchPath
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
           mprojectBranch <- runMaybeT do
@@ -3838,7 +3841,10 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
             Just (projectBranch, prefix) -> do
               let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                   projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+              map (addBranchPrefix prefix)
+                <$> prefixCompleteNamespace
+                  (maybe "" (Text.unpack . Path.toText' . Path.RelativePath') mpath)
+                  branchPath
   where
     (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
       LooseCodePath {} -> (Nothing, Nothing)
