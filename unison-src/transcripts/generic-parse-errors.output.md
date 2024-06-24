@@ -30,7 +30,7 @@ namespace.blah = 1
 
   Loading changes detected in scratch.u.
 
-  The identifier, `namespace`, used here is a reserved keyword: 
+  The identifier `namespace` used here is a reserved keyword: 
   
       1 | namespace.blah = 1
   

@@ -1372,7 +1372,7 @@ renderParseErrors s = \case
             <> excerpt
         L.ReservedWordyId id ->
           Pr.lines
-            [ "The identifier, " <> quoteCode id <> ", used here is a reserved keyword: ",
+            [ "The identifier " <> quoteCode id <> " used here is a reserved keyword: ",
               "",
               excerpt,
               Pr.wrap $
@@ -1382,7 +1382,7 @@ renderParseErrors s = \case
             ]
         L.InvalidSymbolyId id ->
           Pr.lines
-            [ "The infix identifier, " <> quoteCode id <> ", isn’t valid syntax: ",
+            [ "The infix identifier " <> quoteCode id <> " isn’t valid syntax: ",
               "",
               excerpt,
               "Here are a few valid examples: "
@@ -1394,7 +1394,7 @@ renderParseErrors s = \case
             ]
         L.ReservedSymbolyId id ->
           Pr.lines
-            [ "The identifier, " <> quoteCode id <> ", is reserved by Unison and can't be used as an operator: ",
+            [ "The identifier " <> quoteCode id <> " is reserved by Unison and can't be used as an operator: ",
               "",
               excerpt
             ]
