@@ -62,6 +62,7 @@ import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as SqliteOps
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
@@ -311,8 +312,10 @@ main version = do
                           pure $ PP.fromProjectAndBranch pab Path.absoluteEmpty
                     Nothing -> do
                       Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
-                rootCausalHash <- Codebase.runTransaction theCodebase (Queries.expectNamespaceRoot >>= Queries.expectCausalHash)
-                projectRootHashVar <- newTVarIO rootCausalHash
+                currentProjectRootCH <- Codebase.runTransaction theCodebase do
+                  currentPP <- Codebase.expectCurrentProjectPath
+                  SqliteOps.expectProjectBranchHead (currentPP.project.projectId) (currentPP.branch.branchId)
+                projectRootHashVar <- newTVarIO currentProjectRootCH
                 projectPathVar <- newTVarIO startingProjectPath
                 let notifyOnRootChanges :: CausalHash -> STM ()
                     notifyOnRootChanges b = do

@@ -149,8 +149,8 @@ handleUpgrade oldName newName = do
             `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
         )
 
-  (PP.ProjectPath project projectBranch pathInProject) <- Cli.getCurrentProjectPath
-  parsingEnv <- makeParsingEnv pathInProject currentDeepNamesSansOld
+  pp@(PP.ProjectPath project projectBranch _path) <- Cli.getCurrentProjectPath
+  parsingEnv <- makeParsingEnv pp currentDeepNamesSansOld
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
       let getTemporaryBranchName = findTemporaryBranchName (project ^. #projectId) oldName newName

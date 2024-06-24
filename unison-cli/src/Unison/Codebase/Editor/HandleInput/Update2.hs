@@ -49,6 +49,7 @@ import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.Type (Codebase)
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
@@ -106,7 +107,7 @@ handleUpdate2 = do
   Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
-  currentPath <- Cli.getCurrentPath
+  pp <- Cli.getCurrentProjectPath
   currentBranch0 <- Cli.getCurrentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
@@ -141,7 +142,7 @@ handleUpdate2 = do
       then pure tuf
       else do
         Cli.respond Output.UpdateStartTypechecking
-        parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+        parsingEnv <- makeParsingEnv pp namesIncludingLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
             scratchFilePath <- fst <$> Cli.expectLatestFile
@@ -185,7 +186,7 @@ prettyParseTypecheck2 prettyUf parsingEnv = do
           Result.Result _notes Nothing -> Left prettyUf
 
 -- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
-makeParsingEnv :: Path.Absolute -> Names -> Cli (Parser.ParsingEnv Transaction)
+makeParsingEnv :: ProjectPath -> Names -> Cli (Parser.ParsingEnv Transaction)
 makeParsingEnv path names = do
   Cli.Env {generateUniqueName} <- ask
   uniqueName <- liftIO generateUniqueName

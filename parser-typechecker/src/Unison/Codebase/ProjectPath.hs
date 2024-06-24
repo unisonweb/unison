@@ -15,6 +15,11 @@ module Unison.Codebase.ProjectPath
     toNames,
     projectPathParser,
     parseProjectPath,
+
+    -- * Re-exports, this also helps with using dot-notation
+    ProjectAndBranch (..),
+    Project (..),
+    ProjectBranch (..),
   )
 where
 

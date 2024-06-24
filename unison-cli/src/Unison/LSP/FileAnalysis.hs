@@ -27,7 +27,6 @@ import Unison.ABT qualified as ABT
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.ProjectPath qualified as PP
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
 import Unison.FileParsers (ShouldUseTndr (..))
@@ -91,7 +90,7 @@ checkFile doc = runMaybeT do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid (pp ^. PP.absPath_),
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
             names = parseNames
           }
   (notes, parsedFile, typecheckedFile) <- do

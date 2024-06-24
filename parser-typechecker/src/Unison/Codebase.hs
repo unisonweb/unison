@@ -47,12 +47,14 @@ module Unison.Codebase
     lca,
     SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
+    getMaybeShallowBranchAtPath,
     getShallowCausalAtPath,
     Operations.expectCausalBranchByCausalHash,
     getShallowCausalAtPathFromRootHash,
     getShallowProjectBranchRoot,
     expectShallowProjectBranchRoot,
     getShallowBranchAtProjectPath,
+    getMaybeShallowBranchAtProjectPath,
     getShallowProjectRootByNames,
     expectProjectBranchRoot,
     getBranchAtProjectPath,
@@ -203,24 +205,40 @@ getShallowBranchAtPath ::
   Path ->
   V2Branch.Branch Sqlite.Transaction ->
   Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
-getShallowBranchAtPath path branch = do
+getShallowBranchAtPath path branch = fromMaybe V2Branch.empty <$> getMaybeShallowBranchAtPath path branch
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getMaybeShallowBranchAtPath ::
+  Path ->
+  V2Branch.Branch Sqlite.Transaction ->
+  Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
+getMaybeShallowBranchAtPath path branch = do
   case path of
-    Path.Empty -> pure branch
+    Path.Empty -> pure $ Just branch
     ns Path.:< p -> do
       case V2Branch.childAt ns branch of
-        Nothing -> pure V2Branch.empty
+        Nothing -> pure Nothing
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
-          getShallowBranchAtPath p childBranch
+          getMaybeShallowBranchAtPath p childBranch
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
 getShallowBranchAtProjectPath ::
   PP.ProjectPath ->
   Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
-getShallowBranchAtProjectPath (PP.ProjectPath _project projectBranch path) = do
-  projectRootBranch <- fromMaybe V2Branch.empty <$> getShallowProjectBranchRoot projectBranch
-  getShallowBranchAtPath (Path.unabsolute path) projectRootBranch
+getShallowBranchAtProjectPath pp = fromMaybe V2Branch.empty <$> getMaybeShallowBranchAtProjectPath pp
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getMaybeShallowBranchAtProjectPath ::
+  PP.ProjectPath ->
+  Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
+getMaybeShallowBranchAtProjectPath (PP.ProjectPath _project projectBranch path) = do
+  getShallowProjectBranchRoot projectBranch >>= \case
+    Nothing -> pure Nothing
+    Just projectRootBranch -> getMaybeShallowBranchAtPath (Path.unabsolute path) projectRootBranch
 
 getShallowProjectRootByNames :: ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))
 getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMaybeT do
