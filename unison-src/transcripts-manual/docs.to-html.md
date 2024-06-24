@@ -1,6 +1,6 @@
 ```ucm
-.> project.create test-4402
-test-4402/main> builtins.merge
+.> project.create test-html-docs
+test-html-docs/main> builtins.merge
 ```
 
 ```unison
@@ -15,6 +15,6 @@ some.outside = 3
 ```
 
 ```ucm
-test-4402/main> add
-test-4402/main> docs.to-html some.ns /tmp/test-4402
+test-html-docs/main> add
+test-html-docs/main> docs.to-html some.ns unison-src/transcripts-manual/docs.to-html
 ```

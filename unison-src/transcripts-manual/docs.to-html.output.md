@@ -1,7 +1,7 @@
 ```ucm
-.> project.create test-4402
+.> project.create test-html-docs
 
-  🎉 I've created the project test-4402.
+  🎉 I've created the project test-html-docs.
 
   I'll now fetch the latest version of the base Unison
   library...
@@ -20,7 +20,7 @@
   
   🎉 🥳 Happy coding!
 
-test-4402/main> builtins.merge
+test-html-docs/main> builtins.merge
 
   Done.
 
@@ -57,7 +57,7 @@ some.outside = 3
 
 ```
 ```ucm
-test-4402/main> add
+test-html-docs/main> add
 
   ⍟ I've added these definitions:
   
@@ -70,6 +70,6 @@ test-4402/main> add
       (also named lib.base.data.Map.internal.delta)
     some.outside.doc                 : Doc
 
-test-4402/main> docs.to-html some.ns /tmp/test-4402
+test-html-docs/main> docs.to-html some.ns unison-src/transcripts-manual/docs.to-html
 
 ```
