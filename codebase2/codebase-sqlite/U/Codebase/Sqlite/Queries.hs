@@ -166,6 +166,7 @@ module U.Codebase.Sqlite.Queries
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
     getDirectDependenciesOfScope,
+    getDirectDependentsWithinScope,
     getTransitiveDependentsWithinScope,
 
     -- ** type index
@@ -1910,8 +1911,56 @@ getDirectDependenciesOfScope scope = do
 
   pure dependencies1
 
--- | `getTransitiveDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in
--- `scope` (not including `query` itself).
+-- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
+-- including `query` itself).
+getDirectDependentsWithinScope ::
+  Set S.Reference.Id ->
+  Set S.Reference ->
+  Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
+getDirectDependentsWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName scope
+
+  -- Populate a temporary table with all of the references in `query`
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName query
+
+  -- Get their direct dependents (tagged with object type)
+  dependents0 <-
+    queryListRow @(S.Reference.Id :. Only ObjectType)
+      [sql|
+        SELECT s.object_id, s.component_index, o.type_id
+        FROM $queryTableName q
+          JOIN dependents_index d
+            ON q.builtin IS d.dependency_builtin
+            AND q.object_id IS d.dependency_object_id
+            AND q.component_index IS d.dependency_component_index
+          JOIN $scopeTableName s
+            ON d.dependent_object_id = s.object_id
+            AND d.dependent_component_index = s.component_index
+          JOIN object o ON s.object_id = o.id
+      |]
+
+  -- Drop the temporary tables
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
+
+  -- Post-process the query result
+  let dependents1 =
+        List.foldl'
+          ( \deps -> \case
+              dep :. Only TermComponent -> Defns (Set.insert dep deps.terms) deps.types
+              dep :. Only DeclComponent -> Defns deps.terms (Set.insert dep deps.types)
+              _ -> deps -- impossible; could error here
+          )
+          (Defns Set.empty Set.empty)
+          dependents0
+
+  pure dependents1
+
+-- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
+-- (not including `query` itself).
 getTransitiveDependentsWithinScope ::
   Set S.Reference.Id ->
   Set S.Reference ->

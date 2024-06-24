@@ -66,6 +66,7 @@ module U.Codebase.Sqlite.Operations
     directDependenciesOfScope,
     dependents,
     dependentsOfComponent,
+    directDependentsWithinScope,
     transitiveDependentsWithinScope,
 
     -- ** type index
@@ -1154,19 +1155,38 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
--- | `transitiveDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope`
--- (not including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+-- | `directDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
+-- including `query` itself).
+directDependentsWithinScope ::
+  Set C.Reference.Id ->
+  Set C.Reference ->
+  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
+directDependentsWithinScope scope0 query0 = do
+  -- Convert C -> S
+  scope1 <- Set.traverse c2sReferenceId scope0
+  query1 <- Set.traverse c2sReference query0
+
+  -- Do the query
+  dependents0 <- Q.getDirectDependentsWithinScope scope1 query1
+
+  -- Convert S -> C
+  dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
+
+  pure dependents1
+
+-- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope` (not
+-- including `query` itself).
 transitiveDependentsWithinScope ::
   Set C.Reference.Id ->
   Set C.Reference ->
   Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
-transitiveDependentsWithinScope scope query = do
+transitiveDependentsWithinScope scope0 query0 = do
   -- Convert C -> S
-  scope' <- Set.traverse c2sReferenceId scope
-  query' <- Set.traverse c2sReference query
+  scope1 <- Set.traverse c2sReferenceId scope0
+  query1 <- Set.traverse c2sReference query0
 
   -- Do the query
-  dependents0 <- Q.getTransitiveDependentsWithinScope scope' query'
+  dependents0 <- Q.getTransitiveDependentsWithinScope scope1 query1
 
   -- Convert S -> C
   dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
