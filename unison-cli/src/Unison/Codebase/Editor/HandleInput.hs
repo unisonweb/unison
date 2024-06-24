@@ -68,6 +68,7 @@ import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI,
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Ls (handleLs)
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
@@ -692,21 +693,7 @@ loop e = do
               traverse_ (displayI outputLoc) namesToDisplay
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
             EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
-            FindShallowI pathArg -> do
-              Cli.Env {codebase} <- ask
-
-              pathArgAbs <- Cli.resolvePath' pathArg
-              entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
-              Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
-              pped <- Cli.currentPrettyPrintEnvDecl
-              let suffixifiedPPE = PPED.suffixifiedPPE pped
-              -- This used to be a delayed action which only forced the loading of the root
-              -- branch when it was necessary for printing the results, but that got wiped out
-              -- when we ported to the new Cli monad.
-              -- It would be nice to restore it, but it's pretty rare that it actually results
-              -- in an improvement, so perhaps it's not worth the effort.
-              let buildPPE = pure suffixifiedPPE
-              Cli.respond $ ListShallow buildPPE entries
+            FindShallowI pathArg -> handleLs pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
