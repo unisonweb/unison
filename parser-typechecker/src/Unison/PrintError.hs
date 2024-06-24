@@ -1370,20 +1370,6 @@ renderParseErrors s = \case
             <> style ErrorSite (fromString open)
             <> ".\n\n"
             <> excerpt
-        L.InvalidWordyId id ->
-          Pr.lines
-            [ "The identifier, " <> quoteCode id <> ", isn't valid syntax: ",
-              "",
-              excerpt,
-              "Here's a few examples of valid syntax: "
-                <> quoteCode "abba1'"
-                <> ", "
-                <> quoteCode "snake_case"
-                <> ", "
-                <> quoteCode "Foo.zoink!"
-                <> ", and "
-                <> quoteCode "🌻"
-            ]
         L.ReservedWordyId id ->
           Pr.lines
             [ "The identifier, " <> quoteCode id <> ", used here is a reserved keyword: ",

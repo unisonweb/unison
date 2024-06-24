@@ -95,8 +95,7 @@ parseFailure :: EP.ParseError [Char] (Token Err) -> P a
 parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
-  = InvalidWordyId String
-  | ReservedWordyId String
+  = ReservedWordyId String
   | InvalidSymbolyId String
   | ReservedSymbolyId String
   | InvalidShortHash String
