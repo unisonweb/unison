@@ -216,7 +216,7 @@ library
     , ki
     , lens
     , lock-file
-    , lsp >=2.2.0.0
+    , lsp ==2.2.0.0
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
@@ -358,7 +358,7 @@ executable transcripts
     , ki
     , lens
     , lock-file
-    , lsp >=2.2.0.0
+    , lsp ==2.2.0.0
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory
@@ -507,7 +507,7 @@ test-suite cli-tests
     , ki
     , lens
     , lock-file
-    , lsp >=2.2.0.0
+    , lsp ==2.2.0.0
     , lsp-types >=2.0.2.0
     , megaparsec
     , memory

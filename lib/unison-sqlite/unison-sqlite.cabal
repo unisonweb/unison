@@ -74,7 +74,7 @@ library
     , pretty-simple
     , random
     , recover-rtti
-    , sqlite-simple
+    , sqlite-simple ==0.4.18.2
     , template-haskell
     , text
     , text-builder
@@ -137,7 +137,7 @@ test-suite tests
     , pretty-simple
     , random
     , recover-rtti
-    , sqlite-simple
+    , sqlite-simple ==0.4.18.2
     , template-haskell
     , text
     , text-builder
