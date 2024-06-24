@@ -2768,19 +2768,21 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    [("namespace", Required, namespaceArg), ("", Required, filePathArg)]
+    [("namespace", Required, branchRelativePathArg), ("", Required, filePathArg)]
     ( P.wrapColumn2
-        [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
-            "Render all docs contained within a namespace, no matter how deep,"
-              <> "to html files on a file path"
+        [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
+            "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
+          ),
+          ( makeExample docsToHtml ["project0/branch0:a.path", "/tmp/doc-dir"],
+            "Renders all docs anywhere in the namespace `a.path` from `branch0` of `project0` to html in `/tmp/doc-dir`."
           )
         ]
     )
     \case
       [namespacePath, destinationFilePath] ->
         Input.DocsToHtmlI
-          <$> handlePath'Arg namespacePath
-          <*> unsupportedStructuredArgument "a file name" destinationFilePath
+          <$> handleBranchRelativePathArg namespacePath
+          <*> unsupportedStructuredArgument "a directory name" destinationFilePath
       _ -> Left $ showPatternHelp docsToHtml
 
 docToMarkdown :: InputPattern

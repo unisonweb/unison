@@ -264,6 +264,14 @@ jobs:
           ${{env.transcripts}}
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+      - name: docs.to-html
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: |
+          ${{env.ucm}} transcript unison-src/transcripts-manual/docs.to-html.md
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/docs.to-html.output.md \
+            unison-src/transcripts-manual/docs.to-html
       - name: mark transcripts as passing
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |
@@ -411,7 +419,7 @@ jobs:
   build-jit-binary:
     name: build jit binary
     needs: generate-jit-source
-    uses: ./.github/workflows/ci-build-jit-binary.yaml    
+    uses: ./.github/workflows/ci-build-jit-binary.yaml
 
   test-jit:
     name: test jit
