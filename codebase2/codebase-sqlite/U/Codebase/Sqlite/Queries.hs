@@ -1898,6 +1898,9 @@ getDirectDependenciesOfScope scope = do
         )
       |]
 
+  -- Drop the temporary table
+  execute [sql| DROP TABLE $tempTableName |]
+
   -- Post-process the query result
   let dependencies1 =
         List.foldl'
