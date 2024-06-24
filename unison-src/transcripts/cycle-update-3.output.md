@@ -50,21 +50,33 @@ ping = 3
       ping : Nat
 
 ```
+Updating only part of a cycle should bring the rest of the cycle into scope:
+
 ```ucm
-.> update.old
+.> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    ping : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.> view ping pong
+  That's done. Now I'm making sure everything typechecks...
 
-  ping : Nat
-  ping = 3
-  
-  pong : 'Nat
-  pong _ =
-    use Nat +
-    !#4t465jk908.1 + 2
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 ```
+```unison:added-by-ucm scratch.u
+pong : 'Nat
+pong _ =
+  use Nat +
+  !ping + 2
+
+ping : Nat
+ping = 3
+```
+
+```
+.> view ping pong
+
+```
+

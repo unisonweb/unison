@@ -153,12 +153,12 @@ add b = b
 
 ```
 ```ucm
-.> update.old
+.> update
 
-  ⍟ I've added these definitions:
-  
-    type Foo
-    add : a -> a
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 .> debug.tab-complete delete.type Foo
 

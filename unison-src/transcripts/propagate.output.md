@@ -75,11 +75,16 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update.old
+.subpath> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    type Foo
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
 ... it should automatically propagate the type to `fooToInt`.
@@ -153,11 +158,16 @@ preserve.someTerm _ = None
 Update...
 
 ```ucm
-.subpath> update.old
+.subpath> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    preserve.someTerm : Optional x -> Optional x
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
@@ -184,9 +194,9 @@ Cleaning up a bit...
 
   Done.
 
-  ☝️  The namespace .subpath.lib is empty.
+  ☝️  The namespace .subpath.one.lib is empty.
 
-.subpath.lib> builtins.merge
+.subpath.one.lib> builtins.merge
 
   Done.
 
@@ -194,11 +204,11 @@ Cleaning up a bit...
 Now, we make two terms, where one depends on the other.
 
 ```unison
-one.someTerm : Optional foo -> Optional foo
-one.someTerm x = x
+someTerm : Optional foo -> Optional foo
+someTerm x = x
 
-one.otherTerm : Optional baz -> Optional baz
-one.otherTerm y = someTerm y
+otherTerm : Optional baz -> Optional baz
+otherTerm y = someTerm y
 ```
 
 ```ucm
@@ -211,19 +221,19 @@ one.otherTerm y = someTerm y
   
     ⍟ These new definitions are ok to `add`:
     
-      one.otherTerm : Optional baz -> Optional baz
-      one.someTerm  : Optional foo -> Optional foo
+      otherTerm : Optional baz -> Optional baz
+      someTerm  : Optional foo -> Optional foo
 
 ```
 We'll make two copies of this namespace.
 
 ```ucm
-.subpath> add
+.subpath.one> add
 
   ⍟ I've added these definitions:
   
-    one.otherTerm : Optional baz -> Optional baz
-    one.someTerm  : Optional foo -> Optional foo
+    otherTerm : Optional baz -> Optional baz
+    someTerm  : Optional foo -> Optional foo
 
 .subpath> fork one two
 
@@ -253,11 +263,16 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-.subpath.one> update.old
+.subpath.one> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
 The other namespace should be left alone.

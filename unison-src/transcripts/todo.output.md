@@ -20,31 +20,41 @@ type MyType = MyType Text
 ```
 
 ```ucm
-.simple> update.old
+.simple> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    type MyType
-    x : Int
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
 
 .simple> todo
 
-  🚧
+  ✅
   
-  The namespace has 2 transitive dependent(s) left to upgrade.
-  Your edit frontier is the dependents of these definitions:
-  
-    type #vijug0om28
-    #gjmq673r1v : Nat
-  
-  I recommend working on them in the following order:
-  
-  1. useMyType : Nat
-  2. useX      : Nat
-  
-  
+  No conflicts or edits in progress.
 
 ```
+```unison:added-by-ucm scratch.u
+useMyType : Nat
+useMyType =
+  use Nat +
+  (MyType a) = MyType 1
+  a + 10
+
+useX : Nat
+useX =
+  use Nat +
+  x + 10
+
+x = -1
+
+type MyType = MyType Text
+```
+
 ## A merge with conflicting updates.
 
 ```unison
@@ -74,24 +84,20 @@ type MyType = MyType Int
   
   New name conflicts:
   
-    1.  type MyType#ig1g2ka7lv
-        ↓
-    2.  ┌ type MyType#8c6f40i3tj
-    3.  └ type MyType#ig1g2ka7lv
+    1. type MyType#5287s21ais
+       ↓
+    2. ┌ type MyType#5287s21ais
+    3. └ type MyType#m6mdqhqcr1
     
-    4.  MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
-        ↓
-    5.  ┌ MyType.MyType#8c6f40i3tj#0 : Int -> MyType#8c6f40i3tj
-    6.  └ MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
+    4. MyType.MyType#5287s21ais#0 : Nat -> MyType#5287s21ais
+       ↓
+    5. ┌ MyType.MyType#5287s21ais#0 : Nat -> MyType#5287s21ais
+    6. └ MyType.MyType#m6mdqhqcr1#0 : Int -> MyType#m6mdqhqcr1
     
-    7.  x#dcgdua2lj6 : Nat
-        ↓
-    8.  ┌ x#dcgdua2lj6 : Nat
-    9.  └ x#f3lgjvjqoo : Nat
-  
-  Updates:
-  
-    10. patch patch (added 2 updates)
+    7. x#dcgdua2lj6 : Nat
+       ↓
+    8. ┌ x#dcgdua2lj6 : Nat
+    9. └ x#f3lgjvjqoo : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -100,31 +106,23 @@ type MyType = MyType Int
 
   Applying changes from patch...
 
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
-
 .mergeA> todo
 
   ❓
   
-  These definitions were edited differently in namespaces that
-  have been merged into this one. You'll have to tell me what to
-  use as the new definition:
-  
-    The type 1. #8h7qq3ougl was replaced with
-      2. MyType#8c6f40i3tj
-      3. MyType#ig1g2ka7lv
-    The term 4. #gjmq673r1v was replaced with
-      5. x#dcgdua2lj6
-      6. x#f3lgjvjqoo
-  ❓
+  The type MyType has conflicting definitions:
+    1. MyType#5287s21ais
+    2. MyType#m6mdqhqcr1
   
   The term MyType.MyType has conflicting definitions:
-    7. MyType.MyType#8c6f40i3tj#0
-    8. MyType.MyType#ig1g2ka7lv#0
+    3. MyType.MyType#5287s21ais#0
+    4. MyType.MyType#m6mdqhqcr1#0
+  The term x has conflicting definitions:
+    5. x#dcgdua2lj6
+    6. x#f3lgjvjqoo
   
   Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `move.term` or `delete.term`
+       introduce the same name. Use `move.type` or `delete.type`
        to resolve the conflicts.
 
 ```
@@ -174,11 +172,12 @@ foo = 802
 
 ```
 ```ucm
-.lhs> update.old
+.lhs> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    foo : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 ```
 ```unison
@@ -212,7 +211,7 @@ oldfoo = 801
   No conflicts or edits in progress.
 
 ```
-## A type-changing update to one element of a cycle, which doesn't propagate to the other
+## A type-changing update to one element of a cycle
 
 ```unison
 even = cases
@@ -265,28 +264,65 @@ even = 17
       even : Nat
 
 ```
-```ucm
-.cycle2> update.old
+Updating should bring the other half into scope.
 
-  ⍟ I've updated these names to your new definition:
+```ucm
+.cycle2> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
+
+```
+```unison:added-by-ucm scratch.u
+odd : Nat -> Boolean
+odd = cases
+  0 -> false
+  n -> even (Nat.drop 1 n)
+
+even = 17
+```
+
+We can manually break the cycle:
+
+```unison
+odd = 22
+
+even = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-    even : Nat
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      even : Nat
+      odd  : Nat
 
 ```
 ```ucm
+.cycle2> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
 .cycle2> todo
 
-  🚧
+  ✅
   
-  The namespace has 1 transitive dependent(s) left to upgrade.
-  Your edit frontier is the dependents of these definitions:
-  
-    #kkohl7ba1e : Nat -> Boolean
-  
-  I recommend working on them in the following order:
-  
-  1. odd : Nat -> Boolean
-  
-  
+  No conflicts or edits in progress.
 
 ```

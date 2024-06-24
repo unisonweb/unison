@@ -61,7 +61,7 @@ add b = b
 ```
 
 ```ucm
-.> update.old
+.> update
 .> debug.tab-complete delete.type Foo
 .> debug.tab-complete delete.term add
 ```

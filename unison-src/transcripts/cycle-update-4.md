@@ -25,6 +25,6 @@ clang _ = !pong + 3
 ```
 
 ```ucm
-.> update.old ping
+.> update
 .> view ping pong clang
 ```

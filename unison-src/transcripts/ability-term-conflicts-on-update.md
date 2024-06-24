@@ -33,14 +33,13 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-These should fail with a term/ctor conflict since we exclude the ability from the update.
+We should be able to update everything at once.
 
-```ucm:error
-.ns> update.old patch Channels.send
-.ns> update.old patch thing
+```ucm
+.ns> update
 ```
 
-If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+If `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
 
 ```unison
 unique ability Channels where
@@ -53,17 +52,10 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-These updates should succeed since `Channels` is a dependency.
+We should be able to successfully update the whole thing.
 
 ```ucm
-.ns> update.old.preview patch Channels.send
-.ns> update.old.preview patch thing
-```
-
-We should also be able to successfully update the whole thing.
-
-```ucm
-.ns> update.old
+.ns> update
 ```
 
 # Constructor-term conflict
