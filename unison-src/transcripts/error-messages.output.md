@@ -19,8 +19,8 @@ x = 1. -- missing some digits after the decimal
   
       1 | x = 1. -- missing some digits after the decimal
   
-  I was expecting some digits after the '.', for example: 1.0 or
-  1.1e37.
+  I was expecting some digits after the `.` , for example: `1.0`
+  or `1.1e37`.
 
 ```
 ```unison
@@ -36,7 +36,7 @@ x = 1e -- missing an exponent
       1 | x = 1e -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e37.
+  `1e37`.
 
 ```
 ```unison
@@ -52,7 +52,7 @@ x = 1e- -- missing an exponent
       1 | x = 1e- -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e-37.
+  `1e-37`.
 
 ```
 ```unison
@@ -68,7 +68,7 @@ x = 1E+ -- missing an exponent
       1 | x = 1E+ -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e+37.
+  `1e+37`.
 
 ```
 ### Hex, octal, and bytes literals
@@ -343,10 +343,12 @@ use.keyword.in.namespace = 1
 
   Loading changes detected in scratch.u.
 
-  The identifier used here isn't allowed to be a reserved keyword: 
+  The identifier `namespace` used here is a reserved keyword: 
   
       1 | use.keyword.in.namespace = 1
   
+  You can avoid this problem either by renaming the identifier
+  or wrapping it in backticks (like `namespace` ).
 
 ```
 ```unison
