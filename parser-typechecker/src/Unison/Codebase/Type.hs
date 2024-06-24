@@ -55,13 +55,6 @@ data Codebase m v a = Codebase
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
-    -- | Get the root branch.
-    getRootBranch :: m (Branch m),
-    -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
-    putRootBranch ::
-      Text -> -- Reason for the change, will be recorded in the reflog
-      Branch m ->
-      m (),
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.

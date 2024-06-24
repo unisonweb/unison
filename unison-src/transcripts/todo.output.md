@@ -19,9 +19,9 @@ baz = foo.bar + foo.bar
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
-    
+
       baz     : Nat
       foo.bar : Nat
 
@@ -30,7 +30,7 @@ baz = foo.bar + foo.bar
 project/main> add
 
   ⍟ I've added these definitions:
-  
+
     baz     : Nat
     foo.bar : Nat
 
@@ -39,17 +39,17 @@ project/main> delete.namespace.force foo
   Done.
 
   ⚠️
-  
+
   Of the things I deleted, the following are still used in the
   following definitions. They now contain un-named references.
-  
+
   Dependency   Referenced In
   bar          1. baz
 
 project/main> todo
 
   These terms do not have any names in the current namespace:
-  
+
     1. #1jujb8oelv
 
 ```

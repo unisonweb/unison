@@ -65,6 +65,8 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
@@ -143,7 +145,8 @@ import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   -- Assert that Alice (us) is on a project branch, and grab the causal hash.
-  (aliceProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
+  ProjectPath aliceProject aliceProjectBranch _path <- Cli.getCurrentProjectPath
+  let aliceProjectAndBranch = ProjectAndBranch aliceProject aliceProjectBranch
 
   -- Resolve Bob's maybe-project-name + branch-name to the info the merge algorithm needs: the project name, branch
   -- name, and causal hash.
@@ -193,7 +196,6 @@ doMerge info = do
           then realDebugFunctions
           else fakeDebugFunctions
 
-  let alicePath = ProjectUtils.projectBranchPath (ProjectUtils.justTheIds info.alice.projectAndBranch)
   let aliceBranchNames = ProjectUtils.justTheNames info.alice.projectAndBranch
   let mergeSource = MergeSourceOrTarget'Source info.bob.source
   let mergeTarget = MergeSourceOrTarget'Target aliceBranchNames
@@ -210,7 +212,7 @@ doMerge info = do
       -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
       when (info.lca.causalHash == Just info.alice.causalHash) do
         bobBranch <- liftIO (Codebase.expectBranchForHash codebase info.bob.causalHash)
-        _ <- Cli.updateAt info.description alicePath (\_aliceBranch -> bobBranch)
+        _ <- Cli.updateAt info.description (PP.projectBranchRoot info.alice.projectAndBranch) (\_aliceBranch -> bobBranch)
         done (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
       -- Create a bunch of cached database lookup functions
@@ -408,12 +410,12 @@ doMerge info = do
         Nothing -> do
           Cli.Env {writeSource} <- ask
           (_temporaryBranchId, temporaryBranchName) <-
-            HandleInput.Branch.doCreateBranch'
-              (Branch.mergeNode stageOneBranch parents.alice parents.bob)
-              (Just info.alice.projectAndBranch.branch.branchId)
+            HandleInput.Branch.createBranch
+              info.description
+              (HandleInput.Branch.CreateFrom'NamespaceWithParent info.alice.projectAndBranch.branch (Branch.mergeNode stageOneBranch parents.alice parents.bob))
               info.alice.projectAndBranch.project
               (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
-              info.description
+
           scratchFilePath <-
             Cli.getLatestFile <&> \case
               Nothing -> "scratch.u"
@@ -423,11 +425,10 @@ doMerge info = do
         Just tuf -> do
           Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
           let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
-          _ <-
-            Cli.updateAt
-              info.description
-              alicePath
-              (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+          Cli.updateProjectBranchRoot_
+            info.alice.projectAndBranch.branch
+            info.description
+            (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
           pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
@@ -436,8 +437,8 @@ doMergeLocalBranch :: TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
 doMergeLocalBranch branches = do
   (aliceCausalHash, bobCausalHash, lcaCausalHash) <-
     Cli.runTransaction do
-      aliceCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds branches.alice)
-      bobCausalHash <- ProjectUtils.getProjectBranchCausalHash (ProjectUtils.justTheIds branches.bob)
+      aliceCausalHash <- ProjectUtils.getProjectBranchCausalHash (branches.alice ^. #branch)
+      bobCausalHash <- ProjectUtils.getProjectBranchCausalHash (branches.bob ^. #branch)
       -- Using Alice and Bob's causal hashes, find the LCA (if it exists)
       lcaCausalHash <- Operations.lca aliceCausalHash bobCausalHash
       pure (aliceCausalHash, bobCausalHash, lcaCausalHash)

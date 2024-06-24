@@ -81,12 +81,9 @@ These should fail with a term/ctor conflict since we exclude the ability from th
 
   ⍟ I've added these definitions:
   
+    ability Channels
     Channels.send : a -> ()
     thing         : '{Channels} ()
-  
-  ⍟ I've updated these names to your new definition:
-  
-    ability Channels
 
 ```
 If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
