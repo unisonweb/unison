@@ -14,7 +14,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Names qualified as Names
 import Unison.Util.Defns (Defns (..))
 
@@ -36,16 +35,17 @@ handleTodo = do
             }
       pure (hashLen, directDependencies)
 
-  let todo =
-        TO.TodoOutput
-          { directDependenciesWithoutNames =
-              Defns
-                { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
-                  types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
-                },
-            nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps)
-          }
+  ppe <- Cli.currentPrettyPrintEnvDecl
 
-  pped <- Cli.currentPrettyPrintEnvDecl
-
-  Cli.respondNumbered (TodoOutput hashLen pped todo)
+  Cli.respondNumbered $
+    Output'Todo
+      TodoOutput
+        { hashLen,
+          ppe,
+          directDependenciesWithoutNames =
+            Defns
+              { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
+                types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
+              },
+          nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps)
+        }
