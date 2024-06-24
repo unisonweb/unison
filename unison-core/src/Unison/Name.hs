@@ -1,7 +1,5 @@
 module Unison.Name
   ( Name,
-    Convert (..),
-    Parse (..),
 
     -- * Basic construction
     cons,
@@ -570,12 +568,3 @@ commonPrefix x@(Name p1 _) y@(Name p2 _)
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
     commonPrefix' _ _ = []
-
-class Convert a b where
-  convert :: a -> b
-
-class Parse a b where
-  parse :: a -> Maybe b
-
-instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
-  parse (a, b) = (,) <$> parse a <*> parse b

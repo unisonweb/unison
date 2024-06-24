@@ -459,7 +459,7 @@ pretty0
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
-                pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
+                pure $ PP.group $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
                 prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
                 prettyApps <- binaryApps apps prettyLast

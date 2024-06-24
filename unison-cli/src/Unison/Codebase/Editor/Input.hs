@@ -150,7 +150,7 @@ data Input
   | UpdateI OptionalPatch (Set Name)
   | Update2I
   | PreviewUpdateI (Set Name)
-  | TodoI (Maybe PatchPath) Path'
+  | TodoI
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -208,7 +208,7 @@ data Input
   | ApiI
   | UiI Path'
   | DocToMarkdownI Name
-  | DocsToHtmlI Path' FilePath
+  | DocsToHtmlI BranchRelativePath FilePath
   | AuthLoginI
   | VersionI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)

@@ -63,13 +63,13 @@ instance From BranchRelativePath Text where
       That path ->
         Text.Builder.run
           ( Text.Builder.char ':'
-              <> Text.Builder.text (Path.convert path)
+              <> Text.Builder.text (Path.toText' $ Path.RelativePath' path)
           )
       These eitherProj path ->
         Text.Builder.run
           ( Text.Builder.text (eitherProjToText eitherProj)
               <> Text.Builder.char ':'
-              <> Text.Builder.text (Path.convert path)
+              <> Text.Builder.text (Path.toText' $ Path.RelativePath' path)
           )
     LoosePath path -> Path.toText' path
     where
