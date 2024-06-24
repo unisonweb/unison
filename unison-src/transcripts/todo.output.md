@@ -2,6 +2,47 @@
 
 The todo command shows conflicted names (not demonstrated here yet because it is not easy to create them for tests, yet).
 
+# Dependents of `todo`
+
+The `todo` command shows local (outside `lib`) terms that directly call `todo`.
+
+```unison
+foo : Nat
+foo = todo "implement foo"
+
+bar : Nat
+bar = foo + foo
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      foo : Nat
+
+```
+```ucm
+project/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    foo : Nat
+
+project/main> todo
+
+  These terms call `todo`:
+  
+    1. foo
+
+```
 # Direct dependencies without names
 
 The `todo` command shows hashes of direct dependencies of local (outside `lib`) definitions that don't have names in
