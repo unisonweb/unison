@@ -511,7 +511,7 @@ getNamespaceDependentsOf ::
   Set Reference ->
   Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf names dependencies = do
-  dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
+  dependents <- Ops.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
   pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
@@ -533,7 +533,7 @@ getNamespaceDependentsOf2 defns dependencies = do
   let scope = bifoldMap toTermScope toTypeScope defns
 
   dependents <-
-    Ops.dependentsWithinScope scope dependencies
+    Ops.transitiveDependentsWithinScope scope dependencies
 
   pure
     Defns

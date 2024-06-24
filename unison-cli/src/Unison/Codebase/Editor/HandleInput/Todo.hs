@@ -38,7 +38,7 @@ handleTodo = do
 
       -- All type-and-term dependents of the `todo` builtin, but we know they're all terms.
       dependentsOfTodo <-
-        Operations.dependentsWithinScope
+        Operations.transitiveDependentsWithinScope
           (Branch.deepTermReferenceIds currentNamespaceWithoutLibdeps)
           (Set.singleton todoReference)
 

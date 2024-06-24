@@ -166,7 +166,7 @@ module U.Codebase.Sqlite.Queries
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
     getDirectDependenciesOfScope,
-    getDependentsWithinScope,
+    getTransitiveDependentsWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -1910,12 +1910,13 @@ getDirectDependenciesOfScope scope = do
 
   pure dependencies1
 
-{- ORMOLU_DISABLE -}
-
--- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
--- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
-getDependentsWithinScope :: Set S.Reference.Id -> Set S.Reference -> Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
-getDependentsWithinScope scope query = do
+-- | `getTransitiveDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in
+-- `scope` (not including `query` itself).
+getTransitiveDependentsWithinScope ::
+  Set S.Reference.Id ->
+  Set S.Reference ->
+  Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
+getTransitiveDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   createTemporaryTableOfReferenceIds [sql| dependents_search_scope |] scope
 
@@ -1951,31 +1952,33 @@ getDependentsWithinScope scope query = do
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
 
-  result0 :: [S.Reference.Id :. Only ObjectType] <- queryListRow [sql|
-    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
-      SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-      FROM dependents_index d
-      JOIN object ON d.dependent_object_id = object.id
-      JOIN dependencies_query q
-        ON q.dependency_builtin IS d.dependency_builtin
-        AND q.dependency_object_id IS d.dependency_object_id
-        AND q.dependency_component_index IS d.dependency_component_index
-      JOIN dependents_search_scope s
-        ON s.object_id = d.dependent_object_id
-        AND s.component_index = d.dependent_component_index
+  result0 :: [S.Reference.Id :. Only ObjectType] <-
+    queryListRow
+      [sql|
+        WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
+          SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+          FROM dependents_index d
+          JOIN object ON d.dependent_object_id = object.id
+          JOIN dependencies_query q
+            ON q.dependency_builtin IS d.dependency_builtin
+            AND q.dependency_object_id IS d.dependency_object_id
+            AND q.dependency_component_index IS d.dependency_component_index
+          JOIN dependents_search_scope s
+            ON s.object_id = d.dependent_object_id
+            AND s.component_index = d.dependent_component_index
 
-      UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-      FROM dependents_index d
-      JOIN object ON d.dependent_object_id = object.id
-      JOIN transitive_dependents t
-        ON t.dependent_object_id = d.dependency_object_id
-        AND t.dependent_component_index = d.dependency_component_index
-      JOIN dependents_search_scope s
-        ON s.object_id = d.dependent_object_id
-        AND s.component_index = d.dependent_component_index
-    )
-    SELECT * FROM transitive_dependents
-  |]
+          UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+          FROM dependents_index d
+          JOIN object ON d.dependent_object_id = object.id
+          JOIN transitive_dependents t
+            ON t.dependent_object_id = d.dependency_object_id
+            AND t.dependent_component_index = d.dependency_component_index
+          JOIN dependents_search_scope s
+            ON s.object_id = d.dependent_object_id
+            AND s.component_index = d.dependent_component_index
+        )
+        SELECT * FROM transitive_dependents
+      |]
 
   execute [sql| DROP TABLE dependents_search_scope |]
   execute [sql| DROP TABLE dependencies_query |]
@@ -1992,6 +1995,8 @@ getDependentsWithinScope scope query = do
           result0
 
   pure result1
+
+{- ORMOLU_DISABLE -}
 
 createTemporaryTableOfReferenceIds :: Sql -> Set S.Reference.Id -> Transaction ()
 createTemporaryTableOfReferenceIds tableName refs = do

@@ -66,7 +66,7 @@ module U.Codebase.Sqlite.Operations
     directDependenciesOfScope,
     dependents,
     dependentsOfComponent,
-    dependentsWithinScope,
+    transitiveDependentsWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
@@ -1154,16 +1154,19 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
--- | `dependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
--- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
-dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
-dependentsWithinScope scope query = do
+-- | `transitiveDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope`
+-- (not including `query` itself). Each dependent is also tagged with whether it is a term or decl.
+transitiveDependentsWithinScope ::
+  Set C.Reference.Id ->
+  Set C.Reference ->
+  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
+transitiveDependentsWithinScope scope query = do
   -- Convert C -> S
   scope' <- Set.traverse c2sReferenceId scope
   query' <- Set.traverse c2sReference query
 
   -- Do the query
-  dependents0 <- Q.getDependentsWithinScope scope' query'
+  dependents0 <- Q.getTransitiveDependentsWithinScope scope' query'
 
   -- Convert S -> C
   dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
