@@ -143,10 +143,11 @@ data NumberedOutput
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
 
 data TodoOutput = TodoOutput
-  { hashLen :: !Int,
-    ppe :: !PrettyPrintEnvDecl,
-    directDependenciesWithoutNames :: DefnsF Set TermReference TypeReference,
-    nameConflicts :: Names
+  { dependentsOfTodo :: !(Set TermReferenceId),
+    directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
+    hashLen :: !Int,
+    nameConflicts :: !Names,
+    ppe :: !PrettyPrintEnvDecl
   }
 
 data AmbiguousReset'Argument

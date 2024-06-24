@@ -41,11 +41,12 @@ handleTodo = do
     Output'Todo
       TodoOutput
         { hashLen,
-          ppe,
+          dependentsOfTodo = Set.empty,
           directDependenciesWithoutNames =
             Defns
               { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
                 types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
               },
-          nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps)
+          nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps),
+          ppe
         }
