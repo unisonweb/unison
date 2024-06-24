@@ -117,8 +117,7 @@ data NumberedOutput
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput Symbol Ann)
+  | TodoOutput !Int !PPE.PrettyPrintEnvDecl !(TO.TodoOutput Symbol Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
@@ -293,8 +292,6 @@ data Output
   | PreviewMergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-  | -- | No conflicts or edits remain for the current patch.
-    NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
@@ -555,7 +552,6 @@ isFailure o = case o of
   MergeAlreadyUpToDate {} -> False
   MergeAlreadyUpToDate2 {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
-  NoConflictsOrEdits {} -> False
   ListShallow _ es -> null es
   HashAmbiguous {} -> True
   ShowReflog {} -> False
@@ -671,4 +667,4 @@ isNumberedFailure = \case
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
+  TodoOutput {} -> False

@@ -87,6 +87,7 @@ library
       Unison.Codebase.Editor.HandleInput.ShowDefinition
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests
+      Unison.Codebase.Editor.HandleInput.Todo
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
