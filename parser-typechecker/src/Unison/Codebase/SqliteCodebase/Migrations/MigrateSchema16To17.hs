@@ -10,11 +10,14 @@ import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.Sqlite.DbId (ProjectBranchId (..), ProjectId (..))
+import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId (..), ProjectId (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.SqliteCodebase.Branch.Cache qualified as BranchCache
+import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
 import Unison.Debug qualified as Debug
@@ -42,6 +45,8 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
   Q.addProjectBranchReflogTable
   Debug.debugLogM Debug.Migration "Adding causal hashes to project branches table."
   addCausalHashesToProjectBranches
+  Debug.debugLogM Debug.Migration "Making legacy project from loose code."
+  makeLegacyProjectFromLooseCode
   Debug.debugLogM Debug.Migration "Adding scratch project"
   scratchMain <-
     Q.loadProjectBranchByNames scratchProjectName scratchBranchName >>= \case
@@ -66,11 +71,12 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
       let action = Sqlite.runWriteTransaction conn \run -> run $ m
       UnsafeIO.bracket disable (const enable) (const action)
 
-newtype ForeignKeyFailureException
+data ForeignKeyFailureException
   = ForeignKeyFailureException
       -- We leave the data as raw as possible to ensure we can display it properly rather than get decoding errors while
       -- trying to display some other error.
       [[Sqlite.SQLData]]
+  | MissingRootBranch
   deriving stock (Show)
   deriving anyclass (Exception)
 
@@ -94,14 +100,14 @@ without rowid;
 |]
   rootCausalHashId <- Q.expectNamespaceRoot
   rootCh <- Q.expectCausalHash rootCausalHashId
-  projectsRoot <- Codebase.getShallowCausalAtPathFromRootHash rootCh (Path.singleton $ NameSegment.unsafeParseText "__projects") >>= V2Causal.value
+  projectsRoot <- Codebase.getShallowCausalAtPathFromRootHash rootCh (Path.singleton $ projectsNameSegment) >>= V2Causal.value
   ifor_ (V2Branch.children projectsRoot) \projectIdNS projectsCausal -> do
     projectId <- case projectIdNS of
       UUIDNameSegment projectIdUUID -> pure $ ProjectId projectIdUUID
       _ -> error $ "Invalid Project Id NameSegment:" <> show projectIdNS
     Debug.debugM Debug.Migration "Migrating project" projectId
     projectsBranch <- V2Causal.value projectsCausal
-    case (Map.lookup (NameSegment.unsafeParseText "branches") $ V2Branch.children projectsBranch) of
+    case (Map.lookup branchesNameSegment $ V2Branch.children projectsBranch) of
       Nothing -> pure ()
       Just branchesCausal -> do
         branchesBranch <- V2Causal.value branchesCausal
@@ -154,8 +160,39 @@ without rowid;
   foreignKeyErrs <- Sqlite.queryListRow [Sqlite.sql| PRAGMA foreign_key_check |]
   when (not . null $ foreignKeyErrs) . Sqlite.unsafeIO . UnliftIO.throwIO $ ForeignKeyFailureException foreignKeyErrs
 
--- migrateLooseCodeIntoLegacyProject :: Sqlite.Transaction ()
--- migrateLooseCodeIntoLegacyProject = do ()
+makeLegacyProjectFromLooseCode :: Sqlite.Transaction ()
+makeLegacyProjectFromLooseCode = do
+  rootChId <-
+    Sqlite.queryOneCol @CausalHashId
+      [Sqlite.sql|
+    SELECT causal_id
+    FROM namespace_root
+  |]
+  rootCh <- Q.expectCausalHash rootChId
+  branchCache <- Sqlite.unsafeIO BranchCache.newBranchCache
+  getDeclType <- Sqlite.unsafeIO $ CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
+  rootBranch <-
+    CodebaseOps.getBranchForHash branchCache getDeclType rootCh `whenNothingM` do
+      Sqlite.unsafeIO . UnliftIO.throwIO $ MissingRootBranch
+  -- Remove the hidden projects root if one existed.
+  let rootWithoutProjects = rootBranch & over (Branch.head_ . Branch.children) (Map.delete projectsNameSegment)
+  CodebaseOps.putBranch rootWithoutProjects
+  let legacyBranchRootHash = Branch.headHash rootWithoutProjects
+  legacyBranchRootHashId <- Q.expectCausalHashIdByCausalHash legacyBranchRootHash
+
+  let findLegacyName :: Maybe Int -> Sqlite.Transaction ProjectName
+      findLegacyName mayN = do
+        let tryProjName = case mayN of
+              Nothing -> UnsafeProjectName "legacy"
+              Just n -> UnsafeProjectName $ "legacy" <> Text.pack (show n)
+        Q.loadProjectBranchByNames tryProjName legacyBranchName >>= \case
+          Nothing -> pure tryProjName
+          Just _ -> findLegacyName . Just $ maybe 1 succ mayN
+  legacyProjName <- findLegacyName Nothing
+  void $ Ops.insertProjectAndBranch legacyProjName legacyBranchName legacyBranchRootHashId
+  pure ()
+  where
+    legacyBranchName = UnsafeProjectBranchName "main"
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-
@@ -165,3 +202,9 @@ pattern UUIDNameSegment uuid <-
   where
     UUIDNameSegment uuid =
       NameSegment (Text.cons '_' (Text.map (\c -> if c == '-' then '_' else c) (UUID.toText uuid)))
+
+projectsNameSegment :: NameSegment
+projectsNameSegment = NameSegment.unsafeParseText "__projects"
+
+branchesNameSegment :: NameSegment
+branchesNameSegment = NameSegment.unsafeParseText "branches"
