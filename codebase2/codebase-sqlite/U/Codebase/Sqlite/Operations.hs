@@ -239,8 +239,8 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
 
 -- | Load the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-loadCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
-loadCausalHashAtPath mayRootCausalHash =
+loadCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath rootCausalHash =
   let go :: Db.CausalHashId -> [NameSegment] -> MaybeT Transaction CausalHash
       go hashId = \case
         [] -> lift (Q.expectCausalHash hashId)
@@ -250,15 +250,13 @@ loadCausalHashAtPath mayRootCausalHash =
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
    in \path -> do
-        hashId <- case mayRootCausalHash of
-          Nothing -> Q.expectNamespaceRoot
-          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
+        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-expectCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction CausalHash
-expectCausalHashAtPath mayRootCausalHash =
+expectCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction CausalHash
+expectCausalHashAtPath rootCausalHash =
   let go :: Db.CausalHashId -> [NameSegment] -> Transaction CausalHash
       go hashId = \case
         [] -> Q.expectCausalHash hashId
@@ -268,23 +266,21 @@ expectCausalHashAtPath mayRootCausalHash =
           let (_, hashId') = children Map.! tid
           go hashId' ts
    in \path -> do
-        hashId <- case mayRootCausalHash of
-          Nothing -> Q.expectNamespaceRoot
-          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
+        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
         go hashId path
 
 loadCausalBranchAtPath ::
-  Maybe CausalHash ->
+  CausalHash ->
   [NameSegment] ->
   Transaction (Maybe (C.Branch.CausalBranch Transaction))
-loadCausalBranchAtPath maybeRootCausalHash path =
-  loadCausalHashAtPath maybeRootCausalHash path >>= \case
+loadCausalBranchAtPath rootCausalHash path =
+  loadCausalHashAtPath rootCausalHash path >>= \case
     Nothing -> pure Nothing
     Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
 
-loadBranchAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
-loadBranchAtPath maybeRootCausalHash path =
-  loadCausalBranchAtPath maybeRootCausalHash path >>= \case
+loadBranchAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchAtPath rootCausalHash path =
+  loadCausalBranchAtPath rootCausalHash path >>= \case
     Nothing -> pure Nothing
     Just causal -> Just <$> C.Causal.value causal
 

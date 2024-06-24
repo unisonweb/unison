@@ -9,15 +9,16 @@ import Control.Lens (unsnoc)
 import Data.Foldable qualified as Foldable
 import Data.Maybe (fromJust)
 import U.Codebase.Branch qualified as Codebase.Branch
-import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.UniqueTypeGuidLookup qualified as Codebase
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
-loadUniqueTypeGuid :: Path.Absolute -> Name -> Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuid :: ProjectPath -> Name -> Sqlite.Transaction (Maybe Text)
 loadUniqueTypeGuid currentPath name0 = do
   -- First, resolve the current path and the (probably/hopefully relative) name of the unique type to the full path
   -- to the unique type, plus its final distinguished name segment.
@@ -36,6 +37,7 @@ loadUniqueTypeGuid currentPath name0 = do
   -- This ought to probably lean somewhat on a cache (so long as the caller is aware of the cache, and discrads it at
   -- an appropriate time, such as after the current unison file finishes parsing).
   let loadBranchAtPath :: [NameSegment] -> Sqlite.Transaction (Maybe (Codebase.Branch.Branch Sqlite.Transaction))
-      loadBranchAtPath = Operations.loadBranchAtPath Nothing
+      loadBranchAtPath =
+        Codebase.getShallowBranchAtProjectPath
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath (Foldable.toList @Seq branchPath) name

@@ -66,12 +66,6 @@ module U.Codebase.Sqlite.Queries
     loadTermObject,
     expectTermObject,
 
-    -- * namespace_root table
-    loadNamespaceRoot,
-    setNamespaceRoot,
-    expectNamespaceRoot,
-    expectNamespaceRootBranchHashId,
-
     -- * namespace_statistics table
     saveNamespaceStats,
     loadNamespaceStatsByHashId,
@@ -1343,32 +1337,6 @@ loadCausalParentsByHash hash =
       JOIN hash h2 ON cp.parent_id = h2.id
       WHERE h1.base32 = :hash COLLATE NOCASE
     |]
-
-expectNamespaceRootBranchHashId :: Transaction BranchHashId
-expectNamespaceRootBranchHashId = do
-  chId <- expectNamespaceRoot
-  expectCausalValueHashId chId
-
-expectNamespaceRoot :: Transaction CausalHashId
-expectNamespaceRoot =
-  queryOneCol loadNamespaceRootSql
-
-loadNamespaceRoot :: Transaction (Maybe CausalHashId)
-loadNamespaceRoot =
-  queryMaybeCol loadNamespaceRootSql
-
-loadNamespaceRootSql :: Sql
-loadNamespaceRootSql =
-  [sql|
-    SELECT causal_id
-    FROM namespace_root
-  |]
-
-setNamespaceRoot :: CausalHashId -> Transaction ()
-setNamespaceRoot id =
-  queryOneCol [sql| SELECT EXISTS (SELECT 1 FROM namespace_root) |] >>= \case
-    False -> execute [sql| INSERT INTO namespace_root VALUES (:id) |]
-    True -> execute [sql| UPDATE namespace_root SET causal_id = :id |]
 
 saveWatch :: WatchKind -> S.Reference.IdH -> ByteString -> Transaction ()
 saveWatch k r blob = do

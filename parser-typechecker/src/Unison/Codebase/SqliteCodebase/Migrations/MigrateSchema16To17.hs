@@ -98,7 +98,7 @@ CREATE TABLE new_project_branch (
 )
 without rowid;
 |]
-  rootCausalHashId <- Q.expectNamespaceRoot
+  rootCausalHashId <- expectNamespaceRoot
   rootCh <- Q.expectCausalHash rootCausalHashId
   projectsRoot <- Codebase.getShallowCausalAtPathFromRootHash rootCh (Path.singleton $ projectsNameSegment) >>= V2Causal.value
   ifor_ (V2Branch.children projectsRoot) \projectIdNS projectsCausal -> do
@@ -193,6 +193,17 @@ makeLegacyProjectFromLooseCode = do
   pure ()
   where
     legacyBranchName = UnsafeProjectBranchName "main"
+
+expectNamespaceRoot :: Sqlite.Transaction CausalHashId
+expectNamespaceRoot =
+  Sqlite.queryOneCol loadNamespaceRootSql
+
+loadNamespaceRootSql :: Sqlite.Sql
+loadNamespaceRootSql =
+  [Sqlite.sql|
+    SELECT causal_id
+    FROM namespace_root
+  |]
 
 pattern UUIDNameSegment :: UUID -> NameSegment
 pattern UUIDNameSegment uuid <-
