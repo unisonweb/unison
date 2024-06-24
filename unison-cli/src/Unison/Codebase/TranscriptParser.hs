@@ -56,10 +56,8 @@ import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
@@ -67,7 +65,7 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (..))
+import Unison.Core.Project (ProjectBranchName, ProjectName (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -249,8 +247,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
     (_, emptyCausalHashId) <- Codebase.emptyCausalHash
-    (proj, branch) <- Ops.insertProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main") emptyCausalHashId
-    pure (PP.ProjectPath proj.projectId branch.branchId Path.absoluteEmpty, emptyCausalHashId)
+    initialPP <- Codebase.expectCurrentProjectPath
+    pure (initialPP, emptyCausalHashId)
 
   projectRootVar <- newTMVarIO Branch.empty
   unless (isSilent verbosity) . putPrettyLn $
@@ -574,7 +572,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 projectRootVar initialPP)
+  loop (Cli.loopState0 projectRootVar (PP.toIds initialPP))
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
