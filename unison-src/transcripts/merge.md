@@ -1518,3 +1518,68 @@ project/main> view Foo
 ```ucm:hide
 .> project.delete project
 ```
+
+### Dependent that doesn't need to be in the file
+
+This test demonstrates a bug.
+
+
+```ucm:hide
+project/alice> builtins.mergeio lib.builtins
+```
+
+In the LCA, we have `foo` with dependent `bar`, and `baz`.
+
+```unison
+foo : Nat
+foo = 17
+
+bar : Nat
+bar = foo + foo
+
+baz : Text
+baz = "lca"
+```
+
+```ucm
+project/alice> add
+project/alice> branch bob
+```
+
+On Bob, we update `baz` to "bob".
+
+```unison
+baz : Text
+baz = "bob"
+```
+
+```ucm
+project/bob> update
+```
+
+On Alice, we update `baz` to "alice" (conflict), but also update `foo` (unconflicted), which propagates to `bar`.
+
+```unison
+foo : Nat
+foo = 18
+
+baz : Text
+baz = "alice"
+```
+
+```ucm
+project/alice> update
+```
+
+When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
+the underlying namespace.
+
+```ucm:error
+project/alice> merge /bob
+```
+
+But `bar` was put into the scratch file instead.
+
+```ucm:hide
+.> project.delete project
+```

@@ -1793,3 +1793,166 @@ project/main> view Foo
   type Foo = Bar
 
 ```
+### Dependent that doesn't need to be in the file
+
+This test demonstrates a bug.
+
+
+In the LCA, we have `foo` with dependent `bar`, and `baz`.
+
+```unison
+foo : Nat
+foo = 17
+
+bar : Nat
+bar = foo + foo
+
+baz : Text
+baz = "lca"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      baz : Text
+      foo : Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    baz : Text
+    foo : Nat
+
+project/alice> branch bob
+
+  Done. I've created the bob branch based off of alice.
+  
+  Tip: To merge your work back into the alice branch, first
+       `switch /alice` then `merge /bob`.
+
+```
+On Bob, we update `baz` to "bob".
+
+```unison
+baz : Text
+baz = "bob"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      baz : Text
+
+```
+```ucm
+project/bob> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+On Alice, we update `baz` to "alice" (conflict), but also update `foo` (unconflicted), which propagates to `bar`.
+
+```unison
+foo : Nat
+foo = 18
+
+baz : Text
+baz = "alice"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      baz : Text
+      foo : Nat
+
+```
+```ucm
+project/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+```
+When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
+the underlying namespace.
+
+```ucm
+project/alice> merge /bob
+
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+baz : Text
+baz = "alice"
+
+-- project/bob
+baz : Text
+baz = "bob"
+
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
+bar : Nat
+bar =
+  use Nat +
+  foo + foo
+
+
+```
+
+But `bar` was put into the scratch file instead.
+
