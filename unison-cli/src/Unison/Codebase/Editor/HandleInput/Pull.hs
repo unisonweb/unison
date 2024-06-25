@@ -291,10 +291,8 @@ propagatePatch ::
   PP.ProjectPath ->
   Cli Bool
 propagatePatch inputDescription patch scopePath = do
-  let pb = scopePath ^. #branch
   Cli.time "propagatePatch" do
-    rootNames <- Cli.projectBranchNames pb
+    rootNames <- Cli.projectBranchNames scopePath.branch
     Cli.stepAt'
-      pb
       (inputDescription <> " (applying patch)")
-      (scopePath ^. PP.absPath_, Propagate.propagateAndApply rootNames patch)
+      (scopePath, Propagate.propagateAndApply rootNames patch)

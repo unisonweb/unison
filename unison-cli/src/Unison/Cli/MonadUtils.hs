@@ -359,25 +359,22 @@ makeActionsUnabsolute :: Functor f => f (Path.Absolute, x) -> f (Path, x)
 makeActionsUnabsolute = fmap (first Path.unabsolute)
 
 stepAt ::
-  ProjectBranch ->
   Text ->
-  (Path.Absolute, Branch0 IO -> Branch0 IO) ->
+  (ProjectPath, Branch0 IO -> Branch0 IO) ->
   Cli ()
-stepAt pb cause action = stepManyAt pb cause [action]
+stepAt cause (pp, action) = stepManyAt pp.branch cause [(pp.absPath, action)]
 
 stepAt' ::
-  ProjectBranch ->
   Text ->
-  (Path.Absolute, Branch0 IO -> Cli (Branch0 IO)) ->
+  (ProjectPath, Branch0 IO -> Cli (Branch0 IO)) ->
   Cli Bool
-stepAt' pb cause action = stepManyAt' pb cause [action]
+stepAt' cause (pp, action) = stepManyAt' pp.branch cause [(pp.absPath, action)]
 
 stepAtM ::
-  ProjectBranch ->
   Text ->
-  (Path.Absolute, Branch0 IO -> IO (Branch0 IO)) ->
+  (ProjectPath, Branch0 IO -> IO (Branch0 IO)) ->
   Cli ()
-stepAtM pb cause action = stepManyAtM pb cause [action]
+stepAtM cause (pp, action) = stepManyAtM pp.branch cause [(pp.absPath, action)]
 
 stepManyAt ::
   ProjectBranch ->

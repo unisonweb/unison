@@ -19,7 +19,6 @@ import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (Output (NoLastRunResult, SaveTermNameConflict, SlurpOutput))
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
-import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Name (Name)
@@ -42,8 +41,8 @@ handleAddRun input resultName = do
   let adds = SlurpResult.adds sr
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
   let description = (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
-  PP.ProjectPath _proj pb currentPath <- Cli.getCurrentProjectPath
-  Cli.stepAt pb description (currentPath, doSlurpAdds adds uf)
+  pp <- Cli.getCurrentProjectPath
+  Cli.stepAt description (pp, doSlurpAdds adds uf)
   let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
   let suffixifiedPPE = PPE.suffixifiedPPE pped

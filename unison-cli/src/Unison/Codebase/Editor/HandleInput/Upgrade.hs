@@ -176,9 +176,8 @@ handleUpgrade oldName newName = do
         (findCtorNamesMaybe Output.UOUUpgrade currentLocalNames currentLocalConstructorNames Nothing)
         typecheckedUnisonFile
   Cli.stepAt
-    projectBranch
     textualDescriptionOfUpgrade
-    ( Path.absoluteEmpty,
+    ( PP.toRoot pp,
       Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
     )
   Cli.respond (Output.UpgradeSuccess oldName newName)

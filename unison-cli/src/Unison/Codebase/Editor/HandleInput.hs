@@ -426,8 +426,7 @@ loop e = do
               when (not (Set.null destTerms)) do
                 Cli.returnEarly (TermAlreadyExists dest' destTerms)
               description <- inputDescription input
-              pb <- Cli.getCurrentProjectBranch
-              Cli.stepAt pb description (BranchUtil.makeAddTermName (first PP.absPath dest) srcTerm)
+              Cli.stepAt description (BranchUtil.makeAddTermName dest srcTerm)
               Cli.respond Success
             AliasTypeI src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
@@ -450,8 +449,7 @@ loop e = do
               when (not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
-              pb <- Cli.getCurrentProjectBranch
-              Cli.stepAt pb description (BranchUtil.makeAddTypeName (first PP.absPath dest) srcType)
+              Cli.stepAt description (BranchUtil.makeAddTypeName dest srcType)
               Cli.respond Success
 
             -- this implementation will happily produce name conflicts,
@@ -629,13 +627,12 @@ loop e = do
               let vars = Set.map Name.toVar requestedNames
               uf <- Cli.expectLatestTypecheckedFile
               Cli.Env {codebase} <- ask
-              currentPath <- Cli.getCurrentPath
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               let adds = SlurpResult.adds sr
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              pb <- getCurrentProjectBranch
-              Cli.stepAt pb description (currentPath, doSlurpAdds adds uf)
+              pp <- Cli.getCurrentProjectPath
+              Cli.stepAt description (pp, doSlurpAdds adds uf)
               pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf currentNames
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respond $ SlurpOutput input suffixifiedPPE sr

@@ -201,13 +201,12 @@ makeParsingEnv path names = do
 saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
-  currentPath <- Cli.getCurrentPath
+  pp <- Cli.getCurrentProjectPath
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
       Codebase.addDefsToCodebase codebase tuf
       typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
-  pb <- Cli.getCurrentProjectBranch
-  Cli.stepAt pb "update" (currentPath, Branch.batchUpdates branchUpdates)
+  Cli.stepAt "update" (pp, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
