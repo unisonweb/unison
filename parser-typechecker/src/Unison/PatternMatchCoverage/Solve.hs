@@ -519,8 +519,8 @@ addConstraint con0 nc = do
       let updateLiteral pos neg lit
             | Just lit1 <- pos,
               lit1 == lit =
-                (pure (), Ignore) -- we already have this positive constraint
-                -- the constraint contradicts negative info
+                 -- we already have this positive constraint
+                (pure (), Ignore)
             | Set.member lit neg = (contradiction, Ignore)
             | otherwise = (pure (), Update (Just lit, neg))
        in modifyLiteralC var pmlit updateLiteral nc
