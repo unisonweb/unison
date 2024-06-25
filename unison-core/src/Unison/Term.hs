@@ -397,7 +397,7 @@ substTypeVar vt ty = go Set.empty
                           t2 = ABT.bindInheritAnnotation body (Type.var () v2)
                        in uncapture ((ABT.annotation t, v2) : vs) (renameTypeVar v v2 e) t2
                 uncapture vs e t0 =
-                  let t = foldl (\body (loc, v) -> Type.forall loc v body) t0 vs
+                  let t = foldl (\body (loc, v) -> Type.forAll loc v body) t0 vs
                       bound' = case Type.unForalls (Type.stripIntroOuters t) of
                         Nothing -> bound
                         Just (vs, _) -> bound <> Set.fromList vs

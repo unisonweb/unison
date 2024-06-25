@@ -14,6 +14,7 @@ module Unison.KindInference.Solve.Monad
 where
 
 import Control.Lens (Lens', (%%~))
+import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
 import Data.Functor.Identity
@@ -64,7 +65,7 @@ newtype Solve v loc a = Solve {unSolve :: Env -> SolveState v loc -> (a, SolveSt
     ( Functor,
       Applicative,
       Monad,
-      M.MonadFix,
+      MonadFix,
       M.MonadReader Env,
       M.MonadState (SolveState v loc)
     )

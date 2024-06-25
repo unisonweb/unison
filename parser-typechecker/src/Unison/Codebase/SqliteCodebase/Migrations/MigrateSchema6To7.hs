@@ -4,7 +4,6 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7) where
 
-import Control.Monad.Except
 import Control.Monad.State
 import U.Codebase.Branch.Type (NamespaceStats)
 import U.Codebase.Sqlite.DbId qualified as DB

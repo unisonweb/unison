@@ -33,7 +33,7 @@ test =
                           Type.arrow () (tv "a") (tv "x")
                       )
                   )
-                  (Type.forall () (v "a") (tv "a"))
+                  (Type.forAll () (v "a") (tv "a"))
               tm' = Term.substTypeVar (v "x") (tv "a") tm
               expected =
                 Term.ann
@@ -45,7 +45,7 @@ test =
                           Type.arrow () (Type.var () $ v1 "a") (tv "a")
                       )
                   )
-                  (Type.forall () (v1 "a") (Type.var () $ v1 "a"))
+                  (Type.forAll () (v1 "a") (Type.var () $ v1 "a"))
           note $ show tm'
           note $ show expected
           expect $ tm == tm

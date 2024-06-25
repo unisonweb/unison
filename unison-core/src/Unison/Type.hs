@@ -451,28 +451,28 @@ arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
 ann :: (Ord v) => a -> Type v a -> K.Kind -> Type v a
 ann a e t = ABT.tm' a (Ann e t)
 
-forall :: (Ord v) => a -> v -> Type v a -> Type v a
-forall a v body = ABT.tm' a (Forall (ABT.abs' a v body))
+forAll :: (Ord v) => a -> v -> Type v a -> Type v a
+forAll a v body = ABT.tm' a (Forall (ABT.abs' a v body))
 
 introOuter :: (Ord v) => a -> v -> Type v a -> Type v a
 introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
 iff :: (Var v) => Type v ()
-iff = forall () aa $ arrows (f <$> [boolean (), a, a]) a
+iff = forAll () aa $ arrows (f <$> [boolean (), a, a]) a
   where
     aa = Var.named "a"
     a = var () aa
     f x = ((), x)
 
 iff' :: (Var v) => a -> Type v a
-iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
+iff' loc = forAll loc aa $ arrows (f <$> [boolean loc, a, a]) a
   where
     aa = Var.named "a"
     a = var loc aa
     f x = (loc, x)
 
 iff2 :: (Var v) => a -> Type v a
-iff2 loc = forall loc aa $ arrows (f <$> [a, a]) a
+iff2 loc = forAll loc aa $ arrows (f <$> [a, a]) a
   where
     aa = Var.named "a"
     a = var loc aa
@@ -498,11 +498,11 @@ v' s = ABT.var (Var.named s)
 av' :: (Var v) => a -> Text -> Type v a
 av' a s = ABT.annotatedVar a (Var.named s)
 
-forall' :: (Var v) => a -> [Text] -> Type v a -> Type v a
-forall' a vs body = foldr (forall a) body (Var.named <$> vs)
+forAll' :: (Var v) => a -> [Text] -> Type v a -> Type v a
+forAll' a vs body = foldr (forAll a) body (Var.named <$> vs)
 
 foralls :: (Ord v) => a -> [v] -> Type v a -> Type v a
-foralls a vs body = foldr (forall a) body vs
+foralls a vs body = foldr (forAll a) body vs
 
 -- Note: `a -> b -> c` parses as `a -> (b -> c)`
 -- the annotation associated with `b` will be the annotation for the `b -> c`
@@ -545,7 +545,7 @@ stripEffect t = ([], t)
 -- The type of the flipped function application operator:
 -- `(a -> (a -> b) -> b)`
 flipApply :: (Var v) => Type v () -> Type v ()
-flipApply t = forall () b $ arrow () (arrow () t (var () b)) (var () b)
+flipApply t = forAll () b $ arrow () (arrow () t (var () b)) (var () b)
   where
     b = ABT.fresh t (Var.named "b")
 
@@ -554,12 +554,12 @@ generalize' k t = generalize vsk t
   where
     vsk = [v | v <- Set.toList (freeVars t), Var.typeOf v == k]
 
--- | Bind the given variables with an outer `forall`, if they are used in `t`.
+-- | Bind the given variables with an outer `forAll`, if they are used in `t`.
 generalize :: (Ord v) => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
   where
     f v t =
-      if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
+      if Set.member v (ABT.freeVars t) then forAll (ABT.annotation t) v t else t
 
 unforall :: Type v a -> Type v a
 unforall (ForallsNamed' _ t) = t
@@ -755,7 +755,7 @@ functionResult = go False
 -- `.foo -> .foo` becomes `.foo -> .foo` (not changed)
 -- `.foo.bar -> blarrg.woot` becomes `.foo.bar -> blarrg.woot` (unchanged)
 generalizeLowercase :: (Var v) => Set v -> Type v a -> Type v a
-generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
+generalizeLowercase except t = foldr (forAll (ABT.annotation t)) t vars
   where
     vars =
       [v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v]
@@ -774,7 +774,7 @@ normalizeForallOrder tm0 =
   where
     step :: (a, v) -> Type v a -> Type v a
     step (a, v) body
-      | Set.member v (ABT.freeVars body) = forall a v body
+      | Set.member v (ABT.freeVars body) = forAll a v body
       | otherwise = body
     (body, vs0) = extract tm0
     vs = sortOn (\(_, v) -> Map.lookup v ind) vs0
