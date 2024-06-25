@@ -518,12 +518,9 @@ addConstraint con0 nc = do
     C.PosLit var pmlit ->
       let updateLiteral pos neg lit
             | Just lit1 <- pos,
-              lit1 == lit = case lit1 == lit of
-                -- we already have this positive constraint
-                True -> (pure (), Ignore)
-                -- contradicts positive info
-                False -> (contradiction, Ignore)
-            -- the constraint contradicts negative info
+              lit1 == lit =
+                (pure (), Ignore) -- we already have this positive constraint
+                -- the constraint contradicts negative info
             | Set.member lit neg = (contradiction, Ignore)
             | otherwise = (pure (), Update (Just lit, neg))
        in modifyLiteralC var pmlit updateLiteral nc
