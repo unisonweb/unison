@@ -14,57 +14,52 @@ The names that will be used in the target namespace are the names you specify, r
 Let's try it!
 
 ```ucm
-scratch/main> alias.many stuff.List.adjacentPairs stuff.List.all stuff.List.any stuff.List.chunk stuff.List.chunksOf stuff.List.dropWhile stuff.List.first stuff.List.init stuff.List.intersperse stuff.List.isEmpty stuff.List.last stuff.List.replicate stuff.List.splitAt stuff.List.tail stuff.List.takeWhile .mylib
+scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
 
-  Nothing changed in .mylib .
-
-  ⚠️
+  Here's what changed in mylib :
   
-  The following names were not found in the codebase. Check your spelling.
-    stuff.List.adjacentPairs
-    stuff.List.all
-    stuff.List.any
-    stuff.List.chunk
-    stuff.List.chunksOf
-    stuff.List.dropWhile
-    stuff.List.first
-    stuff.List.init
-    stuff.List.intersperse
-    stuff.List.isEmpty
-    stuff.List.last
-    stuff.List.replicate
-    stuff.List.splitAt
-    stuff.List.tail
-    stuff.List.takeWhile
+  Added definitions:
+  
+    1.  List.adjacentPairs : [a] -> [(a, a)]
+    2.  List.all           : (a ->{g} Boolean)
+                           -> [a]
+                           ->{g} Boolean
+    3.  List.any           : (a ->{g} Boolean)
+                           -> [a]
+                           ->{g} Boolean
+    4.  List.chunk         : Nat -> [a] -> [[a]]
+    5.  List.chunksOf      : Nat -> [a] -> [[a]]
+    6.  List.dropWhile     : (a ->{g} Boolean) -> [a] ->{g} [a]
+    7.  List.first         : [a] -> Optional a
+    8.  List.init          : [a] -> Optional [a]
+    9.  List.intersperse   : a -> [a] -> [a]
+    10. List.isEmpty       : [a] -> Boolean
+    11. List.last          : [a] -> Optional a
+    12. List.replicate     : Nat -> a -> [a]
+    13. List.splitAt       : Nat -> [a] -> ([a], [a])
+    14. List.tail          : [a] -> Optional [a]
+    15. List.takeWhile     : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+scratch/main> find-in mylib
+
+  1.  List.adjacentPairs : [a] -> [(a, a)]
+  2.  List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  3.  List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  4.  List.chunk : Nat -> [a] -> [[a]]
+  5.  List.chunksOf : Nat -> [a] -> [[a]]
+  6.  List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
+  7.  List.first : [a] -> Optional a
+  8.  List.init : [a] -> Optional [a]
+  9.  List.intersperse : a -> [a] -> [a]
+  10. List.isEmpty : [a] -> Boolean
+  11. List.last : [a] -> Optional a
+  12. List.replicate : Nat -> a -> [a]
+  13. List.splitAt : Nat -> [a] -> ([a], [a])
+  14. List.tail : [a] -> Optional [a]
+  15. List.takeWhile : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
+  
 
 ```
-
-```ucm
-scratch/main> alias.many stuff.List.adjacentPairs stuff.List.all stuff.List.any stuff.List.chunk stuff.List.chunksOf stuff.List.dropWhile stuff.List.first stuff.List.init stuff.List.intersperse stuff.List.isEmpty stuff.List.last stuff.List.replicate stuff.List.splitAt stuff.List.tail stuff.List.takeWhile .mylibscratch/main> find-in mylib
-```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  ⚠️
-  
-  The following names were not found in the codebase. Check your spelling.
-    stuff.List.adjacentPairs
-    stuff.List.all
-    stuff.List.any
-    stuff.List.chunk
-    stuff.List.chunksOf
-    stuff.List.dropWhile
-    stuff.List.first
-    stuff.List.init
-    stuff.List.intersperse
-    stuff.List.isEmpty
-    stuff.List.last
-    stuff.List.replicate
-    stuff.List.splitAt
-    stuff.List.tail
-    stuff.List.takeWhile
-
+Thanks, `alias.many!
