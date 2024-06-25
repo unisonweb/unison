@@ -50,7 +50,6 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , basement
@@ -102,7 +101,6 @@ test-suite util-bytes-tests
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , basement

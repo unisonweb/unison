@@ -45,7 +45,7 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -fno-warn-orphans
+  ghc-options: -Wall -Werror -fno-warn-orphans
   build-depends:
       base
     , sqlite-simple

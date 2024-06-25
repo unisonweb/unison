@@ -85,7 +85,7 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
+  ghc-options: -Wall -Werror -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   build-depends:
       base
     , bytestring

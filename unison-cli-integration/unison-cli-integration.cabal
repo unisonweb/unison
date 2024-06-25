@@ -58,7 +58,7 @@ executable cli-integration-tests
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  ghc-options: -Wall -Werror -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-tool-depends:
       unison-cli-main:unison
   build-depends:

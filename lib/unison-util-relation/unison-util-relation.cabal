@@ -39,7 +39,6 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , containers
@@ -70,7 +69,6 @@ test-suite util-relation-tests
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , code-page
@@ -105,7 +103,6 @@ benchmark relation
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , code-page

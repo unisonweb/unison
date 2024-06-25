@@ -60,7 +60,6 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , bytestring

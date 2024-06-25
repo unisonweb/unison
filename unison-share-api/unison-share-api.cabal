@@ -81,7 +81,6 @@ library
       TypeOperators
       ViewPatterns
       ImportQualifiedPost
-  ghc-options: -Wall
   build-depends:
       Diff
     , NanoID

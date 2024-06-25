@@ -36,7 +36,6 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , file-embed

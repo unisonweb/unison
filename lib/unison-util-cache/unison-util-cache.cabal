@@ -50,7 +50,6 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , containers
@@ -92,7 +91,6 @@ test-suite util-cache-tests
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       async
     , base

@@ -220,7 +220,7 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -Werror -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       IntervalMap
     , ListLike
@@ -416,7 +416,7 @@ test-suite parser-typechecker-tests
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  ghc-options: -Wall -Werror -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       IntervalMap
     , ListLike

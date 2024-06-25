@@ -180,7 +180,6 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       IntervalMap
     , ListLike
@@ -321,7 +320,7 @@ executable transcripts
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
+  ghc-options: -Wall -Werror -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       IntervalMap
     , ListLike
@@ -469,7 +468,6 @@ test-suite cli-tests
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       IntervalMap
     , ListLike

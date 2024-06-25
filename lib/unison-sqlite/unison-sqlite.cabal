@@ -61,7 +61,6 @@ library
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , direct-sqlite
@@ -122,7 +121,6 @@ test-suite tests
       TupleSections
       TypeApplications
       ViewPatterns
-  ghc-options: -Wall
   build-depends:
       base
     , code-page
