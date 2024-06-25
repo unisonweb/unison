@@ -25,13 +25,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: cachix/install-nix-action@v27
-      if: runner.os == 'Linux'
-      with:
-        extra_nix_config: |
-          extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
-          extra-substituters = https://cache.iog.io
-    - uses: cachix/install-nix-action@v27
-      if: runner.os != 'Linux'
     - uses: cachix/cachix-action@v15
       with:
         name: unison
