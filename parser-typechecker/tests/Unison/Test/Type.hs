@@ -28,7 +28,7 @@ test =
               v2 = Var.named "b"
               vt = var () v
               vt2 = var () v2
-              x = forall () v (nat () --> effect () [vt, builtin () "eff"] (nat ())) :: Type Symbol ()
-              y = forall () v2 (nat () --> effect () [vt2] (nat ())) :: Type Symbol ()
+              x = forAll () v (nat () --> effect () [vt, builtin () "eff"] (nat ())) :: Type Symbol ()
+              y = forAll () v2 (nat () --> effect () [vt2] (nat ())) :: Type Symbol ()
           expect . not $ Typechecker.isSubtype x y
       ]
