@@ -65,6 +65,6 @@ ping = 3
   pong : 'Nat
   pong _ =
     use Nat +
-    !#4t465jk908.1 + 2
+    #4t465jk908.1() + 2
 
 ```

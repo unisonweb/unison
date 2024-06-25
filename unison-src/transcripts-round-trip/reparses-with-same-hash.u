@@ -544,6 +544,14 @@ fix_4384e =
   id x = x
   {{ {{ docExampleBlock 0 (id id id id id id id id id id id id id id id id id id id id id (x -> 0) }} }}
 
+fnApplicationSyntax = 
+  Environment.default = do 1 + 1
+  oog = do 2 + 2
+  blah : Nat -> Float -> Nat
+  blah x y = x + 1 
+  _ = blah Environment.default() 1.0 
+  blah oog() (Float.max 1.0 2.0)
+
 fix_4727 = {{ `` 0xs900dc0ffee `` }}
 
 fix_4729a = {{

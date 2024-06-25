@@ -39,6 +39,7 @@ module Unison.Syntax.Parser
     run,
     semi,
     Unison.Syntax.Parser.seq,
+    Unison.Syntax.Parser.seq',
     sepBy,
     sepBy1,
     string,
