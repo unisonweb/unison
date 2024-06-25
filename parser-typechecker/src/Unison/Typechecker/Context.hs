@@ -2561,8 +2561,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
       | Set.member v (existentials ctx)
           && notMember v (Type.freeVars t) = do
-          e <- extendExistential Var.inferAbility
-          instantiateL b v (relax' False e t)
+          instantiateL b v t
     go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
       | Set.member v (existentials ctx)
           && notMember v (Type.freeVars t) = do
