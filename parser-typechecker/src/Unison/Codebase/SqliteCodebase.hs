@@ -185,10 +185,10 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
           DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
           MigrateAfterPrompt backupStrategy vacuumStrategy -> do
             let shouldPrompt = True
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root shouldPrompt backupStrategy vacuumStrategy conn
           MigrateAutomatically backupStrategy vacuumStrategy -> do
             let shouldPrompt = False
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
+            Migrations.ensureCodebaseIsUpToDate localOrRemote root shouldPrompt backupStrategy vacuumStrategy conn
 
   case result of
     Left err -> pure $ Left err
