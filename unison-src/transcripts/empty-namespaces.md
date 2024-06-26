@@ -31,9 +31,9 @@ scratch/main> history mynamespace
 Merging an empty namespace should be a no-op
 
 ```ucm:error
-scratch/main empty> history
-scratch/main empty> merge.old .mynamespace
-scratch/main empty> history
+scratch/main> history empty
+scratch/main> merge.old empty .mynamespace
+scratch/main> history empty
 ```
 
 Add and then delete a term to add some history to a deleted namespace.

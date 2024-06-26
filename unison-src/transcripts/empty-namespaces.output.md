@@ -58,21 +58,19 @@ scratch/main> history mynamespace
 Merging an empty namespace should be a no-op
 
 ```ucm
-  ☝️  The namespace .empty is empty.
+scratch/main> history empty
 
-.empty> history
+  ☝️  The namespace empty is empty.
 
-  ☝️  The namespace .empty is empty.
-
-.empty> merge.old .mynamespace
+scratch/main> merge.old empty .mynamespace
 
   ⚠️
   
-  The namespace .mynamespace doesn't exist.
+  The namespace empty doesn't exist.
 
-.empty> history
+scratch/main> history empty
 
-  ☝️  The namespace .empty is empty.
+  ☝️  The namespace empty is empty.
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
