@@ -6,6 +6,6 @@ mynamespace.dependsOnText = external.mynat Nat.+ 10
 ```
 
 ```ucm
-scratch/main> add
-scratch/main mynamespace> namespace.dependencies
+.> add
+.mynamespace> namespace.dependencies
 ```
