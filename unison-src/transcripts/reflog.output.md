@@ -15,15 +15,15 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : ##Nat
+      x : Nat
 
 ```
 ```ucm
-scratch/main> add
+.> add
 
   ⍟ I've added these definitions:
   
-    x : ##Nat
+    x : Nat
 
 ```
 ```unison
@@ -40,40 +40,41 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : ##Nat
+      y : Nat
 
 ```
 ```ucm
-scratch/main> add
+.> add
 
   ⍟ I've added these definitions:
   
-    y : ##Nat
+    y : Nat
 
-scratch/main> view y
+.> view y
 
-  y : ##Nat
+  y : Nat
   y = 2
 
 ```
 ```ucm
-scratch/main> reflog
+.> reflog
 
   Here is a log of the root namespace hashes, starting with the
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #tfjr264n82 .old`   to make an old namespace
+    `fork #p611n6o5ve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #tfjr264n82`  to reset the root namespace and
+    `reset-root #p611n6o5ve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Root Hash     Action
-  1.   now    #lt901sgk5s   add
-  2.   now    #tfjr264n82   add
-  3.          #sg60bvjo91   history starts here
+  1.   now    #rmu2vgm86a   add
+  2.   now    #p611n6o5ve   add
+  3.   now    #4bigcpnl7t   builtins.merge
+  4.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
@@ -81,13 +82,13 @@ scratch/main> reflog
 ```
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-scratch/main> reset-root 2
+.> reset-root 2
 
   Done.
 
 ```
 ```ucm
-scratch/main> view y
+.> view y
 
   ⚠️
   
