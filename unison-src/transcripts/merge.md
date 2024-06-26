@@ -456,6 +456,17 @@ project/alice> merge /bob
 .> project.delete project
 ```
 
+## No-op merge: merge empty namespace into empty namespace
+
+```ucm
+project/main> branch topic
+project/main> merge /topic
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## Merge failure: someone deleted something
 
 If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the delete, as explained above), then the delete goes through.

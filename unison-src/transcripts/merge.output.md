@@ -470,6 +470,23 @@ project/alice> merge /bob
   I fast-forward merged project/bob into project/alice.
 
 ```
+## No-op merge: merge empty namespace into empty namespace
+
+```ucm
+project/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+project/main> merge /topic
+
+  😶
+  
+  project/main was already up-to-date with project/topic.
+
+```
 ## Merge failure: someone deleted something
 
 If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the delete, as explained above), then the delete goes through.
