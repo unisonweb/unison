@@ -1,9 +1,9 @@
 ```unison
-foo = "bar"
+`()`.foo = "bar"
 ```
 
 ```ucm
-.`()`> add
+scratch/main> add
 scratch/main> find
 scratch/main> find-in `()`
 scratch/main> delete.namespace `()`

@@ -1,5 +1,5 @@
 ```unison
-foo = "bar"
+`()`.foo = "bar"
 ```
 
 ```ucm
@@ -12,50 +12,28 @@ foo = "bar"
   
     ⍟ These new definitions are ok to `add`:
     
-      foo : ##Text
+      `()`.foo : ##Text
 
 ```
 ```ucm
-  ☝️  The namespace .`()` is empty.
-
-.`()`> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    foo : ##Text
+    `()`.foo : ##Text
 
 scratch/main> find
 
-  ☝️
+  1. `()`.foo : ##Text
   
-  I couldn't find matches in this namespace, searching in
-  'lib'...
 
-  😶
+scratch/main> find-in `()`
+
+  1. foo : ##Text
   
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
-  `find.global` can be used to search outside the current
-  namespace.
+
+scratch/main> delete.namespace `()`
+
+  Done.
 
 ```
-
-```ucm
-.`()`> addscratch/main> findscratch/main> find-in `()`scratch/main> delete.namespace `()`
-```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
-  `find.global` can be used to search outside the current
-  namespace.
-
