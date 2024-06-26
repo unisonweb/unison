@@ -3,5 +3,5 @@
 ```
 
 ```ucm
-.> update
+scratch/main> update
 ```

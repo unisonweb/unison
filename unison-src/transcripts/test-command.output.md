@@ -25,7 +25,7 @@ foo.test2 = [Ok "test2"]
 
 ```
 ```ucm
-.> test
+scratch/main> test
 
   ✅  
 
@@ -50,7 +50,7 @@ foo.test2 = [Ok "test2"]
 Tests should be cached if unchanged.
 
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -65,8 +65,8 @@ Tests should be cached if unchanged.
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ```unison
-testInLib : [Result]
-testInLib = [Ok "testInLib"]
+lib.dep.testInLib : [Result]
+lib.dep.testInLib = [Ok "testInLib"]
 ```
 
 ```ucm
@@ -79,11 +79,11 @@ testInLib = [Ok "testInLib"]
   
     ⍟ These new definitions are ok to `add`:
     
-      testInLib : [Result]
+      lib.dep.testInLib : [Result]
 
 ```
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
@@ -94,7 +94,7 @@ testInLib = [Ok "testInLib"]
   
   Tip: Use view foo.test2 to view the source of a test.
 
-.> test.all
+scratch/main> test.all
 
     
     Cached test results (`help testcache` to learn more)
@@ -112,31 +112,31 @@ testInLib = [Ok "testInLib"]
 
     New test results:
   
-  ◉ lib.testInLib   testInLib
+  ◉ lib.dep.testInLib   testInLib
   
   ✅ 1 test(s) passing
   
-  Tip: Use view lib.testInLib to view the source of a test.
+  Tip: Use view lib.dep.testInLib to view the source of a test.
 
 ```
-`test` WILL run tests within `lib` if ucm is cd'd inside.
+`test` WILL run tests within `lib` if specified explicitly.
 
 ```ucm
-.lib> test
+scratch/main> test lib.dep
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ testInLib   testInLib
+  ◉ lib.dep.testInLib   testInLib
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testInLib to view the source of a test.
+  Tip: Use view lib.dep.testInLib to view the source of a test.
 
 ```
 `test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
 
 ```ucm
-.> test foo
+scratch/main> test foo
 
   Cached test results (`help testcache` to learn more)
   

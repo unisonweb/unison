@@ -1,7 +1,7 @@
 # Namespace Details Test
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison
@@ -14,7 +14,7 @@ Here's a *README*!
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api

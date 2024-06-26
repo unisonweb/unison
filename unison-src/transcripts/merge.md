@@ -48,7 +48,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Basic merge: two identical adds
@@ -89,7 +89,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Simple update propagation
@@ -142,7 +142,7 @@ project/alice> display bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update propagation with common dependent
@@ -208,7 +208,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Propagating an update to an update
@@ -278,7 +278,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update + delete isn't (currently) a conflict
@@ -323,7 +323,7 @@ project/alice> view foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 In a future version, we'd like to give the user a warning at least.
@@ -379,7 +379,7 @@ project/alice> view foo bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob = Alice)
@@ -397,7 +397,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob < Alice)
@@ -425,7 +425,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Fast-forward merge (Bob > Alice)
@@ -453,7 +453,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge: merge empty namespace into empty namespace
@@ -509,7 +509,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type error
@@ -559,7 +559,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple term conflict
@@ -624,7 +624,7 @@ project/merge-bob-into-alice> view bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple type conflict
@@ -667,7 +667,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type-update + constructor-rename conflict
@@ -710,7 +710,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: constructor-rename conflict
@@ -748,7 +748,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: non-constructor/constructor conflict
@@ -789,7 +789,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type/type conflict with term/constructor conflict
@@ -840,7 +840,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 Here's a more involved example that demonstrates the same idea.
@@ -913,7 +913,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge algorithm quirk: add/add unique types
@@ -923,143 +923,6 @@ The result may be confusing to a user – a file containing two identical-lookin
 which is a parse error.
 
 We will resolve this situation automatically in a future version.
-
-```ucm:hide
-project/main> builtins.mergeio lib.builtins
-```
-
-```ucm:hide
-project/main> branch alice
-```
-
-Alice's additions:
-```unison:hide
-unique type Foo = Bar
-
-alice : Foo -> Nat
-alice _ = 18
-```
-
-```ucm:hide
-project/alice> add
-project/main> branch bob
-```
-
-Bob's additions:
-```unison:hide
-unique type Foo = Bar
-
-bob : Foo -> Nat
-bob _ = 19
-```
-
-```ucm:hide
-project/bob> add
-```
-
-```ucm:error
-project/alice> merge bob
-```
-
-```ucm:hide
-.> project.delete project
-```
-
-## `merge.commit` example (success)
-
-After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
-"commit" your changes.
-
-```ucm:hide
-.> project.create-empty project
-project/main> builtins.mergeio lib.builtins
-```
-
-Original branch:
-```unison:hide
-foo : Text
-foo = "old foo"
-```
-
-```ucm:hide
-project/main> add
-project/main> branch alice
-```
-
-Alice's changes:
-```unison:hide
-foo : Text
-foo = "alices foo"
-```
-
-```ucm:hide
-project/alice> update
-project/main> branch bob
-```
-
-Bob's changes:
-
-```unison:hide
-foo : Text
-foo = "bobs foo"
-```
-
-Attempt to merge:
-
-```ucm:hide
-project/bob> update
-```
-```ucm:error
-project/alice> merge /bob
-```
-
-Resolve conflicts and commit:
-
-```unison
-foo : Text
-foo = "alice and bobs foo"
-```
-
-```ucm
-project/merge-bob-into-alice> update
-project/merge-bob-into-alice> merge.commit
-project/alice> view foo
-project/alice> branches
-```
-
-```ucm:hide
-.> project.delete project
-```
-
-## `merge.commit` example (failure)
-
-`merge.commit` can only be run on a "merge branch".
-
-```ucm:hide
-.> project.create-empty project
-project/main> builtins.mergeio lib.builtins
-```
-
-```ucm
-project/main> branch topic
-```
-
-```ucm:error
-project/topic> merge.commit
-```
-
-```ucm:hide
-.> project.delete project
-```
-
-
-## Precondition violations
-
-There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
-
-### Conflicted aliases
-
-If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
 
 ```ucm:hide
 project/main> builtins.mergeio lib.builtins
@@ -1108,7 +971,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Conflict involving builtin
@@ -1149,7 +1012,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Constructor alias
@@ -1195,7 +1058,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Missing constructor name
@@ -1242,7 +1105,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Nested decl alias
@@ -1290,7 +1153,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Stray constructor alias
@@ -1334,7 +1197,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Term or type in `lib`
@@ -1375,7 +1238,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## LCA precondition violations
@@ -1441,7 +1304,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Regression tests
@@ -1486,7 +1349,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Delete a constructor

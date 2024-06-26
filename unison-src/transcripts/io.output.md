@@ -59,13 +59,13 @@ testCreateRename _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testCreateRename : '{IO} [Result]
 
-.> io.test testCreateRename
+scratch/main> io.test testCreateRename
 
     New test results:
   
@@ -141,13 +141,13 @@ testOpenClose _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testOpenClose : '{IO} [Result]
 
-.> io.test testOpenClose
+scratch/main> io.test testOpenClose
 
     New test results:
   
@@ -231,13 +231,13 @@ testGetSomeBytes _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetSomeBytes : '{IO} [Result]
 
-.> io.test testGetSomeBytes
+scratch/main> io.test testGetSomeBytes
 
     New test results:
   
@@ -339,14 +339,14 @@ testAppend _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testAppend : '{IO} [Result]
     testSeek   : '{IO} [Result]
 
-.> io.test testSeek
+scratch/main> io.test testSeek
 
     New test results:
   
@@ -362,7 +362,7 @@ testAppend _ =
   
   Tip: Use view testSeek to view the source of a test.
 
-.> io.test testAppend
+scratch/main> io.test testAppend
 
     New test results:
   
@@ -398,13 +398,13 @@ testSystemTime _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testSystemTime : '{IO} [Result]
 
-.> io.test testSystemTime
+scratch/main> io.test testSystemTime
 
     New test results:
   
@@ -428,13 +428,13 @@ testGetTempDirectory _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetTempDirectory : '{IO} [Result]
 
-.> io.test testGetTempDirectory
+scratch/main> io.test testGetTempDirectory
 
     New test results:
   
@@ -460,13 +460,13 @@ testGetCurrentDirectory _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetCurrentDirectory : '{IO} [Result]
 
-.> io.test testGetCurrentDirectory
+scratch/main> io.test testGetCurrentDirectory
 
     New test results:
   
@@ -494,13 +494,13 @@ testDirContents _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testDirContents : '{IO} [Result]
 
-.> io.test testDirContents
+scratch/main> io.test testDirContents
 
     New test results:
   
@@ -527,13 +527,13 @@ testGetEnv _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetEnv : '{IO} [Result]
 
-.> io.test testGetEnv
+scratch/main> io.test testGetEnv
 
     New test results:
   
@@ -581,7 +581,7 @@ testGetArgs.runMeWithTwoArgs = 'let
 
 Test that they can be run with the right number of args.
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -590,15 +590,15 @@ Test that they can be run with the right number of args.
     testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
     testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
 
-.> run runMeWithNoArgs
+scratch/main> run runMeWithNoArgs
 
   ()
 
-.> run runMeWithOneArg foo
+scratch/main> run runMeWithOneArg foo
 
   ()
 
-.> run runMeWithTwoArgs foo bar
+scratch/main> run runMeWithTwoArgs foo bar
 
   ()
 
@@ -606,7 +606,7 @@ Test that they can be run with the right number of args.
 Calling our examples with the wrong number of args will error.
 
 ```ucm
-.> run runMeWithNoArgs foo
+scratch/main> run runMeWithNoArgs foo
 
   💔💥
   
@@ -619,7 +619,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithOneArg
+scratch/main> run runMeWithOneArg
 
   💔💥
   
@@ -632,7 +632,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithOneArg foo bar
+scratch/main> run runMeWithOneArg foo bar
 
   💔💥
   
@@ -646,7 +646,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithTwoArgs
+scratch/main> run runMeWithTwoArgs
 
   💔💥
   
@@ -668,13 +668,13 @@ testTimeZone = do
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testTimeZone : '{IO} ()
 
-.> run testTimeZone
+scratch/main> run testTimeZone
 
   ()
 
@@ -691,13 +691,13 @@ testRandom = do
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testRandom : '{IO} [Result]
 
-.> io.test testGetEnv
+scratch/main> io.test testGetEnv
 
     New test results:
   

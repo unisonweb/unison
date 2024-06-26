@@ -68,7 +68,7 @@ mkTestCase = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -84,7 +84,7 @@ mkTestCase = do
     reset      : '{DC r} r -> r
     suspSum    : [Nat] -> Delayed Nat
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

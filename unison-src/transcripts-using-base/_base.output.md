@@ -53,13 +53,13 @@ testAutoClean _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testAutoClean : '{IO} [Result]
 
-.> io.test testAutoClean
+scratch/main> io.test testAutoClean
 
     New test results:
   

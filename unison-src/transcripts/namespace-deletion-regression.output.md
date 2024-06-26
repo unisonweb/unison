@@ -8,23 +8,23 @@ Previously the following sequence delete the current namespace
 unexpectedly 😬.
 
 ```ucm
-.> alias.term ##Nat.+ .Nat.+
+scratch/main> alias.term ##Nat.+ Nat.+
 
   Done.
 
-.> ls Nat
+scratch/main> ls Nat
 
   1. + (##Nat -> ##Nat -> ##Nat)
 
-.> move.namespace Nat Nat.operators
+scratch/main> move.namespace Nat Nat.operators
 
   Done.
 
-.> ls Nat
+scratch/main> ls Nat
 
   1. operators/ (1 term)
 
-.> ls Nat.operators
+scratch/main> ls Nat.operators
 
   1. + (##Nat -> ##Nat -> ##Nat)
 

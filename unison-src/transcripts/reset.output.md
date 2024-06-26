@@ -17,13 +17,13 @@ a = 5
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     a : Nat
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -36,11 +36,11 @@ a = 5
   
   □ 2. #4bigcpnl7t (start of history)
 
-.> reset 2
+scratch/main> reset 2
 
   Done.
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -68,17 +68,17 @@ foo.a = 5
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     foo.a : Nat
 
-.> ls foo
+scratch/main> ls foo
 
   1. a (Nat)
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -91,11 +91,11 @@ foo.a = 5
   
   □ 2. #4bigcpnl7t (start of history)
 
-.> reset 1 foo
+scratch/main> reset 1 foo
 
   Done.
 
-.> ls foo.foo
+scratch/main> ls foo.foo
 
   1. a (Nat)
 

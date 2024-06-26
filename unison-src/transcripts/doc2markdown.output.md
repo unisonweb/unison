@@ -82,7 +82,7 @@ Table
 ```
 
 ```ucm
-.> debug.doc-to-markdown fulldoc
+scratch/main> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
   

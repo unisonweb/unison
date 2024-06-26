@@ -26,14 +26,14 @@ threadEyeDeez _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
-.> run threadEyeDeez
+scratch/main> run threadEyeDeez
 
   (false, true)
 

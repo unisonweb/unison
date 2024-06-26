@@ -19,13 +19,13 @@ test2 = do
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```ucm:error
-.> io.test test1
+scratch/main> io.test test1
 ```
 
 ```ucm:error
-.> io.test test2
+scratch/main> io.test test2
 ```

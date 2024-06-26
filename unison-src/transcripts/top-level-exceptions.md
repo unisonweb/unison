@@ -2,13 +2,13 @@
 A simple transcript to test the use of exceptions that bubble to the top level.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 FYI, here are the `Exception` and `Failure` types:
 
 ```ucm
-.> view Exception Failure
+scratch/main> view Exception Failure
 ```
 
 Here's a sample program just to verify that the typechecker allows `run` to throw exceptions:
@@ -24,9 +24,9 @@ mytest _ = [Ok "Great"]
 ```
 
 ```ucm
-.> run main
-.> add
-.> io.test mytest
+scratch/main> run main
+scratch/main> add
+scratch/main> io.test mytest
 ```
 
 Now a test to show the handling of uncaught exceptions:
@@ -42,5 +42,5 @@ unique type RuntimeError =
 ```
 
 ```ucm:error
-.> run main2
+scratch/main> run main2
 ```
