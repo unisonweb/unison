@@ -75,6 +75,7 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
+import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -831,14 +832,6 @@ renderTypeError e env src = case e of
       let sz = length wrongs
           pl a b = if sz == 1 then a else b
        in mconcat [txt pl, intercalateMap "\n" (renderSuggestion env) wrongs]
-    ordinal :: (IsString s) => Int -> s
-    ordinal n =
-      fromString $
-        show n ++ case last (show n) of
-          '1' -> "st"
-          '2' -> "nd"
-          '3' -> "rd"
-          _ -> "th"
     debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
     debugSummary :: C.ErrorNote v loc -> Pretty ColorText
     debugSummary note =

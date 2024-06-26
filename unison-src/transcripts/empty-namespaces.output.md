@@ -55,26 +55,6 @@ The history of the namespace should be empty.
   ☝️  The namespace .mynamespace is empty.
 
 ```
-Merging an empty namespace should be a no-op
-
-```ucm
-  ☝️  The namespace .empty is empty.
-
-.empty> history
-
-  ☝️  The namespace .empty is empty.
-
-.empty> merge.old .mynamespace
-
-  ⚠️
-  
-  The namespace .mynamespace doesn't exist.
-
-.empty> history
-
-  ☝️  The namespace .empty is empty.
-
-```
 Add and then delete a term to add some history to a deleted namespace.
 
 ```unison

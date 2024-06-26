@@ -53,6 +53,7 @@ import Unison.Codebase.Editor.Output
     Output (..),
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
+    TodoOutput,
     UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
   )
 import Unison.Codebase.Editor.Output qualified as E
@@ -63,7 +64,6 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
@@ -330,7 +330,7 @@ notifyNumbered = \case
         )
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
-  TodoOutput hashLen names todo -> todoOutput hashLen names todo
+  Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
   CantDeleteDefinitions ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -2660,49 +2660,67 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: (Var v) => Int -> PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
-todoOutput hashLen ppe todo =
-  runNumbered do
-    prettyConflicts <-
-      if TO.noConflicts todo
-        then pure mempty
-        else renderNameConflicts ppeu todo.nameConflicts
+handleTodoOutput :: TodoOutput -> Numbered Pretty
+handleTodoOutput todo = do
+  prettyConflicts <-
+    if todo.nameConflicts == mempty
+      then pure mempty
+      else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
 
-    prettyDirectTermDependenciesWithoutNames <- do
-      if Set.null todo.directDependenciesWithoutNames.terms
-        then pure mempty
-        else do
-          terms <-
-            for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
-              n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
-              pure (formatNum n <> P.syntaxToColor (prettyReference hashLen term))
-          pure $
-            P.wrap "These terms do not have any names in the current namespace:"
-              <> P.newline
-              <> P.newline
-              <> P.indentN 2 (P.lines terms)
+  prettyDependentsOfTodo <- do
+    if Set.null todo.dependentsOfTodo
+      then pure mempty
+      else do
+        terms <-
+          for (Set.toList todo.dependentsOfTodo) \term -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.idToShortHash term)))
+            let name =
+                  term
+                    & Referent.fromTermReferenceId
+                    & PPE.termName todo.ppe.suffixifiedPPE
+                    & prettyHashQualified
+                    & P.syntaxToColor
+            pure (formatNum n <> name)
+        pure $
+          P.wrap "These terms call `todo`:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines terms)
 
-    prettyDirectTypeDependenciesWithoutNames <- do
-      if Set.null todo.directDependenciesWithoutNames.types
-        then pure mempty
-        else do
-          types <-
-            for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
-              n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
-              pure (formatNum n <> P.syntaxToColor (prettyReference hashLen typ))
-          pure $
-            P.wrap "These types do not have any names in the current namespace:"
-              <> P.newline
-              <> P.newline
-              <> P.indentN 2 (P.lines types)
+  prettyDirectTermDependenciesWithoutNames <- do
+    if Set.null todo.directDependenciesWithoutNames.terms
+      then pure mempty
+      else do
+        terms <-
+          for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
+            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
+        pure $
+          P.wrap "These terms do not have any names in the current namespace:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines terms)
 
-    (pure . P.sep "\n\n" . P.nonEmpty)
-      [ prettyConflicts,
-        prettyDirectTermDependenciesWithoutNames,
-        prettyDirectTypeDependenciesWithoutNames
-      ]
-  where
-    ppeu = PPED.unsuffixifiedPPE ppe
+  prettyDirectTypeDependenciesWithoutNames <- do
+    if Set.null todo.directDependenciesWithoutNames.types
+      then pure mempty
+      else do
+        types <-
+          for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
+            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
+        pure $
+          P.wrap "These types do not have any names in the current namespace:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines types)
+
+  (pure . P.sep "\n\n" . P.nonEmpty)
+    [ prettyDependentsOfTodo,
+      prettyDirectTermDependenciesWithoutNames,
+      prettyDirectTypeDependenciesWithoutNames,
+      prettyConflicts
+    ]
 
 listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty

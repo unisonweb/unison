@@ -456,6 +456,17 @@ project/alice> merge /bob
 .> project.delete project
 ```
 
+## No-op merge: merge empty namespace into empty namespace
+
+```ucm
+project/main> branch topic
+project/main> merge /topic
+```
+
+```ucm:hide
+.> project.delete project
+```
+
 ## Merge failure: someone deleted something
 
 If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the delete, as explained above), then the delete goes through.
@@ -1582,4 +1593,55 @@ But `bar` was put into the scratch file instead.
 
 ```ucm:hide
 .> project.delete project
+```
+
+### Merge loop test
+
+This tests for regressions of https://github.com/unisonweb/unison/issues/1276 where trivial merges cause loops in the
+history.
+
+Let's make three identical namespaces with different histories:
+
+```unison
+a = 1
+```
+
+```ucm
+project/alice> add
+```
+
+```unison
+b = 2
+```
+
+```ucm
+project/alice> add
+```
+
+```unison
+b = 2
+```
+
+```ucm
+project/bob> add
+```
+
+```unison
+a = 1
+```
+
+```ucm
+project/bob> add
+```
+
+```unison
+a = 1
+b = 2
+```
+
+```ucm
+project/carol> add
+project/bob> merge /alice
+project/carol> merge /bob
+project/carol> history
 ```

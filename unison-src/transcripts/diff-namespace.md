@@ -12,9 +12,11 @@ x = 23
 .> fork b1 b2
 .b2> alias.term x abc
 ```
+
 ```unison:hide
 fslkdjflskdjflksjdf = 663
 ```
+
 ```ucm
 .b0> add
 .> merge.old b0 b1
