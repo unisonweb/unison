@@ -1,19 +1,17 @@
 The `branch` command creates a new branch.
 
-First, we'll just create a loose code namespace with a term in it for later.
+First, we'll create a term to include in the branches.
 
 ```unison
 someterm = 18
 ```
 
 ```ucm
-  ☝️  The namespace .some.loose.code.lib is empty.
-
-.some.loose.code.lib> builtins.merge
+scratch/main> builtins.merge lib.builtins
 
   Done.
 
-.some.loose.code> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -23,7 +21,7 @@ someterm = 18
 Now, the `branch` demo:
 
 `branch` can create a branch from a different branch in the same project, from a different branch in a different
-project, or from loose code. It can also create an empty branch.
+project. It can also create an empty branch.
 
 ```ucm
 foo/main> branch topic1
@@ -125,26 +123,6 @@ bar/main> branch foo/main /topic3
 scratch/main> branch foo/main bar/topic4
 
   Done. I've created the bar/topic4 branch based off foo/main.
-
-.some.loose.code> branch foo/topic13
-
-  Done. I've created the foo/topic13 branch from the namespace
-  .some.loose.code.
-
-foo/main> branch .some.loose.code topic14
-
-  Done. I've created the foo/topic14 branch from the namespace
-  .some.loose.code.
-
-foo/main> branch .some.loose.code /topic15
-
-  Done. I've created the foo/topic15 branch from the namespace
-  .some.loose.code.
-
-scratch/main> branch .some.loose.code foo/topic16
-
-  Done. I've created the foo/topic16 branch from the namespace
-  .some.loose.code.
 
 foo/main> branch.empty empty1
 

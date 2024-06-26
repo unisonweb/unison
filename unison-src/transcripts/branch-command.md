@@ -5,21 +5,21 @@ scratch/main> project.create-empty foo
 scratch/main> project.create-empty bar
 ```
 
-First, we'll just create a loose code namespace with a term in it for later.
+First, we'll create a term to include in the branches.
 
 ```unison:hide
 someterm = 18
 ```
 
 ```ucm
-scratch/main some.loose.code.lib> builtins.merge
-scratch/main some.loose.code> add
+scratch/main> builtins.merge lib.builtins
+scratch/main> add
 ```
 
 Now, the `branch` demo:
 
 `branch` can create a branch from a different branch in the same project, from a different branch in a different
-project, or from loose code. It can also create an empty branch.
+project. It can also create an empty branch.
 
 ```ucm
 foo/main> branch topic1
@@ -39,11 +39,6 @@ foo/main> branch bar/topic
 bar/main> branch foo/main topic2
 bar/main> branch foo/main /topic3
 scratch/main> branch foo/main bar/topic4
-
-scratch/main some.loose.code> branch foo/topic13
-foo/main> branch .some.loose.code topic14
-foo/main> branch .some.loose.code /topic15
-scratch/main> branch .some.loose.code foo/topic16
 
 foo/main> branch.empty empty1
 foo/main> branch.empty /empty2
