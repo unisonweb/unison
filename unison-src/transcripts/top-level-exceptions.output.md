@@ -55,11 +55,11 @@ mytest _ = [Ok "Great"]
 
     New test results:
   
-  ◉ mytest   Great
+    1. ◉ mytest   Great
   
   ✅ 1 test(s) passing
   
-  Tip: Use view mytest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Now a test to show the handling of uncaught exceptions:

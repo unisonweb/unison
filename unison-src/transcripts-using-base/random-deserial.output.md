@@ -89,14 +89,14 @@ serialTests = do
 
     New test results:
   
-  ◉ serialTests   case-00
-  ◉ serialTests   case-01
-  ◉ serialTests   case-02
-  ◉ serialTests   case-03
-  ◉ serialTests   case-04
+    1. ◉ serialTests   case-00
+    2. ◉ serialTests   case-01
+    3. ◉ serialTests   case-02
+    4. ◉ serialTests   case-03
+    5. ◉ serialTests   case-04
   
   ✅ 5 test(s) passing
   
-  Tip: Use view serialTests to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
