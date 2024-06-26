@@ -1,5 +1,102 @@
 # Tests for `move.namespace`
 
+
+## Moving the Root
+
+I should be able to move the root into a sub-namespace
+
+```unison
+foo = 1
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    foo : ##Nat
+
+-- Should request confirmation
+.> move.namespace . .root.at.path
+
+  ⚠️
+  
+  Moves which affect the root branch cannot be undone, are you sure?
+  Re-run the same command to proceed.
+
+.> move.namespace . .root.at.path
+
+  Done.
+
+.> ls
+
+  1. root/ (1 term)
+
+.> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #g97lh1m2v7 (start of history)
+
+```
+```ucm
+.> ls .root.at.path
+
+  1. foo (##Nat)
+
+.> history .root.at.path
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #08a6hgi6s4 (start of history)
+
+```
+I should be able to move a sub namespace _over_ the root.
+
+```ucm
+-- Should request confirmation
+.> move.namespace .root.at.path .
+
+  ⚠️
+  
+  Moves which affect the root branch cannot be undone, are you sure?
+  Re-run the same command to proceed.
+
+.> move.namespace .root.at.path .
+
+  Done.
+
+.> ls
+
+  1. foo (##Nat)
+
+.> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #08a6hgi6s4 (start of history)
+
+```
+```ucm
+-- should be empty
+.> ls .root.at.path
+
+  nothing to show
+
+.> history .root.at.path
+
+  ☝️  The namespace .root.at.path is empty.
+
+```
 ## Happy path
 
 Create a namespace and add some history to it
@@ -24,7 +121,7 @@ unique type a.T = T
 
 ```
 ```ucm
-.happy> add
+scratch/happy> add
 
   ⍟ I've added these definitions:
   
@@ -53,7 +150,7 @@ unique type a.T = T1 | T2
 
 ```
 ```ucm
-.happy> update
+scratch/happy> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -64,22 +161,22 @@ unique type a.T = T1 | T2
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
 
 ```ucm
-.happy> move.namespace a b
+scratch/happy> move.namespace a b
 
   Done.
 
-.happy> ls b
+scratch/happy> ls b
 
   1. T       (type)
   2. T/      (2 terms)
   3. termInA (Nat)
 
-.happy> history b
+scratch/happy> history b
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #4j747vnmdk
+  ⊙ 1. #rkvfe5p8fu
   
     + Adds / updates:
     
@@ -89,11 +186,10 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
     
       T.T
   
-  □ 2. #r71j4144fe (start of history)
+  □ 2. #avlnmh0erc (start of history)
 
 ```
 ## Namespace history
-
 
 Create some namespaces and add some history to them
 
@@ -117,7 +213,7 @@ b.termInB = 10
 
 ```
 ```ucm
-.history> add
+scratch/history> add
 
   ⍟ I've added these definitions:
   
@@ -146,7 +242,7 @@ b.termInB = 11
 
 ```
 ```ucm
-.history> update
+scratch/history> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -156,19 +252,19 @@ b.termInB = 11
 ```
 Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
-of the moved namespace. 
+of the moved namespace.
 
 ```ucm
-.history> delete.namespace b
+scratch/history> delete.namespace b
 
   Done.
 
-.history> move.namespace a b
+scratch/history> move.namespace a b
 
   Done.
 
 -- Should be the history from 'a'
-.history> history b
+scratch/history> history b
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -182,12 +278,12 @@ of the moved namespace.
   □ 2. #m8smmmgjso (start of history)
 
 -- Should be empty
-.history> history a
+scratch/history> history a
 
-  ☝️  The namespace .history.a is empty.
+  ☝️  The namespace a is empty.
 
 ```
-## Moving over an existing branch 
+## Moving over an existing branch
 
 Create some namespace and add some history to them
 
@@ -211,7 +307,7 @@ b.termInB = 10
 
 ```
 ```ucm
-.existing> add
+scratch/existing> add
 
   ⍟ I've added these definitions:
   
@@ -240,14 +336,14 @@ b.termInB = 11
 
 ```
 ```ucm
-.existing> update
+scratch/existing> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.existing> move.namespace a b
+scratch/existing> move.namespace a b
 
   ⚠️
   
@@ -258,38 +354,3 @@ b.termInB = 11
   Done.
 
 ```
-## Moving the Root 
-
-I should be able to move the root into a sub-namespace
-
-```ucm
--- Should request confirmation
-scratch/main> move.namespace . .root.at.path
-
-  ⚠️
-  
-  Moves which affect the root branch cannot be undone, are you sure?
-  Re-run the same command to proceed.
-
-scratch/main> move.namespace . .root.at.path
-
-  Done.
-
-scratch/main> ls
-
-  nothing to show
-
-```
-
-```ucm
--- Should request confirmationscratch/main> move.namespace . .root.at.pathscratch/main> move.namespace . .root.at.pathscratch/main> lsscratch/main> history
-```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  nothing to show
-
