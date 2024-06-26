@@ -494,7 +494,7 @@ loop e = do
               description <- inputDescription input
               Cli.stepAt description (BranchUtil.makeAddTermName (first Path.unabsolute dest) srcTerm)
               Cli.respond Success
-            AliasTypeI src' dest' -> do
+            AliasTypeI force src' dest' -> do
               src <- traverseOf _Right Cli.resolveSplit' src'
               srcTypes <-
                 either
@@ -512,7 +512,7 @@ loop e = do
                       pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
               dest <- Cli.resolveSplit' dest'
               destTypes <- Cli.getTypesAt (HQ'.NameOnly <$> dest)
-              when (not (Set.null destTypes)) do
+              when (not force && not (Set.null destTypes)) do
                 Cli.returnEarly (TypeAlreadyExists dest' destTypes)
               description <- inputDescription input
               Cli.stepAt description (BranchUtil.makeAddTypeName (first Path.unabsolute dest) srcType)
@@ -980,11 +980,11 @@ inputDescription input =
     AliasTermI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0
-      pure ((if force then "alias.term.force " else "alias.term ") <> src <> " " <> dest)
-    AliasTypeI src0 dest0 -> do
+      pure ((if force then "debug.alias.term.force " else "alias.term ") <> src <> " " <> dest)
+    AliasTypeI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0
-      pure ("alias.type " <> src <> " " <> dest)
+      pure ((if force then "debug.alias.type.force " else "alias.term ") <> src <> " " <> dest)
     AliasManyI srcs0 dest0 -> do
       srcs <- traverse hqs srcs0
       dest <- p' dest0
