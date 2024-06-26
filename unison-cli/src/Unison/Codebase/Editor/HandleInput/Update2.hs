@@ -511,17 +511,8 @@ getNamespaceDependentsOf ::
   Set Reference ->
   Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf names dependencies = do
-  dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
-  let dependents1 :: DefnsF Set TermReferenceId TypeReferenceId
-      dependents1 =
-        Map.foldlWithKey'
-          ( \defns refId -> \case
-              Reference.RtTerm -> let !terms1 = Set.insert refId defns.terms in defns & #terms .~ terms1
-              Reference.RtType -> let !types1 = Set.insert refId defns.types in defns & #types .~ types1
-          )
-          (Defns Set.empty Set.empty)
-          dependents
-  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents1)
+  dependents <- Ops.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
+  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
     nameTerm ref =
@@ -542,26 +533,21 @@ getNamespaceDependentsOf2 defns dependencies = do
   let scope = bifoldMap toTermScope toTypeScope defns
 
   dependents <-
-    Ops.dependentsWithinScope scope dependencies
-
-  let (termDependentRefs, typeDependentRefs) =
-        dependents & Map.partition \case
-          Reference.RtTerm -> True
-          Reference.RtType -> False
+    Ops.transitiveDependentsWithinScope scope dependencies
 
   pure
     Defns
-      { terms = Map.foldlWithKey' addTerms Map.empty termDependentRefs,
-        types = Map.foldlWithKey' addTypes Map.empty typeDependentRefs
+      { terms = Set.foldl' addTerms Map.empty dependents.terms,
+        types = Set.foldl' addTypes Map.empty dependents.types
       }
   where
-    addTerms :: Map Name TermReferenceId -> TermReferenceId -> ignored -> Map Name TermReferenceId
-    addTerms acc0 ref _ =
+    addTerms :: Map Name TermReferenceId -> TermReferenceId -> Map Name TermReferenceId
+    addTerms acc0 ref =
       let names = BiMultimap.lookupDom (Referent.fromTermReferenceId ref) defns.terms
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
-    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> ignored -> Map Name TypeReferenceId
-    addTypes acc0 ref _ =
+    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> Map Name TypeReferenceId
+    addTypes acc0 ref =
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 

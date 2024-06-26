@@ -6,6 +6,7 @@ where
 
 import Data.Set qualified as Set
 import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -14,9 +15,12 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Names qualified as Names
+import Unison.Prelude
+import Unison.Reference (TermReference)
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.Defns (Defns (..))
+import Unison.Util.Set qualified as Set
 
 handleTodo :: Cli ()
 handleTodo = do
@@ -25,27 +29,42 @@ handleTodo = do
   currentNamespace <- Cli.getCurrentBranch0
   let currentNamespaceWithoutLibdeps = Branch.deleteLibdeps currentNamespace
 
-  (hashLen, directDependencies) <-
+  (dependentsOfTodo, directDependencies, hashLen) <-
     Cli.runTransaction do
-      hashLen <- Codebase.hashLength
+      let todoReference :: TermReference
+          todoReference =
+            Set.asSingleton (Names.refTermsNamed Builtin.names (Name.unsafeParseText "todo"))
+              & fromMaybe (error (reportBug "E260496" "No reference for builtin named 'todo'"))
+
+      -- All type-and-term dependents of the `todo` builtin, but we know they're all terms.
+      dependentsOfTodo <-
+        Operations.directDependentsWithinScope
+          (Branch.deepTermReferenceIds currentNamespaceWithoutLibdeps)
+          (Set.singleton todoReference)
+
       directDependencies <-
         Operations.directDependenciesOfScope
           Defns
             { terms = Branch.deepTermReferenceIds currentNamespaceWithoutLibdeps,
               types = Branch.deepTypeReferenceIds currentNamespaceWithoutLibdeps
             }
-      pure (hashLen, directDependencies)
 
-  let todo =
-        TO.TodoOutput
-          { directDependenciesWithoutNames =
-              Defns
-                { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
-                  types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
-                },
-            nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps)
-          }
+      hashLen <- Codebase.hashLength
 
-  pped <- Cli.currentPrettyPrintEnvDecl
+      pure (dependentsOfTodo.terms, directDependencies, hashLen)
 
-  Cli.respondNumbered (TodoOutput hashLen pped todo)
+  ppe <- Cli.currentPrettyPrintEnvDecl
+
+  Cli.respondNumbered $
+    Output'Todo
+      TodoOutput
+        { hashLen,
+          dependentsOfTodo,
+          directDependenciesWithoutNames =
+            Defns
+              { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
+                types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
+              },
+          nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps),
+          ppe
+        }

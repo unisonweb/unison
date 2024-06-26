@@ -166,7 +166,8 @@ module U.Codebase.Sqlite.Queries
     getDependencyIdsForDependent,
     getDependenciesBetweenTerms,
     getDirectDependenciesOfScope,
-    getDependentsWithinScope,
+    getDirectDependentsWithinScope,
+    getTransitiveDependentsWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -1913,28 +1914,68 @@ getDirectDependenciesOfScope scope = do
 
   pure dependencies1
 
-{- ORMOLU_DISABLE -}
-
--- | `getDependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
--- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
-getDependentsWithinScope :: Set S.Reference.Id -> Set S.Reference -> Transaction (Map S.Reference.Id ObjectType)
-getDependentsWithinScope scope query = do
+-- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
+-- including `query` itself).
+getDirectDependentsWithinScope ::
+  Set S.Reference.Id ->
+  Set S.Reference ->
+  Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
+getDirectDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
-  createTemporaryTableOfReferenceIds [sql| dependents_search_scope |] scope
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName scope
 
   -- Populate a temporary table with all of the references in `query`
-  execute
-    [sql|
-      CREATE TEMPORARY TABLE dependencies_query (
-        dependency_builtin INTEGER NULL,
-        dependency_object_id INTEGER NULL,
-        dependency_component_index INTEGER NULL,
-        CHECK ((dependency_builtin IS NULL) = (dependency_object_id IS NOT NULL)),
-        CHECK ((dependency_object_id IS NULL) = (dependency_component_index IS NULL))
-      )
-    |]
-  for_ query \r ->
-    execute [sql|INSERT INTO dependencies_query VALUES (@r, @, @)|]
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName query
+
+  -- Get their direct dependents (tagged with object type)
+  dependents0 <-
+    queryListRow @(S.Reference.Id :. Only ObjectType)
+      [sql|
+        SELECT s.object_id, s.component_index, o.type_id
+        FROM $queryTableName q
+          JOIN dependents_index d
+            ON q.builtin IS d.dependency_builtin
+            AND q.object_id IS d.dependency_object_id
+            AND q.component_index IS d.dependency_component_index
+          JOIN $scopeTableName s
+            ON d.dependent_object_id = s.object_id
+            AND d.dependent_component_index = s.component_index
+          JOIN object o ON s.object_id = o.id
+      |]
+
+  -- Drop the temporary tables
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
+
+  -- Post-process the query result
+  let dependents1 =
+        List.foldl'
+          ( \deps -> \case
+              dep :. Only TermComponent -> Defns (Set.insert dep deps.terms) deps.types
+              dep :. Only DeclComponent -> Defns deps.terms (Set.insert dep deps.types)
+              _ -> deps -- impossible; could error here
+          )
+          (Defns Set.empty Set.empty)
+          dependents0
+
+  pure dependents1
+
+-- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
+-- (not including `query` itself).
+getTransitiveDependentsWithinScope ::
+  Set S.Reference.Id ->
+  Set S.Reference ->
+  Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
+getTransitiveDependentsWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName scope
+
+  -- Populate a temporary table with all of the references in `query`
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName query
 
   -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
   --
@@ -1954,34 +1995,65 @@ getDependentsWithinScope scope query = do
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
 
-  result :: [S.Reference.Id :. Only ObjectType] <- queryListRow [sql|
-    WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
-      SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-      FROM dependents_index d
-      JOIN object ON d.dependent_object_id = object.id
-      JOIN dependencies_query q
-        ON q.dependency_builtin IS d.dependency_builtin
-        AND q.dependency_object_id IS d.dependency_object_id
-        AND q.dependency_component_index IS d.dependency_component_index
-      JOIN dependents_search_scope s
-        ON s.object_id = d.dependent_object_id
-        AND s.component_index = d.dependent_component_index
+  result0 :: [S.Reference.Id :. Only ObjectType] <-
+    queryListRow
+      [sql|
+        WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
+          SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+          FROM dependents_index d
+          JOIN object ON d.dependent_object_id = object.id
+          JOIN $queryTableName q
+            ON q.builtin IS d.dependency_builtin
+            AND q.object_id IS d.dependency_object_id
+            AND q.component_index IS d.dependency_component_index
+          JOIN $scopeTableName s
+            ON s.object_id = d.dependent_object_id
+            AND s.component_index = d.dependent_component_index
 
-      UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-      FROM dependents_index d
-      JOIN object ON d.dependent_object_id = object.id
-      JOIN transitive_dependents t
-        ON t.dependent_object_id = d.dependency_object_id
-        AND t.dependent_component_index = d.dependency_component_index
-      JOIN dependents_search_scope s
-        ON s.object_id = d.dependent_object_id
-        AND s.component_index = d.dependent_component_index
-    )
-    SELECT * FROM transitive_dependents
-  |]
-  execute [sql| DROP TABLE dependents_search_scope |]
-  execute [sql| DROP TABLE dependencies_query |]
-  pure . Map.fromList $ [(r, t) | r :. Only t <- result]
+          UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
+          FROM dependents_index d
+          JOIN object ON d.dependent_object_id = object.id
+          JOIN transitive_dependents t
+            ON t.dependent_object_id = d.dependency_object_id
+            AND t.dependent_component_index = d.dependency_component_index
+          JOIN $scopeTableName s
+            ON s.object_id = d.dependent_object_id
+            AND s.component_index = d.dependent_component_index
+        )
+        SELECT * FROM transitive_dependents
+      |]
+
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
+
+  -- Post-process the query result
+  let result1 =
+        List.foldl'
+          ( \deps -> \case
+              dep :. Only TermComponent -> Defns (Set.insert dep deps.terms) deps.types
+              dep :. Only DeclComponent -> Defns deps.terms (Set.insert dep deps.types)
+              _ -> deps -- impossible; could error here
+          )
+          (Defns Set.empty Set.empty)
+          result0
+
+  pure result1
+
+createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
+createTemporaryTableOfReferences tableName refs = do
+  execute
+    [sql|
+      CREATE TEMPORARY TABLE $tableName (
+        builtin INTEGER NULL,
+        object_id INTEGER NULL,
+        component_index INTEGER NULL
+        CHECK ((builtin IS NULL) = (object_id IS NOT NULL)),
+        CHECK ((object_id IS NULL) = (component_index IS NULL))
+      )
+    |]
+
+  for_ refs \ref ->
+    execute [sql| INSERT INTO $tableName VALUES (@ref, @, @) |]
 
 createTemporaryTableOfReferenceIds :: Sql -> Set S.Reference.Id -> Transaction ()
 createTemporaryTableOfReferenceIds tableName refs = do
@@ -1995,6 +2067,8 @@ createTemporaryTableOfReferenceIds tableName refs = do
     |]
   for_ refs \ref ->
     execute [sql| INSERT INTO $tableName VALUES (@ref, @) |]
+
+{- ORMOLU_DISABLE -}
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
