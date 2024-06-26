@@ -57,10 +57,24 @@ scratch/main> view 1
   cat.lib.foo = 5
 
 ```
-```ucm
-  ☝️  The namespace .somewhere is empty.
+Finding within a namespace
 
-.somewhere> find bar
+```ucm
+scratch/main> find bar
+
+  1. somewhere.bar : Nat
+  
+
+-- Shows UUIDs
+-- scratch/main> find.global bar
+scratch/main> find-in somewhere bar
+
+  1. bar : Nat
+  
+
+```
+```ucm
+scratch/main> find baz
 
   ☝️
   
@@ -76,22 +90,13 @@ scratch/main> view 1
   namespace.
 
 ```
-
 ```ucm
-.somewhere> find bar.somewhere> find.global bar
-```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
+scratch/main> find.global notHere
 
   😶
   
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
-  namespace.
 
+```

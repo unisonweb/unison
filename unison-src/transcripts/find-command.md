@@ -1,6 +1,5 @@
 ```ucm:hide
-scratch/main> builtins.merge
-scratch/main> move builtin lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison:hide
@@ -31,13 +30,12 @@ scratch/main> find-in.all cat foo
 scratch/main> view 1
 ```
 
-```ucm
-scratch/main somewhere> find bar
-scratch/main somewhere> find.global bar
-```
+Finding within a namespace
 
 ```ucm
 scratch/main> find bar
+-- Shows UUIDs
+-- scratch/main> find.global bar
 scratch/main> find-in somewhere bar
 ```
 
