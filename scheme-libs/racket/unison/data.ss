@@ -12,6 +12,12 @@
   have-code?
 
   (struct-out unison-data)
+  (struct-out unison-continuation)
+  (struct-out unison-cont-wrapped)
+  (struct-out unison-cont-reflected)
+  (struct-out unison-frame)
+  (struct-out unison-frame-push)
+  (struct-out unison-frame-mark)
   (struct-out unison-sum)
   (struct-out unison-pure)
   (struct-out unison-request)
@@ -26,6 +32,9 @@
   (struct-out unison-code)
   (struct-out unison-quote)
   (struct-out unison-timespec)
+
+  call-with-handler
+  call-with-marks
 
   define-builtin-link
   declare-builtin-link
@@ -100,12 +109,15 @@
   builtin-tls.version:typelink
 
   unison-tuple->list
+  unison-pair->cons
 
   typelink->string
   termlink->string)
 
 (require
-  racket
+  (rename-in racket
+    [make-continuation-prompt-tag make-prompt])
+  (only-in racket/control prompt0-at control0-at)
   racket/fixnum
   (only-in "vector-trie.rkt" ->fx/wraparound)
   unison/bytevector)
@@ -351,6 +363,115 @@
 
     (list equal-proc (hash-proc 3) (hash-proc 5))))
 
+; This is the base struct for continuation representations. It has
+; two possibilities seen below.
+(struct unison-continuation () #:transparent)
+
+; This is a wrapper that allows for a struct representation of all
+; continuations involved in unison. I.E. instead of just passing
+; around a raw racket continuation, we wrap it in a box for easier
+; identification.
+(struct unison-cont-wrapped unison-continuation (cont)
+  ; Use the wrapped continuation for procedure calls. Continuations
+  ; will always be called via the jumpCont wrapper which exactly
+  ; applies them to one argument.
+  #:property prop:procedure 0)
+
+; Basic mechanism for installing handlers, defined here so that it
+; can be used in the implementation of reflected continuations.
+;
+; Note: this uses the prompt _twice_ to achieve the sort of dynamic
+; scoping we want. First we push an outer delimiter, then install
+; the continuation marks corresponding to the handled abilities
+; (which tells which propt to use for that ability and which
+; functions to use for each request). Then we re-delimit by the same
+; prompt.
+;
+; If we just used one delimiter, we'd have a problem. If we pushed
+; the marks _after_ the delimiter, then the continuation captured
+; when handling would contain those marks, and would effectively
+; retain the handler for requests within the continuation. If the
+; marks were outside the prompt, we'd be in a similar situation,
+; except where the handler would be automatically handling requests
+; within its own implementation (although, in both these cases we'd
+; get control errors, because we would be using the _function_ part
+; of the handler without the necessary delimiters existing on the
+; continuation). Both of these situations are wrong for _shallow_
+; handlers.
+;
+; Instead, what we need to be able to do is capture the continuation
+; _up to_ the marks, then _discard_ the marks, and this is what the
+; multiple delimiters accomplish. There might be more efficient ways
+; to accomplish this with some specialized mark functions, but I'm
+; uncertain of what pitfalls there are with regard to that (whehter
+; they work might depend on exact frame structure of the
+; metacontinuation).
+(define (call-with-handler rs h f)
+  (let ([p (make-prompt)])
+    (prompt0-at p
+      (let ([v (call-with-marks rs (cons p h)
+                 (lambda () (prompt0-at p (f))))])
+        (h (make-pure v))))))
+
+(define (call-with-marks rs v f)
+  (cond
+    [(null? rs) (f)]
+    [else
+      (with-continuation-mark (car rs) v
+        (call-with-marks (cdr rs) v f))]))
+
+; Version of the above for re-installing a handlers in the serialized
+; format. In that case, there is an association list of links and
+; handlers, rather than a single handler (although the separate
+; handlers are likely duplicates).
+(define (call-with-assoc-marks p hs f)
+  (match hs
+    ['() (f)]
+    [(cons (cons r h) rest)
+     (with-continuation-mark r (cons p h)
+       (call-with-assoc-marks rest f))]))
+
+(define (call-with-handler-assocs hs f)
+  (let ([p (make-prompt)])
+    (prompt0-at p
+      (call-with-assoc-marks p hs
+        (lambda () (prompt0-at p (f)))))))
+
+(define (repush frames v)
+  (match frames
+    ['() v]
+    [(cons (unison-frame-mark as tls hs) frames)
+     ; handler frame; as are pending arguments, tls are typelinks
+     ; for handled abilities; hs are associations from links to
+     ; handler values.
+     ;
+     ; todo: args
+     (call-with-handler-assocs hs
+       (lambda () (repush frames v)))]
+    [(cons (unison-frame-push ls as rt) rest)
+     (displayln (list ls as rt))
+     (raise "repush push: not implemented yet")]))
+
+; This is a *reflected* representation of continuations amenable
+; to serialization. Most continuations won't be in this format,
+; because it's foolish to eagerly parse the racket continuation if
+; it's just going to be applied. But, a continuation that we've
+; gotten from serialization will be in this format.
+;
+; `frames` should be a list of the below `unison-frame` structs.
+(struct unison-cont-reflected unison-continuation (frames)
+  #:property prop:procedure
+  (lambda (cont v) (repush (unison-cont-reflected-frames cont) v)))
+
+; Stack frames for reflected continuations
+(struct unison-frame () #:transparent)
+
+(struct unison-frame-push unison-frame
+  (locals args return-to))
+
+(struct unison-frame-mark unison-frame
+  (args abilities handlers))
+
 (define-syntax (define-builtin-link stx)
   (syntax-case stx ()
     [(_ name)
@@ -560,6 +681,13 @@
        (cons (car fs) (unison-tuple->list (cadr fs)))]
       [else
         (raise "unison-tuple->list: unexpected value")])))
+
+(define (unison-pair->cons t)
+  (match t
+    [(unison-data _ _ (list x (unison-data _ _ (list y _))))
+     (cons x y)]
+    [else
+     (raise "unison-pair->cons: unexpected value")]))
 
 (define (hash-string hs)
   (string-append

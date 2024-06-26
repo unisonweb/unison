@@ -210,20 +210,17 @@
                   (describe-value tl)))]
     [1 (rf) rf]))
 
-(define-syntax make-group-ref-decoder
-  (lambda (stx)
-    (syntax-case stx ()
-      [(_)
-       #`(lambda (gr)
-           (data-case (group-ref-ident gr)
-             [#,ref-schemeterm-ident:tag (name) name]
-             [else
-               (raise
-                 (format
-                   "decode-group-ref: unimplemented data case: ~a"
-                   (describe-value gr)))]))])))
+(define (decode-group-ref gr0)
+  (match (group-ref-ident gr0)
+    [(unison-data _ t (list name))
+     #:when (= t ref-schemeterm-ident:tag)
+     name]
+    [else
+     (raise
+       (format
+         "decode-group-ref: unimplemented data case: ~a"
+         (describe-value gr0)))]))
 
-(define decode-group-ref (make-group-ref-decoder))
 (define (group-ref-sym gr)
   (string->symbol
     (chunked-string->string
@@ -316,6 +313,70 @@
        [else
          (raise (format "decode-vlit: unimplemented case: !a" vl))])]))
 
+(define (reify-handlers hs)
+  (for/list ([h (chunked-list->list hs)])
+    (match (unison-pair->cons h)
+      [(cons r h)
+       (cons (reference->typelink r)
+             (reify-value h))])))
+
+(define (reflect-handlers hs)
+  (list->chunked-list
+    (for/list ([h hs])
+      (match h
+        [(cons r h)
+         (unison-tuple
+           (typelink->reference r)
+           (reflect-value h))]))))
+
+(define (reify-groupref gr0)
+  (match gr0
+    [(unison-data _ t (list r i))
+     #:when (= t ref-groupref-group:tag)
+     (cons (reference->typelink r) i)]))
+
+(define (reflect-groupref rt)
+  (match rt
+    [(cons l i)
+     (ref-groupref-group (typelink->reference l) i)]))
+
+(define (parse-continuation orig k0 vs0)
+  (let rec ([k k0] [vs vs0] [frames '()])
+    (match k
+      [(unison-data _ t (list))
+       #:when (= t ref-cont-empty:tag)
+       (unison-cont-reflected (reverse frames))]
+      [(unison-data _ t (list l a gr0 k))
+       #:when (= t ref-cont-push:tag)
+       (cond
+         [(>= (length vs) (+ l a))
+          (let*-values
+            ([(locals int) (split-at vs l)]
+             [(args rest) (split-at int a)]
+             [(gr) (reify-groupref gr0)]
+             [(fm) (unison-frame-push locals args gr)])
+            (rec k rest (cons fm frames)))]
+         [else
+          (raise
+            (make-exn:bug
+              "reify-value: malformed continuation"
+              orig))])]
+      [(unison-data _ t (list a rs0 de0 k))
+       #:when (= t ref-cont-mark:tag)
+       (cond
+         [(>= (length vs) a)
+          (let*-values
+            ([(args rest) (split-at vs a)]
+             [(rs) (map reference->termlink (chunked-list->list rs0))]
+             [(hs) (reify-handlers de0)]
+             [(fm) (unison-frame-mark args rs hs)])
+            (rec k rest (cons fm frames)))]
+         [else
+          (raise
+            (make-exn:bug
+              "reify-value: malformed continuation"
+              orig))])])))
+
 (define (reify-value v)
   (match v
     [(unison-data _ t (list rf rt bs0))
@@ -342,16 +403,14 @@
      #:when (= t ref-value-partial:tag)
      (let ([bs (map reify-value (chunked-list->list bs0))]
            [proc (resolve-proc gr)])
-       (apply proc bs))]
+       (struct-copy unison-closure proc [env bs]))]
     [(unison-data _ t (list vl))
      #:when (= t ref-value-vlit:tag)
      (reify-vlit vl)]
-    [(unison-data _ t (list bs0 k))
+    [(unison-data _ t (list vs0 k))
      #:when (= t ref-value-cont:tag)
-     (raise
-       (make-exn:bug
-         "reify-value: unimplemented cont case"
-         ref-unit-unit))]
+     (parse-continuation v k
+       (map reify-value (chunked-list->list vs0)))]
     [(unison-data r t fs)
      (raise
        (make-exn:bug
@@ -428,14 +487,34 @@
      (ref-value-vlit (ref-vlit-typelink (reflect-typelink v)))]
     [(unison-code sg) (ref-value-vlit (ref-vlit-code sg))]
     [(unison-quote q) (ref-value-vlit (ref-vlit-quote q))]
+    [(unison-cont-reflected frames0)
+     (for/foldr ([k ref-cont-empty]
+                 [vs '()]
+                 #:result
+                 (ref-value-cont
+                   (list->chunked-list (map reflect-value vs))
+                   k))
+                ([frame frames0])
+       (match frame
+         [(unison-frame-push locals args return-to)
+          (values
+            (ref-cont-push
+              (length locals)
+              (length args)
+              (reflect-groupref return-to)
+              k)
+            (append locals args vs))]
+         [(unison-frame-mark args refs hs)
+          (values
+            (ref-cont-mark
+              (length args)
+              (map typelink->reference refs)
+              (reflect-handlers hs))
+            (append args vs))]))]
     [(unison-closure arity f as)
      (ref-value-partial
        (function->groupref f)
        (list->chunked-list (map reflect-value as)))]
-    [(? procedure?)
-     (ref-value-partial
-       (function->groupref v)
-       empty-chunked-list)]
     [(unison-data rf t fs)
      (ref-value-data
        (reflect-typelink rf)

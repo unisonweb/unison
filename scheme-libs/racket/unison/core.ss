@@ -23,6 +23,7 @@
   (struct-out exn:bug)
 
   let-marks
+  call-with-marks
   ref-mark
 
   chunked-string-foldMap-chunks
@@ -192,6 +193,8 @@
      (string-append "{Value " (describe-value v) "}")]
     [(unison-code v)
      (string-append "{Code " (describe-value v) "}")]
+    [(unison-cont-reflected fs) "{Continuation}"]
+    [(unison-cont-wrapped _) "{Continuation}"]
     [(unison-closure _ code env)
      (define dc
        (termlink->string (lookup-function-link code) #t))
@@ -436,13 +439,6 @@
 ;   (syntax-case stx ()
 ;     [() '()]
 ;     [(x . xs) (cons #'x (syntax->list #'xs))]))
-
-(define (call-with-marks rs v f)
-  (cond
-    [(null? rs) (f)]
-    [else
-      (with-continuation-mark (car rs) v
-        (call-with-marks (cdr rs) v f))]))
 
 (define-syntax let-marks
   (syntax-rules ()
