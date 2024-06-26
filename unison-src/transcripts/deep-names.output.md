@@ -13,27 +13,99 @@ http.z = 8
 
 Our `app1` project includes the text library twice and the http library twice as direct dependencies.
 ```ucm
-  ☝️  The namespace .app1 is empty.
+scratch/app1> fork text lib.text_v1
 
-.app1> fork .text lib.text_v1
+  Done.
 
-  ⚠️
-  
-  The namespace .text doesn't exist.
+scratch/app1> fork text lib.text_v2
+
+  Done.
+
+scratch/app1> delete.namespace text
+
+  Done.
+
+scratch/app1> fork http lib.http_v3
+
+  Done.
+
+scratch/app1> fork http lib.http_v4
+
+  Done.
+
+scratch/app1> delete.namespace http
+
+  Done.
 
 ```
-
+As such, we see two copies of `a` and two copies of `x` via these direct dependencies.
 ```ucm
-.app1> fork .text lib.text_v1.app1> fork .text lib.text_v2.app1> fork .http lib.http_v3.app1> fork .http lib.http_v4
-```
+scratch/app1> names a
 
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  ⚠️
+  Term
+  Hash:   #gjmq673r1v
+  Names:  lib.text_v1.a lib.text_v2.a
   
-  The namespace .text doesn't exist.
+  Tip: Use `names.global` to see more results.
 
+scratch/app1> names x
+
+  Term
+  Hash:   #nsmc4p1ra4
+  Names:  lib.http_v3.x lib.http_v4.x
+  
+  Tip: Use `names.global` to see more results.
+
+```
+Our `app2` project includes the `http` library twice as direct dependencies, and once as an indirect dependency via `webutil`.
+It also includes the `text` library twice as indirect dependencies via `webutil`
+```ucm
+scratch/app2> fork http lib.http_v1
+
+  Done.
+
+scratch/app2> fork http lib.http_v2
+
+  Done.
+
+scratch/app2> fork text lib.webutil.lib.text_v1
+
+  Done.
+
+scratch/app2> fork text lib.webutil.lib.text_v2
+
+  Done.
+
+scratch/app2> fork http lib.webutil.lib.http
+
+  Done.
+
+scratch/app2> delete.namespace http
+
+  Done.
+
+scratch/app2> delete.namespace text
+
+  Done.
+
+```
+Now we see two copies of `x` via direct dependencies on `http`, and one copy of `a` via indirect dependency on `text` via `webutil`.
+We see neither the second indirect copy of `a` nor the indirect copy of `x` via webutil because we already have names for them.
+```ucm
+scratch/app2> names a
+
+  Term
+  Hash:   #gjmq673r1v
+  Names:  lib.webutil.lib.text_v1.a
+  
+  Tip: Use `names.global` to see more results.
+
+scratch/app2> names x
+
+  Term
+  Hash:   #nsmc4p1ra4
+  Names:  lib.http_v1.x lib.http_v2.x
+  
+  Tip: Use `names.global` to see more results.
+
+```
