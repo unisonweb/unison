@@ -1973,3 +1973,151 @@ bar =
 
 But `bar` was put into the scratch file instead.
 
+### Merge loop test
+
+This tests for regressions of https://github.com/unisonweb/unison/issues/1276 where trivial merges cause loops in the
+history.
+
+Let's make three identical namespaces with different histories:
+
+```unison
+a = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      a : ##Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    a : ##Nat
+
+```
+```unison
+b = 2
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      b : ##Nat
+
+```
+```ucm
+project/alice> add
+
+  ⍟ I've added these definitions:
+  
+    b : ##Nat
+
+```
+```unison
+b = 2
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    b : ##Nat
+
+```
+```unison
+a = 1
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      a : ##Nat
+
+```
+```ucm
+project/bob> add
+
+  ⍟ I've added these definitions:
+  
+    a : ##Nat
+
+```
+```unison
+a = 1
+b = 2
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+```
+```ucm
+project/carol> add
+
+  ⍟ I've added these definitions:
+  
+    a : ##Nat
+    b : ##Nat
+
+project/bob> merge /alice
+
+  I merged project/alice into project/bob.
+
+project/carol> merge /bob
+
+  I merged project/bob into project/carol.
+
+project/carol> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  This segment of history starts with a merge. Use
+  `history #som3n4m3space` to view history starting from a given
+  namespace hash.
+  
+  ⊙ 1. #b7fr6ifj87
+  ⑃
+  2. #9npggauqo9
+  3. #dm4u1eokg1
+
+```
