@@ -84,7 +84,7 @@ with a strike-through block~
 ```
 
 ```ucm
-.> debug.format
+scratch/main> debug.format
 
 ```
 ```unison:added-by-ucm scratch.u
@@ -200,6 +200,6 @@ brokenDoc = {{ hello }} + 1
 
 ```
 ```ucm
-.> debug.format
+scratch/main> debug.format
 
 ```

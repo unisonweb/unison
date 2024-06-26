@@ -18,7 +18,7 @@ unique type Baz = Qux Foo
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -45,7 +45,7 @@ unique type Foo = Bar Nat Nat
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -56,15 +56,15 @@ unique type Foo = Bar Nat Nat
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = Bar Nat Nat
 
-.> view Baz
+scratch/main> view Baz
 
   type Baz = Qux Foo
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #34msh9satlfog576493eo9pkjn6aj7d8fj6jfheglvgr5s39iptb81649bpkad1lqraheqb8em9ms551k01oternhknc4m7jicgtk08
      type Baz

@@ -71,14 +71,14 @@ testBasicMultiThreadMVar = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testBasicMultiThreadMVar : '{IO} [Result]
     thread1                  : Nat -> MVar Nat -> '{IO} ()
 
-.> io.test testBasicMultiThreadMVar
+scratch/main> io.test testBasicMultiThreadMVar
 
     New test results:
   
@@ -145,7 +145,7 @@ testTwoThreads = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -154,7 +154,7 @@ testTwoThreads = 'let
       (also named thread1)
     testTwoThreads  : '{IO} [Result]
 
-.> io.test testTwoThreads
+scratch/main> io.test testTwoThreads
 
     New test results:
   

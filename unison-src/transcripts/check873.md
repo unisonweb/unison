@@ -1,7 +1,7 @@
 See [this ticket](https://github.com/unisonweb/unison/issues/873); the point being, this shouldn't crash the runtime. :)
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -9,7 +9,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison

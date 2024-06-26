@@ -21,7 +21,7 @@ structural type A = B.TheOtherAlias Foo
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -53,7 +53,7 @@ only one name for each constructor. We instead get too far in the update process
 file to stare at.
 
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

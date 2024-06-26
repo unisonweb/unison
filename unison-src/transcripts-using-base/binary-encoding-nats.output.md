@@ -76,7 +76,7 @@ testABunchOfNats _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -91,7 +91,7 @@ testABunchOfNats _ =
     testNat          : Nat -> '{IO, Stream Result} ()
     testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
-.> io.test testABunchOfNats
+scratch/main> io.test testABunchOfNats
 
     New test results:
   

@@ -33,6 +33,6 @@ test = 'let
 ```
 
 ```ucm
-.> add
-.> io.test test
+scratch/main> add
+scratch/main> io.test test
 ```

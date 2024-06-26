@@ -200,7 +200,7 @@ swapped name link =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -344,7 +344,7 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -360,7 +360,7 @@ to actual show that the serialization works.
     tests   : '{IO} [Result]
     zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
-.> io.test tests
+scratch/main> io.test tests
 
     New test results:
   
@@ -382,7 +382,7 @@ to actual show that the serialization works.
   
   Tip: Use view tests to view the source of a test.
 
-.> io.test badLoad
+scratch/main> io.test badLoad
 
     New test results:
   
@@ -443,13 +443,13 @@ codeTests =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     codeTests : '{IO} [Result]
 
-.> io.test codeTests
+scratch/main> io.test codeTests
 
     New test results:
   
@@ -530,14 +530,14 @@ vtests _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     validateTest : Link.Term ->{IO} Result
     vtests       : '{IO} [Result]
 
-.> io.test vtests
+scratch/main> io.test vtests
 
     New test results:
   

@@ -31,7 +31,7 @@ is2even = '(even 2)
 it errors if there isn't a previous run
 
 ```ucm
-.> add.run foo
+scratch/main> add.run foo
 
   ⚠️
   
@@ -40,7 +40,7 @@ it errors if there isn't a previous run
 
 ```
 ```ucm
-.> run is2even
+scratch/main> run is2even
 
   true
 
@@ -48,7 +48,7 @@ it errors if there isn't a previous run
 it errors if the desired result name conflicts with a name in the
 unison file
 ```ucm
-.> add.run is2even
+scratch/main> add.run is2even
 
   ⚠️
   
@@ -58,7 +58,7 @@ unison file
 ```
 otherwise, the result is successfully persisted
 ```ucm
-.> add.run foo.bar.baz
+scratch/main> add.run foo.bar.baz
 
   ⍟ I've added these definitions:
   
@@ -66,7 +66,7 @@ otherwise, the result is successfully persisted
 
 ```
 ```ucm
-.> view foo.bar.baz
+scratch/main> view foo.bar.baz
 
   foo.bar.baz : Boolean
   foo.bar.baz = true
@@ -101,11 +101,11 @@ main _ = y
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   a b -> a Nat.+ b Nat.+ z 10
 
-.> add.run result
+scratch/main> add.run result
 
   ⍟ I've added these definitions:
   
@@ -134,7 +134,7 @@ inc x = x + 1
 
 ```
 ```ucm
-.> add inc
+scratch/main> add inc
 
   ⍟ I've added these definitions:
   
@@ -160,17 +160,17 @@ main _ x = inc x
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   inc
 
-.> add.run natfoo
+scratch/main> add.run natfoo
 
   ⍟ I've added these definitions:
   
     natfoo : Nat -> Nat
 
-.> view natfoo
+scratch/main> view natfoo
 
   natfoo : Nat -> Nat
   natfoo = inc
@@ -200,7 +200,7 @@ main = 'y
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   2
 
@@ -224,13 +224,13 @@ x = 50
 ```
 this saves 2 to xres, rather than 100
 ```ucm
-.> add.run xres
+scratch/main> add.run xres
 
   ⍟ I've added these definitions:
   
     xres : Nat
 
-.> view xres
+scratch/main> view xres
 
   xres : Nat
   xres = 2
@@ -256,11 +256,11 @@ main = '5
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   5
 
-.> add.run xres
+scratch/main> add.run xres
 
   x These definitions failed:
   
@@ -290,19 +290,21 @@ main = '5
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   5
 
-.> add.run .an.absolute.name
+scratch/main> add.run .an.absolute.name
 
   ⍟ I've added these definitions:
   
     .an.absolute.name : Nat
 
-.> view .an.absolute.name
+scratch/main> view .an.absolute.name
 
-  .an.absolute.name : Nat
-  .an.absolute.name = 5
+  .__projects._184d2977_a0ad_4969_9ec6_6c49b9f2cb01.branches._9f1d1b83_958a_42b7_a36c_7178447a7820.an.absolute.name :
+    Nat
+  .__projects._184d2977_a0ad_4969_9ec6_6c49b9f2cb01.branches._9f1d1b83_958a_42b7_a36c_7178447a7820.an.absolute.name =
+    5
 
 ```

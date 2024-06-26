@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 
   Done.
 
@@ -23,7 +23,7 @@ foo = 5
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -50,14 +50,14 @@ foo = +5
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view foo
+scratch/main> view foo
 
   foo : Int
   foo = +5

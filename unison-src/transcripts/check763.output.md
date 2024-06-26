@@ -19,17 +19,17 @@ Regression test for https://github.com/unisonweb/unison/issues/763
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     +-+ : Nat -> Nat -> Nat
 
-.> move.term +-+ boppitybeep
+scratch/main> move.term +-+ boppitybeep
 
   Done.
 
-.> move.term boppitybeep +-+
+scratch/main> move.term boppitybeep +-+
 
   Done.
 

@@ -19,7 +19,7 @@ unique type Foo = { bar : Nat }
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -57,18 +57,18 @@ unique type Foo = { bar : Nat, baz : Int }
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = { bar : Nat, baz : Int }
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
      type Foo

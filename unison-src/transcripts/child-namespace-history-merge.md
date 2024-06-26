@@ -9,7 +9,7 @@ but I think we should at least notice if we change things by accident.
 ## Setting up some history
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison:hide
@@ -20,8 +20,8 @@ parent.child.thing = "parent.child.thing"
 The child branch has a single history node representing the addition of `parent.child.thing`.
 
 ```ucm
-.> add
-.> history parent.child
+scratch/main> add
+scratch/main> history parent.child
 ```
 
 If we add another thing to the child namespace it should add another history node to both the child and parent.
@@ -31,9 +31,9 @@ parent.child.thing2 = "parent.child.thing2"
 ```
 
 ```ucm
-.> add
-.> history parent
-.> history parent.child
+scratch/main> add
+scratch/main> history parent
+scratch/main> history parent.child
 ```
 
 ## Forking off some history on a separate branch
@@ -41,7 +41,7 @@ parent.child.thing2 = "parent.child.thing2"
 Now we fork the parent namespace to make some changes.
 
 ```ucm
-.> fork parent parent_fork
+scratch/main> fork parent parent_fork
 ```
 
 ```unison:hide
@@ -51,8 +51,8 @@ parent_fork.child.thing3 = "parent_fork.child.thing3"
 The child should have a new history node after adding `thing3`
 
 ```ucm
-.> add
-.> history parent_fork.child
+scratch/main> add
+scratch/main> history parent_fork.child
 ```
 
 ## Saving our parent state
@@ -60,8 +60,8 @@ The child should have a new history node after adding `thing3`
 Split off two separate forks, one for testing squash merges, one for standard merges.
 
 ```ucm:hide
-.> fork parent parent_squash_base
-.> fork parent parent_merge_base
+scratch/main> fork parent parent_squash_base
+scratch/main> fork parent parent_merge_base
 ```
 
 ## Squash merge
@@ -69,16 +69,16 @@ Split off two separate forks, one for testing squash merges, one for standard me
 For a squash merge, when I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.old.squash parent_fork parent_squash_base
-.> history parent_squash_base
+scratch/main> merge.old.squash parent_fork parent_squash_base
+scratch/main> history parent_squash_base
 ```
 
 Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
 
 ```ucm
-.> history parent.child
-.> history parent_fork.child
-.> history parent_squash_base.child
+scratch/main> history parent.child
+scratch/main> history parent_fork.child
+scratch/main> history parent_squash_base.child
 ```
 
 ## Standard merge
@@ -86,14 +86,14 @@ Notice that with the current behaviour, the history of `parent.child` is complet
 For a standard merge, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.old parent_fork parent_merge_base
-.> history parent_merge_base
+scratch/main> merge.old parent_fork parent_merge_base
+scratch/main> history parent_merge_base
 ```
 
 Child histories should also be *merged*.
 
 ```ucm
-.> history parent.child
-.> history parent_fork.child
-.> history parent_merge_base.child
+scratch/main> history parent.child
+scratch/main> history parent_fork.child
+scratch/main> history parent_merge_base.child
 ```

@@ -1,7 +1,7 @@
 # Namespace list api
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison
@@ -12,7 +12,7 @@ nested.names.readme = {{ I'm a readme! }}
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api

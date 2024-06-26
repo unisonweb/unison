@@ -1,13 +1,13 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```ucm:hide
-.> copy.namespace builtin a1.lib.builtin
-.> copy.namespace builtin a2.lib.builtin
-.> load unison-src/transcripts-round-trip/reparses-with-same-hash.u
+scratch/main> copy.namespace builtin a1.lib.builtin
+scratch/main> copy.namespace builtin a2.lib.builtin
+scratch/main> load unison-src/transcripts-round-trip/reparses-with-same-hash.u
 .a1> add
 ```
 
@@ -41,12 +41,12 @@ So we can see the pretty-printed output:
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
 ```ucm:error
-.> diff.namespace a1 a2
+scratch/main> diff.namespace a1 a2
 ```
 
 ```ucm:hide
-.> undo
-.> undo
+scratch/main> undo
+scratch/main> undo
 ```
 
 Now check that definitions in 'reparses.u' at least parse on round trip:
@@ -72,7 +72,7 @@ x = ()
 ```
 
 ```ucm:hide
-.> move.namespace a3 a3_old
+scratch/main> move.namespace a3 a3_old
 .a3> copy.namespace .builtin lib.builtin
 .a3> load
 .a3> add
@@ -83,7 +83,7 @@ x = ()
 These are currently all expected to have different hashes on round trip.
 
 ```ucm
-.> diff.namespace a3 a3_old
+scratch/main> diff.namespace a3 a3_old
 ```
 
 ## Other regression tests not covered by above
@@ -93,8 +93,8 @@ These are currently all expected to have different hashes on round trip.
 Regression test for https://github.com/unisonweb/unison/pull/3548
 
 ```ucm:hide
-.> alias.term ##Nat.+ plus
-.> edit plus
-.> load
-.> undo
+scratch/main> alias.term ##Nat.+ plus
+scratch/main> edit plus
+scratch/main> load
+scratch/main> undo
 ```

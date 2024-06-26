@@ -48,13 +48,13 @@ x = 42
 Let's go ahead and add that to the codebase, then make sure it's there:
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     x : Nat
 
-.> view x
+scratch/main> view x
 
   x : Nat
   x = 42

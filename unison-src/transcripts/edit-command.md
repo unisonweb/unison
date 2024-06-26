@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison /private/tmp/scratch.u
@@ -11,11 +11,11 @@ mytest = [Ok "ok"]
 ```
 
 ```ucm
-.> add
-.> edit foo bar
-.> edit mytest
+scratch/main> add
+scratch/main> edit foo bar
+scratch/main> edit mytest
 ```
 
 ```ucm:error
-.> edit missing
+scratch/main> edit missing
 ```

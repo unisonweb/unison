@@ -17,7 +17,7 @@ You can precede the branch name by a project name.
 
 ```ucm
 foo/main> branch topic
-.> delete.branch foo/topic
+scratch/main> delete.branch foo/topic
 ```
 
 You can delete the only branch in a project.

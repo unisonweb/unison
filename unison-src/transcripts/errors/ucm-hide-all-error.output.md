@@ -8,7 +8,7 @@ then the transcript parser should print the stanza
 and surface a helpful message.
 
 ```ucm
-.> history
+scratch/main> history
 ```
 
 

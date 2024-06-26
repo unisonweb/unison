@@ -66,14 +66,14 @@ testMvars _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
     testMvars : '{IO} [Result]
 
-.> io.test testMvars
+scratch/main> io.test testMvars
 
     New test results:
   
