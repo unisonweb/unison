@@ -26,14 +26,14 @@ fooToInt _ = +42
 And then we add it.
 
 ```ucm
-.subpath> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
     fooToInt : Foo -> Int
 
-.subpath> find.verbose
+scratch/main> find.verbose
 
   1. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo
      type Foo
@@ -46,7 +46,7 @@ And then we add it.
      
   
 
-.subpath> view fooToInt
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -75,7 +75,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update.old
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -85,7 +85,7 @@ and update the codebase to use the new type `Foo`...
 ... it should automatically propagate the type to `fooToInt`.
 
 ```ucm
-.subpath> view fooToInt
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -121,7 +121,7 @@ preserve.otherTerm y = someTerm y
 Add that to the codebase:
 
 ```ucm
-.subpath> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -153,7 +153,7 @@ preserve.someTerm _ = None
 Update...
 
 ```ucm
-.subpath> update.old
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -164,12 +164,12 @@ Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
-.subpath> view preserve.someTerm
+scratch/main> view preserve.someTerm
 
   preserve.someTerm : Optional x -> Optional x
   preserve.someTerm _ = None
 
-.subpath> view preserve.otherTerm
+scratch/main> view preserve.otherTerm
 
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y
@@ -180,25 +180,88 @@ type of `otherTerm` should remain the same.
 Cleaning up a bit...
 
 ```ucm
-scratch/main> delete.namespace subpath
+  ☝️  The namespace .subpath.lib is empty.
 
-  ⚠️
-  
-  The namespace subpath doesn't exist.
+.subpath.lib> builtins.merge
 
+  Done.
+
+```
+Now, we make two terms, where one depends on the other.
+
+```unison
+one.someTerm : Optional foo -> Optional foo
+one.someTerm x = x
+
+one.otherTerm : Optional baz -> Optional baz
+one.otherTerm y = someTerm y
 ```
 
 ```ucm
-scratch/main> delete.namespace subpath.subpath.lib> builtins.merge
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      one.otherTerm : Optional baz -> Optional baz
+      one.someTerm  : Optional foo -> Optional foo
+
+```
+We'll make two copies of this namespace.
+
+```ucm
+.subpath> add
+
+  ⍟ I've added these definitions:
+  
+    one.otherTerm : Optional baz -> Optional baz
+    one.someTerm  : Optional foo -> Optional foo
+
+.subpath> fork one two
+
+  Done.
+
+```
+Now let's edit one of the terms...
+
+```unison
+someTerm : Optional x -> Optional x
+someTerm _ = None
 ```
 
+```ucm
 
-🛑
+  Loading changes detected in scratch.u.
 
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  ⚠️
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-  The namespace subpath doesn't exist.
+    ⍟ These new definitions are ok to `add`:
+    
+      someTerm : Optional x -> Optional x
 
+```
+... in one of the namespaces...
+
+```ucm
+.subpath.one> update.old
+
+  ⍟ I've updated these names to your new definition:
+  
+    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
+
+```
+The other namespace should be left alone.
+
+```ucm
+.subpath> view two.someTerm
+
+  two.someTerm : Optional foo -> Optional foo
+  two.someTerm x = x
+
+```

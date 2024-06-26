@@ -1,7 +1,7 @@
 # Propagating type edits
 
 ```ucm:hide
-scratch/main subpath.lib> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
@@ -16,9 +16,9 @@ fooToInt _ = +42
 And then we add it.
 
 ```ucm
-scratch/main subpath> add
-scratch/main subpath> find.verbose
-scratch/main subpath> view fooToInt
+scratch/main> add
+scratch/main> find.verbose
+scratch/main> view fooToInt
 ```
 
 Then if we change the type `Foo`...
@@ -30,13 +30,13 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-scratch/main subpath> update.old
+scratch/main> update.old
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
 
 ```ucm
-scratch/main subpath> view fooToInt
+scratch/main> view fooToInt
 ```
 
 ### Preserving user type variables
@@ -55,7 +55,7 @@ preserve.otherTerm y = someTerm y
 Add that to the codebase:
 
 ```ucm
-scratch/main subpath> add
+scratch/main> add
 ```
 
 Let's now edit the dependency:
@@ -68,15 +68,15 @@ preserve.someTerm _ = None
 Update...
 
 ```ucm
-scratch/main subpath> update.old
+scratch/main> update.old
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
-scratch/main subpath> view preserve.someTerm
-scratch/main subpath> view preserve.otherTerm
+scratch/main> view preserve.someTerm
+scratch/main> view preserve.otherTerm
 ```
 
 ### Propagation only applies to the local branch
@@ -84,8 +84,7 @@ scratch/main subpath> view preserve.otherTerm
 Cleaning up a bit...
 
 ```ucm
-scratch/main> delete.namespace subpath
-scratch/main subpath.lib> builtins.merge
+.subpath.lib> builtins.merge
 ```
 
 Now, we make two terms, where one depends on the other.
@@ -101,8 +100,8 @@ one.otherTerm y = someTerm y
 We'll make two copies of this namespace.
 
 ```ucm
-scratch/main subpath> add
-scratch/main subpath> fork one two
+.subpath> add
+.subpath> fork one two
 ```
 
 Now let's edit one of the terms...
@@ -115,11 +114,11 @@ someTerm _ = None
 ... in one of the namespaces...
 
 ```ucm
-scratch/main subpath.one> update.old
+.subpath.one> update.old
 ```
 
 The other namespace should be left alone.
 
 ```ucm
-scratch/main subpath> view two.someTerm
+.subpath> view two.someTerm
 ```
