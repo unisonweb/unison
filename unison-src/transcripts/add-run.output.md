@@ -290,21 +290,19 @@ main = '5
 
 ```
 ```ucm
-scratch/main> run main
+.> run main
 
   5
 
-scratch/main> add.run .an.absolute.name
+.> add.run .an.absolute.name
 
   ⍟ I've added these definitions:
   
     .an.absolute.name : Nat
 
-scratch/main> view .an.absolute.name
+.> view .an.absolute.name
 
-  .__projects._184d2977_a0ad_4969_9ec6_6c49b9f2cb01.branches._9f1d1b83_958a_42b7_a36c_7178447a7820.an.absolute.name :
-    Nat
-  .__projects._184d2977_a0ad_4969_9ec6_6c49b9f2cb01.branches._9f1d1b83_958a_42b7_a36c_7178447a7820.an.absolute.name =
-    5
+  .an.absolute.name : Nat
+  .an.absolute.name = 5
 
 ```

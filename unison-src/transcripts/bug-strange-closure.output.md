@@ -2,7 +2,7 @@
 We can display the guide before and after adding it to the codebase:
 
 ```ucm
-scratch/main> display doc.guide
+.> display doc.guide
 
   # Unison computable documentation
   
@@ -200,7 +200,7 @@ scratch/main> display doc.guide
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> add
+.> add
 
   ⍟ I've added these definitions:
   
@@ -213,7 +213,7 @@ scratch/main> add
     otherElements       : Doc2
     sqr                 : Nat -> Nat
 
-scratch/main> display doc.guide
+.> display doc.guide
 
   # Unison computable documentation
   
@@ -432,7 +432,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 
 ```
 ```ucm
-scratch/main> display rendered
+.> display rendered
 
   # Unison computable documentation
   
@@ -630,13 +630,13 @@ scratch/main> display rendered
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> add
+.> add
 
   ⍟ I've added these definitions:
   
     rendered : Annotated () (Either SpecialForm ConsoleText)
 
-scratch/main> display rendered
+.> display rendered
 
   # Unison computable documentation
   
@@ -834,17 +834,13 @@ scratch/main> display rendered
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> undo
+.> undo
 
   Here are the changes I undid
   
   Added definitions:
   
-    1. __projects._567e16f7_c03b_4435_9ed7_2845d81ba835.branches._b666e957_74dc_4635_9d58_9ed04d0d29c9.rendered : Annotated
-                                                                                                                  ( )
-                                                                                                                  (Either
-                                                                                                                    SpecialForm
-                                                                                                                    ConsoleText)
+    1. rendered : Annotated () (Either SpecialForm ConsoleText)
 
 ```
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.

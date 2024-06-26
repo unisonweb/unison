@@ -36,14 +36,14 @@ scratch/main> add
 ```
 ```api
 --  Namespace segment prefix search
-GET /api/non-project-code/find?query=http
+GET /api/projects/scratch/branches/main/find?query=http
 [
     [
         {
             "result": {
                 "segments": [
                     {
-                        "contents": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.ross.",
+                        "contents": "ross.",
                         "tag": "Gap"
                     },
                     {
@@ -56,14 +56,14 @@ GET /api/non-project-code/find?query=http
                     }
                 ]
             },
-            "score": 170
+            "score": 156
         },
         {
             "contents": {
                 "bestFoundTermName": "y",
                 "namedTerm": {
                     "termHash": "#emomp74i93h6ps0b5sukke0tci0ooba3f9jk21qm919a7act9u7asani84c0mqbdk4lcjrdvr9olpedp23p6df78r4trqlg0cciadc8",
-                    "termName": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.ross.httpClient.y",
+                    "termName": "ross.httpClient.y",
                     "termTag": "Plain",
                     "termType": [
                         {
@@ -84,7 +84,7 @@ GET /api/non-project-code/find?query=http
             "result": {
                 "segments": [
                     {
-                        "contents": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.joey.",
+                        "contents": "joey.",
                         "tag": "Gap"
                     },
                     {
@@ -97,14 +97,14 @@ GET /api/non-project-code/find?query=http
                     }
                 ]
             },
-            "score": 170
+            "score": 156
         },
         {
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
                     "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
-                    "termName": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.joey.httpServer.z",
+                    "termName": "joey.httpServer.z",
                     "termTag": "Plain",
                     "termType": [
                         {
@@ -122,14 +122,14 @@ GET /api/non-project-code/find?query=http
     ]
 ]
 --  Namespace segment suffix search
-GET /api/non-project-code/find?query=Server
+GET /api/projects/scratch/branches/main/find?query=Server
 [
     [
         {
             "result": {
                 "segments": [
                     {
-                        "contents": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.joey.http",
+                        "contents": "joey.http",
                         "tag": "Gap"
                     },
                     {
@@ -142,14 +142,14 @@ GET /api/non-project-code/find?query=Server
                     }
                 ]
             },
-            "score": 230
+            "score": 223
         },
         {
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
                     "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
-                    "termName": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.joey.httpServer.z",
+                    "termName": "joey.httpServer.z",
                     "termTag": "Plain",
                     "termType": [
                         {
@@ -167,14 +167,14 @@ GET /api/non-project-code/find?query=Server
     ]
 ]
 --  Substring search
-GET /api/non-project-code/find?query=lesys
+GET /api/projects/scratch/branches/main/find?query=lesys
 [
     [
         {
             "result": {
                 "segments": [
                     {
-                        "contents": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.rachel.fi",
+                        "contents": "rachel.fi",
                         "tag": "Gap"
                     },
                     {
@@ -187,14 +187,14 @@ GET /api/non-project-code/find?query=lesys
                     }
                 ]
             },
-            "score": 185
+            "score": 175
         },
         {
             "contents": {
                 "bestFoundTermName": "x",
                 "namedTerm": {
                     "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
-                    "termName": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.rachel.filesystem.x",
+                    "termName": "rachel.filesystem.x",
                     "termTag": "Plain",
                     "termType": [
                         {
@@ -212,16 +212,12 @@ GET /api/non-project-code/find?query=lesys
     ]
 ]
 --  Cross-segment search
-GET /api/non-project-code/find?query=joey.http
+GET /api/projects/scratch/branches/main/find?query=joey.http
 [
     [
         {
             "result": {
                 "segments": [
-                    {
-                        "contents": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.",
-                        "tag": "Gap"
-                    },
                     {
                         "contents": "joey.http",
                         "tag": "Match"
@@ -232,14 +228,14 @@ GET /api/non-project-code/find?query=joey.http
                     }
                 ]
             },
-            "score": 333
+            "score": 300
         },
         {
             "contents": {
                 "bestFoundTermName": "z",
                 "namedTerm": {
                     "termHash": "#a84tg4er4kfl9k2p250vp2o1dsp5kmn9a7q8g2bo723qbtbf9sagrl28fa4q0j5f2cv4alsjik6rf487ss646qt95gbm3dd13k7e1fo",
-                    "termName": "__projects._4fce1d94_a201_41dc_a510_587d6a61186d.branches._d229dbff_a479_40a3_82f9_17fa36448d18.joey.httpServer.z",
+                    "termName": "joey.httpServer.z",
                     "termTag": "Plain",
                     "termType": [
                         {
