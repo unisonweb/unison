@@ -8,25 +8,24 @@ Previously the following sequence delete the current namespace
 unexpectedly 😬.
 
 ```ucm
-scratch/main> alias.term ##Nat.+ .Nat.+
+scratch/main> alias.term ##Nat.+ Nat.+
 
   Done.
 
 scratch/main> ls Nat
 
-  nothing to show
+  1. + (##Nat -> ##Nat -> ##Nat)
+
+scratch/main> move.namespace Nat Nat.operators
+
+  Done.
+
+scratch/main> ls Nat
+
+  1. operators/ (1 term)
+
+scratch/main> ls Nat.operators
+
+  1. + (##Nat -> ##Nat -> ##Nat)
 
 ```
-
-```ucm
-scratch/main> alias.term ##Nat.+ .Nat.+scratch/main> ls Natscratch/main> move.namespace Nat Nat.operatorsscratch/main> ls Natscratch/main> ls Nat.operators
-```
-
-
-🛑
-
-The transcript failed due to an error in the stanza above. The error is:
-
-
-  nothing to show
-

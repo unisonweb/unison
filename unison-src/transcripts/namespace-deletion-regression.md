@@ -8,7 +8,7 @@ Previously the following sequence delete the current namespace
 unexpectedly 😬.
 
 ```ucm
-scratch/main> alias.term ##Nat.+ .Nat.+
+scratch/main> alias.term ##Nat.+ Nat.+
 scratch/main> ls Nat
 scratch/main> move.namespace Nat Nat.operators
 scratch/main> ls Nat
