@@ -486,6 +486,6 @@ pong _ = 4 Nat.+ !ping
   pong : 'Nat
   pong _ =
     use Nat +
-    4 + !#l9uq1dpl5v.1
+    4 + #l9uq1dpl5v.1()
 
 ```

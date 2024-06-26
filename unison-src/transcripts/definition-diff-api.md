@@ -1,10 +1,9 @@
 ```ucm
-.> project.create-empty diffs
 diffs/main> builtins.merge
 ```
 
 ```unison
-term = 
+term =
   _ = "Here's some text"
   1 + 1
 
@@ -17,7 +16,7 @@ diffs/main> branch.create new
 ```
 
 ```unison
-term = 
+term =
   _ = "Here's some different text"
   1 + 2
 

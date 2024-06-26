@@ -40,7 +40,6 @@ Namespace args
 Project Branch args
 
 ```ucm
-.> project.create-empty myproject
 myproject/main> branch mybranch
 .> debug.fuzzy-options switch _
 ```

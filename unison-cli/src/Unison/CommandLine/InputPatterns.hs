@@ -70,6 +70,7 @@ module Unison.CommandLine.InputPatterns
     load,
     makeStandalone,
     mergeBuiltins,
+    mergeCommitInputPattern,
     mergeIOBuiltins,
     mergeInputPattern,
     mergeOldInputPattern,
@@ -763,30 +764,15 @@ todo =
     "todo"
     []
     I.Visible
-    [("patch", Optional, patchArg), ("namespace", Optional, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample' todo,
-            "lists the refactor work remaining in the default patch for the current"
-              <> " namespace."
-          ),
-          ( makeExample todo ["<patch>"],
-            "lists the refactor work remaining in the given patch in the current "
-              <> "namespace."
-          ),
-          ( makeExample todo ["<patch>", "[path]"],
-            "lists the refactor work remaining in the given patch in given namespace."
-          )
-        ]
+    []
+    ( P.wrap $
+        makeExample' todo
+          <> "lists the current namespace's outstanding issues, including conflicted names, dependencies with missing"
+          <> "names, and merge precondition violations."
     )
     \case
-      patchStr : ws -> first warn $ do
-        patch <- handleSplit'Arg patchStr
-        branch <- case ws of
-          [] -> pure Path.relativeEmpty'
-          [pathStr] -> handlePath'Arg pathStr
-          _ -> Left "`todo` just takes a patch and one optional namespace"
-        Right $ Input.TodoI (Just patch) branch
-      [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
+      [] -> Right Input.TodoI
+      _ -> Left (I.help todo)
 
 load :: InputPattern
 load =
@@ -1404,14 +1390,30 @@ deleteBranch =
 aliasTerm :: InputPattern
 aliasTerm =
   InputPattern
-    "alias.term"
-    []
-    I.Visible
-    [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)]
-    "`alias.term foo bar` introduces `bar` with the same definition as `foo`."
-    $ \case
-      [oldName, newName] -> Input.AliasTermI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-      _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+    { patternName = "alias.term",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
+      help = "`alias.term foo bar` introduces `bar` with the same definition as `foo`.",
+      parse = \case
+        [oldName, newName] -> Input.AliasTermI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+    }
+
+aliasTermForce :: InputPattern
+aliasTermForce =
+  InputPattern
+    { patternName = "debug.alias.term.force",
+      aliases = [],
+      visibility = I.Hidden,
+      args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
+      help = "`debug.alias.term.force foo bar` introduces `bar` with the same definition as `foo`.",
+      parse = \case
+        [oldName, newName] -> Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ ->
+          Left . warn $
+            P.wrap "`debug.alias.term.force` takes two arguments, like `debug.alias.term.force oldname newname`."
+    }
 
 aliasType :: InputPattern
 aliasType =
@@ -2128,6 +2130,48 @@ mergeInputPattern =
           args -> wrongArgsLength "exactly one argument" args
     }
 
+mergeCommitInputPattern :: InputPattern
+mergeCommitInputPattern =
+  InputPattern
+    { patternName = "merge.commit",
+      aliases = ["commit.merge"],
+      visibility = I.Visible,
+      args = [],
+      help =
+        let mainBranch = UnsafeProjectBranchName "main"
+            tempBranch = UnsafeProjectBranchName "merge-topic-into-main"
+         in P.wrap
+              ( makeExample' mergeCommitInputPattern
+                  <> "merges a temporary branch created by the"
+                  <> makeExample' mergeInputPattern
+                  <> "command back into its parent branch, and removes the temporary branch."
+              )
+              <> P.newline
+              <> P.newline
+              <> P.wrap
+                ( "For example, if you've done"
+                    <> makeExample mergeInputPattern ["topic"]
+                    <> "from"
+                    <> P.group (prettyProjectBranchName mainBranch <> ",")
+                    <> "then"
+                    <> makeExample' mergeCommitInputPattern
+                    <> "is equivalent to doing"
+                )
+              <> P.newline
+              <> P.newline
+              <> P.indentN
+                2
+                ( P.bulleted
+                    [ makeExampleNoBackticks projectSwitch [prettySlashProjectBranchName mainBranch],
+                      makeExampleNoBackticks mergeInputPattern [prettySlashProjectBranchName tempBranch],
+                      makeExampleNoBackticks deleteBranch [prettySlashProjectBranchName tempBranch]
+                    ]
+                ),
+      parse = \case
+        [] -> Right Input.MergeCommitI
+        _ -> Left (I.help mergeCommitInputPattern)
+    }
+
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
 parseLooseCodeOrProject inputString =
   case (asLooseCode, asBranch) of
@@ -2727,18 +2771,20 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    [("namespace", Required, namespaceArg), ("", Required, filePathArg)]
+    [("namespace", Required, branchRelativePathArg), ("", Required, filePathArg)]
     ( P.wrapColumn2
-        [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`",
-            "Render all docs contained within a namespace, no matter how deep,"
-              <> "to html files on a file path"
+        [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
+            "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
+          ),
+          ( makeExample docsToHtml ["project0/branch0:a.path", "/tmp/doc-dir"],
+            "Renders all docs anywhere in the namespace `a.path` from `branch0` of `project0` to html in `/tmp/doc-dir`."
           )
         ]
     )
     \case
       [namespacePath, destinationFilePath] ->
         Input.DocsToHtmlI
-          <$> handlePath'Arg namespacePath
+          <$> handleBranchRelativePathArg namespacePath
           <*> unsupportedStructuredArgument "docs.to-html" "a file name" destinationFilePath
       args -> wrongArgsLength "exactly two arguments" args
 
@@ -3257,6 +3303,7 @@ validInputs =
     [ add,
       aliasMany,
       aliasTerm,
+      aliasTermForce,
       aliasType,
       api,
       authLogin,
@@ -3330,6 +3377,7 @@ validInputs =
       mergeOldPreviewInputPattern,
       mergeOldSquashInputPattern,
       mergeInputPattern,
+      mergeCommitInputPattern,
       names False, -- names
       names True, -- names.global
       namespaceDependencies,
@@ -3797,7 +3845,8 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
           Just projectBranch -> do
             let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                 projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-            map prefixPathSep <$> prefixCompleteNamespace (Path.convert relPath) branchPath
+            map prefixPathSep
+              <$> prefixCompleteNamespace (Text.unpack . Path.toText' $ Path.RelativePath' relPath) branchPath
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
           mprojectBranch <- runMaybeT do
@@ -3813,7 +3862,10 @@ branchRelativePathSuggestions config inputStr codebase _httpClient currentPath =
             Just (projectBranch, prefix) -> do
               let branchPath = review ProjectUtils.projectBranchPathPrism (projectAndBranch, mempty)
                   projectAndBranch = ProjectAndBranch (projectBranch ^. #projectId) (projectBranch ^. #branchId)
-              map (addBranchPrefix prefix) <$> prefixCompleteNamespace (maybe "" Path.convert mpath) branchPath
+              map (addBranchPrefix prefix)
+                <$> prefixCompleteNamespace
+                  (maybe "" (Text.unpack . Path.toText' . Path.RelativePath') mpath)
+                  branchPath
   where
     (mayCurrentProjectId, mayCurrentBranchId) = case projectContextFromPath currentPath of
       LooseCodePath {} -> (Nothing, Nothing)

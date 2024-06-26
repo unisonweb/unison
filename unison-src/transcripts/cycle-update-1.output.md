@@ -67,11 +67,11 @@ ping _ = !pong + 3
   ping : 'Nat
   ping _ =
     use Nat +
-    !pong + 3
+    pong() + 3
   
   pong : 'Nat
   pong _ =
     use Nat +
-    !ping + 2
+    ping() + 2
 
 ```

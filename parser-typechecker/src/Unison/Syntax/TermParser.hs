@@ -38,6 +38,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
+import Unison.Parser.Ann qualified as Ann
 import Unison.Parser.Ann (Ann)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -439,7 +440,8 @@ resolveHashQualified tok = do
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
   asum
-    [ hashQualifiedPrefixTerm,
+    [ force,
+      hashQualifiedPrefixTerm,
       text,
       char,
       number,
@@ -990,6 +992,17 @@ bang = P.label "bang" do
   start <- reserved "!"
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
+
+force :: forall m v . (Monad m, Var v) => TermP v m
+force = P.label "force" $ P.try do
+  -- `forkAt pool() blah` parses as `forkAt (pool ()) blah`
+  -- That is, empty parens immediately (no space) following a symbol 
+  -- is treated as high precedence function application of `Unit`
+  fn <- hashQualifiedPrefixTerm
+  tok <- ann <$> openBlockWith "("
+  guard (L.column (Ann.start tok) == L.column (Ann.end (ann fn)))
+  close <- closeBlock
+  pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
 
 seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =

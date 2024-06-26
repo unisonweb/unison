@@ -63,9 +63,11 @@ module U.Codebase.Sqlite.Operations
     causalHashesByPrefix,
 
     -- ** dependents index
+    directDependenciesOfScope,
     dependents,
     dependentsOfComponent,
-    dependentsWithinScope,
+    directDependentsWithinScope,
+    transitiveDependentsWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
@@ -205,6 +207,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
+import Unison.Util.Defns (DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (foldMapM)
@@ -1121,6 +1124,21 @@ causalHashesByPrefix (ShortCausalHash b32prefix) = do
   hashes <- traverse (Q.expectHash . Db.unCausalHashId) hashIds
   pure $ Set.fromList . map CausalHash $ hashes
 
+directDependenciesOfScope ::
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
+  Transaction (DefnsF Set C.TermReference C.TypeReference)
+directDependenciesOfScope scope0 = do
+  -- Convert C -> S
+  scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
+
+  -- Do the query
+  dependencies0 <- Q.getDirectDependenciesOfScope scope1
+
+  -- Convert S -> C
+  dependencies1 <- bitraverse (Set.traverse s2cReference) (Set.traverse s2cReference) dependencies0
+
+  pure dependencies1
+
 -- | returns a list of known definitions referencing `r`
 dependents :: Q.DependentsSelector -> C.Reference -> Transaction (Set C.Reference.Id)
 dependents selector r = do
@@ -1137,19 +1155,43 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
--- | `dependentsWithinScope scope query` returns all of transitive dependents of `query` that are in `scope` (not
--- including `query` itself). Each dependent is also tagged with whether it is a term or decl.
-dependentsWithinScope :: Set C.Reference.Id -> Set C.Reference -> Transaction (Map C.Reference.Id C.ReferenceType)
-dependentsWithinScope scope query = do
-  scope' <- Set.traverse c2sReferenceId scope
-  query' <- Set.traverse c2sReference query
-  Q.getDependentsWithinScope scope' query'
-    >>= Map.bitraverse s2cReferenceId (pure . objectTypeToReferenceType)
-  where
-    objectTypeToReferenceType = \case
-      ObjectType.TermComponent -> C.RtTerm
-      ObjectType.DeclComponent -> C.RtType
-      _ -> error "Q.getDependentsWithinScope shouldn't return any other types"
+-- | `directDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
+-- including `query` itself).
+directDependentsWithinScope ::
+  Set C.Reference.Id ->
+  Set C.Reference ->
+  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
+directDependentsWithinScope scope0 query0 = do
+  -- Convert C -> S
+  scope1 <- Set.traverse c2sReferenceId scope0
+  query1 <- Set.traverse c2sReference query0
+
+  -- Do the query
+  dependents0 <- Q.getDirectDependentsWithinScope scope1 query1
+
+  -- Convert S -> C
+  dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
+
+  pure dependents1
+
+-- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope` (not
+-- including `query` itself).
+transitiveDependentsWithinScope ::
+  Set C.Reference.Id ->
+  Set C.Reference ->
+  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
+transitiveDependentsWithinScope scope0 query0 = do
+  -- Convert C -> S
+  scope1 <- Set.traverse c2sReferenceId scope0
+  query1 <- Set.traverse c2sReference query0
+
+  -- Do the query
+  dependents0 <- Q.getTransitiveDependentsWithinScope scope1 query1
+
+  -- Convert S -> C
+  dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
+
+  pure dependents1
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

@@ -132,7 +132,7 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     NamesI IsGlobal (HQ.HashQualified Name)
-  | AliasTermI HashOrHQSplit' Path.Split'
+  | AliasTermI !Bool HashOrHQSplit' Path.Split' -- bool = force?
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
   | MoveAllI Path.Path' Path.Path'
@@ -150,7 +150,7 @@ data Input
   | UpdateI OptionalPatch (Set Name)
   | Update2I
   | PreviewUpdateI (Set Name)
-  | TodoI (Maybe PatchPath) Path'
+  | TodoI
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
@@ -208,7 +208,7 @@ data Input
   | ApiI
   | UiI Path'
   | DocToMarkdownI Name
-  | DocsToHtmlI Path' FilePath
+  | DocsToHtmlI BranchRelativePath FilePath
   | AuthLoginI
   | VersionI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
@@ -228,6 +228,7 @@ data Input
       !Bool -- Remind the user to use `lib.install` next time, not `pull`?
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
+  | MergeCommitI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

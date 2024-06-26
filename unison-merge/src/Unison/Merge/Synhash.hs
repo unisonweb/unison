@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | Utilities for computing the "syntactic hash" of a decl or term, which is a hash that is computed after substituting
 -- references to other terms and decls with names from a pretty-print environment.
 --
@@ -35,7 +37,6 @@ import Data.Char (ord)
 import Data.Text qualified as Text
 import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, Decl)
@@ -51,8 +52,9 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference' (..), TypeReferenceId)
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
+import Unison.Reference qualified as V1
+import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -107,7 +109,7 @@ hashConstructorNameToken declName conName =
 
 hashDerivedTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
 hashDerivedTerm ppe t =
-  H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
+  H.accumulate $ isNotBuiltinTag : isTermTag : hashTermTokens ppe t
 
 hashConstructorType :: ConstructorType -> Token
 hashConstructorType = \case
@@ -138,7 +140,7 @@ hashDeclTokens ppe name decl =
 -- syntactic hashes.
 synhashDerivedDecl :: Var v => PrettyPrintEnv -> Name -> Decl v a -> Hash
 synhashDerivedDecl ppe name decl =
-  H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe name decl
+  H.accumulate $ isNotBuiltinTag : isDeclTag : hashDeclTokens ppe name decl
 
 hashHQNameToken :: HashQualified Name -> Token
 hashHQNameToken =
@@ -170,14 +172,14 @@ hashPatternTokens ppe = \case
   Pattern.Char _ c -> [H.Tag 7, H.Nat (fromIntegral (ord c))]
   Pattern.Constructor _ cr ps ->
     H.Tag 8
-      : hashReferentToken ppe (V1.Referent.Con cr CT.Data)
+      : hashReferentToken ppe (Referent.Con cr CT.Data)
       : hashLengthToken ps
       : (ps >>= hashPatternTokens ppe)
   Pattern.As _ p -> H.Tag 9 : hashPatternTokens ppe p
   Pattern.EffectPure _ p -> H.Tag 10 : hashPatternTokens ppe p
   Pattern.EffectBind _ cr ps k ->
     H.Tag 11
-      : hashReferentToken ppe (V1.Referent.Con cr CT.Effect)
+      : hashReferentToken ppe (Referent.Con cr CT.Effect)
       : hashLengthToken ps
       : hashPatternTokens ppe k <> (ps >>= hashPatternTokens ppe)
   Pattern.SequenceLiteral _ ps -> H.Tag 12 : hashLengthToken ps : (ps >>= hashPatternTokens ppe)
@@ -188,36 +190,20 @@ hashPatternTokens ppe = \case
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
 
-hashReferentToken :: PrettyPrintEnv -> V1.Referent -> Token
+hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
-  H.Hashed . H.accumulate . hashReferentTokens ppe
+  hashHQNameToken . PPE.termNameOrHashOnlyFq ppe
 
-hashReferentTokens :: PrettyPrintEnv -> V1.Referent -> [Token]
-hashReferentTokens ppe referent =
-  case referent of
-    -- distinguish constructor name from terms by tumbling in a name (of any alias of) its decl
-    V1.Referent.Con (ConstructorReference ref _i) _ct -> [hashTypeReferenceToken ppe ref, nameTok]
-    V1.Referent.Ref _ -> [nameTok]
-  where
-    nameTok :: Token
-    nameTok =
-      hashHQNameToken (PPE.termNameOrHashOnlyFq ppe referent)
-
--- | Syntactically hash a term, using reference names rather than hashes.
--- Two terms will have the same syntactic hash if they would
--- print the the same way under the given pretty-print env.
 synhashTerm ::
   forall m v a.
   (Monad m, Var v) =>
   (TypeReferenceId -> m (Term v a)) ->
   PrettyPrintEnv ->
-  V1.Referent ->
+  V1.TermReference ->
   m Hash
 synhashTerm loadTerm ppe = \case
-  V1.Referent.Con ref CT.Data -> pure (hashDerivedTerm ppe (Term.constructor @v () ref))
-  V1.Referent.Con ref CT.Effect -> pure (hashDerivedTerm ppe (Term.request @v () ref))
-  V1.Referent.Ref (ReferenceBuiltin builtin) -> pure (hashBuiltinTerm builtin)
-  V1.Referent.Ref (ReferenceDerived ref) -> hashDerivedTerm ppe <$> loadTerm ref
+  ReferenceBuiltin builtin -> pure (hashBuiltinTerm builtin)
+  ReferenceDerived ref -> hashDerivedTerm ppe <$> loadTerm ref
 
 hashTermTokens :: forall v a. Var v => PrettyPrintEnv -> Term v a -> [Token]
 hashTermTokens ppe =
@@ -242,9 +228,9 @@ hashTermFTokens ppe = \case
   Term.Char c -> [H.Tag 5, H.Nat (fromIntegral (ord c))]
   Term.Blank {} -> error "tried to hash a term with blanks, something's very wrong"
   -- note: these are all hashed the same, just based on the name
-  Term.Ref r -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Ref r)]
-  Term.Constructor cr -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Con cr CT.Data)]
-  Term.Request cr -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Con cr CT.Effect)]
+  Term.Ref r -> [H.Tag 7, hashReferentToken ppe (Referent.Ref r)]
+  Term.Constructor cr -> [H.Tag 7, hashReferentToken ppe (Referent.Con cr CT.Data)]
+  Term.Request cr -> [H.Tag 7, hashReferentToken ppe (Referent.Con cr CT.Effect)]
   Term.Handle {} -> [H.Tag 8]
   Term.App {} -> [H.Tag 9]
   Term.Ann _ ty -> H.Tag 10 : hashTypeTokens ppe ty

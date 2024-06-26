@@ -1,5 +1,4 @@
 ```ucm
-.> project.create-empty test-ls
 test-ls/main> builtins.merge
 ```
 

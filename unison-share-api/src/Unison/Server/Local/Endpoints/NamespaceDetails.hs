@@ -4,7 +4,6 @@
 
 module Unison.Server.Local.Endpoints.NamespaceDetails where
 
-import Control.Monad.Except
 import Data.Set qualified as Set
 import Servant (Capture, QueryParam, (:>))
 import Servant.Docs (DocCapture (..), ToCapture (..))

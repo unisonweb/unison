@@ -1,6 +1,9 @@
 module Unison.LSP.UCMWorker where
 
-import Control.Monad.Reader
+import Control.Monad (guard)
+import Control.Monad.State (liftIO)
+import Control.Monad.Reader.Class (ask)
+import Data.Functor (void)
 import U.Codebase.HashTags
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch

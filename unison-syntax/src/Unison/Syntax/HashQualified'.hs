@@ -17,16 +17,12 @@ import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.HashQualified' qualified as HQ'
-import Unison.Name (Name, Parse)
-import Unison.Name qualified as Name
+import Unison.Name (Name)
 import Unison.Prelude hiding (fromString)
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.Name qualified as Name (nameP, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
-
-instance Parse Text (HQ'.HashQualified Name) where
-  parse = parseText
 
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions

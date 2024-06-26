@@ -985,7 +985,7 @@ refPromiseBuiltins =
 forall1 :: Text -> (Type -> Type) -> Type
 forall1 name body =
   let a = Var.named name
-   in Type.forall () a (body $ Type.var () a)
+   in Type.forAll () a (body $ Type.var () a)
 
 forall2 ::
   Text -> Text -> (Type -> Type -> Type) -> Type
