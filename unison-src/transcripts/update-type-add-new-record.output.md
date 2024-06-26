@@ -28,6 +28,6 @@ scratch/main> update
 
 scratch/main> view Foo
 
-  type Foo = { bar : ##Nat }
+  type Foo = { bar : Nat }
 
 ```

@@ -1,5 +1,5 @@
 ```ucm:hide
-scratch/main lib> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 ```unison
