@@ -132,7 +132,7 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     NamesI IsGlobal (HQ.HashQualified Name)
-  | AliasTermI HashOrHQSplit' Path.Split'
+  | AliasTermI !Bool HashOrHQSplit' Path.Split' -- bool = force?
   | AliasTypeI HashOrHQSplit' Path.Split'
   | AliasManyI [Path.HQSplit] Path'
   | MoveAllI Path.Path' Path.Path'
