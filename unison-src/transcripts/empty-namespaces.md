@@ -28,14 +28,6 @@ The history of the namespace should be empty.
 .> history mynamespace
 ```
 
-Merging an empty namespace should be a no-op
-
-```ucm:error
-.empty> history
-.empty> merge.old .mynamespace
-.empty> history
-```
-
 Add and then delete a term to add some history to a deleted namespace.
 
 ```unison:hide
