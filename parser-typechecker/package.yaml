@@ -20,7 +20,6 @@ when:
 
 dependencies:
   - ListLike
-  - NanoID
   - aeson
   - ansi-terminal
   - asn1-encoding

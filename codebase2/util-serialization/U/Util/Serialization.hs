@@ -8,7 +8,7 @@
 
 module U.Util.Serialization where
 
-import Control.Applicative (Applicative (liftA2), liftA3)
+import Control.Applicative (liftA3)
 import Control.Monad (foldM, replicateM, replicateM_, when)
 import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString (ByteString, readFile, writeFile)

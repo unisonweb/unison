@@ -16,7 +16,6 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.UTF8 qualified as BLU
-import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
@@ -409,9 +408,7 @@ app env rt codebase uiPath expectedToken allowCorsHost =
 -- each others codebases.
 genToken :: IO Strict.ByteString
 genToken = do
-  g <- createSystemRandom
-  n <- customNanoID defaultAlphabet 16 g
-  pure $ unNanoID n
+  BSC.pack . UUID.toString <$> UUID.nextRandom
 
 data Waiter a = Waiter
   { notify :: a -> IO (),

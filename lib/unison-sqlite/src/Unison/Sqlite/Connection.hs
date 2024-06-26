@@ -172,7 +172,7 @@ execute conn@(Connection _ _ conn0) sql@(Sql s params) = do
 --
 -- This function does not support parameters, and is mostly useful for executing DDL and migrations.
 executeStatements :: Connection -> Text -> IO ()
-executeStatements conn@(Connection _ _ (Sqlite.Connection database)) sql = do
+executeStatements conn@(Connection _ _ (Sqlite.Connection database _tempNameCounter)) sql = do
   logQuery (Sql sql []) Nothing
   Direct.Sqlite.exec database sql `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
@@ -184,7 +184,7 @@ executeStatements conn@(Connection _ _ (Sqlite.Connection database)) sql = do
 
 -- With results, without checks
 
-queryStreamRow :: Sqlite.FromRow a => Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r
+queryStreamRow :: (Sqlite.FromRow a) => Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r
 queryStreamRow conn@(Connection _ _ conn0) sql@(Sql s params) callback =
   run `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
