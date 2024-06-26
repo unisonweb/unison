@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-scratch/main ns> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 First we add a sum-type to the codebase.
@@ -13,7 +13,7 @@ structural type X = x
 ```
 
 ```ucm
-scratch/main ns> add
+scratch/main> add
 ```
 
 Now we update the type, changing the name of the constructors, _but_, we simultaneously
@@ -32,5 +32,5 @@ This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ```ucm
-scratch/main ns> update.old
+scratch/main> update.old
 ```
