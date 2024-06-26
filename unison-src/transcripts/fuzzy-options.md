@@ -12,7 +12,7 @@ If a fuzzy resolver doesn't have any options available it should print a message
 opening an empty fuzzy-select.
 
 ```ucm:error
-scratch/main empty> view
+scratch/empty> view
 ```
 
 

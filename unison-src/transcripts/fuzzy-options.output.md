@@ -14,9 +14,7 @@ If a fuzzy resolver doesn't have any options available it should print a message
 opening an empty fuzzy-select.
 
 ```ucm
-  ☝️  The namespace .empty is empty.
-
-scratch/main empty> view
+scratch/empty> view
 
 ⚠️
 
@@ -35,7 +33,7 @@ Definition args
 scratch/main> add
 
   ⍟ I've added these definitions:
-
+  
     nested.optionTwo : ##Nat
     optionOne        : ##Nat
 
@@ -66,7 +64,7 @@ Project Branch args
 myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
-
+  
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /mybranch`.
 
@@ -75,6 +73,7 @@ scratch/main> debug.fuzzy-options switch _
   Select a project or branch to switch to:
     * myproject/main
     * myproject/mybranch
+    * scratch/empty
     * scratch/main
     * myproject
     * scratch
