@@ -88,12 +88,22 @@ scratch/main> debug.tab-complete view subnamespace.someOther
 
   * subnamespace.someOtherName
 
--- Should tab complete absolute names
-  ☝️  The namespace .othernamespace is empty.
+```
+```unison
+absolute.term = "absolute"
+```
 
-.othernamespace> debug.tab-complete view .subnamespace.some
+```ucm
+.> add
 
+  ⍟ I've added these definitions:
   
+    absolute.term : ##Text
+
+-- Should tab complete absolute names
+.> debug.tab-complete view .absolute.te
+
+  * .absolute.term
 
 ```
 ## Tab complete namespaces

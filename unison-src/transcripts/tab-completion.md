@@ -36,8 +36,16 @@ scratch/main> debug.tab-complete view subnamespace2
 -- Should prefix-filter by query suffix
 scratch/main> debug.tab-complete view subnamespace.some
 scratch/main> debug.tab-complete view subnamespace.someOther
+```
+
+```unison:hide
+absolute.term = "absolute"
+```
+
+```ucm
+.> add
 -- Should tab complete absolute names
-scratch/main othernamespace> debug.tab-complete view .subnamespace.some
+.> debug.tab-complete view .absolute.te
 ```
 
 ## Tab complete namespaces
