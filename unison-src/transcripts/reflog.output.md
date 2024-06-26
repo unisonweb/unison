@@ -15,7 +15,7 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : Nat
+      x : ##Nat
 
 ```
 ```ucm
@@ -23,7 +23,7 @@ scratch/main> add
 
   ⍟ I've added these definitions:
   
-    x : Nat
+    x : ##Nat
 
 ```
 ```unison
@@ -40,7 +40,7 @@ y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      y : Nat
+      y : ##Nat
 
 ```
 ```ucm
@@ -48,11 +48,11 @@ scratch/main> add
 
   ⍟ I've added these definitions:
   
-    y : Nat
+    y : ##Nat
 
 scratch/main> view y
 
-  y : Nat
+  y : ##Nat
   y = 2
 
 ```
@@ -63,18 +63,17 @@ scratch/main> reflog
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #g5elf6c850 .old`   to make an old namespace
+    `fork #7fp7j6976q .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #g5elf6c850`  to reset the root namespace and
+    `reset-root #7fp7j6976q`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
        When   Root Hash     Action
-  1.   now    #fullnsagfj   add
-  2.   now    #g5elf6c850   add
-  3.   now    #niau58230g   builtins.merge
-  4.          #sg60bvjo91   history starts here
+  1.   now    #8ur19pdmaa   add
+  2.   now    #7fp7j6976q   add
+  3.          #sg60bvjo91   history starts here
   
   Tip: Use `diff.namespace 1 7` to compare namespaces between
        two points in history.
