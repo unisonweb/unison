@@ -28,10 +28,10 @@ project/main> ls
   2. lib/ (643 terms, 92 types)
 
 ```
-You can use `alias.term.force` for that.
+You can use `debug.alias.term.force` for that.
 
 ```ucm
-project/main> alias.term.force lib.builtins.todo foo
+project/main> debug.alias.term.force lib.builtins.todo foo
 
   Done.
 

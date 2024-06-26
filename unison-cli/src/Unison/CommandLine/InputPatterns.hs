@@ -1410,14 +1410,16 @@ aliasTerm =
 aliasTermForce :: InputPattern
 aliasTermForce =
   InputPattern
-    { patternName = "alias.term.force",
+    { patternName = "debug.alias.term.force",
       aliases = [],
       visibility = I.Hidden,
       args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
-      help = "`alias.term.force foo bar` introduces `bar` with the same definition as `foo`.",
+      help = "`debug.alias.term.force foo bar` introduces `bar` with the same definition as `foo`.",
       parse = \case
         [oldName, newName] -> Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-        _ -> Left . warn $ P.wrap "`alias.term.force` takes two arguments, like `alias.term.force oldname newname`."
+        _ ->
+          Left . warn $
+            P.wrap "`debug.alias.term.force` takes two arguments, like `debug.alias.term.force oldname newname`."
     }
 
 aliasType :: InputPattern

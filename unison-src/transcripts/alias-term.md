@@ -19,9 +19,9 @@ project/main> alias.term lib.builtins.todo foo
 project/main> ls
 ```
 
-You can use `alias.term.force` for that.
+You can use `debug.alias.term.force` for that.
 
 ```ucm
-project/main> alias.term.force lib.builtins.todo foo
+project/main> debug.alias.term.force lib.builtins.todo foo
 project/main> ls
 ```
