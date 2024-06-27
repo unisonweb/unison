@@ -352,7 +352,7 @@
 
 (define-for-syntax (process-hints hs)
   (for/fold ([internal? #f]
-             [force-pure? #f]
+             [force-pure? #t]
              [gen-link? #f]
              [no-link-decl? #f])
             ([h hs])
