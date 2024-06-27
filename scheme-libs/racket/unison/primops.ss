@@ -573,6 +573,8 @@
     unison-FOp-crypto.HashAlgorithm.Blake2s_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_256
     unison-FOp-crypto.HashAlgorithm.Blake2b_512
+    builtin-crypto.Ed25519.sign.impl
+    builtin-crypto.Ed25519.verify.impl
 
     unison-FOp-IO.clientSocket.impl.v3
     unison-FOp-IO.closeSocket.impl.v3
@@ -1407,7 +1409,7 @@
             (exception->string e)
             ref-unit-unit))])
       (thunk ref-unit-unit)))
-  
+
   (declare-builtin-link builtin-Float.*)
   (declare-builtin-link builtin-Float.fromRepresentation)
   (declare-builtin-link builtin-Float.toRepresentation)
