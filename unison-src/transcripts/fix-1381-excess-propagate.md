@@ -7,7 +7,7 @@ X.foo = "a namespace"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Here is an update which should not affect `X`:
@@ -15,14 +15,14 @@ Here is an update which should not affect `X`:
 a = "an update"
 ```
 ```ucm
-.> update
+scratch/main> update
 ```
 
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
 ```ucm
-.> history X
+scratch/main> history X
 ```
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 ```ucm:error
-.> history #7nl6ppokhg
+scratch/main> history #7nl6ppokhg
 ```

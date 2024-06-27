@@ -133,7 +133,7 @@ data Input
     -- > names #sdflkjsdfhsdf
     NamesI IsGlobal (HQ.HashQualified Name)
   | AliasTermI !Bool HashOrHQSplit' Path.Split' -- bool = force?
-  | AliasTypeI HashOrHQSplit' Path.Split'
+  | AliasTypeI !Bool HashOrHQSplit' Path.Split' -- bool = force?
   | AliasManyI [Path.HQSplit] Path'
   | MoveAllI Path.Path' Path.Path'
   | -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.

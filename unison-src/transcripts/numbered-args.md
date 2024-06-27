@@ -1,7 +1,7 @@
 # Using numbered arguments in UCM
 
 ```ucm:hide
-.temp> alias.type ##Text Text
+scratch/main> alias.type ##Text Text
 ```
 
 First lets add some contents to our codebase.
@@ -16,41 +16,41 @@ corge = "corge"
 ```
 
 ```ucm
-.temp> add
+scratch/main> add
 ```
 
 We can get the list of things in the namespace, and UCM will give us a numbered
 list:
 
 ```ucm
-.temp> find
+scratch/main> find
 ```
 
 We can ask to `view` the second element of this list:
 
 ```ucm
-.temp> find
-.temp> view 2
+scratch/main> find
+scratch/main> view 2
 ```
 
 And we can `view` multiple elements by separating with spaces:
 
 ```ucm
-.temp> find
-.temp> view 2 3 5
+scratch/main> find
+scratch/main> view 2 3 5
 ```
 
 We can also ask for a range:
 
 ```ucm
-.temp> find
-.temp> view 2-4
+scratch/main> find
+scratch/main> view 2-4
 ```
 
 And we can ask for multiple ranges and use mix of ranges and numbers:
 
 ```ucm
-.temp> find
-.temp> view 1-3 4 5-6
+scratch/main> find
+scratch/main> view 1-3 4 5-6
 ```
 

@@ -43,7 +43,7 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -51,12 +51,12 @@ what_should_work _ = this_should_work ++ this_should_not_work
     this_should_work     : [Result]
     what_should_work     : ∀ _. _ -> [Result]
 
-.> io.test what_should_work
+scratch/main> io.test what_should_work
 
     New test results:
   
-    1. ◉ what_should_work   succesfully decoded self_signed_pem
-    2. ◉ what_should_work   failed
+    1. what_should_work   ◉ succesfully decoded self_signed_pem
+                          ◉ failed
   
   ✅ 2 test(s) passing
   
@@ -238,7 +238,7 @@ testCNReject _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -251,31 +251,31 @@ testCNReject _ =
                             -> '{IO, Exception} Text
     testConnectSelfSigned : '{IO} [Result]
 
-.> io.test testConnectSelfSigned
+scratch/main> io.test testConnectSelfSigned
 
     New test results:
   
-    1. ◉ testConnectSelfSigned   should have reaped what we've sown
+    1. testConnectSelfSigned   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   
   Tip: Use view 1 to view the source of a test.
 
-.> io.test testCAReject
+scratch/main> io.test testCAReject
 
     New test results:
   
-    1. ◉ testCAReject   correctly rejected self-signed cert
+    1. testCAReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
   Tip: Use view 1 to view the source of a test.
 
-.> io.test testCNReject
+scratch/main> io.test testCNReject
 
     New test results:
   
-    1. ◉ testCNReject   correctly rejected self-signed cert
+    1. testCNReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   

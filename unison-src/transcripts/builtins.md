@@ -1,12 +1,12 @@
 # Unit tests for builtin functions
 
 ```ucm:hide
-.> builtins.mergeio
-.> load unison-src/transcripts-using-base/base.u
-.> add
+scratch/main> builtins.mergeio
+scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
 ```
 
-This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
+This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions
 
@@ -88,7 +88,7 @@ test> Int.tests.conversions =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## `Nat` functions
@@ -163,7 +163,7 @@ test> Nat.tests.conversions =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## `Boolean` functions
@@ -190,7 +190,7 @@ test> Boolean.tests.notTable =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## `Text` functions
@@ -288,7 +288,7 @@ test> Text.tests.indexOfEmoji =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## `Bytes` functions
@@ -352,7 +352,7 @@ test> Bytes.tests.indexOf =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## `List` comparison
@@ -371,7 +371,7 @@ test> checks [
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Other list functions
@@ -392,7 +392,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## Sandboxing functions
@@ -419,7 +419,7 @@ openFile]
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -436,8 +436,8 @@ openFilesIO = do
 ```
 
 ```ucm
-.> add
-.> io.test openFilesIO
+scratch/main> add
+scratch/main> io.test openFilesIO
 ```
 
 ## Universal hash functions
@@ -450,7 +450,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## Run the tests
@@ -458,5 +458,5 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ```ucm
-.> test
+scratch/main> test
 ```

@@ -5,19 +5,19 @@ mynamespace.x = 1
 ```
 
 ```ucm:hide
-.> add
-.> delete.namespace mynamespace
+scratch/main> add
+scratch/main> delete.namespace mynamespace
 ```
 
 The deleted namespace shouldn't appear in `ls` output.
 ```ucm:error
-.> ls
+scratch/main> ls
 ```
 ```ucm:error
-.> find.verbose
+scratch/main> find.verbose
 ```
 ```ucm:error
-.> find mynamespace
+scratch/main> find mynamespace
 ```
 
 ## history
@@ -25,7 +25,7 @@ The deleted namespace shouldn't appear in `ls` output.
 The history of the namespace should be empty.
 
 ```ucm
-.> history mynamespace
+scratch/main> history mynamespace
 ```
 
 Add and then delete a term to add some history to a deleted namespace.
@@ -36,8 +36,8 @@ stuff.thing = 2
 ```
 
 ```ucm:hide
-.> add
-.> delete.namespace deleted
+scratch/main> add
+scratch/main> delete.namespace deleted
 ```
 
 ## fork
@@ -45,14 +45,14 @@ stuff.thing = 2
 I should be allowed to fork over a deleted namespace
 
 ```ucm
-.> fork stuff deleted
+scratch/main> fork stuff deleted
 ```
 
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
 ```ucm
-.> history stuff
-.> history deleted
+scratch/main> history stuff
+scratch/main> history deleted
 ```
 
 ## move.namespace
@@ -63,15 +63,15 @@ moveme.y = 2
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 I should be able to move a namespace over-top of a deleted namespace.
 The history should be that of the moved namespace.
 
 ```ucm
-.> delete.namespace moveoverme
-.> history moveme
-.> move.namespace moveme moveoverme
-.> history moveoverme
+scratch/main> delete.namespace moveoverme
+scratch/main> history moveme
+scratch/main> move.namespace moveme moveoverme
+scratch/main> history moveoverme
 ```

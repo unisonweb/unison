@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -9,7 +9,7 @@ unique type Foo
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -18,7 +18,7 @@ unique type Foo
 ```
 
 ```ucm
-.> update
-.> view Foo
-.> find.verbose
+scratch/main> update
+scratch/main> view Foo
+scratch/main> find.verbose
 ```

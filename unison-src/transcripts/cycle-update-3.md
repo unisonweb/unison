@@ -1,7 +1,7 @@
 Update a member of a cycle with a type-changing update, thus severing the cycle.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -13,7 +13,7 @@ pong _ = !ping + 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -22,6 +22,6 @@ ping = 3
 ```
 
 ```ucm
-.> update.old
-.> view ping pong
+scratch/main> update.old
+scratch/main> view ping pong
 ```

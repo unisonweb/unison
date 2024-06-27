@@ -32,7 +32,7 @@ ha = cases
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   

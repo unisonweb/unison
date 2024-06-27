@@ -30,6 +30,6 @@ mkTestCase = do
 ```
 
 ```ucm
-.> add
-.> run mkTestCase
+scratch/main> add
+scratch/main> run mkTestCase
 ```

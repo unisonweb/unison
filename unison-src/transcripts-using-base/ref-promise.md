@@ -19,8 +19,8 @@ casTest = do
 ```
 
 ```ucm
-.> add
-.> io.test casTest
+scratch/main> add
+scratch/main> io.test casTest
 ```
 
 Promise is a simple one-shot awaitable condition.
@@ -54,9 +54,9 @@ promiseConcurrentTest = do
 ```
 
 ```ucm
-.> add
-.> io.test promiseSequentialTest
-.> io.test promiseConcurrentTest
+scratch/main> add
+scratch/main> io.test promiseSequentialTest
+scratch/main> io.test promiseConcurrentTest
 ```
 
 CAS can be used to write an atomic update function.
@@ -70,7 +70,7 @@ atomicUpdate ref f =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Promise can be used to write an operation that spawns N concurrent
@@ -91,7 +91,7 @@ spawnN n fa =
   map Promise.read (go n [])
 ```
 ```ucm
-.> add
+scratch/main> add
 ```
 
 We can use these primitives to write a more interesting example, where
@@ -123,6 +123,6 @@ fullTest = do
 ```
 
 ```ucm
-.> add
-.> io.test fullTest
+scratch/main> add
+scratch/main> io.test fullTest
 ```

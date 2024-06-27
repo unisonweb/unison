@@ -19,14 +19,14 @@ unique type Foo = { bar : Nat }
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = { bar : Nat }
 

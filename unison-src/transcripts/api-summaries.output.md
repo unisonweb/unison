@@ -23,7 +23,7 @@ structural ability Stream s where
 
 ```api
 --  term
-GET /api/non-project-code/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary?name=nat
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary?name=nat
 {
     "displayName": "nat",
     "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
@@ -42,7 +42,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sq
     "tag": "Plain"
 }
 --  term without name uses hash
-GET /api/non-project-code/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary
 {
     "displayName": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
     "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
@@ -61,7 +61,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sq
     "tag": "Plain"
 }
 --  doc
-GET /api/non-project-code/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo/summary?name=doc
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo/summary?name=doc
 {
     "displayName": "doc",
     "hash": "#icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo",
@@ -80,7 +80,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bl
     "tag": "Doc"
 }
 --  test
-GET /api/non-project-code/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8/summary?name=mytest
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8/summary?name=mytest
 {
     "displayName": "mytest",
     "hash": "#u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8",
@@ -111,7 +111,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccd
     "tag": "Test"
 }
 --  function
-GET /api/non-project-code/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o/summary?name=func
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o/summary?name=func
 {
     "displayName": "func",
     "hash": "#6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o",
@@ -151,7 +151,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3o
     "tag": "Plain"
 }
 --  constructor
-GET /api/non-project-code/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0@d0/summary?name=Thing.This
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0@d0/summary?name=Thing.This
 {
     "displayName": "Thing.This",
     "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0#0",
@@ -191,7 +191,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5ad
     "tag": "DataConstructor"
 }
 --  Long type signature
-GET /api/non-project-code/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?name=funcWithLongType
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?name=funcWithLongType
 {
     "displayName": "funcWithLongType",
     "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
@@ -378,7 +378,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59tton
     "tag": "Plain"
 }
 --  Long type signature with render width
-GET /api/non-project-code/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?renderWidth=20&name=funcWithLongType
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?renderWidth=20&name=funcWithLongType
 {
     "displayName": "funcWithLongType",
     "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
@@ -565,7 +565,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59tton
     "tag": "Plain"
 }
 --  Builtin Term
-GET /api/non-project-code/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesImpl
+GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesImpl
 {
     "displayName": "putBytesImpl",
     "hash": "##IO.putBytes.impl.v3",
@@ -671,7 +671,7 @@ GET /api/non-project-code/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summar
 
 ```api
 --  data
-GET /api/non-project-code/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0/summary?name=Thing
+GET /api/projects/scratch/branches/main/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0/summary?name=Thing
 {
     "displayName": "Thing",
     "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
@@ -710,7 +710,7 @@ GET /api/non-project-code/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5ad
     "tag": "Data"
 }
 --  data with type args
-GET /api/non-project-code/definitions/types/by-hash/@nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg/summary?name=Maybe
+GET /api/projects/scratch/branches/main/definitions/types/by-hash/@nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg/summary?name=Maybe
 {
     "displayName": "Maybe",
     "hash": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
@@ -759,7 +759,7 @@ GET /api/non-project-code/definitions/types/by-hash/@nirp5os0q69o4e1u9p3t6mmq6l6
     "tag": "Data"
 }
 --  ability
-GET /api/non-project-code/definitions/types/by-hash/@rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8/summary?name=Stream
+GET /api/projects/scratch/branches/main/definitions/types/by-hash/@rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8/summary?name=Stream
 {
     "displayName": "Stream",
     "hash": "#rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8",
@@ -808,7 +808,7 @@ GET /api/non-project-code/definitions/types/by-hash/@rfi1v9429f9qluv533l2iba77aa
     "tag": "Ability"
 }
 --  builtin type
-GET /api/non-project-code/definitions/types/by-hash/@@Nat/summary?name=Nat
+GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?name=Nat
 {
     "displayName": "Nat",
     "hash": "##Nat",

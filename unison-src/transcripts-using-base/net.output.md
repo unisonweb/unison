@@ -107,7 +107,7 @@ testDefaultPort _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,13 +115,13 @@ testDefaultPort _ =
     testDefaultPort  : '{IO} [Result]
     testExplicitHost : '{IO} [Result]
 
-.> io.test testDefaultPort
+scratch/main> io.test testDefaultPort
 
     New test results:
   
-    1. ◉ testDefaultPort   successfully created socket
-    2. ◉ testDefaultPort   port should be > 1024
-    3. ◉ testDefaultPort   port should be < 65536
+    1. testDefaultPort   ◉ successfully created socket
+                         ◉ port should be > 1024
+                         ◉ port should be < 65536
   
   ✅ 3 test(s) passing
   
@@ -194,7 +194,7 @@ testTcpConnect = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -202,11 +202,11 @@ testTcpConnect = 'let
     serverThread   : MVar Nat -> Text -> '{IO} ()
     testTcpConnect : '{IO} [Result]
 
-.> io.test testTcpConnect
+scratch/main> io.test testTcpConnect
 
     New test results:
   
-    1. ◉ testTcpConnect   should have reaped what we've sown
+    1. testTcpConnect   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   

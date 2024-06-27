@@ -1,7 +1,7 @@
 Not yet working: properly updating nameless implicit terms.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -13,7 +13,7 @@ pong _ = !inner.ping + 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Here we queue up an update by saving in a namespace where `inner.ping` and `pong` both have names, but then apply the
@@ -26,7 +26,7 @@ inner.ping _ = !pong + 3
 
 ```ucm
 .inner> update.old
-.> view inner.ping
+scratch/main> view inner.ping
 ```
 
 The bug here is that `inner.ping` still refers to `pong` by name. But if we properly identified the nameless (in the

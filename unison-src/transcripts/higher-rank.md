@@ -2,9 +2,9 @@
 This transcript does some testing of higher-rank types. Regression tests related to higher-rank types can be added here.
 
 ```ucm:hide
-.> alias.type ##Nat Nat
-.> alias.type ##Text Text
-.> alias.type ##IO IO
+scratch/main> alias.type ##Nat Nat
+scratch/main> alias.type ##Text Text
+scratch/main> alias.type ##IO IO
 ```
 
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:

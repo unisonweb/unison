@@ -12,6 +12,9 @@ GET /api/projects
     },
     {
         "projectName": "project-two"
+    },
+    {
+        "projectName": "scratch"
     }
 ]
 --  Should list projects starting with project-t

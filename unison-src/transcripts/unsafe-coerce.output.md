@@ -28,12 +28,12 @@ main _ =
 
 ```
 ```ucm
-.> find unsafe.coerceAbilities
+scratch/main> find unsafe.coerceAbilities
 
   1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   
 
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -41,11 +41,11 @@ main _ =
     fc   : '{IO, Exception} Nat
     main : '{IO, Exception} [Result]
 
-.> io.test main
+scratch/main> io.test main
 
     New test results:
   
-    1. ◉ main   
+    1. main   ◉ 
   
   ✅ 1 test(s) passing
   

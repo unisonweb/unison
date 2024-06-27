@@ -26,19 +26,19 @@ docs.example4 = {{A doc that links to the {type Labels} type}}
 Now we check that each doc links to the object of the correct name:
 
 ```ucm
-.> display docs.example1
+scratch/main> display docs.example1
 
   A doc that links to the abilityPatterns term
 
-.> display docs.example2
+scratch/main> display docs.example2
 
   A doc that links to the Patterns ability
 
-.> display docs.example3
+scratch/main> display docs.example3
 
   A doc that links to the typeLabels term
 
-.> display docs.example4
+scratch/main> display docs.example4
 
   A doc that links to the Labels type
 

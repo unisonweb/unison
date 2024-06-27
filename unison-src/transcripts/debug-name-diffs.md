@@ -10,10 +10,10 @@ structural type a.b.Baz = Boo
 ```
 
 ```ucm
-.> add
-.> delete.term.verbose a.b.one
-.> alias.term a.two a.newtwo
-.> move.namespace a.x a.y
-.> history
-.> debug.name-diff 4 1
+scratch/main> add
+scratch/main> delete.term.verbose a.b.one
+scratch/main> alias.term a.two a.newtwo
+scratch/main> move.namespace a.x a.y
+scratch/main> history
+scratch/main> debug.name-diff 4 1
 ```

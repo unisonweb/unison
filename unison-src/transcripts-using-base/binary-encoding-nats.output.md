@@ -76,7 +76,7 @@ testABunchOfNats _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -91,78 +91,78 @@ testABunchOfNats _ =
     testNat          : Nat -> '{IO, Stream Result} ()
     testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
-.> io.test testABunchOfNats
+scratch/main> io.test testABunchOfNats
 
     New test results:
   
-    1.  ◉ testABunchOfNats   successfully decoded 4294967295 using 64 bit Big Endian
-    2.  ◉ testABunchOfNats   consumed all input
-    3.  ◉ testABunchOfNats   successfully decoded 4294967295 using 64 bit Little Endian
-    4.  ◉ testABunchOfNats   consumed all input
-    5.  ◉ testABunchOfNats   successfully decoded 4294967295 using 32 bit Big Endian
-    6.  ◉ testABunchOfNats   consumed all input
-    7.  ◉ testABunchOfNats   successfully decoded 4294967295 using 32 bit Little Endian
-    8.  ◉ testABunchOfNats   consumed all input
-    9.  ◉ testABunchOfNats   successfully decoded 1090519040 using 64 bit Big Endian
-    10. ◉ testABunchOfNats   consumed all input
-    11. ◉ testABunchOfNats   successfully decoded 1090519040 using 64 bit Little Endian
-    12. ◉ testABunchOfNats   consumed all input
-    13. ◉ testABunchOfNats   successfully decoded 1090519040 using 32 bit Big Endian
-    14. ◉ testABunchOfNats   consumed all input
-    15. ◉ testABunchOfNats   successfully decoded 1090519040 using 32 bit Little Endian
-    16. ◉ testABunchOfNats   consumed all input
-    17. ◉ testABunchOfNats   successfully decoded 4259840 using 64 bit Big Endian
-    18. ◉ testABunchOfNats   consumed all input
-    19. ◉ testABunchOfNats   successfully decoded 4259840 using 64 bit Little Endian
-    20. ◉ testABunchOfNats   consumed all input
-    21. ◉ testABunchOfNats   successfully decoded 4259840 using 32 bit Big Endian
-    22. ◉ testABunchOfNats   consumed all input
-    23. ◉ testABunchOfNats   successfully decoded 4259840 using 32 bit Little Endian
-    24. ◉ testABunchOfNats   consumed all input
-    25. ◉ testABunchOfNats   successfully decoded 16640 using 64 bit Big Endian
-    26. ◉ testABunchOfNats   consumed all input
-    27. ◉ testABunchOfNats   successfully decoded 16640 using 64 bit Little Endian
-    28. ◉ testABunchOfNats   consumed all input
-    29. ◉ testABunchOfNats   successfully decoded 16640 using 32 bit Big Endian
-    30. ◉ testABunchOfNats   consumed all input
-    31. ◉ testABunchOfNats   successfully decoded 16640 using 32 bit Little Endian
-    32. ◉ testABunchOfNats   consumed all input
-    33. ◉ testABunchOfNats   successfully decoded 16640 using 16 bit Big Endian
-    34. ◉ testABunchOfNats   consumed all input
-    35. ◉ testABunchOfNats   successfully decoded 16640 using 16 bit Little Endian
-    36. ◉ testABunchOfNats   consumed all input
-    37. ◉ testABunchOfNats   successfully decoded 2255827097 using 64 bit Big Endian
-    38. ◉ testABunchOfNats   consumed all input
-    39. ◉ testABunchOfNats   successfully decoded 2255827097 using 64 bit Little Endian
-    40. ◉ testABunchOfNats   consumed all input
-    41. ◉ testABunchOfNats   successfully decoded 2255827097 using 32 bit Big Endian
-    42. ◉ testABunchOfNats   consumed all input
-    43. ◉ testABunchOfNats   successfully decoded 2255827097 using 32 bit Little Endian
-    44. ◉ testABunchOfNats   consumed all input
-    45. ◉ testABunchOfNats   successfully decoded 65 using 64 bit Big Endian
-    46. ◉ testABunchOfNats   consumed all input
-    47. ◉ testABunchOfNats   successfully decoded 65 using 64 bit Little Endian
-    48. ◉ testABunchOfNats   consumed all input
-    49. ◉ testABunchOfNats   successfully decoded 65 using 32 bit Big Endian
-    50. ◉ testABunchOfNats   consumed all input
-    51. ◉ testABunchOfNats   successfully decoded 65 using 32 bit Little Endian
-    52. ◉ testABunchOfNats   consumed all input
-    53. ◉ testABunchOfNats   successfully decoded 65 using 16 bit Big Endian
-    54. ◉ testABunchOfNats   consumed all input
-    55. ◉ testABunchOfNats   successfully decoded 65 using 16 bit Little Endian
-    56. ◉ testABunchOfNats   consumed all input
-    57. ◉ testABunchOfNats   successfully decoded 0 using 64 bit Big Endian
-    58. ◉ testABunchOfNats   consumed all input
-    59. ◉ testABunchOfNats   successfully decoded 0 using 64 bit Little Endian
-    60. ◉ testABunchOfNats   consumed all input
-    61. ◉ testABunchOfNats   successfully decoded 0 using 32 bit Big Endian
-    62. ◉ testABunchOfNats   consumed all input
-    63. ◉ testABunchOfNats   successfully decoded 0 using 32 bit Little Endian
-    64. ◉ testABunchOfNats   consumed all input
-    65. ◉ testABunchOfNats   successfully decoded 0 using 16 bit Big Endian
-    66. ◉ testABunchOfNats   consumed all input
-    67. ◉ testABunchOfNats   successfully decoded 0 using 16 bit Little Endian
-    68. ◉ testABunchOfNats   consumed all input
+    1. testABunchOfNats   ◉ successfully decoded 4294967295 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4294967295 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4294967295 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4294967295 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 1090519040 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 1090519040 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 1090519040 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 1090519040 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4259840 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4259840 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4259840 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 4259840 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 16 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 16640 using 16 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 2255827097 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 2255827097 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 2255827097 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 2255827097 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 16 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 65 using 16 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 64 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 64 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 32 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 32 bit Little Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 16 bit Big Endian
+                          ◉ consumed all input
+                          ◉ successfully decoded 0 using 16 bit Little Endian
+                          ◉ consumed all input
   
   ✅ 68 test(s) passing
   
