@@ -37,4 +37,4 @@ jobs:
         name: unison
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: build all packages and development shells
-      run: nix -L build --accept-flake-config --no-link --keep-going '.#build-tools'
+      run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
