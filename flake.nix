@@ -64,29 +64,6 @@
         unwrapped-stack = unstable.stack;
         hpack = unstable.hpack;
       };
-      nixpkgs-devShells = {
-        only-tools-nixpkgs = unstable.mkShell {
-          name = "only-tools-nixpkgs";
-          buildInputs = let
-            build-tools = with nixpkgs-packages; [
-              ghc
-              ormolu
-              hls
-              stack
-              hpack
-            ];
-            native-packages =
-              pkgs.lib.optionals pkgs.stdenv.isDarwin
-              (with unstable.darwin.apple_sdk.frameworks; [Cocoa]);
-            c-deps = with unstable; [pkg-config zlib glibcLocales];
-          in
-            build-tools ++ c-deps ++ native-packages;
-          shellHook = ''
-            export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-          '';
-        };
-      };
-
       renameAttrs = fn:
         nixpkgs.lib.mapAttrs' (name: value: {
           inherit value;
@@ -113,12 +90,11 @@
               name = "all";
               paths = let
                 all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" ["all" "build-tools"]);
-                devshell-inputs =
-                  builtins.concatMap
-                  (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
-                  [
-                    self.devShells."${system}".only-tools-nixpkgs
-                  ];
+                ## FIXME: Including these inputs currently results in massing GHC builds.
+                devshell-inputs = [];
+                  # builtins.concatMap
+                  # (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
+                  # (builtins.attrValues self.devShells."${system}");
               in
                 all-other-packages ++ devshell-inputs;
             };
@@ -129,9 +105,8 @@
           // {default = self.apps."${system}"."component-unison-cli-main:exe:unison";};
 
         devShells =
-          nixpkgs-devShells
-          // renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
-          // {default = self.devShells."${system}".only-tools-nixpkgs;};
+          renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
+          // {default = self.devShells."${system}".cabal-only-tools;};
 
         checks = renameAttrs (name: "component-${name}") haskell-nix-flake.checks;
 
