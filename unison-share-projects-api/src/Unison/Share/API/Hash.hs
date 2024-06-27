@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- | Hash-related types in the Share API.
 module Unison.Share.API.Hash

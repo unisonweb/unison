@@ -38,13 +38,6 @@ packages:
   original:
     url: https://github.com/runarorama/fuzzyfind/archive/213b71742839bdb26300463878c1856f76ce8855.tar.gz
 - completed:
-    hackage: jose-0.9@sha256:0a312116d10cbddc915b77dbf82958307702e8716f3366bf7d166776498857e2,3251
-    pantry-tree:
-      sha256: b787b8fa8a0ffe381a55a8b66f088d80ed7be0bc5acaf2c54cee78c4ab5fee1b
-      size: 2105
-  original:
-    hackage: jose-0.9
-- completed:
     hackage: guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
     pantry-tree:
       sha256: a33838b7b1c54f6ac3e1b436b25674948713a4189658e4d82e639b9a689bc90d
