@@ -1053,8 +1053,10 @@ httpUploadEntities ::
           { Servant.makeClientRequest = \url request ->
               -- Disable client-side timeouts
               (Servant.defaultMakeClientRequest url request)
-                { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
-                }
+                <&> \r ->
+                  r
+                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                    }
           }
           & runReaderT (f req)
           & runExceptT

@@ -8,7 +8,7 @@ import Unison.Codebase.Editor.HandleInput.MoveTerm (moveTermSteps)
 import Unison.Codebase.Editor.HandleInput.MoveType (moveTypeSteps)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Prelude
 
 handleMoveAll :: Bool -> Path.Path' -> Path.Path' -> Text -> Cli ()

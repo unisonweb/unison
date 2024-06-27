@@ -11,7 +11,7 @@ import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 

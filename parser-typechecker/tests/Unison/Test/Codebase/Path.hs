@@ -6,7 +6,7 @@ import Data.Maybe (fromJust)
 import EasyTest
 import Unison.Codebase.Path (Path (..), Path' (..), Relative (..))
 import Unison.Codebase.Path.Parse (parseHQSplit', parseShortHashOrHQSplit')
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.ShortHash qualified as SH

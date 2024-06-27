@@ -27,10 +27,10 @@
     ]
     (system: let
       versions = {
-        ghc = "928";
+        ghc = "965";
         ormolu = "0.5.2.0";
-        hls = "2.4.0.0";
-        stack = "2.13.1";
+        hls = "2.9.0.0";
+        stack = "2.15.5";
         hpack = "0.35.2";
       };
       overlays = [

@@ -49,7 +49,7 @@ import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -66,7 +66,7 @@ import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReferenc
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
-import Unison.Server.SearchResult' (SearchResult')
+import Unison.Server.SearchResultPrime (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
 import Unison.ShortHash (ShortHash)
 import Unison.Symbol (Symbol)

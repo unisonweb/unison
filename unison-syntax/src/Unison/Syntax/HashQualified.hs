@@ -21,10 +21,10 @@ import Text.Megaparsec qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.HashQualified (HashQualified (..))
 import Unison.HashQualified qualified as HashQualified
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude hiding (fromString)
-import Unison.Syntax.HashQualified' qualified as HQ'
+import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Syntax.Lexer.Token (Token)
 import Unison.Syntax.Name qualified as Name (nameP, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment

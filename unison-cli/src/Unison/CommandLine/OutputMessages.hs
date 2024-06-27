@@ -84,7 +84,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -114,11 +114,11 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent
+import Unison.ReferentPrime qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
 import Unison.Server.Backend qualified as Backend
-import Unison.Server.SearchResult' qualified as SR'
+import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types (CodeserverTransportError (..))
 import Unison.Sync.Types qualified as Share

@@ -31,7 +31,7 @@ import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment

@@ -106,7 +106,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)

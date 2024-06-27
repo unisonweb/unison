@@ -23,7 +23,7 @@ import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LSP.FileAnalysis
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
@@ -43,7 +43,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Name qualified as Name (nameP, parseText, toText)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Monoid qualified as Monoid
