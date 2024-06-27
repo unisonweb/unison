@@ -12,46 +12,40 @@ This transcript shows how the pretty-printer picks names for a hash when multipl
 ```
 
 ```unison:hide
-a = b + 1
-b = 0 + 1
+a.a = a.b + 1
+a.b = 0 + 1
+a.aaa.but.more.segments = 0 + 1
 ```
 
 Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment length alias), and show that it isn't used when viewing `a`:
 
 ```ucm
-.a> add
-.a> alias.term b aaa.but.more.segments
+.> add
 .a> view a
 ```
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-```
-.> fork a a2
-.> fork a a3
-```
-
 ```unison:hide
-c = 1
-d = c + 10
-```
+a2.a = a2.b + 1
+a2.b = 0 + 1
+a2.aaa.but.more.segments = 0 + 1
+a2.c = 1
+a2.d = a2.c + 10
+a2.long.name.but.shortest.suffixification = 1
 
-```ucm:hide
-.a2> builtins.merge
-```
-```ucm
-.a2> add
-.a2> alias.term c long.name.but.shortest.suffixification
-```
-
-```unison:hide
-c = 2
-d = c + 10
+a3.a = a3.b + 1
+a3.b = 0 + 1
+a3.aaa.but.more.segments = 0 + 1
+a3.c = 2
+a3.d = a3.c + 10
+a3.long.name.but.shortest.suffixification = 1
 ```
 
 ```ucm
-.a3> add
-.a3> merge.old .a2 .a3
+.> add
+.> debug.alias.term.force a2.c a3.c
+.> debug.alias.term.force a2.d a3.d
 ```
 
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized.
