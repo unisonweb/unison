@@ -27,16 +27,12 @@ packages:
   original:
     url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
 - completed:
-    name: fuzzyfind
+    hackage: fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
     pantry-tree:
-      sha256: 38cdef9414d5700e7c735cfa20c6a5c4c347aff64213111c56abc76a80792d97
-      size: 602
-    sha256: 87c684a8f4bab514ecc5c989517a484f40003327a138ff449bb87ec2779696d6
-    size: 388383
-    url: https://github.com/runarorama/fuzzyfind/archive/213b71742839bdb26300463878c1856f76ce8855.tar.gz
-    version: 3.0.1
+      sha256: 5bb9d39dbc4a619cf9b65409dde0d58dd488c7abab030f71ac83ba849595ee05
+      size: 542
   original:
-    url: https://github.com/runarorama/fuzzyfind/archive/213b71742839bdb26300463878c1856f76ce8855.tar.gz
+    hackage: fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
 - completed:
     hackage: guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
     pantry-tree:
@@ -65,20 +61,6 @@ packages:
       size: 2489
   original:
     hackage: recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
-- completed:
-    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
-    pantry-tree:
-      sha256: 88ea35fb71d377c035770d5f0d6a3aea51919223e3bc1e492deb6f7d9cda3a85
-      size: 1043
-  original:
-    hackage: lsp-2.2.0.0@sha256:82fbf4b69d94d8d22543be71f89986b3e90050032d671fb3de3f8253ea1e5b6f,3550
-- completed:
-    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
-    pantry-tree:
-      sha256: 7a3f0b679066d5e4732dfa358d76e0969589d636f4012c9e87cbe3451aa3ee5e
-      size: 45527
-  original:
-    hackage: lsp-types-2.0.2.0@sha256:a9a51c3cea0726d91fe63fa0670935ee720f7b31bc3f3b33b2483fc538152677,29421
 - completed:
     hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
     pantry-tree:
