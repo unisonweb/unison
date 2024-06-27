@@ -23,14 +23,6 @@ in
         enableLibraryProfiling = true;
         profilingDetail = "none";
       }
-      # remove buggy build tool dependencies
-      ({lib, ...}: {
-        # this component has the build tool
-        # `unison-cli:unison` and somehow haskell.nix
-        # decides to add some file sharing package
-        # `unison` as a build-tool dependency.
-        packages.unison-cli.components.exes.cli-integration-tests.build-tools = lib.mkForce [];
-      })
     ];
     branchMap = {
       "https://github.com/unisonweb/configurator.git"."e47e9e9fe1f576f8c835183b9def52d73c01327a" = "unison";
