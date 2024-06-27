@@ -98,8 +98,7 @@
       assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
       assert nixpkgs-packages.hpack.version == versions.hpack; {
         packages =
-          nixpkgs-packages
-          // renameAttrs (name: "component-${name}") haskell-nix-flake.packages
+          renameAttrs (name: "component-${name}") haskell-nix-flake.packages
           // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
             inherit pkgs;
             haskell-nix = haskell-nix-flake.packages;
