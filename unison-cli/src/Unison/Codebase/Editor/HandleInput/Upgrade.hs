@@ -34,7 +34,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
   )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
