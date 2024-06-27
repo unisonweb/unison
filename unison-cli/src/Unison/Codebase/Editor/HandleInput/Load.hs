@@ -78,7 +78,7 @@ loadUnisonFile sourceName text = do
       Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
     withFile names sourceName text = do
-      currentPath <- Cli.getCurrentPath
+      pp <- Cli.getCurrentProjectPath
       State.modify' \loopState ->
         loopState
           & #latestFile .~ Just (Text.unpack sourceName, False)
@@ -88,7 +88,7 @@ loadUnisonFile sourceName text = do
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
                 names
               }
       unisonFile <-

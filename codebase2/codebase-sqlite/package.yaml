@@ -27,6 +27,7 @@ dependencies:
   - nonempty-containers
   - safe
   - text
+  - time
   - transformers
   - unison-codebase
   - unison-codebase-sync

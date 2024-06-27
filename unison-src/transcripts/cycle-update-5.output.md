@@ -64,10 +64,17 @@ inner.ping _ = !pong + 3
 
 scratch/main> view inner.ping
 
-  inner.ping : 'Nat
-  inner.ping _ =
-    use Nat +
-    pong() + 1
+<<<<<<< Conflict 1 of 1
+%%%%%%% Changes from base to side #1
+   inner.ping : 'Nat
+   inner.ping _ =
+     use Nat +
+-    !pong + 1
++    pong() + 1
++++++++ Contents of side #2
+  inner.inner.ping : '##Nat
+  inner.inner.ping _ = ##Nat.+ !#4t465jk908 3
+>>>>>>> Conflict 1 of 1 ends
 
 ```
 The bug here is that `inner.ping` still refers to `pong` by name. But if we properly identified the nameless (in the

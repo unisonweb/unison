@@ -24,6 +24,7 @@ import Unison.Server.Doc qualified as Doc
 import Unison.Server.Types
   ( APIGet,
     NamespaceDetails (..),
+    RequiredQueryParam,
     v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
@@ -32,7 +33,7 @@ import Unison.Util.Pretty (Width)
 type NamespaceDetailsAPI =
   "namespaces"
     :> Capture "namespace" Path.Path
-    :> QueryParam "rootBranch" ShortCausalHash
+    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails
 
@@ -46,23 +47,21 @@ namespaceDetails ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Path.Path ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Width ->
   Backend IO NamespaceDetails
-namespaceDetails runtime codebase namespacePath mayRoot _mayWidth = do
+namespaceDetails runtime codebase namespacePath root _mayWidth = do
   (rootCausal, namespaceCausal, shallowBranch) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
       rootCausalHash <-
-        case mayRoot of
-          Nothing -> Backend.resolveRootBranchHashV2 Nothing
-          Just (Left sch) -> Backend.resolveRootBranchHashV2 (Just sch)
-          Just (Right ch) -> lift $ Backend.resolveCausalHashV2 (Just ch)
-      -- lift (Backend.resolveCausalHashV2 rootCausalHash)
-      namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath (Just rootCausalHash)
+        case root of
+          (Left sch) -> Backend.resolveRootBranchHashV2 sch
+          (Right ch) -> lift $ Codebase.expectCausalBranchByCausalHash ch
+      namespaceCausal <- lift $ Codebase.getShallowCausalAtPath namespacePath rootCausalHash
       shallowBranch <- lift $ V2Causal.value namespaceCausal
       pure (rootCausalHash, namespaceCausal, shallowBranch)
   namespaceDetails <- do
-    (_localNamesOnly, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just rootCausal) namespacePath
+    (_localNamesOnly, ppe) <- Backend.namesAtPathFromRootBranchHash codebase rootCausal namespacePath
     let mayReadmeRef = Backend.findDocInBranch readmeNames shallowBranch
     renderedReadme <- for mayReadmeRef \readmeRef -> do
       -- Local server currently ignores eval errors.

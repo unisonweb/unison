@@ -17,6 +17,7 @@ module Unison.Project
     ProjectBranchSpecifier (..),
     ProjectAndBranch (..),
     projectAndBranchNamesParser,
+    fullyQualifiedProjectAndBranchNamesParser,
     projectAndOptionalBranchParser,
     branchWithOptionalProjectParser,
     ProjectAndBranchNames (..),
@@ -413,6 +414,20 @@ projectAndBranchNamesParser specifier = do
             Nothing -> This project
             Just branch -> These project branch
         else pure (This project)
+
+-- | Parse a fully specified myproject/mybranch name.
+--
+-- >>> import Text.Megaparsec (parseMaybe)
+-- >>> parseMaybe fullyQualifiedProjectAndBranchNamesParser ("myproject/mybranch" :: Text)
+-- Just (ProjectAndBranch {project = UnsafeProjectName "myproject", branch = UnsafeProjectBranchName "mybranch"})
+fullyQualifiedProjectAndBranchNamesParser :: Megaparsec.Parsec Void Text (ProjectAndBranch ProjectName ProjectBranchName)
+fullyQualifiedProjectAndBranchNamesParser = do
+  (project, hadSlash) <- projectNameParser
+  if hadSlash
+    then pure ()
+    else void $ Megaparsec.char '/'
+  branch <- projectBranchNameParser False
+  pure (ProjectAndBranch project branch)
 
 -- | @project/branch@ syntax, where the branch is optional.
 instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text where
