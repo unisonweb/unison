@@ -8,6 +8,8 @@ CREATE TABLE current_project_path (
 
   foreign key (project_id, branch_id)
     references project_branch (project_id, branch_id)
+    -- Prevent deleting the project you're currently in.
+    on delete no action
 ) WITHOUT ROWID;
 
 DROP TABLE most_recent_namespace;

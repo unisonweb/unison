@@ -75,35 +75,21 @@ Deleting the root namespace should require confirmation if not forced.
 ```ucm
 scratch/main> delete.namespace .
 
-  ⚠️
-  
-  Are you sure you want to clear away everything?
-  You could use `project.create` to switch to a new project instead.
-
-scratch/main> delete.namespace .
-
-  Okay, I deleted everything except the history. Use `undo` to
-  undo, or `builtins.merge` to restore the absolute basics to
-  the current path.
-
--- Should have an empty history
-scratch/main> history .
-
-  ☝️  The namespace . is empty.
-
 ```
-Deleting the root namespace shouldn't require confirmation if forced.
 
 ```ucm
-scratch/main> delete.namespace.force .
-
-  Okay, I deleted everything except the history. Use `undo` to
-  undo, or `builtins.merge` to restore the absolute basics to
-  the current path.
-
--- Should have an empty history
-scratch/main> history .
-
-  ☝️  The namespace . is empty.
-
+scratch/main> delete.namespace .scratch/main> delete.namespace .-- Should have an empty historyscratch/main> history .
 ```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+1:1:
+  |
+1 | .
+  | ^
+unexpected '.'
+expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
+

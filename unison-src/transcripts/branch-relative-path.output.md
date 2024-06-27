@@ -67,31 +67,20 @@ p1/main> find zzz
 
 p1/main> fork p0/main:foo yyy
 
-  Done.
-
-p1/main> find yyy
-
-  1. yyy.bar : ##Nat
-  
-
-p0/main> fork p1/main: p0/main:p1
-
-  Done.
-
-p0/main> ls p1
-
-  1. bonk  (##Nat)
-  2. donk/ (1 term)
-  3. yyy/  (1 term)
-  4. zzz/  (2 terms)
-
-p0/main> ls p1.zzz
-
-  1. foo  (##Nat)
-  2. foo/ (1 term)
-
-p0/main> ls p1.yyy
-
-  1. bar (##Nat)
-
 ```
+
+```ucm
+p1/main> addp1/main> fork p0/main: zzzp1/main> find zzzp1/main> fork p0/main:foo yyyp1/main> find yyyp0/main> fork p1/main: p0/main:p1p0/main> ls p1p0/main> ls p1.zzzp0/main> ls p1.yyy
+```
+
+
+🛑
+
+The transcript failed due to an error in the stanza above. The error is:
+
+<none>:1:9:
+  |
+1 | p0/main:foo
+  |         ^
+Expected an absolute path but found a relative path. Try adding a leading '.' to your path
+
