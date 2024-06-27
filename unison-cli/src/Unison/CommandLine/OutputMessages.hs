@@ -110,7 +110,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -307,6 +307,29 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+  TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
+    let oks = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- oksUnsorted]
+        fails = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- failsUnsorted]
+        name r = PPE.termName ppe (Referent.fromTermReferenceId r)
+     in ( case stats of
+            CachedTests 0 _ -> P.callout "😶" $ "No tests to run."
+            CachedTests n n' | n == n' -> P.lines [cache, "", displayTestResults True oks fails]
+            CachedTests _n m ->
+              if m == 0
+                then "✅  "
+                else
+                  P.indentN 2 $
+                    P.lines ["", cache, "", displayTestResults False oks fails, "", "✅  "]
+            NewlyComputed ->
+              P.lines
+                [ "  " <> P.bold "New test results:",
+                  "",
+                  displayTestResults True oks fails
+                ],
+          fmap (SA.HashQualified . fst) $ oks <> fails
+        )
+    where
+      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
   CantDeleteDefinitions ppeDecl endangerments ->
     ( P.warnCallout $
@@ -638,29 +661,6 @@ notifyUser dir = \case
   OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
-  TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
-    CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
-    CachedTests n n'
-      | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
-    CachedTests _n m ->
-      pure $
-        if m == 0
-          then "✅  "
-          else
-            P.indentN 2 $
-              P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-    NewlyComputed -> do
-      clearCurrentLine
-      pure $
-        P.lines
-          [ "  " <> P.bold "New test results:",
-            "",
-            displayTestResults True ppe oks fails
-          ]
-    where
-      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
@@ -1199,7 +1199,7 @@ notifyUser dir = \case
       ]
     where
       name :: Name
-      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
+      name = HQ'.toName $ Path.nameFromHQSplit' p
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -2535,18 +2535,17 @@ displayRendered outputLoc pp =
 
 displayTestResults ::
   Bool -> -- whether to show the tip
-  PPE.PrettyPrintEnv ->
-  [(TermReferenceId, Text)] ->
-  [(TermReferenceId, Text)] ->
+  [(HQ.HashQualified Name, Text)] ->
+  [(HQ.HashQualified Name, Text)] ->
   Pretty
-displayTestResults showTip ppe oksUnsorted failsUnsorted =
-  let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
-      fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
+displayTestResults showTip oks fails =
+  let name = P.text . HQ.toText
       okMsg =
         if null oks
           then mempty
-          else P.column2 [(P.green "◉ " <> P.text r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom 0 [(P.green "◉ " <> name r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
       okSummary =
         if null oks
           then mempty
@@ -2554,7 +2553,11 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
       failMsg =
         if null fails
           then mempty
-          else P.column2 [(P.red "✗ " <> P.text r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom
+                (length oks)
+                [(P.red "✗ " <> name r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
       failSummary =
         if null fails
           then mempty
@@ -2562,11 +2565,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
       tipMsg =
         if not showTip || (null oks && null fails)
           then mempty
-          else
-            tip $
-              "Use "
-                <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
-                <> "to view the source of a test."
+          else tip $ "Use " <> P.blue "view 1" <> "to view the source of a test."
    in if null oks && null fails
         then "😶 No tests available."
         else
@@ -3449,7 +3448,7 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines $
             [ P.indentN 2 $ P.bold "Types:",
               "",
-              P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+              P.indentN 2 . P.numberedList $ c . prettyHashQualified <$> types
             ]
     termsOut =
       if null terms
@@ -3458,7 +3457,6 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines
             [ P.indentN 2 $ P.bold "Terms:",
               "",
-              P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+              P.indentN 2 . P.numberedListFrom (length types) $ c . prettyHashQualified <$> terms
             ]
-    numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
     c = P.syntaxToColor

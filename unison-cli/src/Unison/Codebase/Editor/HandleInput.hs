@@ -77,7 +77,6 @@ import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
-import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch)
@@ -88,6 +87,7 @@ import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
+import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
@@ -104,7 +104,6 @@ import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Path (Path, Path' (..))
-import Unison.Codebase.Path qualified as HQSplit'
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -119,7 +118,6 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
-import Unison.HashQualified' qualified as HashQualified
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency
@@ -574,7 +572,7 @@ loop e = do
                         (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
                 fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
-                fixupOutput = fmap Path.unsafeToName . HQ'.toHQ . Path.unsplitHQ
+                fixupOutput = HQ'.toHQ . Path.nameFromHQSplit
             NamesI global query -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               root <- Cli.getRootBranch
@@ -659,7 +657,7 @@ loop e = do
                 description <- inputDescription input
                 let toDelete =
                       Names.prefix0
-                        (Path.unsafeToName (Path.unsplit (p)))
+                        (Path.nameFromSplit' $ first (Path.RelativePath' . Path.Relative) p)
                         (Branch.toNames (Branch.head branch))
                 afterDelete <- do
                   names <- Cli.currentNames
@@ -1540,7 +1538,7 @@ delete input doutput getTerms getTypes hqs' = do
     then do
       let toName :: [(Path.HQSplit', Set Reference, Set referent)] -> [Name]
           toName notFounds =
-            mapMaybe (\(split, _, _) -> Path.toName' $ HashQualified.toName (HQSplit'.unsplitHQ' split)) notFounds
+            map (\(split, _, _) -> HQ'.toName $ Path.nameFromHQSplit' split) notFounds
       Cli.returnEarly $ NamesNotFound (toName notFounds)
     else do
       checkDeletes typesTermsTuple doutput input
@@ -1551,8 +1549,14 @@ checkDeletes typesTermsTuples doutput inputs = do
         (Path.HQSplit', Set Reference, Set Referent) ->
         Cli (Path.Split, Name, Set Reference, Set Referent)
       toSplitName hq = do
+        -- __FIXME__: `resolvedPath` is ostensiby `Absolute`, but the paths here must be `Relative` below
         resolvedPath <- first Path.unabsolute <$> Cli.resolveSplit' (HQ'.toName <$> hq ^. _1)
-        return (resolvedPath, Path.unsafeToName (Path.unsplit resolvedPath), hq ^. _2, hq ^. _3)
+        return
+          ( resolvedPath,
+            Path.nameFromSplit' $ first (Path.RelativePath' . Path.Relative) resolvedPath,
+            hq ^. _2,
+            hq ^. _3
+          )
   -- get the splits and names with terms and types
   splitsNames <- traverse toSplitName typesTermsTuples
   let toRel :: (Ord ref) => Set ref -> Name -> R.Relation Name ref

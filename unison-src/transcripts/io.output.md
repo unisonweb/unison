@@ -69,17 +69,17 @@ testCreateRename _ =
 
     New test results:
   
-  ◉ testCreateRename   create a foo directory
-  ◉ testCreateRename   directory should exist
-  ◉ testCreateRename   foo should no longer exist
-  ◉ testCreateRename   directory should no longer exist
-  ◉ testCreateRename   bar should now exist
-  ◉ testCreateRename   removeDirectory works recursively
-  ◉ testCreateRename   removeDirectory works recursively
+    1. ◉ testCreateRename   create a foo directory
+    2. ◉ testCreateRename   directory should exist
+    3. ◉ testCreateRename   foo should no longer exist
+    4. ◉ testCreateRename   directory should no longer exist
+    5. ◉ testCreateRename   bar should now exist
+    6. ◉ testCreateRename   removeDirectory works recursively
+    7. ◉ testCreateRename   removeDirectory works recursively
   
   ✅ 7 test(s) passing
   
-  Tip: Use view testCreateRename to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Opening / Closing files
@@ -151,16 +151,16 @@ testOpenClose _ =
 
     New test results:
   
-  ◉ testOpenClose   file should be open
-  ◉ testOpenClose   file handle buffering should match what we just set.
-  ◉ testOpenClose   file should be closed
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   file should be closed
+    1. ◉ testOpenClose   file should be open
+    2. ◉ testOpenClose   file handle buffering should match what we just set.
+    3. ◉ testOpenClose   file should be closed
+    4. ◉ testOpenClose   bytes have been written
+    5. ◉ testOpenClose   bytes have been written
+    6. ◉ testOpenClose   file should be closed
   
   ✅ 6 test(s) passing
   
-  Tip: Use view testOpenClose to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Reading files with getSomeBytes
@@ -241,18 +241,18 @@ testGetSomeBytes _ =
 
     New test results:
   
-  ◉ testGetSomeBytes   chunk size splits data into 2 uneven sides
-  ◉ testGetSomeBytes   file should be closed
-  ◉ testGetSomeBytes   first chunk matches first part of testData
-  ◉ testGetSomeBytes   second chunk matches rest of testData
-  ◉ testGetSomeBytes   should be at end of file
-  ◉ testGetSomeBytes   reading at end of file results in Bytes.empty
-  ◉ testGetSomeBytes   requesting many bytes results in what's available
-  ◉ testGetSomeBytes   file should be closed
+    1. ◉ testGetSomeBytes   chunk size splits data into 2 uneven sides
+    2. ◉ testGetSomeBytes   file should be closed
+    3. ◉ testGetSomeBytes   first chunk matches first part of testData
+    4. ◉ testGetSomeBytes   second chunk matches rest of testData
+    5. ◉ testGetSomeBytes   should be at end of file
+    6. ◉ testGetSomeBytes   reading at end of file results in Bytes.empty
+    7. ◉ testGetSomeBytes   requesting many bytes results in what's available
+    8. ◉ testGetSomeBytes   file should be closed
   
   ✅ 8 test(s) passing
   
-  Tip: Use view testGetSomeBytes to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Seeking in open files
@@ -350,27 +350,27 @@ testAppend _ =
 
     New test results:
   
-  ◉ testSeek   seeked
-  ◉ testSeek   readable file should be seekable
-  ◉ testSeek   shouldn't be the EOF
-  ◉ testSeek   we should be at position 0
-  ◉ testSeek   we should be at position 1
-  ◉ testSeek   should be able to read our temporary file after seeking
-  ◉ testSeek   getLine should get a line
+    1. ◉ testSeek   seeked
+    2. ◉ testSeek   readable file should be seekable
+    3. ◉ testSeek   shouldn't be the EOF
+    4. ◉ testSeek   we should be at position 0
+    5. ◉ testSeek   we should be at position 1
+    6. ◉ testSeek   should be able to read our temporary file after seeking
+    7. ◉ testSeek   getLine should get a line
   
   ✅ 7 test(s) passing
   
-  Tip: Use view testSeek to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 .> io.test testAppend
 
     New test results:
   
-  ◉ testAppend   should be able to read our temporary file
+    1. ◉ testAppend   should be able to read our temporary file
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testAppend to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### SystemTime
@@ -408,11 +408,11 @@ testSystemTime _ =
 
     New test results:
   
-  ◉ testSystemTime   systemTime should be sane
+    1. ◉ testSystemTime   systemTime should be sane
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testSystemTime to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get temp directory
@@ -438,13 +438,12 @@ testGetTempDirectory _ =
 
     New test results:
   
-  ◉ testGetTempDirectory   Temp directory is directory
-  ◉ testGetTempDirectory   Temp directory should exist
+    1. ◉ testGetTempDirectory   Temp directory is directory
+    2. ◉ testGetTempDirectory   Temp directory should exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetTempDirectory to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get current directory
@@ -470,13 +469,12 @@ testGetCurrentDirectory _ =
 
     New test results:
   
-  ◉ testGetCurrentDirectory   Current directory is directory
-  ◉ testGetCurrentDirectory   Current directory should exist
+    1. ◉ testGetCurrentDirectory   Current directory is directory
+    2. ◉ testGetCurrentDirectory   Current directory should exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetCurrentDirectory to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get directory contents
@@ -504,12 +502,12 @@ testDirContents _ =
 
     New test results:
   
-  ◉ testDirContents   directory size should be
-  ◉ testDirContents   directory contents should have current directory and parent
+    1. ◉ testDirContents   directory size should be
+    2. ◉ testDirContents   directory contents should have current directory and parent
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testDirContents to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Read environment variables
@@ -537,12 +535,12 @@ testGetEnv _ =
 
     New test results:
   
-  ◉ testGetEnv   PATH environent variable should be set
-  ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. ◉ testGetEnv   PATH environent variable should be set
+    2. ◉ testGetEnv   DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetEnv to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Read command line args
@@ -701,11 +699,11 @@ testRandom = do
 
     New test results:
   
-  ◉ testGetEnv   PATH environent variable should be set
-  ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. ◉ testGetEnv   PATH environent variable should be set
+    2. ◉ testGetEnv   DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetEnv to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

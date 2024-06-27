@@ -45,10 +45,10 @@ main _ =
 
     New test results:
   
-  ◉ main   
+    1. ◉ main   
   
   ✅ 1 test(s) passing
   
-  Tip: Use view main to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

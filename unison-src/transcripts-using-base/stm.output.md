@@ -119,19 +119,19 @@ tests = '(map spawn nats)
 
     New test results:
   
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
+    1.  ◉ tests   verified
+    2.  ◉ tests   verified
+    3.  ◉ tests   verified
+    4.  ◉ tests   verified
+    5.  ◉ tests   verified
+    6.  ◉ tests   verified
+    7.  ◉ tests   verified
+    8.  ◉ tests   verified
+    9.  ◉ tests   verified
+    10. ◉ tests   verified
   
   ✅ 10 test(s) passing
   
-  Tip: Use view tests to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

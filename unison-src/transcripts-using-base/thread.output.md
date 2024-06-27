@@ -82,12 +82,11 @@ testBasicMultiThreadMVar = 'let
 
     New test results:
   
-  ◉ testBasicMultiThreadMVar   other thread should have incremented
+    1. ◉ testBasicMultiThreadMVar   other thread should have incremented
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testBasicMultiThreadMVar to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ```unison
@@ -158,10 +157,10 @@ testTwoThreads = 'let
 
     New test results:
   
-  ◉ testTwoThreads   
+    1. ◉ testTwoThreads   
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testTwoThreads to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

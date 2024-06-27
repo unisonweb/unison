@@ -119,6 +119,13 @@ data NumberedOutput
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | TestResults
+      TestReportStats
+      PPE.PrettyPrintEnv
+      ShowSuccesses
+      ShowFailures
+      [(TermReferenceId, Text)] -- oks
+      [(TermReferenceId, Text)] -- fails
   | Output'Todo !TodoOutput
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
@@ -263,13 +270,6 @@ data Output
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
-  | TestResults
-      TestReportStats
-      PPE.PrettyPrintEnv
-      ShowSuccesses
-      ShowFailures
-      [(TermReferenceId, Text)] -- oks
-      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -542,7 +542,6 @@ isFailure o = case o of
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
-  TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
@@ -677,4 +676,5 @@ isNumberedFailure = \case
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
+  TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False

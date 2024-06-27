@@ -55,12 +55,12 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
     New test results:
   
-  ◉ what_should_work   succesfully decoded self_signed_pem
-  ◉ what_should_work   failed
+    1. ◉ what_should_work   succesfully decoded self_signed_pem
+    2. ◉ what_should_work   failed
   
   ✅ 2 test(s) passing
   
-  Tip: Use view what_should_work to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Test handshaking a client/server a local TCP connection using our
@@ -255,31 +255,30 @@ testCNReject _ =
 
     New test results:
   
-  ◉ testConnectSelfSigned   should have reaped what we've sown
+    1. ◉ testConnectSelfSigned   should have reaped what we've sown
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testConnectSelfSigned to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 .> io.test testCAReject
 
     New test results:
   
-  ◉ testCAReject   correctly rejected self-signed cert
+    1. ◉ testCAReject   correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testCAReject to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 .> io.test testCNReject
 
     New test results:
   
-  ◉ testCNReject   correctly rejected self-signed cert
+    1. ◉ testCNReject   correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testCNReject to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
