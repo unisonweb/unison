@@ -29,7 +29,6 @@ handleDeleteBranch :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> 
 handleDeleteBranch projectAndBranchNamesToDelete = do
   ProjectPath currentProject currentBranch _ <- Cli.getCurrentProjectPath
   projectAndBranchToDelete@(ProjectAndBranch _projectToDelete branchToDelete) <- ProjectUtils.resolveProjectBranchInProject currentProject (projectAndBranchNamesToDelete & #branch %~ Just)
-  doDeleteProjectBranch projectAndBranchToDelete
 
   -- If the user is on the branch that they're deleting, we have to cd somewhere; try these in order:
   --
@@ -49,6 +48,7 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
           ]
     nextLoc <- mayNextLocation `whenNothing` projectCreate False Nothing
     Cli.switchProject nextLoc
+  doDeleteProjectBranch projectAndBranchToDelete
   where
     parentBranch :: ProjectId -> Maybe ProjectBranchId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
     parentBranch projectId mayParentBranchId = do

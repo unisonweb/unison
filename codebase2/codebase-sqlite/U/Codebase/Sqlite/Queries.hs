@@ -3797,7 +3797,7 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: HasCallStack => Text -> CausalHashId -> ProjectBranch -> Transaction ()
+insertProjectBranch :: (HasCallStack) => Text -> CausalHashId -> ProjectBranch -> Transaction ()
 insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
   -- Ensure we never point at a causal we don't have the branch for.
   _ <- expectBranchObjectIdByCausalHashId causalHashId
@@ -4411,7 +4411,7 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectCurrentProjectPath :: HasCallStack => Transaction (ProjectId, ProjectBranchId, [NameSegment])
+expectCurrentProjectPath :: (HasCallStack) => Transaction (ProjectId, ProjectBranchId, [NameSegment])
 expectCurrentProjectPath =
   queryOneRowCheck
     [sql|
