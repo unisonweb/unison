@@ -243,6 +243,9 @@ library
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -342,9 +345,6 @@ library
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010
@@ -439,6 +439,9 @@ test-suite parser-typechecker-tests
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -543,9 +546,6 @@ test-suite parser-typechecker-tests
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010
