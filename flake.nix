@@ -35,15 +35,18 @@
       };
       overlays = [
         haskellNix.overlay
-        (import ./nix/haskell-nix-overlay.nix)
         (import ./nix/unison-overlay.nix)
       ];
       pkgs = import nixpkgs-haskellNix {
         inherit system overlays;
         inherit (haskellNix) config;
       };
+      unison-project = import ./nix/unison-project.nix {
+        inherit (nixpkgs-haskellNix) lib;
+        inherit (pkgs) haskell-nix;
+      };
       haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
-        inherit pkgs versions;
+        inherit pkgs unison-project versions;
         inherit (tool-pkgs) stack hpack;
       };
       release-pkgs = import nixpkgs-release {
