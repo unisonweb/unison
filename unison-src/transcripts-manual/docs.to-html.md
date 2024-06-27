@@ -1,6 +1,5 @@
 ```ucm
-.> project.create test-html-docs
-test-html-docs/main> builtins.merge
+test-html-docs/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
