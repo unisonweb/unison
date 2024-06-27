@@ -9,7 +9,7 @@
   inputs = {
     haskellNix.url = "github:input-output-hk/haskell.nix";
     nixpkgs-haskellNix.follows = "haskellNix/nixpkgs-unstable";
-    nixpkgs-release.url = "github:NixOS/nixpkgs/release-23.11";
+    nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -27,9 +27,9 @@
     ]
     (system: let
       versions = {
-        ormolu = "0.5.2.0";
-        hls = "2.9.0.0";
-        stack = "2.15.5";
+        ormolu = "0.7.2.0";
+        hls = "2.8.0.0";
+        stack = "2.15.7";
         hpack = "0.35.2";
       };
       pkgs = import nixpkgs-haskellNix {
