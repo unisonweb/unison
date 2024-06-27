@@ -73,14 +73,14 @@
           })
           // {
             default = haskell-nix-flake.defaultPackage;
-            build-tools = pkgs.symlinkJoin {
-              name = "build-tools";
-              paths = self.devShells."${system}".only-tools.buildInputs;
-            };
             all = pkgs.symlinkJoin {
               name = "all";
               paths = let
-                all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" ["all" "build-tools"]);
+                all-other-packages =
+                  builtins.attrValues (builtins.removeAttrs self.packages."${system}" [
+                    "all"
+                    "docker-ucm" # this package doesn’t produce a directory
+                  ]);
                 ## FIXME: Including these inputs currently results in massing GHC builds.
                 devshell-inputs = [];
                   # builtins.concatMap
