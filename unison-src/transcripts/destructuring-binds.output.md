@@ -29,14 +29,14 @@ ex1 tup =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex0 : Nat -> Nat
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
-.> view ex0 ex1
+scratch/main> view ex0 ex1
 
   ex0 : Nat -> Nat
   ex0 n =
@@ -131,14 +131,14 @@ ex5a _ = match (99 + 1, "hi") with
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex5  : 'Text
     ex5a : 'Text
 
-.> view ex5 ex5a
+scratch/main> view ex5 ex5a
 
   ex5 : 'Text
   ex5 _ = match 99 Nat.+ 1 with
@@ -163,13 +163,13 @@ ex6 x = match x with
 For clarity, the pretty-printer leaves this alone, even though in theory it could be written `(x,y) = x; x + y`:
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex6 : (Nat, Nat) -> Nat
 
-.> view ex6
+scratch/main> view ex6
 
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases (x, y) -> x Nat.+ y

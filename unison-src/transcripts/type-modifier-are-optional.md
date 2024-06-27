@@ -1,7 +1,7 @@
 # Type modifiers are optional, `unique` is the default.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Types and abilities may be prefixed with either `unique` or `structural`. When left unspecified, `unique` is assumed.

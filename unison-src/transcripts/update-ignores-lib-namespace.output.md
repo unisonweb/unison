@@ -22,7 +22,7 @@ lib.foo = 100
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -50,14 +50,14 @@ foo = 200
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names foo
+scratch/main> names foo
 
   Term
   Hash:   #9ntnotdp87

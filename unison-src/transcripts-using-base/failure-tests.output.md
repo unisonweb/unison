@@ -33,7 +33,7 @@ test2 = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -42,7 +42,7 @@ test2 = do
 
 ```
 ```ucm
-.> io.test test1
+scratch/main> io.test test1
 
   💔💥
   
@@ -58,7 +58,7 @@ test2 = do
 
 ```
 ```ucm
-.> io.test test2
+scratch/main> io.test test2
 
   💔💥
   

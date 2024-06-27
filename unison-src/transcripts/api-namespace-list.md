@@ -1,7 +1,7 @@
 # Namespace list api
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison
@@ -12,11 +12,11 @@ nested.names.readme = {{ I'm a readme! }}
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api
-GET /api/non-project-code/list?namespace=nested.names
+GET /api/projects/scratch/branches/main/list?namespace=nested.names
 
-GET /api/non-project-code/list?namespace=names&relativeTo=nested
+GET /api/projects/scratch/branches/main/list?namespace=names&relativeTo=nested
 ```

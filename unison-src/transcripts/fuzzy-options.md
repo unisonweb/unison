@@ -5,14 +5,14 @@ If an argument is required but doesn't have a fuzzy resolver, the command should
 
 ```ucm:error
 -- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
-.> move.term
+scratch/main> move.term
 ```
 
 If a fuzzy resolver doesn't have any options available it should print a message instead of
 opening an empty fuzzy-select.
 
 ```ucm:error
-.empty> view
+scratch/empty> view
 ```
 
 
@@ -25,21 +25,21 @@ nested.optionTwo = 2
 Definition args
 
 ```ucm
-.> add
-.> debug.fuzzy-options view _
+scratch/main> add
+scratch/main> debug.fuzzy-options view _
 ```
 
 
 Namespace args
 
 ```ucm
-.> add
-.> debug.fuzzy-options find-in _
+scratch/main> add
+scratch/main> debug.fuzzy-options find-in _
 ```
 
 Project Branch args
 
 ```ucm
 myproject/main> branch mybranch
-.> debug.fuzzy-options switch _
+scratch/main> debug.fuzzy-options switch _
 ```

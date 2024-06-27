@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 This tests a variable related bug in the ANF compiler.
@@ -29,6 +29,6 @@ foo _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 

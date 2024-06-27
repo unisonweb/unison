@@ -33,7 +33,7 @@ mkTestCase = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -43,7 +43,7 @@ mkTestCase = do
     l3         : [Char]
     mkTestCase : '{IO, Exception} ()
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

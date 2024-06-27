@@ -1,9 +1,9 @@
 # delete.project
 
 ```ucm
-.> project.create-empty foo
-.> project.create-empty bar
-.> projects
+scratch/main> project.create-empty foo
+scratch/main> project.create-empty bar
+scratch/main> projects
 foo/main> delete.project foo
-.> projects
+scratch/main> projects
 ```

@@ -37,14 +37,14 @@ assertRight = cases
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     assertRight : Either a b -> b
     frank       : '{IO} ()
 
-.> run frank
+scratch/main> run frank
 
   ()
 

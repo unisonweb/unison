@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Given a test that depends on another definition,
@@ -14,7 +14,7 @@ test> mynamespace.foo.test =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 if we change the type of the dependency, the test should show in the scratch file as a test watch.
@@ -24,5 +24,5 @@ foo n = "hello, world!"
 ```
 
 ```ucm:error
-.> update
+scratch/main> update
 ```
