@@ -54,7 +54,6 @@
   shellFor = args: unison-project.shellFor (commonShellArgs args);
 
   localPackages = lib.filterAttrs (k: v: v.isLocal or false) unison-project.hsPkgs;
-  localPackageNames = builtins.attrNames localPackages;
 in
   haskell-nix-flake
   // {
@@ -76,21 +75,18 @@ in
     defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
 
     devShells = let
-      mkDevShell = pkgName:
+      mkDevShell = pkg:
         shellFor {
-          packages = hpkgs: [hpkgs."${pkgName}"];
-          withHoogle = true;
+          packages = _hpkgs: [pkg];
+          ## Enabling Hoogle causes us to rebuild GHC.
+          withHoogle = false;
         };
     in
       {
-        only-tools = shellFor {
-          packages = _: [];
-          withHoogle = false;
-        };
         local = shellFor {
-          packages = hpkgs: (map (p: hpkgs."${p}") localPackageNames);
+          packages = _hpkgs: builtins.attrValues localPackages;
           withHoogle = false;
         };
       }
-      // lib.genAttrs localPackageNames mkDevShell;
+      // pkgs.lib.mapAttrs (_name: mkDevShell) localPackages;
   }
