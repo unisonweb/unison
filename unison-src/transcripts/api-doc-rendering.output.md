@@ -78,7 +78,7 @@ term = 42
 ```
 
 ```ucm
-.> display term.doc
+scratch/main> display term.doc
 
   # Heading
   
@@ -147,7 +147,7 @@ term = 42
 
 ```
 ```api
-GET /api/non-project-code/getDefinition?names=term
+GET /api/projects/scratch/branches/main/getDefinition?names=term
 {
     "missingDefinitions": [],
     "termDefinitions": {

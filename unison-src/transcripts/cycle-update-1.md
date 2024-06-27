@@ -1,7 +1,7 @@
 Update a member of a cycle, but retain the cycle.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -13,7 +13,7 @@ pong _ = !ping + 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -22,6 +22,6 @@ ping _ = !pong + 3
 ```
 
 ```ucm
-.> update
-.> view ping pong
+scratch/main> update
+scratch/main> view ping pong
 ```

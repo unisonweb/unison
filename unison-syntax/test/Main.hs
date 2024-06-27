@@ -9,7 +9,7 @@ import System.IO.CodePage (withCP65001)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
-import Unison.Syntax.HashQualified' qualified as HQ' (unsafeParseText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer
 
 main :: IO ()

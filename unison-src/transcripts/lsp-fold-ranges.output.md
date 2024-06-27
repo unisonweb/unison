@@ -24,7 +24,7 @@ test> z = let
 ```
 
 ```ucm
-.> debug.lsp.fold-ranges
+scratch/main> debug.lsp.fold-ranges
 
   《{{ Type doc }}》
   《structural type Optional a =

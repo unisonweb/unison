@@ -1,6 +1,6 @@
 ```ucm:hide
-.> alias.type ##Nat Nat
-.> alias.term ##Any.Any Any
+scratch/main> alias.type ##Nat Nat
+scratch/main> alias.term ##Any.Any Any
 ```
 
 ```unison

@@ -53,21 +53,21 @@ testAutoClean _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testAutoClean : '{IO} [Result]
 
-.> io.test testAutoClean
+scratch/main> io.test testAutoClean
 
     New test results:
   
-  ◉ testAutoClean   our temporary directory should exist
-  ◉ testAutoClean   our temporary directory should no longer exist
+    1. testAutoClean   ◉ our temporary directory should exist
+                       ◉ our temporary directory should no longer exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testAutoClean to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

@@ -1,7 +1,7 @@
 #### Big list crash
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Big lists have been observed to crash, while in the garbage collection step.

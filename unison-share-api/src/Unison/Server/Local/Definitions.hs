@@ -20,7 +20,7 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.NamesWithHistory qualified as NS
 import Unison.NamesWithHistory qualified as Names

@@ -197,7 +197,7 @@ import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPa
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.Core.Project (ProjectBranchName (..))
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -1392,8 +1392,8 @@ aliasTerm =
         _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
     }
 
-aliasTermForce :: InputPattern
-aliasTermForce =
+debugAliasTermForce :: InputPattern
+debugAliasTermForce =
   InputPattern
     { patternName = "debug.alias.term.force",
       aliases = [],
@@ -1416,8 +1416,23 @@ aliasType =
     [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     \case
-      [oldName, newName] -> Input.AliasTypeI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+      [oldName, newName] -> Input.AliasTypeI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
       _ -> Left . warn $ P.wrap "`alias.type` takes two arguments, like `alias.type oldname newname`."
+
+debugAliasTypeForce :: InputPattern
+debugAliasTypeForce =
+  InputPattern
+    { patternName = "debug.alias.type.force",
+      aliases = [],
+      visibility = I.Hidden,
+      args = [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)],
+      help = "`debug.alias.type.force Foo Bar` introduces `Bar` with the same definition as `Foo`.",
+      parse = \case
+        [oldName, newName] -> Input.AliasTypeI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ ->
+          Left . warn $
+            P.wrap "`debug.alias.type.force` takes two arguments, like `debug.alias.type.force oldname newname`."
+    }
 
 aliasMany :: InputPattern
 aliasMany =
@@ -3299,7 +3314,6 @@ validInputs =
     [ add,
       aliasMany,
       aliasTerm,
-      aliasTermForce,
       aliasType,
       api,
       authLogin,
@@ -3313,6 +3327,8 @@ validInputs =
       clone,
       compileScheme,
       createAuthor,
+      debugAliasTermForce,
+      debugAliasTypeForce,
       debugClearWatchCache,
       debugDoctor,
       debugDumpNamespace,

@@ -32,22 +32,22 @@ casTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     casTest : '{IO} [Result]
 
-.> io.test casTest
+scratch/main> io.test casTest
 
     New test results:
   
-  ◉ casTest   CAS is successful is there were no conflicting writes
-  ◉ casTest   CAS fails when there was an intervening write
+    1. casTest   ◉ CAS is successful is there were no conflicting writes
+                 ◉ CAS fails when there was an intervening write
   
   ✅ 2 test(s) passing
   
-  Tip: Use view casTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Promise is a simple one-shot awaitable condition.
@@ -95,35 +95,33 @@ promiseConcurrentTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     promiseConcurrentTest : '{IO} [Result]
     promiseSequentialTest : '{IO} [Result]
 
-.> io.test promiseSequentialTest
+scratch/main> io.test promiseSequentialTest
 
     New test results:
   
-  ◉ promiseSequentialTest   Should read a value that's been written
-  ◉ promiseSequentialTest   Promise can only be written to once
+    1. promiseSequentialTest   ◉ Should read a value that's been written
+                               ◉ Promise can only be written to once
   
   ✅ 2 test(s) passing
   
-  Tip: Use view promiseSequentialTest to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
-.> io.test promiseConcurrentTest
+scratch/main> io.test promiseConcurrentTest
 
     New test results:
   
-  ◉ promiseConcurrentTest   Reads awaits for completion of the Promise
+    1. promiseConcurrentTest   ◉ Reads awaits for completion of the Promise
   
   ✅ 1 test(s) passing
   
-  Tip: Use view promiseConcurrentTest to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 CAS can be used to write an atomic update function.
@@ -150,7 +148,7 @@ atomicUpdate ref f =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -189,7 +187,7 @@ spawnN n fa =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -238,20 +236,20 @@ fullTest = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     fullTest : '{IO} [Result]
 
-.> io.test fullTest
+scratch/main> io.test fullTest
 
     New test results:
   
-  ◉ fullTest   The state of the counter is consistent 
+    1. fullTest   ◉ The state of the counter is consistent 
   
   ✅ 1 test(s) passing
   
-  Tip: Use view fullTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

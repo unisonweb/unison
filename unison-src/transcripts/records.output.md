@@ -7,7 +7,7 @@ unique type Record1 = { a : Text }
 ```
 
 ```ucm
-.> view Record1
+scratch/main> view Record1
 
   type Record1 = { a : Text }
 
@@ -19,7 +19,7 @@ unique type Record2 = { a : Text, b : Int }
 ```
 
 ```ucm
-.> view Record2
+scratch/main> view Record2
 
   type Record2 = { a : Text, b : Int }
 
@@ -31,7 +31,7 @@ unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
 ```ucm
-.> view Record3
+scratch/main> view Record3
 
   type Record3 = { a : Text, b : Int, c : Nat }
 
@@ -51,7 +51,7 @@ unique type Record4 =
 ```
 
 ```ucm
-.> view Record4
+scratch/main> view Record4
 
   type Record4
     = { a : Text,
@@ -92,7 +92,7 @@ unique type Record5 = {
 ```
 
 ```ucm
-.> view Record5
+scratch/main> view Record5
 
   type Record5
     = { zero : Nat,
@@ -131,7 +131,7 @@ unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
 
 ```ucm
-.> view RecordWithUserType
+scratch/main> view RecordWithUserType
 
   type RecordWithUserType
     = { a : Text, b : Record4, c : UserType }

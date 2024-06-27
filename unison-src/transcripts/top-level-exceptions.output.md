@@ -4,7 +4,7 @@ A simple transcript to test the use of exceptions that bubble to the top level.
 FYI, here are the `Exception` and `Failure` types:
 
 ```ucm
-.> view Exception Failure
+scratch/main> view Exception Failure
 
   structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
@@ -40,26 +40,26 @@ mytest _ = [Ok "Great"]
 
 ```
 ```ucm
-.> run main
+scratch/main> run main
 
   ()
 
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     main   : '{IO, Exception} ()
     mytest : '{IO, Exception} [Result]
 
-.> io.test mytest
+scratch/main> io.test mytest
 
     New test results:
   
-  ◉ mytest   Great
+    1. mytest   ◉ Great
   
   ✅ 1 test(s) passing
   
-  Tip: Use view mytest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Now a test to show the handling of uncaught exceptions:
@@ -90,7 +90,7 @@ unique type RuntimeError =
 
 ```
 ```ucm
-.> run main2
+scratch/main> run main2
 
   💔💥
   

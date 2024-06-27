@@ -1,7 +1,7 @@
 # Tests for `move`
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ## Happy Path - namespace, term, and type
@@ -16,7 +16,7 @@ unique type Foo.T = T
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -25,16 +25,16 @@ unique type Foo.T = T1 | T2
 ```
 
 ```ucm
-.> update
+scratch/main> update
 ```
 
 Should be able to move the term, type, and namespace, including its types, terms, and sub-namespaces.
 
 ```ucm
-.> move Foo Bar
-.> ls
-.> ls Bar
-.> history Bar
+scratch/main> move Foo Bar
+scratch/main> ls
+scratch/main> ls Bar
+scratch/main> history Bar
 ```
 
 ## Happy Path - Just term
@@ -44,10 +44,10 @@ bonk = 5
 ```
 
 ```ucm
-.z> builtins.merge
-.z> add
-.z> move bonk zonk
-.z> ls
+z/main> builtins.merge
+z/main> add
+z/main> move bonk zonk
+z/main> ls
 ```
 
 ## Happy Path - Just namespace
@@ -57,15 +57,15 @@ bonk.zonk = 5
 ```
 
 ```ucm
-.a> builtins.merge
-.a> add
-.a> move bonk zonk
-.a> ls
-.a> view zonk.zonk
+a/main> builtins.merge
+a/main> add
+a/main> move bonk zonk
+a/main> ls
+a/main> view zonk.zonk
 ```
 
 ## Sad Path - No term, type, or namespace named src
 
 ```ucm:error
-.> move doesntexist foo
+scratch/main> move doesntexist foo
 ```

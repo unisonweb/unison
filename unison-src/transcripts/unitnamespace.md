@@ -1,10 +1,10 @@
 ```unison
-foo = "bar"
+`()`.foo = "bar"
 ```
 
 ```ucm
-.`()`> add
-.> find
-.> find-in `()`
-.> delete.namespace `()`
+scratch/main> add
+scratch/main> find
+scratch/main> find-in `()`
+scratch/main> delete.namespace `()`
 ```

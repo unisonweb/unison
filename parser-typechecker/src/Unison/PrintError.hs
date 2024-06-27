@@ -33,7 +33,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.HashQualified (HashQualified)
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)

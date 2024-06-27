@@ -41,7 +41,7 @@ library
       Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
-      Unison.Server.SearchResult'
+      Unison.Server.SearchResultPrime
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API

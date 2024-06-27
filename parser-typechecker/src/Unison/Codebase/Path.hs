@@ -56,15 +56,13 @@ module Unison.Codebase.Path
     toList,
     toName,
     toName',
-    unsafeToName,
-    unsafeToName',
     toText,
     toText',
     unsplit,
     unsplit',
     unsplitAbsolute,
-    unsplitHQ,
-    unsplitHQ',
+    nameFromHQSplit,
+    nameFromHQSplit',
     nameFromSplit',
     splitFromName,
     splitFromName',
@@ -90,7 +88,7 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -171,11 +169,11 @@ unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
 unsplitAbsolute =
   coerce unsplit
 
-unsplitHQ :: HQSplit -> HQ'.HashQualified Path
-unsplitHQ (p, a) = fmap (snoc p) a
+nameFromHQSplit :: HQSplit -> HQ'.HashQualified Name
+nameFromHQSplit = nameFromHQSplit' . first (RelativePath' . Relative)
 
-unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
-unsplitHQ' (p, a) = fmap (snoc' p) a
+nameFromHQSplit' :: HQSplit' -> HQ'.HashQualified Name
+nameFromHQSplit' (p, a) = fmap (nameFromSplit' . (p,)) a
 
 type Split = (Path, NameSegment)
 
@@ -316,9 +314,6 @@ cons = Lens.cons
 snoc :: Path -> NameSegment -> Path
 snoc = Lens.snoc
 
-snoc' :: Path' -> NameSegment -> Path'
-snoc' = Lens.snoc
-
 unsnoc :: Path -> Maybe (Path, NameSegment)
 unsnoc = Lens.unsnoc
 
@@ -343,15 +338,6 @@ fromName' n
   | otherwise = RelativePath' (Relative path)
   where
     path = fromName n
-
-unsafeToName :: Path -> Name
-unsafeToName =
-  fromMaybe (error "empty path") . toName
-
--- | Convert a Path' to a Name
-unsafeToName' :: Path' -> Name
-unsafeToName' =
-  fromMaybe (error "empty path") . toName'
 
 toName :: Path -> Maybe Name
 toName = \case

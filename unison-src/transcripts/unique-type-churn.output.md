@@ -24,7 +24,7 @@ unique type C = C B
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -51,7 +51,7 @@ unique type C = C B
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
 
 ```ucm
-.> names A
+scratch/main> names A
 
   Type
   Hash:  #uj8oalgadr
@@ -83,14 +83,14 @@ unique type A = A ()
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names A
+scratch/main> names A
 
   Type
   Hash:  #ufo5tuc7ho
@@ -124,14 +124,14 @@ unique type A = A
 Note that `A` is back to its original hash.
 
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names A
+scratch/main> names A
 
   Type
   Hash:  #uj8oalgadr

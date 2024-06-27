@@ -19,16 +19,16 @@ structural type X = x
     ⍟ These new definitions are ok to `add`:
     
       structural type X
-        (also named builtin.Unit)
+        (also named lib.builtins.Unit)
 
 ```
 ```ucm
-.ns> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type X
-      (also named builtin.Unit)
+      (also named lib.builtins.Unit)
 
 ```
 Now we update the type, changing the name of the constructors, _but_, we simultaneously
@@ -60,14 +60,14 @@ dependsOnX = Text.size X.x
       new definition:
     
       structural type X
-        (The old definition is also named builtin.Unit.)
+        (The old definition is also named lib.builtins.Unit.)
 
 ```
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ```ucm
-.ns> update.old
+scratch/main> update.old
 
   ⍟ I've added these definitions:
   
@@ -77,6 +77,6 @@ is removed in the same update that the new term is being added.
   ⍟ I've updated these names to your new definition:
   
     structural type X
-      (The old definition was also named builtin.Unit.)
+      (The old definition was also named lib.builtins.Unit.)
 
 ```

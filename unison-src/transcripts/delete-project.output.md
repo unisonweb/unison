@@ -1,7 +1,7 @@
 # delete.project
 
 ```ucm
-.> project.create-empty foo
+scratch/main> project.create-empty foo
 
   🎉 I've created the project foo.
 
@@ -17,9 +17,7 @@
   
   🎉 🥳 Happy coding!
 
-  ☝️  The namespace . is empty.
-
-.> project.create-empty bar
+scratch/main> project.create-empty bar
 
   🎉 I've created the project bar.
 
@@ -35,17 +33,17 @@
   
   🎉 🥳 Happy coding!
 
-  ☝️  The namespace . is empty.
-
-.> projects
+scratch/main> projects
 
   1. bar
   2. foo
+  3. scratch
 
 foo/main> delete.project foo
 
-.> projects
+scratch/main> projects
 
   1. bar
+  2. scratch
 
 ```

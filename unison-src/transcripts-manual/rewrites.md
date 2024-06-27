@@ -1,8 +1,8 @@
 
 ```ucm:hide
-.> builtins.mergeio
-.> load unison-src/transcripts-using-base/base.u
-.> add
+scratch/main> builtins.mergeio
+scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
 ```
 
 ## Structural find and replace
@@ -37,19 +37,19 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ```ucm
-.> rewrite rule1
-.> rewrite eitherToOptional
+scratch/main> rewrite rule1
+scratch/main> rewrite eitherToOptional
 ```
 
 ```ucm:hide
-.> load
-.> add
+scratch/main> load
+scratch/main> add
 ```
 
 After adding to the codebase, here's the rewritten source:
 
 ```ucm
-.> view ex1 Either.mapRight rule1
+scratch/main> view ex1 Either.mapRight rule1
 ```
 
 Another example, showing that we can rewrite to definitions that only exist in the file:
@@ -75,18 +75,18 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ```ucm
-.> rewrite woot1to2
+scratch/main> rewrite woot1to2
 ```
 
 ```ucm:hide
-.> load
-.> add
+scratch/main> load
+scratch/main> add
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ```ucm
-.> view wootEx
+scratch/main> view wootEx
 ```
 
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
@@ -111,15 +111,15 @@ sameFileEx =
 ```
 
 ```ucm:hide
-.> rewrite rule
-.> load
-.> add
+scratch/main> rewrite rule
+scratch/main> load
+scratch/main> add
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ```ucm
-.> view foo1 foo2 sameFileEx
+scratch/main> view foo1 foo2 sameFileEx
 ```
 
 ## Capture avoidance
@@ -145,13 +145,13 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ```ucm
-.> rewrite rule
+scratch/main> rewrite rule
 ```
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ```ucm:error
-.> load
+scratch/main> load
 ```
 
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
@@ -167,13 +167,13 @@ rule a = @rewrite
 ```
 
 ```ucm
-.> rewrite rule
+scratch/main> rewrite rule
 ```
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ```ucm:error
-.> load
+scratch/main> load
 ```
 
 ## Structural find
@@ -183,7 +183,7 @@ eitherEx = Left ("hello", "there")
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```unison:hide
@@ -192,7 +192,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
 ```ucm
-.> sfind findEitherEx
-.> sfind findEitherFailure
-.> find 1-5
+scratch/main> sfind findEitherEx
+scratch/main> sfind findEitherFailure
+scratch/main> find 1-5
 ```

@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Some random ability stuff to ensure things work.
@@ -23,5 +23,5 @@ ha = cases
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```

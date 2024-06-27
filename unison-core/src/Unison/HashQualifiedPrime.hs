@@ -1,4 +1,4 @@
-module Unison.HashQualified' where
+module Unison.HashQualifiedPrime where
 
 import Data.Text qualified as Text
 import Unison.HashQualified qualified as HQ

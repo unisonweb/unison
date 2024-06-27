@@ -6,7 +6,7 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)

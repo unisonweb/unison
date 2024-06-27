@@ -80,7 +80,7 @@ dependencies:
   - nonempty-containers
   - open-browser
   - openapi3
-  - optparse-applicative >= 0.16.1.0
+  - optparse-applicative
   - pem
   - pretty-simple
   - primitive

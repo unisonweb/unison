@@ -25,7 +25,7 @@ import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
-import Unison.HashQualified' (HashQualified (HashQualified, NameOnly))
+import Unison.HashQualifiedPrime (HashQualified (HashQualified, NameOnly))
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude

@@ -1,54 +1,50 @@
 # Get Definitions Test
 
 ```ucm:hide
-.nested> builtins.mergeio
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison:hide
-{{ Documentation }}
-names.x = 42
+nested.names.x.doc = {{ Documentation }}
+nested.names.x = 42
 ```
 
 ```ucm:hide
-.nested> add
+scratch/main> add
 ```
 
 ```api
 -- Should NOT find names by suffix
-GET /api/non-project-code/getDefinition?names=x
+GET /api/projects/scratch/branches/main/getDefinition?names=x
 
 -- Term names should strip relativeTo prefix.
-GET /api/non-project-code/getDefinition?names=names.x&relativeTo=nested
+GET /api/projects/scratch/branches/main/getDefinition?names=names.x&relativeTo=nested
 
 -- Should find definitions by hash, names should be relative
-GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
-```
-
-```ucm:hide
-.doctest> builtins.mergeio
+GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 ```
 
 ```unison:hide
-thing.doc = {{ The correct docs for the thing }}
-thing = "A thing"
-thingalias.doc = {{ Docs for the alias, should not be displayed }}
-thingalias = "A thing"
-otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
-otherstuff.thing = "A different thing"
+doctest.thing.doc = {{ The correct docs for the thing }}
+doctest.thing = "A thing"
+doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
+doctest.thingalias = "A thing"
+doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
+doctest.otherstuff.thing = "A different thing"
 ```
 
 ```ucm:hide
-.doctest> add
+scratch/main> add
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
 ```api
-GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
+GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
 ```
 
 If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
 ```api
-GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
+GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
 ```

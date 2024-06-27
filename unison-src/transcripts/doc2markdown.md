@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison:hide
@@ -86,11 +86,11 @@ Table
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> debug.doc-to-markdown fulldoc
+scratch/main> debug.doc-to-markdown fulldoc
 ```
 
 You can add docs to a term or type with a top-level doc literal above the binding:

@@ -18,7 +18,7 @@ module Unison.PrettyPrintEnv.Names
 where
 
 import Data.Set qualified as Set
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names (Names)

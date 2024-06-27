@@ -43,7 +43,7 @@ test> mytest = checks [x + 1 == 1001]
 We expect this 'add' to fail because the test is blocked by the update to `x`.
 
 ```ucm
-.> add
+scratch/main> add
 
   x These definitions failed:
   
@@ -85,7 +85,7 @@ test> useY = checks [y + 1 == 43]
 This should correctly identify `y` as a dependency and add that too.
 
 ```ucm
-.> add useY
+scratch/main> add useY
 
   ⍟ I've added these definitions:
   

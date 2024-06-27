@@ -13,13 +13,12 @@ module Unison.Debug
   )
 where
 
-import Control.Applicative (empty)
-import Control.Monad (when)
-import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
+import Debug.Pretty.Simple (pTrace, pTraceM)
 import System.IO.Unsafe (unsafePerformIO)
+import Text.Pretty.Simple (pShow)
+import Unison.Prelude
 import UnliftIO.Environment (lookupEnv)
 
 data DebugFlag
@@ -148,7 +147,7 @@ debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.memb
 debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTraceShowId (pTrace (msg <> ":\n") a)
+    then (pTrace (msg <> ":\n" <> into @String (pShow a)) a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
@@ -159,8 +158,7 @@ debug flag msg a =
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
   whenDebug flag do
-    pTraceM (msg <> ":\n")
-    pTraceShowM a
+    traceM (msg <> ":\n" <> into @String (pShow a))
 
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =

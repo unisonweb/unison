@@ -59,27 +59,27 @@ testCreateRename _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testCreateRename : '{IO} [Result]
 
-.> io.test testCreateRename
+scratch/main> io.test testCreateRename
 
     New test results:
   
-  ◉ testCreateRename   create a foo directory
-  ◉ testCreateRename   directory should exist
-  ◉ testCreateRename   foo should no longer exist
-  ◉ testCreateRename   directory should no longer exist
-  ◉ testCreateRename   bar should now exist
-  ◉ testCreateRename   removeDirectory works recursively
-  ◉ testCreateRename   removeDirectory works recursively
+    1. testCreateRename   ◉ create a foo directory
+                          ◉ directory should exist
+                          ◉ foo should no longer exist
+                          ◉ directory should no longer exist
+                          ◉ bar should now exist
+                          ◉ removeDirectory works recursively
+                          ◉ removeDirectory works recursively
   
   ✅ 7 test(s) passing
   
-  Tip: Use view testCreateRename to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Opening / Closing files
@@ -141,26 +141,26 @@ testOpenClose _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testOpenClose : '{IO} [Result]
 
-.> io.test testOpenClose
+scratch/main> io.test testOpenClose
 
     New test results:
   
-  ◉ testOpenClose   file should be open
-  ◉ testOpenClose   file handle buffering should match what we just set.
-  ◉ testOpenClose   file should be closed
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   file should be closed
+    1. testOpenClose   ◉ file should be open
+                       ◉ file handle buffering should match what we just set.
+                       ◉ file should be closed
+                       ◉ bytes have been written
+                       ◉ bytes have been written
+                       ◉ file should be closed
   
   ✅ 6 test(s) passing
   
-  Tip: Use view testOpenClose to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Reading files with getSomeBytes
@@ -231,28 +231,28 @@ testGetSomeBytes _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetSomeBytes : '{IO} [Result]
 
-.> io.test testGetSomeBytes
+scratch/main> io.test testGetSomeBytes
 
     New test results:
   
-  ◉ testGetSomeBytes   chunk size splits data into 2 uneven sides
-  ◉ testGetSomeBytes   file should be closed
-  ◉ testGetSomeBytes   first chunk matches first part of testData
-  ◉ testGetSomeBytes   second chunk matches rest of testData
-  ◉ testGetSomeBytes   should be at end of file
-  ◉ testGetSomeBytes   reading at end of file results in Bytes.empty
-  ◉ testGetSomeBytes   requesting many bytes results in what's available
-  ◉ testGetSomeBytes   file should be closed
+    1. testGetSomeBytes   ◉ chunk size splits data into 2 uneven sides
+                          ◉ file should be closed
+                          ◉ first chunk matches first part of testData
+                          ◉ second chunk matches rest of testData
+                          ◉ should be at end of file
+                          ◉ reading at end of file results in Bytes.empty
+                          ◉ requesting many bytes results in what's available
+                          ◉ file should be closed
   
   ✅ 8 test(s) passing
   
-  Tip: Use view testGetSomeBytes to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Seeking in open files
@@ -339,38 +339,38 @@ testAppend _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testAppend : '{IO} [Result]
     testSeek   : '{IO} [Result]
 
-.> io.test testSeek
+scratch/main> io.test testSeek
 
     New test results:
   
-  ◉ testSeek   seeked
-  ◉ testSeek   readable file should be seekable
-  ◉ testSeek   shouldn't be the EOF
-  ◉ testSeek   we should be at position 0
-  ◉ testSeek   we should be at position 1
-  ◉ testSeek   should be able to read our temporary file after seeking
-  ◉ testSeek   getLine should get a line
+    1. testSeek   ◉ seeked
+                  ◉ readable file should be seekable
+                  ◉ shouldn't be the EOF
+                  ◉ we should be at position 0
+                  ◉ we should be at position 1
+                  ◉ should be able to read our temporary file after seeking
+                  ◉ getLine should get a line
   
   ✅ 7 test(s) passing
   
-  Tip: Use view testSeek to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
-.> io.test testAppend
+scratch/main> io.test testAppend
 
     New test results:
   
-  ◉ testAppend   should be able to read our temporary file
+    1. testAppend   ◉ should be able to read our temporary file
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testAppend to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### SystemTime
@@ -398,21 +398,21 @@ testSystemTime _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testSystemTime : '{IO} [Result]
 
-.> io.test testSystemTime
+scratch/main> io.test testSystemTime
 
     New test results:
   
-  ◉ testSystemTime   systemTime should be sane
+    1. testSystemTime   ◉ systemTime should be sane
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testSystemTime to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get temp directory
@@ -428,23 +428,22 @@ testGetTempDirectory _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetTempDirectory : '{IO} [Result]
 
-.> io.test testGetTempDirectory
+scratch/main> io.test testGetTempDirectory
 
     New test results:
   
-  ◉ testGetTempDirectory   Temp directory is directory
-  ◉ testGetTempDirectory   Temp directory should exist
+    1. testGetTempDirectory   ◉ Temp directory is directory
+                              ◉ Temp directory should exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetTempDirectory to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get current directory
@@ -460,23 +459,22 @@ testGetCurrentDirectory _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetCurrentDirectory : '{IO} [Result]
 
-.> io.test testGetCurrentDirectory
+scratch/main> io.test testGetCurrentDirectory
 
     New test results:
   
-  ◉ testGetCurrentDirectory   Current directory is directory
-  ◉ testGetCurrentDirectory   Current directory should exist
+    1. testGetCurrentDirectory   ◉ Current directory is directory
+                                 ◉ Current directory should exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetCurrentDirectory to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Get directory contents
@@ -494,22 +492,22 @@ testDirContents _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testDirContents : '{IO} [Result]
 
-.> io.test testDirContents
+scratch/main> io.test testDirContents
 
     New test results:
   
-  ◉ testDirContents   directory size should be
-  ◉ testDirContents   directory contents should have current directory and parent
+    1. testDirContents   ◉ directory size should be
+                         ◉ directory contents should have current directory and parent
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testDirContents to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Read environment variables
@@ -527,22 +525,22 @@ testGetEnv _ =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testGetEnv : '{IO} [Result]
 
-.> io.test testGetEnv
+scratch/main> io.test testGetEnv
 
     New test results:
   
-  ◉ testGetEnv   PATH environent variable should be set
-  ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. testGetEnv   ◉ PATH environent variable should be set
+                    ◉ DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetEnv to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ### Read command line args
@@ -581,7 +579,7 @@ testGetArgs.runMeWithTwoArgs = 'let
 
 Test that they can be run with the right number of args.
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -590,15 +588,15 @@ Test that they can be run with the right number of args.
     testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
     testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
 
-.> run runMeWithNoArgs
+scratch/main> run runMeWithNoArgs
 
   ()
 
-.> run runMeWithOneArg foo
+scratch/main> run runMeWithOneArg foo
 
   ()
 
-.> run runMeWithTwoArgs foo bar
+scratch/main> run runMeWithTwoArgs foo bar
 
   ()
 
@@ -606,7 +604,7 @@ Test that they can be run with the right number of args.
 Calling our examples with the wrong number of args will error.
 
 ```ucm
-.> run runMeWithNoArgs foo
+scratch/main> run runMeWithNoArgs foo
 
   💔💥
   
@@ -619,7 +617,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithOneArg
+scratch/main> run runMeWithOneArg
 
   💔💥
   
@@ -632,7 +630,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithOneArg foo bar
+scratch/main> run runMeWithOneArg foo bar
 
   💔💥
   
@@ -646,7 +644,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithTwoArgs
+scratch/main> run runMeWithTwoArgs
 
   💔💥
   
@@ -668,13 +666,13 @@ testTimeZone = do
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testTimeZone : '{IO} ()
 
-.> run testTimeZone
+scratch/main> run testTimeZone
 
   ()
 
@@ -691,21 +689,21 @@ testRandom = do
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testRandom : '{IO} [Result]
 
-.> io.test testGetEnv
+scratch/main> io.test testGetEnv
 
     New test results:
   
-  ◉ testGetEnv   PATH environent variable should be set
-  ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. testGetEnv   ◉ PATH environent variable should be set
+                    ◉ DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testGetEnv to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

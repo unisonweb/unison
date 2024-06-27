@@ -31,7 +31,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ```ucm
-.> rewrite rule1
+scratch/main> rewrite rule1
 
   ☝️
   
@@ -39,7 +39,7 @@ Let's rewrite these:
   
   The rewritten file has been added to the top of scratch.u
 
-.> rewrite eitherToOptional
+scratch/main> rewrite eitherToOptional
 
   ☝️
   
@@ -112,7 +112,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 After adding to the codebase, here's the rewritten source:
 
 ```ucm
-.> view ex1 Either.mapRight rule1
+scratch/main> view ex1 Either.mapRight rule1
 
   Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
   Either.mapRight f = cases
@@ -158,7 +158,7 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ```ucm
-.> rewrite woot1to2
+scratch/main> rewrite woot1to2
 
   ☝️
   
@@ -194,7 +194,7 @@ blah2 = 456
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ```ucm
-.> view wootEx
+scratch/main> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
@@ -226,7 +226,7 @@ sameFileEx =
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ```ucm
-.> view foo1 foo2 sameFileEx
+scratch/main> view foo1 foo2 sameFileEx
 
   foo1 : Nat
   foo1 =
@@ -267,7 +267,7 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ```ucm
-.> rewrite rule
+scratch/main> rewrite rule
 
   ☝️
   
@@ -301,7 +301,7 @@ sameFileEx =
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ```ucm
-.> load
+scratch/main> load
 
   Loading changes detected in scratch.u.
 
@@ -332,7 +332,7 @@ rule a = @rewrite
 ```
 
 ```ucm
-.> rewrite rule
+scratch/main> rewrite rule
 
   ☝️
   
@@ -358,7 +358,7 @@ rule a =
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ```ucm
-.> load
+scratch/main> load
 
   Loading changes detected in scratch.u.
 
@@ -388,7 +388,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
 ```ucm
-.> sfind findEitherEx
+scratch/main> sfind findEitherEx
 
   🔎
   
@@ -398,7 +398,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
   
   Tip: Try `edit 1` to bring this into your scratch file.
 
-.> sfind findEitherFailure
+scratch/main> sfind findEitherFailure
 
   🔎
   
@@ -413,7 +413,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
   Tip: Try `edit 1` or `edit 1-5` to bring these into your
        scratch file.
 
-.> find 1-5
+scratch/main> find 1-5
 
   1. Exception.catch : '{g, Exception} a ->{g} Either Failure a
   2. Exception.reraise : Either Failure a ->{Exception} a

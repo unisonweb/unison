@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -10,7 +10,7 @@ structural type A = B.TheOtherAlias Foo
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -22,5 +22,5 @@ only one name for each constructor. We instead get too far in the update process
 file to stare at.
 
 ```ucm:error
-.> update
+scratch/main> update
 ```
