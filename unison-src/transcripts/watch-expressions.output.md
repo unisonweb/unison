@@ -64,7 +64,7 @@ test> pass = [Ok "Passed"]
 
   Cached test results (`help testcache` to learn more)
   
-    1. ◉ pass   Passed
+    1. pass   ◉ Passed
   
   ✅ 1 test(s) passing
   

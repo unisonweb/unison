@@ -124,8 +124,8 @@ data NumberedOutput
       PPE.PrettyPrintEnv
       ShowSuccesses
       ShowFailures
-      [(TermReferenceId, Text)] -- oks
-      [(TermReferenceId, Text)] -- fails
+      (Map TermReferenceId [Text]) -- oks
+      (Map TermReferenceId [Text]) -- fails
   | Output'Todo !TodoOutput
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))

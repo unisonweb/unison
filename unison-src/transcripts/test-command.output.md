@@ -39,8 +39,8 @@ foo.test2 = [Ok "test2"]
 
     New test results:
   
-    1. ◉ foo.test2   test2
-    2. ◉ test1       test1
+    1. foo.test2   ◉ test2
+    2. test1       ◉ test1
   
   ✅ 2 test(s) passing
   
@@ -54,8 +54,8 @@ Tests should be cached if unchanged.
 
   Cached test results (`help testcache` to learn more)
   
-    1. ◉ foo.test2   test2
-    2. ◉ test1       test1
+    1. foo.test2   ◉ test2
+    2. test1       ◉ test1
   
   ✅ 2 test(s) passing
   
@@ -87,8 +87,8 @@ testInLib = [Ok "testInLib"]
 
   Cached test results (`help testcache` to learn more)
   
-    1. ◉ foo.test2   test2
-    2. ◉ test1       test1
+    1. foo.test2   ◉ test2
+    2. test1       ◉ test1
   
   ✅ 2 test(s) passing
   
@@ -99,8 +99,8 @@ testInLib = [Ok "testInLib"]
     
     Cached test results (`help testcache` to learn more)
     
-      1. ◉ foo.test2   test2
-      2. ◉ test1       test1
+      1. foo.test2   ◉ test2
+      2. test1       ◉ test1
     
     ✅ 2 test(s) passing
     
@@ -112,7 +112,7 @@ testInLib = [Ok "testInLib"]
 
     New test results:
   
-    1. ◉ lib.testInLib   testInLib
+    1. lib.testInLib   ◉ testInLib
   
   ✅ 1 test(s) passing
   
@@ -126,7 +126,7 @@ testInLib = [Ok "testInLib"]
 
   Cached test results (`help testcache` to learn more)
   
-    1. ◉ testInLib   testInLib
+    1. testInLib   ◉ testInLib
   
   ✅ 1 test(s) passing
   
@@ -140,7 +140,7 @@ testInLib = [Ok "testInLib"]
 
   Cached test results (`help testcache` to learn more)
   
-    1. ◉ foo.test2   test2
+    1. foo.test2   ◉ test2
   
   ✅ 1 test(s) passing
   

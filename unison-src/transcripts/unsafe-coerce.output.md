@@ -45,7 +45,7 @@ main _ =
 
     New test results:
   
-    1. ◉ main   
+    1. main   ◉ 
   
   ✅ 1 test(s) passing
   

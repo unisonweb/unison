@@ -77,19 +77,19 @@ testMvars _ =
 
     New test results:
   
-    1.  ◉ testMvars   ma should not be empty
-    2.  ◉ testMvars   should read what you sow
-    3.  ◉ testMvars   should reap what you sow
-    4.  ◉ testMvars   ma should be empty
-    5.  ◉ testMvars   swap returns old contents
-    6.  ◉ testMvars   swap returns old contents
-    7.  ◉ testMvars   tryRead should succeed when not empty
-    8.  ◉ testMvars   tryPut should fail when not empty
-    9.  ◉ testMvars   tryTake should succeed when not empty
-    10. ◉ testMvars   tryTake should not succeed when empty
-    11. ◉ testMvars   ma2 should be empty
-    12. ◉ testMvars   tryTake should fail when empty
-    13. ◉ testMvars   tryRead should fail when empty
+    1. testMvars   ◉ ma should not be empty
+                   ◉ should read what you sow
+                   ◉ should reap what you sow
+                   ◉ ma should be empty
+                   ◉ swap returns old contents
+                   ◉ swap returns old contents
+                   ◉ tryRead should succeed when not empty
+                   ◉ tryPut should fail when not empty
+                   ◉ tryTake should succeed when not empty
+                   ◉ tryTake should not succeed when empty
+                   ◉ ma2 should be empty
+                   ◉ tryTake should fail when empty
+                   ◉ tryRead should fail when empty
   
   ✅ 13 test(s) passing
   

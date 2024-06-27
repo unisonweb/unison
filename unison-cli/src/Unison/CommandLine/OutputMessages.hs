@@ -308,8 +308,8 @@ notifyNumbered = \case
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
-    let oks = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- oksUnsorted]
-        fails = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- failsUnsorted]
+    let oks = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList oksUnsorted]
+        fails = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList failsUnsorted]
         name r = PPE.termName ppe (Referent.fromTermReferenceId r)
      in ( case stats of
             CachedTests 0 _ -> P.callout "😶" $ "No tests to run."
@@ -2535,8 +2535,8 @@ displayRendered outputLoc pp =
 
 displayTestResults ::
   Bool -> -- whether to show the tip
-  [(HQ.HashQualified Name, Text)] ->
-  [(HQ.HashQualified Name, Text)] ->
+  [(HQ.HashQualified Name, [Text])] ->
+  [(HQ.HashQualified Name, [Text])] ->
   Pretty
 displayTestResults showTip oks fails =
   let name = P.text . HQ.toText
@@ -2545,11 +2545,11 @@ displayTestResults showTip oks fails =
           then mempty
           else
             P.indentN 2 $
-              P.numberedColumn2ListFrom 0 [(P.green "◉ " <> name r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
+              P.numberedColumn2ListFrom 0 [(name r, P.lines $ P.green . ("  ◉ " <>) . P.text <$> msgs) | (r, msgs) <- oks]
       okSummary =
         if null oks
           then mempty
-          else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
+          else "✅ " <> P.bold (P.num (sum $ fmap (length . snd) oks)) <> P.green " test(s) passing"
       failMsg =
         if null fails
           then mempty
@@ -2557,11 +2557,11 @@ displayTestResults showTip oks fails =
             P.indentN 2 $
               P.numberedColumn2ListFrom
                 (length oks)
-                [(P.red "✗ " <> name r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
+                [(name r, P.lines $ P.red . ("  ✗ " <>) . P.text <$> msgs) | (r, msgs) <- fails]
       failSummary =
         if null fails
           then mempty
-          else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
+          else "🚫 " <> P.bold (P.num (sum $ fmap (length . snd) fails)) <> P.red " test(s) failing"
       tipMsg =
         if not showTip || (null oks && null fails)
           then mempty

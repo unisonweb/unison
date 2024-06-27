@@ -55,7 +55,7 @@ mytest _ = [Ok "Great"]
 
     New test results:
   
-    1. ◉ mytest   Great
+    1. mytest   ◉ Great
   
   ✅ 1 test(s) passing
   

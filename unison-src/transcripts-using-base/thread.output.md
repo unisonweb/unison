@@ -82,7 +82,7 @@ testBasicMultiThreadMVar = 'let
 
     New test results:
   
-    1. ◉ testBasicMultiThreadMVar   other thread should have incremented
+    1. testBasicMultiThreadMVar   ◉ other thread should have incremented
   
   ✅ 1 test(s) passing
   
@@ -157,7 +157,7 @@ testTwoThreads = 'let
 
     New test results:
   
-    1. ◉ testTwoThreads   
+    1. testTwoThreads   ◉ 
   
   ✅ 1 test(s) passing
   

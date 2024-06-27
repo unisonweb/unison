@@ -55,8 +55,8 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
     New test results:
   
-    1. ◉ what_should_work   succesfully decoded self_signed_pem
-    2. ◉ what_should_work   failed
+    1. what_should_work   ◉ succesfully decoded self_signed_pem
+                          ◉ failed
   
   ✅ 2 test(s) passing
   
@@ -255,7 +255,7 @@ testCNReject _ =
 
     New test results:
   
-    1. ◉ testConnectSelfSigned   should have reaped what we've sown
+    1. testConnectSelfSigned   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   
@@ -265,7 +265,7 @@ testCNReject _ =
 
     New test results:
   
-    1. ◉ testCAReject   correctly rejected self-signed cert
+    1. testCAReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
@@ -275,7 +275,7 @@ testCNReject _ =
 
     New test results:
   
-    1. ◉ testCNReject   correctly rejected self-signed cert
+    1. testCNReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   

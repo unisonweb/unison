@@ -89,11 +89,11 @@ serialTests = do
 
     New test results:
   
-    1. ◉ serialTests   case-00
-    2. ◉ serialTests   case-01
-    3. ◉ serialTests   case-02
-    4. ◉ serialTests   case-03
-    5. ◉ serialTests   case-04
+    1. serialTests   ◉ case-00
+                     ◉ case-01
+                     ◉ case-02
+                     ◉ case-03
+                     ◉ case-04
   
   ✅ 5 test(s) passing
   

@@ -42,8 +42,8 @@ casTest = do
 
     New test results:
   
-    1. ◉ casTest   CAS is successful is there were no conflicting writes
-    2. ◉ casTest   CAS fails when there was an intervening write
+    1. casTest   ◉ CAS is successful is there were no conflicting writes
+                 ◉ CAS fails when there was an intervening write
   
   ✅ 2 test(s) passing
   
@@ -106,8 +106,8 @@ promiseConcurrentTest = do
 
     New test results:
   
-    1. ◉ promiseSequentialTest   Should read a value that's been written
-    2. ◉ promiseSequentialTest   Promise can only be written to once
+    1. promiseSequentialTest   ◉ Should read a value that's been written
+                               ◉ Promise can only be written to once
   
   ✅ 2 test(s) passing
   
@@ -117,7 +117,7 @@ promiseConcurrentTest = do
 
     New test results:
   
-    1. ◉ promiseConcurrentTest   Reads awaits for completion of the Promise
+    1. promiseConcurrentTest   ◉ Reads awaits for completion of the Promise
   
   ✅ 1 test(s) passing
   
@@ -246,7 +246,7 @@ fullTest = do
 
     New test results:
   
-    1. ◉ fullTest   The state of the counter is consistent 
+    1. fullTest   ◉ The state of the counter is consistent 
   
   ✅ 1 test(s) passing
   
