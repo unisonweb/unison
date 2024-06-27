@@ -928,6 +928,143 @@ We will resolve this situation automatically in a future version.
 project/main> builtins.mergeio lib.builtins
 ```
 
+```ucm:hide
+project/main> branch alice
+```
+
+Alice's additions:
+```unison:hide
+unique type Foo = Bar
+
+alice : Foo -> Nat
+alice _ = 18
+```
+
+```ucm:hide
+project/alice> add
+project/main> branch bob
+```
+
+Bob's additions:
+```unison:hide
+unique type Foo = Bar
+
+bob : Foo -> Nat
+bob _ = 19
+```
+
+```ucm:hide
+project/bob> add
+```
+
+```ucm:error
+project/alice> merge bob
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## `merge.commit` example (success)
+
+After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
+"commit" your changes.
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio lib.builtins
+```
+
+Original branch:
+```unison:hide
+foo : Text
+foo = "old foo"
+```
+
+```ucm:hide
+project/main> add
+project/main> branch alice
+```
+
+Alice's changes:
+```unison:hide
+foo : Text
+foo = "alices foo"
+```
+
+```ucm:hide
+project/alice> update
+project/main> branch bob
+```
+
+Bob's changes:
+
+```unison:hide
+foo : Text
+foo = "bobs foo"
+```
+
+Attempt to merge:
+
+```ucm:hide
+project/bob> update
+```
+```ucm:error
+project/alice> merge /bob
+```
+
+Resolve conflicts and commit:
+
+```unison
+foo : Text
+foo = "alice and bobs foo"
+```
+
+```ucm
+project/merge-bob-into-alice> update
+project/merge-bob-into-alice> merge.commit
+project/alice> view foo
+project/alice> branches
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm:hide
+.> project.create-empty project
+project/main> builtins.mergeio lib.builtins
+```
+
+```ucm
+project/main> branch topic
+```
+
+```ucm:error
+project/topic> merge.commit
+```
+
+```ucm:hide
+.> project.delete project
+```
+
+
+## Precondition violations
+
+There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
+
+### Conflicted aliases
+
+If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
+
+```ucm:hide
+project/main> builtins.mergeio lib.builtins
+```
+
 Original branch:
 ```unison:hide
 foo : Nat

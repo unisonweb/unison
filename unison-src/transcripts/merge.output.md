@@ -1030,6 +1030,194 @@ which is a parse error.
 
 We will resolve this situation automatically in a future version.
 
+Alice's additions:
+```unison
+unique type Foo = Bar
+
+alice : Foo -> Nat
+alice _ = 18
+```
+
+Bob's additions:
+```unison
+unique type Foo = Bar
+
+bob : Foo -> Nat
+bob _ = 19
+```
+
+```ucm
+project/alice> merge bob
+
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+type Foo
+  = Bar
+
+-- project/bob
+type Foo
+  = Bar
+
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
+alice : Foo -> Nat
+alice _ = 18
+
+bob : Foo -> Nat
+bob _ = 19
+
+
+```
+
+## `merge.commit` example (success)
+
+After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
+"commit" your changes.
+
+Original branch:
+```unison
+foo : Text
+foo = "old foo"
+```
+
+Alice's changes:
+```unison
+foo : Text
+foo = "alices foo"
+```
+
+Bob's changes:
+
+```unison
+foo : Text
+foo = "bobs foo"
+```
+
+Attempt to merge:
+
+```ucm
+project/alice> merge /bob
+
+  I couldn't automatically merge project/bob into project/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
+
+```
+```unison:added-by-ucm scratch.u
+-- project/alice
+foo : Text
+foo = "alices foo"
+
+-- project/bob
+foo : Text
+foo = "bobs foo"
+
+
+```
+
+Resolve conflicts and commit:
+
+```unison
+foo : Text
+foo = "alice and bobs foo"
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Text
+
+```
+```ucm
+project/merge-bob-into-alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+project/merge-bob-into-alice> merge.commit
+
+  I fast-forward merged project/merge-bob-into-alice into
+  project/alice.
+
+project/alice> view foo
+
+  foo : Text
+  foo = "alice and bobs foo"
+
+project/alice> branches
+
+       Branch   Remote branch
+  1.   alice    
+  2.   bob      
+  3.   main     
+
+```
+## `merge.commit` example (failure)
+
+`merge.commit` can only be run on a "merge branch".
+
+```ucm
+project/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+```
+```ucm
+project/topic> merge.commit
+
+  It doesn't look like there's a merge in progress.
+
+```
+## Precondition violations
+
+There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
+
+### Conflicted aliases
+
+If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
+
 Original branch:
 ```unison
 foo : Nat
