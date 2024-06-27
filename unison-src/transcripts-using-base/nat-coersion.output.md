@@ -49,7 +49,7 @@ test = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -59,7 +59,7 @@ test = 'let
               -> Optional Float
               ->{Stream Result} ()
 
-.> io.test test
+scratch/main> io.test test
 
     New test results:
   

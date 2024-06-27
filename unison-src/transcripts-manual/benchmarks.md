@@ -1,6 +1,6 @@
 ```ucm:hide
-.> pull unison.public.base.releases.M4d base
-.> pull runarorama.public.sort.data sort
+scratch/main> pull unison.public.base.releases.M4d base
+scratch/main> pull runarorama.public.sort.data sort
 ```
 
 ```unison:hide
@@ -34,63 +34,63 @@ prepare = do
 ```
 
 ```ucm:hide
-.> add
-.> run prepare
+scratch/main> add
+scratch/main> run prepare
 ```
 
 ## Benchmarks
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/each.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/each.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/listmap.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/listmap.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/listfilter.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/listfilter.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/random.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/random.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/simpleloop.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/simpleloop.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/fibonacci.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/fibonacci.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/map.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/map.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/natmap.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/natmap.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/stm.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/stm.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/tmap.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/tmap.u
+scratch/main> run main
 ```
 
 ```ucm
-.> load unison-src/transcripts-manual/benchmarks/array-sort.u
-.> run main
+scratch/main> load unison-src/transcripts-manual/benchmarks/array-sort.u
+scratch/main> run main
 ```

@@ -23,7 +23,7 @@ pong _ = !ping + 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -51,13 +51,13 @@ ping = 3
 
 ```
 ```ucm
-.> update.old
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
     ping : Nat
 
-.> view ping pong
+scratch/main> view ping pong
 
   ping : Nat
   ping = 3

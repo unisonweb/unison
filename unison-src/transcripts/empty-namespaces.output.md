@@ -6,13 +6,13 @@ mynamespace.x = 1
 
 The deleted namespace shouldn't appear in `ls` output.
 ```ucm
-.> ls
+scratch/main> ls
 
   nothing to show
 
 ```
 ```ucm
-.> find.verbose
+scratch/main> find.verbose
 
   ☝️
   
@@ -29,7 +29,7 @@ The deleted namespace shouldn't appear in `ls` output.
 
 ```
 ```ucm
-.> find mynamespace
+scratch/main> find mynamespace
 
   ☝️
   
@@ -50,9 +50,9 @@ The deleted namespace shouldn't appear in `ls` output.
 The history of the namespace should be empty.
 
 ```ucm
-.> history mynamespace
+scratch/main> history mynamespace
 
-  ☝️  The namespace .mynamespace is empty.
+  ☝️  The namespace mynamespace is empty.
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
@@ -67,7 +67,7 @@ stuff.thing = 2
 I should be allowed to fork over a deleted namespace
 
 ```ucm
-.> fork stuff deleted
+scratch/main> fork stuff deleted
 
   Done.
 
@@ -75,7 +75,7 @@ I should be allowed to fork over a deleted namespace
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
 ```ucm
-.> history stuff
+scratch/main> history stuff
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -84,7 +84,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   □ 1. #q2dq4tsno1 (start of history)
 
-.> history deleted
+scratch/main> history deleted
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -105,11 +105,11 @@ I should be able to move a namespace over-top of a deleted namespace.
 The history should be that of the moved namespace.
 
 ```ucm
-.> delete.namespace moveoverme
+scratch/main> delete.namespace moveoverme
 
   Done.
 
-.> history moveme
+scratch/main> history moveme
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -118,11 +118,11 @@ The history should be that of the moved namespace.
   
   □ 1. #c5uisu4kll (start of history)
 
-.> move.namespace moveme moveoverme
+scratch/main> move.namespace moveme moveoverme
 
   Done.
 
-.> history moveoverme
+scratch/main> history moveoverme
 
   Note: The most recent namespace hash is immediately below this
         message.

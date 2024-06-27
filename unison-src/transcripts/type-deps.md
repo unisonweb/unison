@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/pull/2821
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 
@@ -14,7 +14,7 @@ structural type Y = Y
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Now, we update `Y`, and add a new type `Z` which depends on it.
@@ -26,7 +26,7 @@ structural type Y = Y Nat
 
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.
 ```ucm:error
-.> add 
+scratch/main> add 
 -- This shouldn't exist, because it should've been blocked.
-.> view Z
+scratch/main> view Z
 ```

@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 # reset loose code
@@ -8,10 +8,10 @@ a = 5
 ```
 
 ```ucm
-.> add
-.> history
-.> reset 2
-.> history
+scratch/main> add
+scratch/main> history
+scratch/main> reset 2
+scratch/main> history
 ```
 
 ```unison
@@ -19,11 +19,11 @@ foo.a = 5
 ```
 
 ```ucm
-.> add
-.> ls foo
-.> history
-.> reset 1 foo
-.> ls foo.foo
+scratch/main> add
+scratch/main> ls foo
+scratch/main> history
+scratch/main> reset 1 foo
+scratch/main> ls foo.foo
 ```
 
 # reset branch

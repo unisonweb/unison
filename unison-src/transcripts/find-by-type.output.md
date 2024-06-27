@@ -13,7 +13,7 @@ baz = cases
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -22,25 +22,25 @@ baz = cases
     baz : A -> Text
     foo : A
 
-.> find : Text -> A
+scratch/main> find : Text -> A
 
   1. bar : Text -> A
   2. A.A : Text -> A
   
 
-.> find : A -> Text
+scratch/main> find : A -> Text
 
   1. baz : A -> Text
   
 
-.> find : A
+scratch/main> find : A
 
   1. foo : A
   
 
 ```
 ```ucm
-.> find : Text
+scratch/main> find : Text
 
   ☝️
   

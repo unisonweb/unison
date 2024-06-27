@@ -17,7 +17,7 @@ unique type Foo
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -45,18 +45,18 @@ unique type Foo
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = Bar Nat | Baz Nat Nat
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #2sffq4apsq1cts53njcunj63fa8ohov4eqn77q14s77ajicajh4g28sq5s5ai33f2k6oh6o67aarnlpu7u7s4la07ag2er33epalsog
      type Foo

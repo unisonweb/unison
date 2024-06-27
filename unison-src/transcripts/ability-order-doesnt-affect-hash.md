@@ -15,6 +15,6 @@ term2 _ = ()
 ```
 
 ```ucm
-.> add
-.> names term1
+scratch/main> add
+scratch/main> names term1
 ```
