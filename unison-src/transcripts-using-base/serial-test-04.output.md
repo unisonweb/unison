@@ -28,7 +28,7 @@ mkTestCase = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -36,7 +36,7 @@ mkTestCase = do
     mutual0    : Nat -> Text
     mutual1    : Nat -> Text
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

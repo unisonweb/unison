@@ -9,7 +9,7 @@ x = 999
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Now, we update that definition and define a test-watch which depends on it.
@@ -22,7 +22,7 @@ test> mytest = checks [x + 1 == 1001]
 We expect this 'add' to fail because the test is blocked by the update to `x`.
 
 ```ucm:error
-.> add
+scratch/main> add
 ```
 
 ---
@@ -35,5 +35,5 @@ test> useY = checks [y + 1 == 43]
 This should correctly identify `y` as a dependency and add that too.
 
 ```ucm
-.> add useY
+scratch/main> add useY
 ```

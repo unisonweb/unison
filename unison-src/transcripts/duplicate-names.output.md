@@ -125,7 +125,7 @@ X = ()
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -133,7 +133,7 @@ X = ()
       (also named builtin.Unit)
     X : ()
 
-.> view X
+scratch/main> view X
 
   structural type X = Z
   

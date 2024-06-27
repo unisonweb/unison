@@ -23,7 +23,7 @@ pong _ = !ping + 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -51,7 +51,7 @@ ping _ = !pong + 3
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -62,7 +62,7 @@ ping _ = !pong + 3
 
   Done.
 
-.> view ping pong
+scratch/main> view ping pong
 
   ping : 'Nat
   ping _ =

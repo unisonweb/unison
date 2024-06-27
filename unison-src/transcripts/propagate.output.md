@@ -26,14 +26,14 @@ fooToInt _ = +42
 And then we add it.
 
 ```ucm
-.subpath> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
     fooToInt : Foo -> Int
 
-.subpath> find.verbose
+scratch/main> find.verbose
 
   1. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo
      type Foo
@@ -46,7 +46,7 @@ And then we add it.
      
   
 
-.subpath> view fooToInt
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -75,7 +75,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ```ucm
-.subpath> update.old
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -85,7 +85,7 @@ and update the codebase to use the new type `Foo`...
 ... it should automatically propagate the type to `fooToInt`.
 
 ```ucm
-.subpath> view fooToInt
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -121,7 +121,7 @@ preserve.otherTerm y = someTerm y
 Add that to the codebase:
 
 ```ucm
-.subpath> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -153,7 +153,7 @@ preserve.someTerm _ = None
 Update...
 
 ```ucm
-.subpath> update.old
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -164,12 +164,12 @@ Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ```ucm
-.subpath> view preserve.someTerm
+scratch/main> view preserve.someTerm
 
   preserve.someTerm : Optional x -> Optional x
   preserve.someTerm _ = None
 
-.subpath> view preserve.otherTerm
+scratch/main> view preserve.otherTerm
 
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y
@@ -180,10 +180,6 @@ type of `otherTerm` should remain the same.
 Cleaning up a bit...
 
 ```ucm
-.> delete.namespace subpath
-
-  Done.
-
   ☝️  The namespace .subpath.lib is empty.
 
 .subpath.lib> builtins.merge

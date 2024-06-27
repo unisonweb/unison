@@ -32,7 +32,7 @@ test> Any.unsafeExtract.works =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   

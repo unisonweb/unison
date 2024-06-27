@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 This transcript shows some syntax for raw text literals.
@@ -37,6 +37,6 @@ lit2 = """"
 ```
 
 ```ucm
-.> add
-.> view lit1 lit2
+scratch/main> add
+scratch/main> view lit1 lit2
 ```

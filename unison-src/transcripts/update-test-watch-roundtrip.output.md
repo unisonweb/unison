@@ -10,7 +10,7 @@ test> mynamespace.foo.test =
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -39,7 +39,7 @@ foo n = "hello, world!"
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

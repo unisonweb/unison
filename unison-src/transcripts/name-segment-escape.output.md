@@ -1,14 +1,14 @@
 You can use a keyword or reserved operator as a name segment if you surround it with backticks.
 
 ```ucm
-.> view `match`
+scratch/main> view `match`
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
     `match`
 
-.> view `=`
+scratch/main> view `=`
 
   ⚠️
   
@@ -21,14 +21,14 @@ You can also use backticks to expand the set of valid symbols in a symboly name 
 This allows you to spell `.` or `()` as name segments (which historically have appeared in the namespace).
 
 ```ucm
-.> view `.`
+scratch/main> view `.`
 
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
     `.`
 
-.> view `()`
+scratch/main> view `()`
 
   ⚠️
   

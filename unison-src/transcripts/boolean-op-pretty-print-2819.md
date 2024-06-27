@@ -1,7 +1,7 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -12,7 +12,7 @@ hangExample =
 ```
 
 ```ucm
-.> add
-.> view hangExample
+scratch/main> add
+scratch/main> view hangExample
 ```
 

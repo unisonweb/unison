@@ -18,7 +18,7 @@ unique type Baz = Qux Foo
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -45,7 +45,7 @@ unique type Foo a = Bar Nat a
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

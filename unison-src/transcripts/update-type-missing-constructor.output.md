@@ -16,13 +16,13 @@ unique type Foo = Bar Nat
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-.> delete.term Foo.Bar
+scratch/main> delete.term Foo.Bar
 
   Done.
 
@@ -48,11 +48,11 @@ unique type Foo = Bar Nat Nat
 
 ```
 ```ucm
-.> view Foo
+scratch/main> view Foo
 
   type Foo = #b509v3eg4k#0 Nat
 
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

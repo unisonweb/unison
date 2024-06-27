@@ -1,7 +1,7 @@
 ```ucm:hide
-.> builtins.merge
-.> project.create-empty p0
-.> project.create-empty p1
+scratch/main> builtins.merge
+scratch/main> project.create-empty p0
+scratch/main> project.create-empty p1
 ```
 
 ```unison

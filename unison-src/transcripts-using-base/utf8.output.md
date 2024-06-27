@@ -3,7 +3,7 @@ Test for new Text -> Bytes conversions explicitly using UTF-8 as the encoding
 Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding of the Text.
 
 ```ucm
-.> find Utf8
+scratch/main> find Utf8
 
   1. builtin.Text.toUtf8 : Text -> Bytes
   2. Text.fromUtf8 : Bytes ->{Exception} Text

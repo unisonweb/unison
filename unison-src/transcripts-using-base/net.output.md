@@ -107,7 +107,7 @@ testDefaultPort _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,7 +115,7 @@ testDefaultPort _ =
     testDefaultPort  : '{IO} [Result]
     testExplicitHost : '{IO} [Result]
 
-.> io.test testDefaultPort
+scratch/main> io.test testDefaultPort
 
     New test results:
   
@@ -194,7 +194,7 @@ testTcpConnect = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -202,7 +202,7 @@ testTcpConnect = 'let
     serverThread   : MVar Nat -> Text -> '{IO} ()
     testTcpConnect : '{IO} [Result]
 
-.> io.test testTcpConnect
+scratch/main> io.test testTcpConnect
 
     New test results:
   

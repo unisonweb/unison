@@ -7,7 +7,7 @@ X.foo = "a namespace"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -21,7 +21,7 @@ a = "an update"
 ```
 
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -31,7 +31,7 @@ a = "an update"
 ```
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
 ```ucm
-.> history X
+scratch/main> history X
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -43,7 +43,7 @@ As of the time of this writing, the history for `X` should be a single node, `#4
 ```
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 ```ucm
-.> history #7nl6ppokhg
+scratch/main> history #7nl6ppokhg
 
   😶
   

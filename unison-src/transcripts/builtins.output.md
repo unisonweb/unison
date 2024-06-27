@@ -1,6 +1,6 @@
 # Unit tests for builtin functions
 
-This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
+This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions
 
@@ -480,13 +480,13 @@ openFilesIO = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     openFilesIO : '{IO} [Result]
 
-.> io.test openFilesIO
+scratch/main> io.test openFilesIO
 
     New test results:
   
@@ -535,7 +535,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   

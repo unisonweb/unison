@@ -1,7 +1,7 @@
 # Lambda case syntax
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
@@ -13,7 +13,7 @@ isEmpty x = match x with
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Here's the same function written using `cases` syntax:
@@ -27,7 +27,7 @@ isEmpty2 = cases
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
 ```ucm
-.> view isEmpty
+scratch/main> view isEmpty
 ```
 
 it shows the definition using `cases` syntax opportunistically, even though the code was originally written without that syntax.
@@ -47,7 +47,7 @@ merge xs ys = match (xs, ys) with
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 And here's a version using `cases`. The patterns are separated by commas:
@@ -65,7 +65,7 @@ merge2 = cases
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ```ucm
-.> view merge
+scratch/main> view merge
 ```
 
 it again shows the definition using the multi-argument `cases` syntax opportunistically, even though the code was originally written without that syntax.
@@ -101,8 +101,8 @@ merge3 = cases
 ```
 
 ```ucm
-.> add
-.> view merge3
+scratch/main> add
+scratch/main> view merge3
 ```
 
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.

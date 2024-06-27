@@ -21,13 +21,13 @@ hangExample =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     hangExample : Boolean
 
-.> view hangExample
+scratch/main> view hangExample
 
   hangExample : Boolean
   hangExample =

@@ -3,15 +3,15 @@
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ```ucm
-.builtin> view Doc
+scratch/main> view lib.builtins.Doc
 
-  type Doc
+  type lib.builtins.Doc
     = Blob Text
     | Link Link
     | Source Link
     | Signature Term
     | Evaluate Term
-    | Join [Doc]
+    | Join [lib.builtins.Doc]
 
 ```
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
@@ -73,7 +73,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 
 ```
 ```ucm
-.builtin> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -116,7 +116,7 @@ List.take.doc = [:
 Let's add it to the codebase.
 
 ```ucm
-.builtin> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -126,7 +126,7 @@ Let's add it to the codebase.
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ```ucm
-.builtin> docs List.take
+scratch/main> docs List.take
 
   `List.take n xs` returns the first `n` elements of `xs`. (No 
   need to add line breaks manually. The display command will do 
@@ -151,8 +151,9 @@ We can view it with `docs`, which shows the `Doc` value that is associated with 
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ```ucm
-.builtin> view List.take
+scratch/main> view List.take
 
-  builtin List.take : Nat -> [a] -> [a]
+  builtin lib.builtins.List.take :
+    lib.builtins.Nat -> [a] -> [a]
 
 ```

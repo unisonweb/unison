@@ -15,7 +15,7 @@ inside.r = d
 ```
 
 ```ucm
-.> debug.file
+scratch/main> debug.file
 
   type inside.M#h37a56c5ep
   type outside.A#6l6krl7n4l
@@ -32,7 +32,7 @@ This will help me make progress in some situations when UCM is being deficient o
 ### `dependents` / `dependencies`
 But wait, there's more.  I can check the dependencies and dependents of a definition:
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -45,11 +45,11 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
     outside.c : Nat
     outside.d : Boolean
 
-.> dependents q
+scratch/main> dependents q
 
   q has no dependents.
 
-.> dependencies q
+scratch/main> dependencies q
 
   Dependencies of: q
   
@@ -66,7 +66,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   Tip: Try `view 4` to see the source of any numbered item in
        the above list.
 
-.> dependencies B
+scratch/main> dependencies B
 
   Dependencies of: type B, B
   
@@ -78,7 +78,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
 
-.> dependencies d
+scratch/main> dependencies d
 
   Dependencies of: d
   
@@ -97,7 +97,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   Tip: Try `view 6` to see the source of any numbered item in
        the above list.
 
-.> dependents d
+scratch/main> dependents d
 
   Dependents of: d
   
