@@ -14,7 +14,7 @@ on:
 env:
   ormolu_version: 0.5.2.0
   ucm_local_bin: ucm-local-bin
-  jit_version: "@unison/internal/releases/0.0.17"
+  jit_version: "@unison/internal/releases/0.0.18"
   jit_src_scheme: unison-jit-src/scheme-libs/racket
   jit_dist: unison-jit-dist
   jit_generator_os: ubuntu-20.04
