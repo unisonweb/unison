@@ -46,6 +46,7 @@
       };
       haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
         inherit pkgs unison-project versions;
+        inherit (nixpkgs-haskellNix) lib;
       };
       renameAttrs = fn:
         nixpkgs-haskellNix.lib.mapAttrs' (name: value: {
