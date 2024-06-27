@@ -29,7 +29,7 @@ data ProjectAndBranch a b = ProjectAndBranch
   { project :: a,
     branch :: b
   }
-  deriving stock (Eq, Generic, Show)
+  deriving stock (Eq, Generic, Show, Functor)
 
 instance Bifunctor ProjectAndBranch where
   bimap f g (ProjectAndBranch a b) = ProjectAndBranch (f a) (g b)

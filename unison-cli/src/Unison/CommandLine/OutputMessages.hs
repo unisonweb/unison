@@ -53,6 +53,7 @@ import Unison.Codebase.Editor.Output
     Output (..),
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
+    TodoOutput,
     UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
   )
 import Unison.Codebase.Editor.Output qualified as E
@@ -63,9 +64,7 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
-import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
@@ -73,8 +72,6 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.Codebase.TermEdit qualified as TermEdit
-import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.InputPattern (InputPattern)
@@ -113,7 +110,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -137,7 +134,6 @@ import Unison.Syntax.NamePrinter
     prettyReference,
     prettyReferent,
     prettyShortHash,
-    styleHashQualified,
   )
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
@@ -146,6 +142,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -310,7 +307,30 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
-  TodoOutput names todo -> todoOutput names todo
+  TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
+    let oks = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- oksUnsorted]
+        fails = Name.sortByText (HQ.toText . fst) [(name r, msg) | (r, msg) <- failsUnsorted]
+        name r = PPE.termName ppe (Referent.fromTermReferenceId r)
+     in ( case stats of
+            CachedTests 0 _ -> P.callout "😶" $ "No tests to run."
+            CachedTests n n' | n == n' -> P.lines [cache, "", displayTestResults True oks fails]
+            CachedTests _n m ->
+              if m == 0
+                then "✅  "
+                else
+                  P.indentN 2 $
+                    P.lines ["", cache, "", displayTestResults False oks fails, "", "✅  "]
+            NewlyComputed ->
+              P.lines
+                [ "  " <> P.bold "New test results:",
+                  "",
+                  displayTestResults True oks fails
+                ],
+          fmap (SA.HashQualified . fst) $ oks <> fails
+        )
+    where
+      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
+  Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
   CantDeleteDefinitions ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -641,29 +661,6 @@ notifyUser dir = \case
   OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
-  TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
-    CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
-    CachedTests n n'
-      | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
-    CachedTests _n m ->
-      pure $
-        if m == 0
-          then "✅  "
-          else
-            P.indentN 2 $
-              P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-    NewlyComputed -> do
-      clearCurrentLine
-      pure $
-        P.lines
-          [ "  " <> P.bold "New test results:",
-            "",
-            displayTestResults True ppe oks fails
-          ]
-    where
-      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
@@ -1202,7 +1199,7 @@ notifyUser dir = \case
       ]
     where
       name :: Name
-      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
+      name = HQ'.toName $ Path.nameFromHQSplit' p
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -1483,8 +1480,6 @@ notifyUser dir = \case
           <> P.group (prettyNamespaceKey src <> ".")
   DumpNumberedArgs schLength args ->
     pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
-  NoConflictsOrEdits ->
-    pure (P.okCallout "No conflicts or edits in progress.")
   HelpMessage pat -> pure $ IP.showPatternHelp pat
   NoOp -> pure $ P.string "I didn't make any changes."
   DumpBitBooster head map ->
@@ -2082,14 +2077,32 @@ notifyUser dir = \case
           "",
           "Your non-project code is still available to pull from Share, and you can pull it into a local namespace using `pull myhandle.public`"
         ]
-  MergeFailure path aliceAndBob ->
-    pure . P.wrap $
-      "I couldn't automatically merge"
-        <> prettyMergeSource aliceAndBob.bob
-        <> "into"
-        <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-        <> "However, I've added the definitions that need attention to the top of"
-        <> P.group (prettyFilePath path <> ".")
+  MergeFailure path aliceAndBob temp ->
+    pure $
+      P.lines $
+        [ P.wrap $
+            "I couldn't automatically merge"
+              <> prettyMergeSource aliceAndBob.bob
+              <> "into"
+              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+              <> "However, I've added the definitions that need attention to the top of"
+              <> P.group (prettyFilePath path <> "."),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName aliceAndBob.alice.branch
+              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+        ]
   MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"
@@ -2133,6 +2146,8 @@ notifyUser dir = \case
         case maybeTargetProject of
           Nothing -> prettyProjectBranchName targetBranch
           Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
+  NoMergeInProgress ->
+    pure . P.wrap $ "It doesn't look like there's a merge in progress."
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =
@@ -2520,18 +2535,17 @@ displayRendered outputLoc pp =
 
 displayTestResults ::
   Bool -> -- whether to show the tip
-  PPE.PrettyPrintEnv ->
-  [(TermReferenceId, Text)] ->
-  [(TermReferenceId, Text)] ->
+  [(HQ.HashQualified Name, Text)] ->
+  [(HQ.HashQualified Name, Text)] ->
   Pretty
-displayTestResults showTip ppe oksUnsorted failsUnsorted =
-  let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
-      fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
+displayTestResults showTip oks fails =
+  let name = P.text . HQ.toText
       okMsg =
         if null oks
           then mempty
-          else P.column2 [(P.green "◉ " <> P.text r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom 0 [(P.green "◉ " <> name r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
       okSummary =
         if null oks
           then mempty
@@ -2539,7 +2553,11 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
       failMsg =
         if null fails
           then mempty
-          else P.column2 [(P.red "✗ " <> P.text r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom
+                (length oks)
+                [(P.red "✗ " <> name r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
       failSummary =
         if null fails
           then mempty
@@ -2547,11 +2565,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted =
       tipMsg =
         if not showTip || (null oks && null fails)
           then mempty
-          else
-            tip $
-              "Use "
-                <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
-                <> "to view the source of a test."
+          else tip $ "Use " <> P.blue "view 1" <> "to view the source of a test."
    in if null oks && null fails
         then "😶 No tests available."
         else
@@ -2596,8 +2610,7 @@ renderNameConflicts ppe conflictedNames = do
         [ prettyConflictedTypes,
           prettyConflictedTerms,
           tip $
-            "This occurs when merging branches that both independently introduce the same name."
-              <> "Use "
+            "Use "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
                     then IP.renameType
@@ -2615,7 +2628,7 @@ renderNameConflicts ppe conflictedNames = do
     showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
     showConflictedNames thingKind conflictedNames =
       P.lines <$> do
-        for (Map.toList conflictedNames) $ \(name, hashes) -> do
+        for (Map.toList conflictedNames) \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
@@ -2626,75 +2639,18 @@ renderNameConflicts ppe conflictedNames = do
                 <> P.green (prettyName name)
                 <> " has conflicting definitions:"
             )
-              `P.hang` P.lines prettyConflicts
-
-renderEditConflicts ::
-  PPE.PrettyPrintEnv -> Patch -> Numbered Pretty
-renderEditConflicts ppe Patch {..} = do
-  formattedConflicts <- for editConflicts formatConflict
-  pure . Monoid.unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $
-    [ P.wrap $
-        "These"
-          <> P.bold "definitions were edited differently"
-          <> "in namespaces that have been merged into this one."
-          <> "You'll have to tell me what to use as the new definition:",
-      P.indentN 2 (P.lines formattedConflicts)
-      --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
-    ]
-  where
-    -- todo: could possibly simplify all of this, but today is a copy/paste day.
-    editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
-    editConflicts =
-      (fmap Left . Map.toList . R.toMultimap . R.filterManyDom $ _typeEdits)
-        <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
-    numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
-    numberedHQName hqName = do
-      n <- addNumberedArg $ SA.HashQualified hqName
-      pure $ formatNum n <> styleHashQualified P.bold hqName
-    formatTypeEdits ::
-      (Reference, Set TypeEdit.TypeEdit) ->
-      Numbered Pretty
-    formatTypeEdits (r, toList -> es) = do
-      replacedType <- numberedHQName (PPE.typeName ppe r)
-      replacements <- for [PPE.typeName ppe r | TypeEdit.Replace r <- es] numberedHQName
-      pure . P.wrap $
-        "The type"
-          <> replacedType
-          <> "was"
-          <> ( if TypeEdit.Deprecate `elem` es
-                 then "deprecated and also replaced with"
-                 else "replaced with"
-             )
-            `P.hang` P.lines replacements
-    formatTermEdits ::
-      (Reference.TermReference, Set TermEdit.TermEdit) ->
-      Numbered Pretty
-    formatTermEdits (r, toList -> es) = do
-      replacedTerm <- numberedHQName (PPE.termName ppe (Referent.Ref r))
-      replacements <- for [PPE.termName ppe (Referent.Ref r) | TermEdit.Replace r _ <- es] numberedHQName
-      pure . P.wrap $
-        "The term"
-          <> replacedTerm
-          <> "was"
-          <> ( if TermEdit.Deprecate `elem` es
-                 then "deprecated and also replaced with"
-                 else "replaced with"
-             )
-            `P.hang` P.lines replacements
-    formatConflict ::
-      Either
-        (Reference, Set TypeEdit.TypeEdit)
-        (Reference.TermReference, Set TermEdit.TermEdit) ->
-      Numbered Pretty
-    formatConflict = either formatTypeEdits formatTermEdits
+              <> P.newline
+              <> P.newline
+              <> P.indentN 2 (P.lines prettyConflicts)
 
 type Numbered = State.State (Int, Seq.Seq StructuredArgument)
 
 addNumberedArg :: StructuredArgument -> Numbered Int
 addNumberedArg s = do
   (n, args) <- State.get
-  State.put (n + 1, args Seq.|> s)
-  pure $ (n + 1)
+  let !n' = n + 1
+  State.put (n', args Seq.|> s)
+  pure n'
 
 formatNum :: Int -> Pretty
 formatNum n = P.string (show n <> ". ")
@@ -2704,90 +2660,67 @@ runNumbered m =
   let (a, (_, args)) = State.runState m (0, mempty)
    in (a, Foldable.toList args)
 
-todoOutput :: (Var v) => PPED.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
-todoOutput ppe todo = runNumbered do
-  conflicts <- todoConflicts
-  edits <- todoEdits
-  pure (conflicts <> edits)
-  where
-    ppeu = PPED.unsuffixifiedPPE ppe
-    ppes = PPED.suffixifiedPPE ppe
-    (frontierTerms, frontierTypes) = TO.todoFrontier todo
-    (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
-    corruptTerms =
-      [(PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms]
-    corruptTypes =
-      [(PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes]
-    goodTerms ts =
-      [(Referent.Ref r, PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts]
-    todoConflicts :: Numbered Pretty
-    todoConflicts = do
-      if TO.noConflicts todo
-        then pure mempty
-        else do
-          editConflicts <- renderEditConflicts ppeu (TO.editConflicts todo)
-          nameConflicts <- renderNameConflicts ppeu conflictedNames
-          pure $ P.lines . P.nonEmpty $ [editConflicts, nameConflicts]
-      where
-        -- If a conflict is both an edit and a name conflict, we show it in the edit
-        -- conflicts section
-        conflictedNames :: Names
-        conflictedNames = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
-        -- e.g. `foo#a` has been independently updated to `foo#b` and `foo#c`.
-        -- This means there will be a name conflict:
-        --    foo -> #b
-        --    foo -> #c
-        -- as well as an edit conflict:
-        --    #a -> #b
-        --    #a -> #c
-        -- We want to hide/ignore the name conflicts that are also targets of an
-        -- edit conflict, so that the edit conflict will be dealt with first.
-        -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
-        -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
-        removeEditConflicts :: Patch -> Names -> Names
-        removeEditConflicts Patch {..} Names {..} = Names terms' types'
-          where
-            terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
-            types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types
-            conflictedTypeEditTargets :: Set Reference
-            conflictedTypeEditTargets =
-              Set.fromList $ toList (R.ran typeEditConflicts) >>= TypeEdit.references
-            conflictedTermEditTargets :: Set Referent.Referent
-            conflictedTermEditTargets =
-              Set.fromList . fmap Referent.Ref $
-                toList (R.ran termEditConflicts) >>= TermEdit.references
-            typeEditConflicts = R.filterDom (`R.manyDom` _typeEdits) _typeEdits
-            termEditConflicts = R.filterDom (`R.manyDom` _termEdits) _termEdits
+handleTodoOutput :: TodoOutput -> Numbered Pretty
+handleTodoOutput todo = do
+  prettyConflicts <-
+    if todo.nameConflicts == mempty
+      then pure mempty
+      else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
 
-    todoEdits :: Numbered Pretty
-    todoEdits = do
-      numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
-        n <- addNumberedArg . SA.HashQualified $ PPE.typeName ppeu ref
-        pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
-      let filteredTerms = goodTerms (unscore <$> dirtyTerms)
-      termNumbers <- for filteredTerms \(ref, _, _) -> do
-        n <- addNumberedArg . SA.HashQualified $ PPE.termName ppeu ref
-        pure $ formatNum n
-      let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
-          numberedTerms = zipWith (<>) termNumbers formattedTerms
-      pure $
-        Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-          [ P.wrap
-              ( "The namespace has"
-                  <> fromString (show (TO.todoScore todo))
-                  <> "transitive dependent(s) left to upgrade."
-                  <> "Your edit frontier is the dependents of these definitions:"
-              ),
-            P.indentN 2 . P.lines $
-              ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                  ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
-              ),
-            P.wrap "I recommend working on them in the following order:",
-            P.lines $ numberedTypes ++ numberedTerms,
-            formatMissingStuff corruptTerms corruptTypes
-          ]
-    unscore :: (a, b, c) -> (b, c)
-    unscore (_score, b, c) = (b, c)
+  prettyDependentsOfTodo <- do
+    if Set.null todo.dependentsOfTodo
+      then pure mempty
+      else do
+        terms <-
+          for (Set.toList todo.dependentsOfTodo) \term -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.idToShortHash term)))
+            let name =
+                  term
+                    & Referent.fromTermReferenceId
+                    & PPE.termName todo.ppe.suffixifiedPPE
+                    & prettyHashQualified
+                    & P.syntaxToColor
+            pure (formatNum n <> name)
+        pure $
+          P.wrap "These terms call `todo`:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines terms)
+
+  prettyDirectTermDependenciesWithoutNames <- do
+    if Set.null todo.directDependenciesWithoutNames.terms
+      then pure mempty
+      else do
+        terms <-
+          for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
+            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
+        pure $
+          P.wrap "These terms do not have any names in the current namespace:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines terms)
+
+  prettyDirectTypeDependenciesWithoutNames <- do
+    if Set.null todo.directDependenciesWithoutNames.types
+      then pure mempty
+      else do
+        types <-
+          for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
+            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
+            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
+        pure $
+          P.wrap "These types do not have any names in the current namespace:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.lines types)
+
+  (pure . P.sep "\n\n" . P.nonEmpty)
+    [ prettyDependentsOfTodo,
+      prettyDirectTermDependenciesWithoutNames,
+      prettyDirectTypeDependenciesWithoutNames,
+      prettyConflicts
+    ]
 
 listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
@@ -3515,7 +3448,7 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines $
             [ P.indentN 2 $ P.bold "Types:",
               "",
-              P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+              P.indentN 2 . P.numberedList $ c . prettyHashQualified <$> types
             ]
     termsOut =
       if null terms
@@ -3524,7 +3457,6 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines
             [ P.indentN 2 $ P.bold "Terms:",
               "",
-              P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+              P.indentN 2 . P.numberedListFrom (length types) $ c . prettyHashQualified <$> terms
             ]
-    numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
     c = P.syntaxToColor

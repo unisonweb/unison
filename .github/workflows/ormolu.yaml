@@ -21,7 +21,7 @@ jobs:
       - name: create pull request with formatting changes
         uses: peter-evans/create-pull-request@v6
         with:
-          commit_message: automatically run ormolu
+          commit-message: automatically run ormolu
           branch: autoformat/${{github.ref_name}}
-          # branch_suffix: random
+          branch-suffix: short-commit-hash
           title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}

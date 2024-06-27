@@ -75,6 +75,7 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
+import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -125,6 +126,10 @@ styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
 style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
+
+-- | Applies the color highlighting for `Code`, but also quotes the code, to separate it from the containing context.
+quoteCode :: String -> Pretty ColorText
+quoteCode = Pr.backticked . style Code
 
 stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
 stylePretty = Pr.map . AT.annotate
@@ -827,14 +832,6 @@ renderTypeError e env src = case e of
       let sz = length wrongs
           pl a b = if sz == 1 then a else b
        in mconcat [txt pl, intercalateMap "\n" (renderSuggestion env) wrongs]
-    ordinal :: (IsString s) => Int -> s
-    ordinal n =
-      fromString $
-        show n ++ case last (show n) of
-          '1' -> "st"
-          '2' -> "nd"
-          '3' -> "rd"
-          _ -> "th"
     debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
     debugSummary :: C.ErrorNote v loc -> Pretty ColorText
     debugSummary note =
@@ -1366,31 +1363,31 @@ renderParseErrors s = \case
             <> style ErrorSite (fromString open)
             <> ".\n\n"
             <> excerpt
-        L.InvalidWordyId _id ->
+        L.ReservedWordyId id ->
           Pr.lines
-            [ "This identifier isn't valid syntax: ",
+            [ "The identifier " <> quoteCode id <> " used here is a reserved keyword: ",
               "",
               excerpt,
-              "Here's a few examples of valid syntax: "
-                <> style Code "abba1', snake_case, Foo.zoink!, 🌻"
+              Pr.wrap $
+                "You can avoid this problem either by renaming the identifier or wrapping it in backticks (like "
+                  <> style Code ("`" <> id <> "`")
+                  <> ")."
             ]
-        L.ReservedWordyId _id ->
+        L.InvalidSymbolyId id ->
           Pr.lines
-            [ "The identifier used here isn't allowed to be a reserved keyword: ",
-              "",
-              excerpt
-            ]
-        L.InvalidSymbolyId _id ->
-          Pr.lines
-            [ "This infix identifier isn't valid syntax: ",
+            [ "The infix identifier " <> quoteCode id <> " isn’t valid syntax: ",
               "",
               excerpt,
-              "Here's a few valid examples: "
-                <> style Code "++, Float./, `List.map`"
+              "Here are a few valid examples: "
+                <> quoteCode "++"
+                <> ", "
+                <> quoteCode "Float./"
+                <> ", and "
+                <> quoteCode "List.map"
             ]
-        L.ReservedSymbolyId _id ->
+        L.ReservedSymbolyId id ->
           Pr.lines
-            [ "This identifier is reserved by Unison and can't be used as an operator: ",
+            [ "The identifier " <> quoteCode id <> " is reserved by Unison and can't be used as an operator: ",
               "",
               excerpt
             ]
@@ -1444,11 +1441,12 @@ renderParseErrors s = \case
               "",
               excerpt,
               Pr.wrap $
-                "I was expecting some digits after the '.',"
-                  <> "for example: "
-                  <> style Code (n <> "0")
+                "I was expecting some digits after the "
+                  <> quoteCode "."
+                  <> ", for example: "
+                  <> quoteCode (n <> "0")
                   <> "or"
-                  <> Pr.group (style Code (n <> "1e37") <> ".")
+                  <> Pr.group (quoteCode (n <> "1e37") <> ".")
             ]
         L.MissingExponent n ->
           Pr.lines
@@ -1458,7 +1456,7 @@ renderParseErrors s = \case
               Pr.wrap $
                 "I was expecting some digits for the exponent,"
                   <> "for example: "
-                  <> Pr.group (style Code (n <> "37") <> ".")
+                  <> Pr.group (quoteCode (n <> "37") <> ".")
             ]
         L.TextLiteralMissingClosingQuote _txt ->
           Pr.lines
@@ -1474,7 +1472,7 @@ renderParseErrors s = \case
               "",
               "I only know about the following escape characters:",
               "",
-              let s ch = style Code (fromString $ "\\" <> [ch])
+              let s ch = quoteCode (fromString $ "\\" <> [ch])
                in Pr.indentN 2 $ intercalateMap "," s (fst <$> L.escapeChars)
             ]
         L.LayoutError ->
@@ -1705,7 +1703,7 @@ renderParseErrors s = \case
           let msg =
                 mconcat
                   [ "This looks like the start of an expression here but I was expecting a binding.",
-                    "\nDid you mean to use a single " <> style Code ":",
+                    "\nDid you mean to use a single " <> quoteCode ":",
                     " here for a type signature?",
                     "\n\n",
                     tokenAsErrorSite s t

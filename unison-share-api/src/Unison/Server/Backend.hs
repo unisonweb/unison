@@ -579,14 +579,10 @@ lsBranch codebase b0 = do
         (ns, (h, stats)) <- Map.toList $ childrenWithStats
         guard $ V2Branch.hasDefinitions stats
         pure $ ShallowBranchEntry ns (V2Causal.causalHash h) stats
-      patchEntries :: [ShallowListEntry Symbol Ann] = do
-        (ns, _h) <- Map.toList $ V2Branch.patches b0
-        pure $ ShallowPatchEntry ns
   pure . List.sortOn listEntryName $
     termEntries
       ++ typeEntries
       ++ branchEntries
-      ++ patchEntries
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are

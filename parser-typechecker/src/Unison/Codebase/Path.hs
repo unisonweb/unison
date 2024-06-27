@@ -43,7 +43,7 @@ module Unison.Codebase.Path
     isRoot,
     isRoot',
 
-    -- * things that could be replaced with `Convert` instances
+    -- * conversions
     absoluteToPath',
     fromList,
     fromName,
@@ -56,15 +56,13 @@ module Unison.Codebase.Path
     toList,
     toName,
     toName',
-    unsafeToName,
-    unsafeToName',
     toText,
     toText',
     unsplit,
     unsplit',
     unsplitAbsolute,
-    unsplitHQ,
-    unsplitHQ',
+    nameFromHQSplit,
+    nameFromHQSplit',
     nameFromSplit',
     splitFromName,
     splitFromName',
@@ -76,8 +74,6 @@ module Unison.Codebase.Path
     -- * things that could be replaced with `Snoc` instances
     snoc,
     unsnoc,
-    -- This should be moved to a common util module, or we could use the 'witch' package.
-    Convert (..),
   )
 where
 
@@ -93,14 +89,19 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
 import Unison.HashQualified' qualified as HQ'
-import Unison.Name (Convert (..), Name)
+import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
 
--- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
+-- | A `Path` is an internal structure representing some namespace in the codebase.
+--
+--  @Foo.Bar.baz@ becomes @["Foo", "Bar", "baz"]@.
+--
+--  __NB__:  This shouldn’t be exposed outside of this module (prefer`Path'`, `Absolute`, or `Relative`), but it’s
+--   currently used pretty widely. Such usage should be replaced when encountered.
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
@@ -112,10 +113,13 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
+-- | A namespace path that starts from the root.
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+-- | A namespace path that doesn’t necessarily start from the root.
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
+-- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
 
@@ -165,11 +169,11 @@ unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
 unsplitAbsolute =
   coerce unsplit
 
-unsplitHQ :: HQSplit -> HQ'.HashQualified Path
-unsplitHQ (p, a) = fmap (snoc p) a
+nameFromHQSplit :: HQSplit -> HQ'.HashQualified Name
+nameFromHQSplit = nameFromHQSplit' . first (RelativePath' . Relative)
 
-unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
-unsplitHQ' (p, a) = fmap (snoc' p) a
+nameFromHQSplit' :: HQSplit' -> HQ'.HashQualified Name
+nameFromHQSplit' (p, a) = fmap (nameFromSplit' . (p,)) a
 
 type Split = (Path, NameSegment)
 
@@ -310,9 +314,6 @@ cons = Lens.cons
 snoc :: Path -> NameSegment -> Path
 snoc = Lens.snoc
 
-snoc' :: Path' -> NameSegment -> Path'
-snoc' = Lens.snoc
-
 unsnoc :: Path -> Maybe (Path, NameSegment)
 unsnoc = Lens.unsnoc
 
@@ -337,15 +338,6 @@ fromName' n
   | otherwise = RelativePath' (Relative path)
   where
     path = fromName n
-
-unsafeToName :: Path -> Name
-unsafeToName =
-  fromMaybe (error "empty path") . toName
-
--- | Convert a Path' to a Name
-unsafeToName' :: Path' -> Name
-unsafeToName' =
-  fromMaybe (error "empty path") . toName'
 
 toName :: Path -> Maybe Name
 toName = \case
@@ -534,34 +526,3 @@ instance Resolve Absolute HQSplit HQSplitAbsolute where
 instance Resolve Absolute Path' Absolute where
   resolve _ (AbsolutePath' a) = a
   resolve a (RelativePath' r) = resolve a r
-
-instance Convert Absolute Path where convert = unabsolute
-
-instance Convert Absolute Path' where convert = absoluteToPath'
-
-instance Convert Absolute Text where convert = toText' . absoluteToPath'
-
-instance Convert Relative Text where convert = toText . unrelative
-
-instance Convert Absolute String where convert = Text.unpack . convert
-
-instance Convert Relative String where convert = Text.unpack . convert
-
-instance Convert [NameSegment] Path where convert = fromList
-
-instance Convert Path [NameSegment] where convert = toList
-
-instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
-
-instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
-
-instance Convert Name Split where
-  convert = splitFromName
-
-instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
-  convert (path, name) =
-    (path, HQ'.fromName name)
-
-instance (Convert path0 path1) => Convert (path0, name) (path1, name) where
-  convert =
-    over _1 convert

@@ -91,7 +91,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
   names <- Cli.currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let fqnPPE = PPED.unsuffixifiedPPE pped
-  Cli.respond $
+  Cli.respondNumbered $
     TestResults
       stats
       fqnPPE
@@ -124,7 +124,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
 
     let m = Map.fromList computedTests
         (mOks, mFails) = passFails m
-    Cli.respond $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
+    Cli.respondNumbered $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
 
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
@@ -139,7 +139,7 @@ handleIOTest main = do
       when (not $ isIOTest typ) do
         Cli.returnEarly (BadMainFunction "io.test" main typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
       runIOTest suffixifiedPPE ref
-  Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+  Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
 findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> Path -> NESet (Type.Type Symbol Ann) -> Cli (Set TermReferenceId)
 findTermsOfTypes codebase includeLib path filterTypes = do
@@ -163,7 +163,7 @@ handleAllIOTests = do
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   ioTestRefs <- findTermsOfTypes codebase False Path.empty (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
-    Nothing -> Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True [] []
+    Nothing -> Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True [] []
     Just neTestRefs -> do
       let total = NESet.size neTestRefs
       (fails, oks) <-
@@ -172,7 +172,7 @@ handleAllIOTests = do
           (fails, oks) <- runIOTest suffixifiedPPE r
           Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE (n, total) r (null fails)
           pure (fails, oks)
-      Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+      Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
 resolveHQNames :: Names -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
 resolveHQNames parseNames hqNames =

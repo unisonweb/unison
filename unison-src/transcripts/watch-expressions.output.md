@@ -64,11 +64,11 @@ test> pass = [Ok "Passed"]
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ pass   Passed
+    1. ◉ pass   Passed
   
   ✅ 1 test(s) passing
   
-  Tip: Use view pass to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ```unison

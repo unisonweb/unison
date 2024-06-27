@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.Output
     ListDetailed,
     HistoryTail (..),
     TestReportStats (..),
+    TodoOutput (..),
     UndoFailureReason (..),
     ShareError (..),
     UpdateOrUpgrade (..),
@@ -37,7 +38,6 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
 import Unison.Codebase.Editor.SlurpResult qualified as SR
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
-import Unison.Codebase.Editor.TodoOutput qualified as TO
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
@@ -59,9 +59,10 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -75,6 +76,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Defns (DefnsF)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -117,8 +119,14 @@ data NumberedOutput
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput Symbol Ann)
+  | TestResults
+      TestReportStats
+      PPE.PrettyPrintEnv
+      ShowSuccesses
+      ShowFailures
+      [(TermReferenceId, Text)] -- oks
+      [(TermReferenceId, Text)] -- fails
+  | Output'Todo !TodoOutput
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
@@ -140,6 +148,14 @@ data NumberedOutput
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
       Path.Absolute -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
+
+data TodoOutput = TodoOutput
+  { dependentsOfTodo :: !(Set TermReferenceId),
+    directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
+    hashLen :: !Int,
+    nameConflicts :: !Names,
+    ppe :: !PrettyPrintEnvDecl
+  }
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -254,13 +270,6 @@ data Output
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
-  | TestResults
-      TestReportStats
-      PPE.PrettyPrintEnv
-      ShowSuccesses
-      ShowFailures
-      [(TermReferenceId, Text)] -- oks
-      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -293,8 +302,6 @@ data Output
   | PreviewMergeAlreadyUpToDate
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
       (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-  | -- | No conflicts or edits remain for the current patch.
-    NoConflictsOrEdits
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
@@ -392,7 +399,7 @@ data Output
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | LooseCodePushDeprecated
-  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
@@ -408,6 +415,7 @@ data Output
   | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | NoMergeInProgress
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -534,7 +542,6 @@ isFailure o = case o of
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
-  TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
@@ -554,7 +561,6 @@ isFailure o = case o of
   MergeAlreadyUpToDate {} -> False
   MergeAlreadyUpToDate2 {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
-  NoConflictsOrEdits {} -> False
   ListShallow _ es -> null es
   HashAmbiguous {} -> True
   ShowReflog {} -> False
@@ -647,6 +653,7 @@ isFailure o = case o of
   NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
+  NoMergeInProgress {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -669,4 +676,5 @@ isNumberedFailure = \case
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
+  TestResults _ _ _ _ _ fails -> not (null fails)
+  Output'Todo {} -> False

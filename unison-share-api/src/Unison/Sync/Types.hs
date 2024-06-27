@@ -203,7 +203,7 @@ entityDependencies = \case
   C Causal {namespaceHash, parents} -> Set.insert namespaceHash parents
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable TermComponent where
   bifoldMap = bifoldMapDefault
@@ -252,7 +252,7 @@ decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
   pure (localIDs, bytes)
 
 data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable DeclComponent where
   bifoldMap = bifoldMapDefault
@@ -280,7 +280,7 @@ data LocalIds text hash = LocalIds
   { texts :: [text],
     hashes :: [hash]
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable LocalIds where
   bifoldMap = bifoldMapDefault
@@ -381,7 +381,7 @@ data Namespace text hash = Namespace
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
     bytes :: LocalBranchBytes
   }
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show)
 
 instance Bifoldable Namespace where
   bifoldMap = bifoldMapDefault

@@ -124,7 +124,8 @@ doCreateBranch createFrom project newBranchName description = do
           CreateFrom'Branch (ProjectAndBranch _ sourceBranch)
             | sourceBranch.projectId == project.projectId -> Just sourceBranch.branchId
           _ -> Nothing
-  doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
+  (newBranchId, _) <- doCreateBranch' sourceNamespaceObject parentBranchId project (pure newBranchName) description
+  pure newBranchId
 
 doCreateBranch' ::
   Branch IO ->
@@ -132,10 +133,10 @@ doCreateBranch' ::
   Sqlite.Project ->
   Sqlite.Transaction ProjectBranchName ->
   Text ->
-  Cli ProjectBranchId
+  Cli (ProjectBranchId, ProjectBranchName)
 doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName description = do
   let projectId = project ^. #projectId
-  newBranchId <-
+  (newBranchId, newBranchName) <-
     Cli.runTransactionWithRollback \rollback -> do
       newBranchName <- getNewBranchName
       Queries.projectBranchExistsByName projectId newBranchName >>= \case
@@ -152,9 +153,9 @@ doCreateBranch' sourceNamespaceObject parentBranchId project getNewBranchName de
                 parentBranchId = parentBranchId
               }
           Queries.setMostRecentBranch projectId newBranchId
-          pure newBranchId
+          pure (newBranchId, newBranchName)
 
   let newBranchPath = ProjectUtils.projectBranchPath (ProjectAndBranch projectId newBranchId)
   _ <- Cli.updateAt description newBranchPath (const sourceNamespaceObject)
   Cli.cd newBranchPath
-  pure newBranchId
+  pure (newBranchId, newBranchName)
