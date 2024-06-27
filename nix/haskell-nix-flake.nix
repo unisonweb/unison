@@ -2,9 +2,10 @@
   stack,
   hpack,
   pkgs,
+  unison-project,
   versions,
 }: let
-  haskell-nix-flake = pkgs.unison-project.flake {};
+  haskell-nix-flake = unison-project.flake {};
   commonShellArgs = args:
     args
     // {
@@ -49,9 +50,9 @@
         };
     };
 
-  shellFor = args: pkgs.unison-project.shellFor (commonShellArgs args);
+  shellFor = args: unison-project.shellFor (commonShellArgs args);
 
-  localPackages = with pkgs.lib; filterAttrs (k: v: v.isLocal or false) pkgs.unison-project.hsPkgs;
+  localPackages = with pkgs.lib; filterAttrs (k: v: v.isLocal or false) unison-project.hsPkgs;
   localPackageNames = builtins.attrNames localPackages;
   devShells = let
     mkDevShell = pkgName:
@@ -92,6 +93,5 @@ in
   haskell-nix-flake
   // {
     defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
-    inherit (pkgs) unison-project;
-    inherit checks devShells localPackageNames;
+    inherit checks devShells;
   }
