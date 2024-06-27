@@ -33,16 +33,102 @@ scratch/main> add
 
 ```
 ```api
-GET /api/non-project-code/list?namespace=nested.names
+GET /api/projects/scratch/branches/main/list?namespace=nested.names
 {
-    "namespaceListingChildren": [],
+    "namespaceListingChildren": [
+        {
+            "contents": {
+                "termHash": "#ddmmatmmiqsts2ku0i02kntd0s7rvcui4nn1cusio8thp9oqhbtilvcnhen52ibv43kr5q83f5er5q9h56s807k17tnelnrac7cch8o",
+                "termName": "readme",
+                "termTag": "Doc",
+                "termType": [
+                    {
+                        "annotation": {
+                            "contents": "#ej86si0ur1",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "#ej86si0ur1"
+                    }
+                ]
+            },
+            "tag": "TermObject"
+        },
+        {
+            "contents": {
+                "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                "termName": "x",
+                "termTag": "Plain",
+                "termType": [
+                    {
+                        "annotation": {
+                            "contents": "##Nat",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "##Nat"
+                    }
+                ]
+            },
+            "tag": "TermObject"
+        },
+        {
+            "contents": {
+                "namespaceHash": "#n1egracfeljprftoktbjcase2hs4f4p8idbhs5ujipl42agld1810hrq9t7p7ped16aagni2cm1fjcjhho770jh80ipthhmg0cnsur0",
+                "namespaceName": "x",
+                "namespaceSize": 1
+            },
+            "tag": "Subnamespace"
+        }
+    ],
     "namespaceListingFQN": "nested.names",
-    "namespaceListingHash": "#sg60bvjo91fsoo7pkh9gejbn0qgc95vra87ap6l5d35ri0lkaudl7bs12d71sf3fh6p23teemuor7mk1i9n567m50ibakcghjec5ajg"
+    "namespaceListingHash": "#oms19b4f9s3c8tb5skeb8jii95ij35n3hdg038pu6rv5b0fikqe4gd7lnu6a1i6aq5tdh2opdo4s0sfrupvk6vfkr9lf0n752gbl8o0"
 }
-GET /api/non-project-code/list?namespace=names&relativeTo=nested
+GET /api/projects/scratch/branches/main/list?namespace=names&relativeTo=nested
 {
-    "namespaceListingChildren": [],
+    "namespaceListingChildren": [
+        {
+            "contents": {
+                "termHash": "#ddmmatmmiqsts2ku0i02kntd0s7rvcui4nn1cusio8thp9oqhbtilvcnhen52ibv43kr5q83f5er5q9h56s807k17tnelnrac7cch8o",
+                "termName": "readme",
+                "termTag": "Doc",
+                "termType": [
+                    {
+                        "annotation": {
+                            "contents": "#ej86si0ur1",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "#ej86si0ur1"
+                    }
+                ]
+            },
+            "tag": "TermObject"
+        },
+        {
+            "contents": {
+                "termHash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                "termName": "x",
+                "termTag": "Plain",
+                "termType": [
+                    {
+                        "annotation": {
+                            "contents": "##Nat",
+                            "tag": "HashQualifier"
+                        },
+                        "segment": "##Nat"
+                    }
+                ]
+            },
+            "tag": "TermObject"
+        },
+        {
+            "contents": {
+                "namespaceHash": "#n1egracfeljprftoktbjcase2hs4f4p8idbhs5ujipl42agld1810hrq9t7p7ped16aagni2cm1fjcjhho770jh80ipthhmg0cnsur0",
+                "namespaceName": "x",
+                "namespaceSize": 1
+            },
+            "tag": "Subnamespace"
+        }
+    ],
     "namespaceListingFQN": "nested.names",
-    "namespaceListingHash": "#sg60bvjo91fsoo7pkh9gejbn0qgc95vra87ap6l5d35ri0lkaudl7bs12d71sf3fh6p23teemuor7mk1i9n567m50ibakcghjec5ajg"
+    "namespaceListingHash": "#oms19b4f9s3c8tb5skeb8jii95ij35n3hdg038pu6rv5b0fikqe4gd7lnu6a1i6aq5tdh2opdo4s0sfrupvk6vfkr9lf0n752gbl8o0"
 }
 ```

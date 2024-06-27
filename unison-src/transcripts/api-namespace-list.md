@@ -16,7 +16,7 @@ scratch/main> add
 ```
 
 ```api
-GET /api/non-project-code/list?namespace=nested.names
+GET /api/projects/scratch/branches/main/list?namespace=nested.names
 
-GET /api/non-project-code/list?namespace=names&relativeTo=nested
+GET /api/projects/scratch/branches/main/list?namespace=names&relativeTo=nested
 ```
