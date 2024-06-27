@@ -8,17 +8,17 @@
 
   inputs = {
     haskellNix.url = "github:input-output-hk/haskell.nix";
-    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-haskellNix.follows = "haskellNix/nixpkgs-unstable";
+    nixpkgs-release.url = "github:NixOS/nixpkgs/release-23.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
     self,
-    nixpkgs,
-    flake-utils,
     haskellNix,
-    nixpkgs-unstable,
+    nixpkgs-haskellNix,
+    nixpkgs-release,
+    flake-utils,
   }:
     flake-utils.lib.eachSystem [
       "x86_64-linux"
@@ -38,42 +38,42 @@
         (import ./nix/haskell-nix-overlay.nix)
         (import ./nix/unison-overlay.nix)
       ];
-      pkgs = import nixpkgs {
+      pkgs = import nixpkgs-haskellNix {
         inherit system overlays;
         inherit (haskellNix) config;
       };
       haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
         inherit pkgs versions;
-        inherit (nixpkgs-packages) stack hpack;
+        inherit (tool-pkgs) stack hpack;
       };
-      unstable = import nixpkgs-unstable {
+      release-pkgs = import nixpkgs-release {
         inherit system;
         overlays = [
           (import ./nix/unison-overlay.nix)
           (import ./nix/nixpkgs-overlay.nix {inherit versions;})
         ];
       };
-      nixpkgs-packages = let
-        hpkgs = unstable.haskell.packages.ghcunison;
-        exe = unstable.haskell.lib.justStaticExecutables;
+      tool-pkgs = let
+        hpkgs = release-pkgs.haskell.packages.ghcunison;
+        exe = release-pkgs.haskell.lib.justStaticExecutables;
       in {
-        ghc = unstable.haskell.compiler."ghc${versions.ghc}";
+        ghc = release-pkgs.haskell.compiler."ghc${versions.ghc}";
         ormolu = exe hpkgs.ormolu;
-        hls = unstable.unison-hls;
-        stack = unstable.unison-stack;
-        unwrapped-stack = unstable.stack;
-        hpack = unstable.hpack;
+        hls = release-pkgs.unison-hls;
+        stack = release-pkgs.unison-stack;
+        unwrapped-stack = release-pkgs.stack;
+        hpack = release-pkgs.hpack;
       };
       renameAttrs = fn:
-        nixpkgs.lib.mapAttrs' (name: value: {
+        nixpkgs-haskellNix.lib.mapAttrs' (name: value: {
           inherit value;
           name = fn name;
         });
     in
-      assert nixpkgs-packages.ormolu.version == versions.ormolu;
-      assert nixpkgs-packages.hls.version == versions.hls;
-      assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
-      assert nixpkgs-packages.hpack.version == versions.hpack; {
+      assert tool-pkgs.ormolu.version == versions.ormolu;
+      assert tool-pkgs.hls.version == versions.hls;
+      assert tool-pkgs.unwrapped-stack.version == versions.stack;
+      assert tool-pkgs.hpack.version == versions.hpack; {
         packages =
           renameAttrs (name: "component-${name}") haskell-nix-flake.packages
           // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
@@ -84,7 +84,7 @@
             default = haskell-nix-flake.defaultPackage;
             build-tools = pkgs.symlinkJoin {
               name = "build-tools";
-              paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
+              paths = self.devShells."${system}".only-tools.buildInputs;
             };
             all = pkgs.symlinkJoin {
               name = "all";
