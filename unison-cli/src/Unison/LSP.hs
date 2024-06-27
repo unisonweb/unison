@@ -80,8 +80,8 @@ spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
 
           -- currently we have an independent VFS for each LSP client since each client might have
           -- different un-saved state for the same file.
-          initVFS $ \vfs -> do
-            vfsVar <- newMVar vfs
+          do
+            vfsVar <- newMVar emptyVFS
             void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope latestRootHash latestPath)
   where
     handleFailure :: String -> IOException -> IO ()

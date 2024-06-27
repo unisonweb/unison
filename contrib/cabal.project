@@ -46,6 +46,7 @@ source-repository-package
   tag: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
 constraints:
+  lsp == 2.3.0.0,
   fsnotify < 0.4,
   crypton-x509-store <= 1.6.8,
   servant <= 0.19.1,
