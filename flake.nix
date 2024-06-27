@@ -32,13 +32,13 @@
         stack = "2.15.5";
         hpack = "0.35.2";
       };
-      overlays = [
-        haskellNix.overlay
-        (import ./nix/unison-overlay.nix)
-      ];
       pkgs = import nixpkgs-haskellNix {
-        inherit system overlays;
+        inherit system;
         inherit (haskellNix) config;
+        overlays = [
+          haskellNix.overlay
+          (import ./nix/dependencies.nix {inherit nixpkgs-release;})
+        ];
       };
       unison-project = import ./nix/unison-project.nix {
         inherit (nixpkgs-haskellNix) lib;
@@ -46,16 +46,6 @@
       };
       haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
         inherit pkgs unison-project versions;
-        inherit (tool-pkgs) stack hpack;
-      };
-      release-pkgs = import nixpkgs-release {
-        inherit system;
-        overlays = [(import ./nix/unison-overlay.nix)];
-      };
-      tool-pkgs = {
-        stack = release-pkgs.unison-stack;
-        unwrapped-stack = release-pkgs.stack;
-        hpack = release-pkgs.hpack;
       };
       renameAttrs = fn:
         nixpkgs-haskellNix.lib.mapAttrs' (name: value: {
@@ -63,8 +53,8 @@
           name = fn name;
         });
     in
-      assert tool-pkgs.unwrapped-stack.version == versions.stack;
-      assert tool-pkgs.hpack.version == versions.hpack; {
+      assert pkgs.stack.version == versions.stack;
+      assert pkgs.hpack.version == versions.hpack; {
         packages =
           renameAttrs (name: "component-${name}") haskell-nix-flake.packages
           // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
