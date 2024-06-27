@@ -72,11 +72,10 @@
                     "all"
                     "docker-ucm" # this package doesn’t produce a directory
                   ]);
-                ## FIXME: Including these inputs currently results in massing GHC builds.
-                devshell-inputs = [];
-                  # builtins.concatMap
-                  # (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
-                  # (builtins.attrValues self.devShells."${system}");
+                devshell-inputs =
+                  builtins.concatMap
+                  (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
+                  (builtins.attrValues self.devShells."${system}");
               in
                 all-other-packages ++ devshell-inputs;
             };
