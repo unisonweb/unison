@@ -63,20 +63,20 @@ test = 'let
 
     New test results:
   
-    1.  ◉ test   expected 0.0 got 0.0
-    2.  ◉ test   round trip though float, expected 0 got 0
-    3.  ◉ test   expected 0 got 0
-    4.  ◉ test   round trip though Int, expected 0 got 0
-    5.  ◉ test   skipped
-    6.  ◉ test   expected 1 got 1
-    7.  ◉ test   round trip though Int, expected 1 got 1
-    8.  ◉ test   skipped
-    9.  ◉ test   expected -1 got -1
-    10. ◉ test   round trip though Int, expected 18446744073709551615 got 18446744073709551615
-    11. ◉ test   expected 1.0000000000000002 got 1.0000000000000002
-    12. ◉ test   round trip though float, expected 4607182418800017409 got 4607182418800017409
-    13. ◉ test   expected 4607182418800017409 got 4607182418800017409
-    14. ◉ test   round trip though Int, expected 4607182418800017409 got 4607182418800017409
+    1. test   ◉ expected 0.0 got 0.0
+              ◉ round trip though float, expected 0 got 0
+              ◉ expected 0 got 0
+              ◉ round trip though Int, expected 0 got 0
+              ◉ skipped
+              ◉ expected 1 got 1
+              ◉ round trip though Int, expected 1 got 1
+              ◉ skipped
+              ◉ expected -1 got -1
+              ◉ round trip though Int, expected 18446744073709551615 got 18446744073709551615
+              ◉ expected 1.0000000000000002 got 1.0000000000000002
+              ◉ round trip though float, expected 4607182418800017409 got 4607182418800017409
+              ◉ expected 4607182418800017409 got 4607182418800017409
+              ◉ round trip though Int, expected 4607182418800017409 got 4607182418800017409
   
   ✅ 14 test(s) passing
   

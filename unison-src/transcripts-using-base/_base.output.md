@@ -63,8 +63,8 @@ testAutoClean _ =
 
     New test results:
   
-    1. ◉ testAutoClean   our temporary directory should exist
-    2. ◉ testAutoClean   our temporary directory should no longer exist
+    1. testAutoClean   ◉ our temporary directory should exist
+                       ◉ our temporary directory should no longer exist
   
   ✅ 2 test(s) passing
   

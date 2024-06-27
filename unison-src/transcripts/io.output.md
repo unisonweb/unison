@@ -69,13 +69,13 @@ testCreateRename _ =
 
     New test results:
   
-    1. ◉ testCreateRename   create a foo directory
-    2. ◉ testCreateRename   directory should exist
-    3. ◉ testCreateRename   foo should no longer exist
-    4. ◉ testCreateRename   directory should no longer exist
-    5. ◉ testCreateRename   bar should now exist
-    6. ◉ testCreateRename   removeDirectory works recursively
-    7. ◉ testCreateRename   removeDirectory works recursively
+    1. testCreateRename   ◉ create a foo directory
+                          ◉ directory should exist
+                          ◉ foo should no longer exist
+                          ◉ directory should no longer exist
+                          ◉ bar should now exist
+                          ◉ removeDirectory works recursively
+                          ◉ removeDirectory works recursively
   
   ✅ 7 test(s) passing
   
@@ -151,12 +151,12 @@ testOpenClose _ =
 
     New test results:
   
-    1. ◉ testOpenClose   file should be open
-    2. ◉ testOpenClose   file handle buffering should match what we just set.
-    3. ◉ testOpenClose   file should be closed
-    4. ◉ testOpenClose   bytes have been written
-    5. ◉ testOpenClose   bytes have been written
-    6. ◉ testOpenClose   file should be closed
+    1. testOpenClose   ◉ file should be open
+                       ◉ file handle buffering should match what we just set.
+                       ◉ file should be closed
+                       ◉ bytes have been written
+                       ◉ bytes have been written
+                       ◉ file should be closed
   
   ✅ 6 test(s) passing
   
@@ -241,14 +241,14 @@ testGetSomeBytes _ =
 
     New test results:
   
-    1. ◉ testGetSomeBytes   chunk size splits data into 2 uneven sides
-    2. ◉ testGetSomeBytes   file should be closed
-    3. ◉ testGetSomeBytes   first chunk matches first part of testData
-    4. ◉ testGetSomeBytes   second chunk matches rest of testData
-    5. ◉ testGetSomeBytes   should be at end of file
-    6. ◉ testGetSomeBytes   reading at end of file results in Bytes.empty
-    7. ◉ testGetSomeBytes   requesting many bytes results in what's available
-    8. ◉ testGetSomeBytes   file should be closed
+    1. testGetSomeBytes   ◉ chunk size splits data into 2 uneven sides
+                          ◉ file should be closed
+                          ◉ first chunk matches first part of testData
+                          ◉ second chunk matches rest of testData
+                          ◉ should be at end of file
+                          ◉ reading at end of file results in Bytes.empty
+                          ◉ requesting many bytes results in what's available
+                          ◉ file should be closed
   
   ✅ 8 test(s) passing
   
@@ -350,13 +350,13 @@ testAppend _ =
 
     New test results:
   
-    1. ◉ testSeek   seeked
-    2. ◉ testSeek   readable file should be seekable
-    3. ◉ testSeek   shouldn't be the EOF
-    4. ◉ testSeek   we should be at position 0
-    5. ◉ testSeek   we should be at position 1
-    6. ◉ testSeek   should be able to read our temporary file after seeking
-    7. ◉ testSeek   getLine should get a line
+    1. testSeek   ◉ seeked
+                  ◉ readable file should be seekable
+                  ◉ shouldn't be the EOF
+                  ◉ we should be at position 0
+                  ◉ we should be at position 1
+                  ◉ should be able to read our temporary file after seeking
+                  ◉ getLine should get a line
   
   ✅ 7 test(s) passing
   
@@ -366,7 +366,7 @@ testAppend _ =
 
     New test results:
   
-    1. ◉ testAppend   should be able to read our temporary file
+    1. testAppend   ◉ should be able to read our temporary file
   
   ✅ 1 test(s) passing
   
@@ -408,7 +408,7 @@ testSystemTime _ =
 
     New test results:
   
-    1. ◉ testSystemTime   systemTime should be sane
+    1. testSystemTime   ◉ systemTime should be sane
   
   ✅ 1 test(s) passing
   
@@ -438,8 +438,8 @@ testGetTempDirectory _ =
 
     New test results:
   
-    1. ◉ testGetTempDirectory   Temp directory is directory
-    2. ◉ testGetTempDirectory   Temp directory should exist
+    1. testGetTempDirectory   ◉ Temp directory is directory
+                              ◉ Temp directory should exist
   
   ✅ 2 test(s) passing
   
@@ -469,8 +469,8 @@ testGetCurrentDirectory _ =
 
     New test results:
   
-    1. ◉ testGetCurrentDirectory   Current directory is directory
-    2. ◉ testGetCurrentDirectory   Current directory should exist
+    1. testGetCurrentDirectory   ◉ Current directory is directory
+                                 ◉ Current directory should exist
   
   ✅ 2 test(s) passing
   
@@ -502,8 +502,8 @@ testDirContents _ =
 
     New test results:
   
-    1. ◉ testDirContents   directory size should be
-    2. ◉ testDirContents   directory contents should have current directory and parent
+    1. testDirContents   ◉ directory size should be
+                         ◉ directory contents should have current directory and parent
   
   ✅ 2 test(s) passing
   
@@ -535,8 +535,8 @@ testGetEnv _ =
 
     New test results:
   
-    1. ◉ testGetEnv   PATH environent variable should be set
-    2. ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. testGetEnv   ◉ PATH environent variable should be set
+                    ◉ DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
@@ -699,8 +699,8 @@ testRandom = do
 
     New test results:
   
-    1. ◉ testGetEnv   PATH environent variable should be set
-    2. ◉ testGetEnv   DOESNTEXIST didn't exist
+    1. testGetEnv   ◉ PATH environent variable should be set
+                    ◉ DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   

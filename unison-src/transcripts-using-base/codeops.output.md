@@ -364,19 +364,19 @@ to actual show that the serialization works.
 
     New test results:
   
-    1.  ◉ tests   (ext f) passed
-    2.  ◉ tests   (ext h) passed
-    3.  ◉ tests   (ident compound) passed
-    4.  ◉ tests   (ident fib10) passed
-    5.  ◉ tests   (ident effect) passed
-    6.  ◉ tests   (ident zero) passed
-    7.  ◉ tests   (ident h) passed
-    8.  ◉ tests   (ident text) passed
-    9.  ◉ tests   (ident int) passed
-    10. ◉ tests   (ident float) passed
-    11. ◉ tests   (ident termlink) passed
-    12. ◉ tests   (ident bool) passed
-    13. ◉ tests   (ident bytes) passed
+    1. tests   ◉ (ext f) passed
+               ◉ (ext h) passed
+               ◉ (ident compound) passed
+               ◉ (ident fib10) passed
+               ◉ (ident effect) passed
+               ◉ (ident zero) passed
+               ◉ (ident h) passed
+               ◉ (ident text) passed
+               ◉ (ident int) passed
+               ◉ (ident float) passed
+               ◉ (ident termlink) passed
+               ◉ (ident bool) passed
+               ◉ (ident bytes) passed
   
   ✅ 13 test(s) passing
   
@@ -386,7 +386,7 @@ to actual show that the serialization works.
 
     New test results:
   
-    1. ◉ badLoad   serialized77
+    1. badLoad   ◉ serialized77
   
   ✅ 1 test(s) passing
   
@@ -453,36 +453,36 @@ codeTests =
 
     New test results:
   
-    1.  ◉ codeTests   (idem f) passed
-    2.  ◉ codeTests   (idem h) passed
-    3.  ◉ codeTests   (idem rotate) passed
-    4.  ◉ codeTests   (idem zapper) passed
-    5.  ◉ codeTests   (idem showThree) passed
-    6.  ◉ codeTests   (idem concatMap) passed
-    7.  ◉ codeTests   (idem big) passed
-    8.  ◉ codeTests   (idem extensionality) passed
-    9.  ◉ codeTests   (idem identicality) passed
-    10. ◉ codeTests   (verified f) passed
-    11. ◉ codeTests   (verified h) passed
-    12. ◉ codeTests   (verified rotate) passed
-    13. ◉ codeTests   (verified zapper) passed
-    14. ◉ codeTests   (verified showThree) passed
-    15. ◉ codeTests   (verified concatMap) passed
-    16. ◉ codeTests   (verified big) passed
-    17. ◉ codeTests   (verified extensionality) passed
-    18. ◉ codeTests   (verified identicality) passed
-    19. ◉ codeTests   (verified mutual0) passed
-    20. ◉ codeTests   (verified mutual1) passed
-    21. ◉ codeTests   (verified mutual2) passed
-    22. ◉ codeTests   (rejected missing mutual0) passed
-    23. ◉ codeTests   (rejected missing mutual1) passed
-    24. ◉ codeTests   (rejected missing mutual2) passed
-    25. ◉ codeTests   (rejected swapped zapper) passed
-    26. ◉ codeTests   (rejected swapped extensionality) passed
-    27. ◉ codeTests   (rejected swapped identicality) passed
-    28. ◉ codeTests   (rejected swapped mututal0) passed
-    29. ◉ codeTests   (rejected swapped mututal1) passed
-    30. ◉ codeTests   (rejected swapped mututal2) passed
+    1. codeTests   ◉ (idem f) passed
+                   ◉ (idem h) passed
+                   ◉ (idem rotate) passed
+                   ◉ (idem zapper) passed
+                   ◉ (idem showThree) passed
+                   ◉ (idem concatMap) passed
+                   ◉ (idem big) passed
+                   ◉ (idem extensionality) passed
+                   ◉ (idem identicality) passed
+                   ◉ (verified f) passed
+                   ◉ (verified h) passed
+                   ◉ (verified rotate) passed
+                   ◉ (verified zapper) passed
+                   ◉ (verified showThree) passed
+                   ◉ (verified concatMap) passed
+                   ◉ (verified big) passed
+                   ◉ (verified extensionality) passed
+                   ◉ (verified identicality) passed
+                   ◉ (verified mutual0) passed
+                   ◉ (verified mutual1) passed
+                   ◉ (verified mutual2) passed
+                   ◉ (rejected missing mutual0) passed
+                   ◉ (rejected missing mutual1) passed
+                   ◉ (rejected missing mutual2) passed
+                   ◉ (rejected swapped zapper) passed
+                   ◉ (rejected swapped extensionality) passed
+                   ◉ (rejected swapped identicality) passed
+                   ◉ (rejected swapped mututal0) passed
+                   ◉ (rejected swapped mututal1) passed
+                   ◉ (rejected swapped mututal2) passed
   
   ✅ 30 test(s) passing
   
@@ -541,14 +541,14 @@ vtests _ =
 
     New test results:
   
-    1. ◉ vtests   validated
-    2. ◉ vtests   validated
-    3. ◉ vtests   validated
-    4. ◉ vtests   validated
-    5. ◉ vtests   validated
-    6. ◉ vtests   validated
-    7. ◉ vtests   validated
-    8. ◉ vtests   validated
+    1. vtests   ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
   
   ✅ 8 test(s) passing
   

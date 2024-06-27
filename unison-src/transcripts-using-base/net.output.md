@@ -119,9 +119,9 @@ testDefaultPort _ =
 
     New test results:
   
-    1. ◉ testDefaultPort   successfully created socket
-    2. ◉ testDefaultPort   port should be > 1024
-    3. ◉ testDefaultPort   port should be < 65536
+    1. testDefaultPort   ◉ successfully created socket
+                         ◉ port should be > 1024
+                         ◉ port should be < 65536
   
   ✅ 3 test(s) passing
   
@@ -206,7 +206,7 @@ testTcpConnect = 'let
 
     New test results:
   
-    1. ◉ testTcpConnect   should have reaped what we've sown
+    1. testTcpConnect   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   

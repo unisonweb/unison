@@ -22,7 +22,7 @@ Run a IO tests one by one
 
     New test results:
   
-    1. ◉ ioAndExceptionTest   Success
+    1. ioAndExceptionTest   ◉ Success
   
   ✅ 1 test(s) passing
   
@@ -32,7 +32,7 @@ Run a IO tests one by one
 
     New test results:
   
-    1. ◉ ioTest   Success
+    1. ioTest   ◉ Success
   
   ✅ 1 test(s) passing
   
@@ -46,7 +46,7 @@ Run a IO tests one by one
 
     New test results:
   
-    1. ◉ ioAndExceptionTest   Success
+    1. ioAndExceptionTest   ◉ Success
   
   ✅ 1 test(s) passing
   
@@ -68,8 +68,8 @@ Run a IO tests one by one
 
     New test results:
   
-    1. ◉ ioAndExceptionTest   Success
-    2. ◉ ioTest               Success
+    1. ioAndExceptionTest   ◉ Success
+    2. ioTest               ◉ Success
   
   ✅ 2 test(s) passing
   
