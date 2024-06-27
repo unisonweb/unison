@@ -27,7 +27,6 @@
     ]
     (system: let
       versions = {
-        ghc = "965";
         ormolu = "0.5.2.0";
         hls = "2.9.0.0";
         stack = "2.15.5";
@@ -51,18 +50,9 @@
       };
       release-pkgs = import nixpkgs-release {
         inherit system;
-        overlays = [
-          (import ./nix/unison-overlay.nix)
-          (import ./nix/nixpkgs-overlay.nix {inherit versions;})
-        ];
+        overlays = [(import ./nix/unison-overlay.nix)];
       };
-      tool-pkgs = let
-        hpkgs = release-pkgs.haskell.packages.ghcunison;
-        exe = release-pkgs.haskell.lib.justStaticExecutables;
-      in {
-        ghc = release-pkgs.haskell.compiler."ghc${versions.ghc}";
-        ormolu = exe hpkgs.ormolu;
-        hls = release-pkgs.unison-hls;
+      tool-pkgs = {
         stack = release-pkgs.unison-stack;
         unwrapped-stack = release-pkgs.stack;
         hpack = release-pkgs.hpack;
@@ -73,8 +63,6 @@
           name = fn name;
         });
     in
-      assert tool-pkgs.ormolu.version == versions.ormolu;
-      assert tool-pkgs.hls.version == versions.hls;
       assert tool-pkgs.unwrapped-stack.version == versions.stack;
       assert tool-pkgs.hpack.version == versions.hpack; {
         packages =
