@@ -1,6 +1,4 @@
 {
-  stack,
-  hpack,
   pkgs,
   unison-project,
   versions,
@@ -19,7 +17,9 @@
           pkgs.lib.optionals pkgs.stdenv.isDarwin
           (with pkgs.darwin.apple_sdk.frameworks; [Cocoa]);
       in
-        (args.buildInputs or []) ++ [stack hpack pkgs.pkg-config pkgs.zlib pkgs.glibcLocales] ++ native-packages;
+        (args.buildInputs or [])
+        ++ [pkgs.stack-wrapped pkgs.hpack pkgs.pkg-config pkgs.zlib pkgs.glibcLocales]
+        ++ native-packages;
       # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
       shellHook = ''
         export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
