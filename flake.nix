@@ -88,7 +88,7 @@
 
         devShells =
           renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
-          // {default = self.devShells."${system}".cabal-only-tools;};
+          // {default = self.devShells."${system}".cabal-local;};
 
         checks = renameAttrs (name: "component-${name}") haskell-nix-flake.checks;
 
