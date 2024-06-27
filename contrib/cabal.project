@@ -29,7 +29,9 @@ packages:
   parser-typechecker
   unison-core
   unison-cli
+  unison-cli-main
   unison-hashing-v2
+  unison-merge
   unison-share-api
   unison-share-projects-api
   unison-syntax
@@ -47,10 +49,11 @@ source-repository-package
 
 constraints:
   lsp == 2.3.0.0,
-  fsnotify < 0.4,
-  crypton-x509-store <= 1.6.8,
-  servant <= 0.19.1,
-  optparse-applicative <= 0.17.1.0
+  fsnotify == 0.4.1.0,
+  crypton-x509-store == 1.6.9,
+  servant == 0.20.1,
+  optparse-applicative == 0.18.1.0,
+  tls == 1.8.0
 
 -- For now there is no way to apply ghc-options for all local packages
 -- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
@@ -127,6 +130,9 @@ package unison-core
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-hashing-v2
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package unison-merge
   ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
 
 package unison-share-api
