@@ -40,11 +40,11 @@ foo = do
 
 ```
 ```ucm
-.> run.native foo
+scratch/main> run.native foo
 
   ()
 
-.> run.native foo
+scratch/main> run.native foo
 
   ()
 
