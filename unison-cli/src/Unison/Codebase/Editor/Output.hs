@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     TodoOutput (..),
+    todoOutputIsEmpty,
     UndoFailureReason (..),
     ShareError (..),
     UpdateOrUpgrade (..),
@@ -18,6 +19,7 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
@@ -76,10 +78,11 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
-import Unison.Util.Defns (DefnsF)
+import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
+import qualified Unison.Names as Names
 
 type ListDetailed = Bool
 
@@ -156,6 +159,12 @@ data TodoOutput = TodoOutput
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
+
+todoOutputIsEmpty :: TodoOutput -> Bool
+todoOutputIsEmpty todo =
+  Set.null todo.dependentsOfTodo
+    && defnsAreEmpty todo.directDependenciesWithoutNames
+    && Names.isEmpty todo.nameConflicts
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
