@@ -96,7 +96,7 @@ This codebase uses symlinks as a workaround for some inconveniences in the `here
 
 First you'll need to enable "Developer Mode" in your Windows settings.
 
-	See https://consumer.huawei.com/en/support/content/en-us15594140/
+    See https://consumer.huawei.com/en/support/content/en-us15594140/
 
 Then you'll need to enable symlink support in your `git` configuration, e.g.
 
@@ -112,8 +112,6 @@ More context at: https://stackoverflow.com/a/59761201/310162
 Stack doesn't work deterministically in Windows due to mismatched expectations about how file deletion works. If you get this error, you can just retry the build and it will probably make more progress than the last time.
 
 ## Building with Nix
-
-## Building package components with nix
 
 ### Build the unison executable
 ```
@@ -133,28 +131,21 @@ nix build '.#component-unison-cli:exe:transcripts'
 
 ### Development environments
 
-#### Get into a development environment for building with stack
+#### Get into a development environment for building with stack or cabal
 This gets you into a development environment with the preferred
 versions of the compiler and other development tools. These
 include:
 
+- cabal
 - ghc
 - stack
 - ormolu
 - haskell-language-server
 
+Additionally, all non-local haskell dependencies (including profiling dependencies) are provided in the nix shell.
+
 ```
 nix develop
-```
-
-#### Get into a development environment for building with cabal
-This gets you into a development environment with the preferred
-versions of the compiler and other development tools. Additionally,
-all non-local haskell dependencies (including profiling dependencies)
-are provided in the nix shell.
-
-```
-nix develop '.#cabal-local'
 ```
 
 #### Get into a development environment for building a specific package
