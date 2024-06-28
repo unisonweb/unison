@@ -3,23 +3,19 @@
 ```
 
 ```unison:hide
-x = 23
+b1.x = 23
+b1.fslkdjflskdjflksjdf = 663
+b2.x = 23
+b2.fslkdjflskdjflksjdf = 23
+b2.abc = 23
 ```
 
 ```ucm
-.b1> add
-.b1> alias.term x fslkdjflskdjflksjdf
-.> fork b1 b2
-.b2> alias.term x abc
-```
-
-```unison:hide
-fslkdjflskdjflksjdf = 663
+.> add
+.> debug.alias.term.force b1.x b1.fslkdjflskdjflksjdf
 ```
 
 ```ucm
-.b0> add
-.> merge.old b0 b1
 .> diff.namespace b1 b2
 .b2> diff.namespace .b1
 ```
@@ -63,12 +59,13 @@ Here's what we've done so far:
 ```
 
 ```unison:hide
-fromJust = "asldkfjasldkfj"
+junk = "asldkfjasldkfj"
 ```
 
 ```ucm
-.ns1b> add
-.> merge.old ns1b ns1
+.ns1> add
+.ns1> debug.alias.term.force junk fromJust
+.ns1> delete.term junk
 ```
 
 ```unison:hide
@@ -104,33 +101,40 @@ bdependent = "banana"
 
 
 ## Two different auto-propagated changes creating a name conflict
+
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
+
 ```unison:hide
 a = 333
 b = a + 1
 ```
+
 ```ucm
 .nsx> add
 .> fork nsx nsy
 .> fork nsx nsz
 ```
+
 ```unison:hide
 a = 444
 ```
+
 ```ucm
 .nsy> update.old
 ```
+
 ```unison:hide
 a = 555
 ```
+
 ```ucm
 .nsz> update.old
-.> merge.old nsy nsw
+.> fork nsy nsw
+.> debug.alias.term.force nsz.a nsw.a
+.> debug.alias.term.force nsz.b nsw.b
 ```
-```ucm:error
-.> merge.old nsz nsw
-```
+
 ```ucm
 .> diff.namespace nsx nsw
 .nsw> view a b

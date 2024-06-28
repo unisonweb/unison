@@ -1,60 +1,28 @@
 ```unison
-x = 23
+b1.x = 23
+b1.fslkdjflskdjflksjdf = 663
+b2.x = 23
+b2.fslkdjflskdjflksjdf = 23
+b2.abc = 23
 ```
 
 ```ucm
-  ☝️  The namespace .b1 is empty.
-
-.b1> add
+.> add
 
   ⍟ I've added these definitions:
   
-    x : ##Nat
+    b1.fslkdjflskdjflksjdf : Nat
+    b1.x                   : Nat
+    b2.abc                 : Nat
+    b2.fslkdjflskdjflksjdf : Nat
+    b2.x                   : Nat
 
-.b1> alias.term x fslkdjflskdjflksjdf
-
-  Done.
-
-.> fork b1 b2
-
-  Done.
-
-.b2> alias.term x abc
+.> debug.alias.term.force b1.x b1.fslkdjflskdjflksjdf
 
   Done.
 
 ```
-```unison
-fslkdjflskdjflksjdf = 663
-```
-
 ```ucm
-  ☝️  The namespace .b0 is empty.
-
-.b0> add
-
-  ⍟ I've added these definitions:
-  
-    fslkdjflskdjflksjdf : ##Nat
-
-.> merge.old b0 b1
-
-  Here's what's changed in b1 after the merge:
-  
-  New name conflicts:
-  
-    1. fslkdjflskdjflksjdf#u520d1t9kc : Nat
-       ↓
-    2. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
-    3. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
-
 .> diff.namespace b1 b2
 
   Resolved name conflicts:
@@ -155,35 +123,23 @@ Here's what we've done so far:
 
 ```
 ```unison
-fromJust = "asldkfjasldkfj"
+junk = "asldkfjasldkfj"
 ```
 
 ```ucm
-  ☝️  The namespace .ns1b is empty.
-
-.ns1b> add
+.ns1> add
 
   ⍟ I've added these definitions:
   
-    fromJust : ##Text
+    junk : ##Text
 
-.> merge.old ns1b ns1
+.ns1> debug.alias.term.force junk fromJust
 
-  Here's what's changed in ns1 after the merge:
-  
-  New name conflicts:
-  
-    1. fromJust#gjmq673r1v : Nat
-       ↓
-    2. ┌ fromJust#gjmq673r1v : Nat
-    3. └ fromJust#rnbo52q2sh : Text
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Done.
 
-  Applying changes from patch...
+.ns1> delete.term junk
+
+  Done.
 
 ```
 ```unison
@@ -356,8 +312,10 @@ bdependent = "banana"
 
 ```
 ## Two different auto-propagated changes creating a name conflict
+
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
+
 ```unison
 a = 333
 b = a + 1
@@ -405,55 +363,17 @@ a = 555
   
     a : ##Nat
 
-.> merge.old nsy nsw
+.> fork nsy nsw
 
-  Here's what's changed in nsw after the merge:
-  
-  Added definitions:
-  
-    1. a : Nat
-    2. b : Nat
-  
-    3. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Done.
 
-  Applying changes from patch...
+.> debug.alias.term.force nsz.a nsw.a
 
-```
-```ucm
-.> merge.old nsz nsw
+  Done.
 
-  Here's what's changed in nsw after the merge:
-  
-  New name conflicts:
-  
-    1. a#mdl4vqtu00 : Nat
-       ↓
-    2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
-    
-    4. b#unkqhuu66p : Nat
-       ↓
-    5. ┌ b#aapqletas7 : Nat
-    6. └ b#unkqhuu66p : Nat
-  
-  Updates:
-  
-    7. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+.> debug.alias.term.force nsz.b nsw.b
 
-  Applying changes from patch...
-
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
+  Done.
 
 ```
 ```ucm
@@ -473,7 +393,7 @@ a = 555
   
   Added definitions:
   
-    7. patch patch (added 2 updates)
+    7. patch patch (added 1 updates)
 
 .nsw> view a b
 
