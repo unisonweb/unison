@@ -400,6 +400,435 @@ restoreStack lbl p = do
   S.put (s2 {layout = layout1})
   pure $ p <> closes
 
+-- | The `Doc` lexer as documented on unison-lang.org
+doc2 :: P [Token Lexeme]
+doc2 = do
+  -- Ensure we're at a doc before we start consuming tokens
+  P.lookAhead (lit "{{")
+  openStart <- posP
+  -- Produce any layout tokens, such as closing the last open block or virtual semicolons
+  -- We don't use 'token' on "{{" directly because we don't want to duplicate layout
+  -- tokens if we do the rewrite hack for type-docs below.
+  beforeStartToks <- token' ignore (pure ())
+  void $ lit "{{"
+  openEnd <- posP
+  CP.space
+  -- Construct the token for opening the doc block.
+  let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
+  env0 <- S.get
+  -- Disable layout while parsing the doc block and reset the section number
+  (bodyToks0, closeTok) <- local
+    ( \env ->
+        env
+          { inLayout = False,
+            parentSections = 0 : (parentSections env0)
+          }
+    )
+    do
+      bodyToks <- body
+      closeStart <- posP
+      lit "}}"
+      closeEnd <- posP
+      pure (bodyToks, Token Close closeStart closeEnd)
+  let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
+  -- Parse any layout tokens after the doc block, e.g. virtual semicolon
+  endToks <- token' ignore (pure ())
+  -- Hack to allow anonymous doc blocks before type decls
+  --   {{ Some docs }}             Foo.doc = {{ Some docs }}
+  --   ability Foo where      =>   ability Foo where
+  tn <- subsequentTypeName
+  pure $ case (tn) of
+    -- If we're followed by a type, we rewrite the doc block to be a named doc block.
+    (Just (WordyId tname))
+      | isTopLevel ->
+          beforeStartToks
+            <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) NameSegment.docSegment)) <$ openTok, Open "=" <$ openTok]
+            <> [openTok]
+            <> bodyToks0
+            <> [closeTok]
+            -- We need an extra 'Close' here because we added an extra Open above.
+            <> [closeTok]
+            <> endToks
+      where
+        isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
+    _ -> docToks <> endToks
+  where
+    wordyKw kw = separated wordySep (lit kw)
+    subsequentTypeName = P.lookAhead . P.optional $ do
+      let lit' s = lit s <* sp
+      let modifier = typeModifiersAlt (lit' . Text.unpack)
+      let typeOrAbility' = typeOrAbilityAlt (wordyKw . Text.unpack)
+      _ <- optional modifier *> typeOrAbility' *> sp
+      Token name start stop <- tokenP identifierP
+      if Name.isSymboly (HQ'.toName name)
+        then P.customFailure (Token (InvalidSymbolyId (Text.unpack (HQ'.toTextWith Name.toText name))) start stop)
+        else pure (WordyId name)
+    ignore _ _ _ = []
+    body = join <$> P.many (sectionElem <* CP.space)
+    sectionElem = section <|> fencedBlock <|> list <|> paragraph
+    paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
+    reserved word = List.isPrefixOf "}}" word || all (== '#') word
+
+    wordy closing = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
+      let end =
+            P.lookAhead $
+              void docClose
+                <|> void docOpen
+                <|> void (P.satisfy isSpace)
+                <|> void closing
+      word <- P.manyTill (P.satisfy (\ch -> not (isSpace ch))) end
+      guard (not $ reserved word || null word)
+      pure word
+
+    leafy closing = groupy closing gs
+      where
+        gs =
+          link
+            <|> externalLink
+            <|> exampleInline
+            <|> expr
+            <|> boldOrItalicOrStrikethrough closing
+            <|> verbatim
+            <|> atDoc
+            <|> wordy closing
+
+    leaf = leafy mzero
+
+    atDoc = src <|> evalInline <|> signature <|> signatureInline
+      where
+        comma = lit "," <* CP.space
+        src =
+          src' "syntax.docSource" "@source"
+            <|> src' "syntax.docFoldedSource" "@foldedSource"
+        srcElem =
+          wrap "syntax.docSourceElement" $
+            (typeLink <|> termLink)
+              <+> ( fmap (fromMaybe []) . P.optional $
+                      (tok (Reserved <$> lit "@") <+> (CP.space *> annotations))
+                  )
+          where
+            annotation = tok identifierLexemeP <|> expr <* CP.space
+            annotations =
+              join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
+        src' name atName = wrap name $ do
+          _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
+          s <- P.sepBy1 srcElem comma
+          _ <- lit "}"
+          pure (join s)
+        signature = wrap "syntax.docSignature" $ do
+          _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
+          s <- join <$> P.sepBy1 signatureLink comma
+          _ <- lit "}"
+          pure s
+        signatureInline = wrap "syntax.docSignatureInline" $ do
+          _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
+          s <- signatureLink
+          _ <- lit "}"
+          pure s
+        evalInline = wrap "syntax.docEvalInline" $ do
+          _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
+          let inlineEvalClose = [] <$ lit "}"
+          s <- lexemes' inlineEvalClose
+          pure s
+
+    typeLink = wrap "syntax.docEmbedTypeLink" do
+      _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
+      tok identifierLexemeP <* CP.space
+
+    termLink =
+      wrap "syntax.docEmbedTermLink" $
+        tok identifierLexemeP <* CP.space
+
+    signatureLink =
+      wrap "syntax.docEmbedSignatureLink" $
+        tok identifierLexemeP <* CP.space
+
+    groupy closing p = do
+      Token p start stop <- tokenP p
+      after <- P.optional . P.try $ leafy closing
+      pure $ case after of
+        Nothing -> p
+        Just after ->
+          [ Token (Open "syntax.docGroup") start stop',
+            Token (Open "syntax.docJoin") start stop'
+          ]
+            <> p
+            <> after
+            <> (take 2 $ repeat (Token Close stop' stop'))
+          where
+            stop' = maybe stop end (lastMay after)
+
+    verbatim =
+      P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
+        Token originalText start stop <- tokenP do
+          -- a single backtick followed by a non-backtick is treated as monospaced
+          let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
+          -- also two or more ' followed by that number of closing '
+          quotes <- tick <|> (lit "''" <+> P.takeWhileP Nothing (== '\''))
+          P.someTill P.anySingle (lit quotes)
+        let isMultiLine = line start /= line stop
+        if isMultiLine
+          then do
+            let trimmed = (trimAroundDelimiters originalText)
+            let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
+            -- If it's a multi-line verbatim block we trim any whitespace representing
+            -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
+            wrap "syntax.docVerbatim" $
+              wrap "syntax.docWord" $
+                pure [Token (Textual txt) start stop]
+          else
+            wrap "syntax.docCode" $
+              wrap "syntax.docWord" $
+                pure [Token (Textual originalText) start stop]
+
+    exampleInline =
+      P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
+        wrap "syntax.docExample" $ do
+          n <- P.try $ do
+            _ <- lit "`"
+            length <$> P.takeWhile1P (Just "backticks") (== '`')
+          let end :: P [Token Lexeme] = [] <$ lit (replicate (n + 1) '`')
+          ex <- CP.space *> lexemes' end
+          pure ex
+
+    docClose = [] <$ lit "}}"
+    docOpen = [] <$ lit "{{"
+
+    link =
+      P.label "link (examples: {type List}, {Nat.+})" $
+        wrap "syntax.docLink" $
+          P.try $
+            lit "{" *> (typeLink <|> termLink) <* lit "}"
+
+    expr =
+      P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
+        openAs "{{" "syntax.docTransclude"
+          <+> do
+            env0 <- S.get
+            -- we re-allow layout within a transclusion, then restore it to its
+            -- previous state after
+            S.put (env0 {inLayout = True})
+            -- Note: this P.lookAhead ensures the }} isn't consumed,
+            -- so it can be consumed below by the `close` which will
+            -- pop items off the layout stack up to the nearest enclosing
+            -- syntax.docTransclude.
+            ts <- lexemes' (P.lookAhead ([] <$ lit "}}"))
+            S.modify (\env -> env {inLayout = inLayout env0})
+            pure ts
+          <+> close ["syntax.docTransclude"] (lit "}}")
+
+    nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
+    nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
+
+    -- Allows whitespace or a newline, but not more than two newlines in a row.
+    whitespaceWithoutParagraphBreak :: P ()
+    whitespaceWithoutParagraphBreak = void do
+      void nonNewlineSpaces
+      optional newline >>= \case
+        Just _ -> void nonNewlineSpaces
+        Nothing -> pure ()
+
+    fencedBlock =
+      P.label "block eval (syntax: a fenced code block)" $
+        evalUnison <|> exampleBlock <|> other
+      where
+        evalUnison = wrap "syntax.docEval" $ do
+          -- commit after seeing that ``` is on its own line
+          fence <- P.try $ do
+            fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
+            b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
+            fence <$ guard b
+          CP.space
+            *> local
+              (\env -> env {inLayout = True, opening = Just "docEval"})
+              (restoreStack "docEval" $ lexemes' ([] <$ lit fence))
+
+        exampleBlock = wrap "syntax.docExampleBlock" $ do
+          void $ lit "@typecheck" <* CP.space
+          fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
+          local
+            (\env -> env {inLayout = True, opening = Just "docExampleBlock"})
+            (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
+
+        uncolumn column tabWidth s =
+          let skip col r | col < 1 = r
+              skip col s@('\t' : _) | col < tabWidth = s
+              skip col ('\t' : r) = skip (col - tabWidth) r
+              skip col (c : r)
+                | isSpace c && (not $ isControl c) =
+                    skip (col - 1) r
+              skip _ s = s
+           in List.intercalate "\n" $ skip column <$> lines s
+
+        other = wrap "syntax.docCodeBlock" $ do
+          column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
+          let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
+          fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
+          name <-
+            P.takeWhileP Nothing nonNewlineSpace
+              *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
+              <* P.takeWhileP Nothing nonNewlineSpace
+          _ <- void CP.eol
+          verbatim <-
+            tok $
+              Textual . uncolumn column tabWidth . trimAroundDelimiters
+                <$> P.someTill P.anySingle ([] <$ lit fence)
+          pure (name <> verbatim)
+
+    boldOrItalicOrStrikethrough closing = do
+      let start =
+            some (P.satisfy (== '*'))
+              <|> some (P.satisfy (== '_'))
+              <|> some
+                (P.satisfy (== '~'))
+          name s =
+            if take 1 s == "~"
+              then "syntax.docStrikethrough"
+              else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
+      end <- P.try $ do
+        end <- start
+        P.lookAhead (P.satisfy (not . isSpace))
+        pure end
+      wrap (name end) . wrap "syntax.docParagraph" $
+        join
+          <$> P.someTill
+            (leafy (closing <|> (void $ lit end)) <* whitespaceWithoutParagraphBreak)
+            (lit end)
+
+    externalLink =
+      P.label "hyperlink (example: [link name](https://destination.com))" $
+        wrap "syntax.docNamedLink" $ do
+          _ <- lit "["
+          p <- leafies (void $ char ']')
+          _ <- lit "]"
+          _ <- lit "("
+          target <-
+            wrap "syntax.docGroup" . wrap "syntax.docJoin" $
+              link <|> fmap join (P.some (expr <|> wordy (char ')')))
+          _ <- lit ")"
+          pure (p <> target)
+
+    -- newline = P.optional (lit "\r") *> lit "\n"
+
+    sp = P.try $ do
+      spaces <- P.takeWhile1P (Just "space") isSpace
+      close <- P.optional (P.lookAhead (lit "}}"))
+      case close of
+        Nothing -> guard $ ok spaces
+        Just _ -> pure ()
+      pure spaces
+      where
+        ok s = length [() | '\n' <- s] < 2
+
+    spaced p = P.some (p <* P.optional sp)
+    leafies close = wrap "syntax.docParagraph" $ join <$> spaced (leafy close)
+
+    list = bulletedList <|> numberedList
+
+    bulletedList = wrap "syntax.docBulletedList" $ join <$> P.sepBy1 bullet listSep
+    numberedList = wrap "syntax.docNumberedList" $ join <$> P.sepBy1 numberedItem listSep
+
+    listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (bulletedStart <|> numberedStart)
+
+    bulletedStart = P.try $ do
+      r <- listItemStart' $ [] <$ P.satisfy bulletChar
+      P.lookAhead (P.satisfy isSpace)
+      pure r
+      where
+        bulletChar ch = ch == '*' || ch == '-' || ch == '+'
+
+    listItemStart' gutter = P.try $ do
+      nonNewlineSpaces
+      col <- column <$> posP
+      parentCol <- S.gets parentListColumn
+      guard (col > parentCol)
+      (col,) <$> gutter
+
+    numberedStart =
+      listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
+      where
+        num :: Word -> Lexeme
+        num n = Numeric (show n)
+
+    listItemParagraph = wrap "syntax.docParagraph" $ do
+      col <- column <$> posP
+      join <$> P.some (leaf <* sep col)
+      where
+        -- Trickiness here to support hard line breaks inside of
+        -- a bulleted list, so for instance this parses as expected:
+        --
+        --   * uno dos
+        --     tres quatro
+        --   * alice bob
+        --     carol dave eve
+        sep col = do
+          _ <- nonNewlineSpaces
+          _ <-
+            P.optional . P.try $
+              newline
+                *> nonNewlineSpaces
+                *> do
+                  col2 <- column <$> posP
+                  guard $ col2 >= col
+                  (P.notFollowedBy $ numberedStart <|> bulletedStart)
+          pure ()
+
+    numberedItem = P.label msg $ do
+      (col, s) <- numberedStart
+      pure s
+        <+> ( wrap "syntax.docColumn" $ do
+                p <- nonNewlineSpaces *> listItemParagraph
+                subList <-
+                  local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> list)
+                pure (p <> fromMaybe [] subList)
+            )
+      where
+        msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
+
+    bullet = wrap "syntax.docColumn" . P.label "bullet (examples: * item1, - item2)" $ do
+      (col, _) <- bulletedStart
+      p <- nonNewlineSpaces *> listItemParagraph
+      subList <-
+        local
+          (\e -> e {parentListColumn = col})
+          (P.optional $ listSep *> list)
+      pure (p <> fromMaybe [] subList)
+
+    newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
+
+    -- ## Section title
+    --
+    -- A paragraph under this section.
+    -- Part of the same paragraph. Blanklines separate paragraphs.
+    --
+    -- ### A subsection title
+    --
+    -- A paragraph under this subsection.
+
+    -- # A section title (not a subsection)
+    section :: P [Token Lexeme]
+    section = wrap "syntax.docSection" $ do
+      ns <- S.gets parentSections
+      hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- paragraph <* CP.space
+      let m = length hashes + head ns
+      body <-
+        local (\env -> env {parentSections = (m : (tail ns))}) $
+          P.many (sectionElem <* CP.space)
+      pure $ title <> join body
+
+    wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
+    wrap o p = do
+      start <- posP
+      lexemes <- p
+      pure $ go start lexemes
+      where
+        go start [] = [Token (Open o) start start, Token Close start start]
+        go start ts@(Token _ x _ : _) =
+          Token (Open o) start x : (ts ++ [Token Close (end final) (end final)])
+          where
+            final = last ts
+
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
 lexemes' eof =
   P.optional space >> do
@@ -417,434 +846,6 @@ lexemes' eof =
         <|> token blank
         <|> token identifierLexemeP
         <|> (asum . map token) [semi, textual, hash]
-
-    doc2 :: P [Token Lexeme]
-    doc2 = do
-      -- Ensure we're at a doc before we start consuming tokens
-      P.lookAhead (lit "{{")
-      openStart <- posP
-      -- Produce any layout tokens, such as closing the last open block or virtual semicolons
-      -- We don't use 'token' on "{{" directly because we don't want to duplicate layout
-      -- tokens if we do the rewrite hack for type-docs below.
-      beforeStartToks <- token' ignore (pure ())
-      void $ lit "{{"
-      openEnd <- posP
-      CP.space
-      -- Construct the token for opening the doc block.
-      let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
-      env0 <- S.get
-      -- Disable layout while parsing the doc block and reset the section number
-      (bodyToks0, closeTok) <- local
-        ( \env ->
-            env
-              { inLayout = False,
-                parentSections = 0 : (parentSections env0)
-              }
-        )
-        do
-          bodyToks <- body
-          closeStart <- posP
-          lit "}}"
-          closeEnd <- posP
-          pure (bodyToks, Token Close closeStart closeEnd)
-      let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
-      -- Parse any layout tokens after the doc block, e.g. virtual semicolon
-      endToks <- token' ignore (pure ())
-      -- Hack to allow anonymous doc blocks before type decls
-      --   {{ Some docs }}             Foo.doc = {{ Some docs }}
-      --   ability Foo where      =>   ability Foo where
-      tn <- subsequentTypeName
-      pure $ case (tn) of
-        -- If we're followed by a type, we rewrite the doc block to be a named doc block.
-        (Just (WordyId tname))
-          | isTopLevel ->
-              beforeStartToks
-                <> [WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) NameSegment.docSegment)) <$ openTok, Open "=" <$ openTok]
-                <> [openTok]
-                <> bodyToks0
-                <> [closeTok]
-                -- We need an extra 'Close' here because we added an extra Open above.
-                <> [closeTok]
-                <> endToks
-          where
-            isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
-        _ -> docToks <> endToks
-      where
-        wordyKw kw = separated wordySep (lit kw)
-        subsequentTypeName = P.lookAhead . P.optional $ do
-          let lit' s = lit s <* sp
-          let modifier = typeModifiersAlt (lit' . Text.unpack)
-          let typeOrAbility' = typeOrAbilityAlt (wordyKw . Text.unpack)
-          _ <- optional modifier *> typeOrAbility' *> sp
-          Token name start stop <- tokenP identifierP
-          if Name.isSymboly (HQ'.toName name)
-            then P.customFailure (Token (InvalidSymbolyId (Text.unpack (HQ'.toTextWith Name.toText name))) start stop)
-            else pure (WordyId name)
-        ignore _ _ _ = []
-        body = join <$> P.many (sectionElem <* CP.space)
-        sectionElem = section <|> fencedBlock <|> list <|> paragraph
-        paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
-        reserved word = List.isPrefixOf "}}" word || all (== '#') word
-
-        wordy closing = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
-          let end =
-                P.lookAhead $
-                  void docClose
-                    <|> void docOpen
-                    <|> void (P.satisfy isSpace)
-                    <|> void closing
-          word <- P.manyTill (P.satisfy (\ch -> not (isSpace ch))) end
-          guard (not $ reserved word || null word)
-          pure word
-
-        leafy closing = groupy closing gs
-          where
-            gs =
-              link
-                <|> externalLink
-                <|> exampleInline
-                <|> expr
-                <|> boldOrItalicOrStrikethrough closing
-                <|> verbatim
-                <|> atDoc
-                <|> wordy closing
-
-        leaf = leafy mzero
-
-        atDoc = src <|> evalInline <|> signature <|> signatureInline
-          where
-            comma = lit "," <* CP.space
-            src =
-              src' "syntax.docSource" "@source"
-                <|> src' "syntax.docFoldedSource" "@foldedSource"
-            srcElem =
-              wrap "syntax.docSourceElement" $
-                (typeLink <|> termLink)
-                  <+> ( fmap (fromMaybe []) . P.optional $
-                          (tok (Reserved <$> lit "@") <+> (CP.space *> annotations))
-                      )
-              where
-                annotation = tok identifierLexemeP <|> expr <* CP.space
-                annotations =
-                  join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
-            src' name atName = wrap name $ do
-              _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
-              s <- P.sepBy1 srcElem comma
-              _ <- lit "}"
-              pure (join s)
-            signature = wrap "syntax.docSignature" $ do
-              _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
-              s <- join <$> P.sepBy1 signatureLink comma
-              _ <- lit "}"
-              pure s
-            signatureInline = wrap "syntax.docSignatureInline" $ do
-              _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
-              s <- signatureLink
-              _ <- lit "}"
-              pure s
-            evalInline = wrap "syntax.docEvalInline" $ do
-              _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
-              let inlineEvalClose = [] <$ lit "}"
-              s <- lexemes' inlineEvalClose
-              pure s
-
-        typeLink = wrap "syntax.docEmbedTypeLink" do
-          _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
-          tok identifierLexemeP <* CP.space
-
-        termLink =
-          wrap "syntax.docEmbedTermLink" $
-            tok identifierLexemeP <* CP.space
-
-        signatureLink =
-          wrap "syntax.docEmbedSignatureLink" $
-            tok identifierLexemeP <* CP.space
-
-        groupy closing p = do
-          Token p start stop <- tokenP p
-          after <- P.optional . P.try $ leafy closing
-          pure $ case after of
-            Nothing -> p
-            Just after ->
-              [ Token (Open "syntax.docGroup") start stop',
-                Token (Open "syntax.docJoin") start stop'
-              ]
-                <> p
-                <> after
-                <> (take 2 $ repeat (Token Close stop' stop'))
-              where
-                stop' = maybe stop end (lastMay after)
-
-        verbatim =
-          P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
-            Token originalText start stop <- tokenP do
-              -- a single backtick followed by a non-backtick is treated as monospaced
-              let tick = P.try (lit "`" <* P.lookAhead (P.satisfy (/= '`')))
-              -- also two or more ' followed by that number of closing '
-              quotes <- tick <|> (lit "''" <+> P.takeWhileP Nothing (== '\''))
-              P.someTill P.anySingle (lit quotes)
-            let isMultiLine = line start /= line stop
-            if isMultiLine
-              then do
-                let trimmed = (trimAroundDelimiters originalText)
-                let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
-                -- If it's a multi-line verbatim block we trim any whitespace representing
-                -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
-                wrap "syntax.docVerbatim" $
-                  wrap "syntax.docWord" $
-                    pure [Token (Textual txt) start stop]
-              else
-                wrap "syntax.docCode" $
-                  wrap "syntax.docWord" $
-                    pure [Token (Textual originalText) start stop]
-
-        exampleInline =
-          P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
-            wrap "syntax.docExample" $ do
-              n <- P.try $ do
-                _ <- lit "`"
-                length <$> P.takeWhile1P (Just "backticks") (== '`')
-              let end :: P [Token Lexeme] = [] <$ lit (replicate (n + 1) '`')
-              ex <- CP.space *> lexemes' end
-              pure ex
-
-        docClose = [] <$ lit "}}"
-        docOpen = [] <$ lit "{{"
-
-        link =
-          P.label "link (examples: {type List}, {Nat.+})" $
-            wrap "syntax.docLink" $
-              P.try $
-                lit "{" *> (typeLink <|> termLink) <* lit "}"
-
-        expr =
-          P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
-            openAs "{{" "syntax.docTransclude"
-              <+> do
-                env0 <- S.get
-                -- we re-allow layout within a transclusion, then restore it to its
-                -- previous state after
-                S.put (env0 {inLayout = True})
-                -- Note: this P.lookAhead ensures the }} isn't consumed,
-                -- so it can be consumed below by the `close` which will
-                -- pop items off the layout stack up to the nearest enclosing
-                -- syntax.docTransclude.
-                ts <- lexemes' (P.lookAhead ([] <$ lit "}}"))
-                S.modify (\env -> env {inLayout = inLayout env0})
-                pure ts
-              <+> close ["syntax.docTransclude"] (lit "}}")
-
-        nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
-        nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
-
-        -- Allows whitespace or a newline, but not more than two newlines in a row.
-        whitespaceWithoutParagraphBreak :: P ()
-        whitespaceWithoutParagraphBreak = void do
-          void nonNewlineSpaces
-          optional newline >>= \case
-            Just _ -> void nonNewlineSpaces
-            Nothing -> pure ()
-
-        fencedBlock =
-          P.label "block eval (syntax: a fenced code block)" $
-            evalUnison <|> exampleBlock <|> other
-          where
-            evalUnison = wrap "syntax.docEval" $ do
-              -- commit after seeing that ``` is on its own line
-              fence <- P.try $ do
-                fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
-                b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
-                fence <$ guard b
-              CP.space
-                *> local
-                  (\env -> env {inLayout = True, opening = Just "docEval"})
-                  (restoreStack "docEval" $ lexemes' ([] <$ lit fence))
-
-            exampleBlock = wrap "syntax.docExampleBlock" $ do
-              void $ lit "@typecheck" <* CP.space
-              fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
-              local
-                (\env -> env {inLayout = True, opening = Just "docExampleBlock"})
-                (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
-
-            uncolumn column tabWidth s =
-              let skip col r | col < 1 = r
-                  skip col s@('\t' : _) | col < tabWidth = s
-                  skip col ('\t' : r) = skip (col - tabWidth) r
-                  skip col (c : r)
-                    | isSpace c && (not $ isControl c) =
-                        skip (col - 1) r
-                  skip _ s = s
-               in List.intercalate "\n" $ skip column <$> lines s
-
-            other = wrap "syntax.docCodeBlock" $ do
-              column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
-              let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
-              fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
-              name <-
-                P.takeWhileP Nothing nonNewlineSpace
-                  *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
-                  <* P.takeWhileP Nothing nonNewlineSpace
-              _ <- void CP.eol
-              verbatim <-
-                tok $
-                  Textual . uncolumn column tabWidth . trimAroundDelimiters
-                    <$> P.someTill P.anySingle ([] <$ lit fence)
-              pure (name <> verbatim)
-
-        boldOrItalicOrStrikethrough closing = do
-          let start =
-                some (P.satisfy (== '*'))
-                  <|> some (P.satisfy (== '_'))
-                  <|> some
-                    (P.satisfy (== '~'))
-              name s =
-                if take 1 s == "~"
-                  then "syntax.docStrikethrough"
-                  else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
-          end <- P.try $ do
-            end <- start
-            P.lookAhead (P.satisfy (not . isSpace))
-            pure end
-          wrap (name end) . wrap "syntax.docParagraph" $
-            join
-              <$> P.someTill
-                (leafy (closing <|> (void $ lit end)) <* whitespaceWithoutParagraphBreak)
-                (lit end)
-
-        externalLink =
-          P.label "hyperlink (example: [link name](https://destination.com))" $
-            wrap "syntax.docNamedLink" $ do
-              _ <- lit "["
-              p <- leafies (void $ char ']')
-              _ <- lit "]"
-              _ <- lit "("
-              target <-
-                wrap "syntax.docGroup" . wrap "syntax.docJoin" $
-                  link <|> fmap join (P.some (expr <|> wordy (char ')')))
-              _ <- lit ")"
-              pure (p <> target)
-
-        -- newline = P.optional (lit "\r") *> lit "\n"
-
-        sp = P.try $ do
-          spaces <- P.takeWhile1P (Just "space") isSpace
-          close <- P.optional (P.lookAhead (lit "}}"))
-          case close of
-            Nothing -> guard $ ok spaces
-            Just _ -> pure ()
-          pure spaces
-          where
-            ok s = length [() | '\n' <- s] < 2
-
-        spaced p = P.some (p <* P.optional sp)
-        leafies close = wrap "syntax.docParagraph" $ join <$> spaced (leafy close)
-
-        list = bulletedList <|> numberedList
-
-        bulletedList = wrap "syntax.docBulletedList" $ join <$> P.sepBy1 bullet listSep
-        numberedList = wrap "syntax.docNumberedList" $ join <$> P.sepBy1 numberedItem listSep
-
-        listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (bulletedStart <|> numberedStart)
-
-        bulletedStart = P.try $ do
-          r <- listItemStart' $ [] <$ P.satisfy bulletChar
-          P.lookAhead (P.satisfy isSpace)
-          pure r
-          where
-            bulletChar ch = ch == '*' || ch == '-' || ch == '+'
-
-        listItemStart' gutter = P.try $ do
-          nonNewlineSpaces
-          col <- column <$> posP
-          parentCol <- S.gets parentListColumn
-          guard (col > parentCol)
-          (col,) <$> gutter
-
-        numberedStart =
-          listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
-          where
-            num :: Word -> Lexeme
-            num n = Numeric (show n)
-
-        listItemParagraph = wrap "syntax.docParagraph" $ do
-          col <- column <$> posP
-          join <$> P.some (leaf <* sep col)
-          where
-            -- Trickiness here to support hard line breaks inside of
-            -- a bulleted list, so for instance this parses as expected:
-            --
-            --   * uno dos
-            --     tres quatro
-            --   * alice bob
-            --     carol dave eve
-            sep col = do
-              _ <- nonNewlineSpaces
-              _ <-
-                P.optional . P.try $
-                  newline
-                    *> nonNewlineSpaces
-                    *> do
-                      col2 <- column <$> posP
-                      guard $ col2 >= col
-                      (P.notFollowedBy $ numberedStart <|> bulletedStart)
-              pure ()
-
-        numberedItem = P.label msg $ do
-          (col, s) <- numberedStart
-          pure s
-            <+> ( wrap "syntax.docColumn" $ do
-                    p <- nonNewlineSpaces *> listItemParagraph
-                    subList <-
-                      local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> list)
-                    pure (p <> fromMaybe [] subList)
-                )
-          where
-            msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
-
-        bullet = wrap "syntax.docColumn" . P.label "bullet (examples: * item1, - item2)" $ do
-          (col, _) <- bulletedStart
-          p <- nonNewlineSpaces *> listItemParagraph
-          subList <-
-            local
-              (\e -> e {parentListColumn = col})
-              (P.optional $ listSep *> list)
-          pure (p <> fromMaybe [] subList)
-
-        newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
-
-        -- ## Section title
-        --
-        -- A paragraph under this section.
-        -- Part of the same paragraph. Blanklines separate paragraphs.
-        --
-        -- ### A subsection title
-        --
-        -- A paragraph under this subsection.
-
-        -- # A section title (not a subsection)
-        section :: P [Token Lexeme]
-        section = wrap "syntax.docSection" $ do
-          ns <- S.gets parentSections
-          hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
-          title <- paragraph <* CP.space
-          let m = length hashes + head ns
-          body <-
-            local (\env -> env {parentSections = (m : (tail ns))}) $
-              P.many (sectionElem <* CP.space)
-          pure $ title <> join body
-
-        wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
-        wrap o p = do
-          start <- posP
-          lexemes <- p
-          pure $ go start lexemes
-          where
-            go start [] = [Token (Open o) start start, Token Close start start]
-            go start ts@(Token _ x _ : _) =
-              Token (Open o) start x : (ts ++ [Token Close (end final) (end final)])
-              where
-                final = last ts
 
     doc :: P [Token Lexeme]
     doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space)
