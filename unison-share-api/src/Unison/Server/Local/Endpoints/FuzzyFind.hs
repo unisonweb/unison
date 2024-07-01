@@ -37,7 +37,6 @@ import Unison.Server.Types
     HashQualifiedName,
     NamedTerm,
     NamedType,
-    RequiredQueryParam,
     UnisonName,
     mayDefaultWidth,
   )
@@ -47,7 +46,6 @@ import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
   "find"
-    :> RequiredQueryParam "rootBranch" SCH.ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "limit" Int
     :> QueryParam "renderWidth" Width

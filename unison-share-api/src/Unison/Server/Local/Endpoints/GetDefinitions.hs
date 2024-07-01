@@ -35,7 +35,6 @@ import Unison.Server.Local.Definitions qualified as Local
 import Unison.Server.Types
   ( APIGet,
     DefinitionDisplayResults,
-    RequiredQueryParam,
     Suffixify (..),
     defaultWidth,
   )
@@ -45,7 +44,6 @@ import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
   "getDefinition"
-    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
@@ -94,16 +92,6 @@ instance ToParam (QueryParam "namespace" Path.Path) where
       ( "The namespace required by the endpoint."
           <> "If left absent, the relativeTo namespace will be used."
           <> "E.g. base.List"
-      )
-      Normal
-
-instance ToParam (RequiredQueryParam "rootBranch" ShortCausalHash) where
-  toParam _ =
-    DocQueryParam
-      "rootBranch"
-      ["#abc123"]
-      ( "The hash or hash prefix of the namespace root. "
-          <> "If left absent, the most recent root will be used."
       )
       Normal
 

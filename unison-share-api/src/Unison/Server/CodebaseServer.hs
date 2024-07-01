@@ -141,11 +141,8 @@ type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type LooseCodeAPI = CodebaseServerAPI
-
 type UnisonLocalAPI =
   ("projects" :> ProjectsAPI)
-    :<|> ("non-project-code" :> LooseCodeAPI)
     :<|> ("ucm" :> UCMAPI)
 
 type CodebaseServerAPI =
@@ -233,8 +230,7 @@ data DefinitionReference
   deriving stock (Show)
 
 data Service
-  = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
-  | -- (Project branch names, perspective within project, definition reference)
+  = -- (Project branch names, perspective within project, definition reference)
     ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Absolute (Maybe DefinitionReference)
   | Api
   deriving stock (Show)
@@ -294,8 +290,6 @@ data URISegment
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
-    LooseCodeUI perspective def ->
-      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path perspective def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) perspective def ->
       tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path perspective def)
     Api -> tShow baseUrl <> "/" <> toUrlPath [DontEscape "api"]
@@ -559,18 +553,6 @@ serveOpenAPI = pure openAPI
 hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
-serveLooseCode ::
-  Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
-  ServerT LooseCodeAPI (Backend IO)
-serveLooseCode codebase rt =
-  (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left root) rel name)
-    :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left mayRoot) renderWidth)
-    :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left mayRoot) relativePath rawHqns renderWidth suff)
-    :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left mayRoot) relativePath limit renderWidth query)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left mayRoot) relativeTo renderWidth)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left mayRoot) relativeTo renderWidth)
-
 serveProjectsCodebaseServerAPI ::
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
@@ -586,26 +568,26 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
     :<|> serveTypeSummaryEndpoint
   where
     projectAndBranchName = ProjectAndBranch projectName branchName
-    namespaceListingEndpoint _rootParam rel name = do
+    namespaceListingEndpoint rel name = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> NamespaceListing.serve codebase (Right $ root) rel name
-    namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
+    namespaceDetailsEndpoint namespaceName renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Right $ root) renderWidth
 
-    serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
+    serveDefinitionsEndpoint relativePath rawHqns renderWidth suff = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveDefinitions rt codebase (Right $ root) relativePath rawHqns renderWidth suff
 
-    serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
+    serveFuzzyFindEndpoint relativePath limit renderWidth query = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveFuzzyFind codebase (Right $ root) relativePath limit renderWidth query
 
-    serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+    serveTermSummaryEndpoint shortHash mayName relativeTo renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveTermSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
-    serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
+    serveTypeSummaryEndpoint shortHash mayName relativeTo renderWidth = do
       root <- resolveProjectRootHash codebase projectAndBranchName
       setCacheControl <$> serveTypeSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
@@ -687,7 +669,7 @@ serveUnisonLocal ::
   Server UnisonLocalAPI
 serveUnisonLocal env codebase rt =
   hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $
-    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt :<|> (setCacheControl <$> ucmServer codebase)
+    serveProjectsAPI codebase rt :<|> (setCacheControl <$> ucmServer codebase)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

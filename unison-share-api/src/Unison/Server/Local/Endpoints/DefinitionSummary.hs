@@ -48,7 +48,6 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
-    RequiredQueryParam,
     TermTag (..),
     TypeTag,
     mayDefaultWidth,
@@ -68,7 +67,6 @@ type TermSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TermSummary
@@ -151,7 +149,6 @@ type TypeSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TypeSummary

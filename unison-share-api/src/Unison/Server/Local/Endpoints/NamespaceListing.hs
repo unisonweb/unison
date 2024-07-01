@@ -35,7 +35,6 @@ import Unison.Server.Types
     HashQualifiedName,
     NamedTerm (..),
     NamedType (..),
-    RequiredQueryParam,
     UnisonHash,
     UnisonName,
     v2CausalBranchToUnisonHash,
@@ -47,7 +46,6 @@ import Unison.Var (Var)
 
 type NamespaceListingAPI =
   "list"
-    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing

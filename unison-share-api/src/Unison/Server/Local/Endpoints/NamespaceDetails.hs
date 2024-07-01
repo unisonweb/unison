@@ -24,7 +24,6 @@ import Unison.Server.Doc qualified as Doc
 import Unison.Server.Types
   ( APIGet,
     NamespaceDetails (..),
-    RequiredQueryParam,
     v2CausalBranchToUnisonHash,
   )
 import Unison.Symbol (Symbol)
@@ -33,7 +32,6 @@ import Unison.Util.Pretty (Width)
 type NamespaceDetailsAPI =
   "namespaces"
     :> Capture "namespace" Path.Path
-    :> RequiredQueryParam "rootBranch" ShortCausalHash
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails
 
