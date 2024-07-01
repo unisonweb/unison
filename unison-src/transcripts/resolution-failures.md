@@ -15,7 +15,7 @@ two.ambiguousTerm = "term two"
 ```
 
 ```ucm
-.example.resolution_failures> add
+scratch/main> add
 ```
 
 ## Tests
