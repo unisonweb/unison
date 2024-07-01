@@ -425,7 +425,7 @@ doc2 = do
           }
     )
     do
-      bodyToks <- body
+      bodyToks <- docBody
       closeStart <- posP
       lit "}}"
       closeEnd <- posP
@@ -453,6 +453,7 @@ doc2 = do
         isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
     _ -> docToks <> endToks
   where
+    -- DUPLICATED
     wordyKw kw = separated wordySep (lit kw)
     subsequentTypeName = P.lookAhead . P.optional $ do
       let lit' s = lit s <* sp
@@ -464,7 +465,23 @@ doc2 = do
         then P.customFailure (Token (InvalidSymbolyId (Text.unpack (HQ'.toTextWith Name.toText name))) start stop)
         else pure (WordyId name)
     ignore _ _ _ = []
-    body = join <$> P.many (sectionElem <* CP.space)
+    -- DUPLICATED
+    sp = P.try $ do
+      spaces <- P.takeWhile1P (Just "space") isSpace
+      close <- P.optional (P.lookAhead (lit "}}"))
+      case close of
+        Nothing -> guard $ ok spaces
+        Just _ -> pure ()
+      pure spaces
+      where
+        ok s = length [() | '\n' <- s] < 2
+
+-- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
+--   Unison wraps `Doc` literals in `}}`).
+docBody :: P [Token Lexeme]
+docBody = join <$> P.many (sectionElem <* CP.space)
+  where
+    wordyKw kw = separated wordySep (lit kw)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
     paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
     reserved word = List.isPrefixOf "}}" word || all (== '#') word
