@@ -19,7 +19,14 @@
           (with pkgs.darwin.apple_sdk.frameworks; [Cocoa]);
       in
         (args.buildInputs or [])
-        ++ [pkgs.stack-wrapped pkgs.hpack pkgs.pkg-config pkgs.zlib pkgs.glibcLocales]
+        ++ [
+          pkgs.cachix
+          pkgs.glibcLocales
+          pkgs.hpack
+          pkgs.pkg-config
+          pkgs.stack-wrapped
+          pkgs.zlib
+        ]
         ++ native-packages;
       # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
       shellHook = ''
