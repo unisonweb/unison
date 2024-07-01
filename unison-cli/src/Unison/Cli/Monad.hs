@@ -14,6 +14,7 @@ module Unison.Cli.Monad
     -- * Immutable state
     LoopState (..),
     loopState0,
+    getProjectPathIds,
 
     -- * Lifting IO actions
     ioE,
@@ -33,6 +34,7 @@ module Unison.Cli.Monad
     -- * Changing the current directory
     cd,
     popd,
+    switchProject,
 
     -- * Communicating output to the user
     respond,
@@ -46,28 +48,32 @@ module Unison.Cli.Monad
     runTransaction,
     runTransactionWithRollback,
 
+    -- * Internal
+    setMostRecentProjectPath,
+    setInMemoryCurrentProjectRoot,
+
     -- * Misc types
     LoadSourceResult (..),
   )
 where
 
 import Control.Exception (throwIO)
-import Control.Lens (lens, (.=))
+import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
 import Control.Monad.State.Strict qualified as State
 import Data.Configurator.Types qualified as Configurator
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Unique (Unique, newUnique)
-import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
 import Text.Printf (printf)
-import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Queries qualified as Queries
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
@@ -77,7 +83,9 @@ import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
+import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -178,10 +186,9 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { root :: TMVar (Branch IO),
-    lastSavedRootHash :: CausalHash,
-    -- the current position in the namespace
-    currentPathStack :: List.NonEmpty Path.Absolute,
+  { currentProjectRoot :: TMVar (Branch IO),
+    -- the current position in the codebase, with the head being the most recent lcoation.
+    projectPathStack :: List.NonEmpty PP.ProjectPathIds,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
 
@@ -206,26 +213,12 @@ data LoopState = LoopState
   }
   deriving stock (Generic)
 
-instance
-  {-# OVERLAPS #-}
-  (Functor f) =>
-  IsLabel "currentPath" ((Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState))
-  where
-  fromLabel :: (Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState)
-  fromLabel =
-    lens
-      (\LoopState {currentPathStack} -> List.NonEmpty.head currentPathStack)
-      ( \loopState@LoopState {currentPathStack = _ List.NonEmpty.:| paths} path ->
-          loopState {currentPathStack = path List.NonEmpty.:| paths}
-      )
-
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
-loopState0 lastSavedRootHash b p = do
+loopState0 :: TMVar (Branch IO) -> PP.ProjectPathIds -> LoopState
+loopState0 b p = do
   LoopState
-    { root = b,
-      lastSavedRootHash = lastSavedRootHash,
-      currentPathStack = pure p,
+    { currentProjectRoot = b,
+      projectPathStack = pure p,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
@@ -387,11 +380,33 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
+getProjectPathIds :: Cli PP.ProjectPathIds
+getProjectPathIds = do
+  NonEmpty.head <$> use #projectPathStack
+
 cd :: Path.Absolute -> Cli ()
 cd path = do
-  setMostRecentNamespace path
-  State.modify' \state ->
-    state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
+  pp <- getProjectPathIds
+  let newPP = pp & PP.absPath_ .~ path
+  setMostRecentProjectPath newPP
+  #projectPathStack %= NonEmpty.cons newPP
+
+-- | Set the in-memory project root to the given branch, without updating the database.
+setInMemoryCurrentProjectRoot :: Branch IO -> Cli ()
+setInMemoryCurrentProjectRoot !newRoot = do
+  rootVar <- use #currentProjectRoot
+  atomically do
+    void $ swapTMVar rootVar newRoot
+
+switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
+switchProject (ProjectAndBranch projectId branchId) = do
+  Env {codebase} <- ask
+  let newPP = PP.ProjectPath projectId branchId Path.absoluteEmpty
+  #projectPathStack %= NonEmpty.cons newPP
+  runTransaction $ do Q.setMostRecentBranch projectId branchId
+  pbr <- liftIO $ Codebase.expectProjectBranchRoot codebase projectId branchId
+  setInMemoryCurrentProjectRoot pbr
+  setMostRecentProjectPath newPP
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --
@@ -399,16 +414,16 @@ cd path = do
 popd :: Cli Bool
 popd = do
   state <- State.get
-  case List.NonEmpty.uncons (currentPathStack state) of
+  case List.NonEmpty.uncons (projectPathStack state) of
     (_, Nothing) -> pure False
     (_, Just paths) -> do
-      setMostRecentNamespace (List.NonEmpty.head paths)
-      State.put state {currentPathStack = paths}
+      setMostRecentProjectPath (List.NonEmpty.head paths)
+      State.put state {projectPathStack = paths}
       pure True
 
-setMostRecentNamespace :: Path.Absolute -> Cli ()
-setMostRecentNamespace =
-  runTransaction . Queries.setMostRecentNamespace . Path.toList . Path.unabsolute
+setMostRecentProjectPath :: PP.ProjectPathIds -> Cli ()
+setMostRecentProjectPath loc =
+  runTransaction $ Codebase.setCurrentProjectPath loc
 
 respond :: Output -> Cli ()
 respond output = do
