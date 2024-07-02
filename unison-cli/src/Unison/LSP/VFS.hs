@@ -81,7 +81,11 @@ identifierSplitAtPosition uri pos = do
   vf <- getVirtualFile uri
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)
   let (before, after) = Text.splitAt (cursorPos ^. character . to fromIntegral) fullLine
-  pure (Text.takeWhileEnd isIdentifierChar before, Text.takeWhile isIdentifierChar after)
+  pure
+    ( Text.takeWhileEnd isIdentifierChar before,
+      -- names can end with '!', and it's not a force, so we include it in the identifier if it's at the end.
+      Text.takeWhile (\c -> isIdentifierChar c || c == '!') after
+    )
   where
     isIdentifierChar c =
       -- Manually exclude '!' and apostrophe, since those are usually just forces and
