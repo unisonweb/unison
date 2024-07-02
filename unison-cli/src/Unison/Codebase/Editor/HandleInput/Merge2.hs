@@ -8,6 +8,9 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     LcaMergeInfo (..),
     doMerge,
     doMergeLocalBranch,
+
+    -- * API exported for @todo@
+    hasDefnsInLib,
   )
 where
 
@@ -85,6 +88,7 @@ import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.Libdeps qualified as Merge
+import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -138,7 +142,6 @@ import Unison.Util.SyntaxText (SyntaxText')
 import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 
 handleMerge :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
 handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
@@ -238,11 +241,7 @@ doMerge info = do
 
       -- Assert that neither Alice nor Bob have defns in lib
       for_ [(mergeTarget, branches.alice), (mergeSource, branches.bob)] \(who, branch) -> do
-        libdeps <-
-          case Map.lookup NameSegment.libSegment branch.children of
-            Nothing -> pure V2.Branch.empty
-            Just libdeps -> Cli.runTransaction libdeps.value
-        when (not (Map.null libdeps.terms) || not (Map.null libdeps.types)) do
+        whenM (Cli.runTransaction (hasDefnsInLib branch)) do
           done (Output.MergeDefnsInLib who)
 
       -- Load Alice/Bob/LCA definitions and decl name lookups
@@ -484,6 +483,17 @@ loadLibdeps branches = do
         Just libdepsCausal -> do
           libdepsBranch <- libdepsCausal.value
           pure libdepsBranch.children
+
+------------------------------------------------------------------------------------------------------------------------
+-- Merge precondition violation checks
+
+hasDefnsInLib :: Applicative m => V2.Branch m -> m Bool
+hasDefnsInLib branch = do
+  libdeps <-
+    case Map.lookup NameSegment.libSegment branch.children of
+      Nothing -> pure V2.Branch.empty
+      Just libdeps -> libdeps.value
+  pure (not (Map.null libdeps.terms) || not (Map.null libdeps.types))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files

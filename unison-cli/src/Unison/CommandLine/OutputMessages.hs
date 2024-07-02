@@ -1423,6 +1423,7 @@ notifyUser dir = \case
         P.wrap $
           "On"
             <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            -- Note [DefnsInLibMessage] If you change this, also change the other similar one
             <> "there's a type or term at the top level of the `lib` namespace, where I only expect to find"
             <> "subnamespaces representing library dependencies.",
         "",
@@ -2665,11 +2666,6 @@ handleTodoOutput :: TodoOutput -> Numbered Pretty
 handleTodoOutput todo
   | todoOutputIsEmpty todo = pure "You have no pending todo items. Good work! ✅"
   | otherwise = do
-      prettyConflicts <-
-        if todo.nameConflicts == mempty
-          then pure mempty
-          else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
-
       prettyDependentsOfTodo <- do
         if Set.null todo.dependentsOfTodo
           then pure mempty
@@ -2718,11 +2714,26 @@ handleTodoOutput todo
                 <> P.newline
                 <> P.indentN 2 (P.lines types)
 
+      prettyConflicts <-
+        if todo.nameConflicts == mempty
+          then pure mempty
+          else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
+
+      let prettyDefnsInLib =
+            if todo.defnsInLib
+              then
+                P.wrap $
+                  -- Note [DefnsInLibMessage] If you change this, also change the other similar one
+                  "There's a type or term at the top level of the `lib` namespace, where I only expect to find"
+                    <> "subnamespaces representing library dependencies. Please move or remove it."
+              else mempty
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
           prettyDirectTypeDependenciesWithoutNames,
-          prettyConflicts
+          prettyConflicts,
+          prettyDefnsInLib
         ]
 
 listOfDefinitions ::

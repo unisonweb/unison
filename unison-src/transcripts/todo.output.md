@@ -3,15 +3,11 @@
 When there's nothing to do, `todo` says this:
 
 ```ucm
-project/main> todo
+scratch/main> todo
 
   You have no pending todo items. Good work! ✅
 
 ```
-# Conflicted names
-
-The todo command shows conflicted names (not demonstrated here yet because it is not easy to create them for tests, yet).
-
 # Dependents of `todo`
 
 The `todo` command shows local (outside `lib`) terms that directly call `todo`.
@@ -39,14 +35,14 @@ bar = foo + foo
 
 ```
 ```ucm
-project/main> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     bar : Nat
     foo : Nat
 
-project/main> todo
+scratch/main> todo
 
   These terms call `todo`:
   
@@ -78,14 +74,14 @@ baz = foo.bar + foo.bar
 
 ```
 ```ucm
-project/main> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     baz     : Nat
     foo.bar : Nat
 
-project/main> delete.namespace.force foo
+scratch/main> delete.namespace.force foo
 
   Done.
 
@@ -97,10 +93,91 @@ project/main> delete.namespace.force foo
   Dependency   Referenced In
   bar          1. baz
 
-project/main> todo
+scratch/main> todo
 
   These terms do not have any names in the current namespace:
   
     1. #1jujb8oelv
+
+```
+# Conflicted names
+
+The `todo` command shows conflicted names.
+
+```unison
+foo = 16
+bar = 17
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      foo : Nat
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    foo : Nat
+
+scratch/main> debug.alias.term.force foo bar
+
+  Done.
+
+scratch/main> todo
+
+  ❓
+  
+  The term bar has conflicting definitions: 1. foo 2.
+  bar#cq22mm4sca
+  
+  Tip: Use `move.term` or `delete.term` to resolve the
+       conflicts.
+
+```
+# Definitions in lib
+
+The `todo` command complains about terms and types directly in `lib`.
+
+```unison
+lib.foo = 16
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      lib.foo : Nat
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    lib.foo : Nat
+
+scratch/main> todo
+
+  There's a type or term at the top level of the `lib`
+  namespace, where I only expect to find subnamespaces
+  representing library dependencies. Please move or remove it.
 
 ```

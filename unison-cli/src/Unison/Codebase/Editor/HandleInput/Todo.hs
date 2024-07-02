@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.Todo
 where
 
 import Data.Set qualified as Set
+import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
@@ -14,7 +15,10 @@ import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Causal qualified as Causal
+import Unison.Codebase.Editor.HandleInput.Merge2 (hasDefnsInLib)
 import Unison.Codebase.Editor.Output
+import Unison.Hash (HashFor (..))
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (TermReference)
@@ -26,11 +30,22 @@ handleTodo :: Cli ()
 handleTodo = do
   -- For now, we don't go through any great trouble to seek out the root of the project branch. Just assume the current
   -- namespace is the root, which will be the case unless the user uses `deprecated.cd`.
-  currentNamespace <- Cli.getCurrentBranch0
+  currentCausal <- Cli.getCurrentBranch
+  let currentNamespace = Branch.head currentCausal
   let currentNamespaceWithoutLibdeps = Branch.deleteLibdeps currentNamespace
 
-  (dependentsOfTodo, directDependencies, hashLen) <-
+  (defnsInLib, dependentsOfTodo, directDependencies, hashLen) <-
     Cli.runTransaction do
+      -- We call a shared `hasDefnsLib` helper even though we could easily duplicate the logic with the branch in hand
+      defnsInLib <- do
+        branch <-
+          currentCausal
+            & Branch._history
+            & Causal.valueHash
+            & coerce @_ @BranchHash
+            & Operations.expectBranchByBranchHash
+        hasDefnsInLib branch
+
       let todoReference :: TermReference
           todoReference =
             Set.asSingleton (Names.refTermsNamed Builtin.names (Name.unsafeParseText "todo"))
@@ -51,7 +66,7 @@ handleTodo = do
 
       hashLen <- Codebase.hashLength
 
-      pure (dependentsOfTodo.terms, directDependencies, hashLen)
+      pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen)
 
   ppe <- Cli.currentPrettyPrintEnvDecl
 
@@ -59,6 +74,7 @@ handleTodo = do
     Output'Todo
       TodoOutput
         { hashLen,
+          defnsInLib,
           dependentsOfTodo,
           directDependenciesWithoutNames =
             Defns
