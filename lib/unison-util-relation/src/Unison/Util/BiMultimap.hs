@@ -178,6 +178,7 @@ invertDomain =
     g x acc y =
       Map.insert y x acc
 
+-- | Construct a left-unique relation from a mapping from its right-elements to its left-elements.
 fromRange :: (Ord a, Ord b) => Map b a -> BiMultimap a b
 fromRange m =
   BiMultimap (Map.foldlWithKey' f Map.empty m) m

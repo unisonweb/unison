@@ -139,6 +139,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.List qualified as List
@@ -148,7 +149,6 @@ import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
 import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
-import qualified Unison.Reference as Reference
 
 instance AsEmpty (Branch m) where
   _Empty = prism' (const empty) matchEmpty
@@ -214,7 +214,6 @@ deepTypeReferences = R.dom . deepTypes
 deepTypeReferenceIds :: Branch0 m -> Set TypeReferenceId
 deepTypeReferenceIds =
   Set.mapMaybe Reference.toId . deepTypeReferences
-
 
 namespaceStats :: Branch0 m -> NamespaceStats
 namespaceStats b =
