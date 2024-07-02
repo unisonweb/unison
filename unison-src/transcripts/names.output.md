@@ -1,5 +1,9 @@
 # `names` command
 
+```ucm
+scratch/main> builtins.merge lib.builtins
+```
+
 Example uses of the `names` command and output
 
 ```unison
@@ -19,9 +23,9 @@ somewhere.y = 2
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
-    
+
       some.otherplace.x : ##Nat
       some.otherplace.y : ##Nat
       some.place.x      : ##Nat
@@ -30,10 +34,10 @@ somewhere.y = 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     some.otherplace.x : ##Nat
     some.otherplace.y : ##Nat
     some.place.x      : ##Nat
@@ -51,10 +55,10 @@ somewhere.y = 2
   Terms
   Hash:   #gjmq673r1v
   Names:  otherplace.y place.x
-  
+
   Hash:   #pi25gcdv0o
   Names:  otherplace.x
-  
+
   Tip: Use `names.global` to see more results.
 
 -- We can search by hash, and see all aliases of that hash
@@ -63,7 +67,7 @@ somewhere.y = 2
   Term
   Hash:   #gjmq673r1v
   Names:  otherplace.y place.x
-  
+
   Tip: Use `names.global` to see more results.
 
 -- If the query is absolute, treat it as a `names.global`
@@ -72,7 +76,7 @@ somewhere.y = 2
   Term
   Hash:   #gjmq673r1v
   Names:  .some.otherplace.y .some.place.x .somewhere.z
-  
+
   Tip: Use `names.global` to see more results.
 
 ```
@@ -86,7 +90,7 @@ somewhere.y = 2
   Terms
   Hash:   #gjmq673r1v
   Names:  .some.otherplace.y .some.place.x .somewhere.z
-  
+
   Hash:   #pi25gcdv0o
   Names:  .some.otherplace.x
 
