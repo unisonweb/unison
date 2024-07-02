@@ -123,7 +123,7 @@ main = '5
 ```
 
 ```ucm
-.> run main
-.> add.run .an.absolute.name
-.> view .an.absolute.name
+scratch/main> run main
+scratch/main> add.run .an.absolute.name
+scratch/main> view .an.absolute.name
 ```

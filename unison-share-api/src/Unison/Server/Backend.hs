@@ -38,7 +38,7 @@ module Unison.Server.Backend
     lsAtPath,
     lsBranch,
     mungeSyntaxText,
-    resolveCausalHashV2,
+    Codebase.expectCausalBranchByCausalHash,
     resolveRootBranchHashV2,
     namesAtPathFromRootBranchHash,
     termEntryDisplayName,
@@ -58,7 +58,6 @@ module Unison.Server.Backend
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
-    causalHashForProjectBranchName,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -101,16 +100,12 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Operations qualified as Ops
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
-import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase qualified as UCodebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -148,8 +143,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
-import Unison.Project.Util qualified as ProjectUtils
+import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -370,12 +364,12 @@ lsAtPath ::
   (MonadIO m) =>
   Codebase m Symbol Ann ->
   -- The root to follow the path from.
-  Maybe (V2Branch.Branch Sqlite.Transaction) ->
+  V2Branch.Branch Sqlite.Transaction ->
   -- Path from the root to the branch to 'ls'
   Path.Absolute ->
   m [ShallowListEntry Symbol Ann]
-lsAtPath codebase mayRootBranch absPath = do
-  b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) mayRootBranch)
+lsAtPath codebase rootBranch absPath = do
+  b <- Codebase.runTransaction codebase (Codebase.getShallowBranchAtPath (Path.unabsolute absPath) rootBranch)
   lsBranch codebase b
 
 findDocInBranch ::
@@ -700,14 +694,12 @@ expandShortCausalHash hash = do
 
 -- | Efficiently resolve a root hash and path to a shallow branch's causal.
 getShallowCausalAtPathFromRootHash ::
-  Maybe CausalHash ->
+  CausalHash ->
   Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalAtPathFromRootHash mayRootHash path = do
-  shallowRoot <- case mayRootHash of
-    Nothing -> Codebase.getShallowRootCausal
-    Just h -> Codebase.expectCausalBranchByCausalHash h
-  Codebase.getShallowCausalAtPath path (Just shallowRoot)
+getShallowCausalAtPathFromRootHash rootHash path = do
+  shallowRoot <- Codebase.expectCausalBranchByCausalHash rootHash
+  Codebase.getShallowCausalAtPath path shallowRoot
 
 formatType' :: (Var v) => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
@@ -987,16 +979,12 @@ namesAtPathFromRootBranchHash ::
   forall m n v a.
   (MonadIO m) =>
   Codebase m v a ->
-  Maybe (V2Branch.CausalBranch n) ->
+  V2Branch.CausalBranch n ->
   Path ->
   Backend m (Names, PPED.PrettyPrintEnvDecl)
-namesAtPathFromRootBranchHash codebase mbh path = do
+namesAtPathFromRootBranchHash codebase cb path = do
   shouldUseNamesIndex <- asks useNamesIndex
-  (rootBranchHash, rootCausalHash) <- case mbh of
-    Just cb -> pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
-    Nothing -> lift $ do
-      cb <- Codebase.runTransaction codebase Operations.expectRootCausal
-      pure (V2Causal.valueHash cb, V2Causal.causalHash cb)
+  let (rootBranchHash, rootCausalHash) = (V2Causal.valueHash cb, V2Causal.causalHash cb)
   haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
   names <-
@@ -1005,47 +993,34 @@ namesAtPathFromRootBranchHash codebase mbh path = do
         when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
         lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
-        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash (Just rootCausalHash) codebase
+        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
   let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   pure (names, pped)
 
 resolveCausalHash ::
-  (Monad m) => Maybe CausalHash -> Codebase m v a -> Backend m (Branch m)
-resolveCausalHash h codebase = case h of
-  Nothing -> lift (Codebase.getRootBranch codebase)
-  Just bhash -> do
-    mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    whenNothing mayBranch (throwError $ NoBranchForHash bhash)
-
-resolveCausalHashV2 :: Maybe CausalHash -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-resolveCausalHashV2 h = case h of
-  Nothing -> Codebase.getShallowRootCausal
-  Just ch -> Codebase.expectCausalBranchByCausalHash ch
+  (Monad m) => CausalHash -> Codebase m v a -> Backend m (Branch m)
+resolveCausalHash bhash codebase = do
+  mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
+  whenNothing mayBranch (throwError $ NoBranchForHash bhash)
 
 resolveRootBranchHash ::
-  (MonadIO m) => Maybe ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
-resolveRootBranchHash mayRoot codebase = case mayRoot of
-  Nothing ->
-    lift (Codebase.getRootBranch codebase)
-  Just sch -> do
-    h <- hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
-    resolveCausalHash (Just h) codebase
+  (MonadIO m) => ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
+resolveRootBranchHash sch codebase = do
+  h <- hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
+  resolveCausalHash h codebase
 
 resolveRootBranchHashV2 ::
-  Maybe ShortCausalHash -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-resolveRootBranchHashV2 mayRoot = case mayRoot of
-  Nothing -> lift Codebase.getShallowRootCausal
-  Just sch -> do
-    h <- expandShortCausalHash sch
-    lift (resolveCausalHashV2 (Just h))
+  ShortCausalHash -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+resolveRootBranchHashV2 sch = do
+  h <- expandShortCausalHash sch
+  lift (Codebase.expectCausalBranchByCausalHash h)
 
-normaliseRootCausalHash :: Maybe (Either ShortCausalHash CausalHash) -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-normaliseRootCausalHash mayCh = case mayCh of
-  Nothing -> lift $ resolveCausalHashV2 Nothing
-  Just (Left sch) -> do
+normaliseRootCausalHash :: Either ShortCausalHash CausalHash -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+normaliseRootCausalHash = \case
+  (Left sch) -> do
     ch <- expandShortCausalHash sch
-    lift $ resolveCausalHashV2 (Just ch)
-  Just (Right ch) -> lift $ resolveCausalHashV2 (Just ch)
+    lift $ Codebase.expectCausalBranchByCausalHash ch
+  (Right ch) -> lift $ Codebase.expectCausalBranchByCausalHash ch
 
 -- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 --
@@ -1271,15 +1246,3 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
-
--- | Get the causal hash a given project branch points to
-causalHashForProjectBranchName :: (MonadIO m) => ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe CausalHash)
-causalHashForProjectBranchName (ProjectAndBranch projectName branchName) = do
-  Q.loadProjectBranchByNames projectName branchName >>= \case
-    Nothing -> pure Nothing
-    Just ProjectBranch {projectId, branchId} -> do
-      let path = ProjectUtils.projectBranchPath (ProjectAndBranch projectId branchId)
-      -- Use the default codebase root
-      let codebaseRoot = Nothing
-      mayCausal <- UCodebase.getShallowCausalFromRoot codebaseRoot (Path.unabsolute path)
-      pure . Just $ V2Causal.causalHash mayCausal

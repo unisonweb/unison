@@ -52,14 +52,19 @@ import Options.Applicative.Help (bold, (<+>))
 import Options.Applicative.Help.Pretty qualified as P
 import Stats
 import System.Environment (lookupEnv)
+import Text.Megaparsec qualified as Megaparsec
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathNames)
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
+import Unison.Core.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 import Unison.HashQualified (HashQualified)
 import Unison.LSP (LspFormattingConfig (..))
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
+import Unison.Project qualified as Project
 import Unison.Server.CodebaseServer (CodebaseServerOpts (..))
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Syntax.HashQualified qualified as HQ
@@ -68,7 +73,7 @@ import Unison.Util.Pretty (Width (..))
 -- | Valid ways to provide source code to the run command
 data RunSource
   = RunFromPipe (HashQualified Name)
-  | RunFromSymbol (HashQualified Name)
+  | RunFromSymbol ProjectPathNames
   | RunFromFile FilePath (HashQualified Name)
   | RunCompiled FilePath
   deriving (Show, Eq)
@@ -102,8 +107,8 @@ data Command
   = Launch
       IsHeadless
       CodebaseServerOpts
-      -- Starting path
-      (Maybe Path.Absolute)
+      -- Starting project
+      (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
       ShouldWatchFiles
   | PrintVersion
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
@@ -357,9 +362,9 @@ launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do
   -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
-  startingPath <- startingPathOption
+  startingProject <- startingProjectOption
   shouldWatchFiles <- noFileWatchFlag
-  pure (Launch isHeadless codebaseServerOpts startingPath shouldWatchFiles)
+  pure (Launch isHeadless codebaseServerOpts startingProject shouldWatchFiles)
 
 initParser :: Parser Command
 initParser = pure Init
@@ -374,9 +379,13 @@ runHQParser :: Parser (HashQualified Name)
 runHQParser =
   argument (maybeReader (HQ.parseText . Text.pack)) (metavar "SYMBOL")
 
+runProjectPathParser :: Parser PP.ProjectPathNames
+runProjectPathParser =
+  argument (maybeReader (eitherToMaybe . PP.parseProjectPath . Text.pack)) (metavar "@myproject/mybranch:.path.in.project")
+
 runSymbolParser :: Parser Command
 runSymbolParser =
-  Run . RunFromSymbol <$> runHQParser <*> runArgumentParser
+  Run . RunFromSymbol <$> runProjectPathParser <*> runArgumentParser
 
 runFileParser :: Parser Command
 runFileParser =
@@ -422,15 +431,15 @@ saveCodebaseToFlag = do
         _ -> DontSaveCodebase
     )
 
-startingPathOption :: Parser (Maybe Path.Absolute)
-startingPathOption =
+startingProjectOption :: Parser (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
+startingProjectOption =
   let meta =
-        metavar ".path.in.codebase"
-          <> long "path"
+        metavar "project/branch"
+          <> long "project"
           <> short 'p'
-          <> help "Launch the UCM session at the provided path location."
+          <> help "Launch the UCM session at the provided project and branch."
           <> noGlobal
-   in optional $ option readAbsolutePath meta
+   in optional (option readProjectAndBranchNames meta)
 
 noFileWatchFlag :: Parser ShouldWatchFiles
 noFileWatchFlag =
@@ -468,6 +477,13 @@ readPath' = do
   case Path.parsePath' strPath of
     Left err -> OptParse.readerError (Text.unpack err)
     Right path' -> pure path'
+
+readProjectAndBranchNames :: ReadM (ProjectAndBranch ProjectName ProjectBranchName)
+readProjectAndBranchNames = do
+  str <- OptParse.str
+  case Megaparsec.parse Project.fullyQualifiedProjectAndBranchNamesParser "arg" str of
+    Left errBundle -> OptParse.readerError $ Megaparsec.errorBundlePretty errBundle
+    Right projectAndBranch -> pure projectAndBranch
 
 fileArgument :: String -> Parser FilePath
 fileArgument varName =

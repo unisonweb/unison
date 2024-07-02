@@ -10,29 +10,21 @@ foo = 1
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     foo : ##Nat
 
--- Should request confirmation
-.> move.namespace . .root.at.path
-
-  ⚠️
-  
-  Moves which affect the root branch cannot be undone, are you sure?
-  Re-run the same command to proceed.
-
-.> move.namespace . .root.at.path
+scratch/main> move.namespace . .root.at.path
 
   Done.
 
-.> ls
+scratch/main> ls
 
   1. root/ (1 term)
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -43,11 +35,11 @@ foo = 1
 
 ```
 ```ucm
-.> ls .root.at.path
+scratch/main> ls .root.at.path
 
   1. foo (##Nat)
 
-.> history .root.at.path
+scratch/main> history .root.at.path
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -61,22 +53,21 @@ I should be able to move a sub namespace _over_ the root.
 
 ```ucm
 -- Should request confirmation
-.> move.namespace .root.at.path .
+scratch/main> move.namespace .root.at.path .
 
   ⚠️
   
-  Moves which affect the root branch cannot be undone, are you sure?
-  Re-run the same command to proceed.
-
-.> move.namespace .root.at.path .
+  A branch existed at the destination: . so I over-wrote it.
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
 
   Done.
 
-.> ls
+scratch/main> ls
 
   1. foo (##Nat)
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -88,13 +79,18 @@ I should be able to move a sub namespace _over_ the root.
 ```
 ```ucm
 -- should be empty
-.> ls .root.at.path
+scratch/main> ls .root.at.path
 
   nothing to show
 
-.> history .root.at.path
+scratch/main> history .root.at.path
 
-  ☝️  The namespace .root.at.path is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 ## Happy path
@@ -280,7 +276,12 @@ scratch/history> history b
 -- Should be empty
 scratch/history> history a
 
-  ☝️  The namespace a is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 ## Moving over an existing branch

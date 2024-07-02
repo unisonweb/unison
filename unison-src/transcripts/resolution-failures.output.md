@@ -4,6 +4,12 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ## Codebase Setup
 
+```ucm
+scratch/main> builtins.merge lib.builtins
+
+  Done.
+
+```
 First we define differing types with the same name in different namespaces:
 
 ```unison
@@ -26,21 +32,19 @@ two.ambiguousTerm = "term two"
     
       type one.AmbiguousType
       type two.AmbiguousType
-      one.ambiguousTerm : ##Text
-      two.ambiguousTerm : ##Text
+      one.ambiguousTerm : Text
+      two.ambiguousTerm : Text
 
 ```
 ```ucm
-  ☝️  The namespace .example.resolution_failures is empty.
-
-.example.resolution_failures> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type one.AmbiguousType
     type two.AmbiguousType
-    one.ambiguousTerm : ##Text
-    two.ambiguousTerm : ##Text
+    one.ambiguousTerm : Text
+    two.ambiguousTerm : Text
 
 ```
 ## Tests
@@ -116,7 +120,7 @@ useAmbiguousTerm = ambiguousTerm
   I found some terms in scope that have matching names and
   types. Maybe you meant one of these:
   
-  one.ambiguousTerm : ##Text
-  two.ambiguousTerm : ##Text
+  one.ambiguousTerm : Text
+  two.ambiguousTerm : Text
 
 ```

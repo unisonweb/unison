@@ -77,7 +77,7 @@ import Witherable
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT do
-  currentPath <- lift getCurrentPath
+  pp <- lift getCurrentProjectPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getCurrentNames
@@ -90,7 +90,7 @@ checkFile doc = runMaybeT do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
             names = parseNames
           }
   (notes, parsedFile, typecheckedFile) <- do

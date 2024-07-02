@@ -32,7 +32,6 @@ import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
-import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
@@ -41,7 +40,6 @@ import System.IO qualified as IO
 import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
@@ -51,15 +49,14 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
@@ -68,10 +65,11 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import Unison.Core.Project (ProjectBranchName, ProjectName (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous))
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
@@ -110,8 +108,7 @@ data UcmLine
 
 -- | Where a command is run: either loose code (.foo.bar.baz>) or a project branch (myproject/mybranch>).
 data UcmContext
-  = UcmContextLooseCode Path.Absolute
-  | UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
+  = UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
 
 data APIRequest
   = GetRequest Text
@@ -133,9 +130,7 @@ instance Show UcmLine where
     UcmCommand context txt -> showContext context <> "> " <> Text.unpack txt
     UcmComment txt -> "--" ++ Text.unpack txt
     where
-      showContext = \case
-        UcmContextLooseCode path -> show path
-        UcmContextProject projectAndBranch -> Text.unpack (into @Text projectAndBranch)
+      showContext (UcmContextProject projectAndBranch) = Text.unpack (into @Text projectAndBranch)
 
 instance Show Stanza where
   show s = case s of
@@ -248,9 +243,14 @@ run ::
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
+run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
-  let initialPath = Path.absoluteEmpty
+  (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
+    (_, emptyCausalHashId) <- Codebase.emptyCausalHash
+    initialPP <- Codebase.expectCurrentProjectPath
+    pure (initialPP, emptyCausalHashId)
+
+  projectRootVar <- newTMVarIO Branch.empty
   unless (isSilent verbosity) . putPrettyLn $
     Pretty.lines
       [ asciiartUnison,
@@ -258,11 +258,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
         "Running the provided transcript file...",
         ""
       ]
-  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
-  rootVar <- newEmptyTMVarIO
-  void $ Ki.fork scope do
-    root <- Codebase.getRootBranch codebase
-    atomically $ putTMVar rootVar root
   mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -346,15 +341,11 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                 liftIO (output ("\n" <> show p))
                 awaitInput
               p@(UcmCommand context lineTxt) -> do
-                curPath <- Cli.getCurrentPath
+                curPath <- Cli.getCurrentProjectPath
                 -- We're either going to run the command now (because we're in the right context), else we'll switch to
                 -- the right context first, then run the command next.
                 maybeSwitchCommand <-
                   case context of
-                    UcmContextLooseCode path ->
-                      if curPath == path
-                        then pure Nothing
-                        else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
                     UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
                       Project {projectId, name = projectName} <-
                         Q.loadProjectByName projectName
@@ -369,12 +360,12 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                           Nothing -> do
                             branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
                             let projectBranch = ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                            Q.insertProjectBranch projectBranch
+                            Q.insertProjectBranch "Branch Created" emptyCausalHashId projectBranch
                             pure projectBranch
                           Just projBranch -> pure projBranch
                       let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
                       pure
-                        if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
+                        if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
                           then Nothing
                           else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
@@ -387,7 +378,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       args -> do
                         liftIO (output ("\n" <> show p <> "\n"))
                         numberedArgs <- use #numberedArgs
-                        liftIO (parseInput codebase curPath numberedArgs patternMap args) >>= \case
+                        let getProjectRoot = atomically $ readTMVar projectRootVar
+                        liftIO (parseInput codebase curPath getProjectRoot numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> do
                             liftIO $ writeIORef hasErrors True
@@ -580,7 +572,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 initialRootCausalHash rootVar initialPath)
+  loop (Cli.loopState0 projectRootVar (PP.toIds initialPP))
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
@@ -605,9 +597,8 @@ ucmLine = ucmCommand <|> ucmComment
         P.try do
           contextString <- P.takeWhile1P Nothing (/= '>')
           context <-
-            case (tryFrom @Text contextString, Path.parsePath' (Text.unpack contextString)) of
-              (Right (These project branch), _) -> pure (UcmContextProject (ProjectAndBranch project branch))
-              (Left _, Right (Path.unPath' -> Left abs)) -> pure (UcmContextLooseCode abs)
+            case (tryFrom @Text contextString) of
+              (Right (These project branch)) -> pure (UcmContextProject (ProjectAndBranch project branch))
               _ -> fail "expected project/branch or absolute path"
           void $ lineToken $ word ">"
           pure context
