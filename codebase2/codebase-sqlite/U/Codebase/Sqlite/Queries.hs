@@ -3918,7 +3918,7 @@ setProjectBranchHead description projectId branchId causalHashId = do
         reason = description
       }
 
-expectProjectBranchHead :: ProjectId -> ProjectBranchId -> Transaction CausalHashId
+expectProjectBranchHead :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHashId
 expectProjectBranchHead projectId branchId =
   queryOneCol
     [sql|

@@ -105,9 +105,9 @@ createBranch description createFrom project getNewBranchName = do
   Cli.Env {codebase} <- ask
   (mayParentBranchId, newBranchCausalHashId) <- case createFrom of
     CreateFrom'ParentBranch parentBranch -> Cli.runTransaction do
-      Q.expectProjectBranchHead projectId (parentBranch ^. #branchId)
-      newBranchCausalHashId <- Q.expectProjectBranchHead projectId (parentBranch ^. #branchId)
-      pure (Just (parentBranch ^. #branchId), newBranchCausalHashId)
+      newBranchCausalHashId <- Q.expectProjectBranchHead parentBranch.projectId parentBranch.branchId
+      let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
+      pure (parentBranchId, newBranchCausalHashId)
     CreateFrom'Nothingness -> Cli.runTransaction do
       (_, causalHashId) <- Codebase.emptyCausalHash
       pure (Nothing, causalHashId)
@@ -115,7 +115,8 @@ createBranch description createFrom project getNewBranchName = do
       liftIO $ Codebase.putBranch codebase namespace
       Cli.runTransaction $ do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
-        pure (Just (parentBranch ^. #branchId), newBranchCausalHashId)
+        let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
+        pure (parentBranchId, newBranchCausalHashId)
     CreateFrom'Namespace branch -> do
       liftIO $ Codebase.putBranch codebase branch
       Cli.runTransaction $ do
