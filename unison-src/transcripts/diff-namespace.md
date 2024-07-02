@@ -117,6 +117,8 @@ shown, only their also-conflicted dependency is shown.
 ```unison:hide
 a = 333
 b = a + 1
+
+forconflicts = 777
 ```
 
 ```ucm
@@ -127,7 +129,6 @@ scratch/nsx> branch /nsz
 
 ```unison:hide
 a = 444
-other = 555
 ```
 
 ```ucm
@@ -141,14 +142,14 @@ a = 555
 ```ucm
 scratch/nsz> update.old
 scratch/nsy> branch /nsw
-scratch/nsw> debug.alias.term.force .other .a
-scratch/nsw> delete.term .other
-scratch/main> debug.alias.term.force /nsz:.b /nsw:.b
+scratch/nsw> debug.alias.term.force .forconflicts .a
+scratch/nsw> debug.alias.term.force .forconflicts .b
 ```
 
 ```ucm
-scratch/main> diff.namespace nsx nsw
-scratch/main> view nsw.a nsw.b
+scratch/main> diff.namespace /nsx: /nsw:
+scratch/nsw> view a
+scratch/nsw> view b
 ```
 
 ## Should be able to diff a namespace hash from history.

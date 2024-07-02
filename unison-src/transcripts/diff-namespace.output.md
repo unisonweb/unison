@@ -321,6 +321,8 @@ shown, only their also-conflicted dependency is shown.
 ```unison
 a = 333
 b = a + 1
+
+forconflicts = 777
 ```
 
 ```ucm
@@ -328,8 +330,9 @@ scratch/nsx> add
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    b : Nat
+    a            : Nat
+    b            : Nat
+    forconflicts : Nat
 
 scratch/nsx> branch /nsy
 
@@ -376,23 +379,173 @@ scratch/nsy> branch /nsw
   Tip: To merge your work back into the nsy branch, first
        `switch /nsy` then `merge /nsw`.
 
-scratch/main> debug.alias.term.force /nsz:.a /nsw:.a
+scratch/nsw> debug.alias.term.force .forconflicts .a
 
+  Done.
+
+scratch/nsw> debug.alias.term.force .forconflicts .b
+
+  Done.
+
+```
+```ucm
+scratch/main> diff.namespace /nsx: /nsw:
+
+  New name conflicts:
+  
+    1.  a#uiiiv8a86s : Nat
+        ↓
+    2.  ┌ a#mdl4vqtu00 : Nat
+    3.  └ a#r3msrbpp1v : Nat
+    
+    4.  b#lhigeb1let : Nat
+        ↓
+    5.  ┌ b#r3msrbpp1v : Nat
+    6.  └ b#unkqhuu66p : Nat
+  
+  Added definitions:
+  
+    7.  patch patch (added 1 updates)
+  
+  Name changes:
+  
+    Original            Changes
+    8.  forconflicts    9.  a#r3msrbpp1v (added)
+                        10. b#r3msrbpp1v (added)
+
+scratch/nsw> view a
+
+  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 = 444
+  
+  a#r3msrbpp1v : Nat
+  a#r3msrbpp1v = 777
+
+scratch/nsw> view b
+
+  b#r3msrbpp1v : Nat
+  b#r3msrbpp1v = 777
+  
+  b#unkqhuu66p : Nat
+  b#unkqhuu66p =
+    use Nat +
+    a#mdl4vqtu00 + 1
+
+```
+## Should be able to diff a namespace hash from history.
+
+```unison
+x = 1
 ```
 
 ```ucm
-scratch/nsz> update.oldscratch/nsy> branch /nswscratch/main> debug.alias.term.force /nsz:.a /nsw:.ascratch/main> debug.alias.term.force /nsz:.b /nsw:.b
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      x : Nat
+
+```
+```ucm
+scratch/hashdiff> add
+
+  ⍟ I've added these definitions:
+  
+    x : ##Nat
+
+```
+```unison
+y = 2
 ```
 
+```ucm
 
-🛑
+  Loading changes detected in scratch.u.
 
-The transcript failed due to an error in the stanza above. The error is:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      y : ##Nat
 
-1:2:
-  |
-1 | /nsz:.a
-  |  ^
-unexpected 'n'
-expecting '.', end of input, hash (ex: #af3sj3), or operator (valid characters: !$%&*+-/:<=>\^|~)
+```
+```ucm
+scratch/hashdiff> add
 
+  ⍟ I've added these definitions:
+  
+    y : ##Nat
+
+scratch/hashdiff> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ 1. #ru1hnjofdj
+  
+    + Adds / updates:
+    
+      y
+  
+  □ 2. #i52j9fd57b (start of history)
+
+scratch/hashdiff> diff.namespace 2 1
+
+  Added definitions:
+  
+    1. y : ##Nat
+
+```
+##
+
+Updates:  -- 1 to 1
+
+New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS=LHS)
+
+  1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
+     ↓
+  2. ┌ foo#0ja1qfpej6 : Nat
+  3. └ foo#jk19sm5bf8 : Nat
+
+Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
+
+  4. ┌ bar#0ja1qfpej6 : Nat
+  5. └ bar#jk19sm5bf8 : Nat
+     ↓
+  6. bar#jk19sm5bf8 : Nat
+
+## Display issues to fixup
+
+- [d] Do we want to surface new edit conflicts in patches?
+- [t] two different auto-propagated changes creating a name conflict should show
+      up somewhere besides the auto-propagate count
+- [t] Things look screwy when the type signature doesn't fit and has to get broken
+      up into multiple lines. Maybe just disallow that?
+- [d] Delete blank line in between copies / renames entries if all entries are 1 to 1
+      see todo in the code
+- [x] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
+- [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
+- [x] might want unqualified names to be qualified sometimes:
+- [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+- [x] similarly, if a conflicted name is resolved by deleting the last name to
+      a reference, I (arya) suspect it will show up as a Remove
+- [d] Maybe group and/or add headings to the types, constructors, terms
+- [x] add tagging of propagated updates to test propagated updates output
+- [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
+- [x] delete.term has some bonkers output
+- [x] Make a decision about how we want to show constructors in the diff
+- [x] 12.patch patch needs a space
+- [x] This looks like garbage
+- [x] Extra 2 blank lines at the end of the add section
+- [x] Fix alignment issues with buildTable, convert to column3M (to be written)
+- [x] adding an alias is showing up as an Add and a Copy; should just show as Copy
+- [x] removing one of multiple aliases appears in removes + moves + copies section
+- [x] some overlapping cases between Moves and Copies^
+- [x] Maybe don't list the type signature twice for aliases?
