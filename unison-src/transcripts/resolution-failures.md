@@ -4,6 +4,10 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ## Codebase Setup
 
+```ucm
+scratch/main> builtins.merge lib.builtins
+```
+
 First we define differing types with the same name in different namespaces:
 
 ```unison
