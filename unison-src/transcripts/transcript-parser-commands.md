@@ -1,7 +1,7 @@
 ### Transcript parser operations
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 The transcript parser is meant to parse `ucm` and `unison` blocks.
@@ -11,7 +11,7 @@ x = 1
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison:hide:error:scratch.u
@@ -19,11 +19,11 @@ z
 ```
 
 ```ucm:error
-.> delete foo
+scratch/main> delete foo
 ```
 
 ```ucm :error
-.> delete lineToken.call
+scratch/main> delete lineToken.call
 ```
 
 However handling of blocks of other languages should be supported.
