@@ -252,7 +252,8 @@ formatStructuredArgument schLength = \case
       BranchAtPath pathPrefix -> Name.toText (Path.prefixNameIfRel (Path.AbsolutePath' pathPrefix) name)
       BranchAtProjectPath pp ->
         pp
-          & PP.absPath_ %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+          & PP.absPath_
+          %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
           & PP.toNames
           & into @Text
 
@@ -489,7 +490,8 @@ handleBranchIdArg =
           BranchAtPath prefix -> BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
           BranchAtProjectPath pp ->
             pp
-              & PP.absPath_ %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+              & PP.absPath_
+              %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
               & BranchAtProjectPath
       SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
@@ -529,7 +531,7 @@ _handleBranchIdOrProjectArg =
             (Right bid, Left _) -> Just (This bid)
             (Right bid, Right pr) -> Just (These bid pr)
 
-handleBranchId2Arg :: I.Argument -> Either (P.Pretty P.ColorText) (Either ShortCausalHash BranchRelativePath)
+handleBranchId2Arg :: I.Argument -> Either (P.Pretty P.ColorText) Input.BranchId2
 handleBranchId2Arg =
   either
     Input.parseBranchId2
@@ -2201,8 +2203,8 @@ diffNamespace =
         ]
     )
     ( \case
-        [before, after] -> Input.DiffNamespaceI <$> handleBranchIdArg before <*> handleBranchIdArg after
-        [before] -> Input.DiffNamespaceI <$> handleBranchIdArg before <*> pure (BranchAtPath Path.currentPath)
+        [before, after] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> handleBranchId2Arg after
+        [before] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> pure (Right . UnqualifiedPath $ Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
   where
@@ -3720,7 +3722,7 @@ projectAndOrBranchSuggestions config inputStr codebase _httpClient pp = do
           else branchCompletions ++ projectCompletions
 
     -- Complete the text into a branch name within the provided project
-    handleBranchesComplete :: MonadIO m => Text -> Codebase m v a -> PP.ProjectPath -> m [Completion]
+    handleBranchesComplete :: (MonadIO m) => Text -> Codebase m v a -> PP.ProjectPath -> m [Completion]
     handleBranchesComplete branchName codebase pp = do
       let projId = pp ^. #project . #projectId
       branches <-
@@ -3821,9 +3823,8 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
                   fmap (filterBranches config pp) do
                     Queries.loadAllProjectBranchesBeginningWith projectId (into @Text <$> mbranch)
           pure (map (projectBranchToCompletionWithSep projectName) branches)
-      BranchRelativePath.PathRelativeToCurrentBranch relPath -> Codebase.runTransaction codebase do
-        -- TODO: Verify this works as intended, might need to use an absolute path instead.
-        map prefixPathSep <$> prefixCompleteNamespace (Text.unpack . Path.toText' $ Path.RelativePath' relPath) pp
+      BranchRelativePath.PathRelativeToCurrentBranch absPath -> Codebase.runTransaction codebase do
+        map prefixPathSep <$> prefixCompleteNamespace (Text.unpack . Path.toText' $ Path.AbsolutePath' absPath) pp
       BranchRelativePath.IncompletePath projStuff mpath -> do
         Codebase.runTransaction codebase do
           map (addBranchPrefix projStuff) <$> prefixCompleteNamespace (maybe "" (Text.unpack . Path.toText' . Path.AbsolutePath') mpath) pp

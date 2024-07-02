@@ -314,16 +314,10 @@ loop e = do
                   (ppe, diff) <- diffHelper (Branch.head destBranch) (Branch.head merged)
                   Cli.respondNumbered (ShowDiffAfterMergePreview (Left destPP) destPP ppe diff)
             DiffNamespaceI before after -> do
-              beforeLoc <- case before of
-                BranchAtSCH sch -> pure $ Left sch
-                BranchAtPath path' -> Right <$> Cli.resolvePath' path'
-                BranchAtProjectPath pp -> pure $ Right pp
-              afterLoc <- case after of
-                BranchAtSCH sch -> pure $ Left sch
-                BranchAtPath path' -> Right <$> Cli.resolvePath' path'
-                BranchAtProjectPath pp -> pure $ Right pp
-              beforeBranch0 <- Branch.head <$> Cli.resolveBranchId before
-              afterBranch0 <- Branch.head <$> Cli.resolveBranchId after
+              beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
+              beforeBranch0 <- Branch.head <$> resolveBranchId2 before
+              afterLoc <- traverse ProjectUtils.resolveBranchRelativePath after
+              afterBranch0 <- Branch.head <$> resolveBranchId2 after
               case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
                 (True, True) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [afterLoc])
                 (True, False) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [])
@@ -1683,3 +1677,11 @@ addWatch watchName (Just uf) = do
                 (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
             )
     _ -> addWatch watchName Nothing
+
+resolveBranchId2 :: BranchId2 -> Cli (Branch IO)
+resolveBranchId2 = \case
+  Left sch -> Cli.resolveShortCausalHash sch
+  Right brp -> do
+    pp <- ProjectUtils.resolveBranchRelativePath brp
+    Cli.Env {codebase} <- ask
+    fromMaybe Branch.empty <$> liftIO (Codebase.getBranchAtProjectPath codebase pp)

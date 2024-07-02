@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Input
     PatchPath,
     BranchIdG (..),
     BranchId,
+    BranchId2,
     AbsBranchId,
     UnresolvedProjectBranch,
     parseBranchId,
@@ -68,13 +69,15 @@ data BranchIdG p
   | BranchAtProjectPath ProjectPath
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
-instance From p Text => From (BranchIdG p) Text where
+instance (From p Text) => From (BranchIdG p) Text where
   from = \case
     BranchAtSCH h -> "#" <> SCH.toText h
     BranchAtPath p -> from p
     BranchAtProjectPath pp -> from pp
 
 type BranchId = BranchIdG Path'
+
+type BranchId2 = Either ShortCausalHash BranchRelativePath
 
 type AbsBranchId = BranchIdG Path.Absolute
 
@@ -119,7 +122,7 @@ data Input
   | -- merge first causal into destination
     MergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath) Branch.MergeMode
   | PreviewMergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath)
-  | DiffNamespaceI BranchId BranchId -- old new
+  | DiffNamespaceI BranchId2 BranchId2 -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetRootI BranchId

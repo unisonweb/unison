@@ -39,15 +39,18 @@ data BranchRelativePath
 -- Specifying only a project is not allowed.
 --
 -- >>> parseBranchRelativePath "foo"
--- Right (LoosePath foo)
+-- Right (UnqualifiedPath foo)
 -- >>> parseBranchRelativePath "foo/bar:"
--- Right (BranchRelative (This (Right (UnsafeProjectName "foo",UnsafeProjectBranchName "bar"))))
--- >>> parseBranchRelativePath "foo/bar:some.path"
--- Right (BranchRelative (These (Right (UnsafeProjectName "foo",UnsafeProjectBranchName "bar")) some.path))
--- >>> parseBranchRelativePath "/bar:some.path"
--- Right (BranchRelative (These (Left (UnsafeProjectBranchName "bar")) some.path))
--- >>> parseBranchRelativePath ":some.path"
--- Right (BranchRelative (That some.path))
+-- Right (QualifiedBranchPath (UnsafeProjectName "foo") (UnsafeProjectBranchName "bar") .)
+-- >>> parseBranchRelativePath "foo/bar:.some.path"
+-- Right (QualifiedBranchPath (UnsafeProjectName "foo") (UnsafeProjectBranchName "bar") .some.path)
+-- >>> parseBranchRelativePath "/bar:.some.path"
+-- Right (BranchPathInCurrentProject (UnsafeProjectBranchName "bar") .some.path)
+-- >>> parseBranchRelativePath ":.some.path"
+-- Right (UnqualifiedPath .some.path)
+--
+-- >>> parseBranchRelativePath ".branch"
+-- Right (UnqualifiedPath .branch)
 parseBranchRelativePath :: String -> Either (P.Pretty CT.ColorText) BranchRelativePath
 parseBranchRelativePath str =
   case Megaparsec.parse branchRelativePathParser "<none>" (Text.pack str) of
@@ -85,7 +88,7 @@ data IncrementalBranchRelativePath
     IncompleteBranch (Maybe ProjectName) (Maybe ProjectBranchName)
   | -- | valid project/branch, with colon
     IncompletePath (Either (ProjectAndBranch ProjectName ProjectBranchName) ProjectBranchName) (Maybe Path.Absolute)
-  | PathRelativeToCurrentBranch Path.Relative
+  | PathRelativeToCurrentBranch Path.Absolute
   deriving stock (Show)
 
 -- |
@@ -169,7 +172,7 @@ incrementalBranchRelativePathParser =
     pathRelativeToCurrentBranch :: Megaparsec.Parsec Void Text IncrementalBranchRelativePath
     pathRelativeToCurrentBranch = do
       _ <- Megaparsec.char ':'
-      p <- relPath
+      p <- absPath
       pure (PathRelativeToCurrentBranch p)
 
     optionalEof :: Megaparsec.Parsec Void Text a -> Megaparsec.Parsec Void Text (Maybe a)
@@ -180,12 +183,6 @@ incrementalBranchRelativePathParser =
 
     branchNameParser = Project.projectBranchNameParser False
 
-    relPath :: Megaparsec.Parsec Void Text Path.Relative
-    relPath = do
-      offset <- Megaparsec.getOffset
-      path' >>= \(Path.Path' inner) -> case inner of
-        Left _ -> failureAt offset "Expected a relative path but found an absolute path"
-        Right x -> pure x
     absPath :: Megaparsec.Parsec Void Text Path.Absolute
     absPath = do
       offset <- Megaparsec.getOffset
@@ -228,7 +225,7 @@ branchRelativePathParser =
     OnlyPath' path -> pure (UnqualifiedPath path)
     IncompleteProject _proj -> fail "Branch relative paths require a branch. Expected `/` here."
     IncompleteBranch _mproj _mbranch -> fail "Branch relative paths require a colon. Expected `:` here."
-    PathRelativeToCurrentBranch p -> pure (UnqualifiedPath (Path.RelativePath' p))
+    PathRelativeToCurrentBranch p -> pure (UnqualifiedPath (Path.AbsolutePath' p))
     IncompletePath projStuff mpath ->
       case projStuff of
         Left (ProjectAndBranch projName branchName) ->

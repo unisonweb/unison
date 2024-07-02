@@ -355,7 +355,7 @@ branchExistsAtPath' path' = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Updating branches
 
-makeActionsUnabsolute :: Functor f => f (Path.Absolute, x) -> f (Path, x)
+makeActionsUnabsolute :: (Functor f) => f (Path.Absolute, x) -> f (Path, x)
 makeActionsUnabsolute = fmap (first Path.unabsolute)
 
 stepAt ::
