@@ -10,6 +10,7 @@ dependencies:
   - containers
   - cryptonite
   - extra
+  - free
   - lens
   - megaparsec
   - mtl
