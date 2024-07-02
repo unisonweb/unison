@@ -44,6 +44,7 @@ import Unison.Cli.MergeTypes (MergeSourceAndTarget (..))
 import Unison.Cli.Pretty
 import Unison.Cli.ServantClientUtils qualified as ServantClientUtils
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Codebase.Editor.Input (BranchIdG (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
   ( CreatedProjectBranchFrom (..),
@@ -148,7 +149,6 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
-import Unison.Codebase.Editor.Input (BranchIdG(..))
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -815,11 +815,13 @@ notifyUser dir = \case
   DeleteEverythingConfirmation ->
     pure . P.warnCallout . P.lines $
       [ "Are you sure you want to clear away everything?",
-        P.wrap ("You could use "
-          <> IP.makeExample' IP.projectCreate
-          <> " to switch to a new project instead,"
-          <> " or delete the current branch with " <> IP.makeExample' IP.deleteBranch
-               )
+        P.wrap
+          ( "You could use "
+              <> IP.makeExample' IP.projectCreate
+              <> " to switch to a new project instead,"
+              <> " or delete the current branch with "
+              <> IP.makeExample' IP.deleteBranch
+          )
       ]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
   -- let
