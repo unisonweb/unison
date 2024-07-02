@@ -24,7 +24,6 @@ packages:
   lib/unison-util-relation
   lib/unison-util-rope
   lib/unison-util-file-embed
-  lib/unison-util-nametree
 
   parser-typechecker
   unison-core
