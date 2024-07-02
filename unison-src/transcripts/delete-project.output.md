@@ -43,7 +43,7 @@ scratch/main> projects
 foo/main> delete.project foo
 
   🎉 I've created the project with the randomly-chosen name
-  helpful-ladybug (use `project.rename <new-name>` to change
+  outstanding-rhino (use `project.rename <new-name>` to change
   it).
 
   🎨 Type `ui` to explore this project's code in your browser.
@@ -61,7 +61,7 @@ foo/main> delete.project foo
 scratch/main> projects
 
   1. bar
-  2. helpful-ladybug
+  2. outstanding-rhino
   3. scratch
 
 ```

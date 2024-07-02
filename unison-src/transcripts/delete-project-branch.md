@@ -25,3 +25,9 @@ You can delete the only branch in a project.
 ```ucm
 foo/main> delete.branch /main
 ```
+
+You can delete the last branch in the codebase
+
+```ucm
+scratch/main> delete.branch scratch/main
+```

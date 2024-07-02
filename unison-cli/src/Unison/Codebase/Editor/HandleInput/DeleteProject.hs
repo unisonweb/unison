@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.DeleteProject
   )
 where
 
-import Data.Function (on)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -20,16 +19,16 @@ handleDeleteProject :: ProjectName -> Cli ()
 handleDeleteProject projectName = do
   ProjectPath currentProject _ _ <- Cli.getCurrentProjectPath
 
-  deletedProject <-
+  projectToDelete <-
     Cli.runTransactionWithRollback \rollback -> do
-      project <-
-        Queries.loadProjectByName projectName & onNothingM do
-          rollback (Output.LocalProjectDoesntExist projectName)
-      Queries.deleteProject (project ^. #projectId)
-      pure project
+      Queries.loadProjectByName projectName & onNothingM do
+        rollback (Output.LocalProjectDoesntExist projectName)
 
   -- If the user is on the project that they're deleting, we create a new project to switch
   -- to.
-  when (((==) `on` (view #projectId)) deletedProject currentProject) do
+  when ((projectToDelete ^. #projectId) == (currentProject ^. #projectId)) do
     nextLoc <- projectCreate False Nothing
     Cli.switchProject nextLoc
+
+  Cli.runTransaction do
+    Queries.deleteProject (projectToDelete ^. #projectId)

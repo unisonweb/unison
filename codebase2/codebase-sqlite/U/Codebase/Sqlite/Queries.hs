@@ -3871,7 +3871,7 @@ deleteProject projectId = do
 --  After deleting `topic`:
 --
 --    main <- topic2
-deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+deleteProjectBranch :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction ()
 deleteProjectBranch projectId branchId = do
   maybeParentBranchId :: Maybe ProjectBranchId <-
     queryMaybeCol

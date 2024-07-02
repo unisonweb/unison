@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.HandleInput.DeleteBranch
   )
 where
 
+import Data.List qualified as List
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -41,11 +42,13 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
       Cli.runTransaction . runMaybeT $
         asum
           [ parentBranch (branchToDelete ^. #projectId) (branchToDelete ^. #parentBranchId),
-            findMainBranchInProject (currentProject ^. #projectId),
-            findAnyBranchInProject (currentProject ^. #projectId),
-            findAnyBranchInCodebase,
+            findMainBranchInProjectExcept (currentProject ^. #projectId) (branchToDelete ^. #branchId),
+            -- Any branch in the codebase except the one we're deleting
+            findAnyBranchInProjectExcept (branchToDelete ^. #projectId) (branchToDelete ^. #branchId),
+            findAnyBranchInCodebaseExcept (branchToDelete ^. #projectId) (branchToDelete ^. #branchId),
             createDummyProject
           ]
+
     nextLoc <- mayNextLocation `whenNothing` projectCreate False Nothing
     Cli.switchProject nextLoc
   doDeleteProjectBranch projectAndBranchToDelete
@@ -54,23 +57,24 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
     parentBranch projectId mayParentBranchId = do
       parentBranchId <- hoistMaybe mayParentBranchId
       pure (ProjectAndBranch projectId parentBranchId)
-    findMainBranchInProject :: ProjectId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
-    findMainBranchInProject projectId = do
+    findMainBranchInProjectExcept :: ProjectId -> ProjectBranchId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
+    findMainBranchInProjectExcept projectId exceptBranchId = do
       branch <- MaybeT $ Queries.loadProjectBranchByName projectId (unsafeFrom @Text "main")
+      guard (branch ^. #branchId /= exceptBranchId)
       pure (ProjectAndBranch projectId (branch ^. #branchId))
 
-    findAnyBranchInProject :: ProjectId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
-    findAnyBranchInProject projectId = do
-      (someBranchId, _) <- MaybeT . fmap listToMaybe $ Queries.loadAllProjectBranchesBeginningWith projectId Nothing
+    findAnyBranchInProjectExcept :: ProjectId -> ProjectBranchId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
+    findAnyBranchInProjectExcept projectId exceptBranchId = do
+      (someBranchId, _) <- MaybeT . fmap (List.find (\(branchId, _) -> branchId /= exceptBranchId)) $ Queries.loadAllProjectBranchesBeginningWith projectId Nothing
       pure (ProjectAndBranch projectId someBranchId)
-    findAnyBranchInCodebase :: MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
-    findAnyBranchInCodebase = do
-      (_, pbIds) <- MaybeT . fmap listToMaybe $ Queries.loadAllProjectBranchNamePairs
+    findAnyBranchInCodebaseExcept :: ProjectId -> ProjectBranchId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
+    findAnyBranchInCodebaseExcept exceptProjectId exceptBranchId = do
+      (_, pbIds) <- MaybeT . fmap (List.find (\(_, ids) -> ids /= ProjectAndBranch exceptProjectId exceptBranchId)) $ Queries.loadAllProjectBranchNamePairs
       pure pbIds
     createDummyProject = error "TODO: create new branch or project if we  delete the last branch you're on."
 
 -- | Delete a project branch and record an entry in the reflog.
-doDeleteProjectBranch :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Cli ()
+doDeleteProjectBranch :: (HasCallStack) => ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> Cli ()
 doDeleteProjectBranch projectAndBranch = do
   Cli.runTransaction do
     Queries.deleteProjectBranch projectAndBranch.project.projectId projectAndBranch.branch.branchId
