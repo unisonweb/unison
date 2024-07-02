@@ -1542,7 +1542,8 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence = \case
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence <$> handleSplitArg p
+  [Left "."] -> first fromString . pure $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
+  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence <$> (Just <$> handleSplitArg p)
   _ -> Left helpText
 
 renameBranch :: InputPattern

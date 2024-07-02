@@ -575,7 +575,16 @@ loop e = do
                   delete input doutput getTerms getTypes hqs
                 DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) getTypes hqs
                 DeleteTarget'Term doutput hqs -> delete input doutput getTerms (const (pure Set.empty)) hqs
-                DeleteTarget'Namespace insistence p@(parentPath, childName) -> do
+                DeleteTarget'Namespace insistence Nothing -> do
+                  hasConfirmed <- confirmedCommand input
+                  if hasConfirmed || insistence == Force
+                    then do
+                      description <- inputDescription input
+                      pp <- Cli.getCurrentProjectPath
+                      _ <- Cli.updateAt description pp (const Branch.empty)
+                      Cli.respond DeletedEverything
+                    else Cli.respond DeleteEverythingConfirmation
+                DeleteTarget'Namespace insistence (Just p@(parentPath, childName)) -> do
                   branch <- Cli.expectBranchAtPath (Path.unsplit p)
                   description <- inputDescription input
                   let toDelete =
@@ -947,10 +956,10 @@ inputDescription input =
           thing <- traverse hqs' thing0
           pure ("delete.type.verbose " <> Text.intercalate " " thing)
         DeleteTarget'Namespace Try opath0 -> do
-          opath <- ps opath0
+          opath <- ops opath0
           pure ("delete.namespace " <> opath)
         DeleteTarget'Namespace Force opath0 -> do
-          opath <- ps opath0
+          opath <- ops opath0
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
@@ -1053,6 +1062,8 @@ inputDescription input =
     p' = fmap tShow . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
     brp = fmap (into @Text) . ProjectUtils.resolveBranchRelativePath
+    ops :: Maybe Path.Split -> Cli Text
+    ops = maybe (pure ".") ps
     wat = error $ show input ++ " is not expected to alter the branch"
     hhqs' :: Either SH.ShortHash Path.HQSplit' -> Cli Text
     hhqs' = \case
@@ -1325,6 +1336,11 @@ doDisplay outputLoc names tm = do
           writeUtf8 filePath (txt <> "\n\n" <> existing)
         else do
           writeUtf8 filePath txt
+
+confirmedCommand :: Input -> Cli Bool
+confirmedCommand i = do
+  loopState <- State.get
+  pure $ Just i == (loopState ^. #lastInput)
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]

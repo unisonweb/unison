@@ -815,9 +815,11 @@ notifyUser dir = \case
   DeleteEverythingConfirmation ->
     pure . P.warnCallout . P.lines $
       [ "Are you sure you want to clear away everything?",
-        "You could use "
+        P.wrap ("You could use "
           <> IP.makeExample' IP.projectCreate
-          <> " to switch to a new project instead."
+          <> " to switch to a new project instead,"
+          <> " or delete the current branch with " <> IP.makeExample' IP.deleteBranch
+               )
       ]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
   -- let
