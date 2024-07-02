@@ -1,7 +1,7 @@
 # View commands
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison:hide
@@ -10,16 +10,16 @@ b.thing = "b"
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
 -- Should suffix-search and find values in sub-namespaces
-.> view thing
--- Should be local to namespace
-.a> view thing
+scratch/main> view thing
 -- view.global should search globally and be absolutely qualified
-.a> view.global thing
--- Should support absolute paths outside of current namespace
-.a> view .b.thing
+scratch/other> view.global thing
+-- Should support absolute paths
+scratch/main> view .b.thing
+-- Should support branch relative paths
+scratch/other> view /main:.a.thing
 ```
