@@ -1,23 +1,32 @@
 ```ucm:hide
-.> builtins.merge
+scratch/b1> builtins.merge lib.builtins
+scratch/b2> builtins.merge lib.builtins
+scratch/nsx> builtins.merge lib.builtins
+scratch/main> builtins.merge lib.builtins
 ```
 
 ```unison:hide
-b1.x = 23
-b1.fslkdjflskdjflksjdf = 663
-b2.x = 23
-b2.fslkdjflskdjflksjdf = 23
-b2.abc = 23
+x = 23
+fslkdjflskdjflksjdf = 663
 ```
 
 ```ucm
-.> add
-.> debug.alias.term.force b1.x b1.fslkdjflskdjflksjdf
+scratch/b1> add
+```
+
+```unison:hide
+x = 23
+fslkdjflskdjflksjdf = 23
+abc = 23
 ```
 
 ```ucm
-.> diff.namespace b1 b2
-.b2> diff.namespace .b1
+scratch/b2> add
+scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
+```
+
+```ucm
+scratch/main> diff.namespace /b1: /b2:
 ```
 Things we want to test:
 
@@ -42,20 +51,20 @@ structural ability X a1 a2 where x : ()
 ```
 
 ```ucm
-.ns1> add
-.ns1> alias.term fromJust fromJust'
-.ns1> alias.term helloWorld helloWorld2
-.ns1> fork .ns1 .ns2
+scratch/ns1> add
+scratch/ns1> alias.term fromJust fromJust'
+scratch/ns1> alias.term helloWorld helloWorld2
+scratch/ns1> branch /ns2
 ```
 
 Here's what we've done so far:
 
 ```ucm:error
-.> diff.namespace nothing ns1
+scratch/main> diff.namespace .nothing /ns1:
 ```
 
 ```ucm:error
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace /ns1: ns2:
 ```
 
 ```unison:hide
@@ -63,9 +72,9 @@ junk = "asldkfjasldkfj"
 ```
 
 ```ucm
-.ns1> add
-.ns1> debug.alias.term.force junk fromJust
-.ns1> delete.term junk
+scratch/ns1> add
+scratch/ns1> debug.alias.term.force junk fromJust
+scratch/ns1> delete.term junk
 ```
 
 ```unison:hide
@@ -78,25 +87,25 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update.old
-.> diff.namespace ns1 ns2
-.> alias.term ns2.d ns2.d'
-.> alias.type ns2.A ns2.A'
-.> alias.type ns2.X ns2.X'
-.> diff.namespace ns1 ns2
-.> alias.type ns1.X ns1.X2
-.> alias.type ns2.A' ns2.A''
-.> fork ns2 ns3
-.> alias.term ns2.fromJust' ns2.yoohoo
-.> delete.term.verbose ns2.fromJust'
-.> diff.namespace ns3 ns2
+scratch/ns2> update.old
+scratch/main> diff.namespace /ns1: /ns2:
+scratch/ns2> alias.term d d'
+scratch/ns2> alias.type A A'
+scratch/ns2> alias.type X X'
+scratch/main> diff.namespace /ns1: /ns2:
+scratch/ns1> alias.type X X2
+scratch/ns2> alias.type A' A''
+scratch/ns2> branch /ns3
+scratch/ns2> alias.term fromJust' yoohoo
+scratch/ns2> delete.term.verbose fromJust'
+scratch/main> diff.namespace /ns3: /ns2:
 ```
 ```unison:hide
 bdependent = "banana"
 ```
 ```ucm
-.ns3> update.old
-.> diff.namespace ns2 ns3
+scratch/ns3> update.old
+scratch/main> diff.namespace /ns2: /ns3:
 ```
 
 
@@ -111,17 +120,18 @@ b = a + 1
 ```
 
 ```ucm
-.nsx> add
-.> fork nsx nsy
-.> fork nsx nsz
+scratch/nsx> add
+scratch/nsx> branch /nsy
+scratch/nsx> branch /nsz
 ```
 
 ```unison:hide
 a = 444
+other = 555
 ```
 
 ```ucm
-.nsy> update.old
+scratch/nsy> update.old
 ```
 
 ```unison:hide
@@ -129,15 +139,16 @@ a = 555
 ```
 
 ```ucm
-.nsz> update.old
-.> fork nsy nsw
-.> debug.alias.term.force nsz.a nsw.a
-.> debug.alias.term.force nsz.b nsw.b
+scratch/nsz> update.old
+scratch/nsy> branch /nsw
+scratch/nsw> debug.alias.term.force .other .a
+scratch/nsw> delete.term .other
+scratch/main> debug.alias.term.force /nsz:.b /nsw:.b
 ```
 
 ```ucm
-.> diff.namespace nsx nsw
-.nsw> view a b
+scratch/main> diff.namespace nsx nsw
+scratch/main> view nsw.a nsw.b
 ```
 
 ## Should be able to diff a namespace hash from history.
@@ -147,7 +158,7 @@ x = 1
 ```
 
 ```ucm
-.hashdiff> add
+scratch/hashdiff> add
 ```
 
 ```unison
@@ -155,9 +166,9 @@ y = 2
 ```
 
 ```ucm
-.hashdiff> add
-.hashdiff> history
-.hashdiff> diff.namespace 2 1
+scratch/hashdiff> add
+scratch/hashdiff> history
+scratch/hashdiff> diff.namespace 2 1
 ```
 
 ##
