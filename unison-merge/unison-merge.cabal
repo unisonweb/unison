@@ -103,7 +103,6 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-cache
-    , unison-util-nametree
     , unison-util-relation
     , vector
     , witherable

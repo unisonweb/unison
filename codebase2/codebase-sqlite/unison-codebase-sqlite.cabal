@@ -126,6 +126,7 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core-orphans-sqlite
+    , unison-core1
     , unison-hash
     , unison-hash-orphans-sqlite
     , unison-prelude
@@ -133,7 +134,6 @@ library
     , unison-util-base32hex
     , unison-util-cache
     , unison-util-file-embed
-    , unison-util-nametree
     , unison-util-serialization
     , unison-util-term
     , unliftio
