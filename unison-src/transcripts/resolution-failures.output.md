@@ -31,9 +31,7 @@ two.ambiguousTerm = "term two"
 
 ```
 ```ucm
-  ☝️  The namespace .example.resolution_failures is empty.
-
-.example.resolution_failures> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   

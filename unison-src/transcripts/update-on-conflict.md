@@ -3,8 +3,7 @@
 Updating conflicted definitions works fine.
 
 ```ucm:hide
-.> builtins.merge
-.merged> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 ```unison
@@ -13,9 +12,9 @@ temp = 2
 ```
 
 ```ucm
-.> add
-.> debug.alias.term.force temp x
-.> delete.term temp
+scratch/main> add
+scratch/main> debug.alias.term.force temp x
+scratch/main> delete.term temp
 ```
 
 ```unison
@@ -23,6 +22,6 @@ x = 3
 ```
 
 ```ucm
-.> update
-.> view x
+scratch/main> update
+scratch/main> view x
 ```
