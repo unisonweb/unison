@@ -22,18 +22,18 @@ temp = 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     temp : Nat
     x    : Nat
 
-.> debug.alias.term.force temp x
+scratch/main> debug.alias.term.force temp x
 
   Done.
 
-.> delete.term temp
+scratch/main> delete.term temp
 
   Done.
 
@@ -57,14 +57,14 @@ x = 3
 
 ```
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view x
+scratch/main> view x
 
   x : Nat
   x = 3
