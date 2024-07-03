@@ -120,3 +120,25 @@ scratch/main> todo
 ```ucm:hide
 scratch/main> delete.project scratch
 ```
+
+# Missing constructor names
+
+The `todo` command complains about missing constructor names.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+scratch/main> add
+scratch/main> delete.term Foo.Bar
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```

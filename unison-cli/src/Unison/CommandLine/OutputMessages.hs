@@ -1402,11 +1402,11 @@ notifyUser dir = \case
               <> "the same on both branches, or making neither of them a builtin, and then try the merge again."
           )
       ]
+  -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
   MergeConstructorAlias aliceOrBob typeName conName1 conName2 ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
         "",
-        -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
         P.wrap $
           "On"
             <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
@@ -1418,6 +1418,7 @@ notifyUser dir = \case
         "",
         P.wrap "Please delete all but one name for each constructor, and then try merging again."
       ]
+  -- Note [DefnsInLibMessage] If you change this, also change the other similar one
   MergeDefnsInLib aliceOrBob ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -1425,12 +1426,12 @@ notifyUser dir = \case
         P.wrap $
           "On"
             <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-            -- Note [DefnsInLibMessage] If you change this, also change the other similar one
             <> "there's a type or term at the top level of the `lib` namespace, where I only expect to find"
             <> "subnamespaces representing library dependencies.",
         "",
         P.wrap "Please move or remove it and then try merging again."
       ]
+  -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
   MergeMissingConstructorName aliceOrBob name ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -2731,11 +2732,11 @@ handleTodoOutput todo
               else mempty
 
       prettyConstructorAliases <-
-        if null todo.incoherentDeclReasons.constructorAliases
-          then pure mempty
-          else do
+        case todo.incoherentDeclReasons.constructorAliases of
+          [] -> pure mempty
+          aliases -> do
             things <-
-              for todo.incoherentDeclReasons.constructorAliases \(typeName, conName1, conName2) -> do
+              for aliases \(typeName, conName1, conName2) -> do
                 n1 <- addNumberedArg (SA.Name conName1)
                 n2 <- addNumberedArg (SA.Name conName2)
                 pure (typeName, formatNum n1 <> prettyName conName1, formatNum n2 <> prettyName conName2)
@@ -2756,13 +2757,30 @@ handleTodoOutput todo
                   )
                 & P.sep "\n\n"
 
+      prettyMissingConstructorNames <-
+        case todo.incoherentDeclReasons.missingConstructorNames of
+          [] -> pure mempty
+          types0 -> do
+            types1 <-
+              for types0 \typ -> do
+                n <- addNumberedArg (SA.Name typ)
+                pure (formatNum n <> prettyName typ)
+            -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
+            pure $
+              P.wrap
+                "These types have some constructors with missing names:"
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines types1)
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
           prettyDirectTypeDependenciesWithoutNames,
           prettyConflicts,
           prettyDefnsInLib,
-          prettyConstructorAliases
+          prettyConstructorAliases,
+          prettyMissingConstructorNames
         ]
 
 listOfDefinitions ::

@@ -222,3 +222,42 @@ scratch/main> todo
     2. Foo.Two
 
 ```
+# Missing constructor names
+
+The `todo` command complains about missing constructor names.
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+scratch/main> delete.term Foo.Bar
+
+  Done.
+
+scratch/main> todo
+
+  These types have some constructors with missing names:
+  
+    1. Foo
+
+```
