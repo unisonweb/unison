@@ -3483,7 +3483,7 @@ getDeprecatedRootReflog numEntries =
       LIMIT :numEntries
     |]
 
-appendProjectBranchReflog :: ProjectReflog.Entry CausalHashId -> Transaction ()
+appendProjectBranchReflog :: ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId -> Transaction ()
 appendProjectBranchReflog entry =
   execute
     [sql|
@@ -3492,7 +3492,7 @@ appendProjectBranchReflog entry =
     |]
 
 -- | Get x number of entries from the project reflog for the provided project
-getProjectReflog :: Int -> ProjectId -> Transaction [ProjectReflog.Entry CausalHashId]
+getProjectReflog :: Int -> ProjectId -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
 getProjectReflog numEntries projectId =
   queryListRow
     [sql|
@@ -3504,7 +3504,7 @@ getProjectReflog numEntries projectId =
     |]
 
 -- | Get x number of entries from the project reflog for the provided branch.
-getProjectBranchReflog :: Int -> ProjectBranchId -> Transaction [ProjectReflog.Entry CausalHashId]
+getProjectBranchReflog :: Int -> ProjectBranchId -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
 getProjectBranchReflog numEntries projectBranchId =
   queryListRow
     [sql|
@@ -3516,7 +3516,7 @@ getProjectBranchReflog numEntries projectBranchId =
     |]
 
 -- | Get x number of entries from the global reflog spanning all projects
-getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry CausalHashId]
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
 getGlobalReflog numEntries =
   queryListRow
     [sql|

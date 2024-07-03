@@ -1493,24 +1493,34 @@ getDeprecatedRootReflog numEntries = do
   traverse (bitraverse Q.expectCausalHash pure) entries
 
 -- | Gets the specified number of reflog entries for the given project in chronological order, most recent first.
-getProjectReflog :: Int -> Db.ProjectId -> Transaction [ProjectReflog.Entry CausalHash]
+getProjectReflog :: Int -> Db.ProjectId -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
 getProjectReflog numEntries projectId = do
   entries <- Q.getProjectReflog numEntries projectId
-  (traverse . traverse) Q.expectCausalHash entries
+  traverse hydrateProjectReflogEntry entries
 
 -- | Gets the specified number of reflog entries for the specified ProjectBranch in chronological order, most recent first.
-getProjectBranchReflog :: Int -> Db.ProjectBranchId -> Transaction [ProjectReflog.Entry CausalHash]
+getProjectBranchReflog :: Int -> Db.ProjectBranchId -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
 getProjectBranchReflog numEntries projectBranchId = do
   entries <- Q.getProjectBranchReflog numEntries projectBranchId
-  (traverse . traverse) Q.expectCausalHash entries
+  traverse hydrateProjectReflogEntry entries
 
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
-getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry CausalHash]
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
 getGlobalReflog numEntries = do
   entries <- Q.getGlobalReflog numEntries
-  (traverse . traverse) Q.expectCausalHash entries
+  traverse hydrateProjectReflogEntry entries
 
-appendProjectReflog :: ProjectReflog.Entry CausalHash -> Transaction ()
+hydrateProjectReflogEntry :: ProjectReflog.Entry Db.ProjectId Db.ProjectBranchId Db.CausalHashId -> Transaction (ProjectReflog.Entry Project ProjectBranch CausalHash)
+hydrateProjectReflogEntry entry = do
+  traverse Q.expectCausalHash entry
+    >>= ProjectReflog.projectAndBranch_
+      %%~ ( \(projId, branchId) -> do
+              proj <- Q.expectProject projId
+              branch <- Q.expectProjectBranch projId branchId
+              pure (proj, branch)
+          )
+
+appendProjectReflog :: ProjectReflog.Entry Db.ProjectId Db.ProjectBranchId CausalHash -> Transaction ()
 appendProjectReflog entry = do
   dbEntry <- traverse Q.saveCausalHash entry
   Q.appendProjectBranchReflog dbEntry

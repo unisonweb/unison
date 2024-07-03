@@ -192,8 +192,9 @@ data Input
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowRootReflogI {- Deprecated -}
-  | ShowProjectReflog (Maybe ProjectName)
-  | ShowProjectBranchReflog (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
+  | ShowGlobalReflogI
+  | ShowProjectReflogI (Maybe ProjectName)
+  | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
   | UpdateBuiltinsI
   | MergeBuiltinsI (Maybe Path)
   | MergeIOBuiltinsI (Maybe Path)

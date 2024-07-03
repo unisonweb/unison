@@ -37,6 +37,7 @@ import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import Unison.ABT qualified as ABT
 import Unison.Auth.Types qualified as Auth
 import Unison.Builtin.Decls qualified as DD
@@ -553,6 +554,7 @@ notifyNumbered = \case
           & Set.toList
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
+  ShowProjectBranchReflog now moreToShow entries -> displayProjectBranchReflogEntries now moreToShow entries
   where
     absPathToBranchId = BranchAtPath
 
@@ -3375,3 +3377,37 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
               P.indentN 2 . P.numberedListFrom (length types) $ c . prettyHashQualified <$> terms
             ]
     c = P.syntaxToColor
+
+displayProjectBranchReflogEntries ::
+  UTCTime ->
+  E.MoreEntriesThanShown ->
+  [ProjectReflog.Entry Project ProjectBranch (CausalHash, ShortCausalHash)] ->
+  (Pretty, NumberedArgs)
+displayProjectBranchReflogEntries _ _ [] =
+  (P.warnCallout "The reflog is empty", mempty)
+displayProjectBranchReflogEntries now _ entries =
+  let (entryRows, numberedArgs) = foldMap renderEntry entries
+      rendered =
+        P.lines
+          [ header,
+            "",
+            P.numberedColumnNHeader ["Branch", "When", "Hash", "Description"] entryRows
+          ]
+   in (rendered, numberedArgs)
+  where
+    header =
+      P.lines
+        [ P.wrap $
+            "Below is a record of recent changes, you can use "
+              <> IP.makeExample IP.reset ["#abcdef"]
+              <> " to reset the current branch to a previous state.",
+          "",
+          tip $ "Use " <> IP.makeExample IP.diffNamespace ["1", "7"] <> " to compare between points in history."
+        ]
+    renderEntry :: ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash) -> ([[Pretty]], NumberedArgs)
+    renderEntry ProjectReflog.Entry {time, project, branch, toRootCausalHash = (toCH, toSCH), reason} =
+      ([[prettyProjectAndBranchName $ ProjectAndBranch project.name branch.name, prettyHumanReadableTime now time, P.blue (prettySCH toSCH), P.text $ truncateReason reason]], [SA.Namespace toCH])
+    truncateReason :: Text -> Text
+    truncateReason txt = case Text.splitAt 60 txt of
+      (short, "") -> short
+      (short, _) -> short <> "..."

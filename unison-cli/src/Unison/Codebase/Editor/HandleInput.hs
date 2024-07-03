@@ -79,6 +79,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
 import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
+import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
@@ -243,6 +244,14 @@ loop e = do
                       -- No expectation, either because this is the most recent entry or
                       -- because we're recovering from a discontinuity
                       Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+            ShowProjectBranchReflogI mayProjBranch -> do
+              Reflogs.showProjectBranchReflog mayProjBranch
+            ShowGlobalReflogI -> do
+              Reflogs.showGlobalReflog
+            ShowProjectReflogI mayProj -> do
+              Reflogs.showProjectReflog mayProj
+            ShowProjectReflogI mayProj -> do
+              Reflogs.showProjectReflog mayProj
             ResetI newRoot mtarget -> do
               newRoot <-
                 case newRoot of
@@ -1045,11 +1054,11 @@ inputDescription input =
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     ShowRootReflogI {} -> pure "deprecated.root-reflog"
-    ShowProjectReflog mayProjName -> do
+    ShowProjectReflogI mayProjName -> do
       case mayProjName of
         Nothing -> pure "project.reflog"
         Just projName -> pure $ "project.reflog" <> into @Text projName
-    ShowProjectBranchReflog mayProjBranch -> do
+    ShowProjectBranchReflogI mayProjBranch -> do
       case mayProjBranch of
         Nothing -> pure "branch.reflog"
         Just (PP.ProjectAndBranch Nothing branchName) -> pure $ "branch.reflog" <> into @Text branchName

@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     TodoOutput (..),
     todoOutputIsEmpty,
+    MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
     UpdateOrUpgrade (..),
@@ -29,6 +30,7 @@ import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import Unison.Auth.Types (CredentialFailure)
 import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
@@ -43,7 +45,7 @@ import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ProjectPath (ProjectPath)
+import Unison.Codebase.ProjectPath (Project, ProjectBranch, ProjectPath)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -57,6 +59,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -83,7 +86,6 @@ import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
-import qualified Unison.Names as Names
 
 type ListDetailed = Bool
 
@@ -152,6 +154,7 @@ data NumberedOutput
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
       ProjectPath -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
+  | ShowProjectBranchReflog UTCTime {- current time -} MoreEntriesThanShown [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
 
 data TodoOutput = TodoOutput
   { dependentsOfTodo :: !(Set TermReferenceId),
@@ -187,15 +190,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
+      -- | what we were trying to do (e.g. "run", "io.test")
       Text
-      -- ^ what we were trying to do (e.g. "run", "io.test")
+      -- | name of function
       (HQ.HashQualified Name)
-      -- ^ name of function
+      -- | bad type of function
       (Type Symbol Ann)
-      -- ^ bad type of function
       PPE.PrettyPrintEnv
+      -- | acceptable type(s) of function
       [Type Symbol Ann]
-      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -232,12 +235,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
+      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      -- | Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
-      -- ^ Misses (search terms that returned no hits for terms or types)
+      -- | Hits for types if we are searching for terms or terms if we are searching for types
       [HQ.HashQualified Name]
-      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -379,8 +382,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
+      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
-      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -419,6 +422,9 @@ data Output
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
+
+data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
+  deriving (Eq, Show)
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -677,3 +683,4 @@ isNumberedFailure = \case
   ListNamespaceDependencies {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False
+  ShowProjectBranchReflog {} -> False

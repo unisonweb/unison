@@ -2279,8 +2279,8 @@ branchReflog =
         ]
     )
     ( \case
-        [] -> pure $ Input.ShowProjectBranchReflog Nothing
-        [branchRef] -> Input.ShowProjectBranchReflog <$> (Just <$> handleMaybeProjectBranchArg branchRef)
+        [] -> pure $ Input.ShowProjectBranchReflogI Nothing
+        [branchRef] -> Input.ShowProjectBranchReflogI <$> (Just <$> handleMaybeProjectBranchArg branchRef)
         _ -> Left (I.help branchReflog)
     )
 
@@ -2297,8 +2297,8 @@ projectReflog =
         ]
     )
     ( \case
-        [] -> pure $ Input.ShowProjectReflog Nothing
-        [projectRef] -> Input.ShowProjectReflog <$> (Just <$> handleProjectArg projectRef)
+        [] -> pure $ Input.ShowProjectReflogI Nothing
+        [projectRef] -> Input.ShowProjectReflogI <$> (Just <$> handleProjectArg projectRef)
         _ -> Left (I.help projectReflog)
     )
 

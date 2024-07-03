@@ -76,6 +76,9 @@ module Unison.Codebase
 
     -- * Reflog
     Operations.getDeprecatedRootReflog,
+    Operations.getProjectBranchReflog,
+    Operations.getProjectReflog,
+    Operations.getGlobalReflog,
 
     -- * Unambiguous hash length
     SqliteCodebase.Operations.hashLength,
