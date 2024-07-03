@@ -1461,6 +1461,7 @@ notifyUser dir = \case
         <> P.group (prettyName shorterName <> ".")
         <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
         <> "delete one copy, and then try merging again."
+  -- Note [StrayConstructorMessage] If you change this, also change the other similar one
   MergeStrayConstructor aliceOrBob name ->
     pure . P.lines $
       [ P.wrap $
@@ -2685,7 +2686,7 @@ handleTodoOutput todo
                         & P.syntaxToColor
                 pure (formatNum n <> name)
             pure $
-              P.wrap "These terms call `todo`:"
+              P.wrap "These terms call `todo`."
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines terms)
@@ -2699,7 +2700,7 @@ handleTodoOutput todo
                 n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
                 pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
             pure $
-              P.wrap "These terms do not have any names in the current namespace:"
+              P.wrap "These terms do not have any names in the current namespace."
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines terms)
@@ -2713,7 +2714,7 @@ handleTodoOutput todo
                 n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
                 pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
             pure $
-              P.wrap "These types do not have any names in the current namespace:"
+              P.wrap "These types do not have any names in the current namespace."
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines types)
@@ -2787,7 +2788,7 @@ handleTodoOutput todo
             -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
             pure $
               P.wrap
-                "These types have some constructors with missing names:"
+                "These types have some constructors with missing names."
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines types1)
@@ -2816,6 +2817,24 @@ handleTodoOutput todo
                   )
                 & P.sep "\n\n"
 
+      prettyStrayConstructors <-
+        case todo.incoherentDeclReasons.strayConstructors of
+          [] -> pure mempty
+          constructors0 -> do
+            constructors1 <-
+              for constructors0 \constructor -> do
+                n <- addNumberedArg (SA.Name constructor)
+                pure (formatNum n <> prettyName constructor)
+            -- Note [StrayConstructorMessage] If you change this, also change the other similar one
+            pure $
+              P.wrap
+                ( "These constructors are not nested beneath their corresponding type names. Please either move or"
+                    <> "delete them."
+                )
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines constructors1)
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
@@ -2824,7 +2843,8 @@ handleTodoOutput todo
           prettyDefnsInLib,
           prettyConstructorAliases,
           prettyMissingConstructorNames,
-          prettyNestedDeclAliases
+          prettyNestedDeclAliases,
+          prettyStrayConstructors
         ]
 
 listOfDefinitions ::

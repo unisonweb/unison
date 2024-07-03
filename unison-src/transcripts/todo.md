@@ -164,3 +164,25 @@ scratch/main> todo
 ```ucm:hide
 scratch/main> delete.project scratch
 ```
+
+# Stray constructors
+
+The `todo` command complains about stray constructors.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+scratch/main> add
+scratch/main> alias.term Foo.Bar Baz
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```

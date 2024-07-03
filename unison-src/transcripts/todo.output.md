@@ -44,7 +44,7 @@ scratch/main> add
 
 scratch/main> todo
 
-  These terms call `todo`:
+  These terms call `todo`.
   
     1. foo
 
@@ -95,7 +95,7 @@ scratch/main> delete.namespace.force foo
 
 scratch/main> todo
 
-  These terms do not have any names in the current namespace:
+  These terms do not have any names in the current namespace.
   
     1. #1jujb8oelv
 
@@ -256,7 +256,7 @@ scratch/main> delete.term Foo.Bar
 
 scratch/main> todo
 
-  These types have some constructors with missing names:
+  These types have some constructors with missing names.
   
     1. Foo
 
@@ -299,5 +299,45 @@ scratch/main> todo
   
     1. Foo
     2. Foo.inner.Bar
+
+```
+# Stray constructors
+
+The `todo` command complains about stray constructors.
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+scratch/main> alias.term Foo.Bar Baz
+
+  Done.
+
+scratch/main> todo
+
+  These constructors are not nested beneath their corresponding
+  type names. Please either move or delete them.
+  
+    1. Baz
 
 ```
