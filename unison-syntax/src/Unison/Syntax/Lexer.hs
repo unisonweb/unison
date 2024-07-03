@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Syntax.Lexer
   ( Token (..),
@@ -51,6 +52,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
+import Unison.Parser.Ann (Ann (Ann), Annotated (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -63,6 +65,9 @@ import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
 import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
+
+instance Annotated (Token a) where
+  ann (Token _ s e) = Ann s e
 
 type BlockName = String
 

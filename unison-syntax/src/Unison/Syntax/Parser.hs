@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Syntax.Parser
   ( Annotated (..),
@@ -77,7 +78,7 @@ import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.Parser.Ann (Ann (..))
+import Unison.Parser.Ann (Ann (..), Annotated (..))
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -177,24 +178,11 @@ newtype Input = Input {inputStream :: [L.Token L.Lexeme]}
   deriving stock (Eq, Ord, Show)
   deriving newtype (P.Stream, P.VisualStream)
 
-class Annotated a where
-  ann :: a -> Ann
-
-instance Annotated Ann where
-  ann = id
-
-instance Annotated (L.Token a) where
-  ann (L.Token _ s e) = Ann s e
-
 instance (Annotated a) => Annotated (ABT.Term f v a) where
   ann = ann . ABT.annotation
 
 instance (Annotated a) => Annotated (Pattern a) where
   ann = ann . Pattern.loc
-
-instance (Annotated a) => Annotated [a] where
-  ann [] = mempty
-  ann (h : t) = foldl' (\acc a -> acc <> ann a) (ann h) t
 
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
