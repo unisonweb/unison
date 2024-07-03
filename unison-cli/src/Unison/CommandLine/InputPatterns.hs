@@ -124,6 +124,7 @@ module Unison.CommandLine.InputPatterns
     deprecatedViewRootReflog,
     branchReflog,
     projectReflog,
+    globalReflog,
 
     -- * Misc
     formatStructuredArgument,
@@ -2300,6 +2301,22 @@ projectReflog =
         [] -> pure $ Input.ShowProjectReflogI Nothing
         [projectRef] -> Input.ShowProjectReflogI <$> (Just <$> handleProjectArg projectRef)
         _ -> Left (I.help projectReflog)
+    )
+
+globalReflog :: InputPattern
+globalReflog =
+  InputPattern
+    "reflog.global"
+    []
+    I.Visible
+    []
+    ( P.lines
+        [ "`reflog.global` lists all recent changes across all projects and branches."
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ShowGlobalReflogI
+        _ -> Left (I.help globalReflog)
     )
 
 edit :: InputPattern

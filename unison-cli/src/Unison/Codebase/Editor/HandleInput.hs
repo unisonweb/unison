@@ -114,7 +114,6 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
-import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
@@ -248,8 +247,6 @@ loop e = do
               Reflogs.showProjectBranchReflog mayProjBranch
             ShowGlobalReflogI -> do
               Reflogs.showGlobalReflog
-            ShowProjectReflogI mayProj -> do
-              Reflogs.showProjectReflog mayProj
             ShowProjectReflogI mayProj -> do
               Reflogs.showProjectReflog mayProj
             ResetI newRoot mtarget -> do
@@ -1054,6 +1051,7 @@ inputDescription input =
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     ShowRootReflogI {} -> pure "deprecated.root-reflog"
+    ShowGlobalReflogI {} -> pure "reflog.global"
     ShowProjectReflogI mayProjName -> do
       case mayProjName of
         Nothing -> pure "project.reflog"
