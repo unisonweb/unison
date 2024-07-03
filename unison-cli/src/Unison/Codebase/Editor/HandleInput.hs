@@ -210,11 +210,11 @@ loop e = do
                       ]
             CreateMessage pretty ->
               Cli.respond $ PrintMessage pretty
-            ShowReflogI -> do
+            ShowRootReflogI -> do
               let numEntriesToShow = 500
               (schLength, entries) <-
                 Cli.runTransaction $
-                  (,) <$> Codebase.branchHashLength <*> Codebase.getReflog numEntriesToShow
+                  (,) <$> Codebase.branchHashLength <*> Codebase.getDeprecatedRootReflog numEntriesToShow
               let moreEntriesToLoad = length entries == numEntriesToShow
               let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
               let (shortEntries, numberedEntries) =
@@ -1044,7 +1044,16 @@ inputDescription input =
     ShowDefinitionI {} -> wat
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
-    ShowReflogI {} -> wat
+    ShowRootReflogI {} -> pure "deprecated.root-reflog"
+    ShowProjectReflog mayProjName -> do
+      case mayProjName of
+        Nothing -> pure "project.reflog"
+        Just projName -> pure $ "project.reflog" <> into @Text projName
+    ShowProjectBranchReflog mayProjBranch -> do
+      case mayProjBranch of
+        Nothing -> pure "branch.reflog"
+        Just (PP.ProjectAndBranch Nothing branchName) -> pure $ "branch.reflog" <> into @Text branchName
+        Just (PP.ProjectAndBranch (Just projName) branchName) -> pure $ "branch.reflog" <> into @Text (PP.ProjectAndBranch projName branchName)
     SwitchBranchI {} -> wat
     TestI {} -> wat
     TodoI {} -> wat

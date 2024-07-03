@@ -19,7 +19,7 @@ x = 1
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -44,55 +44,43 @@ y = 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     y : Nat
 
-.> view y
+scratch/main> view y
 
   y : Nat
   y = 2
 
 ```
 ```ucm
-.> reflog
+scratch/main> reflog
 
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  ⚠️
   
-    `fork 2 .old`             
-    `fork #p611n6o5ve .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #p611n6o5ve`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When   Root Hash     Action
-  1.   now    #rmu2vgm86a   add
-  2.   now    #p611n6o5ve   add
-  3.   now    #4bigcpnl7t   builtins.merge
-  4.          #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
+  The reflog is empty
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
 ```ucm
-.> reset-root 2
-
-  Done.
+scratch/main> reset-root 2
 
 ```
 ```ucm
-.> view y
+scratch/main> view y
 
-  ⚠️
-  
-  The following names were not found in the codebase. Check your spelling.
-    y
+  y : Nat
+  y = 2
 
 ```
+
+```
+
+
+
+🛑
+
+The transcript was expecting an error in the stanza above, but did not encounter one.

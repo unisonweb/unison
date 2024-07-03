@@ -121,7 +121,9 @@ module Unison.CommandLine.InputPatterns
     upgradeCommitInputPattern,
     view,
     viewGlobal,
-    viewReflog,
+    deprecatedViewRootReflog,
+    branchReflog,
+    projectReflog,
 
     -- * Misc
     formatStructuredArgument,
@@ -2246,19 +2248,58 @@ mergeOldPreviewInputPattern =
           branchInclusion = AllBranches
         }
 
-viewReflog :: InputPattern
-viewReflog =
+deprecatedViewRootReflog :: InputPattern
+deprecatedViewRootReflog =
   InputPattern
-    "reflog"
+    "deprecated.root-reflog"
     []
     I.Visible
     []
-    "`reflog` lists the changes that have affected the root namespace"
+    ( "`deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of "
+        <> makeExample branchReflog []
+        <> " which shows the reflog for the current project."
+    )
     ( \case
-        [] -> pure Input.ShowReflogI
+        [] -> pure Input.ShowRootReflogI
         _ ->
           Left . warn . P.string $
-            I.patternName viewReflog ++ " doesn't take any arguments."
+            I.patternName deprecatedViewRootReflog ++ " doesn't take any arguments."
+    )
+
+branchReflog :: InputPattern
+branchReflog =
+  InputPattern
+    "branch.reflog"
+    ["reflog.branch", "reflog"]
+    I.Visible
+    []
+    ( P.lines
+        [ "`branch.reflog` lists all the changes that have affected the current branch.",
+          "`branch.reflog /mybranch` lists all the changes that have affected /mybranch."
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ShowProjectBranchReflog Nothing
+        [branchRef] -> Input.ShowProjectBranchReflog <$> (Just <$> handleMaybeProjectBranchArg branchRef)
+        _ -> Left (I.help branchReflog)
+    )
+
+projectReflog :: InputPattern
+projectReflog =
+  InputPattern
+    "project.reflog"
+    ["reflog.project"]
+    I.Visible
+    []
+    ( P.lines
+        [ "`project.reflog` lists all the changes that have affected any branches in the current project.",
+          "`project.reflog myproject` lists all the changes that have affected any branches in myproject."
+        ]
+    )
+    ( \case
+        [] -> pure $ Input.ShowProjectReflog Nothing
+        [projectRef] -> Input.ShowProjectReflog <$> (Just <$> handleProjectArg projectRef)
+        _ -> Left (I.help projectReflog)
     )
 
 edit :: InputPattern
@@ -3421,7 +3462,9 @@ validInputs =
       upgradeCommitInputPattern,
       view,
       viewGlobal,
-      viewReflog
+      deprecatedViewRootReflog,
+      branchReflog,
+      projectReflog
     ]
 
 -- | A map of all command patterns by pattern name or alias.

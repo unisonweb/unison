@@ -191,7 +191,9 @@ data Input
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
-  | ShowReflogI
+  | ShowRootReflogI {- Deprecated -}
+  | ShowProjectReflog (Maybe ProjectName)
+  | ShowProjectBranchReflog (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
   | UpdateBuiltinsI
   | MergeBuiltinsI (Maybe Path)
   | MergeIOBuiltinsI (Maybe Path)

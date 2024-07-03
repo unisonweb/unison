@@ -101,8 +101,7 @@ module U.Codebase.Sqlite.Operations
     expectProjectBranchHead,
 
     -- * reflog
-    getReflog,
-    appendReflog,
+    getDeprecatedRootReflog,
     getProjectReflog,
     appendProjectReflog,
 
@@ -1486,15 +1485,10 @@ namespaceStatsForDbBranch = \case
         expectNamespaceStatsByHashId bhId
 
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
-getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
-getReflog numEntries = do
-  entries <- Q.getReflog numEntries
+getDeprecatedRootReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getDeprecatedRootReflog numEntries = do
+  entries <- Q.getDeprecatedRootReflog numEntries
   traverse (bitraverse Q.expectCausalHash pure) entries
-
-appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
-appendReflog entry = do
-  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
-  Q.appendReflog dbEntry
 
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
 getProjectReflog :: Int -> Transaction [ProjectReflog.Entry CausalHash]

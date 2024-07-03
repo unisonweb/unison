@@ -222,8 +222,8 @@ notifyNumbered = \case
                   <> "to run the tests."
                   <> "Or you can use"
                   <> IP.makeExample' IP.undo
-                  <> " or"
-                  <> IP.makeExample' IP.viewReflog
+                  <> " or use a hash from "
+                  <> IP.makeExample' IP.branchReflog
                   <> " to undo the results of this merge."
             ]
       )
@@ -249,8 +249,8 @@ notifyNumbered = \case
                   <> "to run the tests."
                   <> "Or you can use"
                   <> IP.makeExample' IP.undo
-                  <> " or"
-                  <> IP.makeExample' IP.viewReflog
+                  <> " or use a hash from "
+                  <> IP.makeExample' IP.branchReflog
                   <> " to undo the results of this merge."
             ]
       )
@@ -561,8 +561,8 @@ undoTip =
   tip $
     "You can use"
       <> IP.makeExample' IP.undo
-      <> "or"
-      <> IP.makeExample' IP.viewReflog
+      <> " or use a hash from "
+      <> IP.makeExample' IP.branchReflog
       <> "to undo this change."
 
 notifyUser :: FilePath -> Output -> IO Pretty

@@ -75,7 +75,7 @@ module Unison.Codebase
     Queries.clearWatches,
 
     -- * Reflog
-    Operations.getReflog,
+    Operations.getDeprecatedRootReflog,
 
     -- * Unambiguous hash length
     SqliteCodebase.Operations.hashLength,

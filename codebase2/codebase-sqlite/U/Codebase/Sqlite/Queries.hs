@@ -211,8 +211,7 @@ module U.Codebase.Sqlite.Queries
     fuzzySearchTypes,
 
     -- * Reflog
-    appendReflog,
-    getReflog,
+    getDeprecatedRootReflog,
     appendProjectReflog,
     getProjectReflog,
 
@@ -3472,16 +3471,8 @@ loadNamespaceStatsByHashId bhId = do
       WHERE namespace_hash_id = :bhId
     |]
 
-appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
-appendReflog entry =
-  execute
-    [sql|
-      INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason)
-      VALUES (@entry, @, @, @)
-    |]
-
-getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
-getReflog numEntries =
+getDeprecatedRootReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
+getDeprecatedRootReflog numEntries =
   queryListRow
     [sql|
       SELECT time, from_root_causal_id, to_root_causal_id, reason
