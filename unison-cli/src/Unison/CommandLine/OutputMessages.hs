@@ -1450,6 +1450,7 @@ notifyUser dir = \case
             <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
             <> "to give names to each unnamed constructor, and then try the merge again."
       ]
+  -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
   MergeNestedDeclAlias aliceOrBob shorterName longerName ->
     pure . P.wrap $
       "On"
@@ -2732,30 +2733,48 @@ handleTodoOutput todo
               else mempty
 
       prettyConstructorAliases <-
-        case todo.incoherentDeclReasons.constructorAliases of
-          [] -> pure mempty
-          aliases -> do
-            things <-
-              for aliases \(typeName, conName1, conName2) -> do
-                n1 <- addNumberedArg (SA.Name conName1)
-                n2 <- addNumberedArg (SA.Name conName2)
-                pure (typeName, formatNum n1 <> prettyName conName1, formatNum n2 <> prettyName conName2)
-            pure $
-              things
-                & map
-                  ( \(typeName, prettyCon1, prettyCon2) ->
-                      -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
-                      P.wrap
-                        ( "The type"
-                            <> prettyName typeName
-                            <> "has a constructor with multiple names. Please delete all but one name for each"
-                            <> "constructor."
-                        )
-                        <> P.newline
-                        <> P.newline
-                        <> P.indentN 2 (P.lines [prettyCon1, prettyCon2])
-                  )
-                & P.sep "\n\n"
+        let -- We want to filter out constructor aliases whose types are part of a "nested decl alias" problem, because
+            -- otherwise we'd essentially be reporting those issues twice.
+            --
+            -- That is, if we have two nested aliases like
+            --
+            --   Foo = #XYZ
+            --   Foo.Bar = #XYZ#0
+            --
+            --   Foo.inner.Alias = #XYZ
+            --   Foo.inner.Alias.Constructor = #XYZ#0
+            --
+            -- then we'd prefer to say "oh no Foo and Foo.inner.Alias are aliases" but *not* additionally say "oh no
+            -- Foo.Bar and Foo.inner.Alias.Constructor are aliases".
+            notNestedDeclAlias (typeName, _, _) =
+              foldr
+                (\(short, long) acc -> typeName /= short && typeName /= long && acc)
+                True
+                todo.incoherentDeclReasons.nestedDeclAliases
+         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+              [] -> pure mempty
+              aliases -> do
+                things <-
+                  for aliases \(typeName, conName1, conName2) -> do
+                    n1 <- addNumberedArg (SA.Name conName1)
+                    n2 <- addNumberedArg (SA.Name conName2)
+                    pure (typeName, formatNum n1 <> prettyName conName1, formatNum n2 <> prettyName conName2)
+                pure $
+                  things
+                    & map
+                      ( \(typeName, prettyCon1, prettyCon2) ->
+                          -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
+                          P.wrap
+                            ( "The type"
+                                <> prettyName typeName
+                                <> "has a constructor with multiple names. Please delete all but one name for each"
+                                <> "constructor."
+                            )
+                            <> P.newline
+                            <> P.newline
+                            <> P.indentN 2 (P.lines [prettyCon1, prettyCon2])
+                      )
+                    & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
         case todo.incoherentDeclReasons.missingConstructorNames of
@@ -2773,6 +2792,30 @@ handleTodoOutput todo
                 <> P.newline
                 <> P.indentN 2 (P.lines types1)
 
+      prettyNestedDeclAliases <-
+        case todo.incoherentDeclReasons.nestedDeclAliases of
+          [] -> pure mempty
+          aliases0 -> do
+            aliases1 <-
+              for aliases0 \(short, long) -> do
+                n1 <- addNumberedArg (SA.Name short)
+                n2 <- addNumberedArg (SA.Name long)
+                pure (formatNum n1 <> prettyName short, formatNum n2 <> prettyName long)
+            -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
+            pure $
+              aliases1
+                & map
+                  ( \(short, long) ->
+                      P.wrap
+                        ( "These types are aliases, but one is nested under the other. Please separate them or delete"
+                            <> "one copy."
+                        )
+                        <> P.newline
+                        <> P.newline
+                        <> P.indentN 2 (P.lines [short, long])
+                  )
+                & P.sep "\n\n"
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
@@ -2780,7 +2823,8 @@ handleTodoOutput todo
           prettyConflicts,
           prettyDefnsInLib,
           prettyConstructorAliases,
-          prettyMissingConstructorNames
+          prettyMissingConstructorNames,
+          prettyNestedDeclAliases
         ]
 
 listOfDefinitions ::

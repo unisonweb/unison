@@ -261,3 +261,43 @@ scratch/main> todo
     1. Foo
 
 ```
+# Nested decl aliases
+
+The `todo` command complains about nested decl aliases.
+
+```unison
+structural type Foo a = One a | Two a a
+structural type Foo.inner.Bar a = Uno a | Dos a a
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo a
+      structural type Foo.inner.Bar a
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    structural type Foo a
+    structural type Foo.inner.Bar a
+
+scratch/main> todo
+
+  These types are aliases, but one is nested under the other.
+  Please separate them or delete one copy.
+  
+    1. Foo
+    2. Foo.inner.Bar
+
+```

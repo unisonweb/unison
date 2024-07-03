@@ -142,3 +142,25 @@ scratch/main> todo
 ```ucm:hide
 scratch/main> delete.project scratch
 ```
+
+# Nested decl aliases
+
+The `todo` command complains about nested decl aliases.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+structural type Foo a = One a | Two a a
+structural type Foo.inner.Bar a = Uno a | Dos a a
+```
+
+```ucm
+scratch/main> add
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
