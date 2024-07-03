@@ -1071,11 +1071,11 @@ inputDescription input =
     VersionI -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
-    hp' = either (pure . Text.pack . show) p'
+    hp' = either (pure . into @Text) p'
     p :: Path -> Cli Text
-    p = fmap tShow . Cli.resolvePath
+    p = fmap (into @Text) . Cli.resolvePath
     p' :: Path' -> Cli Text
-    p' = fmap tShow . Cli.resolvePath'
+    p' = fmap (into @Text) . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
     brp = fmap (into @Text) . ProjectUtils.resolveBranchRelativePath
     ops :: Maybe Path.Split -> Cli Text

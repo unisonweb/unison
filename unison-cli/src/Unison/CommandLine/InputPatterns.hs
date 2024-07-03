@@ -3481,7 +3481,8 @@ validInputs =
       viewGlobal,
       deprecatedViewRootReflog,
       branchReflog,
-      projectReflog
+      projectReflog,
+      globalReflog
     ]
 
 -- | A map of all command patterns by pattern name or alias.

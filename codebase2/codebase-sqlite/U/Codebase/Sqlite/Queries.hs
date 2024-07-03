@@ -3498,8 +3498,8 @@ getProjectReflog numEntries projectId =
     [sql|
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
       FROM project_branch_reflog
-      ORDER BY time DESC
       WHERE project_id = :projectId
+      ORDER BY time DESC
       LIMIT :numEntries
     |]
 
@@ -3510,8 +3510,8 @@ getProjectBranchReflog numEntries projectBranchId =
     [sql|
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
       FROM project_branch_reflog
-      ORDER BY time DESC
       WHERE project_branch_id = :projectBranchId
+      ORDER BY time DESC
       LIMIT :numEntries
     |]
 

@@ -2,8 +2,7 @@
 scratch/main> builtins.merge lib.builtins
 ```
 
-First we make two changes to the codebase, so that there's more than one line
-for the `reflog` command to display:
+First we make some changes to the codebase so there's data in the reflog.
 
 ```unison
 x = 1
@@ -16,16 +15,27 @@ y = 2
 ```
 ```ucm
 scratch/main> add
-scratch/main> view y
+scratch/main> branch /other
+scratch/other> alias.term y z
+newproject/main> builtins.merge lib.builtins
+newproject/main> alias.type lib.builtins.Nat MyNat
 ```
+
+Should see reflog entries from the current branch
+
 ```ucm
 scratch/main> reflog
 ```
 
-If we `reset-root` to its previous value, `y` disappears.
+Should see reflog entries from the current project
+
 ```ucm
-scratch/main> reset-root 2
+scratch/main> project.reflog
 ```
-```ucm:error
-scratch/main> view y
+
+
+Should see reflog entries from all projects
+
+```ucm
+scratch/main> reflog.global
 ```

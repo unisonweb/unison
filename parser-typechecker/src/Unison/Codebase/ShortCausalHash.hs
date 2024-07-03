@@ -48,3 +48,6 @@ fromText _ = Nothing
 
 instance Show ShortCausalHash where
   show (ShortCausalHash h) = '#' : Text.unpack h
+
+instance From ShortCausalHash Text where
+  from = toText

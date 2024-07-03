@@ -1,3 +1,4 @@
+-- A reflog which is tied to the project/branch
 CREATE TABLE project_branch_reflog (
     project_id INTEGER NOT NULL,
     project_branch_id INTEGER NOT NULL,
@@ -23,4 +24,9 @@ CREATE INDEX project_branch_reflog_by_time ON project_branch_reflog (
 CREATE INDEX project_reflog_by_time ON project_branch_reflog (
   project_id, time DESC
 );
+
+CREATE INDEX global_reflog_by_time ON project_branch_reflog (
+  time DESC
+);
+
 
