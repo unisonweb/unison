@@ -1,7 +1,6 @@
 # Unison
 .unison*
 test-output
-transcript-*
 scratch.u
 unisonLocal.zip
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
@@ -103,7 +104,7 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
     log "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
   log "Updating Namespace Root..."
-  rootCausalHashId <- Q.expectNamespaceRoot
+  rootCausalHashId <- expectNamespaceRoot
   numEntitiesToMigrate <- sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
   v2EmptyBranchHashInfo <- saveV2EmptyBranch
   watches <-
@@ -115,7 +116,7 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
       `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
   let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
   log "Updating Namespace Root..."
-  Q.setNamespaceRoot newRootCausalHashId
+  setNamespaceRoot newRootCausalHashId
   log "Rewriting old object IDs..."
   ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
     Q.recordObjectRehash oldObjId newObjId
@@ -148,6 +149,23 @@ migrateSchema1To2 getDeclType termBuffer declBuffer = do
           allDone :: StateT MigrationState Sqlite.Transaction ()
           allDone = lift $ log $ "\nFinished migrating, initiating cleanup."
        in Sync.Progress {need, done, error = errorHandler, allDone}
+
+expectNamespaceRoot :: Sqlite.Transaction CausalHashId
+expectNamespaceRoot =
+  Sqlite.queryOneCol loadNamespaceRootSql
+
+loadNamespaceRootSql :: Sqlite.Sql
+loadNamespaceRootSql =
+  [Sqlite.sql|
+    SELECT causal_id
+    FROM namespace_root
+  |]
+
+setNamespaceRoot :: CausalHashId -> Sqlite.Transaction ()
+setNamespaceRoot id =
+  Sqlite.queryOneCol [Sqlite.sql| SELECT EXISTS (SELECT 1 FROM namespace_root) |] >>= \case
+    False -> Sqlite.execute [Sqlite.sql| INSERT INTO namespace_root VALUES (:id) |]
+    True -> Sqlite.execute [Sqlite.sql| UPDATE namespace_root SET causal_id = :id |]
 
 log :: String -> Sqlite.Transaction ()
 log =
