@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Todo
   )
 where
 
+import Data.Either qualified as Either
 import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -19,6 +20,7 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.HandleInput.Merge2 (hasDefnsInLib)
 import Unison.Codebase.Editor.Output
 import Unison.Hash (HashFor (..))
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..), checkAllDeclCoherency)
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (TermReference)
@@ -34,7 +36,7 @@ handleTodo = do
   let currentNamespace = Branch.head currentCausal
   let currentNamespaceWithoutLibdeps = Branch.deleteLibdeps currentNamespace
 
-  (defnsInLib, dependentsOfTodo, directDependencies, hashLen) <-
+  (defnsInLib, dependentsOfTodo, directDependencies, hashLen, incoherentDeclReasons) <-
     Cli.runTransaction do
       -- We call a shared `hasDefnsLib` helper even though we could easily duplicate the logic with the branch in hand
       defnsInLib <- do
@@ -66,21 +68,28 @@ handleTodo = do
 
       hashLen <- Codebase.hashLength
 
-      pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen)
+      incoherentDeclReasons <-
+        fmap (Either.fromLeft (IncoherentDeclReasons [] [] [] [])) $
+          checkAllDeclCoherency
+            Operations.expectDeclNumConstructors
+            (Names.lenientToNametree (Branch.toNames currentNamespaceWithoutLibdeps))
+
+      pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen, incoherentDeclReasons)
 
   ppe <- Cli.currentPrettyPrintEnvDecl
 
   Cli.respondNumbered $
     Output'Todo
       TodoOutput
-        { hashLen,
-          defnsInLib,
+        { defnsInLib,
           dependentsOfTodo,
           directDependenciesWithoutNames =
             Defns
               { terms = Set.difference directDependencies.terms (Branch.deepTermReferences currentNamespace),
                 types = Set.difference directDependencies.types (Branch.deepTypeReferences currentNamespace)
               },
+          hashLen,
+          incoherentDeclReasons,
           nameConflicts = Names.conflicts (Branch.toNames currentNamespaceWithoutLibdeps),
           ppe
         }

@@ -98,3 +98,25 @@ scratch/main> todo
 ```ucm:hide
 scratch/main> delete.project scratch
 ```
+
+# Constructor aliases
+
+The `todo` command complains about constructor aliases.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = One
+```
+
+```ucm
+scratch/main> add
+scratch/main> alias.term Foo.One Foo.Two
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```

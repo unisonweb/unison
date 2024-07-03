@@ -181,3 +181,44 @@ scratch/main> todo
   representing library dependencies. Please move or remove it.
 
 ```
+# Constructor aliases
+
+The `todo` command complains about constructor aliases.
+
+```unison
+type Foo = One
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+```ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Foo
+
+scratch/main> alias.term Foo.One Foo.Two
+
+  Done.
+
+scratch/main> todo
+
+  The type Foo has a constructor with multiple names. Please
+  delete all but one name for each constructor.
+  
+    1. Foo.One
+    2. Foo.Two
+
+```

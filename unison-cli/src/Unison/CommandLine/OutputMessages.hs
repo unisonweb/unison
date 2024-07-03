@@ -87,6 +87,7 @@ import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -1405,6 +1406,7 @@ notifyUser dir = \case
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
         "",
+        -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
         P.wrap $
           "On"
             <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
@@ -2728,12 +2730,39 @@ handleTodoOutput todo
                     <> "subnamespaces representing library dependencies. Please move or remove it."
               else mempty
 
+      prettyConstructorAliases <-
+        if null todo.incoherentDeclReasons.constructorAliases
+          then pure mempty
+          else do
+            things <-
+              for todo.incoherentDeclReasons.constructorAliases \(typeName, conName1, conName2) -> do
+                n1 <- addNumberedArg (SA.Name conName1)
+                n2 <- addNumberedArg (SA.Name conName2)
+                pure (typeName, formatNum n1 <> prettyName conName1, formatNum n2 <> prettyName conName2)
+            pure $
+              things
+                & map
+                  ( \(typeName, prettyCon1, prettyCon2) ->
+                      -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
+                      P.wrap
+                        ( "The type"
+                            <> prettyName typeName
+                            <> "has a constructor with multiple names. Please delete all but one name for each"
+                            <> "constructor."
+                        )
+                        <> P.newline
+                        <> P.newline
+                        <> P.indentN 2 (P.lines [prettyCon1, prettyCon2])
+                  )
+                & P.sep "\n\n"
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
           prettyDirectTypeDependenciesWithoutNames,
           prettyConflicts,
-          prettyDefnsInLib
+          prettyDefnsInLib,
+          prettyConstructorAliases
         ]
 
 listOfDefinitions ::

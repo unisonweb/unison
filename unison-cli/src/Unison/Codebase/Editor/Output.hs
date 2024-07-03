@@ -53,9 +53,11 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -82,7 +84,6 @@ import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
-import qualified Unison.Names as Names
 
 type ListDetailed = Bool
 
@@ -157,6 +158,7 @@ data TodoOutput = TodoOutput
     dependentsOfTodo :: !(Set TermReferenceId),
     directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
     hashLen :: !Int,
+    incoherentDeclReasons :: !IncoherentDeclReasons,
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
@@ -167,6 +169,7 @@ todoOutputIsEmpty todo =
     && defnsAreEmpty todo.directDependenciesWithoutNames
     && Names.isEmpty todo.nameConflicts
     && not todo.defnsInLib
+    && todo.incoherentDeclReasons == IncoherentDeclReasons [] [] [] []
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
