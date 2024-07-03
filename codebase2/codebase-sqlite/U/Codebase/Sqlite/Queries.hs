@@ -212,8 +212,10 @@ module U.Codebase.Sqlite.Queries
 
     -- * Reflog
     getDeprecatedRootReflog,
-    appendProjectReflog,
+    appendProjectBranchReflog,
     getProjectReflog,
+    getProjectBranchReflog,
+    getGlobalReflog,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -3481,16 +3483,41 @@ getDeprecatedRootReflog numEntries =
       LIMIT :numEntries
     |]
 
-appendProjectReflog :: ProjectReflog.Entry CausalHashId -> Transaction ()
-appendProjectReflog entry =
+appendProjectBranchReflog :: ProjectReflog.Entry CausalHashId -> Transaction ()
+appendProjectBranchReflog entry =
   execute
     [sql|
       INSERT INTO project_branch_reflog (project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason)
       VALUES (@entry, @, @, @, @, @)
     |]
 
-getProjectReflog :: Int -> Transaction [ProjectReflog.Entry CausalHashId]
-getProjectReflog numEntries =
+-- | Get x number of entries from the project reflog for the provided project
+getProjectReflog :: Int -> ProjectId -> Transaction [ProjectReflog.Entry CausalHashId]
+getProjectReflog numEntries projectId =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
+      ORDER BY time DESC
+      WHERE project_id = :projectId
+      LIMIT :numEntries
+    |]
+
+-- | Get x number of entries from the project reflog for the provided branch.
+getProjectBranchReflog :: Int -> ProjectBranchId -> Transaction [ProjectReflog.Entry CausalHashId]
+getProjectBranchReflog numEntries projectBranchId =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
+      ORDER BY time DESC
+      WHERE project_branch_id = :projectBranchId
+      LIMIT :numEntries
+    |]
+
+-- | Get x number of entries from the global reflog spanning all projects
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry CausalHashId]
+getGlobalReflog numEntries =
   queryListRow
     [sql|
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
@@ -3805,7 +3832,7 @@ insertProjectBranch description causalHashId (ProjectBranch projectId branchId b
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
   time <- Sqlite.unsafeIO $ Time.getCurrentTime
-  appendProjectReflog $
+  appendProjectBranchReflog $
     ProjectReflog.Entry
       { project = projectId,
         branch = branchId,
@@ -3899,7 +3926,7 @@ setProjectBranchHead description projectId branchId causalHashId = do
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
   time <- Sqlite.unsafeIO $ Time.getCurrentTime
-  appendProjectReflog $
+  appendProjectBranchReflog $
     ProjectReflog.Entry
       { project = projectId,
         branch = branchId,

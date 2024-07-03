@@ -103,6 +103,8 @@ module U.Codebase.Sqlite.Operations
     -- * reflog
     getDeprecatedRootReflog,
     getProjectReflog,
+    getProjectBranchReflog,
+    getGlobalReflog,
     appendProjectReflog,
 
     -- * low-level stuff
@@ -1490,16 +1492,28 @@ getDeprecatedRootReflog numEntries = do
   entries <- Q.getDeprecatedRootReflog numEntries
   traverse (bitraverse Q.expectCausalHash pure) entries
 
+-- | Gets the specified number of reflog entries for the given project in chronological order, most recent first.
+getProjectReflog :: Int -> Db.ProjectId -> Transaction [ProjectReflog.Entry CausalHash]
+getProjectReflog numEntries projectId = do
+  entries <- Q.getProjectReflog numEntries projectId
+  (traverse . traverse) Q.expectCausalHash entries
+
+-- | Gets the specified number of reflog entries for the specified ProjectBranch in chronological order, most recent first.
+getProjectBranchReflog :: Int -> Db.ProjectBranchId -> Transaction [ProjectReflog.Entry CausalHash]
+getProjectBranchReflog numEntries projectBranchId = do
+  entries <- Q.getProjectBranchReflog numEntries projectBranchId
+  (traverse . traverse) Q.expectCausalHash entries
+
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
-getProjectReflog :: Int -> Transaction [ProjectReflog.Entry CausalHash]
-getProjectReflog numEntries = do
-  entries <- Q.getProjectReflog numEntries
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry CausalHash]
+getGlobalReflog numEntries = do
+  entries <- Q.getGlobalReflog numEntries
   (traverse . traverse) Q.expectCausalHash entries
 
 appendProjectReflog :: ProjectReflog.Entry CausalHash -> Transaction ()
 appendProjectReflog entry = do
   dbEntry <- traverse Q.saveCausalHash entry
-  Q.appendProjectReflog dbEntry
+  Q.appendProjectBranchReflog dbEntry
 
 -- | Delete any name lookup that's not in the provided list.
 --
