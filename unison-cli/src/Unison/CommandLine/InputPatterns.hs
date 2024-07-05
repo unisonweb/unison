@@ -1773,8 +1773,8 @@ pullImpl name aliases pullMode addendum = do
                       These sourceProject sourceBranch ->
                         Right (Input.LibInstallI True (ProjectAndBranch sourceProject (Just sourceBranch)))
                 (Right source, Left _, Right path) ->
-                  Left $
-                    "I think you want to merge"
+                  Left . P.wrap $
+                    "I think you want to merge "
                       <> case source of
                         RemoteRepo.ReadShare'LooseCode _sourcePath -> "some non-project code"
                         RemoteRepo.ReadShare'ProjectBranch (This sourceProject) ->
@@ -1787,11 +1787,11 @@ pullImpl name aliases pullMode addendum = do
                           "the latest release of" <> prettyProjectName sourceProject
                         RemoteRepo.ReadShare'ProjectBranch (These sourceProject (ProjectBranchNameOrLatestRelease'Name sourceBranch)) ->
                           prettyProjectAndBranchName (ProjectAndBranch sourceProject sourceBranch)
-                      <> "into the"
+                      <> " into the "
                       <> prettyPath' path
-                      <> "namespace, but the"
+                      <> " namespace, but the "
                       <> makeExample' pull
-                      <> "command only supports merging into the top level of a local project branch."
+                      <> " command only supports merging into the top level of a local project branch."
             args -> wrongArgsLength "no more than two arguments" args
         }
 
