@@ -1,11 +1,14 @@
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6 (migrateSchema5To6) where
 
+import Data.Bitraversable
 import Data.Text qualified as Text
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import System.FilePath ((</>))
 import U.Codebase.HashTags (CausalHash (CausalHash))
 import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (CodebasePath)
 import Unison.Hash qualified as Hash
@@ -30,11 +33,20 @@ migrateCurrentReflog codebasePath = do
     -- so we check first to avoid triggering a bad foreign key constraint.
     haveFrom <- isJust <$> Q.loadCausalByCausalHash (Reflog.fromRootCausalHash oldEntry)
     haveTo <- isJust <$> Q.loadCausalByCausalHash (Reflog.toRootCausalHash oldEntry)
-    when (haveFrom && haveTo) $ Ops.appendReflog oldEntry
+    when (haveFrom && haveTo) $ appendReflog oldEntry
   Sqlite.unsafeIO . putStrLn $ "I migrated old reflog entries from " <> reflogPath <> " into the codebase; you may delete that file now if you like."
   where
     reflogPath :: FilePath
     reflogPath = codebasePath </> "reflog"
+
+    appendReflog :: Reflog.Entry CausalHash Text -> Sqlite.Transaction ()
+    appendReflog entry = do
+      dbEntry <- (bitraverse Q.saveCausalHash pure) entry
+      Sqlite.execute
+        [Sqlite.sql|
+          INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason)
+          VALUES (@dbEntry, @, @, @)
+        |]
 
 oldReflogEntries :: CodebasePath -> UTCTime -> IO [Reflog.Entry CausalHash Text]
 oldReflogEntries reflogPath now =

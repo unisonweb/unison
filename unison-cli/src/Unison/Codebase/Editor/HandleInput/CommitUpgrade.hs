@@ -9,6 +9,7 @@ import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
 import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
@@ -21,7 +22,7 @@ import Unison.Project (ProjectAndBranch (..))
 
 handleCommitUpgrade :: Cli ()
 handleCommitUpgrade = do
-  (upgradeProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
+  upgradeProjectAndBranch <- Cli.getCurrentProjectAndBranch
 
   -- Assert that this is an "upgrade" branch, get its parent (which is the branch we were on when we ran `upgrade`),
   -- and switch to the parent.
@@ -33,9 +34,8 @@ handleCommitUpgrade = do
   parentBranch <-
     Cli.runTransaction do
       parentBranch <- Queries.expectProjectBranch upgradeProjectAndBranch.project.projectId parentBranchId
-      Queries.setMostRecentBranch parentBranch.projectId parentBranch.branchId
       pure parentBranch
-  Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch parentBranch.projectId parentBranch.branchId))
+  Cli.switchProject (ProjectAndBranch parentBranch.projectId parentBranch.branchId)
 
   -- Merge the upgrade branch into the parent
 

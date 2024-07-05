@@ -78,7 +78,8 @@ scratch/main> delete.namespace .
   ⚠️
   
   Are you sure you want to clear away everything?
-  You could use `project.create` to switch to a new project instead.
+  You could use `project.create` to switch to a new project
+  instead, or delete the current branch with `delete.branch`
 
 scratch/main> delete.namespace .
 
@@ -89,7 +90,12 @@ scratch/main> delete.namespace .
 -- Should have an empty history
 scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Deleting the root namespace shouldn't require confirmation if forced.
@@ -104,6 +110,11 @@ scratch/main> delete.namespace.force .
 -- Should have an empty history
 scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
