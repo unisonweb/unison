@@ -6,7 +6,7 @@
   I'll now fetch the latest version of the base Unison
   library...
 
-  Downloaded 14053 entities.
+  Downloaded 12886 entities.
 
   🎨 Type `ui` to explore this project's code in your browser.
   🔭 Discover libraries at https://share.unison-lang.org
