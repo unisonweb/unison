@@ -128,6 +128,7 @@ library
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
+      Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
       Unison.LSP.Formatting
       Unison.LSP.HandlerUtils
