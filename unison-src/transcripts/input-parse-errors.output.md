@@ -8,12 +8,19 @@ x = 55
 ```ucm
 scratch/main> add .
 
-  Sorry, I wasn’t sure how to process your request. 1:2: | 1 | .
-  | ^ unexpected end of input expecting '`' or operator (valid
-  characters: !$%&*+-/:<=>\^|~)
+⚠️
+
+Sorry, I wasn’t sure how to process your request.
+
+  1:2:
+    |
+  1 | .
+    |  ^
+  unexpected end of input
+  expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
   
-  You can run `help add` for more information on using `add`
-    `add` adds to the codebase all the definitions from the most recently typechecked file.
+
+You can run `help add` for more information on using `add`.
 
 scratch/main> ls
 
@@ -57,16 +64,14 @@ aliasMany: skipped -- similar to `add`
 ```ucm
 scratch/main> update arg
 
-  Sorry, I wasn’t sure how to process your request. I expected
-  no arguments, but received 1.
-  
-  You can run `help update` for more information on using `update`
-    Adds everything in the most recently typechecked file to the
-    namespace, replacing existing definitions having the same
-    name, and attempts to update all the existing dependents
-    accordingly. If the process can't be completed
-    automatically, the dependents will be added back to the
-    scratch file for your review.
+⚠️
+
+Sorry, I wasn’t sure how to process your request.
+
+  I expected no arguments, but received 1.
+
+You can run `help update` for more information on using
+`update`.
 
 ```
 aliasTerm

@@ -846,13 +846,15 @@ scratch/main> help-topics
     remotes
     testcache
   
-  Example: use `help filestatus` to learn more about that topic.
+  Example: use `help-topics filestatus` to learn more about that topic.
 
 scratch/main> help-topic filestatus
 
-  Sorry, I wasn’t sure how to process your request. 📓
+  📓
+  
   Here's a list of possible status messages you might see for
   definitions in a .u file.
+  
   needs update         A definition with the same name as an
                        existing definition. Doing `update`
                        instead of `add` will turn this failure
@@ -867,54 +869,60 @@ scratch/main> help-topic filestatus
                        constructor that's named the same as an
                        existing term. Rename that term or your
                        constructor before trying again to `add`
-                       or `update`.                      
+                       or `update`.
+                       
   blocked              This definition was blocked because it
                        dependended on a definition with a failed
-                       status.                      
+                       status.
+                       
   extra dependency     This definition was added because it was
                        a dependency of a definition explicitly
                        selected.
-  
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
 
 scratch/main> help-topic messages.disallowedAbsolute
 
-  Sorry, I wasn’t sure how to process your request. 🤖
+  🤖
+  
   Although I can understand absolute (ex: .foo.bar) or relative
   (ex: util.math.sqrt) references to existing definitions
   (help namespaces to learn more), I can't yet handle giving new
   definitions with absolute names in a .u file.
+  
   As a workaround, you can give definitions with a relative name
   temporarily (like `exports.blah.foo`) and then use `move.*`.
-  
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
 
 scratch/main> help-topic namespaces
 
-  Sorry, I wasn’t sure how to process your request. 🧐
+  🧐
+  
   There are two kinds of namespaces, absolute, such as (.foo.bar
   or .base.math.+) and relative, such as (math.sqrt or
   util.List.++).
+  
   Relative names are converted to absolute names by prepending
   the current namespace. For example, if your Unison prompt
-  reads: .foo.bar> and your .u file looks like: x = 41
+  reads:
+  
+    .foo.bar>
+  
+  and your .u file looks like:
+  
+    x = 41
+  
   then doing an add will create the definition with the absolute
   name .foo.bar.x = 41
+  
   and you can refer to x by its absolute name .foo.bar.x
   elsewhere in your code. For instance:
-  answerToLifeTheUniverseAndEverything = .foo.bar.x + 1
   
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
+    answerToLifeTheUniverseAndEverything = .foo.bar.x + 1
 
 scratch/main> help-topic projects
 
-  Sorry, I wasn’t sure how to process your request.
   A project is a versioned collection of code that can be
   edited, published, and depended on other projects. Unison
   projects are analogous to Git repositories.
+  
   project.create create a new project
   projects       list all your projects
   branch         create a new workstream
@@ -924,40 +932,37 @@ scratch/main> help-topic projects
   push           upload your changes to Unison Share
   pull           download code(/changes/updates) from Unison Share
   clone          download a Unison Share project or branch for contribution
+  
   Tip: Use `help project.create` to learn more.
+  
   For full documentation, see
   https://unison-lang.org/learn/projects
-  
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
 
 scratch/main> help-topic remotes
 
-  Sorry, I wasn’t sure how to process your request. 🤖
+  🤖
+  
   Local projects may be associated with at most one remote
   project on Unison Share. When this relationship is
   established, it becomes the default argument for a number of
   share commands. For example, running `push` or `pull` in a
   project with no arguments will push to or pull from the
   associated remote, if it exists.
+  
   This association is created automatically on when a project is
   created by `clone`. If the project was created locally then
   the relationship will be established on the first `push`.
-  
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
 
 scratch/main> help-topic testcache
 
-  Sorry, I wasn’t sure how to process your request. 🎈
+  🎈
+  
   Unison caches the results of test> watch expressions. Since
   these expressions are pure and always yield the same result
   when evaluated, there's no need to run them more than once!
+  
   A test is rerun only if it has changed, or if one of the
   definitions it depends on has changed.
-  
-  You can run `help help-topic` for more information on using `help-topic`
-    `help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.
 
 ```
 We should add a command to show help for hidden commands also.
