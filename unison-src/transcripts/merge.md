@@ -3,7 +3,7 @@
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
 branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
-```ucm:error
+```ucm
 scratch/main> help merge
 scratch/main> help merge.commit
 ```

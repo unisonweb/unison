@@ -2132,7 +2132,7 @@ notifyUser dir = \case
         <> P.group (IP.makeExample IP.libInstallInputPattern [prettyProjectAndBranchName libdep] <> ".")
   PullIntoMissingBranch source (ProjectAndBranch maybeTargetProject targetBranch) ->
     pure . P.wrap $
-      "I think you're wanting to merge"
+      "I think you want to merge"
         <> sourcePretty
         <> "into the"
         <> targetPretty
