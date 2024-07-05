@@ -4,8 +4,8 @@ The `merge` command merges together two branches in the same project: the curren
 branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
 ```ucm
-.> help merge
-.> help merge.commit
+scratch/main> help merge
+scratch/main> help merge.commit
 ```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
@@ -48,7 +48,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Basic merge: two identical adds
@@ -89,7 +89,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Simple update propagation
@@ -142,7 +142,7 @@ project/alice> display bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update propagation with common dependent
@@ -208,7 +208,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Propagating an update to an update
@@ -278,7 +278,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update + delete isn't (currently) a conflict
@@ -323,7 +323,7 @@ project/alice> view foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 In a future version, we'd like to give the user a warning at least.
@@ -379,7 +379,7 @@ project/alice> view foo bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob = Alice)
@@ -397,7 +397,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob < Alice)
@@ -425,7 +425,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Fast-forward merge (Bob > Alice)
@@ -453,7 +453,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge: merge empty namespace into empty namespace
@@ -509,7 +509,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type error
@@ -559,7 +559,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple term conflict
@@ -624,7 +624,7 @@ project/merge-bob-into-alice> view bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple type conflict
@@ -667,7 +667,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type-update + constructor-rename conflict
@@ -710,7 +710,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: constructor-rename conflict
@@ -748,7 +748,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: non-constructor/constructor conflict
@@ -789,7 +789,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type/type conflict with term/constructor conflict
@@ -840,7 +840,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 Here's a more involved example that demonstrates the same idea.
@@ -913,7 +913,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge algorithm quirk: add/add unique types
@@ -1108,7 +1108,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Conflict involving builtin
@@ -1149,7 +1149,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Constructor alias
@@ -1195,7 +1195,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Missing constructor name
@@ -1242,7 +1242,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Nested decl alias
@@ -1290,7 +1290,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Stray constructor alias
@@ -1334,7 +1334,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Term or type in `lib`
@@ -1375,7 +1375,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## LCA precondition violations
@@ -1441,7 +1441,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Regression tests
@@ -1486,7 +1486,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Delete a constructor

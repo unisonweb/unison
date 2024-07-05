@@ -49,7 +49,7 @@ mkTestCase = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -61,7 +61,7 @@ mkTestCase = do
     prod       : [Nat] -> Nat
     products   : ([Nat], [Nat], [Nat]) -> Text
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

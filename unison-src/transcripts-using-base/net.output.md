@@ -107,7 +107,7 @@ testDefaultPort _ =
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,17 +115,17 @@ testDefaultPort _ =
     testDefaultPort  : '{IO} [Result]
     testExplicitHost : '{IO} [Result]
 
-.> io.test testDefaultPort
+scratch/main> io.test testDefaultPort
 
     New test results:
   
-  ◉ testDefaultPort   successfully created socket
-  ◉ testDefaultPort   port should be > 1024
-  ◉ testDefaultPort   port should be < 65536
+    1. testDefaultPort   ◉ successfully created socket
+                         ◉ port should be > 1024
+                         ◉ port should be < 65536
   
   ✅ 3 test(s) passing
   
-  Tip: Use view testDefaultPort to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 This example demonstrates connecting a TCP client socket to a TCP server socket. A thread is started for both client and server. The server socket asks for any availalbe port (by passing "0" as the port number). The server thread then queries for the actual assigned port number, and puts that into an MVar which the client thread can read. The client thread then reads a string from the server and reports it back to the main thread via a different MVar.
@@ -194,7 +194,7 @@ testTcpConnect = 'let
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -202,14 +202,14 @@ testTcpConnect = 'let
     serverThread   : MVar Nat -> Text -> '{IO} ()
     testTcpConnect : '{IO} [Result]
 
-.> io.test testTcpConnect
+scratch/main> io.test testTcpConnect
 
     New test results:
   
-  ◉ testTcpConnect   should have reaped what we've sown
+    1. testTcpConnect   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testTcpConnect to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

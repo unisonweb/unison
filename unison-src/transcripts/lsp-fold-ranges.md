@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison:hide
@@ -29,5 +29,5 @@ test> z = let
 ```
 
 ```ucm
-.> debug.lsp.fold-ranges
+scratch/main> debug.lsp.fold-ranges
 ```

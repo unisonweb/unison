@@ -110,7 +110,7 @@ Inline '' text literal with 1 space of padding '' in the middle of a sentence.
 Format it to check that everything pretty-prints in a valid way.
 
 ```ucm
-.> debug.format
+scratch/main> debug.format
 
 ```
 ```unison:added-by-ucm scratch.u

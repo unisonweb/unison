@@ -32,28 +32,18 @@ How about an ambiguous term?
 
 ```unison:hide
 foo = 1
+bar = 2
 ```
 
 ```ucm
 .a> add
-```
-
-```unison:hide
-foo = 2
-```
-
-```ucm
-.b> add
-.a> merge.old .b
+.a> debug.alias.term.force bar foo
 ```
 
 A delete should remove both versions of the term.
 
 ```ucm
 .> delete.verbose a.foo
-```
-
-```ucm:error
 .a> ls
 ```
 
@@ -61,26 +51,13 @@ Let's repeat all that on a type, for completeness.
 
 ```unison:hide
 structural type Foo = Foo ()
+structural type Bar = Bar
 ```
 
 ```ucm
 .a> add
-```
-
-```unison:hide
-structural type Foo = Foo
-```
-
-```ucm
-.b> add
-.a> merge.old .b
-```
-
-```ucm
+.a> debug.alias.type.force Bar Foo
 .> delete.verbose a.Foo
-```
-
-```ucm
 .> delete.verbose a.Foo.Foo
 ```
 
@@ -93,9 +70,6 @@ structural type foo = Foo ()
 
 ```ucm
 .> add
-```
-
-```ucm
 .> delete.verbose foo
 ```
 

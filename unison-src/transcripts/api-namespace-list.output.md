@@ -23,7 +23,7 @@ nested.names.readme = {{ I'm a readme! }}
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -33,7 +33,7 @@ nested.names.readme = {{ I'm a readme! }}
 
 ```
 ```api
-GET /api/non-project-code/list?namespace=nested.names
+GET /api/projects/scratch/branches/main/list?namespace=nested.names
 {
     "namespaceListingChildren": [
         {
@@ -82,7 +82,7 @@ GET /api/non-project-code/list?namespace=nested.names
     "namespaceListingFQN": "nested.names",
     "namespaceListingHash": "#oms19b4f9s3c8tb5skeb8jii95ij35n3hdg038pu6rv5b0fikqe4gd7lnu6a1i6aq5tdh2opdo4s0sfrupvk6vfkr9lf0n752gbl8o0"
 }
-GET /api/non-project-code/list?namespace=names&relativeTo=nested
+GET /api/projects/scratch/branches/main/list?namespace=names&relativeTo=nested
 {
     "namespaceListingChildren": [
         {

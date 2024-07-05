@@ -1,28 +1,27 @@
 # Update on conflict
 
+Updating conflicted definitions works fine.
+
 ```ucm:hide
-.> builtins.merge
-.merged> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 ```unison
-a.x = 1
-b.x = 2
+x = 1
+temp = 2
 ```
 
-Cause a conflict:
 ```ucm
-.> add
-.merged> merge.old .a
-.merged> merge.old .b
+scratch/main> add
+scratch/main> debug.alias.term.force temp x
+scratch/main> delete.term temp
 ```
-
-Updating conflicted definitions works fine.
 
 ```unison
 x = 3
 ```
 
 ```ucm
-.merged> update
+scratch/main> update
+scratch/main> view x
 ```

@@ -5,23 +5,21 @@ This transcript shows how the pretty-printer picks names for a hash when multipl
 3. Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
 
 ```unison
-a = b + 1
-b = 0 + 1
+a.a = a.b + 1
+a.b = 0 + 1
+a.aaa.but.more.segments = 0 + 1
 ```
 
 Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment length alias), and show that it isn't used when viewing `a`:
 
 ```ucm
-.a> add
+.> add
 
   ⍟ I've added these definitions:
   
-    a : Nat
-    b : Nat
-
-.a> alias.term b aaa.but.more.segments
-
-  Done.
+    a.a                     : Nat
+    a.aaa.but.more.segments : Nat
+    a.b                     : Nat
 
 .a> view a
 
@@ -33,70 +31,53 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 ```
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-```
-.> fork a a2
-.> fork a a3
-
-```
-
 ```unison
-c = 1
-d = c + 10
+a2.a = a2.b + 1
+a2.b = 0 + 1
+a2.aaa.but.more.segments = 0 + 1
+a2.c = 1
+a2.d = a2.c + 10
+a2.long.name.but.shortest.suffixification = 1
+
+a3.a = a3.b + 1
+a3.b = 0 + 1
+a3.aaa.but.more.segments = 0 + 1
+a3.c = 2
+a3.d = a3.c + 10
+a3.long.name.but.shortest.suffixification = 1
 ```
 
 ```ucm
-.a2> add
+.> add
 
   ⍟ I've added these definitions:
   
-    c : Nat
-    d : Nat
+    a2.a                                      : Nat
+      (also named a.a)
+    a2.aaa.but.more.segments                  : Nat
+      (also named a.b and a.aaa.but.more.segments)
+    a2.b                                      : Nat
+      (also named a.b and a.aaa.but.more.segments)
+    a2.c                                      : Nat
+    a2.d                                      : Nat
+    a2.long.name.but.shortest.suffixification : Nat
+    a3.a                                      : Nat
+      (also named a.a)
+    a3.aaa.but.more.segments                  : Nat
+      (also named a.b and a.aaa.but.more.segments)
+    a3.b                                      : Nat
+      (also named a.b and a.aaa.but.more.segments)
+    a3.c                                      : Nat
+    a3.d                                      : Nat
+    a3.long.name.but.shortest.suffixification : Nat
 
-.a2> alias.term c long.name.but.shortest.suffixification
+.> debug.alias.term.force a2.c a3.c
 
   Done.
 
-```
-```unison
-c = 2
-d = c + 10
-```
+.> debug.alias.term.force a2.d a3.d
 
-```ucm
-.a3> add
-
-  ⍟ I've added these definitions:
-  
-    c : Nat
-    d : Nat
-
-.a3> merge.old .a2 .a3
-
-  Here's what's changed in .a3 after the merge:
-  
-  New name conflicts:
-  
-    1. c#dcgdua2lj6 : Nat
-       ↓
-    2. ┌ c#dcgdua2lj6 : Nat
-    3. └ c#gjmq673r1v : Nat
-    
-    4. d#9ivhgvhthc : Nat
-       ↓
-    5. ┌ d#9ivhgvhthc : Nat
-    6. └ d#ve16e6jmf6 : Nat
-  
-  Added definitions:
-  
-    7. ┌ c#gjmq673r1v                           : Nat
-    8. └ long.name.but.shortest.suffixification : Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
+  Done.
 
 ```
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized.

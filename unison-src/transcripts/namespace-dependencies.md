@@ -1,8 +1,9 @@
 # namespace.dependencies command
 
 ```unison:hide
+const a b = a
 external.mynat = 1
-mynamespace.dependsOnText = external.mynat Nat.+ 10
+mynamespace.dependsOnText = const external.mynat 10
 ```
 
 ```ucm

@@ -30,7 +30,7 @@ corge = "corge"
 
 ```
 ```ucm
-.temp> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -46,7 +46,7 @@ We can get the list of things in the namespace, and UCM will give us a numbered
 list:
 
 ```ucm
-.temp> find
+scratch/main> find
 
   1. bar : Text
   2. baz : Text
@@ -61,7 +61,7 @@ list:
 We can ask to `view` the second element of this list:
 
 ```ucm
-.temp> find
+scratch/main> find
 
   1. bar : Text
   2. baz : Text
@@ -72,7 +72,7 @@ We can ask to `view` the second element of this list:
   7. builtin type Text
   
 
-.temp> view 2
+scratch/main> view 2
 
   baz : Text
   baz = "baz"
@@ -81,7 +81,7 @@ We can ask to `view` the second element of this list:
 And we can `view` multiple elements by separating with spaces:
 
 ```ucm
-.temp> find
+scratch/main> find
 
   1. bar : Text
   2. baz : Text
@@ -92,7 +92,7 @@ And we can `view` multiple elements by separating with spaces:
   7. builtin type Text
   
 
-.temp> view 2 3 5
+scratch/main> view 2 3 5
 
   baz : Text
   baz = "baz"
@@ -107,7 +107,7 @@ And we can `view` multiple elements by separating with spaces:
 We can also ask for a range:
 
 ```ucm
-.temp> find
+scratch/main> find
 
   1. bar : Text
   2. baz : Text
@@ -118,7 +118,7 @@ We can also ask for a range:
   7. builtin type Text
   
 
-.temp> view 2-4
+scratch/main> view 2-4
 
   baz : Text
   baz = "baz"
@@ -133,7 +133,7 @@ We can also ask for a range:
 And we can ask for multiple ranges and use mix of ranges and numbers:
 
 ```ucm
-.temp> find
+scratch/main> find
 
   1. bar : Text
   2. baz : Text
@@ -144,7 +144,7 @@ And we can ask for multiple ranges and use mix of ranges and numbers:
   7. builtin type Text
   
 
-.temp> view 1-3 4 5-6
+scratch/main> view 1-3 4 5-6
 
   bar : Text
   bar = "bar"

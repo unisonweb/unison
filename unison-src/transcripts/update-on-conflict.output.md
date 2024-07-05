@@ -1,8 +1,10 @@
 # Update on conflict
 
+Updating conflicted definitions works fine.
+
 ```unison
-a.x = 1
-b.x = 2
+x = 1
+temp = 2
 ```
 
 ```ucm
@@ -15,57 +17,27 @@ b.x = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      a.x : Nat
-      b.x : Nat
+      temp : Nat
+      x    : Nat
 
 ```
-Cause a conflict:
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    a.x : Nat
-    b.x : Nat
+    temp : Nat
+    x    : Nat
 
-.merged> merge.old .a
+scratch/main> debug.alias.term.force temp x
 
-  Here's what's changed in the current namespace after the
-  merge:
-  
-  Added definitions:
-  
-    1. x : Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Done.
 
-  Applying changes from patch...
+scratch/main> delete.term temp
 
-.merged> merge.old .b
-
-  Here's what's changed in the current namespace after the
-  merge:
-  
-  New name conflicts:
-  
-    1. x#gjmq673r1v : Nat
-       ↓
-    2. ┌ x#dcgdua2lj6 : Nat
-    3. └ x#gjmq673r1v : Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
+  Done.
 
 ```
-Updating conflicted definitions works fine.
-
 ```unison
 x = 3
 ```
@@ -85,11 +57,16 @@ x = 3
 
 ```
 ```ucm
-.merged> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
+
+scratch/main> view x
+
+  x : Nat
+  x = 3
 
 ```

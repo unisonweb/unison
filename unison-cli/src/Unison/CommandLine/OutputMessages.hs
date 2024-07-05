@@ -55,6 +55,7 @@ import Unison.Codebase.Editor.Output
     TestReportStats (CachedTests, NewlyComputed),
     TodoOutput,
     UndoFailureReason (CantUndoPastMerge, CantUndoPastStart),
+    todoOutputIsEmpty,
   )
 import Unison.Codebase.Editor.Output qualified as E
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBD
@@ -110,7 +111,7 @@ import Unison.PrintError
     renderCompilerBug,
   )
 import Unison.Project (ProjectAndBranch (..))
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -307,6 +308,29 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
+  TestResults stats ppe _showSuccess _showFailures oksUnsorted failsUnsorted ->
+    let oks = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList oksUnsorted]
+        fails = Name.sortByText (HQ.toText . fst) [(name r, msgs) | (r, msgs) <- Map.toList failsUnsorted]
+        name r = PPE.termName ppe (Referent.fromTermReferenceId r)
+     in ( case stats of
+            CachedTests 0 _ -> P.callout "😶" $ "No tests to run."
+            CachedTests n n' | n == n' -> P.lines [cache, "", displayTestResults True oks fails]
+            CachedTests _n m ->
+              if m == 0
+                then "✅  "
+                else
+                  P.indentN 2 $
+                    P.lines ["", cache, "", displayTestResults False oks fails, "", "✅  "]
+            NewlyComputed ->
+              P.lines
+                [ "  " <> P.bold "New test results:",
+                  "",
+                  displayTestResults True oks fails
+                ],
+          fmap (SA.HashQualified . fst) $ oks <> fails
+        )
+    where
+      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
   CantDeleteDefinitions ppeDecl endangerments ->
     ( P.warnCallout $
@@ -638,29 +662,6 @@ notifyUser dir = \case
   OutputRewrittenFile dest vs -> displayOutputRewrittenFile dest vs
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
-  TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
-    CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
-    CachedTests n n'
-      | n == n' ->
-          pure $
-            P.lines [cache, "", displayTestResults True ppe oks fails]
-    CachedTests _n m ->
-      pure $
-        if m == 0
-          then "✅  "
-          else
-            P.indentN 2 $
-              P.lines ["", cache, "", displayTestResults False ppe oks fails, "", "✅  "]
-    NewlyComputed -> do
-      clearCurrentLine
-      pure $
-        P.lines
-          [ "  " <> P.bold "New test results:",
-            "",
-            displayTestResults True ppe oks fails
-          ]
-    where
-      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   TestIncrementalOutputStart ppe (n, total) r -> do
     putPretty' $
       P.shown (total - n)
@@ -1199,7 +1200,7 @@ notifyUser dir = \case
       ]
     where
       name :: Name
-      name = Path.unsafeToName' (HQ'.toName (Path.unsplitHQ' p))
+      name = HQ'.toName $ Path.nameFromHQSplit' p
       qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
       qualifyType :: Reference -> Pretty
@@ -2535,38 +2536,37 @@ displayRendered outputLoc pp =
 
 displayTestResults ::
   Bool -> -- whether to show the tip
-  PPE.PrettyPrintEnv ->
-  [(TermReferenceId, Text)] ->
-  [(TermReferenceId, Text)] ->
+  [(HQ.HashQualified Name, [Text])] ->
+  [(HQ.HashQualified Name, [Text])] ->
   Pretty
-displayTestResults showTip ppe oksUnsorted failsUnsorted =
-  let oks = Name.sortByText fst [(name r, msg) | (r, msg) <- oksUnsorted]
-      fails = Name.sortByText fst [(name r, msg) | (r, msg) <- failsUnsorted]
-      name r = HQ.toText $ PPE.termName ppe (Referent.fromTermReferenceId r)
+displayTestResults showTip oks fails =
+  let name = P.text . HQ.toText
       okMsg =
         if null oks
           then mempty
-          else P.column2 [(P.green "◉ " <> P.text r, "  " <> P.green (P.text msg)) | (r, msg) <- oks]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom 0 [(name r, P.lines $ P.green . ("  ◉ " <>) . P.text <$> msgs) | (r, msgs) <- oks]
       okSummary =
         if null oks
           then mempty
-          else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
+          else "✅ " <> P.bold (P.num (sum $ fmap (length . snd) oks)) <> P.green " test(s) passing"
       failMsg =
         if null fails
           then mempty
-          else P.column2 [(P.red "✗ " <> P.text r, "  " <> P.red (P.text msg)) | (r, msg) <- fails]
+          else
+            P.indentN 2 $
+              P.numberedColumn2ListFrom
+                (length oks)
+                [(name r, P.lines $ P.red . ("  ✗ " <>) . P.text <$> msgs) | (r, msgs) <- fails]
       failSummary =
         if null fails
           then mempty
-          else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
+          else "🚫 " <> P.bold (P.num (sum $ fmap (length . snd) fails)) <> P.red " test(s) failing"
       tipMsg =
         if not showTip || (null oks && null fails)
           then mempty
-          else
-            tip $
-              "Use "
-                <> P.blue ("view " <> P.text (fst $ head (fails ++ oks)))
-                <> "to view the source of a test."
+          else tip $ "Use " <> P.blue "view 1" <> "to view the source of a test."
    in if null oks && null fails
         then "😶 No tests available."
         else
@@ -2662,66 +2662,68 @@ runNumbered m =
    in (a, Foldable.toList args)
 
 handleTodoOutput :: TodoOutput -> Numbered Pretty
-handleTodoOutput todo = do
-  prettyConflicts <-
-    if todo.nameConflicts == mempty
-      then pure mempty
-      else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
+handleTodoOutput todo
+  | todoOutputIsEmpty todo = pure "You have no pending todo items. Good work! ✅"
+  | otherwise = do
+      prettyConflicts <-
+        if todo.nameConflicts == mempty
+          then pure mempty
+          else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
 
-  prettyDependentsOfTodo <- do
-    if Set.null todo.dependentsOfTodo
-      then pure mempty
-      else do
-        terms <-
-          for (Set.toList todo.dependentsOfTodo) \term -> do
-            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.idToShortHash term)))
-            let name =
-                  term
-                    & Referent.fromTermReferenceId
-                    & PPE.termName todo.ppe.suffixifiedPPE
-                    & prettyHashQualified
-                    & P.syntaxToColor
-            pure (formatNum n <> name)
-        pure $
-          P.wrap "These terms call `todo`:"
-            <> P.newline
-            <> P.newline
-            <> P.indentN 2 (P.lines terms)
+      prettyDependentsOfTodo <- do
+        if Set.null todo.dependentsOfTodo
+          then pure mempty
+          else do
+            terms <-
+              for (Set.toList todo.dependentsOfTodo) \term -> do
+                n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.idToShortHash term)))
+                let name =
+                      term
+                        & Referent.fromTermReferenceId
+                        & PPE.termName todo.ppe.suffixifiedPPE
+                        & prettyHashQualified
+                        & P.syntaxToColor
+                pure (formatNum n <> name)
+            pure $
+              P.wrap "These terms call `todo`:"
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines terms)
 
-  prettyDirectTermDependenciesWithoutNames <- do
-    if Set.null todo.directDependenciesWithoutNames.terms
-      then pure mempty
-      else do
-        terms <-
-          for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
-            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
-            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
-        pure $
-          P.wrap "These terms do not have any names in the current namespace:"
-            <> P.newline
-            <> P.newline
-            <> P.indentN 2 (P.lines terms)
+      prettyDirectTermDependenciesWithoutNames <- do
+        if Set.null todo.directDependenciesWithoutNames.terms
+          then pure mempty
+          else do
+            terms <-
+              for (Set.toList todo.directDependenciesWithoutNames.terms) \term -> do
+                n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
+                pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
+            pure $
+              P.wrap "These terms do not have any names in the current namespace:"
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines terms)
 
-  prettyDirectTypeDependenciesWithoutNames <- do
-    if Set.null todo.directDependenciesWithoutNames.types
-      then pure mempty
-      else do
-        types <-
-          for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
-            n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
-            pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
-        pure $
-          P.wrap "These types do not have any names in the current namespace:"
-            <> P.newline
-            <> P.newline
-            <> P.indentN 2 (P.lines types)
+      prettyDirectTypeDependenciesWithoutNames <- do
+        if Set.null todo.directDependenciesWithoutNames.types
+          then pure mempty
+          else do
+            types <-
+              for (Set.toList todo.directDependenciesWithoutNames.types) \typ -> do
+                n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
+                pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
+            pure $
+              P.wrap "These types do not have any names in the current namespace:"
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines types)
 
-  (pure . P.sep "\n\n" . P.nonEmpty)
-    [ prettyDependentsOfTodo,
-      prettyDirectTermDependenciesWithoutNames,
-      prettyDirectTypeDependenciesWithoutNames,
-      prettyConflicts
-    ]
+      (pure . P.sep "\n\n" . P.nonEmpty)
+        [ prettyDependentsOfTodo,
+          prettyDirectTermDependenciesWithoutNames,
+          prettyDirectTypeDependenciesWithoutNames,
+          prettyConflicts
+        ]
 
 listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
@@ -3449,7 +3451,7 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines $
             [ P.indentN 2 $ P.bold "Types:",
               "",
-              P.indentN 2 $ P.numbered (numFrom 0) $ c . prettyHashQualified <$> types
+              P.indentN 2 . P.numberedList $ c . prettyHashQualified <$> types
             ]
     termsOut =
       if null terms
@@ -3458,7 +3460,6 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
           P.lines
             [ P.indentN 2 $ P.bold "Terms:",
               "",
-              P.indentN 2 $ P.numbered (numFrom $ length types) $ c . prettyHashQualified <$> terms
+              P.indentN 2 . P.numberedListFrom (length types) $ c . prettyHashQualified <$> terms
             ]
-    numFrom k n = P.hiBlack $ P.shown (k + n) <> "."
     c = P.syntaxToColor

@@ -16,13 +16,13 @@ unique type Foo = Bar Nat
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-.> alias.term Foo.Bar Stray.BarAlias
+scratch/main> alias.term Foo.Bar Stray.BarAlias
 
   Done.
 
@@ -48,14 +48,14 @@ unique type Foo = Bar Nat Nat
 Bug: we leave `Stray.BarAlias` in the namespace with a nameless decl.
 
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g
      type Foo

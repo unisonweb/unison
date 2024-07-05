@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ### `debug.file`
@@ -18,7 +18,7 @@ inside.q x = x + p * p
 inside.r = d
 ```
 ```ucm
-.> debug.file
+scratch/main> debug.file
 ```
 
 This will help me make progress in some situations when UCM is being deficient or broken.
@@ -26,13 +26,13 @@ This will help me make progress in some situations when UCM is being deficient o
 ### `dependents` / `dependencies`
 But wait, there's more.  I can check the dependencies and dependents of a definition:
 ```ucm
-.> add
-.> dependents q
-.> dependencies q
-.> dependencies B
-.> dependencies d
-.> dependents d
-.>
+scratch/main> add
+scratch/main> dependents q
+scratch/main> dependencies q
+scratch/main> dependencies B
+scratch/main> dependencies d
+scratch/main> dependents d
+scratch/main>
 ```
 
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

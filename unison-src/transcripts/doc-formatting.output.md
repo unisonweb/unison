@@ -23,7 +23,7 @@ foo n =
 
 ```
 ```ucm
-.> view foo
+scratch/main> view foo
 
   foo : Nat -> Nat
   foo n =
@@ -52,7 +52,7 @@ escaping = [: Docs look [: like \@this \:] :]
 
 ```
 ```ucm
-.> view escaping
+scratch/main> view escaping
 
   escaping : Doc
   escaping = [: Docs look [: like \@this \:] :]
@@ -84,7 +84,7 @@ commented = [:
 
 ```
 ```ucm
-.> view commented
+scratch/main> view commented
 
   commented : Doc
   commented =
@@ -119,7 +119,7 @@ doc1 = [:   hi   :]
 
 ```
 ```ucm
-.> view doc1
+scratch/main> view doc1
 
   doc1 : Doc
   doc1 = [: hi :]
@@ -151,7 +151,7 @@ doc2 = [: hello
 
 ```
 ```ucm
-.> view doc2
+scratch/main> view doc2
 
   doc2 : Doc
   doc2 =
@@ -190,7 +190,7 @@ Note that because of the special treatment of the first line mentioned above, wh
 
 ```
 ```ucm
-.> view doc3
+scratch/main> view doc3
 
   doc3 : Doc
   doc3 =
@@ -237,7 +237,7 @@ doc4 = [: Here's another example of some paragraphs.
 
 ```
 ```ucm
-.> view doc4
+scratch/main> view doc4
 
   doc4 : Doc
   doc4 =
@@ -272,7 +272,7 @@ doc5 = [:   - foo
 
 ```
 ```ucm
-.> view doc5
+scratch/main> view doc5
 
   doc5 : Doc
   doc5 =
@@ -304,7 +304,7 @@ doc6 = [:
 
 ```
 ```ucm
-.> view doc6
+scratch/main> view doc6
 
   doc6 : Doc
   doc6 =
@@ -338,7 +338,7 @@ expr = foo 1
 
 ```
 ```ucm
-.> view empty
+scratch/main> view empty
 
   empty : Doc
   empty = [:  :]
@@ -398,7 +398,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
 ```
 ```ucm
-.> view test1
+scratch/main> view test1
 
   test1 : Doc
   test1 =
@@ -480,7 +480,7 @@ reg1363 = [: `@List.take foo` bar
 
 ```
 ```ucm
-.> view reg1363
+scratch/main> view reg1363
 
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
@@ -511,7 +511,7 @@ test2 = [:
 ```
 View is fine.
 ```ucm
-.> view test2
+scratch/main> view test2
 
   test2 : Doc
   test2 =
@@ -522,7 +522,7 @@ View is fine.
 ```
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 ```ucm
-.> display test2
+scratch/main> display test2
 
   Take a look at this:
   foo : Nat -> Nat

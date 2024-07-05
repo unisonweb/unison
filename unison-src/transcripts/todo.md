@@ -1,3 +1,11 @@
+# Nothing to do
+
+When there's nothing to do, `todo` says this:
+
+```ucm
+project/main> todo
+```
+
 # Conflicted names
 
 The todo command shows conflicted names (not demonstrated here yet because it is not easy to create them for tests, yet).

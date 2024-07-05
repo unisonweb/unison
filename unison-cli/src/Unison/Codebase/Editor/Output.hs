@@ -9,6 +9,7 @@ module Unison.Codebase.Editor.Output
     HistoryTail (..),
     TestReportStats (..),
     TodoOutput (..),
+    todoOutputIsEmpty,
     UndoFailureReason (..),
     ShareError (..),
     UpdateOrUpgrade (..),
@@ -18,6 +19,7 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
+import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
 import Network.URI (URI)
@@ -76,10 +78,11 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
-import Unison.Util.Defns (DefnsF)
+import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
+import qualified Unison.Names as Names
 
 type ListDetailed = Bool
 
@@ -119,6 +122,13 @@ data NumberedOutput
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  | TestResults
+      TestReportStats
+      PPE.PrettyPrintEnv
+      ShowSuccesses
+      ShowFailures
+      (Map TermReferenceId [Text]) -- oks
+      (Map TermReferenceId [Text]) -- fails
   | Output'Todo !TodoOutput
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
@@ -149,6 +159,12 @@ data TodoOutput = TodoOutput
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
+
+todoOutputIsEmpty :: TodoOutput -> Bool
+todoOutputIsEmpty todo =
+  Set.null todo.dependentsOfTodo
+    && defnsAreEmpty todo.directDependenciesWithoutNames
+    && Names.isEmpty todo.nameConflicts
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -263,13 +279,6 @@ data Output
   | LoadedDefinitionsToSourceFile FilePath Int
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) TermReferenceId
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) TermReferenceId Bool {- True if success, False for Failure -}
-  | TestResults
-      TestReportStats
-      PPE.PrettyPrintEnv
-      ShowSuccesses
-      ShowFailures
-      [(TermReferenceId, Text)] -- oks
-      [(TermReferenceId, Text)] -- fails
   | CantUndo UndoFailureReason
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -542,7 +551,6 @@ isFailure o = case o of
   DisplayRendered {} -> False
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
-  TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
@@ -677,4 +685,5 @@ isNumberedFailure = \case
   ShowDiffAfterUndo {} -> False
   ShowDiffNamespace _ _ _ bd -> BD.isEmpty bd
   ListNamespaceDependencies {} -> False
+  TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False

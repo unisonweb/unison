@@ -23,7 +23,7 @@ pong _ = !inner.ping + 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -54,13 +54,15 @@ inner.ping _ = !pong + 3
 
 ```
 ```ucm
+  ☝️  The namespace .inner is empty.
+
 .inner> update.old
 
   ⍟ I've added these definitions:
   
     inner.ping : '##Nat
 
-.> view inner.ping
+scratch/main> view inner.ping
 
   inner.ping : 'Nat
   inner.ping _ =

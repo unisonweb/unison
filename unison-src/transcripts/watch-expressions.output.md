@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 
   Done.
 
@@ -29,7 +29,7 @@ test> pass = [Ok "Passed"]
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -56,19 +56,19 @@ test> pass = [Ok "Passed"]
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⊡ Ignored previously added definitions: pass
 
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ pass   Passed
+    1. pass   ◉ Passed
   
   ✅ 1 test(s) passing
   
-  Tip: Use view pass to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ```unison

@@ -24,7 +24,7 @@ unique ability Channels where
 
 ```
 ```ucm
-.ns> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -68,7 +68,7 @@ thing _ = send 1
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
 ```ucm
-.ns> update.old patch Channels.send
+scratch/main> update.old patch Channels.send
 
   x These definitions failed:
   
@@ -77,7 +77,7 @@ These should fail with a term/ctor conflict since we exclude the ability from th
   
     Tip: Use `help filestatus` to learn more.
 
-.ns> update.old patch thing
+scratch/main> update.old patch thing
 
   ⍟ I've added these definitions:
   
@@ -122,7 +122,7 @@ thing _ = send 1
 These updates should succeed since `Channels` is a dependency.
 
 ```ucm
-.ns> update.old.preview patch Channels.send
+scratch/main> update.old.preview patch Channels.send
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -135,7 +135,7 @@ These updates should succeed since `Channels` is a dependency.
     
       Channels.send : a ->{Channels} ()
 
-.ns> update.old.preview patch thing
+scratch/main> update.old.preview patch thing
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -153,7 +153,7 @@ These updates should succeed since `Channels` is a dependency.
 We should also be able to successfully update the whole thing.
 
 ```ucm
-.ns> update.old
+scratch/main> update.old
 
   ⊡ Ignored previously added definitions: Channels
   
@@ -183,7 +183,7 @@ X.x = 1
 
 ```
 ```ucm
-.ns2> add
+scratch/main2> add
 
   ⍟ I've added these definitions:
   
@@ -215,7 +215,7 @@ structural ability X where
 This should fail with a ctor/term conflict.
 
 ```ucm
-.ns2> add
+scratch/main2> add
 
   x These definitions failed:
   

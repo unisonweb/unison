@@ -18,45 +18,45 @@ lib.ioAndExceptionTestInLib  = do
 Run a IO tests one by one 
 
 ```ucm
-.> io.test ioAndExceptionTest
+scratch/main> io.test ioAndExceptionTest
 
     New test results:
   
-  ◉ ioAndExceptionTest   Success
+    1. ioAndExceptionTest   ◉ Success
   
   ✅ 1 test(s) passing
   
-  Tip: Use view ioAndExceptionTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
-.> io.test ioTest
+scratch/main> io.test ioTest
 
     New test results:
   
-  ◉ ioTest   Success
+    1. ioTest   ◉ Success
   
   ✅ 1 test(s) passing
   
-  Tip: Use view ioTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 `io.test` doesn't cache results
 
 ```ucm
-.> io.test ioAndExceptionTest
+scratch/main> io.test ioAndExceptionTest
 
     New test results:
   
-  ◉ ioAndExceptionTest   Success
+    1. ioAndExceptionTest   ◉ Success
   
   ✅ 1 test(s) passing
   
-  Tip: Use view ioAndExceptionTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 `io.test.all` will run all matching tests except those in the `lib` namespace.
 
 ```ucm
-.> io.test.all
+scratch/main> io.test.all
 
   
 
@@ -68,11 +68,11 @@ Run a IO tests one by one
 
     New test results:
   
-  ◉ ioAndExceptionTest   Success
-  ◉ ioTest               Success
+    1. ioAndExceptionTest   ◉ Success
+    2. ioTest               ◉ Success
   
   ✅ 2 test(s) passing
   
-  Tip: Use view ioAndExceptionTest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

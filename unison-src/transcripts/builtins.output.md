@@ -1,6 +1,6 @@
 # Unit tests for builtin functions
 
-This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
+This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions
 
@@ -480,21 +480,21 @@ openFilesIO = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     openFilesIO : '{IO} [Result]
 
-.> io.test openFilesIO
+scratch/main> io.test openFilesIO
 
     New test results:
   
-  ◉ openFilesIO   Passed
+    1. openFilesIO   ◉ Passed
   
   ✅ 1 test(s) passing
   
-  Tip: Use view openFilesIO to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ## Universal hash functions
@@ -535,40 +535,40 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ```ucm
-.> test
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ Any.test1                           Passed
-  ◉ Any.test2                           Passed
-  ◉ Boolean.tests.andTable              Passed
-  ◉ Boolean.tests.notTable              Passed
-  ◉ Boolean.tests.orTable               Passed
-  ◉ Bytes.tests.at                      Passed
-  ◉ Bytes.tests.compression             Passed
-  ◉ Bytes.tests.fromBase64UrlUnpadded   Passed
-  ◉ Bytes.tests.indexOf                 Passed
-  ◉ Int.tests.arithmetic                Passed
-  ◉ Int.tests.bitTwiddling              Passed
-  ◉ Int.tests.conversions               Passed
-  ◉ Nat.tests.arithmetic                Passed
-  ◉ Nat.tests.bitTwiddling              Passed
-  ◉ Nat.tests.conversions               Passed
-  ◉ Sandbox.test1                       Passed
-  ◉ Sandbox.test2                       Passed
-  ◉ Sandbox.test3                       Passed
-  ◉ test.rtjqan7bcs                     Passed
-  ◉ Text.tests.alignment                Passed
-  ◉ Text.tests.indexOf                  Passed
-  ◉ Text.tests.indexOfEmoji             Passed
-  ◉ Text.tests.literalsEq               Passed
-  ◉ Text.tests.patterns                 Passed
-  ◉ Text.tests.repeat                   Passed
-  ◉ Text.tests.takeDropAppend           Passed
-  ◉ Universal.murmurHash.tests          Passed
+    1.  Any.test1                           ◉ Passed
+    2.  Any.test2                           ◉ Passed
+    3.  Boolean.tests.andTable              ◉ Passed
+    4.  Boolean.tests.notTable              ◉ Passed
+    5.  Boolean.tests.orTable               ◉ Passed
+    6.  Bytes.tests.at                      ◉ Passed
+    7.  Bytes.tests.compression             ◉ Passed
+    8.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    9.  Bytes.tests.indexOf                 ◉ Passed
+    10. Int.tests.arithmetic                ◉ Passed
+    11. Int.tests.bitTwiddling              ◉ Passed
+    12. Int.tests.conversions               ◉ Passed
+    13. Nat.tests.arithmetic                ◉ Passed
+    14. Nat.tests.bitTwiddling              ◉ Passed
+    15. Nat.tests.conversions               ◉ Passed
+    16. Sandbox.test1                       ◉ Passed
+    17. Sandbox.test2                       ◉ Passed
+    18. Sandbox.test3                       ◉ Passed
+    19. test.rtjqan7bcs                     ◉ Passed
+    20. Text.tests.alignment                ◉ Passed
+    21. Text.tests.indexOf                  ◉ Passed
+    22. Text.tests.indexOfEmoji             ◉ Passed
+    23. Text.tests.literalsEq               ◉ Passed
+    24. Text.tests.patterns                 ◉ Passed
+    25. Text.tests.repeat                   ◉ Passed
+    26. Text.tests.takeDropAppend           ◉ Passed
+    27. Universal.murmurHash.tests          ◉ Passed
   
   ✅ 27 test(s) passing
   
-  Tip: Use view Any.test1 to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

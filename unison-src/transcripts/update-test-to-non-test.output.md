@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 
   Done.
 
@@ -30,13 +30,13 @@ test> foo = []
 After adding the test `foo`, we expect `view` to render it like a test. (Bug: It doesn't.)
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     foo : [Result]
 
-.> view foo
+scratch/main> view foo
 
   foo : [Result]
   foo = []
@@ -63,14 +63,14 @@ foo = 1
 After updating `foo` to not be a test, we expect `view` to not render it like a test.
 
 ```ucm
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view foo
+scratch/main> view foo
 
   foo : Nat
   foo = 1

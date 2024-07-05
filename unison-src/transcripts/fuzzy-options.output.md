@@ -5,7 +5,7 @@ If an argument is required but doesn't have a fuzzy resolver, the command should
 
 ```ucm
 -- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
-.> move.term
+scratch/main> move.term
 
 `move.term foo bar` renames `foo` to `bar`.
 
@@ -14,9 +14,7 @@ If a fuzzy resolver doesn't have any options available it should print a message
 opening an empty fuzzy-select.
 
 ```ucm
-  ☝️  The namespace .empty is empty.
-
-.empty> view
+scratch/empty> view
 
 ⚠️
 
@@ -32,16 +30,14 @@ nested.optionTwo = 2
 Definition args
 
 ```ucm
-  ☝️  The namespace . is empty.
-
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     nested.optionTwo : ##Nat
     optionOne        : ##Nat
 
-.> debug.fuzzy-options view _
+scratch/main> debug.fuzzy-options view _
 
   Select a definition to view:
     * optionOne
@@ -51,12 +47,12 @@ Definition args
 Namespace args
 
 ```ucm
-.> add
+scratch/main> add
 
   ⊡ Ignored previously added definitions: nested.optionTwo
     optionOne
 
-.> debug.fuzzy-options find-in _
+scratch/main> debug.fuzzy-options find-in _
 
   Select a namespace:
     * nested
@@ -72,11 +68,14 @@ myproject/main> branch mybranch
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /mybranch`.
 
-.> debug.fuzzy-options switch _
+scratch/main> debug.fuzzy-options switch _
 
   Select a project or branch to switch to:
     * myproject/main
     * myproject/mybranch
+    * scratch/empty
+    * scratch/main
     * myproject
+    * scratch
 
 ```

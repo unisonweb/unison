@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -10,7 +10,7 @@ incrFoo = cases Bar n -> Bar (n+1)
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -18,5 +18,5 @@ unique type Foo = Bar Nat Nat
 ```
 
 ```ucm:error
-.> update
+scratch/main> update
 ```

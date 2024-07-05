@@ -95,7 +95,7 @@ mkTestCase = do
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,7 +115,7 @@ mkTestCase = do
     tree2      : Tree Nat
     tree3      : Tree Text
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

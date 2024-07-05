@@ -46,7 +46,7 @@ isEmpty2 = cases
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
 ```ucm
-.> view isEmpty
+scratch/main> view isEmpty
 
   isEmpty : [t] -> Boolean
   isEmpty = cases
@@ -71,7 +71,7 @@ merge xs ys = match (xs, ys) with
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -107,7 +107,7 @@ merge2 = cases
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ```ucm
-.> view merge
+scratch/main> view merge
 
   merge : [a] -> [a] -> [a]
   merge = cases
@@ -194,13 +194,13 @@ merge3 = cases
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     merge3 : [a] -> [a] -> [a]
 
-.> view merge3
+scratch/main> view merge3
 
   merge3 : [a] -> [a] -> [a]
   merge3 = cases
