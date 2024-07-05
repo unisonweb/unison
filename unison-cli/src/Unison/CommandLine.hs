@@ -3,21 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine
-  ( -- * Pretty Printing
-    allow,
-    backtick,
-    aside,
-    bigproblem,
-    note,
-    nothingTodo,
-    plural,
-    plural',
-    problem,
-    tip,
-    warn,
-    warnNote,
-
-    -- * Other
+  ( allow,
     parseInput,
     prompt,
     watchConfig,
@@ -32,7 +18,6 @@ import Data.Configurator (autoConfig, autoReload)
 import Data.Configurator qualified as Config
 import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
-import Data.ListLike (ListLike)
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.Text qualified as Text
@@ -51,6 +36,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.Helpers (warn)
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.Parser.Ann (Ann)
@@ -88,36 +74,6 @@ watchFileSystem q dir = do
     (filePath, text) <- watcher
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
-
-warnNote :: String -> String
-warnNote s = "⚠️  " <> s
-
-backtick :: (IsString s) => P.Pretty s -> P.Pretty s
-backtick s = P.group ("`" <> s <> "`")
-
-tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-tip s = P.column2 [("Tip:", P.wrap s)]
-
-note :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-note s = P.column2 [("Note:", P.wrap s)]
-
-aside :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s -> P.Pretty s
-aside a b = P.column2 [(a <> ":", b)]
-
-warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-warn = emojiNote "⚠️"
-
-problem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-problem = emojiNote "❗️"
-
-bigproblem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-bigproblem = emojiNote "‼️"
-
-emojiNote :: (ListLike s Char, IsString s) => String -> P.Pretty s -> P.Pretty s
-emojiNote lead s = P.group (fromString lead) <> "\n" <> P.wrap s
-
-nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-nothingTodo = emojiNote "😶"
 
 parseInput ::
   Codebase IO Symbol Ann ->
@@ -255,15 +211,3 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
 
 prompt :: String
 prompt = "> "
-
--- `plural [] "cat" "cats" = "cats"`
--- `plural ["meow"] "cat" "cats" = "cat"`
--- `plural ["meow", "meow"] "cat" "cats" = "cats"`
-plural :: (Foldable f) => f a -> b -> b -> b
-plural items one other = case toList items of
-  [_] -> one
-  _ -> other
-
-plural' :: (Integral a) => a -> b -> b -> b
-plural' 1 one _other = one
-plural' _ _one other = other
