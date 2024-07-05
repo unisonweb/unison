@@ -154,7 +154,7 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
                 . first
                   ( \msg ->
                       P.warnCallout $
-                        P.wrap "Sorry, I wasn’t sure how to process your request."
+                        P.wrap "Sorry, I wasn’t sure how to process your request:"
                           <> P.newline
                           <> P.newline
                           <> P.indentN 2 msg

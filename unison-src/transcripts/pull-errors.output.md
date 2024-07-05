@@ -14,7 +14,7 @@ test/main> pull @aryairani/test-almost-empty/main a.b
 
 ⚠️
 
-Sorry, I wasn’t sure how to process your request.
+Sorry, I wasn’t sure how to process your request:
 
   I think you want to merge @aryairani/test-almost-empty/main
   into the a.b namespace, but the `pull` command only supports
@@ -32,7 +32,7 @@ test/main> pull @aryairani/test-almost-empty/main .a
 
 ⚠️
 
-Sorry, I wasn’t sure how to process your request.
+Sorry, I wasn’t sure how to process your request:
 
   I think you want to merge @aryairani/test-almost-empty/main
   into the .a namespace, but the `pull` command only supports

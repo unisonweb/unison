@@ -10,7 +10,7 @@ scratch/main> add .
 
 ⚠️
 
-Sorry, I wasn’t sure how to process your request.
+Sorry, I wasn’t sure how to process your request:
 
   1:2:
     |
@@ -66,7 +66,7 @@ scratch/main> update arg
 
 ⚠️
 
-Sorry, I wasn’t sure how to process your request.
+Sorry, I wasn’t sure how to process your request:
 
   I expected no arguments, but received 1.
 
