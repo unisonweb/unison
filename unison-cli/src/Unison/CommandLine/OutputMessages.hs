@@ -1646,6 +1646,16 @@ notifyUser dir = \case
                     else ""
              in (isCompleteTxt, P.string (Completion.replacement comp))
         )
+  DisplayDebugLSPNameCompletions completions ->
+    pure $
+      P.columnNHeader
+        ["Matching Path", "Name", "Hash"]
+        ( completions <&> \(pathText, fqn, ld) ->
+            let ldRef = case ld of
+                  LD.TermReferent ref -> prettyReferent 10 ref
+                  LD.TypeReference ref -> prettyReference 10 ref
+             in [P.text pathText, prettyName fqn, P.syntaxToColor ldRef]
+        )
   DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
     pure $
       P.lines

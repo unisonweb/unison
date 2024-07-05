@@ -65,6 +65,7 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
+import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.Ls (handleLs)
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
@@ -809,6 +810,8 @@ loop e = do
               let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
               (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
               Cli.respond (DisplayDebugCompletions completions)
+            DebugLSPNameCompletionI prefix -> do
+              LSPDebug.debugLspNameCompletion prefix
             DebugFuzzyOptionsI command args -> do
               Cli.Env {codebase} <- ask
               currentPath <- Cli.getCurrentPath
@@ -1077,6 +1080,7 @@ inputDescription input =
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
     DebugTabCompletionI _input -> wat
+    DebugLSPNameCompletionI _prefix -> wat
     DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
     DebugFormatI -> pure "debug.format"
     DebugTypecheckedUnisonFileI {} -> wat
