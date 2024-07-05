@@ -10,13 +10,13 @@ import U.Core.ABT (ABT (..))
 import U.Core.ABT qualified as ABT
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics qualified as Diagnostic
+import Unison.Lexer.Pos qualified as Pos
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol (..))
 import Unison.Term (Term)
 import Unison.Util.Range qualified as Range
 import Unison.Var qualified as Var
-import Unison.Lexer.Pos qualified as Pos
 
 analyseTerm :: Lsp.Uri -> Ann -> Term Symbol Ann -> [Diagnostic]
 analyseTerm fileUri topLevelTermAnn tm =
