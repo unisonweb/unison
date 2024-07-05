@@ -2312,12 +2312,12 @@ helpTopics =
     [("topic", Optional, topicNameArg)]
     ("`help-topics` lists all topics and `help-topics <topic>` shows an explanation of that topic.")
     ( \case
-        [] -> Left topics
+        [] -> Right $ Input.CreateMessage topics
         [topic] -> do
           topic <- unsupportedStructuredArgument "help-topics" "a help topic" topic
           case Map.lookup topic helpTopicsMap of
             Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
-            Just t -> Left t
+            Just t -> Right $ Input.CreateMessage t
         _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
     )
   where
@@ -2497,7 +2497,7 @@ help =
     "`help` shows general help and `help <cmd>` shows help for one command."
     $ \case
       [] ->
-        Left $
+        Right . Input.CreateMessage $
           intercalateMap
             "\n\n"
             showPatternHelp
@@ -2505,13 +2505,13 @@ help =
       [cmd] -> do
         cmd <- unsupportedStructuredArgument "help" "a command" cmd
         case (Map.lookup cmd commandsByName, isHelp cmd) of
-          (Nothing, Just msg) -> Left msg
+          (Nothing, Just msg) -> Right $ Input.CreateMessage msg
           (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
-          (Just pat, Nothing) -> Left $ showPatternHelp pat
+          (Just pat, Nothing) -> Right . Input.CreateMessage $ showPatternHelp pat
           -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
           -- command's help that suggests running `help-topic command`
           (Just pat, Just _) ->
-            Left $
+            Right . Input.CreateMessage $
               showPatternHelp pat
                 <> P.newline
                 <> P.newline
