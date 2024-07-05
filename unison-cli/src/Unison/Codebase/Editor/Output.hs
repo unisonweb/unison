@@ -56,6 +56,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -82,7 +83,6 @@ import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
-import qualified Unison.Names as Names
 
 type ListDetailed = Bool
 
@@ -186,15 +186,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
+      -- | what we were trying to do (e.g. "run", "io.test")
       Text
-      -- ^ what we were trying to do (e.g. "run", "io.test")
+      -- | name of function
       (HQ.HashQualified Name)
-      -- ^ name of function
+      -- | bad type of function
       (Type Symbol Ann)
-      -- ^ bad type of function
       PPE.PrettyPrintEnv
+      -- | acceptable type(s) of function
       [Type Symbol Ann]
-      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -231,12 +231,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
+      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
+      -- | Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
-      -- ^ Misses (search terms that returned no hits for terms or types)
+      -- | Hits for types if we are searching for terms or terms if we are searching for types
       [HQ.HashQualified Name]
-      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -336,6 +336,7 @@ data Output
   | IntegrityCheck IntegrityResult
   | DisplayDebugNameDiff NameChanges
   | DisplayDebugCompletions [Completion.Completion]
+  | DisplayDebugLSPNameCompletions [(Text, Name, LabeledDependency)]
   | DebugDisplayFuzzyOptions Text [String {- arg description, options -}]
   | DebugFuzzyOptionsNoResolver
   | DebugTerm (Bool {- verbose mode -}) (Either (Text {- A builtin hash -}) (Term Symbol Ann))
@@ -384,8 +385,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
+      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
-      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -594,6 +595,7 @@ isFailure o = case o of
   ShareError {} -> True
   ViewOnShare {} -> False
   DisplayDebugCompletions {} -> False
+  DisplayDebugLSPNameCompletions {} -> False
   DebugDisplayFuzzyOptions {} -> False
   DebugFuzzyOptionsNoResolver {} -> True
   DebugTerm {} -> False

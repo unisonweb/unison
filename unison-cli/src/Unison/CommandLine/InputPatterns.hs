@@ -31,6 +31,7 @@ module Unison.CommandLine.InputPatterns
     debugNameDiff,
     debugNumberedArgs,
     debugTabCompletion,
+    debugLspNameCompletion,
     debugTerm,
     debugTermVerbose,
     debugType,
@@ -1821,6 +1822,21 @@ debugTabCompletion =
     )
     (fmap Input.DebugTabCompletionI . traverse (unsupportedStructuredArgument "text"))
 
+debugLspNameCompletion :: InputPattern
+debugLspNameCompletion =
+  InputPattern
+    "debug.lsp-name-completion"
+    []
+    I.Hidden
+    [("Completion prefix", OnePlus, noCompletionsArg)]
+    ( P.lines
+        [ P.wrap $ "This command can be used to test and debug ucm's LSP name-completion within transcripts."
+        ]
+    )
+    \case
+      [prefix] -> Input.DebugLSPNameCompletionI . Text.pack <$> unsupportedStructuredArgument "text" prefix
+      _ -> Left (I.help debugLspNameCompletion)
+
 debugFuzzyOptions :: InputPattern
 debugFuzzyOptions =
   InputPattern
@@ -3341,6 +3357,7 @@ validInputs =
       debugNameDiff,
       debugNumberedArgs,
       debugTabCompletion,
+      debugLspNameCompletion,
       debugFuzzyOptions,
       debugFormat,
       delete,

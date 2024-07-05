@@ -192,6 +192,7 @@ data Input
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
+  | DebugLSPNameCompletionI Text -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments
   | DebugFormatI
   | DebugNumberedArgsI

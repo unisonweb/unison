@@ -3,7 +3,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.LSP.Completion where
+module Unison.LSP.Completion
+  ( completionHandler,
+    completionItemResolveHandler,
+    namesToCompletionTree,
+    -- Exported for transcript tests
+    completionsForQuery,
+  )
+where
 
 import Control.Comonad.Cofree
 import Control.Lens hiding (List, (:<))
@@ -11,6 +18,7 @@ import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.Foldable qualified as Foldable
+import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
@@ -58,25 +66,29 @@ completionHandler m respond =
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
     ppe <- PPED.suffixifiedPPE <$> lift currentPPED
     codebaseCompletions <- lift getCodebaseCompletions
-    -- Config {maxCompletions} <- lift getConfig
-    let defMatches = matchCompletions codebaseCompletions prefix
-    let (isIncomplete, defCompletions) =
-          defMatches
-            & nubOrdOn (\(p, _name, ref) -> (p, ref))
-            & fmap (over _1 Path.toText)
-            & (False,)
-    -- case maxCompletions of
-    -- Nothing -> (False,)
-    -- Just n -> takeCompletions n
+    let (isIncomplete, matches) = completionsForQuery codebaseCompletions prefix
     let defCompletionItems =
-          defCompletions
+          matches
             & mapMaybe \(path, fqn, dep) ->
               let biasedPPE = PPE.biasTo [fqn] ppe
                   hqName = LD.fold (PPE.types biasedPPE) (PPE.terms biasedPPE) dep
                in hqName <&> \hqName -> mkDefCompletionItem fileUri range (HQ'.toName hqName) fqn path (HQ'.toText hqName) dep
+
     let itemDefaults = Nothing
     pure . CompletionList isIncomplete itemDefaults $ defCompletionItems
   where
+
+completionsForQuery :: CompletionTree -> Text -> (Bool, [(Text, Name, LabeledDependency)])
+completionsForQuery codebaseCompletions prefix =
+  let defMatches = matchCompletions codebaseCompletions prefix
+      (isIncomplete, defCompletions) =
+        defMatches
+          -- sort shorter names first
+          & sortOn (matchSortCriteria . view _2)
+          & nubOrdOn (\(p, _name, ref) -> (p, ref))
+          & fmap (over _1 Path.toText)
+          & (False,)
+   in (isIncomplete, defCompletions)
 
 -- Takes at most the specified number of completions, but also indicates with a boolean
 -- whether there were more completions remaining so we can pass that along to the client.
@@ -100,7 +112,9 @@ mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixifi
       _documentation = Nothing,
       _deprecated = Nothing,
       _preselect = Nothing,
-      _sortText = Nothing,
+      _sortText =
+        let (nls, ns, fn) = matchSortCriteria fullyQualifiedName
+         in Just $ Text.intercalate "|" [paddedInt nls, paddedInt ns, Name.toText fn],
       _filterText = Just path,
       _insertText = Nothing,
       _insertTextFormat = Nothing,
@@ -113,6 +127,13 @@ mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixifi
       _data_ = Just $ Aeson.toJSON $ CompletionItemDetails {dep, relativeName, fullyQualifiedName, fileUri}
     }
   where
+    -- Pads an integer with zeroes so it sorts lexicographically in the right order
+    --
+    -- >>> paddedInt 1
+    -- "00001"
+    paddedInt :: Int -> Text
+    paddedInt n =
+      Text.justifyRight 5 '0' (Text.pack $ show n)
     -- We should generally show the longer of the path or suffixified name in the label,
     -- it helps the user understand the difference between options which may otherwise look
     -- the same.
@@ -130,6 +151,21 @@ mkDefCompletionItem fileUri range relativeName fullyQualifiedName path suffixifi
       if Text.length path > Text.length suffixified
         then path
         else suffixified
+
+-- | LSP clients sort completions using a text field, so we have to convert Unison's sort criteria to text.
+matchSortCriteria :: Name -> (Int, Int, Name)
+matchSortCriteria fqn =
+  (numLibSegments, numSegments, fqn)
+  where
+    numSegments :: Int
+    numSegments =
+      Name.countSegments fqn
+    numLibSegments :: Int
+    numLibSegments =
+      Name.reverseSegments fqn
+        & Foldable.toList
+        & List.filter (== NameSegment.libSegment)
+        & List.length
 
 -- | Generate a completion tree from a set of names.
 -- A completion tree is a suffix tree over the path segments of each name it contains.
