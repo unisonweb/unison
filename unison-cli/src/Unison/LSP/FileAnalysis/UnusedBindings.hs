@@ -15,6 +15,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol (..))
 import Unison.Term (Term)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Range qualified as Range
 import Unison.Var qualified as Var
 
@@ -34,14 +35,17 @@ analyseTerm fileUri topLevelTermAnn tm =
         Nothing -> []
         Just lspRange ->
           let bindings = Text.intercalate ", " (tShow <$> vars)
-           in [Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding(s) " <> bindings <> " inside this term.\nUse the binding, or prefix it with an _ to dismiss this warning.") []]
+           in Monoid.whenM (not $ null vars) [Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding(s) " <> bindings <> " inside this term.\nUse the binding(s), or prefix them with an _ to dismiss this warning.") []]
   where
     getRelevantVarName :: Symbol -> Maybe Text
     getRelevantVarName = \case
+      -- Sometimes 'do' gets a binding of '()', which we don't care about
+      Symbol _ (Var.User "()") -> Nothing
+      Symbol _ (Var.User "") -> Nothing
       -- We only care about user bindings which don't start with an underscore
       Symbol _ (Var.User n) -> do
         guard (not (Text.isPrefixOf "_" n))
-        pure n
+        Just n
       _ -> Nothing
     alg :: (Foldable f, Ord v) => Ann -> ABT f v (Map v Ann, Set v) -> (Map v Ann, Set v)
     alg ann abt = case abt of

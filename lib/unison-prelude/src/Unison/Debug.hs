@@ -147,7 +147,7 @@ debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.memb
 debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then (pTrace (msg <> ":\n" <> into @String (pShow a)) a)
+    then (trace (msg <> ":\n" <> into @String (pShow a)) a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
