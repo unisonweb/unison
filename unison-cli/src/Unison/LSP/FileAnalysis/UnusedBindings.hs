@@ -1,8 +1,8 @@
-module Unison.LSP.FileAnalysis.UnusedBindings (analyseTerm) where
+module Unison.LSP.FileAnalysis.UnusedBindings where
 
-import Control.Lens
+import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
-
 import Language.LSP.Protocol.Types (Diagnostic)
 import Language.LSP.Protocol.Types qualified as Lsp
 import U.Core.ABT (ABT (..))
@@ -13,24 +13,20 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
-import Unison.Term qualified as Term
 
 analyseTerm :: Lsp.Uri -> Term Symbol Ann -> [Diagnostic]
 analyseTerm fileUri tm =
-  let (unusedVars, _) = ABT.para alg tm
-   in unusedVars & mapMaybe \(v, ann) -> do
+  let (unusedVars, _) = ABT.cata alg tm
+   in Map.toList unusedVars & mapMaybe \(v, ann) -> do
         range <- Cv.annToRange ann
         pure $ Diagnostic.mkDiagnostic fileUri range Diagnostic.DiagnosticSeverity_Warning ("Unused binding " <> tShow v) []
   where
-    alg :: (Ord v) => Ann -> ABT (Term.F v a a) v (Term v Ann, ([(v, Ann)], Set v)) -> ([(v, Ann)], Set v)
+    alg :: (Foldable f, Ord v) => Ann -> ABT f v (Map v Ann, Set v) -> (Map v Ann, Set v)
     alg ann abt = case abt of
       Var v -> (mempty, Set.singleton v)
-      Cycle (_t, x) -> x
-      Abs v (_, (unusedBindings, usedVars)) ->
+      Cycle x -> x
+      Abs v (unusedBindings, usedVars) ->
         if v `Set.member` usedVars
-          then (unusedBindings, Set.delete v usedVars)
-          else ((v, ann) : unusedBindings, usedVars)
-      Tm fx -> case fx of
-        Term.Let _isTop (lhsTerm, lx) (_rhsTerm, rx) ->
-          set (_1 . _head . _2) (ABT.annotation lhsTerm) lx <> rx
-        _ -> foldOf (folded . _2) fx
+          then (mempty, Set.delete v usedVars)
+          else (Map.insert v ann unusedBindings, usedVars)
+      Tm fx -> Foldable.fold fx
