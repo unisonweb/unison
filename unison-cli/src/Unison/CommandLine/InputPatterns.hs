@@ -1438,7 +1438,7 @@ debugAliasTypeForce =
       parse = \case
         [oldName, newName] -> Input.AliasTypeI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
         _ ->
-          Left . warn $
+          Left $
             P.wrap "`debug.alias.type.force` takes two arguments, like `debug.alias.type.force oldname newname`."
     }
 
