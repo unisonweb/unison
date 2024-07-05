@@ -21,13 +21,20 @@ import Unison.Var qualified as Var
 analyseTerm :: Lsp.Uri -> Ann -> Term Symbol Ann -> [Diagnostic]
 analyseTerm fileUri topLevelTermAnn tm =
   let (unusedVars, _) = ABT.cata alg tm
-   in Map.toList unusedVars & mapMaybe \(v, _ann) -> do
-        name <- getRelevantVarName v
-        -- Unfortunately we don't capture the annotation of the actual binding when parsing :'(, for now the least
-        -- annoying thing to do is just highlight the top of the binding.
-        urange <- Cv.annToURange topLevelTermAnn <&> (\(Range.Range start@(Pos.Pos line _col) _end) -> Range.Range start (Pos.Pos line 9999))
-        let lspRange = Cv.uToLspRange urange
-        pure $ Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding " <> tShow name <> " inside this term.\nUse the binding, or prefix it with an _ to dismiss this warning.") []
+      -- Unfortunately we don't capture the annotation of the actual binding when parsing :'(, for now the least
+      -- annoying thing to do is just highlight the top of the binding.
+      mayRange =
+        Cv.annToURange topLevelTermAnn
+          <&> (\(Range.Range start@(Pos.Pos line _col) _end) -> Range.Range start (Pos.Pos line 9999))
+          <&> Cv.uToLspRange
+      vars =
+        Map.toList unusedVars & mapMaybe \(v, _ann) -> do
+          getRelevantVarName v
+   in case mayRange of
+        Nothing -> []
+        Just lspRange ->
+          let bindings = Text.intercalate ", " (tShow <$> vars)
+           in [Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding(s) " <> bindings <> " inside this term.\nUse the binding, or prefix it with an _ to dismiss this warning.") []]
   where
     getRelevantVarName :: Symbol -> Maybe Text
     getRelevantVarName = \case
