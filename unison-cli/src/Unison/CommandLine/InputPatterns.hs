@@ -2184,7 +2184,7 @@ mergeCommitInputPattern =
                 ),
       parse = \case
         [] -> Right Input.MergeCommitI
-        _ -> Left (I.help mergeCommitInputPattern)
+        args -> wrongArgsLength "no arguments" args
     }
 
 parseLooseCodeOrProject :: String -> Maybe Input.LooseCodeOrProject
