@@ -39,6 +39,7 @@ import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Helpers (warn)
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.CommandLine.InputPatterns qualified as IPs
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project.Util (ProjectContext, projectContextFromPath)
@@ -117,12 +118,10 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
                           <> P.newline
                           <> P.newline
                           <> P.wrap
-                            ( P.text $
-                                "You can run `help "
-                                  <> Text.pack command
-                                  <> "` for more information on using `"
-                                  <> Text.pack command
-                                  <> "`."
+                            ( "You can run"
+                                <> IPs.makeExample IPs.help [fromString command]
+                                <> "for more information on using"
+                                <> IPs.makeExampleEOS pat []
                             )
                   )
                 $ parse resolvedArgs
@@ -131,9 +130,11 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
         throwE
           . warn
           . P.wrap
-          $ "I don't know how to "
+          $ "I don't know how to"
             <> P.group (fromString command <> ".")
-            <> "Type `help` or `?` to get help."
+            <> "Type"
+            <> IPs.makeExample' IPs.help
+            <> "or `?` to get help."
   where
     noCompletionsMessage argDesc =
       P.callout "⚠️" $

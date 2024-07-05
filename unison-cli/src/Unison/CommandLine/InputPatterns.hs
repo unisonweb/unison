@@ -190,7 +190,7 @@ import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..), parseBran
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
-import Unison.CommandLine.Helpers (aside, backtick, tip, warn)
+import Unison.CommandLine.Helpers (aside, backtick, tip)
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.Core.Project (ProjectBranchName (..))
@@ -300,14 +300,13 @@ searchResultToHQ oprefix = \case
     addPrefix :: Name -> Name
     addPrefix = maybe id Path.prefixNameIfRel oprefix
 
-unsupportedStructuredArgument :: Text -> Text -> I.Argument -> Either (P.Pretty CT.ColorText) String
+unsupportedStructuredArgument :: InputPattern -> Text -> I.Argument -> Either (P.Pretty CT.ColorText) String
 unsupportedStructuredArgument command expected =
-  either pure . const . Left . P.text $
-    "`"
-      <> command
-      <> "` can’t accept a numbered argument for "
-      <> expected
-      <> " and it’s not yet possible to provide un-expanded numbers as arguments."
+  either pure . const . Left . P.wrap $
+    makeExample' command
+      <> "can’t accept a numbered argument for"
+      <> P.text expected
+      <> "and it’s not yet possible to provide un-expanded numbers as arguments."
 
 expectedButActually' :: Text -> String -> P.Pretty CT.ColorText
 expectedButActually' expected actualValue =
@@ -793,7 +792,7 @@ load =
     )
     \case
       [] -> pure $ Input.LoadI Nothing
-      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument "load" "a file name" file
+      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument load "a file name" file
       args -> wrongArgsLength "no more than one argument" args
 
 clear :: InputPattern
@@ -1016,7 +1015,7 @@ displayTo =
           (wrongArgsLength "at least two arguments" [file])
           ( \defs ->
               Input.DisplayI . Input.FileLocation
-                <$> unsupportedStructuredArgument "display.to" "a file name" file
+                <$> unsupportedStructuredArgument displayTo "a file name" file
                 <*> traverse handleHashQualifiedNameArg defs
           )
           $ NE.nonEmpty defs
@@ -1823,7 +1822,7 @@ debugTabCompletion =
           P.wrap $ "Completions which are finished are prefixed with a * represent finished completions."
         ]
     )
-    (fmap Input.DebugTabCompletionI . traverse (unsupportedStructuredArgument "debug.tab-complete" "text"))
+    (fmap Input.DebugTabCompletionI . traverse (unsupportedStructuredArgument debugTabCompletion "text"))
 
 debugLspNameCompletion :: InputPattern
 debugLspNameCompletion =
@@ -1837,8 +1836,8 @@ debugLspNameCompletion =
         ]
     )
     \case
-      [prefix] -> Input.DebugLSPNameCompletionI . Text.pack <$> unsupportedStructuredArgument "text" prefix
-      _ -> Left (I.help debugLspNameCompletion)
+      [prefix] -> Input.DebugLSPNameCompletionI . Text.pack <$> unsupportedStructuredArgument debugLspNameCompletion "text" prefix
+      args -> wrongArgsLength "exactly one argument" args
 
 debugFuzzyOptions :: InputPattern
 debugFuzzyOptions =
@@ -1858,8 +1857,8 @@ debugFuzzyOptions =
     \case
       (cmd : args) ->
         Input.DebugFuzzyOptionsI
-          <$> unsupportedStructuredArgument "debug.fuzzy-options" "a command" cmd
-          <*> traverse (unsupportedStructuredArgument "debug.fuzzy-options" "text") args
+          <$> unsupportedStructuredArgument debugFuzzyOptions "a command" cmd
+          <*> traverse (unsupportedStructuredArgument debugFuzzyOptions "text") args
       args -> wrongArgsLength "at least one argument" args
 
 debugFormat :: InputPattern
@@ -2345,7 +2344,7 @@ helpTopics =
     ( \case
         [] -> Right $ Input.CreateMessage topics
         [topic] -> do
-          topic <- unsupportedStructuredArgument "help-topics" "a help topic" topic
+          topic <- unsupportedStructuredArgument helpTopics "a help topic" topic
           case Map.lookup topic helpTopicsMap of
             Nothing -> Left $ "I don't know of that topic. Try `help-topics`."
             Just t -> Right $ Input.CreateMessage t
@@ -2534,10 +2533,10 @@ help =
             showPatternHelp
             visibleInputs
       [cmd] -> do
-        cmd <- unsupportedStructuredArgument "help" "a command" cmd
+        cmd <- unsupportedStructuredArgument help "a command" cmd
         case (Map.lookup cmd commandsByName, isHelp cmd) of
           (Nothing, Just msg) -> Right $ Input.CreateMessage msg
-          (Nothing, Nothing) -> Left $ "I don't know of that command. Try `help`."
+          (Nothing, Nothing) -> Left $ "I don't know of that command. Try" <> makeExampleEOS help []
           (Just pat, Nothing) -> Right . Input.CreateMessage $ showPatternHelp pat
           -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
           -- command's help that suggests running `help-topic command`
@@ -2816,7 +2815,7 @@ docsToHtml =
       [namespacePath, destinationFilePath] ->
         Input.DocsToHtmlI
           <$> handleBranchRelativePathArg namespacePath
-          <*> unsupportedStructuredArgument "docs.to-html" "a file name" destinationFilePath
+          <*> unsupportedStructuredArgument docsToHtml "a file name" destinationFilePath
       args -> wrongArgsLength "exactly two arguments" args
 
 docToMarkdown :: InputPattern
@@ -2856,7 +2855,7 @@ execute =
       main : args ->
         Input.ExecuteI
           <$> handleHashQualifiedNameArg main
-          <*> traverse (unsupportedStructuredArgument "run" "a command-line argument") args
+          <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
       [] -> wrongArgsLength "at least one argument" []
 
 saveExecuteResult :: InputPattern
@@ -2927,7 +2926,7 @@ makeStandalone =
     $ \case
       [main, file] ->
         Input.MakeStandaloneI
-          <$> unsupportedStructuredArgument "compile" "a file name" file
+          <$> unsupportedStructuredArgument makeStandalone "a file name" file
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
 
@@ -2948,7 +2947,7 @@ runScheme =
       main : args ->
         Input.ExecuteSchemeI
           <$> handleHashQualifiedNameArg main
-          <*> traverse (unsupportedStructuredArgument "run.native" "a command-line argument") args
+          <*> traverse (unsupportedStructuredArgument runScheme "a command-line argument") args
       [] -> wrongArgsLength "at least one argument" []
 
 compileScheme :: InputPattern
@@ -2969,7 +2968,7 @@ compileScheme =
     $ \case
       [main, file] ->
         Input.CompileSchemeI . Text.pack
-          <$> unsupportedStructuredArgument "compile.native" "a file name" file
+          <$> unsupportedStructuredArgument compileScheme "a file name" file
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
 
@@ -2997,7 +2996,7 @@ createAuthor =
           <$> handleRelativeNameSegmentArg symbolStr
           <*> fmap
             (parseAuthorName . unwords)
-            (traverse (unsupportedStructuredArgument "create.author" "text") authorStr)
+            (traverse (unsupportedStructuredArgument createAuthor "text") authorStr)
       args -> wrongArgsLength "at least two arguments" args
   where
     -- let's have a real parser in not too long
@@ -3265,7 +3264,7 @@ releaseDraft =
           bimap (const "Couldn’t parse version number") Input.ReleaseDraftI
             . tryInto @Semver
             . Text.pack
-            =<< unsupportedStructuredArgument "release.draft" "a version number" semverString
+            =<< unsupportedStructuredArgument releaseDraft "a version number" semverString
         args -> wrongArgsLength "exactly one argument" args
     }
 
