@@ -12,8 +12,8 @@ test/main> pull @aryairani/test-almost-empty/main lib.base_latest
 
 test/main> pull @aryairani/test-almost-empty/main a.b
 
-  Sorry, I wasn’t sure how to process your request. I think
-  you're wanting to merge @aryairani/test-almost-empty/main into
+  Sorry, I'm not sure how to process your request. I think
+  you're trying to merge @aryairani/test-almost-empty/main into
   the a.b namespace, but the `pull` command only supports
   merging into the top level of a local project branch.
   
@@ -42,15 +42,15 @@ test/main> pull @aryairani/test-almost-empty/main a.b
 
 test/main> pull @aryairani/test-almost-empty/main a
 
-  I think you're wanting to merge
+  I think you're trying to merge
   @aryairani/test-almost-empty/main into the a branch, but it
   doesn't exist. If you want, you can create it with
   `branch.empty a`, and then `pull` again.
 
 test/main> pull @aryairani/test-almost-empty/main .a
 
-  Sorry, I wasn’t sure how to process your request. I think
-  you're wanting to merge @aryairani/test-almost-empty/main into
+  Sorry, I'm not sure how to process your request. I think
+  you're trying to merge @aryairani/test-almost-empty/main into
   the .a namespace, but the `pull` command only supports merging
   into the top level of a local project branch.
   

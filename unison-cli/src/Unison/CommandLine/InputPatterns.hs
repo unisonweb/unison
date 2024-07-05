@@ -135,7 +135,7 @@ module Unison.CommandLine.InputPatterns
   )
 where
 
-import Control.Lens (preview, review)
+import Control.Lens (Field1 (_1), preview, review)
 import Control.Lens.Cons qualified as Cons
 import Data.Bitraversable (bitraverse)
 import Data.List (intercalate)
@@ -185,11 +185,11 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.CommandLine
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..), parseBranchRelativePath, parseIncrementalBranchRelativePath)
 import Unison.CommandLine.BranchRelativePath qualified as BranchRelativePath
 import Unison.CommandLine.Completion
 import Unison.CommandLine.FZFResolvers qualified as Resolvers
+import Unison.CommandLine.Helpers (aside, backtick, tip, warn)
 import Unison.CommandLine.InputPattern (ArgumentType (..), InputPattern (InputPattern), IsOptional (..), unionSuggestions)
 import Unison.CommandLine.InputPattern qualified as I
 import Unison.Core.Project (ProjectBranchName (..))
@@ -299,14 +299,15 @@ searchResultToHQ oprefix = \case
     addPrefix :: Name -> Name
     addPrefix = maybe id Path.prefixNameIfRel oprefix
 
-unsupportedStructuredArgument :: Text -> Text -> I.Argument -> Either (P.Pretty CT.ColorText) String
-unsupportedStructuredArgument command expected =
-  either pure . const . Left . P.text $
-    "`"
-      <> command
-      <> "` can’t accept a numbered argument for "
-      <> expected
-      <> " and it’s not yet possible to provide un-expanded numbers as arguments."
+unsupportedStructuredArgument :: InputPattern -> P.Pretty CT.ColorText -> I.Argument -> I.ParseResult String
+unsupportedStructuredArgument command expected = \case
+  Left string -> I.Ok string
+  Right _arg ->
+    I.ErrorHelp . I.Formatted . P.wrap $
+      makeExample' command
+        <> "can’t accept a numbered argument for "
+        <> expected
+        <> "and it’s not yet possible to provide un-expanded numbers as arguments."
 
 expectedButActually' :: Text -> String -> P.Pretty CT.ColorText
 expectedButActually' expected actualValue =
@@ -340,9 +341,9 @@ wrongStructuredArgument expected actual =
       SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
 
-wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
+wrongArgsLength :: P.Pretty CT.ColorText -> [a] -> I.ParseResult b
 wrongArgsLength expected args =
-  Left . P.text $ "I expected " <> expected <> ", but received " <> Text.pack (show $ length args) <> "."
+  I.ErrorInfo I.HelpFull . Just . I.Formatted . P.wrap $ "I expected " <> P.group (expected <> ",") <> "but received" <> P.group (P.string (show $ length args) <> ".")
 
 patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
@@ -364,9 +365,14 @@ makeExampleEOS p args =
 helpFor :: InputPattern -> P.Pretty CT.ColorText
 helpFor = I.help
 
-handleProjectArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectName
+handleArg :: Either (P.Pretty CT.ColorText) a -> I.ParseResult a
+handleArg = \case
+  Left message -> I.ErrorFormatted message
+  Right a -> I.Ok a
+
+handleProjectArg :: I.Argument -> I.ParseResult ProjectName
 handleProjectArg =
-  either
+  handleArg . either
     (\name -> first (const $ expectedButActually' "a project" name) . tryInto @ProjectName $ Text.pack name)
     \case
       SA.Project project -> pure project
@@ -401,7 +407,7 @@ handleProjectMaybeBranchArg =
         pure . ProjectAndBranch proj . pure $ ProjectBranchNameOrLatestRelease'Name branch
       otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
 
-handleHashQualifiedNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
+handleHashQualifiedNameArg :: I.Argument -> Either I.ParseError (HQ.HashQualified Name)
 handleHashQualifiedNameArg =
   either
     parseHashQualifiedName
@@ -415,11 +421,12 @@ handleHashQualifiedNameArg =
       SA.ShallowListEntry prefix entry ->
         pure . HQ'.toHQ . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
-      otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
+      otherArgType -> Left . I.Formatted $ wrongStructuredArgument "a hash-qualified name" otherArgType
 
-handlePathArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path
+-- confused about this function; why start with `Name` and then throw away its error?
+handlePathArg :: I.Argument -> I.ParseResult Path
 handlePathArg =
-  either
+  handleArg . either
     (first P.text . Path.parsePath)
     \case
       SA.Name name -> pure $ Path.fromName name
@@ -435,28 +442,32 @@ handlePathArg =
           . handleNameArg
           $ pure otherArgType
 
-handlePath'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
+handlePath'Arg :: I.Argument -> Either I.ParseError Path'
 handlePath'Arg =
   either
-    (first P.text . Path.parsePath')
+    (first I.Unformatted . Path.parsePath')
     \case
       SA.AbsolutePath path -> pure $ Path.absoluteToPath' path
       SA.Name name -> pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
         pure . Path.fromName' $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
       otherArgType ->
-        bimap (const $ wrongStructuredArgument "a path" otherArgType) Path.fromName' . handleNameArg $ pure otherArgType
+        bimap
+          (const $ I.Formatted $ wrongStructuredArgument "a path" otherArgType)
+          Path.fromName'
+          . handleNameArg
+          $ pure otherArgType
 
-handleNewName :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Split'
+handleNewName :: I.Argument -> Either I.ParseError Path.Split'
 handleNewName =
   either
-    (first P.text . Path.parseSplit')
+    (first I.Unformatted . Path.parseSplit')
     (const . Left $ "can’t use a numbered argument for a new name")
 
-handleNewPath :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
+handleNewPath :: I.Argument -> Either I.ParseError Path'
 handleNewPath =
   either
-    (first P.text . Path.parsePath')
+    (first I.Unformatted . Path.parsePath')
     (const . Left $ "can’t use a numbered argument for a new namespace")
 
 -- | When only a relative name is allowed.
@@ -469,16 +480,16 @@ handleSplitArg =
       SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
       otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
-handleSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.Split'
+handleSplit'Arg :: I.Argument -> Either I.ParseError Path.Split'
 handleSplit'Arg =
   either
-    (first P.text . Path.parseSplit')
+    (first I.Unformatted . Path.parseSplit')
     \case
       SA.Name name -> pure $ Path.splitFromName' name
       SA.NameWithBranchPrefix (Left _) name -> pure $ Path.splitFromName' name
       SA.NameWithBranchPrefix (Right prefix) name ->
         pure . Path.splitFromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
 
 handleProjectBranchNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectBranchName
 handleProjectBranchNameArg =
@@ -585,26 +596,26 @@ hq'NameToSplit = \case
   HQ'.NameOnly name -> HQ'.NameOnly <$> Path.splitFromName name
   HQ'.HashQualified name hash -> flip HQ'.HashQualified hash <$> Path.splitFromName name
 
-handleHashQualifiedSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.HQSplit'
+handleHashQualifiedSplit'Arg :: I.Argument -> Either I.ParseError Path.HQSplit'
 handleHashQualifiedSplit'Arg =
   either
-    (first P.text . Path.parseHQSplit')
+    (first I.Unformatted . Path.parseHQSplit')
     \case
       SA.Name name -> pure $ Path.hqSplitFromName' name
-      hq@(SA.HashQualified name) -> first (const $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
+      hq@(SA.HashQualified name) -> first (const $ I.Formatted $ expectedButActually "a name" hq "a hash") $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure $ hq'NameToSplit' hqname
       SA.HashQualifiedWithBranchPrefix (Right prefix) hqname ->
         pure . hq'NameToSplit' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
       SA.ShallowListEntry prefix entry ->
         pure . hq'NameToSplit' . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
-        first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
+        first (const $ I.Formatted $ expectedButActually "a name" sr "a hash") . hqNameToSplit' $ searchResultToHQ mpath result
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
 
-handleHashQualifiedSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path.HQSplit
+handleHashQualifiedSplitArg :: I.Argument -> Either I.ParseError Path.HQSplit
 handleHashQualifiedSplitArg =
   either
-    (first P.text . Path.parseHQSplit)
+    (first I.Unformatted . Path.parseHQSplit)
     \case
       n@(SA.Name name) ->
         bitraverse
@@ -621,7 +632,7 @@ handleHashQualifiedSplitArg =
       SA.ShallowListEntry _ entry -> pure . hq'NameToSplit $ shallowListEntryToHQ' entry
       sr@(SA.SearchResult mpath result) ->
         first (const $ expectedButActually "a name" sr "a hash") . hqNameToSplit $ searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
+      otherNumArg -> I.ErrorFormatted $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleShortCausalHashArg :: I.Argument -> Either (P.Pretty CT.ColorText) ShortCausalHash
 handleShortCausalHashArg =
@@ -631,11 +642,10 @@ handleShortCausalHashArg =
       SA.Namespace hash -> pure $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a causal hash" otherNumArg
 
-handleShortHashOrHQSplit'Arg ::
-  I.Argument -> Either (P.Pretty CT.ColorText) (Either ShortHash Path.HQSplit')
+handleShortHashOrHQSplit'Arg :: I.Argument -> Either I.ParseError (Either ShortHash Path.HQSplit')
 handleShortHashOrHQSplit'Arg =
   either
-    (first P.text . Path.parseShortHashOrHQSplit')
+    (first I.Unformatted . Path.parseShortHashOrHQSplit')
     \case
       SA.HashQualified name -> pure $ hqNameToSplit' name
       SA.HashQualifiedWithBranchPrefix (Left _) hqname -> pure . pure $ hq'NameToSplit' hqname
@@ -644,20 +654,20 @@ handleShortHashOrHQSplit'Arg =
       SA.ShallowListEntry prefix entry ->
         pure . pure . hq'NameToSplit' . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result -> pure . hqNameToSplit' $ searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a hash or name" otherNumArg
 
-handleRelativeNameSegmentArg :: I.Argument -> Either (P.Pretty CT.ColorText) NameSegment
+handleRelativeNameSegmentArg :: I.Argument -> Either I.ParseError NameSegment
 handleRelativeNameSegmentArg arg = do
   name <- handleNameArg arg
   let (segment NE.:| tail) = Name.reverseSegments name
   if Name.isRelative name && null tail
     then pure segment
-    else Left $ P.text "Wanted a single relative name segment, but it wasn’t."
+    else Left $ I.Formatted "I was expecting a single, relative name segment, but couldn't recognize it as such."
 
-handleNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) Name
+handleNameArg :: I.Argument -> Either I.ParseError Name
 handleNameArg =
   either
-    (first P.text . Name.parseTextEither . Text.pack)
+    (first I.Unformatted . Name.parseTextEither . Text.pack)
     \case
       SA.Name name -> pure name
       SA.NameWithBranchPrefix (Left _) name -> pure name
@@ -670,37 +680,37 @@ handleNameArg =
         pure . HQ'.toName . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
       SA.SearchResult mpath result ->
         maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
 
 handlePullSourceArg ::
   I.Argument ->
   Either
-    (P.Pretty CT.ColorText)
+    I.ParseError
     (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
 handlePullSourceArg =
   either
-    (megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease) . Text.pack)
+    (first I.Formatted . megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease) . Text.pack)
     \case
       SA.Project project -> pure . RemoteRepo.ReadShare'ProjectBranch $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) ->
         pure . RemoteRepo.ReadShare'ProjectBranch . maybe That These project $
           ProjectBranchNameOrLatestRelease'Name branch
-      otherNumArg -> Left $ wrongStructuredArgument "a source to pull from" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a source to pull from" otherNumArg
 
 handlePushTargetArg ::
-  I.Argument -> Either (P.Pretty CT.ColorText) (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  I.Argument -> Either I.ParseError (WriteRemoteNamespace (These ProjectName ProjectBranchName))
 handlePushTargetArg =
   either
-    (\str -> maybe (Left $ expectedButActually' "a target to push to" str) pure $ parsePushTarget str)
+    (\str -> maybe (Left . I.Formatted $ expectedButActually' "a target to push to" str) pure $ parsePushTarget str)
     $ fmap RemoteRepo.WriteRemoteProjectBranch . \case
       SA.Project project -> pure $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) -> pure $ maybe That These project branch
-      otherNumArg -> Left $ wrongStructuredArgument "a target to push to" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a target to push to" otherNumArg
 
-handlePushSourceArg :: I.Argument -> Either (P.Pretty CT.ColorText) Input.PushSource
+handlePushSourceArg :: I.Argument -> Either I.ParseError Input.PushSource
 handlePushSourceArg =
   either
-    (\str -> maybe (Left $ expectedButActually' "a source to push from" str) pure $ parsePushSource str)
+    (\str -> maybe (Left . I.Formatted $ expectedButActually' "a source to push from" str) pure $ parsePushSource str)
     \case
       SA.AbsolutePath path -> pure . Input.PathySource $ Path.absoluteToPath' path
       SA.Name name -> pure . Input.PathySource $ Path.fromName' name
@@ -709,16 +719,16 @@ handlePushSourceArg =
         pure . Input.PathySource . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
       SA.Project project -> pure . Input.ProjySource $ This project
       SA.ProjectBranch (ProjectAndBranch project branch) -> pure . Input.ProjySource $ maybe That These project branch
-      otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a source to push from" otherNumArg
 
-handleProjectAndBranchNamesArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectAndBranchNames
+handleProjectAndBranchNamesArg :: I.Argument -> Either I.ParseError ProjectAndBranchNames
 handleProjectAndBranchNamesArg =
   either
-    (\str -> first (const $ expectedButActually' "a project or branch" str) . tryInto @ProjectAndBranchNames $ Text.pack str)
+    (\str -> first (const $ I.Formatted $ expectedButActually' "a project or branch" str) . tryInto @ProjectAndBranchNames $ Text.pack str)
     $ fmap ProjectAndBranchNames'Unambiguous . \case
       SA.Project project -> pure $ This project
       SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ maybe That These mproj branch
-      otherNumArg -> Left $ wrongStructuredArgument "a project or branch" otherNumArg
+      otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a project or branch" otherNumArg
 
 mergeBuiltins :: InputPattern
 mergeBuiltins =
@@ -729,7 +739,7 @@ mergeBuiltins =
     [("namespace", Optional, namespaceArg)]
     "Adds the builtins (excluding `io` and misc) to the specified namespace. Defaults to `builtin.`"
     \case
-      [] -> pure . Input.MergeBuiltinsI $ Nothing
+      [] -> I.Ok . Input.MergeBuiltinsI $ Nothing
       [p] -> Input.MergeBuiltinsI . Just <$> handlePathArg p
       args -> wrongArgsLength "no more than one argument" args
 
@@ -742,7 +752,7 @@ mergeIOBuiltins =
     [("namespace", Optional, namespaceArg)]
     "Adds all the builtins, including `io` and misc., to the specified namespace. Defaults to `builtin.`"
     \case
-      [] -> pure . Input.MergeIOBuiltinsI $ Nothing
+      [] -> I.Ok . Input.MergeIOBuiltinsI $ Nothing
       [p] -> Input.MergeIOBuiltinsI . Just <$> handlePathArg p
       args -> wrongArgsLength "no more than one argument" args
 
@@ -770,9 +780,7 @@ todo =
           <> "lists the current namespace's outstanding issues, including conflicted names, dependencies with missing"
           <> "names, and merge precondition violations."
     )
-    \case
-      [] -> Right Input.TodoI
-      _ -> Left (I.help todo)
+    (ensureNoArgs Input.TodoI)
 
 load :: InputPattern
 load =
@@ -792,7 +800,7 @@ load =
     )
     \case
       [] -> pure $ Input.LoadI Nothing
-      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument "load" "a file name" file
+      [file] -> Input.LoadI . Just <$> unsupportedStructuredArgument load "a file name" file
       args -> wrongArgsLength "no more than one argument" args
 
 clear :: InputPattern
@@ -822,7 +830,7 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ fmap (Input.AddI . Set.fromList) . traverse handleNameArg
+    $ I.errorBrief . fmap (Input.AddI . Set.fromList) . traverse handleNameArg
 
 previewAdd :: InputPattern
 previewAdd =
@@ -836,7 +844,7 @@ previewAdd =
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
+    $ I.errorBrief . fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
 
 update :: InputPattern
 update =
@@ -882,7 +890,7 @@ updateOldNoPatch =
             )
           ]
     )
-    $ fmap (Input.UpdateI Input.NoPatch . Set.fromList) . traverse handleNameArg
+    $ I.errorBrief . fmap (Input.UpdateI Input.NoPatch . Set.fromList) . traverse handleNameArg
 
 updateOld :: InputPattern
 updateOld =
@@ -918,8 +926,13 @@ updateOld =
     )
     \case
       patchStr : ws ->
-        Input.UpdateI . Input.UsePatch <$> handleSplit'Arg patchStr <*> fmap Set.fromList (traverse handleNameArg ws)
-      [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
+        case handleSplit'Arg patchStr of
+          Left e -> I.ErrorHelp e
+          Right patchPath ->
+            case fmap Set.fromList (traverse handleNameArg ws) of
+              Left e -> I.ErrorHelp e
+              Right names -> I.Ok $ Input.UpdateI (Input.UsePatch patchPath) names
+      [] -> I.Ok $ Input.UpdateI Input.DefaultPatch mempty
 
 previewUpdate :: InputPattern
 previewUpdate =
@@ -933,7 +946,7 @@ previewUpdate =
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ fmap (Input.PreviewUpdateI . Set.fromList) . traverse handleNameArg
+    $ I.errorBrief . fmap (Input.PreviewUpdateI . Set.fromList) . traverse handleNameArg
 
 view :: InputPattern
 view =
@@ -955,7 +968,8 @@ view =
     )
     ( maybe
         (wrongArgsLength "at least one argument" [])
-        ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
+        ( either I.ErrorBrief I.Ok
+            . fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal)
             . traverse handleHashQualifiedNameArg
         )
         . NE.nonEmpty
@@ -975,7 +989,8 @@ viewGlobal =
     )
     ( maybe
         (wrongArgsLength "at least one argument" [])
-        ( fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
+        ( either I.ErrorBrief I.Ok
+            . fmap (Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionGlobal)
             . traverse handleHashQualifiedNameArg
         )
         . NE.nonEmpty
@@ -995,7 +1010,10 @@ display =
     )
     $ maybe
       (wrongArgsLength "at least one argument" [])
-      (fmap (Input.DisplayI Input.ConsoleLocation) . traverse handleHashQualifiedNameArg)
+      ( either I.ErrorBrief I.Ok
+          . fmap (Input.DisplayI Input.ConsoleLocation)
+          . traverse handleHashQualifiedNameArg
+      )
       . NE.nonEmpty
 
 displayTo :: InputPattern
@@ -1016,7 +1034,7 @@ displayTo =
           ( \defs ->
               Input.DisplayI . Input.FileLocation
                 <$> unsupportedStructuredArgument "display.to" "a file name" file
-                <*> traverse handleHashQualifiedNameArg defs
+                <*> (either I.ErrorBrief I.Ok $ traverse handleHashQualifiedNameArg defs)
           )
           $ NE.nonEmpty defs
       [] -> wrongArgsLength "at least two arguments" []
@@ -1033,7 +1051,13 @@ docs =
           "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
-    $ maybe (wrongArgsLength "at least one argument" []) (fmap Input.DocsI . traverse handleNameArg) . NE.nonEmpty
+    $ maybe
+      (wrongArgsLength "at least one argument" [])
+      ( fmap Input.DocsI
+          . either I.ErrorBrief I.Ok
+          . traverse handleNameArg
+      )
+      . NE.nonEmpty
 
 api :: InputPattern
 api =
@@ -1055,7 +1079,7 @@ ui =
       help = P.wrap "`ui` opens the Local UI in the default browser.",
       parse = \case
         [] -> pure $ Input.UiI Path.relativeEmpty'
-        [path] -> Input.UiI <$> handlePath'Arg path
+        [path] -> I.errorBrief $ Input.UiI <$> handlePath'Arg path
         args -> wrongArgsLength "no more than one argument" args
     }
 
@@ -1074,7 +1098,7 @@ sfind =
   InputPattern "rewrite.find" ["sfind"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
   where
     parse = \case
-      [q] -> Input.StructuredFindI (Input.FindLocal Path.relativeEmpty') <$> handleHashQualifiedNameArg q
+      [q] -> I.errorBrief $ Input.StructuredFindI (Input.FindLocal Path.relativeEmpty') <$> handleHashQualifiedNameArg q
       args -> wrongArgsLength "exactly one argument" args
     msg =
       P.lines
@@ -1105,7 +1129,7 @@ sfindReplace :: InputPattern
 sfindReplace =
   InputPattern "rewrite" ["sfind.replace"] I.Visible [("rewrite-rule definition", Required, definitionQueryArg)] msg parse
   where
-    parse [q] = Input.StructuredFindReplaceI <$> handleHashQualifiedNameArg q
+    parse [q] = I.errorBrief $ Input.StructuredFindReplaceI <$> handleHashQualifiedNameArg q
     parse args = wrongArgsLength "exactly one argument" args
     msg :: P.Pretty CT.ColorText
     msg =
@@ -1153,7 +1177,7 @@ findIn' cmd mkfscope =
     [("namespace", Required, namespaceArg), ("query", ZeroPlus, exactDefinitionArg)]
     findHelp
     \case
-      p : args -> Input.FindI False . mkfscope <$> handlePath'Arg p <*> pure (unifyArgument <$> args)
+      p : args -> I.errorBrief $ Input.FindI False . mkfscope <$> handlePath'Arg p <*> pure (unifyArgument <$> args)
       args -> wrongArgsLength "at least one argument" args
 
 findHelp :: P.Pretty CT.ColorText
@@ -1215,9 +1239,9 @@ findShallow =
           ("`list .foo`", "lists the '.foo' namespace.")
         ]
     )
-    ( fmap Input.FindShallowI . \case
-        [] -> pure Path.relativeEmpty'
-        [path] -> handlePath'Arg path
+    ( \case
+        [] -> fmap Input.FindShallowI $ pure Path.relativeEmpty'
+        [path] -> I.errorBrief . fmap Input.FindShallowI $ handlePath'Arg path
         args -> wrongArgsLength "no more than one argument" args
     )
 
@@ -1240,7 +1264,10 @@ findVerboseAll =
     []
     I.Visible
     [("query", ZeroPlus, exactDefinitionArg)]
-    ( "`find.all.verbose` searches for definitions like `find.all`, but includes hashes "
+    ( makeExample' findVerboseAll
+        <> "searches for definitions like"
+        <> makeExample' findAll
+        <> ", but includes hashes "
         <> "and aliases in the results."
     )
     (pure . Input.FindI True (Input.FindLocalAndDeps Path.relativeEmpty') . fmap unifyArgument)
@@ -1254,10 +1281,12 @@ renameTerm =
     [ ("definition to move", Required, exactDefinitionTermQueryArg),
       ("new location", Required, newNameArg)
     ]
-    "`move.term foo bar` renames `foo` to `bar`."
+    (makeExample renameTerm ["foo", "bar"] <> "renames `foo` to `bar`.")
     \case
-      [oldName, newName] -> Input.MoveTermI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
-      _ -> Left . P.warnCallout $ P.wrap "`rename.term` takes two arguments, like `rename.term oldname newname`."
+      [oldName, newName] -> I.errorBrief $ Input.MoveTermI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
+      _ ->
+        I.ErrorBrief . I.Formatted . P.wrap $
+          makeExample' renameTerm <> "takes two arguments, like" <> makeExampleEOS renameTerm ["oldname", "newname"]
 
 moveAll :: InputPattern
 moveAll =
@@ -1268,10 +1297,12 @@ moveAll =
     [ ("definition to move", Required, namespaceOrDefinitionArg),
       ("new location", Required, newNameArg)
     ]
-    "`move foo bar` renames the term, type, and namespace foo to bar."
+    (makeExample moveAll ["foo", "bar"] <> "renames the term, type, and namespace foo to bar.")
     \case
-      [oldName, newName] -> Input.MoveAllI <$> handlePath'Arg oldName <*> handleNewPath newName
-      _ -> Left . P.warnCallout $ P.wrap "`move` takes two arguments, like `move oldname newname`."
+      [oldName, newName] -> I.errorBrief $ Input.MoveAllI <$> handlePath'Arg oldName <*> handleNewPath newName
+      _ ->
+        I.ErrorBrief . I.Formatted . P.wrap $
+          makeExample' moveAll <> "takes two arguments, like" <> makeExampleEOS moveAll ["oldname", "newname"]
 
 renameType :: InputPattern
 renameType =
@@ -1282,11 +1313,12 @@ renameType =
     [ ("type to move", Required, exactDefinitionTypeQueryArg),
       ("new location", Required, newNameArg)
     ]
-    "`move.type foo bar` renames `foo` to `bar`."
+    (makeExample renameType ["foo", "bar"] <> "renames `foo` to `bar`.")
     \case
-      [oldName, newName] -> Input.MoveTypeI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
+      [oldName, newName] -> I.errorBrief $ Input.MoveTypeI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
       _ ->
-        Left . P.warnCallout $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
+        I.ErrorBrief . I.Formatted . P.wrap $
+          makeExample' renameType <> "takes two arguments, like" <> makeExampleEOS renameType ["oldname", "newname"]
 
 deleteGen :: Maybe String -> ArgumentType -> String -> ([Path.HQSplit'] -> DeleteTarget) -> InputPattern
 deleteGen suffix queryCompletionArg target mkTarget =
@@ -1326,8 +1358,8 @@ deleteGen suffix queryCompletionArg target mkTarget =
         [("definition to delete", OnePlus, queryCompletionArg)]
         info
         \case
-          [] -> Left . P.warnCallout $ P.wrap warn
-          queries -> Input.DeleteI . mkTarget <$> traverse handleHashQualifiedSplit'Arg queries
+          [] -> I.ErrorBrief . I.Formatted $ P.wrap warn
+          queries -> I.errorBrief $ Input.DeleteI . mkTarget <$> traverse handleHashQualifiedSplit'Arg queries
 
 delete :: InputPattern
 delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
@@ -1376,7 +1408,7 @@ deleteBranch =
             ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
           ],
       parse = \case
-        [name] -> Input.DeleteI . DeleteTarget'ProjectBranch <$> handleMaybeProjectBranchArg name
+        [name] -> I.errorFormatted $ Input.DeleteI . DeleteTarget'ProjectBranch <$> handleMaybeProjectBranchArg name
         args -> wrongArgsLength "exactly one argument" args
     }
   where
@@ -1396,8 +1428,8 @@ aliasTerm =
       args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
       help = "`alias.term foo bar` introduces `bar` with the same definition as `foo`.",
       parse = \case
-        [oldName, newName] -> Input.AliasTermI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-        _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+        [oldName, newName] -> I.errorBrief $ Input.AliasTermI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        _ -> I.ErrorFormatted . P.wrap $ makeExample' aliasTerm <> "takes two arguments, like" <> makeExampleEOS aliasTerm ["oldname", "newname"]
     }
 
 aliasTermForce :: InputPattern
@@ -1409,10 +1441,10 @@ aliasTermForce =
       args = [("term to alias", Required, exactDefinitionTermQueryArg), ("alias name", Required, newNameArg)],
       help = "`debug.alias.term.force foo bar` introduces `bar` with the same definition as `foo`.",
       parse = \case
-        [oldName, newName] -> Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+        [oldName, newName] -> I.errorBrief $ Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
         _ ->
-          Left . warn $
-            P.wrap "`debug.alias.term.force` takes two arguments, like `debug.alias.term.force oldname newname`."
+          I.ErrorFormatted . P.wrap $
+            makeExample' aliasTermForce <> "takes two arguments, like" <> makeExampleEOS aliasTermForce ["oldname", "newname"]
     }
 
 aliasType :: InputPattern
@@ -1424,8 +1456,10 @@ aliasType =
     [("type to alias", Required, exactDefinitionTypeQueryArg), ("alias name", Required, newNameArg)]
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     \case
-      [oldName, newName] -> Input.AliasTypeI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-      _ -> Left . warn $ P.wrap "`alias.type` takes two arguments, like `alias.type oldname newname`."
+      [oldName, newName] -> I.errorBrief $ Input.AliasTypeI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
+      _ ->
+        I.ErrorFormatted . P.wrap $
+          makeExample' aliasType <> "takes two arguments, like" <> makeExampleEOS aliasType ["oldname", "newname"]
 
 aliasMany :: InputPattern
 aliasMany =
@@ -1445,7 +1479,7 @@ aliasMany =
     )
     \case
       srcs@(_ : _) Cons.:> dest ->
-        Input.AliasManyI <$> traverse handleHashQualifiedSplitArg srcs <*> handlePath'Arg dest
+        I.errorFormatted $ Input.AliasManyI <$> traverse handleHashQualifiedSplitArg srcs <*> handlePath'Arg dest
       args -> wrongArgsLength "at least two arguments" args
 
 up :: InputPattern
@@ -3291,10 +3325,13 @@ upgradeCommitInputPattern =
                       makeExampleNoBackticks deleteBranch [prettySlashProjectBranchName tempBranch]
                     ]
                 ),
-      parse = \case
-        [] -> Right Input.UpgradeCommitI
-        args -> wrongArgsLength "no arguments" args
+      parse = ensureNoArgs Input.UpgradeCommitI
     }
+
+ensureNoArgs :: Input -> [a] -> I.ParseResult Input
+ensureNoArgs i = \case
+  [] -> I.Ok i
+  args -> wrongArgsLength "no arguments" args
 
 validInputs :: [InputPattern]
 validInputs =
@@ -4004,17 +4041,15 @@ parsePushTarget :: String -> Maybe (WriteRemoteNamespace (These ProjectName Proj
 parsePushTarget = Megaparsec.parseMaybe UriParser.writeRemoteNamespace . Text.pack
 
 parseHashQualifiedName ::
-  String -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
+  String -> Either I.ParseError (HQ.HashQualified Name)
 parseHashQualifiedName s =
   maybe
-    ( Left
-        . P.warnCallout
-        . P.wrap
-        $ P.string s
+    ( Left . I.Formatted $
+        P.string s
           <> " is not a well-formed name, hash, or hash-qualified name. "
           <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
     )
-    Right
+    pure
     $ HQ.parseText (Text.pack s)
 
 explainRemote :: PushPull -> P.Pretty CT.ColorText

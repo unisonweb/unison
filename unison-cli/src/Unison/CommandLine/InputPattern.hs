@@ -10,8 +10,19 @@ module Unison.CommandLine.InputPattern
     Arguments,
     argType,
     FZFResolver (..),
+    HelpDetail (..),
     IsOptional (..),
+    ParseError (..),
+    ParseResult (..),
+    -- pattern ErrorOpaque,
+    pattern ErrorBrief,
+    pattern ErrorHelp,
+    pattern ErrorFormatted,
     Visibility (..),
+    -- inputPattern1,
+    -- parseResultFromEither,
+    errorBrief,
+    errorFormatted,
 
     -- * Currently Unused
     minArgs,
@@ -34,6 +45,7 @@ import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as P
+import Unsafe.Coerce (unsafeCoerce)
 
 -- InputPatterns accept some fixed number of Required arguments of various
 -- types, followed by a variable number of a single type of argument.
@@ -66,8 +78,62 @@ data InputPattern = InputPattern
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
-    parse :: Arguments -> Either (P.Pretty CT.ColorText) Input
+    parse :: Arguments -> ParseResult Input
   }
+
+-- -- | expects `parse` to return Either instead of ParseResult
+-- inputPattern1 :: String -> [String] -> Visibility -> [(ArgumentDescription, IsOptional, ArgumentType)] -> P.Pretty CT.ColorText -> (Arguments -> Either (P.Pretty CT.ColorText) Input) -> InputPattern
+-- inputPattern1 patternName aliases visibility args help parse =
+--   InputPattern patternName aliases visibility args help (parseResultFromEither . parse)
+
+data ParseResult a
+  = -- | I sort of understand what you're asking for, but I can't provide it.
+    -- `True` prints full help, `False` prints the help command.
+    -- The Pretty provides details if available, and will be `P.wrap`ped.
+    ErrorInfo HelpDetail (Maybe ParseError)
+  | -- | Giving you some info (e.g. help) instead of running a comment
+    Info (P.Pretty CT.ColorText)
+  | -- | Running a command!
+    Ok a
+  deriving (Show, Functor, Foldable, Traversable)
+
+instance Applicative ParseResult where
+  pure = Ok
+  liftA2 f (Ok a) (Ok b) = Ok (f a b)
+  liftA2 _f (Ok _) other = unsafeCoerce other
+  liftA2 _f other _ = unsafeCoerce other
+
+instance Monad ParseResult where
+  Ok a >>= f = f a
+  e >>= _ = unsafeCoerce e
+
+data HelpDetail = HelpFull | HelpHint | HelpNone deriving (Show)
+
+data ParseError = Formatted (P.Pretty CT.ColorText) | Unformatted Text deriving (Show)
+
+pattern ErrorHelp :: ParseError -> ParseResult a
+pattern ErrorHelp t = ErrorInfo HelpFull (Just t)
+
+pattern ErrorBrief :: ParseError -> ParseResult a
+pattern ErrorBrief t = ErrorInfo HelpHint (Just t)
+
+pattern ErrorFormatted :: P.Pretty CT.ColorText -> ParseResult a
+pattern ErrorFormatted t = ErrorInfo HelpHint (Just (Formatted t))
+
+errorBrief :: Either ParseError a -> ParseResult a
+errorBrief = either ErrorBrief Ok
+
+errorFormatted :: Either (P.Pretty CT.ColorText) a -> ParseResult a
+errorFormatted = either ErrorFormatted Ok
+
+-- pattern ErrorOpaque :: ParseResult a
+-- pattern ErrorOpaque = ErrorInfo True Nothing
+
+-- -- | assumes a Left is an error
+-- parseResultFromEither :: Either (P.Pretty CT.ColorText) Input -> ParseResult
+-- parseResultFromEither = \case
+--   Left err -> Error err
+--   Right input -> Input input
 
 data ArgumentType = ArgumentType
   { typeName :: String,

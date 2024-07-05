@@ -74,7 +74,8 @@ import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser qualified as TR
 import Unison.Codebase.Verbosity qualified as Verbosity
-import Unison.CommandLine (plural', watchConfig)
+import Unison.CommandLine (watchConfig)
+import Unison.CommandLine.Helpers (plural')
 import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))

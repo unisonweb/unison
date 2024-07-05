@@ -6,22 +6,26 @@ branch. For example, to merge `topic` into `main`, switch to `main` and run `mer
 ```ucm
 .> help merge
 
-merge
-`merge /branch` merges `branch` into the current branch
+  Sorry, I'm not sure how to process your request. merge
+  `merge /branch` merges `branch` into the current branch
+  
+  You can run `help help` for more information on using `help`
+    `help` shows general help and `help <cmd>` shows help for one command.
 
 .> help merge.commit
 
-merge.commit (or commit.merge)
-`merge.commit` merges a temporary branch created by the `merge`
-command back into its parent branch, and removes the temporary
-branch.
-
-For example, if you've done `merge topic` from main, then
-`merge.commit` is equivalent to doing
-
-  * switch /main
-  * merge /merge-topic-into-main
-  * delete.branch /merge-topic-into-main
+  Sorry, I'm not sure how to process your request. merge.commit
+  (or commit.merge)
+  `merge.commit` merges a temporary branch created by the
+  `merge` command back into its parent branch, and removes the
+  temporary branch.
+  For example, if you've done `merge topic` from main, then
+  `merge.commit` is equivalent to doing * switch /main *
+  merge /merge-topic-into-main *
+  delete.branch /merge-topic-into-main
+  
+  You can run `help help` for more information on using `help`
+    `help` shows general help and `help <cmd>` shows help for one command.
 
 ```
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result

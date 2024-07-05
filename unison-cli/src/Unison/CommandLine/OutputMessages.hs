@@ -72,8 +72,8 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
+import Unison.CommandLine.Helpers (bigproblem, note, tip)
 import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import Unison.CommandLine.InputPatterns qualified as IP
@@ -2131,7 +2131,7 @@ notifyUser dir = \case
         <> P.group (IP.makeExample IP.libInstallInputPattern [prettyProjectAndBranchName libdep] <> ".")
   PullIntoMissingBranch source (ProjectAndBranch maybeTargetProject targetBranch) ->
     pure . P.wrap $
-      "I think you're wanting to merge"
+      "I think you're trying to merge"
         <> sourcePretty
         <> "into the"
         <> targetPretty

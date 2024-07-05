@@ -3,21 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.CommandLine
-  ( -- * Pretty Printing
-    allow,
-    backtick,
-    aside,
-    bigproblem,
-    note,
-    nothingTodo,
-    plural,
-    plural',
-    problem,
-    tip,
-    warn,
-    warnNote,
-
-    -- * Other
+  ( allow,
     parseInput,
     prompt,
     watchConfig,
@@ -32,7 +18,6 @@ import Data.Configurator (autoConfig, autoReload)
 import Data.Configurator qualified as Config
 import Data.Configurator.Types (Config, Worth (..))
 import Data.List (isPrefixOf, isSuffixOf)
-import Data.ListLike (ListLike)
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.Text qualified as Text
@@ -51,14 +36,17 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
+import Unison.CommandLine.Helpers (warn)
 import Unison.CommandLine.InputPattern (InputPattern (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
+import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project.Util (ProjectContext, projectContextFromPath)
 import Unison.Symbol (Symbol)
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
 import Unison.Util.TQueue qualified as Q
 import UnliftIO.STM
@@ -89,36 +77,6 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-warnNote :: String -> String
-warnNote s = "⚠️  " <> s
-
-backtick :: (IsString s) => P.Pretty s -> P.Pretty s
-backtick s = P.group ("`" <> s <> "`")
-
-tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-tip s = P.column2 [("Tip:", P.wrap s)]
-
-note :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-note s = P.column2 [("Note:", P.wrap s)]
-
-aside :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s -> P.Pretty s
-aside a b = P.column2 [(a <> ":", b)]
-
-warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-warn = emojiNote "⚠️"
-
-problem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-problem = emojiNote "❗️"
-
-bigproblem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-bigproblem = emojiNote "‼️"
-
-emojiNote :: (ListLike s Char, IsString s) => String -> P.Pretty s -> P.Pretty s
-emojiNote lead s = P.group (fromString lead) <> "\n" <> P.wrap s
-
-nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-nothingTodo = emojiNote "😶"
-
 parseInput ::
   Codebase IO Symbol Ann ->
   -- | Current path from root
@@ -144,29 +102,37 @@ parseInput codebase currentPath numberedArgs patterns segments = runExceptT do
         let expandedNumbers :: InputPattern.Arguments
             expandedNumbers =
               foldMap (\arg -> maybe [Left arg] (fmap pure) $ expandNumber numberedArgs arg) args
+        let helpHint =
+              P.wrap $
+                "You can run"
+                  <> IP.makeExample IP.help [fromString command]
+                  <> "for more information on using"
+                  <> IP.makeExampleEOS pat []
         lift (fzfResolve codebase projCtx getCurrentBranch0 pat expandedNumbers) >>= \case
           Left (NoFZFResolverForArgumentType _argDesc) -> throwError help
           Left (NoFZFOptions argDesc) -> throwError (noCompletionsMessage argDesc)
           Left FZFCancelled -> pure Nothing
           Right resolvedArgs -> do
             parsedInput <-
-              except
-                . first
-                  ( \msg ->
-                      P.indentN 2 $
-                        P.wrap (P.text "Sorry, I wasn’t sure how to process your request. " <> msg)
+              except . \case
+                InputPattern.ErrorInfo fullHelp msg ->
+                  Left . P.indentN 2 $
+                    case msg of
+                      Just (InputPattern.Unformatted t) ->
+                        P.wrap "Sorry, I encountered an error while trying to interpret your request. The error was:"
                           <> P.newline
                           <> P.newline
-                          <> P.text
-                            ( "You can run `help "
-                                <> Text.pack command
-                                <> "` for more information on using `"
-                                <> Text.pack command
-                                <> "`"
-                            )
-                          <> P.newline
-                          <> P.indentN 2 help
-                  )
+                          <> P.indentN 2 (P.text t)
+                      Just (InputPattern.Formatted p) ->
+                        P.wrap ("Sorry, I'm not sure how to process your request." <> p)
+                      Nothing ->
+                        P.wrap ("Sorry, I'm not sure how to process your request.")
+                      <> case fullHelp of
+                        InputPattern.HelpFull -> P.newline <> P.newline <> help
+                        InputPattern.HelpHint -> P.newline <> P.newline <> helpHint
+                        InputPattern.HelpNone -> mempty
+                InputPattern.Info msg -> Left $ P.indentN 2 msg
+                InputPattern.Ok input -> Right input
                 $ parse resolvedArgs
             pure $ Just (Left command : resolvedArgs, parsedInput)
       Nothing ->
@@ -253,15 +219,3 @@ fzfResolve codebase projCtx getCurrentBranch pat args = runExceptT do
 
 prompt :: String
 prompt = "> "
-
--- `plural [] "cat" "cats" = "cats"`
--- `plural ["meow"] "cat" "cats" = "cat"`
--- `plural ["meow", "meow"] "cat" "cats" = "cats"`
-plural :: (Foldable f) => f a -> b -> b -> b
-plural items one other = case toList items of
-  [_] -> one
-  _ -> other
-
-plural' :: (Integral a) => a -> b -> b -> b
-plural' 1 one _other = one
-plural' _ _one other = other
