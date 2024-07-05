@@ -42,6 +42,7 @@ import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
+import Data.Functor.Classes
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -50,7 +51,6 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Void (vacuous)
 import GHC.Exts (sortWith)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char (char)
@@ -65,7 +65,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
-import Unison.Parser.Ann (Ann (Ann, GeneratedFrom), Annotated (..))
+import Unison.Parser.Ann (Ann (Ann), Annotated (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -158,6 +158,7 @@ data Lexeme
   | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash -- hash literals
   | Err Err
+  | Doc (DocUntitledSection DocTree)
   deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
@@ -389,6 +390,7 @@ displayLexeme = \case
   Bytes _b -> "bytes literal"
   Hash h -> Text.unpack (SH.toText h)
   Err e -> show e
+  Doc _ -> "doc structure"
 
 infixl 2 <+>
 
@@ -436,7 +438,7 @@ doc2 = do
   CP.space
   env0 <- S.get
   -- Disable layout while parsing the doc block and reset the section number
-  (docToks, closeTok) <- local
+  (docTok, closeTok) <- local
     ( \env ->
         env
           { inLayout = False,
@@ -444,16 +446,18 @@ doc2 = do
           }
     )
     do
-      bodyToks <- docBody (lit "}}")
+      body <- docBody (lit "}}")
       closeStart <- posP
       lit "}}"
       closeEnd <- posP
-      pure (docToLexemes (openStart, closeEnd) bodyToks, Token Close closeStart closeEnd)
+      pure (Token (Doc body) openStart closeEnd, Token Close closeStart closeEnd)
   -- Parse any layout tokens after the doc block, e.g. virtual semicolon
   endToks <- token' ignore (pure ())
   -- Hack to allow anonymous doc blocks before type decls
   --   {{ Some docs }}             Foo.doc = {{ Some docs }}
   --   ability Foo where      =>   ability Foo where
+  --
+  -- __FIXME__: This should be done _after_ parsing, not in lexing.
   tn <- subsequentTypeName
   pure $
     beforeStartToks <> case (tn) of
@@ -462,12 +466,13 @@ doc2 = do
         | isTopLevel ->
             Token (WordyId (HQ'.fromName (Name.snoc (HQ'.toName tname) NameSegment.docSegment))) openStart openEnd
               : Token (Open "=") openStart openEnd
-              : docToks
-                -- We need an extra 'Close' here because we added an extra Open above.
-                <> (closeTok : endToks)
+              : docTok
+              -- We need an extra 'Close' here because we added an extra Open above.
+              : closeTok
+              : endToks
         where
           isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
-      _ -> docToks <> endToks
+      _ -> docTok : endToks
   where
     -- DUPLICATED
     wordyKw kw = separated wordySep (lit kw)
@@ -526,6 +531,15 @@ data DocTop a
   | DocNumberedList (NonEmpty (Token Word64, DocColumn a))
   | DocParagraph (NonEmpty (DocLeaf a))
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
+
+instance Eq1 DocTop where
+  liftEq _ _ _ = True
+
+instance Ord1 DocTop where
+  liftCompare _ _ _ = LT
+
+instance Show1 DocTop where
+  liftShowsPrec _ _ _ _ x = x
 
 data DocColumn a
   = -- | The first is always a Paragraph, and the second a Bulleted or Numbered List
@@ -624,76 +638,6 @@ instance Annotated DocEmbedSignatureLink where
 
 instance Annotated DocEmbedAnnotation where
   ann (DocEmbedAnnotation a) = either ann ann a
-
--- | This is a short-term hack to turn our parse tree back into the sequence of lexemes the current parser expects.
---
---   The medium-term solution is to preserve @[`DocTree`]@ as its own lexeme type, and hand it to the parser without
---   flattening it back to tokens. Longer-term, maybe we add a real lexer for @Doc@, and then whatever is left of this
---   parser moves into the actual parser.
-docToLexemes :: (Pos, Pos) -> DocUntitledSection DocTree -> [Token Lexeme]
-docToLexemes (startDoc, endDoc) (DocUntitledSection tops) =
-  Token (Open "syntax.docUntitledSection") startDoc startDoc
-    : concatMap cata tops <> pure (Token Close endDoc endDoc)
-  where
-    wrap :: Ann -> String -> [Token Lexeme] -> [Token Lexeme]
-    wrap ann suffix lexemes = go (extractStart ann) lexemes
-      where
-        extractStart = \case
-          Ann start _ -> start
-          GeneratedFrom a -> extractStart a
-          a -> error $ "expected a good Pos! Got: " <> show a
-        o = "syntax.doc" <> suffix
-        go start [] = [Token (Open o) start start, Token Close start start]
-        go start ts@(Token _ x _ : _) =
-          Token (Open o) start x : (ts ++ [Token Close (end final) (end final)])
-          where
-            final = last ts
-    cata :: DocTree -> [Token Lexeme]
-    cata (a :< top) = docTop a $ cata <$> top
-    docTop start = \case
-      DocSection title body -> wrap start "Section" $ title <> join body
-      DocEval code -> wrap start "Eval" code
-      DocExampleBlock code -> wrap start "ExampleBlock" code
-      DocCodeBlock label text -> wrap start "CodeBlock" [Textual <$> label, Textual <$> text]
-      DocBulletedList items -> wrap start "BulletedList" . concat $ (\col -> docColumn (ann col) col) <$> items
-      DocNumberedList items ->
-        wrap start "NumberedList" . concat $
-          uncurry (:) . bimap (Numeric . show <$>) (\col -> docColumn (ann col) col)
-            <$> items
-      DocParagraph body -> wrap start "Paragraph" . concat $ (\l -> docLeaf (ann l) l) <$> body
-    docColumn start (DocColumn para mlist) = wrap start "Column" $ foldr (flip (<>)) para mlist
-    docLeaf start = \case
-      DocLink link -> wrap start "Link" $ docEmbedLink (ann link) link
-      DocNamedLink name target -> wrap start "NamedLink" $ name <> docLeaf (ann target) (vacuous target)
-      DocExample code -> wrap start "Example" code
-      DocTransclude code -> wrap start "Transclude" code
-      DocBold para -> wrap start "Bold" para
-      DocItalic para -> wrap start "Italic" para
-      DocStrikethrough para -> wrap start "Strikethrough" para
-      DocVerbatim word -> wrap start "Verbatim" . docLeaf (ann word) $ vacuous word
-      DocCode word -> wrap start "Code" . docLeaf (ann word) $ vacuous word
-      DocSource elems -> wrap start "Source" . concat $ (\e -> docSourceElement (ann e) e) <$> elems
-      DocFoldedSource elems -> wrap start "FoldedSource" . concat $ (\e -> docSourceElement (ann e) e) <$> elems
-      DocEvalInline code -> wrap start "EvalInline" code
-      DocSignature links -> wrap start "Signature" . concat $ (\l -> docEmbedSignatureLink (ann l) l) <$> links
-      DocSignatureInline link -> wrap start "SignatureInline" $ docEmbedSignatureLink (ann link) link
-      DocWord text -> wrap start "Word" . pure $ Textual <$> text
-      DocGroup (DocJoin leaves) ->
-        wrap start "Group" . wrap start "Join" . concat $ (\l -> docLeaf (ann l) l) <$> leaves
-    docEmbedLink start = \case
-      DocEmbedTypeLink ident -> wrap start "EmbedTypeLink" . pure $ identifierLexeme <$> ident
-      DocEmbedTermLink ident -> wrap start "EmbedTermLink" . pure $ identifierLexeme <$> ident
-    docSourceElement start (DocSourceElement link anns) =
-      wrap start "SourceElement" $
-        docEmbedLink (ann link) link
-          <> maybe
-            []
-            ((Token (Reserved "@") (Pos 0 0) (Pos 0 0) :) . concatMap (\a -> docEmbedAnnotation (ann a) a))
-            (NonEmpty.nonEmpty anns)
-    docEmbedSignatureLink start (DocEmbedSignatureLink ident) =
-      wrap start "EmbedSignatureLink" . pure $ identifierLexeme <$> ident
-    docEmbedAnnotation start (DocEmbedAnnotation a) =
-      wrap start "EmbedAnnotation" $ either (pure . fmap identifierLexeme) (\l -> docLeaf (ann l) $ vacuous l) a
 
 -- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
 --   Unison wraps `Doc` literals in `}}`).
@@ -1741,6 +1685,7 @@ instance P.VisualStream [Token Lexeme] where
       pretty Close = "<outdent>"
       pretty (Semi True) = "<virtual semicolon>"
       pretty (Semi False) = ";"
+      pretty (Doc d) = show d
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
           then replicate (col2 - col1) ' '

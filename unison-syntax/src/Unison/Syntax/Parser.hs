@@ -5,7 +5,8 @@ module Unison.Syntax.Parser
   ( Annotated (..),
     Err,
     Error (..),
-    Input,
+    -- FIXME: Don’t export the data constructor
+    Input (..),
     P,
     ParsingEnv (..),
     UniqueName,
@@ -16,6 +17,7 @@ module Unison.Syntax.Parser
     chainr1,
     character,
     closeBlock,
+    doc,
     failCommitted,
     failureIf,
     hqInfixId,
@@ -392,6 +394,11 @@ string = queryToken getString
   where
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
+
+doc :: (Ord v) => P v m (L.Token (L.DocUntitledSection L.DocTree))
+doc = queryToken \case
+  L.Doc d -> pure d
+  _ -> Nothing
 
 -- | Parses a tuple of 'a's, or a single parenthesized 'a'
 --
