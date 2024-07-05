@@ -1,6 +1,5 @@
-# reset loose code
 ```unison
-a = 5
+def = "first value"
 ```
 
 ```ucm
@@ -13,30 +12,20 @@ a = 5
   
     ⍟ These new definitions are ok to `add`:
     
-      a : Nat
+      def : Text
 
 ```
+```unison
+def = "second value"
+```
+
+Can reset to a value from history by number.
+
 ```ucm
-scratch/main> add
+scratch/main> update
 
-  ⍟ I've added these definitions:
-  
-    a : Nat
-
-scratch/main> history
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #d079vet1oj
-  
-    + Adds / updates:
-    
-      a
-  
-  □ 2. #4bigcpnl7t (start of history)
-
-scratch/main> reset 2
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
@@ -45,67 +34,164 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
   
+  ⊙ 1. #5vq851j3hg
   
-  
-  □ 1. #4bigcpnl7t (start of history)
-
-```
-```unison
-foo.a = 5
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
+    + Adds / updates:
     
-      foo.a : Nat
-
-```
-```ucm
-scratch/main> add
-
-  ⍟ I've added these definitions:
+      def
   
-    foo.a : Nat
+  ⊙ 2. #ujvq6e87kp
+  
+    + Adds / updates:
+    
+      def
+  
+  □ 3. #4bigcpnl7t (start of history)
 
-scratch/main> ls foo
+scratch/main> reset 2
 
-  1. a (Nat)
+  Done.
+
+scratch/main> view def
+
+  def : Text
+  def = "first value"
 
 scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #tfg7r9359n
+  ⊙ 1. #ujvq6e87kp
   
     + Adds / updates:
     
-      foo.a
+      def
   
   □ 2. #4bigcpnl7t (start of history)
 
-scratch/main> reset 1 foo
+```
+Can reset to a value from reflog by number.
 
-  scratch/foo does not exist.
+```ucm
+scratch/main> reflog
 
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+  
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+  
+       Branch         When   Hash          Description
+  1.   scratch/main   now    #ujvq6e87kp   reset ujvq6e87kp4288eq3al9v5luctic0ocd7ug1fu0go5bicrr2vfnrb0...
+  2.   scratch/main   now    #5vq851j3hg   update
+  3.   scratch/main   now    #ujvq6e87kp   update
+  4.   scratch/main   now    #4bigcpnl7t   builtins.merge
+  5.   scratch/main   now    #sg60bvjo91   Project Created
+
+-- Reset the current branch to the first history element
+scratch/main> reset 2
+
+  Done.
+
+scratch/main> view def
+
+  def : Text
+  def = "second value"
+
+scratch/main> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ 1. #5vq851j3hg
+  
+    + Adds / updates:
+    
+      def
+  
+  ⊙ 2. #ujvq6e87kp
+  
+    + Adds / updates:
+    
+      def
+  
+  □ 3. #4bigcpnl7t (start of history)
+
+```
+# reset branch
+
+```ucm
+foo/main> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
+
+```
+```unison
+a = 5
 ```
 
 ```ucm
-scratch/main> addscratch/main> ls fooscratch/main> historyscratch/main> reset 1 fooscratch/main> ls foo.foo
+foo/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+foo/empty> reset /main:.
+
+  Done.
+
+foo/empty> view a
+
+  a : ##Nat
+  a = 5
+
+foo/empty> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #5l94rduvel (start of history)
+
+```
+## second argument is always interpreted as a branch
+```unison
+main.a = 3
 ```
 
+```ucm
+foo/main> update
 
-🛑
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-The transcript failed due to an error in the stanza above. The error is:
+  Done.
 
+foo/main> history
 
-  scratch/foo does not exist.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ 1. #0i64kpfccl
+  
+    + Adds / updates:
+    
+      main.a
+  
+  □ 2. #5l94rduvel (start of history)
 
+foo/main> reset 2 main
+
+  Done.
+
+```

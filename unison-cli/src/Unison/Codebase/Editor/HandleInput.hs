@@ -251,13 +251,7 @@ loop e = do
             ShowProjectReflogI mayProj -> do
               Reflogs.showProjectReflog mayProj
             ResetI newRoot mtarget -> do
-              newRoot <-
-                case newRoot of
-                  BranchAtPath p -> do
-                    pp <- Cli.resolvePath' p
-                    Cli.getBranchFromProjectPath pp
-                  BranchAtSCH sch -> Cli.resolveShortCausalHash sch
-                  BranchAtProjectPath pp -> Cli.getBranchFromProjectPath pp
+              newRoot <- resolveBranchId2 newRoot
               target <-
                 case mtarget of
                   Nothing -> Cli.getCurrentProjectPath
@@ -902,11 +896,8 @@ inputDescription input =
               Branch.RegularMerge -> "merge"
               Branch.SquashMerge -> "merge.squash"
       pure (command <> " " <> src <> " " <> dest)
-    ResetI hash tgt -> do
-      hashTxt <- case hash of
-        BranchAtSCH hash -> hp' $ Left hash
-        BranchAtPath pr -> pure $ into @Text pr
-        BranchAtProjectPath pp -> pure $ into @Text pp
+    ResetI newRoot tgt -> do
+      hashTxt <- bid2 newRoot
       tgt <- case tgt of
         Nothing -> pure ""
         Just tgt -> do
@@ -1074,8 +1065,6 @@ inputDescription input =
     UpgradeCommitI {} -> wat
     VersionI -> wat
   where
-    hp' :: Either SCH.ShortCausalHash Path' -> Cli Text
-    hp' = either (pure . into @Text) p'
     p :: Path -> Cli Text
     p = fmap (into @Text) . Cli.resolvePath
     p' :: Path' -> Cli Text
@@ -1096,6 +1085,10 @@ inputDescription input =
     hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
     ps' = p' . Path.unsplit'
     ps = p . Path.unsplit
+    bid2 :: BranchId2 -> Cli Text
+    bid2 = \case
+      Left sch -> pure $ into @Text sch
+      Right p -> brp p
 
 handleFindI ::
   Bool ->

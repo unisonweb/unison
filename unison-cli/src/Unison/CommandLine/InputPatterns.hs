@@ -1663,8 +1663,8 @@ reset =
         ]
     )
     \case
-      [arg0] -> Input.ResetI <$> handleBranchIdArg arg0 <*> pure Nothing
-      [arg0, arg1] -> Input.ResetI <$> handleBranchIdArg arg0 <*> fmap pure (handleMaybeProjectBranchArg arg1)
+      [resetTo] -> Input.ResetI <$> handleBranchId2Arg resetTo <*> pure Nothing
+      [resetTo, branchToReset] -> Input.ResetI <$> handleBranchId2Arg resetTo <*> fmap pure (handleMaybeProjectBranchArg branchToReset)
       args -> wrongArgsLength "one or two arguments" args
   where
     config =
