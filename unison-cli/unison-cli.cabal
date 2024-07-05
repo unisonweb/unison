@@ -112,6 +112,7 @@ library
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.FZFResolvers
+      Unison.CommandLine.Helpers
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main

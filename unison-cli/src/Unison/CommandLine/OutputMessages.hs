@@ -73,8 +73,8 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
+import Unison.CommandLine.Helpers (bigproblem, note, tip)
 import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import Unison.CommandLine.InputPatterns qualified as IP
