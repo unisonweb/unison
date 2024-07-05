@@ -112,15 +112,9 @@ scratch/main> diff.namespace .nothing /ns1:
 
 ```
 ```ucm
-scratch/main> diff.namespace /ns1: ns2:
+scratch/main> diff.namespace /ns1: /ns2:
 
-<none>:1:4:
-  |
-1 | ns2:
-  |    ^
-unexpected ':'
-expecting '/' or end of input
-
+  The namespaces are identical.
 
 ```
 ```unison
@@ -274,7 +268,8 @@ scratch/ns2> delete.term.verbose fromJust'
     3. fromJust' │  
     4. yoohoo    ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> diff.namespace /ns3: /ns2:
 

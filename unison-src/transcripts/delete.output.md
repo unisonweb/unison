@@ -36,7 +36,8 @@ scratch/main> delete.verbose foo
   
     1. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> delete.verbose Foo
 
@@ -44,7 +45,8 @@ scratch/main> delete.verbose Foo
   
     1. structural type Foo
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> delete.verbose Foo.Foo
 
@@ -52,7 +54,8 @@ scratch/main> delete.verbose Foo.Foo
   
     1. Foo.Foo : '#089vmor9c5
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 How about an ambiguous term?
@@ -90,7 +93,8 @@ scratch/main> delete.verbose a.foo
     2. a.bar            ┐  3. a.foo#dcgdua2lj6 (removed)
     4. a.foo#dcgdua2lj6 ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> ls a
 
@@ -130,7 +134,8 @@ scratch/main> delete.verbose a.Foo
     4. lib.builtins.Unit │  
     5. a.Foo#00nv2kob8f  ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> delete.verbose a.Foo.Foo
 
@@ -138,7 +143,8 @@ scratch/main> delete.verbose a.Foo.Foo
   
     1. a.Foo.Foo : '#089vmor9c5
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
@@ -163,7 +169,8 @@ scratch/main> delete.verbose foo
     1. structural type foo
     2. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We want to be able to delete multiple terms at once
@@ -191,7 +198,8 @@ scratch/main> delete.verbose a b c
     2. b : Text
     3. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete terms and types in the same invocation of delete
@@ -222,7 +230,8 @@ scratch/main> delete.verbose a b c Foo
     3. b : Text
     4. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> delete.verbose Foo.Foo
 
@@ -232,7 +241,8 @@ scratch/main> delete.verbose Foo.Foo
     1. Foo.Foo ┐  2. Foo.Foo (removed)
     3. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete a type and its constructors
@@ -260,7 +270,8 @@ scratch/main> delete.verbose Foo Foo.Foo
     2. Foo.Foo ┐  3. Foo.Foo (removed)
     4. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should not be able to delete terms which are referenced by other terms
@@ -324,7 +335,8 @@ scratch/main> delete.verbose e f g h
     3. g : Nat
     4. h : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should be able to delete a type and all the functions that reference it in a single command
@@ -353,7 +365,8 @@ scratch/main> delete.verbose Foo Foo.Foo incrementFoo
     2. Foo.Foo      : Nat -> #68k40ra7l7
     3. incrementFoo : #68k40ra7l7 -> Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 If you mess up on one of the names of your command, delete short circuits
@@ -404,7 +417,8 @@ scratch/main> delete.verbose ping
   
     1. ping : 'Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 scratch/main> view pong
 

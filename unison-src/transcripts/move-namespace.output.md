@@ -59,7 +59,8 @@ scratch/main> move.namespace .root.at.path .
   
   A branch existed at the destination: . so I over-wrote it.
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
   Done.
 
@@ -350,7 +351,8 @@ scratch/existing> move.namespace a b
   
   A branch existed at the destination: b so I over-wrote it.
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
   Done.
 

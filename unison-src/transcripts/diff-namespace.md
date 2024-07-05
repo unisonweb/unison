@@ -64,7 +64,7 @@ scratch/main> diff.namespace .nothing /ns1:
 ```
 
 ```ucm:error
-scratch/main> diff.namespace /ns1: ns2:
+scratch/main> diff.namespace /ns1: /ns2:
 ```
 
 ```unison:hide
