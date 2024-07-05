@@ -112,8 +112,7 @@ checkFile doc = runMaybeT do
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
-  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . _3 . folding (UnusedBindings.analyseTerm fileUri)
-  Debug.debugM Debug.Temp "Unused binding diagnostics" unusedBindingDiagnostics
+  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri topLevelAnn trm)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
