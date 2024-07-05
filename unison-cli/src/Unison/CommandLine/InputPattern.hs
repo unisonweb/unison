@@ -66,7 +66,16 @@ data InputPattern = InputPattern
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
-    parse :: Arguments -> Either (P.Pretty CT.ColorText) Input
+    -- | Parse the arguments and return either an error message or a command `Input`.
+    --
+    --  __NB__: This function should return `Left` only on failure. For commands (like `help`) that simply produce
+    --          formatted output, use `pure . Input.CreateMessage`. The failure output should be fully formatted (using
+    --         `wrap`, etc.), but shouldn’t include any general error components like a warninng flag or the full help
+    --          message, and shouldn’t plan for the context it is being output to (e.g., don’t `P.indentN` the entire
+    --          message).
+    parse ::
+      Arguments ->
+      Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType

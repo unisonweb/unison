@@ -772,7 +772,7 @@ todo =
     )
     \case
       [] -> Right Input.TodoI
-      _ -> Left (I.help todo)
+      args -> wrongArgsLength "no arguments" args
 
 load :: InputPattern
 load =
@@ -1257,7 +1257,7 @@ renameTerm =
     "`move.term foo bar` renames `foo` to `bar`."
     \case
       [oldName, newName] -> Input.MoveTermI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
-      _ -> Left . P.warnCallout $ P.wrap "`rename.term` takes two arguments, like `rename.term oldname newname`."
+      _ -> Left $ P.wrap "`rename.term` takes two arguments, like `rename.term oldname newname`."
 
 moveAll :: InputPattern
 moveAll =
@@ -1271,7 +1271,7 @@ moveAll =
     "`move foo bar` renames the term, type, and namespace foo to bar."
     \case
       [oldName, newName] -> Input.MoveAllI <$> handlePath'Arg oldName <*> handleNewPath newName
-      _ -> Left . P.warnCallout $ P.wrap "`move` takes two arguments, like `move oldname newname`."
+      _ -> Left $ P.wrap "`move` takes two arguments, like `move oldname newname`."
 
 renameType :: InputPattern
 renameType =
@@ -1286,7 +1286,7 @@ renameType =
     \case
       [oldName, newName] -> Input.MoveTypeI <$> handleHashQualifiedSplit'Arg oldName <*> handleNewName newName
       _ ->
-        Left . P.warnCallout $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
+        Left $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
 
 deleteGen :: Maybe String -> ArgumentType -> String -> ([Path.HQSplit'] -> DeleteTarget) -> InputPattern
 deleteGen suffix queryCompletionArg target mkTarget =
@@ -1312,7 +1312,7 @@ deleteGen suffix queryCompletionArg target mkTarget =
               ""
             )
           ]
-      warn =
+      warning =
         P.sep
           " "
           [ backtick (P.string cmd),
@@ -1326,7 +1326,7 @@ deleteGen suffix queryCompletionArg target mkTarget =
         [("definition to delete", OnePlus, queryCompletionArg)]
         info
         \case
-          [] -> Left . P.warnCallout $ P.wrap warn
+          [] -> Left $ P.wrap warning
           queries -> Input.DeleteI . mkTarget <$> traverse handleHashQualifiedSplit'Arg queries
 
 delete :: InputPattern
@@ -1397,7 +1397,7 @@ aliasTerm =
       help = "`alias.term foo bar` introduces `bar` with the same definition as `foo`.",
       parse = \case
         [oldName, newName] -> Input.AliasTermI False <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-        _ -> Left . warn $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
+        _ -> Left $ P.wrap "`alias.term` takes two arguments, like `alias.term oldname newname`."
     }
 
 aliasTermForce :: InputPattern
@@ -1411,7 +1411,7 @@ aliasTermForce =
       parse = \case
         [oldName, newName] -> Input.AliasTermI True <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
         _ ->
-          Left . warn $
+          Left $
             P.wrap "`debug.alias.term.force` takes two arguments, like `debug.alias.term.force oldname newname`."
     }
 
@@ -1425,7 +1425,7 @@ aliasType =
     "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
     \case
       [oldName, newName] -> Input.AliasTypeI <$> handleShortHashOrHQSplit'Arg oldName <*> handleSplit'Arg newName
-      _ -> Left . warn $ P.wrap "`alias.type` takes two arguments, like `alias.type oldname newname`."
+      _ -> Left $ P.wrap "`alias.type` takes two arguments, like `alias.type oldname newname`."
 
 aliasMany :: InputPattern
 aliasMany =
@@ -2253,7 +2253,7 @@ viewReflog =
     ( \case
         [] -> pure Input.ShowReflogI
         _ ->
-          Left . warn . P.string $
+          Left . P.string $
             I.patternName viewReflog ++ " doesn't take any arguments."
     )
 
@@ -2316,9 +2316,9 @@ helpTopics =
         [topic] -> do
           topic <- unsupportedStructuredArgument "help-topics" "a help topic" topic
           case Map.lookup topic helpTopicsMap of
-            Nothing -> Left . warn $ "I don't know of that topic. Try `help-topics`."
+            Nothing -> Left $ "I don't know of that topic. Try `help-topics`."
             Just t -> Right $ Input.CreateMessage t
-        _ -> Left $ warn "Use `help-topics <topic>` or `help-topics`."
+        _ -> Left $ "Use `help-topics <topic>` or `help-topics`."
     )
   where
     topics =
@@ -2328,7 +2328,7 @@ helpTopics =
             "",
             P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopicsMap),
             "",
-            aside "Example" "use `help filestatus` to learn more about that topic."
+            aside "Example" "use `help-topics filestatus` to learn more about that topic."
           ]
 
 helpTopicsMap :: Map String (P.Pretty P.ColorText)
@@ -2506,7 +2506,7 @@ help =
         cmd <- unsupportedStructuredArgument "help" "a command" cmd
         case (Map.lookup cmd commandsByName, isHelp cmd) of
           (Nothing, Just msg) -> Right $ Input.CreateMessage msg
-          (Nothing, Nothing) -> Left . warn $ "I don't know of that command. Try `help`."
+          (Nothing, Nothing) -> Left $ "I don't know of that command. Try `help`."
           (Just pat, Nothing) -> Right . Input.CreateMessage $ showPatternHelp pat
           -- If we have a command and a help topic with the same name (like "projects"), then append a tip to the
           -- command's help that suggests running `help-topic command`
@@ -2521,7 +2521,7 @@ help =
                          <> "use"
                          <> makeExample helpTopics [P.string cmd]
                    )
-      _ -> Left $ warn "Use `help <cmd>` or `help`."
+      _ -> Left "Use `help <cmd>` or `help`."
   where
     commandsByName =
       Map.fromList $ do
@@ -2552,7 +2552,7 @@ names isGlobal =
     (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
     $ \case
       [thing] -> Input.NamesI isGlobal <$> handleHashQualifiedNameArg thing
-      _ -> Left (I.help (names isGlobal))
+      args -> wrongArgsLength "exactly one argument" args
   where
     cmdName = if isGlobal then "names.global" else "names"
 
@@ -4008,7 +4008,6 @@ parseHashQualifiedName ::
 parseHashQualifiedName s =
   maybe
     ( Left
-        . P.warnCallout
         . P.wrap
         $ P.string s
           <> " is not a well-formed name, hash, or hash-qualified name. "
