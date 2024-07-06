@@ -3,6 +3,7 @@
 test-output
 scratch.u
 unisonLocal.zip
+*.uc
 
 # Auto-generated
 jit-tests.md
