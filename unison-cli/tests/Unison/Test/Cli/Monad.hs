@@ -36,12 +36,11 @@ dummyEnv = undefined
 dummyLoopState :: Cli.LoopState
 dummyLoopState =
   Cli.LoopState
-    { currentPathStack = undefined,
-      lastInput = Nothing,
-      lastRunResult = Nothing,
-      lastSavedRootHash = undefined,
+    { currentProjectRoot = undefined,
+      projectPathStack = undefined,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
+      lastInput = Nothing,
       numberedArgs = [],
-      root = undefined
+      lastRunResult = Nothing
     }
