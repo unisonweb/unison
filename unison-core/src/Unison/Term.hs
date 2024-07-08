@@ -947,7 +947,7 @@ letRec isTop blockAnn bindings e =
     (foldr addAbs body bindings)
   where
     addAbs :: ((a, v), b) -> ABT.Term f v a -> ABT.Term f v a
-    addAbs ((_a, v), _b) t = ABT.abs' blockAnn v t
+    addAbs ((a, v), _b) t = ABT.abs' a v t
     body :: Term' vt v a
     body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
