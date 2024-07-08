@@ -38,8 +38,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
-import Unison.Parser.Ann qualified as Ann
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -412,7 +412,7 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: Ord v => Text -> P v m (L.Token ())
+quasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
   L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
@@ -993,10 +993,10 @@ bang = P.label "bang" do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-force :: forall m v . (Monad m, Var v) => TermP v m
+force :: forall m v. (Monad m, Var v) => TermP v m
 force = P.label "force" $ P.try do
   -- `forkAt pool() blah` parses as `forkAt (pool ()) blah`
-  -- That is, empty parens immediately (no space) following a symbol 
+  -- That is, empty parens immediately (no space) following a symbol
   -- is treated as high precedence function application of `Unit`
   fn <- hashQualifiedPrefixTerm
   tok <- ann <$> openBlockWith "("
@@ -1008,10 +1008,10 @@ seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
   Pattern.Snoc
     <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
-    <|> Pattern.Cons
-      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
-    <|> Pattern.Concat
-      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
+      <|> Pattern.Cons
+    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
+      <|> Pattern.Concat
+    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
