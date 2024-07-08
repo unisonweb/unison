@@ -1,5 +1,4 @@
-First we make two changes to the codebase, so that there's more than one line
-for the `reflog` command to display:
+First we make some changes to the codebase so there's data in the reflog.
 
 ```unison
 x = 1
@@ -19,7 +18,7 @@ x = 1
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -44,55 +43,93 @@ y = 2
 
 ```
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     y : Nat
 
-.> view y
+scratch/main> branch /other
 
-  y : Nat
-  y = 2
-
-```
-```ucm
-.> reflog
-
-  Here is a log of the root namespace hashes, starting with the
-  most recent, along with the command that got us there. Try:
+  Done. I've created the other branch based off of main.
   
-    `fork 2 .old`             
-    `fork #p611n6o5ve .old`   to make an old namespace
-                              accessible again,
-                              
-    `reset-root #p611n6o5ve`  to reset the root namespace and
-                              its history to that of the
-                              specified namespace.
-  
-       When   Root Hash     Action
-  1.   now    #rmu2vgm86a   add
-  2.   now    #p611n6o5ve   add
-  3.   now    #4bigcpnl7t   builtins.merge
-  4.          #sg60bvjo91   history starts here
-  
-  Tip: Use `diff.namespace 1 7` to compare namespaces between
-       two points in history.
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /other`.
 
-```
-If we `reset-root` to its previous value, `y` disappears.
-```ucm
-.> reset-root 2
+scratch/other> alias.term y z
+
+  Done.
+
+newproject/main> builtins.merge lib.builtins
+
+  Done.
+
+newproject/main> alias.type lib.builtins.Nat MyNat
 
   Done.
 
 ```
-```ucm
-.> view y
+Should see reflog entries from the current branch
 
-  ⚠️
+```ucm
+scratch/main> reflog
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
   
-  The following names were not found in the codebase. Check your spelling.
-    y
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+  
+       Branch         When   Hash          Description
+  1.   scratch/main   now    #6mdl5gruh5   add
+  2.   scratch/main   now    #3rqf1hbev7   add
+  3.   scratch/main   now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  4.   scratch/main   now    #sg60bvjo91   Project Created
+
+```
+Should see reflog entries from the current project
+
+```ucm
+scratch/main> project.reflog
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+  
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+  
+       Branch          When   Hash          Description
+  1.   scratch/other   now    #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  2.   scratch/other   now    #6mdl5gruh5   Branch created from scratch/main
+  3.   scratch/main    now    #6mdl5gruh5   add
+  4.   scratch/main    now    #3rqf1hbev7   add
+  5.   scratch/main    now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  6.   scratch/main    now    #sg60bvjo91   Project Created
+
+```
+Should see reflog entries from all projects
+
+```ucm
+scratch/main> reflog.global
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+  
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+  
+       Branch            When   Hash          Description
+  1.   newproject/main   now    #2rjhs2vq43   alias.term newproject/main:.lib.builtins.Nat newproject/main...
+  2.   newproject/main   now    #ms9lggs2rg   builtins.merge newproject/main:.lib.builtins
+  3.   newproject/main   now    #sg60bvjo91   Branch Created
+  4.   scratch/other     now    #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  5.   scratch/other     now    #6mdl5gruh5   Branch created from scratch/main
+  6.   scratch/main      now    #6mdl5gruh5   add
+  7.   scratch/main      now    #3rqf1hbev7   add
+  8.   scratch/main      now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  9.   scratch/main      now    #sg60bvjo91   Project Created
 
 ```

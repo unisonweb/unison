@@ -66,12 +66,6 @@ module U.Codebase.Sqlite.Queries
     loadTermObject,
     expectTermObject,
 
-    -- * namespace_root table
-    loadNamespaceRoot,
-    setNamespaceRoot,
-    expectNamespaceRoot,
-    expectNamespaceRootBranchHashId,
-
     -- * namespace_statistics table
     saveNamespaceStats,
     loadNamespaceStatsByHashId,
@@ -135,6 +129,8 @@ module U.Codebase.Sqlite.Queries
     insertProjectBranch,
     renameProjectBranch,
     deleteProjectBranch,
+    setProjectBranchHead,
+    expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
 
@@ -215,8 +211,11 @@ module U.Codebase.Sqlite.Queries
     fuzzySearchTypes,
 
     -- * Reflog
-    appendReflog,
-    getReflog,
+    getDeprecatedRootReflog,
+    appendProjectBranchReflog,
+    getProjectReflog,
+    getProjectBranchReflog,
+    getGlobalReflog,
 
     -- * garbage collection
     garbageCollectObjectsWithoutHashes,
@@ -237,12 +236,12 @@ module U.Codebase.Sqlite.Queries
     -- * elaborate hashes
     elaborateHashes,
 
-    -- * most recent namespace
-    expectMostRecentNamespace,
-    setMostRecentNamespace,
+    -- * current project path
+    expectCurrentProjectPath,
+    setCurrentProjectPath,
 
     -- * migrations
-    createSchema,
+    runCreateSql,
     addTempEntityTables,
     addReflogTable,
     addNamespaceStatsTables,
@@ -254,6 +253,9 @@ module U.Codebase.Sqlite.Queries
     addSquashResultTable,
     addSquashResultTableIfNotExists,
     cdToProjectRoot,
+    addCurrentProjectPathTable,
+    addProjectBranchReflogTable,
+    addProjectBranchCausalHashIdColumn,
 
     -- ** schema version
     currentSchemaVersion,
@@ -315,6 +317,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
+import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
@@ -367,7 +370,8 @@ import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
-import U.Codebase.Sqlite.Reference qualified as S (Reference, ReferenceH, TermReference, TermReferenceId, TextReference, TypeReference, TypeReferenceId)
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
+import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
 import U.Codebase.Sqlite.Referent qualified as S (TextReferent)
 import U.Codebase.Sqlite.Referent qualified as S.Referent
@@ -399,6 +403,7 @@ import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.FileEmbed (embedProjectStringFile)
@@ -414,27 +419,11 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 16
+currentSchemaVersion = 17
 
-createSchema :: Transaction ()
-createSchema = do
+runCreateSql :: Transaction ()
+runCreateSql =
   executeStatements $(embedProjectStringFile "sql/create.sql")
-  addTempEntityTables
-  addNamespaceStatsTables
-  addReflogTable
-  fixScopedNameLookupTables
-  addProjectTables
-  addMostRecentBranchTable
-  addNameLookupMountTables
-  addMostRecentNamespaceTable
-  execute insertSchemaVersionSql
-  addSquashResultTable
-  where
-    insertSchemaVersionSql =
-      [sql|
-        INSERT INTO schema_version (version)
-        VALUES (:currentSchemaVersion)
-      |]
 
 addTempEntityTables :: Transaction ()
 addTempEntityTables =
@@ -444,6 +433,7 @@ addNamespaceStatsTables :: Transaction ()
 addNamespaceStatsTables =
   executeStatements $(embedProjectStringFile "sql/003-namespace-statistics.sql")
 
+-- | Deprecated in favour of project-branch reflog
 addReflogTable :: Transaction ()
 addReflogTable =
   executeStatements $(embedProjectStringFile "sql/002-reflog-table.sql")
@@ -481,6 +471,19 @@ addSquashResultTableIfNotExists =
 cdToProjectRoot :: Transaction ()
 cdToProjectRoot =
   executeStatements $(embedProjectStringFile "sql/011-cd-to-project-root.sql")
+
+addCurrentProjectPathTable :: Transaction ()
+addCurrentProjectPathTable =
+  executeStatements $(embedProjectStringFile "sql/012-add-current-project-path-table.sql")
+
+-- | Deprecated in favour of project-branch reflog
+addProjectBranchReflogTable :: Transaction ()
+addProjectBranchReflogTable =
+  executeStatements $(embedProjectStringFile "sql/013-add-project-branch-reflog-table.sql")
+
+addProjectBranchCausalHashIdColumn :: Transaction ()
+addProjectBranchCausalHashIdColumn =
+  executeStatements $(embedProjectStringFile "sql/014-add-project-branch-causal-hash-id.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -1336,32 +1339,6 @@ loadCausalParentsByHash hash =
       JOIN hash h2 ON cp.parent_id = h2.id
       WHERE h1.base32 = :hash COLLATE NOCASE
     |]
-
-expectNamespaceRootBranchHashId :: Transaction BranchHashId
-expectNamespaceRootBranchHashId = do
-  chId <- expectNamespaceRoot
-  expectCausalValueHashId chId
-
-expectNamespaceRoot :: Transaction CausalHashId
-expectNamespaceRoot =
-  queryOneCol loadNamespaceRootSql
-
-loadNamespaceRoot :: Transaction (Maybe CausalHashId)
-loadNamespaceRoot =
-  queryMaybeCol loadNamespaceRootSql
-
-loadNamespaceRootSql :: Sql
-loadNamespaceRootSql =
-  [sql|
-    SELECT causal_id
-    FROM namespace_root
-  |]
-
-setNamespaceRoot :: CausalHashId -> Transaction ()
-setNamespaceRoot id =
-  queryOneCol [sql| SELECT EXISTS (SELECT 1 FROM namespace_root) |] >>= \case
-    False -> execute [sql| INSERT INTO namespace_root VALUES (:id) |]
-    True -> execute [sql| UPDATE namespace_root SET causal_id = :id |]
 
 saveWatch :: WatchKind -> S.Reference.IdH -> ByteString -> Transaction ()
 saveWatch k r blob = do
@@ -3496,20 +3473,55 @@ loadNamespaceStatsByHashId bhId = do
       WHERE namespace_hash_id = :bhId
     |]
 
-appendReflog :: Reflog.Entry CausalHashId Text -> Transaction ()
-appendReflog entry =
-  execute
-    [sql|
-      INSERT INTO reflog (time, from_root_causal_id, to_root_causal_id, reason)
-      VALUES (@entry, @, @, @)
-    |]
-
-getReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
-getReflog numEntries =
+getDeprecatedRootReflog :: Int -> Transaction [Reflog.Entry CausalHashId Text]
+getDeprecatedRootReflog numEntries =
   queryListRow
     [sql|
       SELECT time, from_root_causal_id, to_root_causal_id, reason
       FROM reflog
+      ORDER BY time DESC
+      LIMIT :numEntries
+    |]
+
+appendProjectBranchReflog :: ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId -> Transaction ()
+appendProjectBranchReflog entry =
+  execute
+    [sql|
+      INSERT INTO project_branch_reflog (project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason)
+      VALUES (@entry, @, @, @, @, @)
+    |]
+
+-- | Get x number of entries from the project reflog for the provided project
+getProjectReflog :: Int -> ProjectId -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
+getProjectReflog numEntries projectId =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
+      WHERE project_id = :projectId
+      ORDER BY time DESC
+      LIMIT :numEntries
+    |]
+
+-- | Get x number of entries from the project reflog for the provided branch.
+getProjectBranchReflog :: Int -> ProjectBranchId -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
+getProjectBranchReflog numEntries projectBranchId =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
+      WHERE project_branch_id = :projectBranchId
+      ORDER BY time DESC
+      LIMIT :numEntries
+    |]
+
+-- | Get x number of entries from the global reflog spanning all projects
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry ProjectId ProjectBranchId CausalHashId]
+getGlobalReflog numEntries =
+  queryListRow
+    [sql|
+      SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
+      FROM project_branch_reflog
       ORDER BY time DESC
       LIMIT :numEntries
     |]
@@ -3803,12 +3815,15 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: ProjectBranch -> Transaction ()
-insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch :: (HasCallStack) => Text -> CausalHashId -> ProjectBranch -> Transaction ()
+insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+  -- Ensure we never point at a causal we don't have the branch for.
+  _ <- expectBranchObjectIdByCausalHashId causalHashId
+
   execute
     [sql|
-      INSERT INTO project_branch (project_id, branch_id, name)
-        VALUES (:projectId, :branchId, :branchName)
+      INSERT INTO project_branch (project_id, branch_id, name, causal_hash_id)
+        VALUES (:projectId, :branchId, :branchName, :causalHashId)
     |]
   whenJust maybeParentBranchId \parentBranchId ->
     execute
@@ -3816,6 +3831,16 @@ insertProjectBranch (ProjectBranch projectId branchId branchName maybeParentBran
         INSERT INTO project_branch_parent (project_id, parent_branch_id, branch_id)
           VALUES (:projectId, :parentBranchId, :branchId)
       |]
+  time <- Sqlite.unsafeIO $ Time.getCurrentTime
+  appendProjectBranchReflog $
+    ProjectReflog.Entry
+      { project = projectId,
+        branch = branchId,
+        time,
+        fromRootCausalHash = Nothing,
+        toRootCausalHash = causalHashId,
+        reason = description
+      }
 
 -- | Rename a project branch.
 --
@@ -3864,7 +3889,7 @@ deleteProject projectId = do
 --  After deleting `topic`:
 --
 --    main <- topic2
-deleteProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ()
+deleteProjectBranch :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction ()
 deleteProjectBranch projectId branchId = do
   maybeParentBranchId :: Maybe ProjectBranchId <-
     queryMaybeCol
@@ -3885,6 +3910,38 @@ deleteProjectBranch projectId branchId = do
   execute
     [sql|
       DELETE FROM project_branch
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+
+-- | Set project branch HEAD
+setProjectBranchHead :: Text -> ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchHead description projectId branchId causalHashId = do
+  -- Ensure we never point at a causal we don't have the branch for.
+  _ <- expectBranchObjectIdByCausalHashId causalHashId
+  oldRootCausalHashId <- expectProjectBranchHead projectId branchId
+  execute
+    [sql|
+      UPDATE project_branch
+      SET causal_hash_id = :causalHashId
+      WHERE project_id = :projectId AND branch_id = :branchId
+    |]
+  time <- Sqlite.unsafeIO $ Time.getCurrentTime
+  appendProjectBranchReflog $
+    ProjectReflog.Entry
+      { project = projectId,
+        branch = branchId,
+        time = time,
+        fromRootCausalHash = Just oldRootCausalHashId,
+        toRootCausalHash = causalHashId,
+        reason = description
+      }
+
+expectProjectBranchHead :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHashId
+expectProjectBranchHead projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT causal_hash_id
+      FROM project_branch
       WHERE project_id = :projectId AND branch_id = :branchId
     |]
 
@@ -4372,33 +4429,39 @@ data JsonParseFailure = JsonParseFailure
   deriving anyclass (SqliteExceptionReason)
 
 -- | Get the most recent namespace the user has visited.
-expectMostRecentNamespace :: Transaction [NameSegment]
-expectMostRecentNamespace =
-  queryOneColCheck
+expectCurrentProjectPath :: (HasCallStack) => Transaction (ProjectId, ProjectBranchId, [NameSegment])
+expectCurrentProjectPath =
+  queryOneRowCheck
     [sql|
-      SELECT namespace
-      FROM most_recent_namespace
+      SELECT project_id, branch_id, path
+      FROM current_project_path
     |]
     check
   where
-    check :: Text -> Either JsonParseFailure [NameSegment]
-    check bytes =
-      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
-        Left failure -> Left JsonParseFailure {bytes, failure = Text.pack failure}
-        Right namespace -> Right (map NameSegment namespace)
+    check :: (ProjectId, ProjectBranchId, Text) -> Either JsonParseFailure (ProjectId, ProjectBranchId, [NameSegment])
+    check (projId, branchId, pathText) =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 pathText) of
+        Left failure -> Left JsonParseFailure {bytes = pathText, failure = Text.pack failure}
+        Right namespace -> Right (projId, branchId, map NameSegment namespace)
 
 -- | Set the most recent namespace the user has visited.
-setMostRecentNamespace :: [NameSegment] -> Transaction ()
-setMostRecentNamespace namespace =
+setCurrentProjectPath ::
+  ProjectId ->
+  ProjectBranchId ->
+  [NameSegment] ->
+  Transaction ()
+setCurrentProjectPath projId branchId path = do
+  execute
+    [sql| DELETE FROM current_project_path |]
   execute
     [sql|
-      UPDATE most_recent_namespace
-      SET namespace = :json
+      INSERT INTO current_project_path(project_id, branch_id, path)
+      VALUES (:projId, :branchId, :jsonPath)
     |]
   where
-    json :: Text
-    json =
-      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> namespace)
+    jsonPath :: Text
+    jsonPath =
+      Text.Lazy.toStrict (Aeson.encodeToLazyText $ NameSegment.toUnescapedText <$> path)
 
 -- | Get the causal hash result from squashing the provided branch hash if we've squashed it
 -- at some point in the past.

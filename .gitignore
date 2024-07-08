@@ -1,9 +1,9 @@
 # Unison
 .unison*
 test-output
-transcript-*
 scratch.u
 unisonLocal.zip
+*.uc
 
 # Auto-generated
 jit-tests.md

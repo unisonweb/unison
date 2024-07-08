@@ -47,7 +47,6 @@ library
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
-      Unison.Cli.UnisonConfigUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AddRun
@@ -82,6 +81,7 @@ library
       Unison.Codebase.Editor.HandleInput.ProjectSwitch
       Unison.Codebase.Editor.HandleInput.Pull
       Unison.Codebase.Editor.HandleInput.Push
+      Unison.Codebase.Editor.HandleInput.Reflogs
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils

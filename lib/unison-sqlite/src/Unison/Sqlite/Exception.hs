@@ -24,7 +24,8 @@ where
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
 import Database.SQLite.Simple qualified as Sqlite
-import GHC.Stack (currentCallStack)
+import GHC.Stack (CallStack)
+import GHC.Stack qualified as Stack
 import Unison.Prelude
 import Unison.Sqlite.Connection.Internal (Connection)
 import Unison.Sqlite.Sql (Sql (..))
@@ -112,7 +113,7 @@ data SqliteQueryException = SqliteQueryException
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
     exception :: SomeSqliteExceptionReason,
-    callStack :: [String],
+    callStack :: CallStack,
     connection :: Connection,
     threadId :: ThreadId
   }
@@ -137,16 +138,15 @@ data SqliteQueryExceptionInfo = SqliteQueryExceptionInfo
     exception :: SomeSqliteExceptionReason
   }
 
-throwSqliteQueryException :: SqliteQueryExceptionInfo -> IO a
+throwSqliteQueryException :: HasCallStack => SqliteQueryExceptionInfo -> IO a
 throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql sql params} = do
   threadId <- myThreadId
-  callStack <- currentCallStack
   throwIO
     SqliteQueryException
       { sql,
         params,
         exception,
-        callStack,
+        callStack = Stack.callStack,
         connection,
         threadId
       }

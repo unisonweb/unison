@@ -8,9 +8,11 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Path (Path')
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Server.Backend qualified as Backend
@@ -18,9 +20,9 @@ import Unison.Server.Backend qualified as Backend
 handleLs :: Path' -> Cli ()
 handleLs pathArg = do
   Cli.Env {codebase} <- ask
-
-  pathArgAbs <- Cli.resolvePath' pathArg
-  entries <- liftIO (Backend.lsAtPath codebase Nothing pathArgAbs)
+  pp <- Cli.resolvePath' pathArg
+  projectRootBranch <- Cli.runTransaction $ Codebase.expectShallowProjectBranchRoot pp.branch
+  entries <- liftIO (Backend.lsAtPath codebase projectRootBranch (pp.absPath))
   Cli.setNumberedArgs $ fmap (SA.ShallowListEntry pathArg) entries
   pped <- Cli.currentPrettyPrintEnvDecl
   let suffixifiedPPE = PPED.suffixifiedPPE pped

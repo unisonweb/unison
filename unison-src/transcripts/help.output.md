@@ -40,11 +40,13 @@ scratch/main> help
                      branch `foo`
   `branch /bar foo`  forks the branch `bar` of the current
                      project to a new branch `foo`
-  `branch .bar foo`  forks the path `.bar` of the current
-                     project to a new branch `foo`
   
   branch.empty (or branch.create-empty, create.empty-branch)
   Create a new empty branch.
+  
+  branch.reflog (or reflog.branch, reflog)
+  `branch.reflog` lists all the changes that have affected the current branch.
+  `branch.reflog /mybranch` lists all the changes that have affected /mybranch.
   
   branch.rename (or rename.branch)
   `branch.rename foo`  renames the current branch to `foo`
@@ -177,6 +179,9 @@ scratch/main> help
                             namespace to move to, which requires
                             that `fzf` can be found within your
                             PATH.
+  
+  deprecated.root-reflog
+  `deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of `branch.reflog` which shows the reflog for the current project.
   
   diff.namespace
   `diff.namespace before after` shows how the namespace `after`
@@ -538,6 +543,10 @@ scratch/main> help
   `project.create`      creates a project with a random name
   `project.create foo`  creates a project named `foo`
   
+  project.reflog (or reflog.project)
+  `project.reflog` lists all the changes that have affected any branches in the current project.
+  `project.reflog myproject` lists all the changes that have affected any branches in myproject.
+  
   project.rename (or rename.project)
   `project.rename foo`  renames the current project to `foo`
   
@@ -666,8 +675,8 @@ scratch/main> help
   quit (or exit, :q)
   Exits the Unison command line interface.
   
-  reflog
-  `reflog` lists the changes that have affected the root namespace
+  reflog.global
+  `reflog.global` lists all recent changes across all projects and branches.
   
   release.draft (or draft.release)
   Draft a release.
