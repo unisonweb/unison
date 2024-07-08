@@ -34,8 +34,12 @@ import UnliftIO qualified as UnsafeIO
 -- | This migration converts the codebase from having all projects in a single codebase root to having separate causal
 -- roots for each project branch.
 -- It:
--- * adds a new table to the schema, `currentProjectPath`, and sets it to contain the path to the scratch project.
--- * Adds the causal_hash_id column to the project_branch table.
+--
+-- * Adds the new project reflog table
+-- * Adds the project-branch head as a causal-hash-id column on the project-branch table, and populates it from all the projects in the project root.
+-- * Makes a new legacy project from the existing root branch (minus .__projects)
+-- * Adds a new scratch/main project
+-- * Adds a currentProjectPath table to replace the most-recent-path functionality.
 --
 -- It requires a Connection argument rather than working inside a Transaction because it needs to temporarily disable
 -- foreign key checking, and the foreign_key pragma cannot be set within a transaction.
