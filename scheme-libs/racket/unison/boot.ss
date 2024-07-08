@@ -128,6 +128,7 @@
   ; (for-syntax (only-in unison/core syntax->list))
   (only-in racket/control control0-at)
   racket/performance-hint
+  racket/trace
   unison/core
   unison/data
   unison/sandbox
@@ -350,17 +351,27 @@
           ((declare-function-link name:fast name:link)
            (declare-function-link name:impl name:link)))))))
 
+(define-for-syntax
+  (trace-decls trace? loc name:impl:stx)
+  (if trace?
+    (with-syntax ([name:impl name:impl:stx])
+      (syntax/loc loc
+        ((trace name:impl))))
+    #'()))
+
 (define-for-syntax (process-hints hs)
   (for/fold ([internal? #f]
              [force-pure? #t]
              [gen-link? #f]
-             [no-link-decl? #f])
+             [no-link-decl? #f]
+             [trace? #t])
             ([h hs])
     (values
       (or internal? (eq? h 'internal))
       (or force-pure? (eq? h 'force-pure) (eq? h 'internal))
       (or gen-link? (eq? h 'gen-link))
-      (or no-link-decl? (eq? h 'no-link-decl)))))
+      (or no-link-decl? (eq? h 'no-link-decl))
+      (or trace? (eq? h 'trace)))))
 
 (define-for-syntax
   (make-link-def gen-link? loc name:stx name:link:stx)
@@ -389,7 +400,7 @@
     loc name:stx arg:stx expr:stx)
 
   (define-values
-    (internal? force-pure? gen-link? no-link-decl?)
+    (internal? force-pure? gen-link? no-link-decl? trace?)
     (process-hints hints))
 
   (let ([name:fast:stx (adjust-name name:stx "fast")]
@@ -406,9 +417,11 @@
                #:internal internal?
                loc name:stx name:fast:stx arity)]
        [(decls ...)
-        (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)])
+        (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
+       [(traces ...)
+        (trace-decls trace? loc name:impl:stx)])
       (syntax/loc loc
-        (begin link ... impl fast call decls ...)))))
+        (begin link ... impl fast traces ... call decls ...)))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
