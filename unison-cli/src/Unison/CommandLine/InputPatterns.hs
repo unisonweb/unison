@@ -3326,6 +3326,19 @@ upgradeCommitInputPattern =
         args -> wrongArgsLength "no arguments" args
     }
 
+debugSynhashTermInputPattern :: InputPattern
+debugSynhashTermInputPattern =
+  InputPattern
+    { patternName = "debug.synhash.term",
+      aliases = [],
+      visibility = I.Hidden,
+      args = [("term", Required, exactDefinitionTermQueryArg)],
+      help = mempty,
+      parse = \case
+        [arg] -> Input.DebugSynhashTermI <$> handleNameArg arg
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -3352,6 +3365,7 @@ validInputs =
       debugDoctor,
       debugDumpNamespace,
       debugDumpNamespaceSimple,
+      debugSynhashTermInputPattern,
       debugTerm,
       debugTermVerbose,
       debugType,

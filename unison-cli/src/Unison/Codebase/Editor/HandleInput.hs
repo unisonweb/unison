@@ -59,6 +59,7 @@ import Unison.Codebase.Editor.HandleInput.CommitMerge (handleCommitMerge)
 import Unison.Codebase.Editor.HandleInput.CommitUpgrade (handleCommitUpgrade)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
+import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
@@ -947,6 +948,7 @@ loop e = do
             UpgradeI old new -> handleUpgrade old new
             UpgradeCommitI -> handleCommitUpgrade
             LibInstallI remind libdep -> handleInstallLib remind libdep
+            DebugSynhashTermI name -> handleDebugSynhashTerm name
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -1059,7 +1061,17 @@ inputDescription input =
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
-    --
+    DebugTermI verbose hqName ->
+      if verbose
+        then pure ("debug.term.verbose " <> HQ.toText hqName)
+        else pure ("debug.term " <> HQ.toText hqName)
+    DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
+    DebugLSPFoldRangesI -> pure "debug.lsp.fold-ranges"
+    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
+    DebugFormatI -> pure "debug.format"
+    EditNamespaceI paths ->
+      pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
+    -- wat land
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
@@ -1071,18 +1083,11 @@ inputDescription input =
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat
-    DebugTermI verbose hqName ->
-      if verbose
-        then pure ("debug.term.verbose " <> HQ.toText hqName)
-        else pure ("debug.term " <> HQ.toText hqName)
-    DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
-    DebugLSPFoldRangesI -> pure "debug.lsp.fold-ranges"
+    DebugLSPNameCompletionI {} -> wat
     DebugNameDiffI {} -> wat
     DebugNumberedArgsI {} -> wat
-    DebugTabCompletionI _input -> wat
-    DebugLSPNameCompletionI _prefix -> wat
-    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
-    DebugFormatI -> pure "debug.format"
+    DebugSynhashTermI {} -> wat
+    DebugTabCompletionI {} -> wat
     DebugTypecheckedUnisonFileI {} -> wat
     DiffNamespaceI {} -> wat
     DisplayI {} -> wat
@@ -1090,15 +1095,13 @@ inputDescription input =
     DocsToHtmlI {} -> wat
     FindI {} -> wat
     FindShallowI {} -> wat
-    StructuredFindI {} -> wat
-    StructuredFindReplaceI {} -> wat
     HistoryI {} -> wat
     LibInstallI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     LoadI {} -> wat
-    MergeI {} -> wat
     MergeCommitI {} -> wat
+    MergeI {} -> wat
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
@@ -1114,16 +1117,16 @@ inputDescription input =
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
     ShowDefinitionI {} -> wat
-    EditNamespaceI paths ->
-      pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     ShowReflogI {} -> wat
+    StructuredFindI {} -> wat
+    StructuredFindReplaceI {} -> wat
     SwitchBranchI {} -> wat
     TestI {} -> wat
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
-    UpgradeI {} -> wat
     UpgradeCommitI {} -> wat
+    UpgradeI {} -> wat
     VersionI -> wat
   where
     hp' :: Either SCH.ShortCausalHash Path' -> Cli Text

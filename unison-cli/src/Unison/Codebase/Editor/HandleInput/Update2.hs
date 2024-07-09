@@ -1,3 +1,4 @@
+-- | @update@ input handler.
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
 

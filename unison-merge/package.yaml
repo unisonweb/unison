@@ -36,6 +36,7 @@ dependencies:
   - unison-util-cache
   - unison-util-relation
   - vector
+  - witch
   - witherable
 
 library:

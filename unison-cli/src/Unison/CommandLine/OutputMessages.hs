@@ -2159,6 +2159,16 @@ notifyUser dir = \case
           Just targetProject -> prettyProjectAndBranchName (ProjectAndBranch targetProject targetBranch)
   NoMergeInProgress ->
     pure . P.wrap $ "It doesn't look like there's a merge in progress."
+  Output'DebugSynhashTerm ref synhash filename ->
+    pure $
+      "Hash: "
+        <> P.syntaxToColor (prettyReference 120 ref)
+        <> P.newline
+        <> "Synhash: "
+        <> prettyHash synhash
+        <> P.newline
+        <> "Synhash tokens: "
+        <> P.text filename
 
 expectedEmptyPushDest :: WriteRemoteNamespace Void -> Pretty
 expectedEmptyPushDest namespace =

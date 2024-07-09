@@ -1,3 +1,4 @@
+-- | @upgrade@ input handler.
 module Unison.Codebase.Editor.HandleInput.Upgrade
   ( handleUpgrade,
   )

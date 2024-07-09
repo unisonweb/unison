@@ -1,3 +1,4 @@
+-- | @merge@ input handler.
 module Unison.Codebase.Editor.HandleInput.Merge2
   ( handleMerge,
 
