@@ -139,8 +139,10 @@ scratch/main> todo
 
   ❓
   
-  The term bar has conflicting definitions: 1. foo 2.
-  bar#cq22mm4sca
+  The term bar has conflicting definitions:
+  
+    1. bar#14ibahkll6
+    2. bar#cq22mm4sca
   
   Tip: Use `move.term` or `delete.term` to resolve the
        conflicts.

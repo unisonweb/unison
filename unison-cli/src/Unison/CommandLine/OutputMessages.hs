@@ -2593,20 +2593,20 @@ unsafePrettyTermResultSig' ppe = \case
     head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
-renderNameConflicts :: PPE.PrettyPrintEnv -> Names -> Numbered Pretty
-renderNameConflicts ppe conflictedNames = do
+renderNameConflicts :: Int -> Names -> Numbered Pretty
+renderNameConflicts hashLen conflictedNames = do
   let conflictedTypeNames :: Map Name [HQ.HashQualified Name]
       conflictedTypeNames =
         conflictedNames
           & Names.types
           & R.domain
-          & fmap (foldMap (pure @[] . PPE.typeName ppe))
+          & Map.mapWithKey \name -> map (HQ.take hashLen . HQ.HashQualified name . Reference.toShortHash) . Set.toList
   let conflictedTermNames :: Map Name [HQ.HashQualified Name]
       conflictedTermNames =
         conflictedNames
           & Names.terms
           & R.domain
-          & fmap (foldMap (pure @[] . PPE.termName ppe))
+          & Map.mapWithKey \name -> map (HQ.take hashLen . HQ.HashQualified name . Referent.toShortHash) . Set.toList
   let allConflictedNames :: [Name]
       allConflictedNames = Set.toList (Map.keysSet conflictedTermNames <> Map.keysSet conflictedTypeNames)
   prettyConflictedTypes <- showConflictedNames "type" conflictedTypeNames
@@ -2639,13 +2639,14 @@ renderNameConflicts ppe conflictedNames = do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
-          pure . P.wrap $
-            ( "The "
-                <> thingKind
-                <> " "
-                <> P.green (prettyName name)
-                <> " has conflicting definitions:"
-            )
+          pure $
+            P.wrap
+              ( "The "
+                  <> thingKind
+                  <> " "
+                  <> P.green (prettyName name)
+                  <> " has conflicting definitions:"
+              )
               <> P.newline
               <> P.newline
               <> P.indentN 2 (P.lines prettyConflicts)
@@ -2722,7 +2723,7 @@ handleTodoOutput todo
       prettyConflicts <-
         if todo.nameConflicts == mempty
           then pure mempty
-          else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
+          else renderNameConflicts todo.hashLen todo.nameConflicts
 
       let prettyDefnsInLib =
             if todo.defnsInLib
