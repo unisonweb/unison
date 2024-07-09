@@ -38,6 +38,7 @@ module Unison.Merge.Synhash
 where
 
 import Data.Char (ord)
+import Data.List qualified as List
 import Data.Text qualified as Text
 import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
@@ -59,14 +60,13 @@ import Unison.Reference (Reference' (..), TypeReferenceId)
 import Unison.Reference qualified as V1
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Witch (unsafeFrom)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
-import qualified Data.List as List
+import Witch (unsafeFrom)
 
 type Token = H.Token Hash
 
