@@ -80,7 +80,12 @@ data Codebase m v a = Codebase
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
-    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x
+    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x,
+    -- | This optimization allows us to pre-fetch a branch from SQLite into the branch cache when we know we'll need it
+    -- soon, but not immediately. E.g. the user has switched a branch, but hasn't run any commands on it yet.
+    --
+    -- This combinator returns immediately, but warms the cache in the background with the desired branch.
+    preloadProjectRoot :: CausalHash -> m ()
   }
 
 -- | Whether a codebase is local or remote.

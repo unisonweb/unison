@@ -39,6 +39,7 @@ import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
 import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
+import Unison.Codebase.SqliteCodebase.ProjectRootCache qualified as ProjectRootCache
 import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
@@ -57,6 +58,8 @@ import Unison.Type (Type)
 import Unison.Util.Timing (time)
 import Unison.WatchKind qualified as UF
 import UnliftIO (UnliftIO (..), finally)
+import UnliftIO qualified as UnliftIO
+import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 
@@ -162,6 +165,7 @@ sqliteCodebase ::
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
   branchCache <- newBranchCache
+  projectRootCache <- ProjectRootCache.newProjectRootCache 5 {- Cache the last n project roots for quick switching. -}
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -242,6 +246,16 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
 
+            preloadProjectRoot :: CausalHash -> m ()
+            preloadProjectRoot h = do
+              void . UnliftIO.forkIO $ void $ do
+                getBranchForHash h >>= \case
+                  Nothing -> pure ()
+                  Just b -> do
+                    ProjectRootCache.stashBranch projectRootCache b
+                    UnliftIO.evaluate b
+                    pure ()
+
             syncFromDirectory :: Codebase1.CodebasePath -> Branch m -> m ()
             syncFromDirectory srcRoot b =
               withConnection (debugName ++ ".sync.src") srcRoot \srcConn ->
@@ -307,7 +321,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   filterTermsByReferentIdHavingTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
                   withConnection = withConn,
-                  withConnectionIO = withConnection debugName root
+                  withConnectionIO = withConnection debugName root,
+                  preloadProjectRoot
                 }
         Right <$> action codebase
   where

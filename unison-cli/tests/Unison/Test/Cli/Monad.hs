@@ -36,8 +36,7 @@ dummyEnv = undefined
 dummyLoopState :: Cli.LoopState
 dummyLoopState =
   Cli.LoopState
-    { currentProjectRoot = undefined,
-      projectPathStack = undefined,
+    { projectPathStack = undefined,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,

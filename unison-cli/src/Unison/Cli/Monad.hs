@@ -94,8 +94,6 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import UnliftIO qualified
-import UnliftIO.Concurrent qualified as UnliftIO
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
@@ -392,17 +390,13 @@ cd path = do
   #projectPathStack %= NonEmpty.cons newPP
 
 switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
-switchProject (ProjectAndBranch projectId branchId) = do
+switchProject pab@(ProjectAndBranch projectId branchId) = do
   Env {codebase} <- ask
   let newPP = PP.ProjectPath projectId branchId Path.absoluteEmpty
   #projectPathStack %= NonEmpty.cons newPP
   runTransaction $ do Q.setMostRecentBranch projectId branchId
   setMostRecentProjectPath newPP
-  -- Prime the cache with the new project branch root so it's ready when a command needs it.
-  void . liftIO . UnliftIO.forkIO $ do
-    b <- Codebase.expectProjectBranchRoot codebase projectId branchId
-    -- Force the branch in the background thread to avoid delays later.
-    void $ UnliftIO.evaluate b
+  liftIO $ Codebase.preloadProjectBranch codebase pab
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --

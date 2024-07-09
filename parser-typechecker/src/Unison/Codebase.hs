@@ -59,6 +59,7 @@ module Unison.Codebase
     getShallowProjectRootByNames,
     expectProjectBranchRoot,
     getBranchAtProjectPath,
+    preloadProjectBranch,
 
     -- * Root branch
     SqliteCodebase.Operations.namesAtPath,
@@ -579,3 +580,11 @@ resolveProjectPathIds (PP.ProjectPath projectId projectBranchId path) = do
   proj <- Q.expectProject projectId
   projBranch <- Q.expectProjectBranch projectId projectBranchId
   pure $ PP.ProjectPath proj projBranch path
+
+-- | Starts loading the given project branch into cache in a background thread without blocking.
+preloadProjectBranch :: (MonadUnliftIO m) => Codebase m v a -> ProjectAndBranch Db.ProjectId Db.ProjectBranchId -> m ()
+preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
+  ch <- runTransaction codebase $ do
+    causalHashId <- Q.expectProjectBranchHead projectId branchId
+    Q.expectCausalHash causalHashId
+  preloadProjectRoot codebase ch
