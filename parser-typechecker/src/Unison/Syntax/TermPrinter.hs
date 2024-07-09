@@ -490,7 +490,7 @@ pretty0
               (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
                 px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
                 pure . paren (p >= 11 || isBlock x && p >= 3) $
-                  px <> fmt S.DelayForceChar (l "()")
+                  px <> fmt S.Unit (l "()")
               (Apps' f (unsnoc -> Just (args, lastArg)), _)
                 | isSoftHangable lastArg -> do
                     fun <- goNormal 9 f
