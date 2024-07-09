@@ -14,7 +14,6 @@ import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.TypeCheck qualified as Cli (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -82,11 +81,12 @@ noEdits :: Edits v
 noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 
 propagateAndApply ::
+  Names ->
   Patch ->
   Branch0 IO ->
   Cli (Branch0 IO)
-propagateAndApply patch branch = do
-  edits <- propagate patch branch
+propagateAndApply rootNames patch branch = do
+  edits <- propagate rootNames patch branch
   let f = applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
@@ -234,15 +234,13 @@ debugMode = False
 --
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
-propagate :: Patch -> Branch0 IO -> Cli (Edits Symbol)
-propagate patch b = case validatePatch patch of
+propagate :: Names -> Patch -> Branch0 IO -> Cli (Edits Symbol)
+propagate rootNames patch b = case validatePatch patch of
   Nothing -> do
     Cli.respond PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     -- TODO: this can be removed once patches have term replacement of type `Referent -> Referent`
-    rootNames <- Branch.toNames <$> Cli.getRootBranch0
-
     let -- TODO: these are just used for tracing, could be deleted if we don't care
         -- about printing meaningful names for definitions during propagation, or if
         -- we want to just remove the tracing.

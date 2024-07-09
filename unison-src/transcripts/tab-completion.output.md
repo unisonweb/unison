@@ -94,14 +94,14 @@ absolute.term = "absolute"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     absolute.term : ##Text
 
 -- Should tab complete absolute names
-.> debug.tab-complete view .absolute.te
+scratch/main> debug.tab-complete view .absolute.te
 
   * .absolute.term
 

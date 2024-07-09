@@ -46,7 +46,6 @@ import Unison.Var (Var)
 
 type NamespaceListingAPI =
   "list"
-    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing
@@ -191,12 +190,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serve ::
   Codebase IO Symbol Ann ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->
   Maybe Path.Path ->
   Backend.Backend IO NamespaceListing
-serve codebase maySCH mayRelativeTo mayNamespaceName = do
-  rootCausal <- Backend.hoistBackend (Codebase.runTransaction codebase) $ Backend.normaliseRootCausalHash maySCH
+serve codebase root mayRelativeTo mayNamespaceName = do
+  rootCausal <- Backend.hoistBackend (Codebase.runTransaction codebase) $ Backend.normaliseRootCausalHash root
 
   -- Relative and Listing Path resolution
   --
@@ -216,7 +215,7 @@ serve codebase maySCH mayRelativeTo mayNamespaceName = do
   let path = relativeToPath <> namespacePath
   (listingCausal, listingBranch) <-
     (lift . Codebase.runTransaction codebase) do
-      listingCausal <- Codebase.getShallowCausalAtPath path (Just rootCausal)
+      listingCausal <- Codebase.getShallowCausalAtPath path rootCausal
       listingBranch <- V2Causal.value listingCausal
       pure (listingCausal, listingBranch)
   -- TODO: Currently the ppe is just used to render the types returned from the namespace

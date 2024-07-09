@@ -44,7 +44,6 @@ import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
   "getDefinition"
-    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
@@ -96,16 +95,6 @@ instance ToParam (QueryParam "namespace" Path.Path) where
       )
       Normal
 
-instance ToParam (QueryParam "rootBranch" ShortCausalHash) where
-  toParam _ =
-    DocQueryParam
-      "rootBranch"
-      ["#abc123"]
-      ( "The hash or hash prefix of the namespace root. "
-          <> "If left absent, the most recent root will be used."
-      )
-      Normal
-
 instance ToParam (QueryParams "names" (HQ.HashQualified Name)) where
   toParam _ =
     DocQueryParam
@@ -120,15 +109,15 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions ::
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->
   [HQ.HashQualified Name] ->
   Maybe Width ->
   Maybe Suffixify ->
   Backend.Backend IO DefinitionDisplayResults
-serveDefinitions rt codebase mayRoot relativePath hqns width suff =
+serveDefinitions rt codebase root relativePath hqns width suff =
   do
-    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ mayRoot
+    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ root
     hqns
       & foldMapM
         ( Local.prettyDefinitionsForHQName

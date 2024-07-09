@@ -1,5 +1,11 @@
 # namespace.dependencies command
 
+```ucm
+scratch/main> builtins.merge lib.builtins
+
+  Done.
+
+```
 ```unison
 const a b = a
 external.mynat = 1
@@ -7,21 +13,21 @@ mynamespace.dependsOnText = const external.mynat 10
 ```
 
 ```ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     const                     : a -> b -> a
-    external.mynat            : ##Nat
-    mynamespace.dependsOnText : ##Nat
+    external.mynat            : Nat
+    mynamespace.dependsOnText : Nat
 
-.mynamespace> namespace.dependencies
+scratch/main> namespace.dependencies mynamespace
 
-  External dependency   Dependents in .mynamespace
-  ##Nat                 1. dependsOnText
+  External dependency   Dependents in scratch/main:.mynamespace
+  lib.builtins.Nat      1. dependsOnText
                         
-  .const                1. dependsOnText
+  const                 1. dependsOnText
                         
-  .external.mynat       1. dependsOnText
+  external.mynat        1. dependsOnText
 
 ```
