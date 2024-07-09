@@ -4,6 +4,7 @@ module Unison.Codebase
     -- * UCM session state
     expectCurrentProjectPath,
     setCurrentProjectPath,
+    resolveProjectPathIds,
 
     -- * Terms
     getTerm,
@@ -571,3 +572,10 @@ expectCurrentProjectPath = do
 setCurrentProjectPath :: PP.ProjectPathIds -> Sqlite.Transaction ()
 setCurrentProjectPath (PP.ProjectPath projectId projectBranchId path) =
   Q.setCurrentProjectPath projectId projectBranchId (Path.toList (Path.unabsolute path))
+
+-- | Hydrate the project and branch from IDs.
+resolveProjectPathIds :: PP.ProjectPathIds -> Sqlite.Transaction PP.ProjectPath
+resolveProjectPathIds (PP.ProjectPath projectId projectBranchId path) = do
+  proj <- Q.expectProject projectId
+  projBranch <- Q.expectProjectBranch projectId projectBranchId
+  pure $ PP.ProjectPath proj projBranch path

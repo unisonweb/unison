@@ -131,7 +131,6 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
 import Unison.Util.Set qualified as Set
 import Unison.Var qualified as Var
-import UnliftIO.STM
 
 ------------------------------------------------------------------------------------------------------------------------
 -- .unisonConfig things
@@ -147,13 +146,8 @@ getConfig key = do
 
 getCurrentProjectPath :: Cli PP.ProjectPath
 getCurrentProjectPath = do
-  (PP.ProjectPath projId branchId path) <- Cli.getProjectPathIds
-  -- TODO: Reset to a valid project on error.
-  (proj, branch) <- fmap (fromMaybe (error $ reportBug "E794202" ("Project branch not found in database for ids: " <> show (projId, branchId)))) . Cli.runTransaction . runMaybeT $ do
-    project <- MaybeT $ Q.loadProject projId
-    branch <- MaybeT $ Q.loadProjectBranch projId branchId
-    pure (project, branch)
-  pure (PP.ProjectPath proj branch path)
+  ppIds <- Cli.getProjectPathIds
+  Cli.runTransaction $ Codebase.resolveProjectPathIds ppIds
 
 getCurrentProjectAndBranch :: Cli (ProjectAndBranch Project ProjectBranch)
 getCurrentProjectAndBranch = do
@@ -266,7 +260,9 @@ resolveShortCausalHashToCausalHash rollback shortHash = do
 -- | Get the root branch.
 getCurrentProjectRoot :: Cli (Branch IO)
 getCurrentProjectRoot = do
-  use #currentProjectRoot >>= atomically . readTMVar
+  Cli.Env {codebase} <- ask
+  ProjectAndBranch proj branch <- getCurrentProjectAndBranch
+  liftIO $ Codebase.expectProjectBranchRoot codebase proj.projectId branch.branchId
 
 -- | Get the root branch0.
 getCurrentProjectRoot0 :: Cli (Branch0 IO)
@@ -445,18 +441,18 @@ updateAndStepAt reason projectBranch updates steps = do
 
 updateProjectBranchRoot :: ProjectBranch -> Text -> (Branch IO -> Cli (Branch IO, r)) -> Cli r
 updateProjectBranchRoot projectBranch reason f = do
-  currentPB <- getCurrentProjectBranch
   Cli.Env {codebase} <- ask
   Cli.time "updateProjectBranchRoot" do
     old <- getProjectBranchRoot projectBranch
     (new, result) <- f old
-    liftIO $ Codebase.putBranch codebase new
-    Cli.runTransaction $ do
-      causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
-      Q.setProjectBranchHead reason (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
-    if projectBranch.branchId == currentPB.branchId
-      then Cli.setInMemoryCurrentProjectRoot new
-      else pure ()
+    when (old /= new) do
+      liftIO $ Codebase.putBranch codebase new
+      Cli.runTransaction $ do
+        -- TODO: If we transactionally check that the project branch hasn't changed while we were computing the new
+        -- branch, and if it has, abort the transaction and return an error, then we can
+        -- remove the single UCM per codebase restriction.
+        causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
+        Q.setProjectBranchHead reason (projectBranch ^. #projectId) (projectBranch ^. #branchId) causalHashId
     pure result
 
 updateProjectBranchRoot_ :: ProjectBranch -> Text -> (Branch IO -> Branch IO) -> Cli ()

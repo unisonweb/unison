@@ -50,7 +50,6 @@ module Unison.Cli.Monad
 
     -- * Internal
     setMostRecentProjectPath,
-    setInMemoryCurrentProjectRoot,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -78,7 +77,6 @@ import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
@@ -96,7 +94,8 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import UnliftIO.STM
+import UnliftIO qualified
+import UnliftIO.Concurrent qualified as UnliftIO
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
@@ -186,8 +185,7 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { currentProjectRoot :: TMVar (Branch IO),
-    -- the current position in the codebase, with the head being the most recent lcoation.
+  { -- the current position in the codebase, with the head being the most recent lcoation.
     projectPathStack :: List.NonEmpty PP.ProjectPathIds,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
@@ -214,11 +212,10 @@ data LoopState = LoopState
   deriving stock (Generic)
 
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: TMVar (Branch IO) -> PP.ProjectPathIds -> LoopState
-loopState0 b p = do
+loopState0 :: PP.ProjectPathIds -> LoopState
+loopState0 p = do
   LoopState
-    { currentProjectRoot = b,
-      projectPathStack = pure p,
+    { projectPathStack = pure p,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
@@ -391,22 +388,18 @@ cd path = do
   setMostRecentProjectPath newPP
   #projectPathStack %= NonEmpty.cons newPP
 
--- | Set the in-memory project root to the given branch, without updating the database.
-setInMemoryCurrentProjectRoot :: Branch IO -> Cli ()
-setInMemoryCurrentProjectRoot !newRoot = do
-  rootVar <- use #currentProjectRoot
-  atomically do
-    void $ swapTMVar rootVar newRoot
-
 switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
 switchProject (ProjectAndBranch projectId branchId) = do
   Env {codebase} <- ask
   let newPP = PP.ProjectPath projectId branchId Path.absoluteEmpty
   #projectPathStack %= NonEmpty.cons newPP
   runTransaction $ do Q.setMostRecentBranch projectId branchId
-  pbr <- liftIO $ Codebase.expectProjectBranchRoot codebase projectId branchId
-  setInMemoryCurrentProjectRoot pbr
   setMostRecentProjectPath newPP
+  -- Prime the cache with the new project branch root so it's ready when a command needs it.
+  void . liftIO . UnliftIO.forkIO $ do
+    b <- Codebase.expectProjectBranchRoot codebase projectId branchId
+    -- Force the branch in the background thread to avoid delays later.
+    void $ UnliftIO.evaluate b
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --

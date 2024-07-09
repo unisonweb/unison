@@ -12,6 +12,7 @@ import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List.NonEmpty qualified as NEL
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Ki qualified
@@ -20,7 +21,6 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.History qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import U.Codebase.HashTags (CausalHash)
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -31,7 +31,6 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
@@ -133,37 +132,18 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  (CausalHash -> STM ()) ->
-  (PP.ProjectPath -> STM ()) ->
+  (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
-  rootVar <- newEmptyTMVarIO
+main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = Ki.scoped \scope -> do
   _ <- Ki.fork scope do
+    -- Pre-load the project root in the background so it'll be ready when a command needs it.
     projectRoot <- Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch
-    atomically do
-      -- Try putting the root, but if someone else as already written over the root, don't
-      -- overwrite it.
-      void $ tryPutTMVar rootVar projectRoot
     -- Start forcing thunks in a background thread.
-    -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
-    -- recursive "deep*" things.
     UnliftIO.concurrently_
       (UnliftIO.evaluate projectRoot)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
-  let initialState = Cli.loopState0 rootVar ppIds
-  Ki.fork_ scope do
-    let loop lastRoot = do
-          -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
-          -- most recent version at any given time, so it's fine to skip some intermediate
-          -- versions.
-          currentRoot <- atomically do
-            currentRoot <- readTMVar rootVar
-            guard $ Just currentRoot /= lastRoot
-            notifyBranchChange (Branch.headHash currentRoot)
-            pure (Just currentRoot)
-          loop currentRoot
-    loop Nothing
+  let initialState = Cli.loopState0 ppIds
   eventQueue <- Q.newIO
   initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
   pageOutput <- newIORef True
@@ -179,7 +159,8 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
       getInput loopState = do
         currentEcho <- hGetEcho stdin
         liftIO $ restoreEcho currentEcho
-        let getProjectRoot = atomically $ readTMVar rootVar
+        let PP.ProjectAndBranch projId branchId = PP.toProjectAndBranch $ NonEmpty.head loopState.projectPathStack
+        let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
         pp <- loopStateProjectPath codebase loopState
         getUserInput
           codebase
@@ -262,6 +243,9 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
+          -- It's always possible the previous command changed the branch head, so tell the LSP to check if the current
+          -- path or project has changed.
+          lspCheckForChanges (NEL.head $ Cli.projectPathStack s0)
           let step = do
                 input <- awaitInput s0
                 (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
@@ -279,9 +263,6 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
               Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
               loop0 s0
             Right (Right (result, s1)) -> do
-              oldPP <- loopStateProjectPath codebase s0
-              newPP <- loopStateProjectPath codebase s1
-              when (oldPP /= newPP) (atomically . notifyPathChange $ newPP)
               case result of
                 Cli.Success () -> loop0 s1
                 Cli.Continue -> loop0 s1

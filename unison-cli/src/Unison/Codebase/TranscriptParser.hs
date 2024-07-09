@@ -28,6 +28,7 @@ import Data.Configurator qualified as Configurator
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List (isSubsequenceOf)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.These (These (..))
@@ -51,7 +52,6 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
@@ -250,7 +250,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
     initialPP <- Codebase.expectCurrentProjectPath
     pure (initialPP, emptyCausalHashId)
 
-  projectRootVar <- newTMVarIO Branch.empty
   unless (isSilent verbosity) . putPrettyLn $
     Pretty.lines
       [ asciiartUnison,
@@ -378,7 +377,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       args -> do
                         liftIO (output ("\n" <> show p <> "\n"))
                         numberedArgs <- use #numberedArgs
-                        let getProjectRoot = atomically $ readTMVar projectRootVar
+                        PP.ProjectAndBranch projId branchId <- PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
+                        let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
                         liftIO (parseInput codebase curPath getProjectRoot numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> do
@@ -572,7 +572,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 projectRootVar (PP.toIds initialPP))
+  loop (Cli.loopState0 (PP.toIds initialPP))
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

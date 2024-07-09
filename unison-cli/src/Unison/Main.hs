@@ -25,7 +25,6 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
-import Control.Concurrent.STM
 import Control.Exception (displayException, evaluate)
 import Data.ByteString.Lazy qualified as BL
 import Data.Configurator.Types (Config)
@@ -61,8 +60,6 @@ import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
-import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Operations qualified as SqliteOps
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
@@ -86,6 +83,7 @@ import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.LSP qualified as LSP
+import Unison.LSP.Util.Signal qualified as Signal
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -177,8 +175,7 @@ main version = do
                     getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                       withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                         let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                        let noOpRootNotifier _ = pure ()
-                        let noOpPathNotifier _ = pure ()
+                        let noOpCheckForChanges _ = pure ()
                         let serverUrl = Nothing
                         startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                         launch
@@ -193,8 +190,7 @@ main version = do
                           serverUrl
                           (PP.toIds startProjectPath)
                           initRes
-                          noOpRootNotifier
-                          noOpPathNotifier
+                          noOpCheckForChanges
                           CommandLine.ShouldNotWatchFiles
           Run (RunFromPipe mainName) args -> do
             e <- safeReadUtf8StdIn
@@ -204,8 +200,7 @@ main version = do
                 getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                   withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                     let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-                    let noOpRootNotifier _ = pure ()
-                    let noOpPathNotifier _ = pure ()
+                    let noOpCheckForChanges _ = pure ()
                     let serverUrl = Nothing
                     startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                     launch
@@ -220,8 +215,7 @@ main version = do
                       serverUrl
                       (PP.toIds startProjectPath)
                       initRes
-                      noOpRootNotifier
-                      noOpPathNotifier
+                      noOpCheckForChanges
                       CommandLine.ShouldNotWatchFiles
           Run (RunCompiled file) args ->
             BL.readFile file >>= \bs ->
@@ -314,22 +308,16 @@ main version = do
                           pure $ PP.fromProjectAndBranch pab Path.absoluteEmpty
                     Nothing -> do
                       Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
-                currentProjectRootCH <- Codebase.runTransaction theCodebase do
-                  currentPP <- Codebase.expectCurrentProjectPath
-                  SqliteOps.expectProjectBranchHead (currentPP.project.projectId) (currentPP.branch.branchId)
-                projectRootHashVar <- newTVarIO currentProjectRootCH
-                projectPathVar <- newTVarIO startingProjectPath
-                let notifyOnRootChanges :: CausalHash -> STM ()
-                    notifyOnRootChanges b = do
-                      writeTVar projectRootHashVar b
-                let notifyOnPathChanges :: PP.ProjectPath -> STM ()
-                    notifyOnPathChanges = writeTVar projectPathVar
+                currentPP <- Codebase.runTransaction theCodebase do
+                  PP.toIds <$> Codebase.expectCurrentProjectPath
+                changeSignal <- Signal.newSignalIO (Just currentPP)
+                let lspCheckForChanges pp = Signal.writeSignalIO changeSignal pp
                 -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
                 -- when waiting for input on handles, so if we listen for LSP connections it will
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar projectRootHashVar) (readTVar projectPathVar)
+                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
@@ -365,8 +353,7 @@ main version = do
                             (Just baseUrl)
                             (PP.toIds startingProjectPath)
                             initRes
-                            notifyOnRootChanges
-                            notifyOnPathChanges
+                            lspCheckForChanges
                             shouldWatchFiles
                     Exit -> do Exit.exitSuccess
   where
@@ -541,11 +528,10 @@ launch ::
   Maybe Server.BaseUrl ->
   PP.ProjectPathIds ->
   InitResult ->
-  (CausalHash -> STM ()) ->
-  (PP.ProjectPath -> STM ()) ->
+  (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult notifyRootChange notifyProjPathChange shouldWatchFiles = do
+launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -564,8 +550,7 @@ launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseU
         codebase
         serverBaseUrl
         ucmVersion
-        notifyRootChange
-        notifyProjPathChange
+        lspCheckForChanges
         shouldWatchFiles
 
 newtype MarkdownFile = MarkdownFile FilePath
