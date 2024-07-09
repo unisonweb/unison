@@ -68,7 +68,7 @@ scratch/main> update arg
 
 Sorry, I wasn’t sure how to process your request:
 
-  I expected no arguments, but received 1.
+  I expected no arguments, but received one.
 
 You can run `help update` for more information on using
 `update`.

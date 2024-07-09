@@ -230,6 +230,7 @@ library
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
@@ -371,6 +372,7 @@ executable transcripts
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
@@ -519,6 +521,7 @@ test-suite cli-tests
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple

@@ -152,6 +152,8 @@ import System.Console.Haskeline.Completion (Completion (Completion))
 import System.Console.Haskeline.Completion qualified as Haskeline
 import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
+import Text.Numeral (defaultInflection)
+import Text.Numeral.Language.ENG qualified as Numeral
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -342,7 +344,11 @@ wrongStructuredArgument expected actual =
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
-  Left . P.text $ "I expected " <> expected <> ", but received " <> Text.pack (show $ length args) <> "."
+  let foundCount =
+        case length args of
+          0 -> "none"
+          n -> fromMaybe (tShow n) $ Numeral.us_cardinal defaultInflection n
+   in Left . P.text $ "I expected " <> expected <> ", but received " <> foundCount <> "."
 
 patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
