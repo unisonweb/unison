@@ -230,6 +230,7 @@ data Input
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
   | MergeCommitI
+  | DebugSynhashTermI !Name
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

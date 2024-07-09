@@ -1645,3 +1645,65 @@ project/bob> merge /alice
 project/carol> merge /bob
 project/carol> history
 ```
+
+```ucm:hide
+.> project.delete project
+```
+
+### Variables named `_`
+
+This test demonstrates a change in syntactic hashing that fixed a bug due to auto-generated variable names for ignored
+results.
+
+```ucm:hide
+scratch/alice> builtins.mergeio lib.builtins
+```
+
+```unison
+ignore : a -> ()
+ignore _ = ()
+
+foo : Nat
+foo = 18
+
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo
+```
+
+```ucm
+scratch/alice> add
+scratch/alice> branch bob
+```
+
+```unison
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo + foo
+```
+
+```ucm
+scratch/bob> update
+```
+
+Previously, this update to `foo` would also cause a "real update" on `bar`, its dependent. Now it doesn't, so the merge
+will succeed.
+
+```unison
+foo : Nat
+foo = 19
+```
+
+```ucm
+scratch/alice> update
+```
+
+```ucm
+scratch/alice> merge /bob
+```
+
+```ucm:hide
+.> project.delete scratch
+```

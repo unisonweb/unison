@@ -2121,3 +2121,124 @@ project/carol> history
   3. #dm4u1eokg1
 
 ```
+### Variables named `_`
+
+This test demonstrates a change in syntactic hashing that fixed a bug due to auto-generated variable names for ignored
+results.
+
+```unison
+ignore : a -> ()
+ignore _ = ()
+
+foo : Nat
+foo = 18
+
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar    : Nat
+      foo    : Nat
+      ignore : a -> ()
+
+```
+```ucm
+scratch/alice> add
+
+  ⍟ I've added these definitions:
+  
+    bar    : Nat
+    foo    : Nat
+    ignore : a -> ()
+
+scratch/alice> branch bob
+
+  Done. I've created the bob branch based off of alice.
+  
+  Tip: To merge your work back into the alice branch, first
+       `switch /alice` then `merge /bob`.
+
+```
+```unison
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo + foo
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      bar : Nat
+
+```
+```ucm
+scratch/bob> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+```
+Previously, this update to `foo` would also cause a "real update" on `bar`, its dependent. Now it doesn't, so the merge
+will succeed.
+
+```unison
+foo : Nat
+foo = 19
+```
+
+```ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      foo : Nat
+
+```
+```ucm
+scratch/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+```
+```ucm
+scratch/alice> merge /bob
+
+  I merged scratch/bob into scratch/alice.
+
+```

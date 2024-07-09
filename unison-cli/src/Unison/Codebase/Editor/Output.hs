@@ -50,6 +50,7 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
@@ -186,15 +187,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      -- | what we were trying to do (e.g. "run", "io.test")
       Text
-      -- | name of function
+      -- ^ what we were trying to do (e.g. "run", "io.test")
       (HQ.HashQualified Name)
-      -- | bad type of function
+      -- ^ name of function
       (Type Symbol Ann)
+      -- ^ bad type of function
       PPE.PrettyPrintEnv
-      -- | acceptable type(s) of function
       [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -231,12 +232,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
-      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- | Misses (search terms that returned no hits for terms or types)
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
       [HQ.HashQualified Name]
-      -- | Hits for types if we are searching for terms or terms if we are searching for types
+      -- ^ Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -385,8 +386,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
-      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -426,6 +427,7 @@ data Output
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
+  | Output'DebugSynhashTerm !TermReference !Hash !Text
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -665,6 +667,7 @@ isFailure o = case o of
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
+  Output'DebugSynhashTerm {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

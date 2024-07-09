@@ -105,6 +105,7 @@ library
     , unison-util-cache
     , unison-util-relation
     , vector
+    , witch
     , witherable
   default-language: Haskell2010
   if !os(windows)
