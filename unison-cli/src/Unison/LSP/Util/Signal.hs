@@ -23,15 +23,20 @@ newSignalIO a = do
   tvar <- newTVarIO (a, 0)
   pure (Signal tvar)
 
+-- | Update the value of a signal, notifying all subscribers (even if the value didn't change)
 writeSignal :: Signal a -> a -> STM ()
 writeSignal (Signal signalVar) a = do
   (_, n) <- readTVar signalVar
   writeTVar signalVar (Just a, succ n)
 
+-- | Update the value of a signal, notifying all subscribers (even if the value didn't change)
 writeSignalIO :: (MonadIO m) => Signal a -> a -> m ()
 writeSignalIO signal a = liftIO $ STM.atomically (writeSignal signal a)
 
--- | Subscribe to a signal, returning an STM action that will read the latest value.
+-- | Subscribe to a signal, returning an STM action which will read the latest NEW value,
+-- after successfully reading a new value, subsequent reads will retry until there's a new value written to the signal.
+--
+-- Each independent reader should have its own subscription.
 --
 -- >>> signal <- newSignalIO (Just "initial")
 -- >>> subscriber1 <- subscribe signal

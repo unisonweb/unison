@@ -1,14 +1,15 @@
 module Unison.LSP.UCMWorker where
 
-import U.Codebase.HashTags
 import Control.Monad.Reader
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.ProjectPath (ProjectPath)
-import Unison.Debug qualified as Debug
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.LSP.Completion
 import Unison.LSP.Types
+import Unison.LSP.Util.Signal (Signal)
+import Unison.LSP.Util.Signal qualified as Signal
 import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
 import Unison.Prelude
@@ -26,42 +27,42 @@ ucmWorker ::
   TMVar Names ->
   TMVar (NameSearch Sqlite.Transaction) ->
   TMVar ProjectPath ->
-  STM CausalHash ->
-  STM ProjectPath ->
+  Signal PP.ProjectPathIds ->
   Lsp ()
-ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar getLatestProjectRootHash getLatestProjectPath = do
-  Env {codebase, completionsVar} <- ask
-  let loop :: CausalHash -> ProjectPath -> Lsp a
-      loop currentProjectRootHash currentProjectPath = do
-        currentBranch <- liftIO $ Codebase.expectProjectBranchRoot codebase (currentProjectPath ^. #branch . #projectId) (currentProjectPath ^. #branch . #branchId)
-        Debug.debugM Debug.LSP "LSP path: " currentProjectPath
-        let currentBranch0 = Branch.head currentBranch
-        let currentNames = Branch.toNames currentBranch0
-        hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-        let pped = PPED.makePPED (PPE.hqNamer hl currentNames) (PPE.suffixifyByHash currentNames)
-        atomically $ do
-          writeTMVar currentPathVar currentProjectPath
-          writeTMVar currentNamesVar currentNames
-          writeTMVar ppedVar pped
-          writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl currentNames)
-        -- Re-check everything with the new names and ppe
-        VFS.markAllFilesDirty
-        atomically do
-          writeTMVar completionsVar (namesToCompletionTree currentNames)
-        Debug.debugLogM Debug.LSP "LSP Initialized"
-        (latestRootHash, latestProjectPath) <- atomically $ do
-          latestRootHash <- getLatestProjectRootHash
-          latestPath <- getLatestProjectPath
-          guard $ (currentProjectRootHash /= latestRootHash || currentProjectPath /= latestPath)
-          pure (latestRootHash, latestPath)
-        Debug.debugLogM Debug.LSP "LSP Change detected"
-        loop latestRootHash latestProjectPath
-  (currentProjectRootHash, currentProjectPath) <- atomically $ do
-    latestProjectRootHash <- getLatestProjectRootHash
-    currentProjectPath <- getLatestProjectPath
-    pure (latestProjectRootHash, currentProjectPath)
-  loop currentProjectRootHash currentProjectPath
+ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar changeSignal = do
+  signalChanges <- Signal.subscribe changeSignal
+  loop signalChanges Nothing
   where
+    loop :: STM PP.ProjectPathIds -> Maybe (Branch.Branch IO) -> Lsp a
+    loop signalChanges currentBranch = do
+      Env {codebase, completionsVar} <- ask
+      getChanges signalChanges currentBranch >>= \case
+        (_newPP, Nothing) -> loop signalChanges currentBranch
+        (newPP, Just newBranch) -> do
+          let newBranch0 = Branch.head newBranch
+          let newNames = Branch.toNames newBranch0
+          hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
+          let pped = PPED.makePPED (PPE.hqNamer hl newNames) (PPE.suffixifyByHash newNames)
+          atomically $ do
+            writeTMVar currentPathVar newPP
+            writeTMVar currentNamesVar newNames
+            writeTMVar ppedVar pped
+            writeTMVar nameSearchCacheVar (NameSearch.makeNameSearch hl newNames)
+          -- Re-check everything with the new names and ppe
+          VFS.markAllFilesDirty
+          atomically do
+            writeTMVar completionsVar (namesToCompletionTree newNames)
+          loop signalChanges (Just newBranch)
+    -- Waits for a possible change, then checks if there's actually any difference to the branches we care about.
+    -- If so, returns the new branch, otherwise Nothing.
+    getChanges :: STM PP.ProjectPathIds -> Maybe (Branch.Branch IO) -> Lsp (ProjectPath, Maybe (Branch.Branch IO))
+    getChanges signalChanges currentBranch = do
+      Env {codebase} <- ask
+      ppIds <- atomically signalChanges
+      pp <- liftIO . Codebase.runTransaction codebase $ Codebase.resolveProjectPathIds ppIds
+      atomically $ writeTMVar currentPathVar pp
+      newBranch <- fmap (fromMaybe Branch.empty) . liftIO $ Codebase.getBranchAtProjectPath codebase pp
+      pure $ (pp, if Just newBranch == currentBranch then Nothing else Just newBranch)
     -- This is added in stm-2.5.1, remove this if we upgrade.
     writeTMVar :: TMVar a -> a -> STM ()
     writeTMVar var a =
