@@ -53,7 +53,6 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
-import Unison.Hashable qualified as Hashable
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
