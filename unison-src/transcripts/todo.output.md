@@ -44,7 +44,7 @@ scratch/main> add
 
 scratch/main> todo
 
-  These terms call `todo`.
+  These terms call `todo`:
   
     1. foo
 
@@ -95,7 +95,7 @@ scratch/main> delete.namespace.force foo
 
 scratch/main> todo
 
-  These terms do not have any names in the current namespace.
+  These terms do not have any names in the current namespace:
   
     1. #1jujb8oelv
 
@@ -215,11 +215,12 @@ scratch/main> alias.term Foo.One Foo.Two
 
 scratch/main> todo
 
-  The type Foo has a constructor with multiple names. Please
-  delete all but one name for each constructor.
+  The type Foo has a constructor with multiple names.
   
     1. Foo.One
     2. Foo.Two
+  
+  Please delete all but one name for each constructor.
 
 ```
 # Missing constructor names
@@ -259,6 +260,10 @@ scratch/main> todo
   These types have some constructors with missing names.
   
     1. Foo
+  
+  You can use `view 1` and
+  `alias.term <hash> <TypeName>.<ConstructorName>` to give names
+  to each unnamed constructor.
 
 ```
 # Nested decl aliases
@@ -336,8 +341,11 @@ scratch/main> alias.term Foo.Bar Baz
 scratch/main> todo
 
   These constructors are not nested beneath their corresponding
-  type names. Please either move or delete them.
+  type names:
   
     1. Baz
+  
+  For each one, please either use `move` to move if, or if it's
+  an extra copy, you can simply `delete` it.
 
 ```

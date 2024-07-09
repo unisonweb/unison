@@ -2686,7 +2686,7 @@ handleTodoOutput todo
                         & P.syntaxToColor
                 pure (formatNum n <> name)
             pure $
-              P.wrap "These terms call `todo`."
+              P.wrap "These terms call `todo`:"
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines terms)
@@ -2700,7 +2700,7 @@ handleTodoOutput todo
                 n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash term)))
                 pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen term))
             pure $
-              P.wrap "These terms do not have any names in the current namespace."
+              P.wrap "These terms do not have any names in the current namespace:"
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines terms)
@@ -2714,7 +2714,7 @@ handleTodoOutput todo
                 n <- addNumberedArg (SA.HashQualified (HQ.HashOnly (Reference.toShortHash typ)))
                 pure (formatNum n <> P.syntaxToColor (prettyReference todo.hashLen typ))
             pure $
-              P.wrap "These types do not have any names in the current namespace."
+              P.wrap "These types do not have any names in the current namespace:"
                 <> P.newline
                 <> P.newline
                 <> P.indentN 2 (P.lines types)
@@ -2765,33 +2765,47 @@ handleTodoOutput todo
                     & map
                       ( \(typeName, prettyCon1, prettyCon2) ->
                           -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
-                          P.wrap
-                            ( "The type"
-                                <> prettyName typeName
-                                <> "has a constructor with multiple names. Please delete all but one name for each"
-                                <> "constructor."
-                            )
+                          P.wrap ("The type" <> prettyName typeName <> "has a constructor with multiple names.")
                             <> P.newline
                             <> P.newline
                             <> P.indentN 2 (P.lines [prettyCon1, prettyCon2])
+                            <> P.newline
+                            <> P.newline
+                            <> P.wrap "Please delete all but one name for each constructor."
                       )
                     & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
-        case todo.incoherentDeclReasons.missingConstructorNames of
-          [] -> pure mempty
-          types0 -> do
-            types1 <-
+        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+          Nothing -> pure mempty
+          Just types0 -> do
+            stuff <-
               for types0 \typ -> do
                 n <- addNumberedArg (SA.Name typ)
-                pure (formatNum n <> prettyName typ)
+                pure (n, typ)
             -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
             pure $
               P.wrap
                 "These types have some constructors with missing names."
                 <> P.newline
                 <> P.newline
-                <> P.indentN 2 (P.lines types1)
+                <> P.indentN 2 (P.lines (fmap (\(n, typ) -> formatNum n <> prettyName typ) stuff))
+                <> P.newline
+                <> P.newline
+                <> P.wrap
+                  ( "You can use"
+                      <> IP.makeExample
+                        IP.view
+                        [ let firstNum = fst (NEList.head stuff)
+                              lastNum = fst (NEList.last stuff)
+                           in if firstNum == lastNum
+                                then P.string (show firstNum)
+                                else P.string (show firstNum) <> "-" <> P.string (show lastNum)
+                        ]
+                      <> "and"
+                      <> IP.makeExample IP.aliasTerm ["<hash>", "<TypeName>.<ConstructorName>"]
+                      <> "to give names to each unnamed constructor."
+                  )
 
       prettyNestedDeclAliases <-
         case todo.incoherentDeclReasons.nestedDeclAliases of
@@ -2820,20 +2834,33 @@ handleTodoOutput todo
       prettyStrayConstructors <-
         case todo.incoherentDeclReasons.strayConstructors of
           [] -> pure mempty
-          constructors0 -> do
-            constructors1 <-
-              for constructors0 \constructor -> do
-                n <- addNumberedArg (SA.Name constructor)
-                pure (formatNum n <> prettyName constructor)
+          constructors -> do
+            nums <-
+              for constructors \constructor -> do
+                addNumberedArg (SA.Name constructor)
             -- Note [StrayConstructorMessage] If you change this, also change the other similar one
             pure $
-              P.wrap
-                ( "These constructors are not nested beneath their corresponding type names. Please either move or"
-                    <> "delete them."
-                )
+              P.wrap "These constructors are not nested beneath their corresponding type names:"
                 <> P.newline
                 <> P.newline
-                <> P.indentN 2 (P.lines constructors1)
+                <> P.indentN
+                  2
+                  ( P.lines
+                      ( zipWith
+                          (\n constructor -> formatNum n <> prettyName constructor)
+                          nums
+                          constructors
+                      )
+                  )
+                <> P.newline
+                <> P.newline
+                <> P.wrap
+                  ( "For each one, please either use"
+                      <> IP.makeExample' IP.moveAll
+                      <> "to move if, or if it's an extra copy, you can simply"
+                      <> IP.makeExample' IP.delete
+                      <> "it."
+                  )
 
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
