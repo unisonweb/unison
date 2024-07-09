@@ -195,19 +195,20 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
+  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
   Verbosity ->
   UCMVersion ->
   FilePath ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner verbosity ucmVersion nrtp configFile action = do
+withTranscriptRunner isTest verbosity ucmVersion nrtp configFile action = do
   withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
     withRuntimes ::
@@ -232,6 +233,7 @@ withTranscriptRunner verbosity ucmVersion nrtp configFile action = do
             (\(config, _cancelConfig) -> action (Just config))
 
 run ::
+  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
   Verbosity ->
   FilePath ->
   [Stanza] ->
@@ -243,7 +245,7 @@ run ::
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
+run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
     (_, emptyCausalHashId) <- Codebase.emptyCausalHash
@@ -550,7 +552,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             sandboxedRuntime = sbRuntime,
             nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
-            ucmVersion
+            ucmVersion,
+            isTranscriptTest = isTest
           }
 
   let loop :: Cli.LoopState -> IO Text

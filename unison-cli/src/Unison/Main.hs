@@ -425,7 +425,8 @@ runTranscripts' version progName mcodepath nativeRtp transcriptDir markdownFiles
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
-    TR.withTranscriptRunner Verbosity.Verbose (Version.gitDescribeWithDate version) nativeRtp (Just configFilePath) $ \runTranscript -> do
+    let isTest = False
+    TR.withTranscriptRunner isTest Verbosity.Verbose (Version.gitDescribeWithDate version) nativeRtp (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)

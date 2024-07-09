@@ -234,7 +234,8 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
             sandboxedRuntime = sbRuntime,
             nativeRuntime = nRuntime,
             serverBaseUrl,
-            ucmVersion
+            ucmVersion,
+            isTranscriptTest = False
           }
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
