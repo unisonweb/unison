@@ -345,9 +345,9 @@ wrongStructuredArgument expected actual =
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
   let foundCount =
-        if null args
-          then "none"
-          else fromMaybe (tShow $ length args) $ Numeral.us_cardinal defaultInflection (length args)
+        case length args of
+          0 -> "none"
+          n -> fromMaybe (tShow n) $ Numeral.us_cardinal defaultInflection n
    in Left . P.text $ "I expected " <> expected <> ", but received " <> foundCount <> "."
 
 patternName :: InputPattern -> P.Pretty P.ColorText
