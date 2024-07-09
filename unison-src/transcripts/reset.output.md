@@ -83,12 +83,12 @@ scratch/main> reflog
   Tip: Use `diff.namespace 1 7` to compare between points in
        history.
   
-       Branch         When   Hash          Description
-  1.   scratch/main   now    #ujvq6e87kp   reset ujvq6e87kp4288eq3al9v5luctic0ocd7ug1fu0go5bicrr2vfnrb0...
-  2.   scratch/main   now    #5vq851j3hg   update
-  3.   scratch/main   now    #ujvq6e87kp   update
-  4.   scratch/main   now    #4bigcpnl7t   builtins.merge
-  5.   scratch/main   now    #sg60bvjo91   Project Created
+       Branch         Hash          Description
+  1.   scratch/main   #ujvq6e87kp   reset ujvq6e87kp4288eq3al9v5luctic0ocd7ug1fu0go5bicrr2vfnrb0...
+  2.   scratch/main   #5vq851j3hg   update
+  3.   scratch/main   #ujvq6e87kp   update
+  4.   scratch/main   #4bigcpnl7t   builtins.merge
+  5.   scratch/main   #sg60bvjo91   Project Created
 
 -- Reset the current branch to the first history element
 scratch/main> reset 2

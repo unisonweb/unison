@@ -81,11 +81,11 @@ scratch/main> reflog
   Tip: Use `diff.namespace 1 7` to compare between points in
        history.
   
-       Branch         When   Hash          Description
-  1.   scratch/main   now    #6mdl5gruh5   add
-  2.   scratch/main   now    #3rqf1hbev7   add
-  3.   scratch/main   now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
-  4.   scratch/main   now    #sg60bvjo91   Project Created
+       Branch         Hash          Description
+  1.   scratch/main   #6mdl5gruh5   add
+  2.   scratch/main   #3rqf1hbev7   add
+  3.   scratch/main   #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  4.   scratch/main   #sg60bvjo91   Project Created
 
 ```
 Should see reflog entries from the current project
@@ -100,13 +100,13 @@ scratch/main> project.reflog
   Tip: Use `diff.namespace 1 7` to compare between points in
        history.
   
-       Branch          When   Hash          Description
-  1.   scratch/other   now    #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
-  2.   scratch/other   now    #6mdl5gruh5   Branch created from scratch/main
-  3.   scratch/main    now    #6mdl5gruh5   add
-  4.   scratch/main    now    #3rqf1hbev7   add
-  5.   scratch/main    now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
-  6.   scratch/main    now    #sg60bvjo91   Project Created
+       Branch          Hash          Description
+  1.   scratch/other   #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  2.   scratch/other   #6mdl5gruh5   Branch created from scratch/main
+  3.   scratch/main    #6mdl5gruh5   add
+  4.   scratch/main    #3rqf1hbev7   add
+  5.   scratch/main    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  6.   scratch/main    #sg60bvjo91   Project Created
 
 ```
 Should see reflog entries from all projects
@@ -121,15 +121,15 @@ scratch/main> reflog.global
   Tip: Use `diff.namespace 1 7` to compare between points in
        history.
   
-       Branch            When   Hash          Description
-  1.   newproject/main   now    #2rjhs2vq43   alias.term newproject/main:.lib.builtins.Nat newproject/main...
-  2.   newproject/main   now    #ms9lggs2rg   builtins.merge newproject/main:.lib.builtins
-  3.   newproject/main   now    #sg60bvjo91   Branch Created
-  4.   scratch/other     now    #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
-  5.   scratch/other     now    #6mdl5gruh5   Branch created from scratch/main
-  6.   scratch/main      now    #6mdl5gruh5   add
-  7.   scratch/main      now    #3rqf1hbev7   add
-  8.   scratch/main      now    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
-  9.   scratch/main      now    #sg60bvjo91   Project Created
+       Branch            Hash          Description
+  1.   newproject/main   #2rjhs2vq43   alias.term newproject/main:.lib.builtins.Nat newproject/main...
+  2.   newproject/main   #ms9lggs2rg   builtins.merge newproject/main:.lib.builtins
+  3.   newproject/main   #sg60bvjo91   Branch Created
+  4.   scratch/other     #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  5.   scratch/other     #6mdl5gruh5   Branch created from scratch/main
+  6.   scratch/main      #6mdl5gruh5   add
+  7.   scratch/main      #3rqf1hbev7   add
+  8.   scratch/main      #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  9.   scratch/main      #sg60bvjo91   Project Created
 
 ```

@@ -3389,19 +3389,19 @@ listDependentsOrDependencies ppe labelStart label lds types terms =
     c = P.syntaxToColor
 
 displayProjectBranchReflogEntries ::
-  UTCTime ->
+  Maybe UTCTime ->
   E.MoreEntriesThanShown ->
   [ProjectReflog.Entry Project ProjectBranch (CausalHash, ShortCausalHash)] ->
   (Pretty, NumberedArgs)
 displayProjectBranchReflogEntries _ _ [] =
   (P.warnCallout "The reflog is empty", mempty)
-displayProjectBranchReflogEntries now _ entries =
+displayProjectBranchReflogEntries mayNow _ entries =
   let (entryRows, numberedArgs) = foldMap renderEntry entries
       rendered =
         P.lines
           [ header,
             "",
-            P.numberedColumnNHeader ["Branch", "When", "Hash", "Description"] entryRows
+            P.numberedColumnNHeader (["Branch"] <> Monoid.whenM (isJust mayNow) ["When"] <> ["Hash", "Description"]) entryRows
           ]
    in (rendered, numberedArgs)
   where
@@ -3416,7 +3416,14 @@ displayProjectBranchReflogEntries now _ entries =
         ]
     renderEntry :: ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash) -> ([[Pretty]], NumberedArgs)
     renderEntry ProjectReflog.Entry {time, project, branch, toRootCausalHash = (toCH, toSCH), reason} =
-      ([[prettyProjectAndBranchName $ ProjectAndBranch project.name branch.name, prettyHumanReadableTime now time, P.blue (prettySCH toSCH), P.text $ truncateReason reason]], [SA.Namespace toCH])
+      ( [ [prettyProjectAndBranchName $ ProjectAndBranch project.name branch.name]
+            <> ( mayNow
+                   & foldMap (\now -> [prettyHumanReadableTime now time])
+               )
+            <> [P.blue (prettySCH toSCH), P.text $ truncateReason reason]
+        ],
+        [SA.Namespace toCH]
+      )
     truncateReason :: Text -> Text
     truncateReason txt = case Text.splitAt 60 txt of
       (short, "") -> short

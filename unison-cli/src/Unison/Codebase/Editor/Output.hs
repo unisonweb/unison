@@ -154,7 +154,10 @@ data NumberedOutput
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
       ProjectPath -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
-  | ShowProjectBranchReflog UTCTime {- current time -} MoreEntriesThanShown [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
+  | ShowProjectBranchReflog
+      (Maybe UTCTime {- current time, omitted in transcript tests to be more deterministic -})
+      MoreEntriesThanShown
+      [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
 
 data TodoOutput = TodoOutput
   { dependentsOfTodo :: !(Set TermReferenceId),

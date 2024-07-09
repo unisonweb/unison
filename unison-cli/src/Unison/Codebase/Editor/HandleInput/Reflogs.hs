@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.HandleInput.Reflogs
   )
 where
 
+import Control.Monad.Reader
 import Data.Time (getCurrentTime)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project (Project)
@@ -52,5 +53,8 @@ reflogHelper getEntries = do
         if length entries == numEntriesToShow
           then Output.MoreEntriesThanShown
           else Output.AllEntriesShown
-  now <- liftIO getCurrentTime
-  Cli.respondNumbered $ Output.ShowProjectBranchReflog now moreEntriesToLoad entries
+  mayNow <-
+    asks Cli.isTranscriptTest >>= \case
+      True -> pure Nothing
+      False -> Just <$> liftIO getCurrentTime
+  Cli.respondNumbered $ Output.ShowProjectBranchReflog mayNow moreEntriesToLoad entries
