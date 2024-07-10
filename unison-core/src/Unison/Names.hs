@@ -12,6 +12,7 @@ module Unison.Names
     filterByHQs,
     filterBySHs,
     filterTypes,
+    withoutTheseNames,
     map,
     makeAbsolute,
     makeRelative,
@@ -542,7 +543,7 @@ lenientToNametree names =
     (lenientRelationToNametree names.terms)
     (lenientRelationToNametree names.types)
   where
-    lenientRelationToNametree :: Ord a => Relation Name a -> Nametree (Map NameSegment a)
+    lenientRelationToNametree :: (Ord a) => Relation Name a -> Nametree (Map NameSegment a)
     lenientRelationToNametree =
       unflattenNametree . lenientRelationToLeftUniqueRelation
 
@@ -551,3 +552,8 @@ lenientToNametree names =
       -- The partial `Set.findMin` are fine here because Relation.domain only has non-empty Set values. A NESet would be
       -- better.
       BiMultimap.fromRange . Map.map Set.findMin . Relation.domain
+
+-- | Efficiently remove all instances of the given names from the `Names`.
+withoutTheseNames :: Set Name -> Names -> Names
+withoutTheseNames ns (Names terms types) =
+  Names (R.subtractDom ns terms) (R.subtractDom ns types)
