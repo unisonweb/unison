@@ -24,6 +24,7 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+*.prof.html
 /.direnv/
 /.envrc
 

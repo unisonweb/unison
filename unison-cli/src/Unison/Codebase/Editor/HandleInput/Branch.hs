@@ -85,15 +85,15 @@ handleBranch sourceI projectAndBranchNames@(ProjectAndBranch mayProjectName newB
       )
       (projectAndBranchNames & #project .~ projectName)
 
--- | @createBranchFromParent createFrom project branch description@:
+-- | @createBranch description createFrom project getNewBranchName@:
 --
---   1. Creates a new branch row for @branch@ in project @project@ (failing if @branch@ already exists in @project@).
---   3. Switches to the new branch.
+--   1. Creates a new branch row in @project@ at the name from @getNewBranchName@ (failing if branch already exists in @project@).
+--   2. Switches to the new branch.
 --
 -- This bit of functionality is factored out from the main 'handleBranch' handler because it is also called by the
 -- @release.draft@ command, which essentially just creates a branch, but with some different output for the user.
 --
--- Returns the branch id of the newly-created branch.
+-- Returns the branch id and name of the newly-created branch.
 createBranch ::
   Text ->
   CreateFrom ->

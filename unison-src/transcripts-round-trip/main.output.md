@@ -824,9 +824,9 @@ scratch/main> diff.namespace /a3_new:. /a3:.
 
   Updates:
   
-    1. sloppyDocEval : #ej86si0ur1
+    1. sloppyDocEval : Doc2
        ↓
-    2. sloppyDocEval : #ej86si0ur1
+    2. sloppyDocEval : Doc2
 
 ```
 ## Other regression tests not covered by above

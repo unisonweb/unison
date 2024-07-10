@@ -42,7 +42,7 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
   --   1. cd to parent branch, if it exists
   --   2. cd to "main", if it exists
   --   3. Any other branch in the codebase
-  --   4. Create a dummy project and go to /main
+  --   4. Create a new branch in the current project
   when (branchToDelete ^. #branchId == currentBranch ^. #branchId) do
     mayNextLocation <-
       Cli.runTransaction . runMaybeT $

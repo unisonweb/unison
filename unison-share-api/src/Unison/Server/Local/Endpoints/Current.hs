@@ -34,7 +34,7 @@ instance ToSample Current where
         Current
           (Just $ UnsafeProjectName "@unison/base")
           (Just $ UnsafeProjectBranchName "main")
-          (Path.Absolute $ Path.unsafeParseText ".my.namespace")
+          (Path.Absolute $ Path.unsafeParseText "my.path")
       )
     ]
 
@@ -46,10 +46,10 @@ instance ToJSON Current where
         "path" .= path
       ]
 
-serveCurrent :: MonadIO m => Codebase m v a -> Backend m Current
+serveCurrent :: (MonadIO m) => Codebase m v a -> Backend m Current
 serveCurrent = lift . getCurrentProjectBranch
 
-getCurrentProjectBranch :: MonadIO m => Codebase m v a -> m Current
+getCurrentProjectBranch :: (MonadIO m) => Codebase m v a -> m Current
 getCurrentProjectBranch codebase = do
   pp <- Codebase.runTransaction codebase Codebase.expectCurrentProjectPath
   let (PP.ProjectPath projName branchName path) = PP.toNames pp
