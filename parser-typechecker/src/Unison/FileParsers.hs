@@ -39,6 +39,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Rel
+import Unison.Util.Timing qualified as Timing
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind)
@@ -92,14 +93,23 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
     ShouldUseTndr'Yes parsingEnv -> do
       let preexistingNames = Parser.names parsingEnv
           tm = UF.typecheckingTerm uf
-          possibleDeps =
-            [ (name, shortname, r)
-              | (name, r) <- Rel.toList (Names.terms preexistingNames),
-                v <- Set.toList (Term.freeVars tm),
-                let shortname = Name.unsafeParseVar v,
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
-            ]
-          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
+      -- possibleDeps =
+      --   [ (name, shortname, r)
+      --     | (name, r) <- Rel.toList (Names.terms preexistingNames),
+      --       v <- Set.toList (Term.freeVars tm),
+      --       let shortname = Name.unsafeParseVar v,
+      --       name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
+      --   ]
+
+      possibleDeps <- Timing.unsafeTime "possibleDeps" do
+        !possibleDeps <- pure do
+          v <- Set.toList (Term.freeVars tm)
+          (name, r) <- Rel.toList (Names.terms preexistingNames)
+          let shortname = Name.unsafeParseVar v
+          guard $ name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
+          pure (name, shortname, r)
+        pure possibleDeps
+      let possibleRefs = Referent.toReference . view _3 <$> possibleDeps
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
       -- For populating the TDNR environment, we pick definitions
       -- from the namespace and from the local file whose full name
