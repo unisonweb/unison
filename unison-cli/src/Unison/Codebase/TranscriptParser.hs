@@ -432,7 +432,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                   API apiRequests -> do
                     liftIO (output "``` api\n")
                     liftIO (for_ apiRequests apiRequest)
-                    liftIO (output "```")
+                    liftIO (output "```\n\n")
                     awaitInput
                   Ucm hide errOk cmds -> do
                     liftIO (writeIORef hidden hide)

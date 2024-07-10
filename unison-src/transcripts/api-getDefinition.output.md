@@ -205,7 +205,9 @@ GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relati
     },
     "typeDefinitions": {}
 }
-`````` unison
+```
+
+``` unison
 doctest.thing.doc = {{ The correct docs for the thing }}
 doctest.thing = "A thing"
 doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
@@ -332,7 +334,9 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doc
     },
     "typeDefinitions": {}
 }
-```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+```
+
+If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
 ``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
@@ -508,3 +512,4 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo
     "typeDefinitions": {}
 }
 ```
+

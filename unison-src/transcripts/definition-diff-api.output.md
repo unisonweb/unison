@@ -558,7 +558,9 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=te
     },
     "project": "diffs"
 }
-```Diff types
+```
+
+Diff types
 
 ``` api
 GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
@@ -805,3 +807,4 @@ GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Ty
     "project": "diffs"
 }
 ```
+

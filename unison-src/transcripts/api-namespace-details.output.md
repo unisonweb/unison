@@ -79,3 +79,4 @@ GET /api/projects/scratch/branches/main/namespaces/nested.names
     }
 }
 ```
+

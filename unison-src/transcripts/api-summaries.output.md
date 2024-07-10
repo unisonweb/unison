@@ -667,7 +667,9 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.
     },
     "tag": "Plain"
 }
-```## Type Summary APIs
+```
+
+## Type Summary APIs
 
 ``` api
 --  data
@@ -824,3 +826,4 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?
     "tag": "Data"
 }
 ```
+
