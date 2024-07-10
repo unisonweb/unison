@@ -1,10 +1,10 @@
 This transcript shows how the pretty-printer picks names for a hash when multiple are available. The algorithm is:
 
-1. Names that are "name-only" come before names that are hash qualified. So `List.map` comes before `List.map#2384a` and also `aaaa#xyz`.
-2. Shorter names (in terms of segment count) come before longer ones, for instance `base.List.map` comes before `somelibrary.external.base.List.map`.
-3. Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
+1.  Names that are "name-only" come before names that are hash qualified. So `List.map` comes before `List.map#2384a` and also `aaaa#xyz`.
+2.  Shorter names (in terms of segment count) come before longer ones, for instance `base.List.map` comes before `somelibrary.external.base.List.map`.
+3.  Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
 
-```unison
+``` unison
 a.a = a.b + 1
 a.b = 0 + 1
 a.aaa.but.more.segments = 0 + 1
@@ -31,7 +31,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 ```
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-```unison
+``` unison
 a2.a = a2.b + 1
 a2.b = 0 + 1
 a2.aaa.but.more.segments = 0 + 1
@@ -116,7 +116,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 ```
 ## Name biasing
 
-```unison
+``` unison
 deeply.nested.term =
   a + 1
 
@@ -162,7 +162,7 @@ a = 10
 ```
 Add another term with `num` suffix to force longer suffixification of `deeply.nested.num`
 
-```unison
+``` unison
 other.num = 20
 ```
 

@@ -1,6 +1,6 @@
 # namespace.dependencies command
 
-```unison
+``` unison
 const a b = a
 external.mynat = 1
 mynamespace.dependsOnText = const external.mynat 10

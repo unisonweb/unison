@@ -1,4 +1,4 @@
-```unison
+``` unison
 foo = 1
 lib.foo = 2
 lib.bar = 3

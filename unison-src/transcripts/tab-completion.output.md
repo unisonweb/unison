@@ -25,7 +25,7 @@ scratch/main> debug.tab-complete delete.
 ```
 ## Tab complete terms & types
 
-```unison
+``` unison
 subnamespace.someName = 1
 subnamespace.someOtherName = 2
 subnamespace2.thing = 3
@@ -89,7 +89,7 @@ scratch/main> debug.tab-complete view subnamespace.someOther
   * subnamespace.someOtherName
 
 ```
-```unison
+``` unison
 absolute.term = "absolute"
 ```
 
@@ -143,7 +143,7 @@ scratch/main> debug.tab-complete io.test subnamespace.
 ```
 Tab Complete Delete Subcommands
 
-```unison
+``` unison
 unique type Foo = A | B
 add : a -> a
 add b = b
@@ -202,7 +202,7 @@ myproject/main> debug.tab-complete project.rename my
 ```
 Commands which complete namespaces OR branches should list both
 
-```unison
+``` unison
 mybranchsubnamespace.term = 1
 ```
 

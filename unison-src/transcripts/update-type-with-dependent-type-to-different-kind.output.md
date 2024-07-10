@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
@@ -26,7 +26,7 @@ scratch/main> add
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo a = Bar Nat a
 ```
 
@@ -57,7 +57,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 type Baz = Qux Foo
 
 type Foo a = Bar Nat a

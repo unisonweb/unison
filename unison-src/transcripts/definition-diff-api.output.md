@@ -4,7 +4,7 @@ diffs/main> builtins.merge
   Done.
 
 ```
-```unison
+``` unison
 term =
   _ = "Here's some text"
   1 + 1
@@ -42,7 +42,7 @@ diffs/main> branch.create new
        `switch /main` then `merge /new`.
 
 ```
-```unison
+``` unison
 term =
   _ = "Here's some different text"
   1 + 2

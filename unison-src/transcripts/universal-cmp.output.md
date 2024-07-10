@@ -1,8 +1,7 @@
-
 File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
-```unison
+``` unison
 unique type A = A
 
 threadEyeDeez _ =
@@ -38,7 +37,7 @@ scratch/main> run threadEyeDeez
   (false, true)
 
 ```
-```unison
+``` unison
 > typeLink A == typeLink A
 > typeLink Text == typeLink Text
 > typeLink Text == typeLink A

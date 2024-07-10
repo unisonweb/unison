@@ -1,7 +1,6 @@
-
 Some random ability stuff to ensure things work.
 
-```unison
+``` unison
 unique ability A where
   one : Nat ->{A} Nat
   two : Nat -> Nat ->{A} Nat

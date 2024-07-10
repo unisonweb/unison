@@ -2,7 +2,7 @@ The `switch` command switches to an existing project or branch.
 
 Setup stuff.
 
-```unison
+``` unison
 someterm = 18
 ```
 

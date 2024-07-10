@@ -4,7 +4,7 @@ test-html-docs/main> builtins.mergeio lib.builtins
   Done.
 
 ```
-```unison
+``` unison
 {{A doc directly in the namespace.}}
 some.ns.direct = 1
 

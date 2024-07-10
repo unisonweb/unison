@@ -1,5 +1,6 @@
 # reset loose code
-```unison
+
+``` unison
 a = 5
 ```
 
@@ -50,7 +51,7 @@ scratch/main> history
   □ 1. #4bigcpnl7t (start of history)
 
 ```
-```unison
+``` unison
 foo.a = 5
 ```
 
@@ -108,7 +109,7 @@ foo/main> history
   ☝️  The namespace  is empty.
 
 ```
-```unison
+``` unison
 a = 5
 ```
 
@@ -149,7 +150,7 @@ foo/main> history
   □ 1. #5l94rduvel (start of history)
 
 ```
-```unison
+``` unison
 a = 3
 ```
 
@@ -192,7 +193,8 @@ foo/main> history
 # ambiguous reset
 
 ## ambiguous target
-```unison
+
+``` unison
 main.a = 3
 ```
 
@@ -244,7 +246,7 @@ foo/main> reset 2 main
 ```
 ## ambiguous hash
 
-```unison
+``` unison
 main.a = 3
 ```
 

@@ -2,7 +2,7 @@
 
 Should block an `add` if it requires an update on an in-file dependency.
 
-```unison
+``` unison
 x = 1
 ```
 
@@ -29,7 +29,7 @@ scratch/main> add
 ```
 Update `x`, and add a new `y` which depends on the update
 
-```unison
+``` unison
 x = 10
 y = x + 1
 ```

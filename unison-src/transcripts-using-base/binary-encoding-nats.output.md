@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type EncDec = EncDec Text (Nat -> Bytes) (Bytes -> Optional (Nat, Bytes))
 
 BE64 = EncDec "64 bit Big Endian" encodeNat64be decodeNat64be

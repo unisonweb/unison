@@ -1,6 +1,6 @@
 See [this ticket](https://github.com/unisonweb/unison/issues/873); the point being, this shouldn't crash the runtime. :)
 
-```unison
+``` unison
 (-) = builtin.Nat.sub
 ```
 
@@ -25,7 +25,7 @@ scratch/main> add
     - : Nat -> Nat -> Int
 
 ```
-```unison
+``` unison
 baz x = x - 1
 ```
 

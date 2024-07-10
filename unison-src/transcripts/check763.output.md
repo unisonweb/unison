@@ -1,6 +1,6 @@
 Regression test for https://github.com/unisonweb/unison/issues/763
 
-```unison
+``` unison
 (+-+) : Nat -> Nat -> Nat
 (+-+) x y = x * y
 ```

@@ -1,4 +1,4 @@
-```unison
+``` unison
 foldMap = "top-level"
 nested.deeply.foldMap = "nested"
 lib.base.foldMap = "lib"
@@ -29,6 +29,7 @@ scratch/main> debug.lsp-name-completion foldMap
 
 ```
 Should still find the term which has a matching hash to a better name if the better name doesn't match.
+
 ```ucm
 scratch/main> debug.lsp-name-completion transitive_same_hash.foldMap
 

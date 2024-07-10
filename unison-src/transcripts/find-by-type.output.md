@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type A = A Text
 
 foo : A

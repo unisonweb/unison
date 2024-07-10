@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 makeFoo : Nat -> Foo
@@ -28,7 +28,7 @@ scratch/main> add
     makeFoo : Nat -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = internal.Bar Nat
 
 Foo.Bar : Nat -> Foo

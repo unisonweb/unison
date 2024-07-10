@@ -1,6 +1,6 @@
 Not yet working: properly updating nameless implicit terms.
 
-```unison
+``` unison
 inner.ping : 'Nat
 inner.ping _ = !pong + 1
 
@@ -34,7 +34,7 @@ scratch/main> add
 Here we queue up an update by saving in a namespace where `inner.ping` and `pong` both have names, but then apply the
 update in a namespace where only `ping` has a name.
 
-```unison
+``` unison
 inner.ping : 'Nat
 inner.ping _ = !pong + 3
 ```
@@ -72,4 +72,5 @@ scratch/main> view inner.ping
 ```
 The bug here is that `inner.ping` still refers to `pong` by name. But if we properly identified the nameless (in the
 context that the update was applied) `pong` as an implicit term to include in the new `ping`'s cycle, then `ping` would
-be left referring to a nameless thing (namely, `pong`, but updated to refer to the new `ping).
+be left referring to a nameless thing (namely, `pong`, but updated to refer to the new `ping`).
+

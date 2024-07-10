@@ -2,7 +2,7 @@
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
-```unison
+``` unison
 unique type Foo = Foo
 
 fooToInt : Foo -> Int
@@ -54,7 +54,7 @@ scratch/main> view fooToInt
 ```
 Then if we change the type `Foo`...
 
-```unison
+``` unison
 unique type Foo = Foo | Bar
 ```
 
@@ -96,7 +96,7 @@ scratch/main> view fooToInt
 We make a term that has a dependency on another term and also a non-redundant
 user-provided type signature.
 
-```unison
+``` unison
 preserve.someTerm : Optional foo -> Optional foo
 preserve.someTerm x = x
 
@@ -131,7 +131,7 @@ scratch/main> add
 ```
 Let's now edit the dependency:
 
-```unison
+``` unison
 preserve.someTerm : Optional x -> Optional x
 preserve.someTerm _ = None
 ```
@@ -189,7 +189,7 @@ Cleaning up a bit...
 ```
 Now, we make two terms, where one depends on the other.
 
-```unison
+``` unison
 one.someTerm : Optional foo -> Optional foo
 one.someTerm x = x
 
@@ -228,7 +228,7 @@ We'll make two copies of this namespace.
 ```
 Now let's edit one of the terms...
 
-```unison
+``` unison
 someTerm : Optional x -> Optional x
 someTerm _ = None
 ```

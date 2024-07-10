@@ -1,6 +1,6 @@
 Tests that `if` statements can appear as list and tuple elements.
 
-```unison
+``` unison
 > [ if true then 1 else 0 ]
 
 > [ if true then 1 else 0, 1]

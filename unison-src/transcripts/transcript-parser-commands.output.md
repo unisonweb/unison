@@ -2,7 +2,7 @@
 
 The transcript parser is meant to parse `ucm` and `unison` blocks.
 
-```unison
+``` unison
 x = 1
 ```
 
@@ -27,14 +27,13 @@ x = 1
     x : Nat
 
 ```
-```unison
+``` unison
 ---
 title: :scratch.u
 ---
 z
 
 ```
-
 
 ```ucm
 .> delete foo
@@ -56,21 +55,15 @@ z
 ```
 However handling of blocks of other languages should be supported.
 
-```python
-
+``` python
 some python code
-
 ```
 
-```c_cpp
-
+``` c_cpp
 some C++ code
-
 ```
 
-```c9search
-
+``` c9search
 some cloud9 code
-
 ```
 

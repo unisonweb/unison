@@ -1,6 +1,6 @@
 The `io.test` command should run all of the tests within the current namespace, excluding libs.
 
-```unison
+``` unison
 -- We manually specify types so we don't need to pull in base to run IO and such
 ioAndExceptionTest : '{IO, Exception} [Result]
 ioAndExceptionTest = do 
@@ -15,7 +15,7 @@ lib.ioAndExceptionTestInLib  = do
   [Ok "Success"]
 ```
 
-Run a IO tests one by one 
+Run a IO tests one by one
 
 ```ucm
 scratch/main> io.test ioAndExceptionTest

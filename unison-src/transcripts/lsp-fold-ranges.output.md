@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ Type doc }}
 structural type Optional a =
   None

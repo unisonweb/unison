@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
@@ -26,7 +26,7 @@ scratch/main> add
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 

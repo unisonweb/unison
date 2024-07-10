@@ -1,4 +1,4 @@
-```unison
+``` unison
 foo = 5
 foo.bar = 1
 ```
@@ -26,7 +26,7 @@ p0/main> add
     foo.bar : ##Nat
 
 ```
-```unison
+``` unison
 bonk = 5
 donk.bonk = 1
 ```

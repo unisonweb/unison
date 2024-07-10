@@ -2,7 +2,7 @@ The `branch` command creates a new branch.
 
 First, we'll create a term to include in the branches.
 
-```unison
+``` unison
 someterm = 18
 ```
 

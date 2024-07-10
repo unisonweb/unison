@@ -3,7 +3,7 @@
 Ref support a CAS operation that can be used as a building block to
 change state atomically without locks.
 
-```unison
+``` unison
 casTest: '{io2.IO} [Result]
 casTest = do
   test = do
@@ -52,7 +52,7 @@ scratch/main> io.test casTest
 ```
 Promise is a simple one-shot awaitable condition.
 
-```unison
+``` unison
 promiseSequentialTest : '{IO} [Result]
 promiseSequentialTest = do
   test = do
@@ -126,7 +126,7 @@ scratch/main> io.test promiseConcurrentTest
 ```
 CAS can be used to write an atomic update function.
 
-```unison
+``` unison
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
   ticket = Ref.readForCas ref
@@ -158,7 +158,7 @@ scratch/main> add
 Promise can be used to write an operation that spawns N concurrent
 tasks and collects their results
 
-```unison
+``` unison
 spawnN : Nat -> '{IO} a ->{IO} [a]
 spawnN n fa =
   use Nat eq drop
@@ -198,7 +198,7 @@ We can use these primitives to write a more interesting example, where
 multiple threads repeatedly update an atomic counter, we check that
 the value of the counter is correct after all threads are done.
 
-```unison
+``` unison
 fullTest : '{IO} [Result]
 fullTest = do
   use Nat * + eq drop

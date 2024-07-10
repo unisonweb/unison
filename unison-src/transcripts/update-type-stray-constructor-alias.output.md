@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
@@ -27,7 +27,7 @@ scratch/main> alias.term Foo.Bar Stray.BarAlias
   Done.
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 

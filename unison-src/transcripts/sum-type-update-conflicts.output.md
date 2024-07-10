@@ -4,7 +4,7 @@ https://github.com/unisonweb/unison/issues/2786
 
 First we add a sum-type to the codebase.
 
-```unison
+``` unison
 structural type X = x
 ```
 
@@ -31,10 +31,10 @@ scratch/main> add
       (also named lib.builtins.Unit)
 
 ```
-Now we update the type, changing the name of the constructors, _but_, we simultaneously
+Now we update the type, changing the name of the constructors, *but*, we simultaneously
 add a new top-level term with the same name as the old constructor.
 
-```unison
+``` unison
 structural type X = y | z
 
 X.x : Text

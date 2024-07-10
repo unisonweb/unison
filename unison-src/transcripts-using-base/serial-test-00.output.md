@@ -1,4 +1,4 @@
-```unison
+``` unison
 structural type Tree a = Leaf | Node (Tree a) a (Tree a)
 
 foldMap  : r -> (r -> r -> r) -> (a -> r) -> Tree a -> r

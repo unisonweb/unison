@@ -4,7 +4,7 @@ scratch/main> builtins.merge
   Done.
 
 ```
-```unison
+``` unison
 test> foo = []
 ```
 
@@ -42,7 +42,7 @@ scratch/main> view foo
   foo = []
 
 ```
-```unison
+``` unison
 foo = 1
 ```
 

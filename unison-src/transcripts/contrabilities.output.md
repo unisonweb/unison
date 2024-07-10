@@ -1,4 +1,4 @@
-```unison
+``` unison
 f : (() -> a) -> Nat
 f x = 42
 ```

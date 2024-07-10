@@ -4,7 +4,7 @@ scratch/main> builtins.merge
   Done.
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 5
 
@@ -35,7 +35,7 @@ scratch/main> add
     foo : Nat
 
 ```
-```unison
+``` unison
 foo : Int
 foo = +5
 ```
@@ -67,7 +67,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 bar : Nat
 bar =
   use Nat +

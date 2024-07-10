@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 

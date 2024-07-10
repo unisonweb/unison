@@ -2,7 +2,7 @@
 
 Let's set up some definitions to start:
 
-```unison
+``` unison
 x = 1
 y = 2
 
@@ -41,7 +41,7 @@ scratch/main> add
 ```
 Let's add an alias for `1` and `One`:
 
-```unison
+``` unison
 z = 1
 
 structural type Z = One Nat
@@ -79,7 +79,7 @@ scratch/main> add
 ```
 Let's update something that has an alias (to a value that doesn't have a name already):
 
-```unison
+``` unison
 x = 3
 structural type X = Three Nat Nat Nat
 ```
@@ -118,7 +118,7 @@ scratch/main> update
 ```
 Update it to something that already exists with a different name:
 
-```unison
+``` unison
 x = 2
 structural type X = Two Nat Nat
 ```

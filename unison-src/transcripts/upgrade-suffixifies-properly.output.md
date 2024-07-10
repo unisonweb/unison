@@ -1,4 +1,4 @@
-```unison
+``` unison
 lib.old.foo = 25
 lib.new.foo = +30
 a.x.x.x.x = 100
@@ -61,7 +61,7 @@ myproject/main> upgrade old new
   to delete the temporary branch and switch back to main.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 bar : Nat
 bar =
   use Nat +

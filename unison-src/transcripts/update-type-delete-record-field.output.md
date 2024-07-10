@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat, baz : Int }
 ```
 
@@ -35,7 +35,7 @@ scratch/main> add
     Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
@@ -103,7 +103,7 @@ scratch/main> find.verbose
   
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 Foo.baz : Foo -> Int
 Foo.baz = cases Foo _ baz -> baz
 

@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
@@ -29,7 +29,7 @@ scratch/main> delete.term Foo.Bar
 ```
 Now we've set up a situation where the original constructor missing.
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 

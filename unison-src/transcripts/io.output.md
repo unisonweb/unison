@@ -14,12 +14,12 @@ create a scratch directory which will automatically get cleaned up.
 ### Creating/Deleting/Renaming Directories
 
 Tests: createDirectory,
-       isDirectory,
-       fileExists,
-       renameDirectory,
-       deleteDirectory
+isDirectory,
+fileExists,
+renameDirectory,
+deleteDirectory
 
-```unison
+``` unison
 testCreateRename : '{io2.IO} [Result]
 testCreateRename _ =
   test = 'let
@@ -85,10 +85,10 @@ scratch/main> io.test testCreateRename
 ### Opening / Closing files
 
 Tests: openFile
-       closeFile
-       isFileOpen
+closeFile
+isFileOpen
 
-```unison
+``` unison
 testOpenClose : '{io2.IO} [Result]
 testOpenClose _ =
   test = 'let
@@ -166,11 +166,11 @@ scratch/main> io.test testOpenClose
 ### Reading files with getSomeBytes
 
 Tests: getSomeBytes
-       putBytes
-       isFileOpen
-       seekHandle
+putBytes
+isFileOpen
+seekHandle
 
-```unison
+``` unison
 testGetSomeBytes : '{io2.IO} [Result]
 testGetSomeBytes _ =
   test = 'let
@@ -258,15 +258,15 @@ scratch/main> io.test testGetSomeBytes
 ### Seeking in open files
 
 Tests: openFile
-       putBytes
-       closeFile
-       isSeekable
-       isFileEOF
-       seekHandle
-       getBytes
-       getLine
+putBytes
+closeFile
+isSeekable
+isFileEOF
+seekHandle
+getBytes
+getLine
 
-```unison
+``` unison
 testSeek : '{io2.IO} [Result]
 testSeek _ =
   test = 'let
@@ -374,7 +374,8 @@ scratch/main> io.test testAppend
 
 ```
 ### SystemTime
-```unison
+
+``` unison
 testSystemTime : '{io2.IO} [Result]
 testSystemTime _ =
   test = 'let
@@ -417,7 +418,7 @@ scratch/main> io.test testSystemTime
 ```
 ### Get temp directory
 
-```unison
+``` unison
 testGetTempDirectory : '{io2.IO} [Result]
 testGetTempDirectory _ =
   test = 'let
@@ -448,7 +449,7 @@ scratch/main> io.test testGetTempDirectory
 ```
 ### Get current directory
 
-```unison
+``` unison
 testGetCurrentDirectory : '{io2.IO} [Result]
 testGetCurrentDirectory _ =
   test = 'let
@@ -479,7 +480,7 @@ scratch/main> io.test testGetCurrentDirectory
 ```
 ### Get directory contents
 
-```unison
+``` unison
 testDirContents : '{io2.IO} [Result]
 testDirContents _ =
   test = 'let
@@ -512,7 +513,7 @@ scratch/main> io.test testDirContents
 ```
 ### Read environment variables
 
-```unison
+``` unison
 testGetEnv : '{io2.IO} [Result]
 testGetEnv _ =
   test = 'let
@@ -548,7 +549,7 @@ scratch/main> io.test testGetEnv
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
 unless they called with the right number of arguments.
 
-```unison
+``` unison
 testGetArgs.fail : Text -> Failure
 testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
 
@@ -578,6 +579,7 @@ testGetArgs.runMeWithTwoArgs = 'let
 ```
 
 Test that they can be run with the right number of args.
+
 ```ucm
 scratch/main> add
 
@@ -658,7 +660,7 @@ scratch/main> run runMeWithTwoArgs
 ```
 ### Get the time zone
 
-```unison
+``` unison
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
   _ = (offset : Int, summer : Nat, name : Text)
@@ -679,7 +681,7 @@ scratch/main> run testTimeZone
 ```
 ### Get some random bytes
 
-```unison
+``` unison
 testRandom : '{io2.IO} [Result]
 testRandom = do
   test = do

@@ -1,6 +1,6 @@
 Just a bunch of random parse errors to test the error formatting.
 
-```unison
+``` unison
 x = 
   foo.123
 ```
@@ -22,7 +22,7 @@ x =
   * identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)
 
 ```
-```unison
+``` unison
 namespace.blah = 1
 ```
 
@@ -38,7 +38,7 @@ namespace.blah = 1
   or wrapping it in backticks (like `namespace` ).
 
 ```
-```unison
+``` unison
 x = 1 ]
 ```
 
@@ -52,7 +52,7 @@ x = 1 ]
   
 
 ```
-```unison
+``` unison
 x = a.#abc
 ```
 
@@ -68,7 +68,7 @@ x = a.#abc
   I was surprised to find a '.' here.
 
 ```
-```unison
+``` unison
 x = "hi
 ```
 
@@ -78,7 +78,8 @@ x = "hi
 
   I got confused here:
   
-      2 | 
+      1 | x = "hi
+  
   
   I was surprised to find an end of input here.
   I was expecting one of these instead:
@@ -88,7 +89,7 @@ x = "hi
   * literal character
 
 ```
-```unison
+``` unison
 y : a 
 ```
 
@@ -98,7 +99,8 @@ y : a
 
   I got confused here:
   
-      2 | 
+      1 | y : a 
+  
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:

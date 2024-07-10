@@ -1,4 +1,3 @@
-
 This file contains programs with parse errors and type errors, for visual inspection of error message quality and to check for regressions or changes to error reporting.
 
 ## Parse errors
@@ -7,7 +6,7 @@ Some basic errors of literals.
 
 ### Floating point literals
 
-```unison
+``` unison
 x = 1. -- missing some digits after the decimal
 ```
 
@@ -23,7 +22,7 @@ x = 1. -- missing some digits after the decimal
   or `1.1e37`.
 
 ```
-```unison
+``` unison
 x = 1e -- missing an exponent
 ```
 
@@ -39,7 +38,7 @@ x = 1e -- missing an exponent
   `1e37`.
 
 ```
-```unison
+``` unison
 x = 1e- -- missing an exponent
 ```
 
@@ -55,7 +54,7 @@ x = 1e- -- missing an exponent
   `1e-37`.
 
 ```
-```unison
+``` unison
 x = 1E+ -- missing an exponent
 ```
 
@@ -73,7 +72,7 @@ x = 1E+ -- missing an exponent
 ```
 ### Hex, octal, and bytes literals
 
-```unison
+``` unison
 x = 0xoogabooga -- invalid hex chars
 ```
 
@@ -89,7 +88,7 @@ x = 0xoogabooga -- invalid hex chars
   0123456789abcdefABCDEF) after the 0x.
 
 ```
-```unison
+``` unison
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
@@ -105,7 +104,7 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
   the 0o.
 
 ```
-```unison
+``` unison
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
@@ -121,7 +120,7 @@ x = 0xsf -- odd number of hex chars in a bytes literal
   of 0123456789abcdefABCDEF) after the 0xs.
 
 ```
-```unison
+``` unison
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
@@ -139,7 +138,7 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 ### Layout errors
 
-```unison
+``` unison
 foo = else -- not matching if
 ```
 
@@ -153,7 +152,7 @@ foo = else -- not matching if
   
 
 ```
-```unison
+``` unison
 foo = then -- unclosed
 ```
 
@@ -167,7 +166,7 @@ foo = then -- unclosed
   
 
 ```
-```unison
+``` unison
 foo = with -- unclosed
 ```
 
@@ -183,7 +182,7 @@ foo = with -- unclosed
 ```
 ### Matching
 
-```unison
+``` unison
 -- No cases
 foo = match 1 with
 ```
@@ -201,7 +200,7 @@ foo = match 1 with
     
 
 ```
-```unison
+``` unison
 foo = match 1 with
   2 -- no right-hand-side
 ```
@@ -212,7 +211,8 @@ foo = match 1 with
 
   I got confused here:
   
-      3 | 
+      2 |   2 -- no right-hand-side
+  
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:
@@ -222,7 +222,7 @@ foo = match 1 with
   * pattern guard
 
 ```
-```unison
+``` unison
 -- Mismatched arities
 foo = cases
   1, 2 -> ()
@@ -243,7 +243,7 @@ foo = cases
     
 
 ```
-```unison
+``` unison
 -- Missing a '->'
 x = match Some a with
       None -> 
@@ -258,7 +258,8 @@ x = match Some a with
 
   I got confused here:
   
-      7 | 
+      6 |         2
+  
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:
@@ -271,7 +272,7 @@ x = match Some a with
   * true
 
 ```
-```unison
+``` unison
 -- Missing patterns
 x = match Some a with
       None -> 1
@@ -294,7 +295,7 @@ x = match Some a with
   * newline or semicolon
 
 ```
-```unison
+``` unison
 -- Guards following an unguarded case
 x = match Some a with
       None     -> 1
@@ -318,7 +319,7 @@ x = match Some a with
 ```
 ### Watches
 
-```unison
+``` unison
 -- Empty watch
 >
 ```
@@ -335,7 +336,7 @@ x = match Some a with
 ```
 ### Keywords
 
-```unison
+``` unison
 use.keyword.in.namespace = 1
 ```
 
@@ -351,7 +352,7 @@ use.keyword.in.namespace = 1
   or wrapping it in backticks (like `namespace` ).
 
 ```
-```unison
+``` unison
 -- reserved operator
 a ! b = 1
 ```

@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
@@ -29,7 +29,7 @@ scratch/main> move.term Foo.Bar Stray.Bar
 ```
 Now we've set up a situation where the constructor is not where it's supposed to be; it's somewhere else.
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 

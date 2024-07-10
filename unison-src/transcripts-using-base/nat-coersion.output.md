@@ -1,4 +1,4 @@
-```unison
+``` unison
 testNat: Nat -> Optional Int -> Optional Float -> {Stream Result}()
 testNat n expectInt expectFloat =
   float = Float.fromRepresentation n

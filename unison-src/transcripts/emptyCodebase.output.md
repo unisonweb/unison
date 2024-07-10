@@ -2,9 +2,9 @@
 
 The Unison codebase, when first initialized, contains no definitions in its namespace.
 
-Not even `Nat` or `+`!
+Not even `Nat` or `+`\!
 
-BEHOLD!!!
+BEHOLD\!\!\!
 
 ```ucm
 scratch/main> ls
@@ -37,4 +37,5 @@ scratch/main> ls lib
   2. builtinsio/ (643 terms, 92 types)
 
 ```
-More typically, you'd start out by pulling `base.
+More typically, you'd start out by pulling `base`.
+

@@ -1,9 +1,8 @@
-
 ## Structural find and replace
 
 Here's a scratch file with some rewrite rules:
 
-```unison
+``` unison
 ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
@@ -49,7 +48,7 @@ scratch/main> rewrite eitherToOptional
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): ex1
 
@@ -79,7 +78,7 @@ type Optional2 a = Some2 a | None2
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
 
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): Either.mapRight
 
@@ -137,7 +136,7 @@ scratch/main> view ex1 Either.mapRight rule1
 ```
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
-```unison
+``` unison
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
@@ -167,7 +166,7 @@ scratch/main> rewrite woot1to2
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): wootEx
 
@@ -204,7 +203,7 @@ scratch/main> view wootEx
 ```
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
-```unison
+``` unison
 foo1 =
   b = "b"
   123
@@ -246,7 +245,7 @@ scratch/main> view foo1 foo2 sameFileEx
 ```
 ## Capture avoidance
 
-```unison
+``` unison
 bar1 =
   b = "bar"
   123
@@ -276,7 +275,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): sameFileEx
 
@@ -321,7 +320,7 @@ scratch/main> load
 ```
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
-```unison
+``` unison
 bar2 =
   a = 39494
   233
@@ -341,7 +340,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): bar2
 
@@ -378,11 +377,11 @@ scratch/main> load
 ```
 ## Structural find
 
-```unison
+``` unison
 eitherEx = Left ("hello", "there")
 ```
 
-```unison
+``` unison
 findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
 findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```

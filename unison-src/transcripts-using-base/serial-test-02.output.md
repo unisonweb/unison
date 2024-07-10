@@ -1,4 +1,4 @@
-```unison
+``` unison
 structural ability Exit a where
   exit : a -> b
 

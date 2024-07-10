@@ -1,7 +1,7 @@
 First we make two changes to the codebase, so that there's more than one line
 for the `reflog` command to display:
 
-```unison
+``` unison
 x = 1
 ```
 
@@ -26,7 +26,7 @@ x = 1
     x : Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
@@ -81,6 +81,7 @@ y = 2
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
+
 ```ucm
 .> reset-root 2
 

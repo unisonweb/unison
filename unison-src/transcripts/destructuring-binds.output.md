@@ -2,7 +2,7 @@
 
 Here's a couple examples:
 
-```unison
+``` unison
 ex0 : Nat -> Nat
 ex0 n =
   (a, _, (c,d)) = ("uno", "dos", (n, 7))
@@ -52,7 +52,7 @@ Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pr
 
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:
 
-```unison
+``` unison
 ex2 : (a,b,(Nat,Nat)) -> Nat
 ex2 tup = match tup with
   (a, b, (c,d)) -> c + d
@@ -76,7 +76,7 @@ ex2 tup = match tup with
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:
 
-```unison
+``` unison
 ex4 =
   (a,b) = (a Nat.+ b, 19)
   "Doesn't typecheck"
@@ -104,7 +104,7 @@ ex4 =
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
 
-```unison
+``` unison
 ex5 : 'Text
 ex5 _ = match 99 + 1 with
   12 -> "Hi"
@@ -155,7 +155,7 @@ Notice how it prints both an ordinary match.
 
 Also, for clarity, the pretty-printer shows a single-branch match if the match shadows free variables of the scrutinee, for example:
 
-```unison
+``` unison
 ex6 x = match x with
   (x, y) -> x Nat.+ y
 ```

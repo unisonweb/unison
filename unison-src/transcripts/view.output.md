@@ -1,6 +1,6 @@
 # View commands
 
-```unison
+``` unison
 a.thing = "a"
 b.thing = "b"
 ```

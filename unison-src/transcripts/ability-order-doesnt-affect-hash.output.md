@@ -1,6 +1,6 @@
 The order of a set of abilities is normalized before hashing.
 
-```unison
+``` unison
 unique ability Foo where
   foo : ()
 

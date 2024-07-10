@@ -1,6 +1,6 @@
 # Integration test: transcript
 
-```unison
+``` unison
 use .builtin
 
 unique type MyBool = MyTrue | MyFalse

@@ -1,6 +1,6 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
-```unison
+``` unison
 x = ()
 ```
 
@@ -30,7 +30,7 @@ So we can see the pretty-printed output:
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+````` unison:added-by-ucm scratch.u
 structural ability Abort where abort : {Abort} a
 
 structural ability Ask a where ask : {Ask a} a
@@ -766,7 +766,7 @@ UUID.randomUUIDBytes = do
 
 (|>) : a -> (a ->{e} b) ->{e} b
 a |> f = f a
-```
+`````
 
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
@@ -780,7 +780,7 @@ Now check that definitions in 'reparses.u' at least parse on round trip:
 
 This just makes 'roundtrip.u' the latest scratch file.
 
-```unison
+``` unison
 x = ()
 ```
 
@@ -795,7 +795,7 @@ x = ()
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+```` unison:added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
   """
@@ -815,7 +815,7 @@ sloppyDocEval =
   1 + 1
   ```
   }}
-```
+````
 
 These are currently all expected to have different hashes on round trip.
 

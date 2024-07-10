@@ -1,11 +1,10 @@
 # Tests for `move.namespace`
 
-
 ## Moving the Root
 
 I should be able to move the root into a sub-namespace
 
-```unison
+``` unison
 foo = 1
 ```
 
@@ -57,7 +56,7 @@ foo = 1
   □ 1. #08a6hgi6s4 (start of history)
 
 ```
-I should be able to move a sub namespace _over_ the root.
+I should be able to move a sub namespace *over* the root.
 
 ```ucm
 -- Should request confirmation
@@ -101,7 +100,7 @@ I should be able to move a sub namespace _over_ the root.
 
 Create a namespace and add some history to it
 
-```unison
+``` unison
 a.termInA = 1
 unique type a.T = T
 ```
@@ -129,7 +128,7 @@ scratch/happy> add
     a.termInA : Nat
 
 ```
-```unison
+``` unison
 a.termInA = 2
 unique type a.T = T1 | T2
 ```
@@ -193,7 +192,7 @@ scratch/happy> history b
 
 Create some namespaces and add some history to them
 
-```unison
+``` unison
 a.termInA = 1
 b.termInB = 10
 ```
@@ -221,7 +220,7 @@ scratch/history> add
     b.termInB : Nat
 
 ```
-```unison
+``` unison
 a.termInA = 2
 b.termInB = 11
 ```
@@ -287,7 +286,7 @@ scratch/history> history a
 
 Create some namespace and add some history to them
 
-```unison
+``` unison
 a.termInA = 1
 b.termInB = 10
 ```
@@ -315,7 +314,7 @@ scratch/existing> add
     b.termInB : Nat
 
 ```
-```unison
+``` unison
 a.termInA = 2
 b.termInB = 11
 ```

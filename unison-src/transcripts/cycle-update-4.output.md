@@ -1,6 +1,6 @@
 `update` properly discovers and establishes new cycles.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = 1
 
@@ -31,7 +31,7 @@ scratch/main> add
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : 'Nat
 ping _ = !clang + 1
 

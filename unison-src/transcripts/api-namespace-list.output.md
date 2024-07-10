@@ -1,6 +1,6 @@
 # Namespace list api
 
-```unison
+``` unison
 {{ Documentation }}
 nested.names.x = 42
 

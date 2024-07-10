@@ -1,4 +1,4 @@
-```unison
+``` unison
 `()`.foo = "bar"
 ```
 

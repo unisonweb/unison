@@ -1,4 +1,4 @@
-Test for new Text -> Bytes conversions explicitly using UTF-8 as the encoding
+Test for new Text -\> Bytes conversions explicitly using UTF-8 as the encoding
 
 Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding of the Text.
 
@@ -13,7 +13,7 @@ scratch/main> find Utf8
 ```
 ascii characters are encoded as single bytes (in the range 0-127).
 
-```unison
+``` unison
 ascii: Text
 ascii = "ABCDE"
 
@@ -44,7 +44,7 @@ ascii = "ABCDE"
 ```
 non-ascii characters are encoded as multiple bytes.
 
-```unison
+``` unison
 greek: Text
 greek = "ΑΒΓΔΕ"
 
@@ -73,7 +73,7 @@ greek = "ΑΒΓΔΕ"
 ```
 We can check that encoding and then decoding should give us back the same `Text` we started with
 
-```unison
+``` unison
 checkRoundTrip: Text -> [Result]
 checkRoundTrip t =
   bytes = toUtf8 t
@@ -110,7 +110,7 @@ test> greekTest = checkRoundTrip greek
 ```
 If we try to decode an invalid set of bytes, we get back `Text` explaining the decoding error:
 
-```unison
+``` unison
 greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 

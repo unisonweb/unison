@@ -2,7 +2,7 @@
 
 First lets add some contents to our codebase.
 
-```unison
+``` unison
 foo = "foo"
 bar = "bar"
 baz = "baz"

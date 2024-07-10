@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
@@ -29,7 +29,7 @@ scratch/main> add
     Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = { bar : Nat, baz : Int }
 ```
 

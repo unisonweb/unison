@@ -1,4 +1,4 @@
-```unison
+``` unison
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
 availableCases : '{IO,Exception} [Text]

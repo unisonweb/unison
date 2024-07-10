@@ -1,6 +1,6 @@
 Update a member of a cycle, but retain the cycle.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = !pong + 1
 
@@ -31,7 +31,7 @@ scratch/main> add
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : 'Nat
 ping _ = !pong + 3
 ```

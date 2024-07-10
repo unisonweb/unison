@@ -17,7 +17,7 @@ exist.
 Now for some easy cases. Deleting an unambiguous term, then deleting an
 unambiguous type.
 
-```unison
+``` unison
 foo = 1
 structural type Foo = Foo ()
 ```
@@ -57,7 +57,7 @@ structural type Foo = Foo ()
 ```
 How about an ambiguous term?
 
-```unison
+``` unison
 foo = 1
 bar = 2
 ```
@@ -101,7 +101,7 @@ A delete should remove both versions of the term.
 ```
 Let's repeat all that on a type, for completeness.
 
-```unison
+``` unison
 structural type Foo = Foo ()
 structural type Bar = Bar
 ```
@@ -144,7 +144,7 @@ structural type Bar = Bar
 ```
 Finally, let's try to delete a term and a type with the same name.
 
-```unison
+``` unison
 foo = 1
 structural type foo = Foo ()
 ```
@@ -169,7 +169,7 @@ structural type foo = Foo ()
 ```
 We want to be able to delete multiple terms at once
 
-```unison
+``` unison
 a = "a"
 b = "b"
 c = "c"
@@ -197,7 +197,7 @@ c = "c"
 ```
 We can delete terms and types in the same invocation of delete
 
-```unison
+``` unison
 structural type Foo = Foo ()
 a = "a"
 b = "b"
@@ -238,7 +238,7 @@ c = "c"
 ```
 We can delete a type and its constructors
 
-```unison
+``` unison
 structural type Foo = Foo ()
 ```
 
@@ -266,7 +266,7 @@ structural type Foo = Foo ()
 ```
 You should not be able to delete terms which are referenced by other terms
 
-```unison
+``` unison
 a = 1
 b = 2
 c = 3
@@ -299,7 +299,7 @@ d = a + b + c
 ```
 But you should be able to delete all terms which reference each other in a single command
 
-```unison
+``` unison
 e = 11
 f = 12 + e
 g = 13 + f
@@ -330,7 +330,7 @@ h = e + f + g
 ```
 You should be able to delete a type and all the functions that reference it in a single command
 
-```unison
+``` unison
 structural type Foo = Foo Nat
 
 incrementFoo : Foo -> Nat
@@ -359,7 +359,7 @@ incrementFoo = cases
 ```
 If you mess up on one of the names of your command, delete short circuits
 
-```unison
+``` unison
 e = 11
 f = 12 + e
 g = 13 + f
@@ -386,7 +386,7 @@ h = e + f + g
 ```
 Cyclical terms which are guarded by a lambda are allowed to be deleted
 
-```unison
+``` unison
 ping _ = 1 Nat.+ !pong
 pong _ = 4 Nat.+ !ping
 ```

@@ -2,7 +2,7 @@
 
 Any unique name suffix can be used to refer to a definition. For instance:
 
-```unison
+``` unison
 -- No imports needed even though FQN is `builtin.{Int,Nat}`
 foo.bar.a : Int
 foo.bar.a = +99
@@ -61,7 +61,7 @@ scratch/main> find : Nat -> [a] -> [a]
 
 Suffix-based resolution prefers names that are not in an indirect dependency.
 
-```unison
+``` unison
 cool.abra.cadabra = "my project"
 lib.distributed.abra.cadabra = "direct dependency 1"
 lib.distributed.baz.qux = "direct dependency 2"
@@ -95,7 +95,7 @@ scratch/main> add
     lib.distributed.lib.baz.qux  : Text
 
 ```
-```unison
+``` unison
 > abra.cadabra
 ```
 
@@ -117,7 +117,7 @@ scratch/main> add
   distributed.abra.cadabra : Text
 
 ```
-```unison
+``` unison
 > baz.qux
 ```
 
@@ -173,7 +173,7 @@ scratch/main> names distributed.lib.baz.qux
 
 If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:
 
-```unison
+``` unison
 unique type A = Thing1 Nat | thing2 Nat
 
 foo.a = 23
@@ -190,7 +190,7 @@ scratch/main> add
     foo.a : Nat
 
 ```
-```unison
+``` unison
 unique type B = Thing1 Text | thing2 Text | Thing3 Text
 
 zoink.a = "hi"

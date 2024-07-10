@@ -4,7 +4,7 @@
 
 Create a term, type, and namespace with history
 
-```unison
+``` unison
 Foo = 2
 unique type Foo = Foo
 Foo.termInA = 1
@@ -38,7 +38,7 @@ scratch/main> add
     Foo.termInA : Nat
 
 ```
-```unison
+``` unison
 Foo.termInA = 2
 unique type Foo.T = T1 | T2
 ```
@@ -109,7 +109,7 @@ scratch/main> history Bar
 ```
 ## Happy Path - Just term
 
-```unison
+``` unison
 bonk = 5
 ```
 
@@ -149,7 +149,7 @@ z/main> ls
 ```
 ## Happy Path - Just namespace
 
-```unison
+``` unison
 bonk.zonk = 5
 ```
 

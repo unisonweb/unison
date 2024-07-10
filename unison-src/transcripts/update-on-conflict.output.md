@@ -2,7 +2,7 @@
 
 Updating conflicted definitions works fine.
 
-```unison
+``` unison
 x = 1
 temp = 2
 ```
@@ -38,7 +38,7 @@ scratch/main> delete.term temp
   Done.
 
 ```
-```unison
+``` unison
 x = 3
 ```
 

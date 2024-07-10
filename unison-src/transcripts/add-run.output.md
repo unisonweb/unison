@@ -2,7 +2,7 @@
 
 ## Basic usage
 
-```unison
+``` unison
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
 
@@ -47,6 +47,7 @@ scratch/main> run is2even
 ```
 it errors if the desired result name conflicts with a name in the
 unison file
+
 ```ucm
 scratch/main> add.run is2even
 
@@ -57,6 +58,7 @@ scratch/main> add.run is2even
 
 ```
 otherwise, the result is successfully persisted
+
 ```ucm
 scratch/main> add.run foo.bar.baz
 
@@ -74,7 +76,7 @@ scratch/main> view foo.bar.baz
 ```
 ## It resolves references within the unison file
 
-```unison
+``` unison
 z b = b Nat.+ 12
 y a b = a Nat.+ b Nat.+ z 10
 
@@ -115,7 +117,7 @@ scratch/main> add.run result
 ```
 ## It resolves references within the codebase
 
-```unison
+``` unison
 inc : Nat -> Nat
 inc x = x + 1
 ```
@@ -141,7 +143,7 @@ scratch/main> add inc
     inc : Nat -> Nat
 
 ```
-```unison
+``` unison
 main : '(Nat -> Nat)
 main _ x = inc x
 ```
@@ -178,7 +180,7 @@ scratch/main> view natfoo
 ```
 ## It captures scratch file dependencies at run time
 
-```unison
+``` unison
 x = 1
 y = x + x
 main = 'y
@@ -205,7 +207,7 @@ scratch/main> run main
   2
 
 ```
-```unison
+``` unison
 x = 50
 ```
 
@@ -223,6 +225,7 @@ x = 50
 
 ```
 this saves 2 to xres, rather than 100
+
 ```ucm
 scratch/main> add.run xres
 
@@ -238,7 +241,7 @@ scratch/main> view xres
 ```
 ## It fails with a message if add cannot complete cleanly
 
-```unison
+``` unison
 main = '5
 ```
 
@@ -272,7 +275,7 @@ scratch/main> add.run xres
 ```
 ## It works with absolute names
 
-```unison
+``` unison
 main = '5
 ```
 

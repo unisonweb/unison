@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 structural type A.B = OneAlias Foo
@@ -30,7 +30,7 @@ scratch/main> add
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
@@ -65,7 +65,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 structural type A = B.OneAlias Foo
 
 structural type A.B = OneAlias Foo

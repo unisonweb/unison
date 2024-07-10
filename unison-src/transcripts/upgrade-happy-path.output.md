@@ -1,4 +1,4 @@
-```unison
+``` unison
 lib.old.foo = 17
 lib.new.foo = 18
 thingy = lib.old.foo + 10

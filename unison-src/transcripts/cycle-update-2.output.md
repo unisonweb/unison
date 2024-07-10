@@ -1,6 +1,6 @@
 Update a member of a cycle with a type-preserving update, but sever the cycle.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = !pong + 1
 
@@ -31,7 +31,7 @@ scratch/main> add
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : 'Nat
 ping _ = 3
 ```

@@ -4,13 +4,13 @@ https://github.com/unisonweb/unison/issues/2195
 
 We add a simple definition.
 
-```unison
+``` unison
 x = 999
 ```
 
 Now, we update that definition and define a test-watch which depends on it.
 
-```unison
+``` unison
 x = 1000
 test> mytest = checks [x + 1 == 1001]
 ```
@@ -54,9 +54,9 @@ scratch/main> add
     Tip: Use `help filestatus` to learn more.
 
 ```
----
+-----
 
-```unison
+``` unison
 y = 42
 test> useY = checks [y + 1 == 43]
 ```

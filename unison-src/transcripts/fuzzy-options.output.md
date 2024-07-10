@@ -2,7 +2,6 @@
 
 If an argument is required but doesn't have a fuzzy resolver, the command should just print the help.
 
-
 ```ucm
 -- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
 scratch/main> move.term
@@ -21,7 +20,7 @@ scratch/empty> view
 Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
 
 ```
-```unison
+``` unison
 optionOne = 1
 
 nested.optionTwo = 2

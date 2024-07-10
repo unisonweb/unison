@@ -2,7 +2,7 @@
 
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
 
-```unison
+``` unison
 isEmpty x = match x with
   [] -> true
   _ -> false
@@ -23,7 +23,7 @@ isEmpty x = match x with
 ```
 Here's the same function written using `cases` syntax:
 
-```unison
+``` unison
 isEmpty2 = cases
   [] -> true
   _ -> false
@@ -60,7 +60,7 @@ it shows the definition using `cases` syntax opportunistically, even though the 
 
 Functions that take multiple arguments and immediately match on a tuple of arguments can also be rewritten to use `cases`. Here's a version using regular `match` syntax on a tuple:
 
-```unison
+``` unison
 merge : [a] -> [a] -> [a]
 merge xs ys = match (xs, ys) with
   ([], ys) -> ys
@@ -80,7 +80,7 @@ scratch/main> add
 ```
 And here's a version using `cases`. The patterns are separated by commas:
 
-```unison
+``` unison
 merge2 : [a] -> [a] -> [a]
 merge2 = cases
   [], ys -> ys
@@ -122,7 +122,7 @@ it again shows the definition using the multi-argument `cases` syntax opportunis
 
 Here's another example:
 
-```unison
+``` unison
 structural type B = T | F
 
 blah : B -> B -> Text
@@ -171,7 +171,7 @@ blorf = cases
 ```
 ## Patterns with multiple guards
 
-```unison
+``` unison
 merge3 : [a] -> [a] -> [a]
 merge3 = cases
   [], ys -> ys
@@ -213,7 +213,7 @@ scratch/main> view merge3
 ```
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.
 
-```unison
+``` unison
 merge4 : [a] -> [a] -> [a]
 merge4 a b = match (a,b) with
   [], ys -> ys

@@ -1,6 +1,6 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
-```unison
+``` unison
 hangExample : Boolean
 hangExample =
   ("a long piece of text to hang the line" == "")

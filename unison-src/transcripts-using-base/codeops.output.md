@@ -1,10 +1,9 @@
-
 Test for code serialization operations.
 
 Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
-```unison
+``` unison
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
@@ -241,7 +240,7 @@ scratch/main> add
                      ->{Throw Text} ()
 
 ```
-```unison
+``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
 
@@ -393,7 +392,7 @@ scratch/main> io.test badLoad
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 codeTests : '{io2.IO} [Result]
 codeTests =
   '[ idempotence "idem f" (termLink f)
@@ -489,7 +488,7 @@ scratch/main> io.test codeTests
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 validateTest : Link.Term ->{IO} Result
 validateTest l = match Code.lookup l with
   None -> Fail "Couldn't look up link"

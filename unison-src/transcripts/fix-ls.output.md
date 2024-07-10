@@ -4,7 +4,7 @@ test-ls/main> builtins.merge
   Done.
 
 ```
-```unison
+``` unison
 foo.bar.add x y = x Int.+ y
 
 foo.bar.subtract x y = x Int.- y

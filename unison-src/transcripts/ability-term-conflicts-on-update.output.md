@@ -5,7 +5,7 @@ https://github.com/unisonweb/unison/issues/2786
 First we add an ability to the codebase.
 Note that this will create the name `Channels.send` as an ability constructor.
 
-```unison
+``` unison
 unique ability Channels where
   send : a -> {Channels} ()
 ```
@@ -31,11 +31,11 @@ scratch/main> add
     ability Channels
 
 ```
-Now we update the ability, changing the name of the constructor, _but_, we simultaneously
+Now we update the ability, changing the name of the constructor, *but*, we simultaneously
 add a new top-level term with the same name as the constructor which is being
 removed from Channels.
 
-```unison
+``` unison
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
@@ -89,9 +89,9 @@ scratch/main> update.old patch thing
     ability Channels
 
 ```
-If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+If however, `Channels.send` and `thing` *depend* on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
 
-```unison
+``` unison
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
@@ -165,7 +165,7 @@ scratch/main> update.old
 ```
 # Constructor-term conflict
 
-```unison
+``` unison
 X.x = 1
 ```
 
@@ -190,7 +190,7 @@ scratch/main2> add
     X.x : Nat
 
 ```
-```unison
+``` unison
 structural ability X where
   x : ()
 ```

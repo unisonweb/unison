@@ -1,7 +1,6 @@
 Regression test for https://github.com/unisonweb/unison/pull/2377
 
-
-```unison
+``` unison
 structural ability Ab where
   a: Nat -> ()
 

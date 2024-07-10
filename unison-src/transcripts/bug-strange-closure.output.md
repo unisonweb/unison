@@ -1,4 +1,3 @@
-
 We can display the guide before and after adding it to the codebase:
 
 ```ucm
@@ -414,7 +413,7 @@ We can display the guide before and after adding it to the codebase:
 ```
 But we can't display this due to a decompilation problem.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
@@ -845,7 +844,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 
 > rendered

@@ -4,7 +4,7 @@ scratch/main> builtins.merge
   Done.
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 5
 
@@ -35,7 +35,7 @@ scratch/main> add
     foo : Nat
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 6
 ```

@@ -6,7 +6,7 @@ Exception ability directly, and the last is code validation. I don't
 have an easy way to test the last at the moment, but the other two are
 tested here.
 
-```unison
+``` unison
 test1 : '{IO, Exception} [Result]
 test1 = do
   _ = fromUtf8 0xsee

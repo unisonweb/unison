@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ ping doc }}
 nested.cycle.ping n = n Nat.+ pong n
 
@@ -79,7 +79,7 @@ project/main> edit.namespace
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 type Foo = { bar : Nat, baz : Nat }
 
 nested.cycle.ping : Nat -> Nat
@@ -121,7 +121,7 @@ project/main> edit.namespace nested simple
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
   use Nat +

@@ -2,7 +2,7 @@
 
 Example uses of the `names` command and output
 
-```unison
+``` unison
 -- Some names with the same value
 some.place.x = 1
 some.otherplace.y = 1
@@ -77,7 +77,6 @@ somewhere.y = 2
 
 ```
 `names.global` searches from the root, and absolutely qualifies results
-
 
 ```ucm
 -- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.

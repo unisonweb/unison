@@ -1,4 +1,4 @@
-```unison
+``` unison
 a.x.x.x.x = 100
 b.x.x.x.x = 100
 foo = 25
@@ -38,7 +38,7 @@ myproject/main> add
     foo       : Nat
 
 ```
-```unison
+``` unison
 foo = +30
 ```
 
@@ -69,7 +69,7 @@ myproject/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 bar : Nat
 bar =
   use Nat +

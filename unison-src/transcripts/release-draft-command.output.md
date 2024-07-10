@@ -2,7 +2,7 @@ The `release.draft` command drafts a release from the current branch.
 
 Some setup:
 
-```unison
+``` unison
 someterm = 18
 ```
 

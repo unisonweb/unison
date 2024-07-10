@@ -4,7 +4,7 @@ scratch/main> builtins.mergeio
   Done.
 
 ```
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
@@ -36,7 +36,7 @@ scratch/main> add
     pass : [Result]
 
 ```
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
@@ -71,7 +71,7 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 > ImmutableArray.fromList [?a, ?b, ?c]
 > ImmutableByteArray.fromBytes 0xs123456
 ```

@@ -2,7 +2,7 @@ Merge builtins so we get enough names for the testing stuff.
 
 The `test` command should run all of the tests in the current directory.
 
-```unison
+``` unison
 test1 : [Result]
 test1 = [Ok "test1"]
 
@@ -64,7 +64,7 @@ scratch/main> test
 ```
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
-```unison
+``` unison
 lib.dep.testInLib : [Result]
 lib.dep.testInLib = [Ok "testInLib"]
 ```

@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ # Doc
 This is a *doc*! 
 
@@ -87,7 +87,7 @@ with a strike-through block~
 scratch/main> debug.format
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 x.doc =
   {{
   # Doc This is a **doc**!
@@ -167,7 +167,7 @@ multilineBold =
 
 Formatter should leave things alone if the file doesn't typecheck.
 
-```unison
+``` unison
 brokenDoc = {{ hello }} + 1
 ```
 

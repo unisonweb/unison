@@ -1,6 +1,6 @@
 # Namespace Details Test
 
-```unison
+``` unison
 {{ Documentation }}
 nested.names.x = 42
 

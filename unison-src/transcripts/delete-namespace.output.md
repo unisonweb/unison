@@ -1,6 +1,6 @@
 # delete.namespace.force
 
-```unison
+``` unison
 no_dependencies.thing = "no dependents on this term"
 
 dependencies.term1 = 1
