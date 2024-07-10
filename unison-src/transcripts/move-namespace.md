@@ -11,6 +11,8 @@ foo = 1
 
 ```ucm
 scratch/main> add
+-- Should request confirmation
+scratch/main> move.namespace . .root.at.path
 scratch/main> move.namespace . .root.at.path
 scratch/main> ls
 scratch/main> history
@@ -25,6 +27,7 @@ I should be able to move a sub namespace _over_ the root.
 
 ```ucm
 -- Should request confirmation
+scratch/main> move.namespace .root.at.path .
 scratch/main> move.namespace .root.at.path .
 scratch/main> ls
 scratch/main> history

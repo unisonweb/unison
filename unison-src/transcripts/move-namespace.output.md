@@ -16,6 +16,14 @@ scratch/main> add
   
     foo : ##Nat
 
+-- Should request confirmation
+scratch/main> move.namespace . .root.at.path
+
+  ⚠️
+  
+  Moves which affect the root branch cannot be undone, are you sure?
+  Re-run the same command to proceed.
+
 scratch/main> move.namespace . .root.at.path
 
   Done.
@@ -57,10 +65,10 @@ scratch/main> move.namespace .root.at.path .
 
   ⚠️
   
-  A branch existed at the destination: . so I over-wrote it.
-  
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Moves which affect the root branch cannot be undone, are you sure?
+  Re-run the same command to proceed.
+
+scratch/main> move.namespace .root.at.path .
 
   Done.
 
