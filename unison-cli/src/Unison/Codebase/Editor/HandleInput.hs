@@ -328,8 +328,9 @@ loop e = do
               (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
               Cli.respondNumbered (ShowDiffNamespace beforeLoc afterLoc ppe diff)
             MoveBranchI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
               description <- inputDescription input
-              doMoveBranch description src' dest'
+              doMoveBranch description hasConfirmed src' dest'
             SwitchBranchI path' -> do
               path <- Cli.resolvePath' path'
               branchExists <- Cli.branchExistsAtPath' path'
@@ -566,8 +567,9 @@ loop e = do
             MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
             MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
             MoveAllI src' dest' -> do
+              hasConfirmed <- confirmedCommand input
               desc <- inputDescription input
-              handleMoveAll src' dest' desc
+              handleMoveAll hasConfirmed src' dest' desc
             DeleteI dtarget -> do
               pp <- Cli.getCurrentProjectPath
               let getTerms (absPath, seg) = Cli.getTermsAt (set PP.absPath_ absPath pp, seg)

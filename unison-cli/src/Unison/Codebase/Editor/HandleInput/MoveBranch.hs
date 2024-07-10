@@ -12,12 +12,15 @@ import Unison.Prelude
 
 -- | Note: Currently only allows moving within the same project-branch, should be easy to change in the future if
 -- needed.
-moveBranchFunc :: Path.Path' -> Path.Path' -> Cli (Maybe (Path.Absolute, Branch IO -> Branch IO))
-moveBranchFunc src' dest' = do
+moveBranchFunc :: Bool -> Path.Path' -> Path.Path' -> Cli (Maybe (Path.Absolute, Branch IO -> Branch IO))
+moveBranchFunc hasConfirmed src' dest' = do
   -- We currently only support moving within the same project branch.
   srcPP@(PP.ProjectPath _proj _projBranch srcAbs) <- Cli.resolvePath' src'
   PP.ProjectPath _ _ destAbs <- Cli.resolvePath' dest'
   destBranchExists <- Cli.branchExistsAtPath' dest'
+  let isRootMove = (Path.isRoot srcAbs || Path.isRoot destAbs)
+  when (isRootMove && not hasConfirmed) do
+    Cli.returnEarly MoveRootBranchConfirmation
   Cli.getMaybeBranchFromProjectPath srcPP >>= traverse \srcBranch -> do
     -- We want the move to appear as a single step in the root namespace, but we need to make
     -- surgical changes in both the root and the destination, so we make our modifications at the shared parent of
@@ -27,16 +30,16 @@ moveBranchFunc src' dest' = do
           changeRoot
             & Branch.modifyAt srcLoc (const Branch.empty)
             & Branch.modifyAt destLoc (const srcBranch)
-    if destBranchExists
+    if (destBranchExists && not isRootMove)
       then Cli.respond (MovedOverExistingBranch dest')
       else pure ()
     pure (Path.Absolute changeRootPath, doMove)
 
 -- | Moves a branch and its history from one location to another, and saves the new root
 -- branch.
-doMoveBranch :: Text -> Path.Path' -> Path.Path' -> Cli ()
-doMoveBranch actionDescription src' dest' = do
-  moveBranchFunc src' dest' >>= \case
+doMoveBranch :: Text -> Bool -> Path.Path' -> Path.Path' -> Cli ()
+doMoveBranch actionDescription hasConfirmed src' dest' = do
+  moveBranchFunc hasConfirmed src' dest' >>= \case
     Nothing -> Cli.respond (BranchNotFound src')
     Just (absPath, func) -> do
       pp <- Cli.resolvePath' (Path.AbsolutePath' absPath)
