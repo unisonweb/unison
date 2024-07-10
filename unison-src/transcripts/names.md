@@ -28,7 +28,7 @@ scratch/main> add
 scratch/main> names x
 -- We can search by hash, and see all aliases of that hash
 scratch/main> names #gjmq673r1v
--- Works with global names too
+-- Works with absolute names too
 scratch/main> names .some.place.x
 ```
 

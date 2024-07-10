@@ -71,7 +71,7 @@ scratch/main> names #gjmq673r1v
   
   Tip: Use `names.global` to see more results.
 
--- Works with global names too
+-- Works with absolute names too
 scratch/main> names .some.place.x
 
   Term
