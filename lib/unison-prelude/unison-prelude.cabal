@@ -65,6 +65,7 @@ library
       base
     , bytestring
     , containers
+    , deepseq
     , directory
     , either
     , extra

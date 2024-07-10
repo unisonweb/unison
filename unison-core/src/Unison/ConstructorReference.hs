@@ -14,11 +14,13 @@ import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
+import Unison.Prelude
 
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
   = ConstructorReference !r !ConstructorId
-  deriving stock (Eq, Functor, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 type ConstructorReference = GConstructorReference TypeReference
 

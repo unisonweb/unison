@@ -24,6 +24,7 @@ data ABT f v r
 data Term f v a = Term {freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a)}
   deriving (Functor, Foldable, Generic, Traversable)
 
+
 instance (Foldable f, Functor f, forall a. (Eq a) => Eq (f a), Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2)

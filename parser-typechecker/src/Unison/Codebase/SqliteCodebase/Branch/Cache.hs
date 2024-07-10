@@ -1,11 +1,15 @@
 module Unison.Codebase.SqliteCodebase.Branch.Cache where
 
+import Control.DeepSeq qualified as DeepSeq
 import Data.Map qualified as Map
 import System.Mem.Weak
 import U.Codebase.HashTags qualified as V2
 import Unison.Codebase.Branch qualified as V1.Branch
+import Unison.Codebase.Branch.Type qualified as Branch
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
+import UnliftIO qualified
 import UnliftIO.STM
 
 -- | A cache of 'V1.Branch.Branch' by 'V2.CausalHash'es.
@@ -32,10 +36,13 @@ newBranchCache = do
       cache <- readTVarIO var
       case Map.lookup ch cache of
         Nothing -> pure Nothing
-        Just weakRef -> deRefWeak weakRef
+        Just weakRef -> do
+          -- Debug.debugLogM Debug.Temp $ "Cache Hit" <> show ch
+          deRefWeak weakRef
 
     insertCachedBranch' :: TVar (Map V2.CausalHash (Weak (V1.Branch.Branch Sqlite.Transaction))) -> V2.CausalHash -> (V1.Branch.Branch Sqlite.Transaction) -> Sqlite.Transaction ()
     insertCachedBranch' var ch b = Sqlite.unsafeIO do
+      _ <- UnliftIO.evaluate $ DeepSeq.force (Branch.names . Branch.head $ b)
       -- It's worth reading the semantics of these operations.
       -- We may in the future wish to instead keep the branch object alive for as long as the
       -- CausalHash is alive, this is easy to do with 'mkWeak', but we'll start with only
@@ -47,3 +54,4 @@ newBranchCache = do
     removeDeadVal :: TVar (Map V2.CausalHash (Weak (V1.Branch.Branch Sqlite.Transaction))) -> V2.CausalHash -> IO ()
     removeDeadVal var ch = liftIO do
       atomically $ modifyTVar' var (Map.delete ch)
+      Debug.debugLogM Debug.Temp $ "Removed dead branch from cache, " <> show ch

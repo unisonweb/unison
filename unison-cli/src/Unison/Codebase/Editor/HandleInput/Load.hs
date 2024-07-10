@@ -61,9 +61,7 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  currentNames <- Timing.time "Loading names for typechecking" do
-    !currentNames <- Cli.currentNames
-    pure currentNames
+  currentNames <- Timing.deepTime "Loading names for typechecking" Cli.currentNames
   !unisonFile <- Timing.time "withFile" $ withFile currentNames sourceName text
   let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
   Debug.debugLogM Debug.Temp "building names"

@@ -14,6 +14,7 @@ library:
     - containers >= 0.6.3
     - nonempty-containers
     - cryptonite
+    - deepseq
     - either
     - extra
     - fuzzyfind

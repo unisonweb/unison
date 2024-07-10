@@ -13,6 +13,7 @@ dependencies:
   - bytestring
   - containers
   - directory
+  - deepseq
   - generic-lens
   - either
   - extra

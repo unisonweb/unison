@@ -9,6 +9,7 @@ module Unison.Debug
     debugLog,
     debugLogM,
     shouldDebug,
+    deepEvaluate,
     DebugFlag (..),
   )
 where
@@ -20,6 +21,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import UnliftIO.Environment (lookupEnv)
+import UnliftIO qualified as UnliftIO
+import Control.DeepSeq qualified as DeepSeq
 
 data DebugFlag
   = Auth
@@ -193,3 +196,7 @@ shouldDebug = \case
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver
   KindInference -> debugKindInference
   Update -> debugUpdate
+
+-- | Evaluate a value to normal form, forcing all thunks, useful when timing things for performance profiling.
+deepEvaluate :: (MonadIO m, NFData a) => a -> m a
+deepEvaluate a = liftIO . UnliftIO.evaluate $ DeepSeq.force a

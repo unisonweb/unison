@@ -94,7 +94,8 @@ data Names = Names
   { terms :: Relation Name Referent,
     types :: Relation Name TypeReference
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =

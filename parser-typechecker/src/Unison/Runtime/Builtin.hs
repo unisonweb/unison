@@ -28,7 +28,6 @@ import Control.Concurrent as SYS
   )
 import Control.Concurrent.MVar as SYS
 import Control.Concurrent.STM qualified as STM
-import Control.DeepSeq (NFData)
 import Control.Exception (evaluate)
 import Control.Exception.Safe qualified as Exception
 import Control.Monad.Catch (MonadCatch)
