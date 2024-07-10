@@ -82,7 +82,7 @@ scratch/main> diff.namespace /a3_new:. /a3:.
 
 ## Other regression tests not covered by above
 
-### Builtins should appear commended out in the edit command
+### Builtins should appear commented out in the edit command
 
 Regression test for https://github.com/unisonweb/unison/pull/3548
 
