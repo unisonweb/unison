@@ -24,11 +24,12 @@ scratch/main> add
 
 ### Creating/Deleting/Renaming Directories
 
-Tests: createDirectory,
-       isDirectory,
-       fileExists,
-       renameDirectory,
-       deleteDirectory
+Tests:
+- createDirectory,
+- isDirectory,
+- fileExists,
+- renameDirectory,
+- deleteDirectory
 
 ```unison
 testCreateRename : '{io2.IO} [Result]
@@ -63,9 +64,10 @@ scratch/main> io.test testCreateRename
 
 ### Opening / Closing files
 
-Tests: openFile
-       closeFile
-       isFileOpen
+Tests:
+- openFile
+- closeFile
+- isFileOpen
 
 ```unison
 testOpenClose : '{io2.IO} [Result]
@@ -113,10 +115,11 @@ scratch/main> io.test testOpenClose
 
 ### Reading files with getSomeBytes
 
-Tests: getSomeBytes
-       putBytes
-       isFileOpen
-       seekHandle
+Tests:
+- getSomeBytes
+- putBytes
+- isFileOpen
+- seekHandle
 
 ```unison
 testGetSomeBytes : '{io2.IO} [Result]
@@ -172,14 +175,15 @@ scratch/main> io.test testGetSomeBytes
 
 ### Seeking in open files
 
-Tests: openFile
-       putBytes
-       closeFile
-       isSeekable
-       isFileEOF
-       seekHandle
-       getBytes
-       getLine
+Tests:
+- openFile
+- putBytes
+- closeFile
+- isSeekable
+- isFileEOF
+- seekHandle
+- getBytes
+- getLine
 
 ```unison
 testSeek : '{io2.IO} [Result]
