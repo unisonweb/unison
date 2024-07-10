@@ -93,13 +93,12 @@ proj/main> view thingy
   thingy : Int
   thingy =
     use Int +
-    new.foo + +10
+    foo + +10
 
 proj/main> ls lib
 
   1. builtin/ (469 terms, 74 types)
   2. new/     (1 term)
-  3. old/     (1 term)
 
 proj/main> branches
 

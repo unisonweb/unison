@@ -19,7 +19,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (CreateFrom'ParentBranch))
+import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..))
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
@@ -70,13 +70,14 @@ handleUpgrade oldName newName = do
   let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
   let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
 
-  currentNamespace <- Cli.getCurrentProjectRoot0
-  let currentNamespaceSansOld = Branch.deleteLibdep oldName currentNamespace
-  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld
-  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld
-  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps currentNamespace)
+  currentNamespace <- Cli.getCurrentProjectRoot
+  let currentNamespaceSansOld = currentNamespace & Branch.step (Branch.deleteLibdep oldName)
+  let currentNamespaceSansOld0 = Branch.head currentNamespaceSansOld
+  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld0
+  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld0
+  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps $ Branch.head currentNamespace)
   let currentLocalConstructorNames = forwardCtorNames currentLocalNames
-  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld
+  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld0
 
   oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
@@ -158,7 +159,7 @@ handleUpgrade oldName newName = do
       (_temporaryBranchId, temporaryBranchName) <-
         HandleInput.Branch.createBranch
           textualDescriptionOfUpgrade
-          (CreateFrom'ParentBranch projectBranch)
+          (CreateFrom'NamespaceWithParent projectBranch currentNamespaceSansOld)
           project
           getTemporaryBranchName
       scratchFilePath <-
