@@ -7,7 +7,7 @@ a = "a term"
 X.foo = "a namespace"
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -22,7 +22,7 @@ Here is an update which should not affect `X`:
 a = "an update"
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -33,7 +33,7 @@ scratch/main> update
 ```
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
 
-```ucm
+``` ucm
 scratch/main> history X
 
   Note: The most recent namespace hash is immediately below this
@@ -46,7 +46,7 @@ scratch/main> history X
 ```
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 
-```ucm
+``` ucm
 scratch/main> history #7nl6ppokhg
 
   😶

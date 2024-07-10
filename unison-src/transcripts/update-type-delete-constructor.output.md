@@ -4,7 +4,7 @@ unique type Foo
   | Baz Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ unique type Foo
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -30,7 +30,7 @@ unique type Foo
   = Bar Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ unique type Foo
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

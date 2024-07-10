@@ -7,7 +7,7 @@ nested.names.x = 42
 nested.names.readme = {{ I'm a readme! }}
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ nested.names.readme = {{ I'm a readme! }}
       nested.names.x.doc  : Doc2
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -32,7 +32,7 @@ scratch/main> add
     nested.names.x.doc  : Doc2
 
 ```
-```api
+``` api
 GET /api/projects/scratch/branches/main/list?namespace=nested.names
 {
     "namespaceListingChildren": [

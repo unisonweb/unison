@@ -4,7 +4,7 @@ lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ thingy = lib.old.foo + 10
       thingy      : Nat
 
 ```
-```ucm
+``` ucm
 proj/main> add
 
   ⍟ I've added these definitions:
@@ -29,7 +29,7 @@ proj/main> add
     thingy      : Nat
 
 ```
-```ucm
+``` ucm
 proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've
@@ -62,7 +62,7 @@ Resolve the error and commit the upgrade.
 thingy = foo + +10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -76,7 +76,7 @@ thingy = foo + +10
       thingy : Int
 
 ```
-```ucm
+``` ucm
 proj/upgrade-old-to-new> update
 
   Okay, I'm searching the branch for code that needs to be

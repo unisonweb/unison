@@ -27,7 +27,7 @@ x = 42
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in myfile.u.
 
@@ -42,7 +42,7 @@ x = 42
 ```
 Let's go ahead and add that to the codebase, then make sure it's there:
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -78,7 +78,7 @@ hmm : .builtin.Nat
 hmm = "Not, in fact, a number"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

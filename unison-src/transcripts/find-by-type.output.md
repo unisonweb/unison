@@ -12,7 +12,7 @@ baz = cases
   A t -> t
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -39,7 +39,7 @@ scratch/main> find : A
   
 
 ```
-```ucm
+``` ucm
 scratch/main> find : Text
 
   ☝️

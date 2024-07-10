@@ -1,6 +1,6 @@
 `alias.term` makes a new name for a term.
 
-```ucm
+``` ucm
 project/main> alias.term lib.builtins.bug foo
 
   Done.
@@ -13,7 +13,7 @@ project/main> ls
 ```
 It won't create a conflicted name, though.
 
-```ucm
+``` ucm
 project/main> alias.term lib.builtins.todo foo
 
   ⚠️
@@ -21,7 +21,7 @@ project/main> alias.term lib.builtins.todo foo
   A term by that name already exists.
 
 ```
-```ucm
+``` ucm
 project/main> ls
 
   1. foo  (a -> b)
@@ -30,7 +30,7 @@ project/main> ls
 ```
 You can use `debug.alias.term.force` for that.
 
-```ucm
+``` ucm
 project/main> debug.alias.term.force lib.builtins.todo foo
 
   Done.

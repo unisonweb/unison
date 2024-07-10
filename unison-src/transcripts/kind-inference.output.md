@@ -6,7 +6,7 @@ conflicting constraints on the kind of `a` in a product
 unique type T a = T a (a Nat)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ unique type T a
   | StarStar (a Nat)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ unique type Ping a = Ping Pong
 unique type Pong = Pong (Ping Optional)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -66,7 +66,7 @@ unique type Ping a = Ping a Pong
 unique type Pong = Pong (Ping Optional)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -85,7 +85,7 @@ unique ability Pong a where
   pong : Ping Optional -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -107,7 +107,7 @@ unique ability Pong a where
   pong : Ping Optional -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -126,7 +126,7 @@ unique type T a = T a
 unique type S = S (T Nat)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -150,7 +150,7 @@ unique type T a = T
 unique type S = S (T Optional)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -172,7 +172,7 @@ unique type T a = T a
 unique type S = S (T Optional)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -192,7 +192,7 @@ test : Nat Nat
 test = 0
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -210,7 +210,7 @@ test : Optional -> ()
 test _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -230,7 +230,7 @@ test : T Nat -> ()
 test _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -254,7 +254,7 @@ test _ =
   ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -277,7 +277,7 @@ test : Foo -> ()
 test _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -295,7 +295,7 @@ test : {Nat} ()
 test _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -313,7 +313,7 @@ test _ = ()
 unique type T a = T (a a)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -329,7 +329,7 @@ unique type T a = T (a a)
 unique type T a b = T (a b) (b a)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -346,7 +346,7 @@ unique type Ping a = Ping (a Pong)
 unique type Pong a = Pong (a Ping)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

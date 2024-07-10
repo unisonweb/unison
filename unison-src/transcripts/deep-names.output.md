@@ -14,7 +14,7 @@ http.z = 8
 
 Our `app1` project includes the text library twice and the http library twice as direct dependencies.
 
-```ucm
+``` ucm
 scratch/app1> fork text lib.text_v1
 
   Done.
@@ -42,7 +42,7 @@ scratch/app1> delete.namespace http
 ```
 As such, we see two copies of `a` and two copies of `x` via these direct dependencies.
 
-```ucm
+``` ucm
 scratch/app1> names a
 
   Term
@@ -63,7 +63,7 @@ scratch/app1> names x
 Our `app2` project includes the `http` library twice as direct dependencies, and once as an indirect dependency via `webutil`.
 It also includes the `text` library twice as indirect dependencies via `webutil`
 
-```ucm
+``` ucm
 scratch/app2> fork http lib.http_v1
 
   Done.
@@ -96,7 +96,7 @@ scratch/app2> delete.namespace text
 Now we see two copies of `x` via direct dependencies on `http`, and one copy of `a` via indirect dependency on `text` via `webutil`.
 We see neither the second indirect copy of `a` nor the indirect copy of `x` via webutil because we already have names for them.
 
-```ucm
+``` ucm
 scratch/app2> names a
 
   Term

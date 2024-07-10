@@ -8,7 +8,7 @@ pong : 'Nat
 pong _ = !ping + 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ pong _ = !ping + 2
       pong : 'Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -36,7 +36,7 @@ ping : 'Nat
 ping _ = !pong + 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,7 +50,7 @@ ping _ = !pong + 3
       ping : 'Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

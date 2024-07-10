@@ -6,13 +6,13 @@ mynamespace.x = 1
 
 The deleted namespace shouldn't appear in `ls` output.
 
-```ucm
+``` ucm
 scratch/main> ls
 
   nothing to show
 
 ```
-```ucm
+``` ucm
 scratch/main> find.verbose
 
   ☝️
@@ -29,7 +29,7 @@ scratch/main> find.verbose
   namespace.
 
 ```
-```ucm
+``` ucm
 scratch/main> find mynamespace
 
   ☝️
@@ -50,7 +50,7 @@ scratch/main> find mynamespace
 
 The history of the namespace should be empty.
 
-```ucm
+``` ucm
 scratch/main> history mynamespace
 
   ☝️  The namespace mynamespace is empty.
@@ -67,7 +67,7 @@ stuff.thing = 2
 
 I should be allowed to fork over a deleted namespace
 
-```ucm
+``` ucm
 scratch/main> fork stuff deleted
 
   Done.
@@ -75,7 +75,7 @@ scratch/main> fork stuff deleted
 ```
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
-```ucm
+``` ucm
 scratch/main> history stuff
 
   Note: The most recent namespace hash is immediately below this
@@ -105,7 +105,7 @@ moveme.y = 2
 I should be able to move a namespace over-top of a deleted namespace.
 The history should be that of the moved namespace.
 
-```ucm
+``` ucm
 scratch/main> delete.namespace moveoverme
 
   Done.

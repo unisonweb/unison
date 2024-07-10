@@ -6,7 +6,7 @@ external.mynat = 1
 mynamespace.dependsOnText = const external.mynat 10
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:

@@ -3,7 +3,7 @@ f : (() -> a) -> Nat
 f x = 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -11,7 +11,7 @@ test> Any.unsafeExtract.works =
          ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -31,7 +31,7 @@ test> Any.unsafeExtract.works =
     ✅ Passed Passed
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

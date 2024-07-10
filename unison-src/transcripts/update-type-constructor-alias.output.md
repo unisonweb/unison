@@ -2,7 +2,7 @@
 unique type Foo = Bar Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,7 +15,7 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -31,7 +31,7 @@ scratch/main> alias.term Foo.Bar Foo.BarAlias
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -47,7 +47,7 @@ unique type Foo = Bar Nat Nat
 ```
 Bug: we leave `Foo.BarAlias` in the namespace with a nameless decl.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

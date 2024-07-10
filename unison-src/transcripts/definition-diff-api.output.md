@@ -1,4 +1,4 @@
-```ucm
+``` ucm
 diffs/main> builtins.merge
 
   Done.
@@ -12,7 +12,7 @@ term =
 type Type = Type Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ type Type = Type Nat
       term : Nat
 
 ```
-```ucm
+``` ucm
 diffs/main> add
 
   ⍟ I've added these definitions:
@@ -50,7 +50,7 @@ term =
 type Type a = Type a Text
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -65,7 +65,7 @@ type Type a = Type a Text
       term : Nat
 
 ```
-```ucm
+``` ucm
 diffs/new> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -76,7 +76,7 @@ diffs/new> update
 ```
 Diff terms
 
-```api
+``` api
 GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
 {
     "diff": {
@@ -560,7 +560,7 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=te
 }
 ```Diff types
 
-```api
+``` api
 GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
 {
     "diff": {

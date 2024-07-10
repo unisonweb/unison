@@ -1,4 +1,4 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 
   Done.
@@ -12,7 +12,7 @@ bar : Nat
 bar = foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ bar = foo + 10
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -40,7 +40,7 @@ foo : Int
 foo = +5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -54,7 +54,7 @@ foo = +5
       foo : Int
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

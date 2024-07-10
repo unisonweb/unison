@@ -10,7 +10,7 @@ test = cases
   A -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -36,7 +36,7 @@ test = cases
   (B, None) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -65,7 +65,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -86,7 +86,7 @@ test = cases
   (A, Some A) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -108,7 +108,7 @@ test = cases
   Some None -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -132,7 +132,7 @@ test0 = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -151,7 +151,7 @@ test = cases
   Some _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -170,7 +170,7 @@ test = cases
   () | false -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -191,7 +191,7 @@ test = cases
     | isEven x -> x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -217,7 +217,7 @@ test = cases
     | otherwise -> 0
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -244,7 +244,7 @@ test = cases
   Some None -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -268,7 +268,7 @@ test = cases
   Some (Some A) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -297,7 +297,7 @@ test = cases
   0 -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -318,7 +318,7 @@ test = cases
   true -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -342,7 +342,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -364,7 +364,7 @@ test = cases
   false -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -389,7 +389,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -408,7 +408,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -428,7 +428,7 @@ test = cases
   x +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -449,7 +449,7 @@ test = cases
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -468,7 +468,7 @@ test = cases
   x +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -487,7 +487,7 @@ test = cases
   xs :+ x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -507,7 +507,7 @@ test = cases
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -528,7 +528,7 @@ test = cases
   x0 +: [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -554,7 +554,7 @@ test = cases
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -586,7 +586,7 @@ test = cases
   true +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -611,7 +611,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -636,7 +636,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -655,7 +655,7 @@ unit2t = cases
   () -> A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -669,7 +669,7 @@ unit2t = cases
       unit2t : 'T
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -692,7 +692,7 @@ witht = match unit2t () with
   x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -712,7 +712,7 @@ evil : Unit -> V
 evil = bug ""
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -726,7 +726,7 @@ evil = bug ""
       evil : 'V
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -741,7 +741,7 @@ withV = match evil () with
   x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -754,7 +754,7 @@ withV = match evil () with
 unique type SomeType = A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -767,7 +767,7 @@ unique type SomeType = A
       type SomeType
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -782,7 +782,7 @@ get x = match x with
   R y -> y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -800,7 +800,7 @@ get x = match x with
 unique type R = { someType : SomeType }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -831,7 +831,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -858,7 +858,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -889,7 +889,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -919,7 +919,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -947,7 +947,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -974,7 +974,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1000,7 +1000,7 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1030,7 +1030,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1059,7 +1059,7 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1083,7 +1083,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1111,7 +1111,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1139,7 +1139,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1179,7 +1179,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1208,7 +1208,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1236,7 +1236,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1265,7 +1265,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1295,7 +1295,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1323,7 +1323,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

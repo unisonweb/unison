@@ -55,7 +55,7 @@ serialTests = do
   List.map snd (bSort (List.map runTestCase cs))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -73,7 +73,7 @@ serialTests = do
       shuffle        : Nat -> [a] -> [a]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

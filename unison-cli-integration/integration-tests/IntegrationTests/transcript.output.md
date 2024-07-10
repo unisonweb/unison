@@ -27,7 +27,7 @@ main = do
     _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,7 +43,7 @@ main = do
       resume : Request {g, Break} x -> x
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:

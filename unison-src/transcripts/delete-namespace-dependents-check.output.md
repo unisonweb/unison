@@ -10,7 +10,7 @@ sub.dependency = 123
 dependent = dependency + 99
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ dependent = dependency + 99
       sub.dependency : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:

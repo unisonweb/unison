@@ -1,6 +1,6 @@
 # Shows `help` output
 
-```ucm
+``` ucm
 scratch/main> help
 
   add

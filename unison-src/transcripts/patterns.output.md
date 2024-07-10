@@ -7,7 +7,7 @@ p1 = join [literal "blue", literal "frog"]
 > Pattern.run (many.corrected p1) "bluefrogbluegoat"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

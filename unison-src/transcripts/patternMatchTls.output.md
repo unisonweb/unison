@@ -20,7 +20,7 @@ assertRight = cases
   Left _ -> bug "expected a right but got a left"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -34,7 +34,7 @@ assertRight = cases
       frank       : '{IO} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

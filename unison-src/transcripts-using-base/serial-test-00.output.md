@@ -67,7 +67,7 @@ mkTestCase = do
   saveTestCase "case-00" "v4" f tup
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -94,7 +94,7 @@ mkTestCase = do
       tree3      : Tree Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

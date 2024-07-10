@@ -5,7 +5,7 @@ bar = 141
 mything = lib.old.foo + 100
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,7 +21,7 @@ mything = lib.old.foo + 100
       mything     : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be

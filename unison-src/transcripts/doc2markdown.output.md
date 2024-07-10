@@ -81,7 +81,7 @@ Table
 }}
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
@@ -174,7 +174,7 @@ unique type MyUniqueType = MyUniqueType
 structural type MyStructuralType = MyStructuralType
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

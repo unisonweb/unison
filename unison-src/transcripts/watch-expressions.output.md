@@ -1,4 +1,4 @@
-```ucm
+``` ucm
 scratch/main> builtins.mergeio
 
   Done.
@@ -8,7 +8,7 @@ scratch/main> builtins.mergeio
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -28,7 +28,7 @@ test> pass = [Ok "Passed"]
     ✅ Passed Passed
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -40,7 +40,7 @@ scratch/main> add
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -55,7 +55,7 @@ test> pass = [Ok "Passed"]
     ✅ Passed Passed (cached)
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⊡ Ignored previously added definitions: pass
@@ -76,7 +76,7 @@ scratch/main> test
 > ImmutableByteArray.fromBytes 0xs123456
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

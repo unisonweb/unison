@@ -1,4 +1,4 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 
   Done.
@@ -16,7 +16,7 @@ mytest = [Ok "ok"]
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in /private/tmp/scratch.u.
 
@@ -31,7 +31,7 @@ mytest = [Ok "ok"]
       mytest : [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -71,7 +71,7 @@ foo = 123
 test> mytest = [Ok "ok"]
 ```
 
-```ucm
+``` ucm
 scratch/main> edit missing
 
   ⚠️

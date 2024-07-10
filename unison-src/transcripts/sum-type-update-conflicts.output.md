@@ -8,7 +8,7 @@ First we add a sum-type to the codebase.
 structural type X = x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ structural type X = x
         (also named lib.builtins.Unit)
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -43,7 +43,7 @@ X.x = "some text that's not in the codebase"
 dependsOnX = Text.size X.x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -66,7 +66,7 @@ dependsOnX = Text.size X.x
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've added these definitions:

@@ -4,7 +4,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 (-) = builtin.Nat.sub
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
       - : Nat -> Nat -> Int
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -29,7 +29,7 @@ scratch/main> add
 baz x = x - 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

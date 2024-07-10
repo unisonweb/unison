@@ -39,7 +39,7 @@ testAutoClean _ =
          Left (Failure _ t _) -> results :+ (Fail t)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,7 +52,7 @@ testAutoClean _ =
       testAutoClean : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

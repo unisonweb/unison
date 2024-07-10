@@ -15,7 +15,7 @@ optional.isNone = cases
 
 This also affects commands like find. Notice lack of qualified names in output:
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -35,7 +35,7 @@ scratch/main> find take
 ```
 The `view` and `display` commands also benefit from this:
 
-```ucm
+``` ucm
 scratch/main> view List.drop
 
   builtin builtin.List.drop : builtin.Nat -> [a] -> [a]
@@ -49,7 +49,7 @@ In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name
 
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
 
-```ucm
+``` ucm
 scratch/main> find : Nat -> [a] -> [a]
 
   1. builtin.List.drop : Nat -> [a] -> [a]
@@ -68,7 +68,7 @@ lib.distributed.baz.qux = "direct dependency 2"
 lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -84,7 +84,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
       lib.distributed.lib.baz.qux  : Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -99,7 +99,7 @@ scratch/main> add
 > abra.cadabra
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -121,7 +121,7 @@ scratch/main> add
 > baz.qux
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -137,7 +137,7 @@ scratch/main> add
           "direct dependency 2"
 
 ```
-```ucm
+``` ucm
 scratch/main> view abra.cadabra
 
   cool.abra.cadabra : Text
@@ -154,7 +154,7 @@ scratch/main> view baz.qux
 ```
 Note that we can always still view indirect dependencies by using more name segments:
 
-```ucm
+``` ucm
 scratch/main> view distributed.abra.cadabra
 
   lib.distributed.abra.cadabra : Text
@@ -180,7 +180,7 @@ foo.a = 23
 bar = 100
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -207,7 +207,7 @@ fn = cases
   _ -> todo "hmm"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

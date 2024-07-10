@@ -8,7 +8,7 @@ unique type B = B C
 unique type C = C B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,7 +23,7 @@ unique type C = C B
       type C
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -40,7 +40,7 @@ unique type B = B C
 unique type C = C B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,7 +50,7 @@ unique type C = C B
 ```
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
 
-```ucm
+``` ucm
 scratch/main> names A
 
   Type
@@ -68,7 +68,7 @@ scratch/main> names A
 unique type A = A ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -82,7 +82,7 @@ unique type A = A ()
       type A
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -107,7 +107,7 @@ scratch/main> names A
 unique type A = A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -123,7 +123,7 @@ unique type A = A
 ```
 Note that `A` is back to its original hash.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

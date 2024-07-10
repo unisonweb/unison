@@ -6,7 +6,7 @@
 > todo "implement me later"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -33,7 +33,7 @@
 > bug "there's a bug in my code"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -64,7 +64,7 @@
 complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -87,7 +87,7 @@ test = match true with
     false -> bug "Wow, that's unexpected"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

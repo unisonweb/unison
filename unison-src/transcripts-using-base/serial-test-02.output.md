@@ -29,7 +29,7 @@ mkTestCase = do
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -48,7 +48,7 @@ mkTestCase = do
       products   : ([Nat], [Nat], [Nat]) -> Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

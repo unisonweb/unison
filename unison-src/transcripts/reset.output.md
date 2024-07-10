@@ -4,7 +4,7 @@
 a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ a = 5
       a : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -55,7 +55,7 @@ scratch/main> history
 foo.a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -68,7 +68,7 @@ foo.a = 5
       foo.a : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -103,7 +103,7 @@ scratch/main> ls foo.foo
 ```
 # reset branch
 
-```ucm
+``` ucm
 foo/main> history
 
   ☝️  The namespace  is empty.
@@ -113,7 +113,7 @@ foo/main> history
 a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -126,7 +126,7 @@ a = 5
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:
@@ -154,7 +154,7 @@ foo/main> history
 a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -168,7 +168,7 @@ a = 3
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -198,7 +198,7 @@ foo/main> history
 main.a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -211,7 +211,7 @@ main.a = 3
       main.a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:
@@ -250,7 +250,7 @@ foo/main> reset 2 main
 main.a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -258,7 +258,7 @@ main.a = 3
   file has been previously added to the codebase.
 
 ```
-```ucm
+``` ucm
 foo/main> switch /topic
 
 foo/topic> add

@@ -10,7 +10,7 @@ The names that will be used in the target namespace are the names you specify, r
 
 Let's try it\!
 
-```ucm
+``` ucm
 scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
 
   Here's what changed in mylib :

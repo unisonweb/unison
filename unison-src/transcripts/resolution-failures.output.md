@@ -14,7 +14,7 @@ one.ambiguousTerm = "term one"
 two.ambiguousTerm = "term two"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -30,7 +30,7 @@ two.ambiguousTerm = "term two"
       two.ambiguousTerm : ##Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -65,7 +65,7 @@ separateAmbiguousTypeUsage : AmbiguousType -> ()
 separateAmbiguousTypeUsage _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -100,7 +100,7 @@ but expect it to eventually be handled by the above machinery.
 useAmbiguousTerm = ambiguousTerm
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

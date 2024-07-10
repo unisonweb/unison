@@ -6,7 +6,7 @@ Not even `Nat` or `+`\!
 
 BEHOLD\!\!\!
 
-```ucm
+``` ucm
 scratch/main> ls
 
   nothing to show
@@ -14,7 +14,7 @@ scratch/main> ls
 ```
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 
   Done.
@@ -26,7 +26,7 @@ scratch/main> ls lib
 ```
 And for a limited time, you can get even more builtin goodies:
 
-```ucm
+``` ucm
 scratch/main> builtins.mergeio lib.builtinsio
 
   Done.

@@ -151,7 +151,7 @@ swapped name link =
   rejected ("swapped " ++ name) rco
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -198,7 +198,7 @@ swapped name link =
                        ->{Throw Text} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -315,7 +315,7 @@ badLoad _ =
     Left _ -> [Fail "Exception"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -342,7 +342,7 @@ This simply runs some functions to make sure there isn't a crash. Once
 we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -428,7 +428,7 @@ codeTests =
    ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -441,7 +441,7 @@ codeTests =
       codeTests : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -514,7 +514,7 @@ vtests _ =
     ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -528,7 +528,7 @@ vtests _ =
       vtests       : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

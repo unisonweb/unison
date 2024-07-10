@@ -16,7 +16,7 @@ ha = cases
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -30,7 +30,7 @@ ha = cases
       ha : Request {A} r -> r
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

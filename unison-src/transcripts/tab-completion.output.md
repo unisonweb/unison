@@ -4,7 +4,7 @@ Test that tab completion works as expected.
 
 ## Tab Complete Command Names
 
-```ucm
+``` ucm
 scratch/main> debug.tab-complete vi
 
    view
@@ -34,7 +34,7 @@ othernamespace.someName = 4
 unique type subnamespace.AType = A | B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -51,7 +51,7 @@ unique type subnamespace.AType = A | B
       subnamespace2.thing        : ##Nat
 
 ```
-```ucm
+``` ucm
 -- Should tab complete namespaces since they may contain terms/types
 scratch/main> debug.tab-complete view sub
 
@@ -93,7 +93,7 @@ scratch/main> debug.tab-complete view subnamespace.someOther
 absolute.term = "absolute"
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -108,7 +108,7 @@ absolute.term = "absolute"
 ```
 ## Tab complete namespaces
 
-```ucm
+``` ucm
 -- Should tab complete namespaces
 scratch/main> debug.tab-complete find-in sub
 
@@ -149,7 +149,7 @@ add : a -> a
 add b = b
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -163,7 +163,7 @@ add b = b
       add : a -> a
 
 ```
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've added these definitions:
@@ -183,7 +183,7 @@ scratch/main> debug.tab-complete delete.term add
 ```
 ## Tab complete projects and branches
 
-```ucm
+``` ucm
 myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
@@ -206,7 +206,7 @@ Commands which complete namespaces OR branches should list both
 mybranchsubnamespace.term = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -219,7 +219,7 @@ mybranchsubnamespace.term = 1
       mybranchsubnamespace.term : ##Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:

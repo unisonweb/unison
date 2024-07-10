@@ -10,7 +10,7 @@ Some basic errors of literals.
 x = 1. -- missing some digits after the decimal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ x = 1. -- missing some digits after the decimal
 x = 1e -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,7 +42,7 @@ x = 1e -- missing an exponent
 x = 1e- -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +58,7 @@ x = 1e- -- missing an exponent
 x = 1E+ -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -76,7 +76,7 @@ x = 1E+ -- missing an exponent
 x = 0xoogabooga -- invalid hex chars
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -92,7 +92,7 @@ x = 0xoogabooga -- invalid hex chars
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -108,7 +108,7 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -124,7 +124,7 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -142,7 +142,7 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 foo = else -- not matching if
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -156,7 +156,7 @@ foo = else -- not matching if
 foo = then -- unclosed
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -170,7 +170,7 @@ foo = then -- unclosed
 foo = with -- unclosed
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -187,7 +187,7 @@ foo = with -- unclosed
 foo = match 1 with
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -205,7 +205,7 @@ foo = match 1 with
   2 -- no right-hand-side
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -229,7 +229,7 @@ foo = cases
   3 -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -252,7 +252,7 @@ x = match Some a with
         2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -280,7 +280,7 @@ x = match Some a with
            -> 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -302,7 +302,7 @@ x = match Some a with
         | true -> 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -324,7 +324,7 @@ x = match Some a with
 >
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -340,7 +340,7 @@ x = match Some a with
 use.keyword.in.namespace = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -357,7 +357,7 @@ use.keyword.in.namespace = 1
 a ! b = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -5,7 +5,7 @@ x =
   foo.123
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ x =
 namespace.blah = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,7 +42,7 @@ namespace.blah = 1
 x = 1 ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -56,7 +56,7 @@ x = 1 ]
 x = a.#abc
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -72,7 +72,7 @@ x = a.#abc
 x = "hi
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -93,7 +93,7 @@ x = "hi
 y : a 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

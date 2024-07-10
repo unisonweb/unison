@@ -8,7 +8,7 @@ bonk x =
   x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

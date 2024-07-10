@@ -5,7 +5,7 @@ The delete command can delete both terms and types.
 First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
-```ucm
+``` ucm
 .> delete.verbose foo
 
   ⚠️
@@ -22,7 +22,7 @@ foo = 1
 structural type Foo = Foo ()
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -62,7 +62,7 @@ foo = 1
 bar = 2
 ```
 
-```ucm
+``` ucm
   ☝️  The namespace .a is empty.
 
 .a> add
@@ -79,7 +79,7 @@ bar = 2
 ```
 A delete should remove both versions of the term.
 
-```ucm
+``` ucm
 .> delete.verbose a.foo
 
   Removed definitions:
@@ -106,7 +106,7 @@ structural type Foo = Foo ()
 structural type Bar = Bar
 ```
 
-```ucm
+``` ucm
 .a> add
 
   ⍟ I've added these definitions:
@@ -149,7 +149,7 @@ foo = 1
 structural type foo = Foo ()
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -175,7 +175,7 @@ b = "b"
 c = "c"
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -204,7 +204,7 @@ b = "b"
 c = "c"
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -242,7 +242,7 @@ We can delete a type and its constructors
 structural type Foo = Foo ()
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -273,7 +273,7 @@ c = 3
 d = a + b + c
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -306,7 +306,7 @@ g = 13 + f
 h = e + f + g
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -338,7 +338,7 @@ incrementFoo = cases
   (Foo n) -> n + 1
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -366,7 +366,7 @@ g = 13 + f
 h = e + f + g
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -391,7 +391,7 @@ ping _ = 1 Nat.+ !pong
 pong _ = 4 Nat.+ !ping
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:

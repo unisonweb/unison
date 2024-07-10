@@ -29,7 +29,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 
 Let's rewrite these:
 
-```ucm
+``` ucm
 scratch/main> rewrite rule1
 
   ☝️
@@ -110,7 +110,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 
 After adding to the codebase, here's the rewritten source:
 
-```ucm
+``` ucm
 scratch/main> view ex1 Either.mapRight rule1
 
   Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
@@ -156,7 +156,7 @@ blah2 = 456
 
 Let's apply the rewrite `woot1to2`:
 
-```ucm
+``` ucm
 scratch/main> rewrite woot1to2
 
   ☝️
@@ -192,7 +192,7 @@ blah2 = 456
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
-```ucm
+``` ucm
 scratch/main> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
@@ -224,7 +224,7 @@ sameFileEx =
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
-```ucm
+``` ucm
 scratch/main> view foo1 foo2 sameFileEx
 
   foo1 : Nat
@@ -265,7 +265,7 @@ sameFileEx =
 
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
-```ucm
+``` ucm
 scratch/main> rewrite rule
 
   ☝️
@@ -299,7 +299,7 @@ sameFileEx =
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
-```ucm
+``` ucm
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -330,7 +330,7 @@ rule a = @rewrite
   term 233 ==> a
 ```
 
-```ucm
+``` ucm
 scratch/main> rewrite rule
 
   ☝️
@@ -356,7 +356,7 @@ rule a =
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
-```ucm
+``` ucm
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -386,7 +386,7 @@ findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
 findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
-```ucm
+``` ucm
 scratch/main> sfind findEitherEx
 
   🔎

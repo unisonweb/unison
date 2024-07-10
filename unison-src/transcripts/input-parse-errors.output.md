@@ -6,7 +6,7 @@ x = 55
 
 `handleNameArg` parse error in `add`
 
-```ucm
+``` ucm
 scratch/main> add .
 
 ⚠️
@@ -61,7 +61,7 @@ todo:
 
 aliasMany: skipped -- similar to `add`
 
-```ucm
+``` ucm
 scratch/main> update arg
 
 ⚠️

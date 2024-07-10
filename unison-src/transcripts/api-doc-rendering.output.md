@@ -77,7 +77,7 @@ Transclusion/evaluation:
 term = 42
 ```
 
-```ucm
+``` ucm
 scratch/main> display term.doc
 
   # Heading
@@ -146,7 +146,7 @@ scratch/main> display term.doc
       message
 
 ```
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=term
 {
     "missingDefinitions": [],

@@ -12,7 +12,7 @@ a.aaa.but.more.segments = 0 + 1
 
 Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment length alias), and show that it isn't used when viewing `a`:
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -47,7 +47,7 @@ a3.d = a3.c + 10
 a3.long.name.but.shortest.suffixification = 1
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -84,7 +84,7 @@ At this point, `a3` is conflicted for symbols `c` and `d`, so those are depriori
 The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope,
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
-```ucm
+``` ucm
 .> view a b c d
 
   a.a : Nat
@@ -125,7 +125,7 @@ deeply.nested.num = 10
 a = 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -140,7 +140,7 @@ a = 10
       deeply.nested.term : Nat
 
 ```
-```ucm
+``` ucm
 .biasing> add
 
   ⍟ I've added these definitions:
@@ -166,7 +166,7 @@ Add another term with `num` suffix to force longer suffixification of `deeply.ne
 other.num = 20
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -179,7 +179,7 @@ other.num = 20
       other.num : Nat
 
 ```
-```ucm
+``` ucm
 .biasing> add
 
   ⍟ I've added these definitions:

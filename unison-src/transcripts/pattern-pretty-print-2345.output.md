@@ -59,7 +59,7 @@ doc = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -86,7 +86,7 @@ doc = cases
       tremulous : (Nat, Nat) -> ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -8,7 +8,7 @@ pong : 'Nat
 pong _ = !inner.ping + 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ pong _ = !inner.ping + 2
       pong       : 'Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -39,7 +39,7 @@ inner.ping : 'Nat
 inner.ping _ = !pong + 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -53,7 +53,7 @@ inner.ping _ = !pong + 3
       inner.ping : 'Nat
 
 ```
-```ucm
+``` ucm
   ☝️  The namespace .inner is empty.
 
 .inner> update.old

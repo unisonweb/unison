@@ -27,7 +27,7 @@ this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
 what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,7 +42,7 @@ what_should_work _ = this_should_work ++ this_should_not_work
       what_should_work     : ∀ _. _ -> [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -217,7 +217,7 @@ testCNReject _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -237,7 +237,7 @@ testCNReject _ =
       testConnectSelfSigned : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -28,7 +28,7 @@ The 7 days of the week, defined as:
 unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,7 +50,7 @@ Notice that an anonymous documentation block `{{ ... }}` before a definition `Im
 
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
-```ucm
+``` ucm
 scratch/main> display d1
 
   Hello there Alice!
@@ -72,7 +72,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
-```ucm
+``` ucm
 scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 
   Loading changes detected in
@@ -99,7 +99,7 @@ Now we can review different portions of the guide.
 we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
-```ucm
+``` ucm
 scratch/main> view basicFormatting
 
   basicFormatting : Doc2
@@ -548,7 +548,7 @@ scratch/main> display otherElements
 ```
 Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
-```ucm
+``` ucm
 scratch/main> view doc.guide
 
   doc.guide : Doc2

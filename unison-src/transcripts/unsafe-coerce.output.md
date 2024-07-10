@@ -11,7 +11,7 @@ main _ =
   if n == 5 then [Ok ""] else [Fail ""]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ main _ =
       main : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> find unsafe.coerceAbilities
 
   1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b

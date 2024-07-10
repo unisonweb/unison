@@ -2,7 +2,7 @@
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
-```ucm
+``` ucm
 scratch/main> view lib.builtins.Doc
 
   type lib.builtins.Doc
@@ -26,7 +26,7 @@ Can link to definitions like @List.drop or @List
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +58,7 @@ List.take.ex1 = take 0 [1,2,3,4,5]
 List.take.ex2 = take 2 [1,2,3,4,5]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -72,7 +72,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
       List.take.ex2 : [Nat]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -100,7 +100,7 @@ List.take.doc = [:
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -115,7 +115,7 @@ List.take.doc = [:
 ```
 Let's add it to the codebase.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -125,7 +125,7 @@ scratch/main> add
 ```
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
-```ucm
+``` ucm
 scratch/main> docs List.take
 
   `List.take n xs` returns the first `n` elements of `xs`. (No 
@@ -150,7 +150,7 @@ scratch/main> docs List.take
 ```
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
-```ucm
+``` ucm
 scratch/main> view List.take
 
   builtin lib.builtins.List.take :

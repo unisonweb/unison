@@ -2,7 +2,7 @@
 unique type Foo = { bar : Nat, baz : Int }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,7 +21,7 @@ unique type Foo = { bar : Nat, baz : Int }
       Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -39,7 +39,7 @@ scratch/main> add
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +58,7 @@ unique type Foo = { bar : Nat }
 ```
 We want the field accessors to go away; but for now they are here, causing the update to fail.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

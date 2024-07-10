@@ -23,7 +23,7 @@ foo _ =
 > !foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,7 +43,7 @@ foo _ =
            5
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

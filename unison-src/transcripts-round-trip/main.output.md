@@ -4,7 +4,7 @@ This transcript verifies that the pretty-printer produces code that can be succe
 x = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ x = ()
 ```
 So we can see the pretty-printed output:
 
-```ucm
+``` ucm
 .a1> edit 1-1000
 
   ☝️
@@ -770,7 +770,7 @@ a |> f = f a
 
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
-```ucm
+``` ucm
 .> diff.namespace a1 a2
 
   The namespaces are identical.
@@ -784,7 +784,7 @@ This just makes 'roundtrip.u' the latest scratch file.
 x = ()
 ```
 
-```ucm
+``` ucm
 .a3> edit 1-5000
 
   ☝️
@@ -819,7 +819,7 @@ sloppyDocEval =
 
 These are currently all expected to have different hashes on round trip.
 
-```ucm
+``` ucm
 .> diff.namespace a3 a3_old
 
   Updates:

@@ -16,7 +16,7 @@ inside.q x = x + p * p
 inside.r = d
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.file
 
   type inside.M#h37a56c5ep
@@ -35,7 +35,7 @@ This will help me make progress in some situations when UCM is being deficient o
 
 But wait, there's more.  I can check the dependencies and dependents of a definition:
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

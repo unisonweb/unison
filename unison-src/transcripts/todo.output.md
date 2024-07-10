@@ -2,7 +2,7 @@
 
 When there's nothing to do, `todo` says this:
 
-```ucm
+``` ucm
 project/main> todo
 
   You have no pending todo items. Good work! ✅
@@ -24,7 +24,7 @@ bar : Nat
 bar = foo + foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -38,7 +38,7 @@ bar = foo + foo
       foo : Nat
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -63,7 +63,7 @@ foo.bar = 15
 baz = foo.bar + foo.bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -77,7 +77,7 @@ baz = foo.bar + foo.bar
       foo.bar : Nat
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:

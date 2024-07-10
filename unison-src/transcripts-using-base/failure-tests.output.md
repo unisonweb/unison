@@ -18,7 +18,7 @@ test2 = do
   [Ok "test2"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,7 +32,7 @@ test2 = do
       test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -41,7 +41,7 @@ scratch/main> add
     test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> io.test test1
 
   💔💥
@@ -57,7 +57,7 @@ scratch/main> io.test test1
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> io.test test2
 
   💔💥

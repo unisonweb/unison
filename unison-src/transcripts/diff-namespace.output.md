@@ -6,7 +6,7 @@ b2.fslkdjflskdjflksjdf = 23
 b2.abc = 23
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -22,7 +22,7 @@ b2.abc = 23
   Done.
 
 ```
-```ucm
+``` ucm
 .> diff.namespace b1 b2
 
   Resolved name conflicts:
@@ -78,7 +78,7 @@ structural type A a = A ()
 structural ability X a1 a2 where x : ()
 ```
 
-```ucm
+``` ucm
   ☝️  The namespace .ns1 is empty.
 
 .ns1> add
@@ -108,7 +108,7 @@ structural ability X a1 a2 where x : ()
 ```
 Here's what we've done so far:
 
-```ucm
+``` ucm
 .> diff.namespace nothing ns1
 
   ⚠️
@@ -116,7 +116,7 @@ Here's what we've done so far:
   The namespace .nothing is empty. Was there a typo?
 
 ```
-```ucm
+``` ucm
 .> diff.namespace ns1 ns2
 
   The namespaces are identical.
@@ -126,7 +126,7 @@ Here's what we've done so far:
 junk = "asldkfjasldkfj"
 ```
 
-```ucm
+``` ucm
 .ns1> add
 
   ⍟ I've added these definitions:
@@ -151,7 +151,7 @@ f = 6
 unique type Y a b = Y a b
 ```
 
-```ucm
+``` ucm
 .ns2> update.old
 
   ⍟ I've added these definitions:
@@ -287,7 +287,7 @@ unique type Y a b = Y a b
 bdependent = "banana"
 ```
 
-```ucm
+``` ucm
 .ns3> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -321,7 +321,7 @@ a = 333
 b = a + 1
 ```
 
-```ucm
+``` ucm
   ☝️  The namespace .nsx is empty.
 
 .nsx> add
@@ -344,7 +344,7 @@ b = a + 1
 a = 444
 ```
 
-```ucm
+``` ucm
 .nsy> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -356,7 +356,7 @@ a = 444
 a = 555
 ```
 
-```ucm
+``` ucm
 .nsz> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -376,7 +376,7 @@ a = 555
   Done.
 
 ```
-```ucm
+``` ucm
 .> diff.namespace nsx nsw
 
   New name conflicts:
@@ -416,7 +416,7 @@ a = 555
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -429,7 +429,7 @@ x = 1
       x : ##Nat
 
 ```
-```ucm
+``` ucm
   ☝️  The namespace .hashdiff is empty.
 
 .hashdiff> add
@@ -443,7 +443,7 @@ x = 1
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -456,7 +456,7 @@ y = 2
       y : ##Nat
 
 ```
-```ucm
+``` ucm
 .hashdiff> add
 
   ⍟ I've added these definitions:

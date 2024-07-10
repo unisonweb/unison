@@ -50,7 +50,7 @@ testMvars _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -64,7 +64,7 @@ testMvars _ =
       testMvars : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

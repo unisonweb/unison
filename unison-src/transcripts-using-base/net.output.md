@@ -90,7 +90,7 @@ testDefaultPort _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -105,7 +105,7 @@ testDefaultPort _ =
       testExplicitHost : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -177,7 +177,7 @@ testTcpConnect = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -192,7 +192,7 @@ testTcpConnect = 'let
       testTcpConnect : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -43,7 +43,7 @@ mkTestCase = do
   saveTestCase "case-03" "v4" finish trip
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -67,7 +67,7 @@ mkTestCase = do
       suspSum    : [Nat] -> Delayed Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

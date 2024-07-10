@@ -18,7 +18,7 @@ casTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -31,7 +31,7 @@ casTest = do
       casTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -80,7 +80,7 @@ promiseConcurrentTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -94,7 +94,7 @@ promiseConcurrentTest = do
       promiseSequentialTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -134,7 +134,7 @@ atomicUpdate ref f =
   if Ref.cas ref ticket value then () else atomicUpdate ref f
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -147,7 +147,7 @@ atomicUpdate ref f =
       atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -173,7 +173,7 @@ spawnN n fa =
   map Promise.read (go n [])
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -186,7 +186,7 @@ spawnN n fa =
       spawnN : Nat -> '{IO} a ->{IO} [a]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -222,7 +222,7 @@ fullTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -235,7 +235,7 @@ fullTest = do
       fullTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

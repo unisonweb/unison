@@ -7,7 +7,7 @@ foo = 100
 lib.foo = 100
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,7 +21,7 @@ lib.foo = 100
       lib.foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -34,7 +34,7 @@ scratch/main> add
 foo = 200
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -49,7 +49,7 @@ foo = 200
         (The old definition is also named lib.foo.)
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

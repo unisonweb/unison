@@ -10,7 +10,7 @@ unique ability Channels where
   send : a -> {Channels} ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,7 +23,7 @@ unique ability Channels where
       ability Channels
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -46,7 +46,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -67,7 +67,7 @@ thing _ = send 1
 ```
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
-```ucm
+``` ucm
 scratch/main> update.old patch Channels.send
 
   x These definitions failed:
@@ -102,7 +102,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -121,7 +121,7 @@ thing _ = send 1
 ```
 These updates should succeed since `Channels` is a dependency.
 
-```ucm
+``` ucm
 scratch/main> update.old.preview patch Channels.send
 
   I found and typechecked these definitions in scratch.u. If you
@@ -152,7 +152,7 @@ scratch/main> update.old.preview patch thing
 ```
 We should also be able to successfully update the whole thing.
 
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⊡ Ignored previously added definitions: Channels
@@ -169,7 +169,7 @@ scratch/main> update.old
 X.x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -182,7 +182,7 @@ X.x = 1
       X.x : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main2> add
 
   ⍟ I've added these definitions:
@@ -195,7 +195,7 @@ structural ability X where
   x : ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -214,7 +214,7 @@ structural ability X where
 ```
 This should fail with a ctor/term conflict.
 
-```ucm
+``` ucm
 scratch/main2> add
 
   x These definitions failed:

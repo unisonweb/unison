@@ -17,7 +17,7 @@ lib.project.ignoreMe = 30
 unique type Foo = { bar : Nat, baz : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ unique type Foo = { bar : Nat, baz : Nat }
       toplevel              : Text
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -68,7 +68,7 @@ project/main> add
 ```
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
-```ucm
+``` ucm
 project/main> edit.namespace
 
   ☝️
@@ -110,7 +110,7 @@ toplevel = "hi"
 
 `edit.namespace` can also accept explicit paths
 
-```ucm
+``` ucm
 project/main> edit.namespace nested simple
 
   ☝️

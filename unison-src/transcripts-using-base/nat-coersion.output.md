@@ -31,7 +31,7 @@ test = 'let
    runTest testABunchOfNats
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -48,7 +48,7 @@ test = 'let
                 ->{Stream Result} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

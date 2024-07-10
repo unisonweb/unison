@@ -45,7 +45,7 @@ testCreateRename _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +58,7 @@ testCreateRename _ =
       testCreateRename : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -127,7 +127,7 @@ testOpenClose _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -140,7 +140,7 @@ testOpenClose _ =
       testOpenClose : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -217,7 +217,7 @@ testGetSomeBytes _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -230,7 +230,7 @@ testGetSomeBytes _ =
       testGetSomeBytes : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -324,7 +324,7 @@ testAppend _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -338,7 +338,7 @@ testAppend _ =
       testSeek   : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -385,7 +385,7 @@ testSystemTime _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -398,7 +398,7 @@ testSystemTime _ =
       testSystemTime : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -428,7 +428,7 @@ testGetTempDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -459,7 +459,7 @@ testGetCurrentDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -492,7 +492,7 @@ testDirContents _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -525,7 +525,7 @@ testGetEnv _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -580,7 +580,7 @@ testGetArgs.runMeWithTwoArgs = 'let
 
 Test that they can be run with the right number of args.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -605,7 +605,7 @@ scratch/main> run runMeWithTwoArgs foo bar
 ```
 Calling our examples with the wrong number of args will error.
 
-```ucm
+``` ucm
 scratch/main> run runMeWithNoArgs foo
 
   💔💥
@@ -618,7 +618,7 @@ scratch/main> run runMeWithNoArgs foo
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithOneArg
 
   💔💥
@@ -631,7 +631,7 @@ scratch/main> run runMeWithOneArg
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithOneArg foo bar
 
   💔💥
@@ -645,7 +645,7 @@ scratch/main> run runMeWithOneArg foo bar
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithTwoArgs
 
   💔💥
@@ -667,7 +667,7 @@ testTimeZone = do
   ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -690,7 +690,7 @@ testRandom = do
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

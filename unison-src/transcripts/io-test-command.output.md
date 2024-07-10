@@ -17,7 +17,7 @@ lib.ioAndExceptionTestInLib  = do
 
 Run a IO tests one by one
 
-```ucm
+``` ucm
 scratch/main> io.test ioAndExceptionTest
 
     New test results:
@@ -41,7 +41,7 @@ scratch/main> io.test ioTest
 ```
 `io.test` doesn't cache results
 
-```ucm
+``` ucm
 scratch/main> io.test ioAndExceptionTest
 
     New test results:
@@ -55,7 +55,7 @@ scratch/main> io.test ioAndExceptionTest
 ```
 `io.test.all` will run all matching tests except those in the `lib` namespace.
 
-```ucm
+``` ucm
 scratch/main> io.test.all
 
   

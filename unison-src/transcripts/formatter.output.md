@@ -83,7 +83,7 @@ with a strike-through block~
 }}
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.format
 
 ```
@@ -171,7 +171,7 @@ Formatter should leave things alone if the file doesn't typecheck.
 brokenDoc = {{ hello }} + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -199,7 +199,7 @@ brokenDoc = {{ hello }} + 1
   (Nat.+) : Nat -> Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> debug.format
 
 ```

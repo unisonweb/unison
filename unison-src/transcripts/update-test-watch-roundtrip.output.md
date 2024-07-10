@@ -8,7 +8,7 @@ test> mynamespace.foo.test =
   if (foo n) == 2 then [ Ok "passed" ] else [ Fail "wat" ]
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -23,7 +23,7 @@ if we change the type of the dependency, the test should show in the scratch fil
 foo n = "hello, world!"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -37,7 +37,7 @@ foo n = "hello, world!"
       foo : n -> Text
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

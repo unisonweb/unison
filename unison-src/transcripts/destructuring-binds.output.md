@@ -14,7 +14,7 @@ ex1 tup =
   c + d
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -28,7 +28,7 @@ ex1 tup =
       ex1 : (a, b, (Nat, Nat)) -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -58,7 +58,7 @@ ex2 tup = match tup with
   (a, b, (c,d)) -> c + d
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -82,7 +82,7 @@ ex4 =
   "Doesn't typecheck"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -116,7 +116,7 @@ ex5a _ = match (99 + 1, "hi") with
   _ -> "impossible"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -130,7 +130,7 @@ ex5a _ = match (99 + 1, "hi") with
       ex5a : 'Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -162,7 +162,7 @@ ex6 x = match x with
 
 For clarity, the pretty-printer leaves this alone, even though in theory it could be written `(x,y) = x; x + y`:
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

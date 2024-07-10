@@ -8,7 +8,7 @@ lib.new.foo = 19
 mything = lib.old.foo + lib.old.foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ mything = lib.old.foo + lib.old.foo
       mything       : Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:

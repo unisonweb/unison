@@ -23,7 +23,7 @@ test> z = let
   [Ok (x ++ y)]
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.lsp.fold-ranges
 
   《{{ Type doc }}》

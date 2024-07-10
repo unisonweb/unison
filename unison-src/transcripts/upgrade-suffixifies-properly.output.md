@@ -8,7 +8,7 @@ d.y.y.y.y = lib.old.foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,7 +27,7 @@ bar = a.x.x.x.x + c.y.y.y.y
       lib.old.foo : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:
@@ -41,7 +41,7 @@ myproject/main> add
     lib.old.foo : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've

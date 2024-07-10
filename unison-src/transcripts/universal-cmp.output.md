@@ -10,7 +10,7 @@ threadEyeDeez _ =
   (t1 == t2, t1 < t2)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ threadEyeDeez _ =
       threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -44,7 +44,7 @@ scratch/main> run threadEyeDeez
 > termLink threadEyeDeez == termLink threadEyeDeez
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

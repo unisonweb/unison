@@ -6,7 +6,7 @@ The transcript parser is meant to parse `ucm` and `unison` blocks.
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -35,7 +35,7 @@ z
 
 ```
 
-```ucm
+``` ucm
 .> delete foo
 
   ⚠️
@@ -44,7 +44,7 @@ z
     foo
 
 ```
-```ucm
+``` ucm
 .> delete lineToken.call
 
   ⚠️

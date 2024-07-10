@@ -7,7 +7,7 @@ hangExample =
     && ("a long piece of text to hang the line" == "")
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -20,7 +20,7 @@ hangExample =
       hangExample : Boolean
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

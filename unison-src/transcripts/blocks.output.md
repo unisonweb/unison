@@ -15,7 +15,7 @@ ex thing =
 > ex "hello"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -48,7 +48,7 @@ ex thing =
 > ex "hello"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -83,7 +83,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -115,7 +115,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -154,7 +154,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -181,7 +181,7 @@ ex n =
   ping 0
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -205,7 +205,7 @@ ex n =
   pong
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -223,7 +223,7 @@ ex n =
   loop
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -240,7 +240,7 @@ ex n =
   !loop
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -269,7 +269,7 @@ ex n =
   zap1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -293,7 +293,7 @@ ex n =
   zap1 "pluto"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -322,7 +322,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -349,7 +349,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -8,7 +8,7 @@ I should be able to move the root into a sub-namespace
 foo = 1
 ```
 
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -41,7 +41,7 @@ foo = 1
   □ 1. #g97lh1m2v7 (start of history)
 
 ```
-```ucm
+``` ucm
 .> ls .root.at.path
 
   1. foo (##Nat)
@@ -58,7 +58,7 @@ foo = 1
 ```
 I should be able to move a sub namespace *over* the root.
 
-```ucm
+``` ucm
 -- Should request confirmation
 .> move.namespace .root.at.path .
 
@@ -85,7 +85,7 @@ I should be able to move a sub namespace *over* the root.
   □ 1. #08a6hgi6s4 (start of history)
 
 ```
-```ucm
+``` ucm
 -- should be empty
 .> ls .root.at.path
 
@@ -105,7 +105,7 @@ a.termInA = 1
 unique type a.T = T
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -119,7 +119,7 @@ unique type a.T = T
       a.termInA : Nat
 
 ```
-```ucm
+``` ucm
 scratch/happy> add
 
   ⍟ I've added these definitions:
@@ -133,7 +133,7 @@ a.termInA = 2
 unique type a.T = T1 | T2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -148,7 +148,7 @@ unique type a.T = T1 | T2
       a.termInA : Nat
 
 ```
-```ucm
+``` ucm
 scratch/happy> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -159,7 +159,7 @@ scratch/happy> update
 ```
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
 
-```ucm
+``` ucm
 scratch/happy> move.namespace a b
 
   Done.
@@ -197,7 +197,7 @@ a.termInA = 1
 b.termInB = 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -211,7 +211,7 @@ b.termInB = 10
       b.termInB : Nat
 
 ```
-```ucm
+``` ucm
 scratch/history> add
 
   ⍟ I've added these definitions:
@@ -225,7 +225,7 @@ a.termInA = 2
 b.termInB = 11
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -240,7 +240,7 @@ b.termInB = 11
       b.termInB : Nat
 
 ```
-```ucm
+``` ucm
 scratch/history> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -253,7 +253,7 @@ Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
 of the moved namespace.
 
-```ucm
+``` ucm
 scratch/history> delete.namespace b
 
   Done.
@@ -291,7 +291,7 @@ a.termInA = 1
 b.termInB = 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -305,7 +305,7 @@ b.termInB = 10
       b.termInB : Nat
 
 ```
-```ucm
+``` ucm
 scratch/existing> add
 
   ⍟ I've added these definitions:
@@ -319,7 +319,7 @@ a.termInA = 2
 b.termInB = 11
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -334,7 +334,7 @@ b.termInB = 11
       b.termInB : Nat
 
 ```
-```ucm
+``` ucm
 scratch/existing> update
 
   Okay, I'm searching the branch for code that needs to be

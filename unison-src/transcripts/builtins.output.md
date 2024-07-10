@@ -363,7 +363,7 @@ test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -415,7 +415,7 @@ test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -468,7 +468,7 @@ openFilesIO = do
     ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -481,7 +481,7 @@ openFilesIO = do
       openFilesIO : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -508,7 +508,7 @@ Just exercises the function
 test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -536,7 +536,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
-```ucm
+``` ucm
 scratch/main> test
 
   Cached test results (`help testcache` to learn more)

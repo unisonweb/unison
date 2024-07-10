@@ -13,7 +13,7 @@ test = Scope.run 'let
 > test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

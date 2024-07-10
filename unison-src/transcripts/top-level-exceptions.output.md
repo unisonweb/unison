@@ -2,7 +2,7 @@ A simple transcript to test the use of exceptions that bubble to the top level.
 
 FYI, here are the `Exception` and `Failure` types:
 
-```ucm
+``` ucm
 scratch/main> view Exception Failure
 
   structural ability builtin.Exception where
@@ -24,7 +24,7 @@ mytest : '{IO, Exception} [Test.Result]
 mytest _ = [Ok "Great"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -38,7 +38,7 @@ mytest _ = [Ok "Great"]
       mytest : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   ()
@@ -73,7 +73,7 @@ error msg a =
 unique type RuntimeError =
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -88,7 +88,7 @@ unique type RuntimeError =
       main2 : '{Exception} r
 
 ```
-```ucm
+``` ucm
 scratch/main> run main2
 
   💔💥

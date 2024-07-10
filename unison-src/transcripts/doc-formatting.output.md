@@ -9,7 +9,7 @@ foo n =
   n + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ foo n =
       foo : Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> view foo
 
   foo : Nat -> Nat
@@ -38,7 +38,7 @@ Note that `@` and `:]` must be escaped within docs.
 escaping = [: Docs look [: like \@this \:] :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -51,7 +51,7 @@ escaping = [: Docs look [: like \@this \:] :]
       escaping : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view escaping
 
   escaping : Doc
@@ -70,7 +70,7 @@ commented = [:
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -83,7 +83,7 @@ commented = [:
       commented : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view commented
 
   commented : Doc
@@ -105,7 +105,7 @@ Handling of indenting in docs between the parser and pretty-printer is a bit fid
 doc1 = [:   hi   :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -118,7 +118,7 @@ doc1 = [:   hi   :]
       doc1 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc1
 
   doc1 : Doc
@@ -137,7 +137,7 @@ doc2 = [: hello
           and the rest. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -150,7 +150,7 @@ doc2 = [: hello
       doc2 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc2
 
   doc2 : Doc
@@ -176,7 +176,7 @@ Note that because of the special treatment of the first line mentioned above, wh
    :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -189,7 +189,7 @@ Note that because of the special treatment of the first line mentioned above, wh
       doc3 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc3
 
   doc3 : Doc
@@ -223,7 +223,7 @@ doc4 = [: Here's another example of some paragraphs.
             - Apart from this one. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -236,7 +236,7 @@ doc4 = [: Here's another example of some paragraphs.
       doc4 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc4
 
   doc4 : Doc
@@ -258,7 +258,7 @@ doc5 = [:   - foo
           and the rest. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -271,7 +271,7 @@ doc5 = [:   - foo
       doc5 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc5
 
   doc5 : Doc
@@ -290,7 +290,7 @@ doc6 = [:
        :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -303,7 +303,7 @@ doc6 = [:
       doc6 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc6
 
   doc6 : Doc
@@ -323,7 +323,7 @@ empty = [::]
 expr = foo 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -337,7 +337,7 @@ expr = foo 1
       expr  : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> view empty
 
   empty : Doc
@@ -384,7 +384,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -397,7 +397,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
       test1 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view test1
 
   test1 : Doc
@@ -466,7 +466,7 @@ reg1363 = [: `@List.take foo` bar
   baz :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -479,7 +479,7 @@ reg1363 = [: `@List.take foo` bar
       reg1363 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view reg1363
 
   reg1363 : Doc
@@ -496,7 +496,7 @@ test2 = [:
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -511,7 +511,7 @@ test2 = [:
 ```
 View is fine.
 
-```ucm
+``` ucm
 scratch/main> view test2
 
   test2 : Doc
@@ -523,7 +523,7 @@ scratch/main> view test2
 ```
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 
-```ucm
+``` ucm
 scratch/main> display test2
 
   Take a look at this:

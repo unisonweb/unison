@@ -5,7 +5,7 @@ a.thing = "a"
 b.thing = "b"
 ```
 
-```ucm
+``` ucm
 -- Should suffix-search and find values in sub-namespaces
 .> view thing
 

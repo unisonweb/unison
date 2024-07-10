@@ -10,7 +10,7 @@ Stream.send : a -> ()
 Stream.send _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -33,7 +33,7 @@ X.x : a -> ()
 X.x _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -55,7 +55,7 @@ structural ability X where
   x : ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -76,7 +76,7 @@ X.x.set = ()
 X.x = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -109,7 +109,7 @@ structural type X = Z
 X = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -124,7 +124,7 @@ X = ()
       X : ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -15,7 +15,7 @@ mkTestCase = do
   saveTestCase "case-01" "v4" combines (l1, l2, l3)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,7 +32,7 @@ mkTestCase = do
       mkTestCase : '{IO, Exception} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

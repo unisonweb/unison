@@ -16,7 +16,7 @@ testBasicFork = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -56,7 +56,7 @@ testBasicMultiThreadMVar = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -70,7 +70,7 @@ testBasicMultiThreadMVar = 'let
       thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -127,7 +127,7 @@ testTwoThreads = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -143,7 +143,7 @@ testTwoThreads = 'let
       testTwoThreads  : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -1,6 +1,6 @@
 # List Projects And Branches Test
 
-```api
+``` api
 --  Should list all projects
 GET /api/projects
 [

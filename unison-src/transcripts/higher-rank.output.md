@@ -9,7 +9,7 @@ f id = (id 1, id "hi")
 > f (x -> x)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -38,7 +38,7 @@ f id _ =
   ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -66,7 +66,7 @@ Functor.blah = cases Functor f ->
   ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -110,7 +110,7 @@ Loc.transform2 nt = cases Loc f ->
   Loc f'
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -139,7 +139,7 @@ structural type HigherRanked = HigherRanked (forall a. a -> a)
 
 We should be able to add and view records with higher-rank fields.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

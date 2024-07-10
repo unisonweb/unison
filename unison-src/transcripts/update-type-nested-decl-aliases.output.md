@@ -5,7 +5,7 @@ structural type A.B = OneAlias Foo
 structural type A = B.TheOtherAlias Foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -20,7 +20,7 @@ structural type A = B.TheOtherAlias Foo
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -34,7 +34,7 @@ scratch/main> add
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,7 +52,7 @@ Bug: we want this update to be rejected earlier, because it violates the "decl c
 only one name for each constructor. We instead get too far in the update process, and are delivered a bogus scratch.u
 file to stare at.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

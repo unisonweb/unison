@@ -5,7 +5,7 @@ nested.names.x.doc = {{ Documentation }}
 nested.names.x = 42
 ```
 
-```api
+``` api
 --  Should NOT find names by suffix
 GET /api/projects/scratch/branches/main/getDefinition?names=x
 {
@@ -216,7 +216,7 @@ doctest.otherstuff.thing = "A different thing"
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
 {
     "missingDefinitions": [],
@@ -334,7 +334,7 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doc
 }
 ```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
 {
     "missingDefinitions": [],

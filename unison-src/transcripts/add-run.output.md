@@ -13,7 +13,7 @@ is2even : 'Boolean
 is2even = '(even 2)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -30,7 +30,7 @@ is2even = '(even 2)
 ```
 it errors if there isn't a previous run
 
-```ucm
+``` ucm
 scratch/main> add.run foo
 
   ⚠️
@@ -39,7 +39,7 @@ scratch/main> add.run foo
   something before attempting to save it.
 
 ```
-```ucm
+``` ucm
 scratch/main> run is2even
 
   true
@@ -48,7 +48,7 @@ scratch/main> run is2even
 it errors if the desired result name conflicts with a name in the
 unison file
 
-```ucm
+``` ucm
 scratch/main> add.run is2even
 
   ⚠️
@@ -59,7 +59,7 @@ scratch/main> add.run is2even
 ```
 otherwise, the result is successfully persisted
 
-```ucm
+``` ucm
 scratch/main> add.run foo.bar.baz
 
   ⍟ I've added these definitions:
@@ -67,7 +67,7 @@ scratch/main> add.run foo.bar.baz
     foo.bar.baz : Boolean
 
 ```
-```ucm
+``` ucm
 scratch/main> view foo.bar.baz
 
   foo.bar.baz : Boolean
@@ -87,7 +87,7 @@ main : '{IO, Exception} (Nat -> Nat -> Nat)
 main _ = y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -102,7 +102,7 @@ main _ = y
       z    : Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   a b -> a Nat.+ b Nat.+ z 10
@@ -122,7 +122,7 @@ inc : Nat -> Nat
 inc x = x + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -135,7 +135,7 @@ inc x = x + 1
       inc : Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add inc
 
   ⍟ I've added these definitions:
@@ -148,7 +148,7 @@ main : '(Nat -> Nat)
 main _ x = inc x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -161,7 +161,7 @@ main _ x = inc x
       main : '(Nat -> Nat)
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   inc
@@ -186,7 +186,7 @@ y = x + x
 main = 'y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -201,7 +201,7 @@ main = 'y
       y    : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   2
@@ -211,7 +211,7 @@ scratch/main> run main
 x = 50
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -226,7 +226,7 @@ x = 50
 ```
 this saves 2 to xres, rather than 100
 
-```ucm
+``` ucm
 scratch/main> add.run xres
 
   ⍟ I've added these definitions:
@@ -245,7 +245,7 @@ scratch/main> view xres
 main = '5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -258,7 +258,7 @@ main = '5
       main : 'Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   5
@@ -279,7 +279,7 @@ scratch/main> add.run xres
 main = '5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -292,7 +292,7 @@ main = '5
       main : 'Nat
 
 ```
-```ucm
+``` ucm
 .> run main
 
   5

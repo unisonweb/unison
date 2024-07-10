@@ -28,7 +28,7 @@ body k out v =
   atomically '(TVar.write out (Some n))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ body k out v =
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -90,7 +90,7 @@ tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -106,7 +106,7 @@ tests = '(map spawn nats)
       tests   : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

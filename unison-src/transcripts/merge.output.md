@@ -3,7 +3,7 @@
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
 branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
-```ucm
+``` ucm
 scratch/main> help merge
 
   merge
@@ -45,7 +45,7 @@ bar = "bobs bar"
 
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -82,7 +82,7 @@ bar = "bobs bar"
 
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -121,7 +121,7 @@ bar : Text
 bar = foo ++ " - " ++ foo
 ```
 
-```ucm
+``` ucm
 project/bob> display bar
 
   "old foo - old foo"
@@ -129,7 +129,7 @@ project/bob> display bar
 ```
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -175,7 +175,7 @@ bar : Text
 bar = "alices bar"
 ```
 
-```ucm
+``` ucm
 project/alice> display foo
 
   "foo - alices bar - old baz"
@@ -188,7 +188,7 @@ baz : Text
 baz = "bobs baz"
 ```
 
-```ucm
+``` ucm
 project/bob> display foo
 
   "foo - old bar - bobs baz"
@@ -196,7 +196,7 @@ project/bob> display foo
 ```
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -236,7 +236,7 @@ baz : Text
 baz = "old baz"
 ```
 
-```ucm
+``` ucm
 project/main> display foo
 
   "old foo - old bar - old baz"
@@ -249,7 +249,7 @@ baz : Text
 baz = "alices baz"
 ```
 
-```ucm
+``` ucm
 project/alice> display foo
 
   "old foo - old bar - alices baz"
@@ -262,7 +262,7 @@ bar : Text
 bar = "bobs bar" ++ " - " ++ baz
 ```
 
-```ucm
+``` ucm
 project/bob> display foo
 
   "old foo - bobs bar - old baz"
@@ -270,7 +270,7 @@ project/bob> display foo
 ```
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -315,7 +315,7 @@ foo = "alices foo"
 
 Bob's changes:
 
-```ucm
+``` ucm
 project/bob> delete.term foo
 
   Done.
@@ -323,7 +323,7 @@ project/bob> delete.term foo
 ```
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -368,7 +368,7 @@ lib.bothDifferent.baz = 21
 
 Merge result:
 
-```ucm
+``` ucm
 project/alice> merge bob
 
   I merged project/bob into project/alice.
@@ -395,7 +395,7 @@ project/alice> view foo bar baz
 
 If Bob is equals Alice, then merging Bob into Alice looks like this.
 
-```ucm
+``` ucm
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
@@ -421,7 +421,7 @@ project/alice> merge /bob
 
 If Bob is behind Alice, then merging Bob into Alice looks like this.
 
-```ucm
+``` ucm
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
@@ -444,7 +444,7 @@ foo : Text
 foo = "foo"
 ```
 
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -462,7 +462,7 @@ project/alice> merge /bob
 
 If Bob is ahead of Alice, then merging Bob into Alice looks like this.
 
-```ucm
+``` ucm
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
@@ -485,7 +485,7 @@ foo : Text
 foo = "foo"
 ```
 
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -499,7 +499,7 @@ project/alice> merge /bob
 ```
 ## No-op merge: merge empty namespace into empty namespace
 
-```ucm
+``` ucm
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
@@ -531,7 +531,7 @@ foo = "foo"
 
 Alice's delete:
 
-```ucm
+``` ucm
 project/alice> delete.term foo
 
   Done.
@@ -544,7 +544,7 @@ bar : Text
 bar = foo ++ " - " ++ foo
 ```
 
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -605,7 +605,7 @@ bar : Text
 bar = foo ++ " - " ++ foo
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -671,7 +671,7 @@ baz : Text
 baz = "bobs baz"
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -710,7 +710,7 @@ qux =
 
 ```
 
-```ucm
+``` ucm
 project/merge-bob-into-alice> view bar baz
 
   bar : Text
@@ -742,7 +742,7 @@ Bob's changes:
 unique type Foo = MkFoo Nat Text
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -793,7 +793,7 @@ Bob's renames `Qux` to `BobQux`:
 unique type Foo = Baz Nat | BobQux Text
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -834,7 +834,7 @@ unique type Foo = Baz Nat | Qux Text
 
 Alice's rename:
 
-```ucm
+``` ucm
 project/alice> move.term Foo.Baz Foo.Alice
 
   Done.
@@ -842,13 +842,13 @@ project/alice> move.term Foo.Baz Foo.Alice
 ```
 Bob's rename:
 
-```ucm
+``` ucm
 project/bob> move.term Foo.Qux Foo.Bob
 
   Done.
 
 ```
-```ucm
+``` ucm
 project/alice> merge bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -895,7 +895,7 @@ unique ability my.cool where
   thing : Nat -> Nat
 ```
 
-```ucm
+``` ucm
 project/alice> merge bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -944,7 +944,7 @@ unique type Foo = Alice Nat
 
 Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.Bar` term:
 
-```ucm
+``` ucm
 project/bob> delete.term Foo.Bar
 
   Done.
@@ -956,7 +956,7 @@ unique type Foo = Bar Nat Nat
 
 These won't cleanly merge.
 
-```ucm
+``` ucm
 project/alice> merge bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -1004,7 +1004,7 @@ Foo.Bar.Hello = 17
 
 Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
 
-```ucm
+``` ucm
 project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 
   Foo.Bar.Baz : Nat
@@ -1019,7 +1019,7 @@ project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 ```
 Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one constructor's fully qualified names doesn't actually change. The other constructor reuses the name of the deleted term.
 
-```ucm
+``` ucm
 project/bob> view Foo.Bar
 
   type Foo.Bar = Baz Nat | Hello Nat Nat
@@ -1029,7 +1029,7 @@ At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in diffe
 
 Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
 
-```ucm
+``` ucm
 project/alice> merge bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -1089,7 +1089,7 @@ bob : Foo -> Nat
 bob _ = 19
 ```
 
-```ucm
+``` ucm
 project/alice> merge bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -1157,7 +1157,7 @@ foo = "bobs foo"
 
 Attempt to merge:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -1195,7 +1195,7 @@ foo : Text
 foo = "alice and bobs foo"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1208,7 +1208,7 @@ foo = "alice and bobs foo"
       foo : Text
 
 ```
-```ucm
+``` ucm
 project/merge-bob-into-alice> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -1238,7 +1238,7 @@ project/alice> branches
 
 `merge.commit` can only be run on a "merge branch".
 
-```ucm
+``` ucm
 project/main> branch topic
 
   Done. I've created the topic branch based off of main.
@@ -1247,7 +1247,7 @@ project/main> branch topic
        `switch /main` then `merge /topic`.
 
 ```
-```ucm
+``` ucm
 project/topic> merge.commit
 
   It doesn't look like there's a merge in progress.
@@ -1288,7 +1288,7 @@ baz : Text
 baz = "baz"
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1318,7 +1318,7 @@ One way to fix this in the future would be to introduce a syntax for defining al
 
 Alice's branch:
 
-```ucm
+``` ucm
 project/alice> alias.type lib.builtins.Nat MyNat
 
   Done.
@@ -1330,7 +1330,7 @@ Bob's branch:
 unique type MyNat = MyNat Nat
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1354,7 +1354,7 @@ Alice's branch:
 unique type Foo = Bar
 ```
 
-```ucm
+``` ucm
 project/alice> alias.term Foo.Bar Foo.some.other.Alias
 
   Done.
@@ -1367,7 +1367,7 @@ bob : Nat
 bob = 100
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1392,7 +1392,7 @@ Alice's branch:
 unique type Foo = Bar
 ```
 
-```ucm
+``` ucm
 project/alice> delete.term Foo.Bar
 
   Done.
@@ -1405,7 +1405,7 @@ bob : Nat
 bob = 100
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1429,7 +1429,7 @@ structural type A = B Nat | C Nat Nat
 structural type A.inner.X = Y Nat | Z Nat Nat
 ```
 
-```ucm
+``` ucm
 project/alice> names A
 
   Type
@@ -1446,7 +1446,7 @@ bob : Nat
 bob = 100
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   On project/alice, the type A.inner.X is an alias of A. I'm not
@@ -1461,7 +1461,7 @@ Constructors may only exist within the corresponding decl's namespace.
 
 Alice's branch:
 
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -1475,7 +1475,7 @@ project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 ```
 Bob's branch:
 
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -1483,7 +1483,7 @@ project/bob> add
     bob : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> merge bob
 
   Sorry, I wasn't able to perform the merge, because I need all
@@ -1514,7 +1514,7 @@ bob : Nat
 bob = 100
 ```
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1539,7 +1539,7 @@ LCA:
 structural type Foo = Bar Nat | Baz Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1552,7 +1552,7 @@ structural type Foo = Bar Nat | Baz Nat Nat
       structural type Foo
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -1566,7 +1566,7 @@ project/main> delete.term Foo.Baz
 ```
 Alice's branch:
 
-```ucm
+``` ucm
 project/main> branch alice
 
   Done. I've created the alice branch based off of main.
@@ -1588,7 +1588,7 @@ alice : Nat
 alice = 100
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1601,7 +1601,7 @@ alice = 100
       alice : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -1611,7 +1611,7 @@ project/alice> add
 ```
 Bob's branch:
 
-```ucm
+``` ucm
 project/main> branch bob
 
   Done. I've created the bob branch based off of main.
@@ -1633,7 +1633,7 @@ bob : Nat
 bob = 101
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1646,7 +1646,7 @@ bob = 101
       bob : Nat
 
 ```
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -1656,7 +1656,7 @@ project/bob> add
 ```
 Now we merge:
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -1671,7 +1671,7 @@ foo = 17
 bar = 17
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1685,7 +1685,7 @@ bar = 17
       foo : Nat
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -1709,7 +1709,7 @@ project/alice> delete.term bar
 foo = 18
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1723,7 +1723,7 @@ foo = 18
       foo : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -1743,7 +1743,7 @@ project/main> branch bob
 bob = 101
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1756,7 +1756,7 @@ bob = 101
       bob : Nat
 
 ```
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -1764,7 +1764,7 @@ project/bob> add
     bob : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I merged project/bob into project/alice.
@@ -1776,7 +1776,7 @@ project/alice> merge /bob
 type Foo = Bar | Baz
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1789,7 +1789,7 @@ type Foo = Bar | Baz
       type Foo
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -1808,7 +1808,7 @@ project/main> branch topic
 boop = "boop"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1821,7 +1821,7 @@ boop = "boop"
       boop : Text
 
 ```
-```ucm
+``` ucm
 project/topic> add
 
   ⍟ I've added these definitions:
@@ -1833,7 +1833,7 @@ project/topic> add
 type Foo = Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1847,7 +1847,7 @@ type Foo = Bar
       type Foo
 
 ```
-```ucm
+``` ucm
 project/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -1856,7 +1856,7 @@ project/main> update
   Done.
 
 ```
-```ucm
+``` ucm
 project/main> merge topic
 
   I merged project/topic into project/main.
@@ -1883,7 +1883,7 @@ baz : Text
 baz = "lca"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1898,7 +1898,7 @@ baz = "lca"
       foo : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -1922,7 +1922,7 @@ baz : Text
 baz = "bob"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1936,7 +1936,7 @@ baz = "bob"
       baz : Text
 
 ```
-```ucm
+``` ucm
 project/bob> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -1955,7 +1955,7 @@ baz : Text
 baz = "alice"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1970,7 +1970,7 @@ baz = "alice"
       foo : Nat
 
 ```
-```ucm
+``` ucm
 project/alice> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -1986,7 +1986,7 @@ project/alice> update
 When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
 the underlying namespace.
 
-```ucm
+``` ucm
 project/alice> merge /bob
 
   I couldn't automatically merge project/bob into project/alice.
@@ -2038,7 +2038,7 @@ Let's make three identical namespaces with different histories:
 a = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2051,7 +2051,7 @@ a = 1
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -2063,7 +2063,7 @@ project/alice> add
 b = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2076,7 +2076,7 @@ b = 2
       b : ##Nat
 
 ```
-```ucm
+``` ucm
 project/alice> add
 
   ⍟ I've added these definitions:
@@ -2088,7 +2088,7 @@ project/alice> add
 b = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2096,7 +2096,7 @@ b = 2
   file has been previously added to the codebase.
 
 ```
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -2108,7 +2108,7 @@ project/bob> add
 a = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2121,7 +2121,7 @@ a = 1
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 project/bob> add
 
   ⍟ I've added these definitions:
@@ -2134,7 +2134,7 @@ a = 1
 b = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2142,7 +2142,7 @@ b = 2
   file has been previously added to the codebase.
 
 ```
-```ucm
+``` ucm
 project/carol> add
 
   ⍟ I've added these definitions:
@@ -2193,7 +2193,7 @@ bar =
   foo + foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2208,7 +2208,7 @@ bar =
       ignore : a -> ()
 
 ```
-```ucm
+``` ucm
 scratch/alice> add
 
   ⍟ I've added these definitions:
@@ -2232,7 +2232,7 @@ bar =
   foo + foo + foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2246,7 +2246,7 @@ bar =
       bar : Nat
 
 ```
-```ucm
+``` ucm
 scratch/bob> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -2263,7 +2263,7 @@ foo : Nat
 foo = 19
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -2277,7 +2277,7 @@ foo = 19
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/alice> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -2290,7 +2290,7 @@ scratch/alice> update
   Done.
 
 ```
-```ucm
+``` ucm
 scratch/alice> merge /bob
 
   I merged scratch/bob into scratch/alice.

@@ -1,4 +1,4 @@
-```ucm
+``` ucm
 scratch/main> delete foo
 
   ⚠️
@@ -12,7 +12,7 @@ foo = 1
 structural type Foo = Foo ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

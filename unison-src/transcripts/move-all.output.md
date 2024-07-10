@@ -11,7 +11,7 @@ Foo.termInA = 1
 unique type Foo.T = T
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,7 +27,7 @@ unique type Foo.T = T
       Foo.termInA : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -43,7 +43,7 @@ Foo.termInA = 2
 unique type Foo.T = T1 | T2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -59,7 +59,7 @@ unique type Foo.T = T1 | T2
         (also named Foo)
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -70,7 +70,7 @@ scratch/main> update
 ```
 Should be able to move the term, type, and namespace, including its types, terms, and sub-namespaces.
 
-```ucm
+``` ucm
 scratch/main> move Foo Bar
 
   Done.
@@ -113,7 +113,7 @@ scratch/main> history Bar
 bonk = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -126,7 +126,7 @@ bonk = 5
       bonk : Nat
 
 ```
-```ucm
+``` ucm
 z/main> builtins.merge
 
   Done.
@@ -153,7 +153,7 @@ z/main> ls
 bonk.zonk = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -167,7 +167,7 @@ bonk.zonk = 5
         (also named zonk)
 
 ```
-```ucm
+``` ucm
 a/main> builtins.merge
 
   Done.
@@ -195,7 +195,7 @@ a/main> view zonk.zonk
 ```
 ## Sad Path - No term, type, or namespace named src
 
-```ucm
+``` ucm
 scratch/main> move doesntexist foo
 
   ⚠️

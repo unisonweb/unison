@@ -8,7 +8,7 @@ isEmpty x = match x with
   _ -> false
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -29,7 +29,7 @@ isEmpty2 = cases
   _ -> false
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -45,7 +45,7 @@ isEmpty2 = cases
 ```
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
-```ucm
+``` ucm
 scratch/main> view isEmpty
 
   isEmpty : [t] -> Boolean
@@ -70,7 +70,7 @@ merge xs ys = match (xs, ys) with
     else            h2 +: merge (h +: t) t2
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -90,7 +90,7 @@ merge2 = cases
     else            h2 +: merge2 (h +: t) t2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -106,7 +106,7 @@ merge2 = cases
 ```
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
-```ucm
+``` ucm
 scratch/main> view merge
 
   merge : [a] -> [a] -> [a]
@@ -139,7 +139,7 @@ blorf = cases
 > blorf T F
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -180,7 +180,7 @@ merge3 = cases
                    | otherwise -> h2 +: merge3 (h +: t) t2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -193,7 +193,7 @@ merge3 = cases
       merge3 : [a] -> [a] -> [a]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -222,7 +222,7 @@ merge4 a b = match (a,b) with
   h +: t, h2 +: t2 | otherwise -> h2 +: merge4 (h +: t) t2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

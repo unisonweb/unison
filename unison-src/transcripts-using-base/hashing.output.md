@@ -2,7 +2,7 @@
 
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
-```ucm
+``` ucm
 scratch/main> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
@@ -74,7 +74,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 > ex5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -119,7 +119,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 ```
 And here's the full API:
 
-```ucm
+``` ucm
 scratch/main> find-in builtin.crypto
 
   1.  type CryptoFailure
@@ -159,7 +159,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 > hash Sha3_256 (fromHex "3849238492")
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -311,7 +311,7 @@ test> crypto.hash.numTests =
         checks (List.map t (range 0 20))
 ```
 
-```ucm
+``` ucm
 scratch/main> test
 
   Cached test results (`help testcache` to learn more)
@@ -378,7 +378,7 @@ test> hmac_sha2_512.tests.ex2 =
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -441,7 +441,7 @@ test> md5.tests.ex3 =
     "e4d909c290d0fb1ca068ffaddf22cbd0"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -473,7 +473,7 @@ test> md5.tests.ex3 =
     ✅ Passed Passed
 
 ```
-```ucm
+``` ucm
 scratch/main> test
 
   Cached test results (`help testcache` to learn more)

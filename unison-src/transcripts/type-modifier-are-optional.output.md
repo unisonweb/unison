@@ -12,7 +12,7 @@ unique ability MyAbilityU where const : a
 structural ability MyAbilityS where const : a
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

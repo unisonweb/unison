@@ -423,14 +423,14 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef allowErrors errOk)
                     -- Open a ucm block which will contain the output from UCM
                     -- after processing the UnisonFileChanged event.
-                    liftIO (output "```ucm\n")
+                    liftIO (output "``` ucm\n")
                     -- Close the ucm block after processing the UnisonFileChanged event.
                     atomically . Q.enqueue cmdQueue $ Nothing
                     let sourceName = fromMaybe "scratch.u" filename
                     liftIO $ updateVirtualFile sourceName txt
                     pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
-                    liftIO (output "```api\n")
+                    liftIO (output "``` api\n")
                     liftIO (for_ apiRequests apiRequest)
                     liftIO (output "```")
                     awaitInput
@@ -438,7 +438,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef hidden hide)
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (writeIORef hasErrors False)
-                    liftIO (output "```ucm")
+                    liftIO (output "``` ucm")
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
