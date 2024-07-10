@@ -225,7 +225,9 @@ notifyNumbered = \case
                   <> IP.makeExample' IP.undo
                   <> " or use a hash from "
                   <> IP.makeExample' IP.branchReflog
-                  <> " to undo the results of this merge."
+                  <> " with "
+                  <> IP.makeExample' IP.reset
+                  <> " to reset to a previous state."
             ]
       )
       (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)

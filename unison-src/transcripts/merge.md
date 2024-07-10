@@ -1645,7 +1645,7 @@ project/carol> history
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Variables named `_`
@@ -1700,8 +1700,4 @@ scratch/alice> update
 
 ```ucm
 scratch/alice> merge /bob
-```
-
-```ucm:hide
-.> project.delete scratch
 ```
