@@ -8,15 +8,16 @@ where
 
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch.Type qualified as Branch
 import Unison.Names (Names)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 
--- | Builds a pretty print env decl from a names object.
+-- -- | Builds a pretty print env decl from a names object.
 prettyPrintEnvDeclFromNames :: Names -> Cli PPE.PrettyPrintEnvDecl
 prettyPrintEnvDeclFromNames ns =
   Cli.runTransaction Codebase.hashLength <&> \hashLen ->
@@ -29,4 +30,4 @@ prettyPrintEnvDeclFromNames ns =
 -- names object.
 currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl = do
-  Cli.currentNames >>= prettyPrintEnvDeclFromNames
+  Branch.pped <$> Cli.getCurrentBranch0
