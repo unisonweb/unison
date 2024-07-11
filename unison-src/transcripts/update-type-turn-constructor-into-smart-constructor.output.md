@@ -1,11 +1,11 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 makeFoo : Nat -> Foo
 makeFoo n = Bar (n+10)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ makeFoo n = Bar (n+10)
       makeFoo : Nat -> Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -28,14 +28,14 @@ scratch/main> add
     makeFoo : Nat -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = internal.Bar Nat
 
 Foo.Bar : Nat -> Foo
 Foo.Bar n = internal.Bar n
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,7 +50,7 @@ Foo.Bar n = internal.Bar n
       Foo.Bar : Nat -> Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

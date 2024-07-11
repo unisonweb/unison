@@ -1,4 +1,4 @@
-```unison
+``` unison
 a.b.one = 1
 a.two = 2
 
@@ -9,7 +9,7 @@ structural type a.x.Foo = Foo | Bar
 structural type a.b.Baz = Boo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,7 +27,7 @@ structural type a.b.Baz = Boo
       a.x.three : ##Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

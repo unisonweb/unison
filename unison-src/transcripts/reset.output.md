@@ -1,9 +1,10 @@
 # reset loose code
-```unison
+
+``` unison
 a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -16,7 +17,7 @@ a = 5
       a : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -50,11 +51,11 @@ scratch/main> history
   □ 1. #4bigcpnl7t (start of history)
 
 ```
-```unison
+``` unison
 foo.a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -67,7 +68,7 @@ foo.a = 5
       foo.a : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -102,17 +103,17 @@ scratch/main> ls foo.foo
 ```
 # reset branch
 
-```ucm
+``` ucm
 foo/main> history
 
   ☝️  The namespace  is empty.
 
 ```
-```unison
+``` unison
 a = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -125,7 +126,7 @@ a = 5
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:
@@ -149,11 +150,11 @@ foo/main> history
   □ 1. #5l94rduvel (start of history)
 
 ```
-```unison
+``` unison
 a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -167,7 +168,7 @@ a = 3
       a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -192,11 +193,12 @@ foo/main> history
 # ambiguous reset
 
 ## ambiguous target
-```unison
+
+``` unison
 main.a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -209,7 +211,7 @@ main.a = 3
       main.a : ##Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:
@@ -244,11 +246,11 @@ foo/main> reset 2 main
 ```
 ## ambiguous hash
 
-```unison
+``` unison
 main.a = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -256,7 +258,7 @@ main.a = 3
   file has been previously added to the codebase.
 
 ```
-```ucm
+``` ucm
 foo/main> switch /topic
 
 foo/topic> add

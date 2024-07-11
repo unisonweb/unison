@@ -2,12 +2,12 @@
 
 Updating conflicted definitions works fine.
 
-```unison
+``` unison
 x = 1
 temp = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,7 +21,7 @@ temp = 2
       x    : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -38,11 +38,11 @@ scratch/main> delete.term temp
   Done.
 
 ```
-```unison
+``` unison
 x = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -56,7 +56,7 @@ x = 3
       x : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

@@ -1,4 +1,4 @@
-```unison
+``` unison
 x = 30
 
 y : Nat
@@ -12,7 +12,7 @@ ability Ask a where
   ask : a
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

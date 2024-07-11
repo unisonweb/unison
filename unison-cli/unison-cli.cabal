@@ -196,6 +196,7 @@ library
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
@@ -337,6 +338,7 @@ executable transcripts
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
@@ -485,6 +487,7 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output

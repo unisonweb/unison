@@ -1,10 +1,10 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 ---
 title: /private/tmp/scratch.u
 ---
@@ -16,8 +16,7 @@ mytest = [Ok "ok"]
 
 ```
 
-
-```ucm
+``` ucm
 
   Loading changes detected in /private/tmp/scratch.u.
 
@@ -32,7 +31,7 @@ mytest = [Ok "ok"]
       mytest : [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -60,7 +59,7 @@ scratch/main> edit mytest
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm /private/tmp/scratch.u
 bar : Nat
 bar = 456
 
@@ -68,11 +67,11 @@ foo : Nat
 foo = 123
 ```
 
-```unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm /private/tmp/scratch.u
 test> mytest = [Ok "ok"]
 ```
 
-```ucm
+``` ucm
 scratch/main> edit missing
 
   ⚠️

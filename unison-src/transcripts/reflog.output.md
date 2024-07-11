@@ -1,11 +1,11 @@
 First we make two changes to the codebase, so that there's more than one line
 for the `reflog` command to display:
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -18,7 +18,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -26,11 +26,11 @@ x = 1
     x : Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,7 +43,7 @@ y = 2
       y : Nat
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -56,7 +56,7 @@ y = 2
   y = 2
 
 ```
-```ucm
+``` ucm
 .> reflog
 
   Here is a log of the root namespace hashes, starting with the
@@ -81,13 +81,14 @@ y = 2
 
 ```
 If we `reset-root` to its previous value, `y` disappears.
-```ucm
+
+``` ucm
 .> reset-root 2
 
   Done.
 
 ```
-```ucm
+``` ucm
 .> view y
 
   ⚠️

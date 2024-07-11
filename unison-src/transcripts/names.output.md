@@ -2,7 +2,7 @@
 
 Example uses of the `names` command and output
 
-```unison
+``` unison
 -- Some names with the same value
 some.place.x = 1
 some.otherplace.y = 1
@@ -12,7 +12,7 @@ somewhere.z = 1
 somewhere.y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -29,7 +29,7 @@ somewhere.y = 2
       somewhere.z       : ##Nat
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -43,7 +43,7 @@ somewhere.y = 2
 ```
 `names` searches relative to the current path.
 
-```ucm
+``` ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
 -- But we don't see somewhere.z which is has the same value but is out of our namespace
 .some> names x
@@ -78,8 +78,7 @@ somewhere.y = 2
 ```
 `names.global` searches from the root, and absolutely qualifies results
 
-
-```ucm
+``` ucm
 -- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.
 .some> names.global x
 

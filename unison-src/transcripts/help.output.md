@@ -1,6 +1,6 @@
 # Shows `help` output
 
-```ucm
+``` ucm
 scratch/main> help
 
   add
@@ -966,3 +966,4 @@ scratch/main> help-topic testcache
 
 ```
 We should add a command to show help for hidden commands also.
+

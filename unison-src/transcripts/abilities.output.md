@@ -1,7 +1,6 @@
-
 Some random ability stuff to ensure things work.
 
-```unison
+``` unison
 unique ability A where
   one : Nat ->{A} Nat
   two : Nat -> Nat ->{A} Nat
@@ -17,7 +16,7 @@ ha = cases
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -31,7 +30,7 @@ ha = cases
       ha : Request {A} r -> r
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

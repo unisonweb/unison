@@ -1,6 +1,6 @@
 This transcript is intended to make visible accidental changes to the hashing algorithm.
 
-```ucm
+``` ucm
 scratch/main> find.verbose
 
   1.   -- #sgesq8035ut22q779pl1g4gqsg8c81894jjonmrq1bjltphkath225up841hk8dku59tnnc4laj9nggbofamgei4klof0ldc20uj2oo

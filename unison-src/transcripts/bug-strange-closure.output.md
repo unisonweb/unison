@@ -1,7 +1,6 @@
-
 We can display the guide before and after adding it to the codebase:
 
-```ucm
+``` ucm
 .> display doc.guide
 
   # Unison computable documentation
@@ -414,11 +413,11 @@ We can display the guide before and after adding it to the codebase:
 ```
 But we can't display this due to a decompilation problem.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -431,7 +430,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       rendered : Annotated () (Either SpecialForm ConsoleText)
 
 ```
-```ucm
+``` ucm
 .> display rendered
 
   # Unison computable documentation
@@ -845,13 +844,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 
 > rendered
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

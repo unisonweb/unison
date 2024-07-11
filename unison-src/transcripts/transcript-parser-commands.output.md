@@ -2,11 +2,11 @@
 
 The transcript parser is meant to parse `ucm` and `unison` blocks.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -27,7 +27,7 @@ x = 1
     x : Nat
 
 ```
-```unison
+``` unison
 ---
 title: :scratch.u
 ---
@@ -35,8 +35,7 @@ z
 
 ```
 
-
-```ucm
+``` ucm
 .> delete foo
 
   ⚠️
@@ -45,7 +44,7 @@ z
     foo
 
 ```
-```ucm
+``` ucm
 .> delete lineToken.call
 
   ⚠️
@@ -56,21 +55,15 @@ z
 ```
 However handling of blocks of other languages should be supported.
 
-```python
-
+``` python
 some python code
-
 ```
 
-```c_cpp
-
+``` c_cpp
 some C++ code
-
 ```
 
-```c9search
-
+``` c9search
 some cloud9 code
-
 ```
 

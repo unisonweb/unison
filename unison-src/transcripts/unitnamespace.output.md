@@ -1,8 +1,8 @@
-```unison
+``` unison
 `()`.foo = "bar"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,7 +15,7 @@
       `()`.foo : ##Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

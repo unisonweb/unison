@@ -4,7 +4,7 @@ This transcript defines unit tests for builtin functions. There's a single `scra
 
 ## `Int` functions
 
-```unison
+``` unison
 use Int
 
 -- used for some take/drop tests later
@@ -83,7 +83,7 @@ test> Int.tests.conversions =
 
 ## `Nat` functions
 
-```unison
+``` unison
 use Nat
 
 test> Nat.tests.arithmetic =
@@ -153,7 +153,8 @@ test> Nat.tests.conversions =
 ```
 
 ## `Boolean` functions
-```unison
+
+``` unison
 test> Boolean.tests.orTable =
       checks [
         true || true == true,
@@ -177,7 +178,7 @@ test> Boolean.tests.notTable =
 
 ## `Text` functions
 
-```unison
+``` unison
 test> Text.tests.takeDropAppend =
       checks [
         "yabba" ++ "dabba" == "yabbadabba",
@@ -271,7 +272,7 @@ test> Text.tests.indexOfEmoji =
 
 ## `Bytes` functions
 
-```unison
+``` unison
 test> Bytes.tests.at =
         bs = Bytes.fromList [77, 13, 12]
         checks [
@@ -331,7 +332,7 @@ test> Bytes.tests.indexOf =
 
 ## `List` comparison
 
-```unison
+``` unison
 test> checks [
         compare [] [1,2,3] == -1,
         compare [1,2,3] [1,2,3,4] == -1,
@@ -345,7 +346,8 @@ test> checks [
 ```
 
 Other list functions
-```unison
+
+``` unison
 test> checks [
         List.take bigN [1,2,3] == [1,2,3],
         List.drop bigN [1,2,3] == []
@@ -354,14 +356,14 @@ test> checks [
 
 ## `Any` functions
 
-```unison
+``` unison
 > [Any "hi", Any (41 + 1)]
 
 test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -392,7 +394,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 ## Sandboxing functions
 
-```unison
+``` unison
 openFile1 t = openFile t
 openFile2 t = openFile1 t
 
@@ -413,7 +415,7 @@ test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -453,7 +455,7 @@ openFile]
     ✅ Passed Passed
 
 ```
-```unison
+``` unison
 openFilesIO = do
   checks
     [ not (validateSandboxedSimpl [] (value openFile))
@@ -466,7 +468,7 @@ openFilesIO = do
     ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -479,7 +481,7 @@ openFilesIO = do
       openFilesIO : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -501,12 +503,12 @@ scratch/main> io.test openFilesIO
 
 Just exercises the function
 
-```unison
+``` unison
 > Universal.murmurHash 1
 test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -534,7 +536,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
-```ucm
+``` ucm
 scratch/main> test
 
   Cached test results (`help testcache` to learn more)

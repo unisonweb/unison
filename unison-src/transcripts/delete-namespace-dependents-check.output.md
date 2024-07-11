@@ -2,15 +2,15 @@
 
 # Delete namespace dependents check
 
-This is a regression test, previously `delete.namespace` allowed a delete as long as the deletions had a name _anywhere_ in your codebase, it should only check the current project branch.
+This is a regression test, previously `delete.namespace` allowed a delete as long as the deletions had a name *anywhere* in your codebase, it should only check the current project branch.
 
-```unison
+``` unison
 sub.dependency = 123
 
 dependent = dependency + 99
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ dependent = dependency + 99
       sub.dependency : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:

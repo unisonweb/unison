@@ -1,6 +1,6 @@
 # delete.project
 
-```ucm
+``` ucm
 scratch/main> project.create-empty foo
 
   🎉 I've created the project foo.

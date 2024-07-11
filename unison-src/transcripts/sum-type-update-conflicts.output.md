@@ -4,11 +4,11 @@ https://github.com/unisonweb/unison/issues/2786
 
 First we add a sum-type to the codebase.
 
-```unison
+``` unison
 structural type X = x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ structural type X = x
         (also named lib.builtins.Unit)
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -31,10 +31,10 @@ scratch/main> add
       (also named lib.builtins.Unit)
 
 ```
-Now we update the type, changing the name of the constructors, _but_, we simultaneously
+Now we update the type, changing the name of the constructors, *but*, we simultaneously
 add a new top-level term with the same name as the old constructor.
 
-```unison
+``` unison
 structural type X = y | z
 
 X.x : Text
@@ -43,7 +43,7 @@ X.x = "some text that's not in the codebase"
 dependsOnX = Text.size X.x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -66,7 +66,7 @@ dependsOnX = Text.size X.x
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've added these definitions:
