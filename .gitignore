@@ -1,9 +1,14 @@
 # Unison
 .unison*
 test-output
-transcript-*
-scratch.u
 unisonLocal.zip
+*.uc
+# Ignore all scratch files...
+*.u
+# Except those in unison-src
+!unison-src/**/*.u
+# And integration tests
+!unison-cli-integration/integration-tests/IntegrationTests/**/*.u
 
 # Auto-generated
 jit-tests.md
@@ -19,6 +24,7 @@ dist-newstyle
 # GHC
 *.hie
 *.prof
+*.prof.html
 /.direnv/
 /.envrc
 

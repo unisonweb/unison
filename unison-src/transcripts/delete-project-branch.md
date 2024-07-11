@@ -25,3 +25,18 @@ You can delete the only branch in a project.
 ```ucm
 foo/main> delete.branch /main
 ```
+
+You can delete the last branch in the project, a new one will be created.
+
+```ucm
+scratch/main> delete.branch scratch/main
+scratch/main> branches
+```
+
+If the the last branch isn't /main, then /main will be created.
+
+```ucm
+scratch/main2> delete.branch /main
+scratch/main2> delete.branch /main2
+scratch/other> branches
+```

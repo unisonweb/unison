@@ -90,7 +90,7 @@ loadUnisonFile sourceName text = do
       !_ <- UnliftIO.evaluate names
       Debug.debugLogM Debug.Temp "Done resolving names"
       Debug.debugLogM Debug.Temp "Start typechecking BLOCK"
-      currentPath <- Cli.getCurrentPath
+      pp <- Cli.getCurrentProjectPath
       State.modify' \loopState ->
         loopState
           & #latestFile
@@ -103,7 +103,7 @@ loadUnisonFile sourceName text = do
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
                 names
               }
       Debug.debugLogM Debug.Temp "Starting parse"

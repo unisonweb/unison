@@ -43,9 +43,9 @@ absolute.term = "absolute"
 ```
 
 ```ucm
-.> add
+scratch/main> add
 -- Should tab complete absolute names
-.> debug.tab-complete view .absolute.te
+scratch/main> debug.tab-complete view .absolute.te
 ```
 
 ## Tab complete namespaces

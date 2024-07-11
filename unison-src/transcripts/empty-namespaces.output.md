@@ -52,7 +52,12 @@ The history of the namespace should be empty.
 ```ucm
 scratch/main> history mynamespace
 
-  ☝️  The namespace mynamespace is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
