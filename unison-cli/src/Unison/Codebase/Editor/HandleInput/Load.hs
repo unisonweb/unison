@@ -24,7 +24,6 @@ import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
@@ -42,9 +41,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile.Names qualified as UF
-import Unison.Util.Timing qualified as Timing
 import Unison.WatchKind qualified as WK
-import UnliftIO qualified
 
 handleLoad :: Maybe FilePath -> Cli ()
 handleLoad maybePath = do
@@ -61,19 +58,14 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  currentNames <- Timing.deepTime "Loading names for typechecking" Cli.currentNames
-  !unisonFile <- Timing.time "withFile" $ withFile currentNames sourceName text
+  currentNames <- Cli.currentNames
+  unisonFile <- withFile currentNames sourceName text
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
   let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
-  Debug.debugLogM Debug.Temp "building names"
-  !pped <- Cli.prettyPrintEnvDeclFromNames names
-  Debug.debugLogM Debug.Temp "done building names"
+  pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
-  Timing.time "Responding typechecked file" do
-    let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-    Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
-  Debug.debugLogM Debug.Temp "Starting eval unison file"
+  Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
   (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
-  Debug.debugLogM Debug.Temp "Done eval unison file"
   let e' = Map.map go e
       go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
   when (not (null e')) do
@@ -85,44 +77,29 @@ loadUnisonFile sourceName text = do
       Text ->
       Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile !names sourceName text = do
-      Debug.debugLogM Debug.Temp "Start resolving names"
-      !_ <- UnliftIO.evaluate names
-      Debug.debugLogM Debug.Temp "Done resolving names"
-      Debug.debugLogM Debug.Temp "Start typechecking BLOCK"
+    withFile names sourceName text = do
       pp <- Cli.getCurrentProjectPath
       State.modify' \loopState ->
         loopState
-          & #latestFile
-          .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile
-          .~ Nothing
+          & #latestFile .~ Just (Text.unpack sourceName, False)
+          & #latestTypecheckedFile .~ Nothing
       Cli.Env {codebase, generateUniqueName} <- ask
       uniqueName <- liftIO generateUniqueName
-      Debug.debugLogM Debug.Temp "Building parsing env"
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
                 names
               }
-      Debug.debugLogM Debug.Temp "Starting parse"
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
           & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-      Debug.debugLogM Debug.Temp "Done parse"
       -- set that the file at least parsed (but didn't typecheck)
       State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      Debug.debugLogM Debug.Temp "Start Actual typechecking"
-      Debug.debugLogM Debug.Temp "Start building typechecking env"
       typecheckingEnv <-
         Cli.runTransaction do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      Debug.debugLogM Debug.Temp "Done building typechecking env"
-      Debug.debugLogM Debug.Temp "Start synthesizing"
-      let Result.Result notes !maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-      _ <- UnliftIO.evaluate maybeTypecheckedUnisonFile
-      Debug.debugLogM Debug.Temp "Done synthesizing synthesizing"
+      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
         let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
         pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions

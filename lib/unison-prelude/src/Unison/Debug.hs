@@ -16,7 +16,6 @@ where
 
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Debug.Pretty.Simple (pTrace, pTraceM)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Pretty.Simple (pShow)
 import Unison.Prelude
@@ -166,12 +165,12 @@ debugM flag msg a =
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
   if shouldDebug flag
-    then pTrace msg
+    then trace msg
     else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
-  whenDebug flag $ pTraceM msg
+  whenDebug flag $ traceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: (Monad m) => DebugFlag -> m () -> m ()
