@@ -32,8 +32,7 @@ newBranchCache = do
       cache <- readTVarIO var
       case Map.lookup ch cache of
         Nothing -> pure Nothing
-        Just weakRef -> do
-          deRefWeak weakRef
+        Just weakRef -> deRefWeak weakRef
 
     insertCachedBranch' :: TVar (Map V2.CausalHash (Weak (V1.Branch.Branch Sqlite.Transaction))) -> V2.CausalHash -> (V1.Branch.Branch Sqlite.Transaction) -> Sqlite.Transaction ()
     insertCachedBranch' var ch b = Sqlite.unsafeIO do

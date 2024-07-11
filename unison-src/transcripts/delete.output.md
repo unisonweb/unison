@@ -362,8 +362,8 @@ scratch/main> delete.verbose Foo Foo.Foo incrementFoo
   Removed definitions:
   
     1. structural type Foo
-    2. Foo.Foo      : Nat -> #68k40ra7l7
-    3. incrementFoo : #68k40ra7l7 -> Nat
+    2. Foo.Foo      : Nat -> Foo
+    3. incrementFoo : Foo -> Nat
   
   Tip: You can use `undo` or use a hash from `branch.reflog` to
        undo this change.

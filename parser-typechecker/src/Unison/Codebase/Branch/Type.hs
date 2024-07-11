@@ -44,12 +44,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names (Names))
 import Unison.Prelude hiding (empty)
-import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Util.Monoid qualified as Monoid
@@ -187,9 +182,7 @@ branch0 terms types children edits =
       _deepTerms = R.empty,
       _deepTypes = R.empty,
       _deepPaths = Set.empty,
-      _deepEdits = Map.empty,
-      _names = mempty,
-      _pped = PPED.empty
+      _deepEdits = Map.empty
     }
     & deriveDeepTerms
     & deriveDeepTypes

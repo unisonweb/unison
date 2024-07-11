@@ -92,14 +92,6 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
     ShouldUseTndr'Yes parsingEnv -> do
       let preexistingNames = Parser.names parsingEnv
           tm = UF.typecheckingTerm uf
-      -- possibleDeps =
-      --   [ (name, shortname, r)
-      --     | (name, r) <- Rel.toList (Names.terms preexistingNames),
-      --       v <- Set.toList (Term.freeVars tm),
-      --       let shortname = Name.unsafeParseVar v,
-      --       name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
-      --   ]
-
       let possibleDeps = findMatchingTermSuffixes (Set.map Name.unsafeParseVar $ Term.freeVars tm) preexistingNames
       let possibleRefs = Referent.toReference . view _3 <$> possibleDeps
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
