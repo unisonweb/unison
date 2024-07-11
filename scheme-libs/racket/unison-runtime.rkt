@@ -147,7 +147,7 @@
       (parameterize ([print-as-expression #t])
         (display "#lang racket/base\n\n" port)
 
-        (for ([expr (build-intermediate-module main-ref icode)])
+        (for ([expr (build-intermediate-module #:profile #t main-ref icode)])
           (pretty-print expr port 1)
           (newline port))
         (newline port)))

@@ -698,7 +698,7 @@
 ; This expects to receive a list of termlink, code pairs, and
 ; generates a scheme module that contains the corresponding
 ; definitions.
-(define (build-intermediate-module primary dfns0)
+(define (build-intermediate-module #:profile [profile? #f] primary dfns0)
   (let* ([udefs (chunked-list->list dfns0)]
          [pname (termlink->name primary)]
          [tmlinks (map ufst udefs)]
@@ -711,14 +711,19 @@
                unison/primops-generated
                unison/builtin-generated
                unison/simple-wrappers
-               unison/compound-wrappers)
+               unison/compound-wrappers
+               ,@(if profile? '(profile profile/render-text) '()))
 
       ,@(typelink-defns-code tylinks)
 
       ,@sdefs
 
       (handle [ref-exception:typelink] top-exn-handler
-              (,pname #f)))))
+              ,(if profile?
+                 `(profile (,pname #f)
+                    #:threads #t
+                    #:periodic-renderer (list 10.0 render))
+                 `(,pname #f))))))
 
 (define (build-runtime-module mname tylinks tmlinks defs)
   (define (provided-tylink r)
