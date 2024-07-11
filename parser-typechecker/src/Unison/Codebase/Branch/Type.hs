@@ -188,8 +188,6 @@ branch0 terms types children edits =
       _deepTypes = R.empty,
       _deepPaths = Set.empty,
       _deepEdits = Map.empty,
-      _names = mempty,
-      _pped = PPED.empty
     }
     & deriveDeepTerms
     & deriveDeepTypes

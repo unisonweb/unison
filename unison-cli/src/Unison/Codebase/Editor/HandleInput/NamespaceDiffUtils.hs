@@ -36,7 +36,7 @@ diffHelper before after =
     Cli.Env {codebase} <- ask
     hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
-    names <- Cli.currentNames
+    names <- Cli.currentNames <&> \currentNames -> currentNames <> Branch.toNames before <> Branch.toNames after
     pped <- Cli.prettyPrintEnvDeclFromNames names
     let suffixifiedPPE = PPED.suffixifiedPPE pped
     fmap (suffixifiedPPE,) do

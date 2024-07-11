@@ -79,11 +79,11 @@ scratch/ns1> add
   
     structural type A a
     structural ability X a1 a2
-    b          : ##Nat
-    bdependent : ##Nat
-    c          : ##Nat
-    fromJust   : ##Nat
-    helloWorld : ##Text
+    b          : Nat
+    bdependent : Nat
+    c          : Nat
+    fromJust   : Nat
+    helloWorld : Text
 
 scratch/ns1> alias.term fromJust fromJust'
 
@@ -126,7 +126,7 @@ scratch/ns1> add
 
   ⍟ I've added these definitions:
   
-    junk : ##Text
+    junk : Text
 
 scratch/ns1> debug.alias.term.force junk fromJust
 
@@ -139,7 +139,7 @@ scratch/ns1> delete.term junk
 ```
 ``` unison
 fromJust = 99
-b = "oog"
+b = 999999999
 d = 4
 e = 5
 f = 6
@@ -147,20 +147,16 @@ unique type Y a b = Y a b
 ```
 
 ``` ucm
-scratch/ns2> update.old
+scratch/ns2> update
 
-  ⍟ I've added these definitions:
-  
-    type Y a b
-    d : ##Nat
-    e : ##Nat
-    f : ##Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    b        : ##Text
-    fromJust : ##Nat
-      (The old definition was also named fromJust'.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 scratch/main> diff.namespace /ns1: /ns2:
 
@@ -175,21 +171,25 @@ scratch/main> diff.namespace /ns1: /ns2:
   
     4.  b : Nat
         ↓
-    5.  b : Text
+    5.  b : Nat
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Nat
   
   Added definitions:
   
     8.  type Y a b
-    9.  Y.Y : a -> b -> #md85ksgqel a b
+    9.  Y.Y : a -> b -> Y a b
     10. d   : Nat
     11. e   : Nat
     12. f   : Nat
   
-    13. patch patch (added 2 updates)
+  Name changes:
+  
+    Original                   Changes
+    13. fromJust'           ┐  14. fromJust#gjmq673r1v (removed)
+    15. fromJust#gjmq673r1v ┘  
 
 scratch/ns2> alias.term d d'
 
@@ -216,29 +216,30 @@ scratch/main> diff.namespace /ns1: /ns2:
   
     4.  b : Nat
         ↓
-    5.  b : Text
+    5.  b : Nat
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Nat
   
   Added definitions:
   
     8.  type Y a b
-    9.  Y.Y  : a -> b -> #md85ksgqel a b
+    9.  Y.Y  : a -> b -> Y a b
     10. ┌ d  : Nat
     11. └ d' : Nat
     12. e    : Nat
     13. f    : Nat
   
-    14. patch patch (added 2 updates)
-  
   Name changes:
   
-    Original  Changes
-    15. A     16. A' (added)
+    Original                   Changes
+    14. A                      15. A' (added)
     
-    17. X    18. X' (added)
+    16. X                      17. X' (added)
+    
+    18. fromJust'           ┐  19. fromJust#gjmq673r1v (removed)
+    20. fromJust#gjmq673r1v ┘  
 
 scratch/ns1> alias.type X X2
 
@@ -264,9 +265,8 @@ scratch/ns2> delete.term.verbose fromJust'
   Name changes:
   
     Original        Changes
-    1. fromJust  ┐  2. fromJust' (removed)
-    3. fromJust' │  
-    4. yoohoo    ┘  
+    1. fromJust' ┐  2. fromJust' (removed)
+    3. yoohoo    ┘  
   
   Tip: You can use `undo` or use a hash from `branch.reflog` to
        undo this change.
@@ -276,8 +276,8 @@ scratch/main> diff.namespace /ns3: /ns2:
   Name changes:
   
     Original        Changes
-    1. fromJust  ┐  2. yoohoo (added)
-    3. fromJust' ┘  4. fromJust' (removed)
+    1. fromJust'    2. yoohoo (added)
+                    3. fromJust' (removed)
 
 ```
 ``` unison
@@ -285,11 +285,12 @@ bdependent = "banana"
 ```
 
 ``` ucm
-scratch/ns3> update.old
+scratch/ns3> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    bdependent : ##Text
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 
 scratch/main> diff.namespace /ns2: /ns3:
 
@@ -299,13 +300,11 @@ scratch/main> diff.namespace /ns2: /ns3:
        ↓
     2. bdependent : Text
   
-    3. patch patch (added 1 updates)
-  
   Name changes:
   
-    Original       Changes
-    4. fromJust ┐  5. fromJust' (added)
-    6. yoohoo   ┘  7. yoohoo (removed)
+    Original     Changes
+    3. yoohoo    4. fromJust' (added)
+                 5. yoohoo (removed)
 
 ```
 ## Two different auto-propagated changes creating a name conflict
@@ -349,11 +348,16 @@ a = 444
 ```
 
 ``` ucm
-scratch/nsy> update.old
+scratch/nsy> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
 ``` unison
@@ -361,11 +365,16 @@ a = 555
 ```
 
 ``` ucm
-scratch/nsz> update.old
+scratch/nsz> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 scratch/nsy> branch /nsw
 
@@ -388,25 +397,21 @@ scratch/main> diff.namespace /nsx: /nsw:
 
   New name conflicts:
   
-    1.  a#uiiiv8a86s : Nat
-        ↓
-    2.  ┌ a#mdl4vqtu00 : Nat
-    3.  └ a#r3msrbpp1v : Nat
+    1. a#uiiiv8a86s : Nat
+       ↓
+    2. ┌ a#mdl4vqtu00 : Nat
+    3. └ a#r3msrbpp1v : Nat
     
-    4.  b#lhigeb1let : Nat
-        ↓
-    5.  ┌ b#r3msrbpp1v : Nat
-    6.  └ b#unkqhuu66p : Nat
-  
-  Added definitions:
-  
-    7.  patch patch (added 1 updates)
+    4. b#lhigeb1let : Nat
+       ↓
+    5. ┌ b#r3msrbpp1v : Nat
+    6. └ b#unkqhuu66p : Nat
   
   Name changes:
   
-    Original            Changes
-    8.  forconflicts    9.  a#r3msrbpp1v (added)
-                        10. b#r3msrbpp1v (added)
+    Original           Changes
+    7. forconflicts    8. a#r3msrbpp1v (added)
+                       9. b#r3msrbpp1v (added)
 
 scratch/nsw> view a
 
