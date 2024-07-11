@@ -3,18 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-{- Parse and execute markdown transcripts.
--}
+-- | Parse and execute CommonMark (like Github-flavored Markdown) transcripts.
 module Unison.Codebase.TranscriptParser
-  ( Stanza (..),
-    FenceType,
-    ExpectingError,
-    Hidden,
-    TranscriptError (..),
-    UcmLine (..),
-    withTranscriptRunner,
-    parse,
-    parseFile,
+  ( Error (..),
+    Runner,
+    withRunner,
   )
 where
 
@@ -35,7 +28,6 @@ import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
-import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
 import System.Exit (die)
 import System.IO qualified as IO
@@ -98,8 +90,6 @@ type ExpectingError = Bool
 
 type ScratchFileName = Text
 
-type FenceType = Text
-
 data Hidden = Shown | HideOutput | HideAll
   deriving (Eq, Show)
 
@@ -115,78 +105,54 @@ data APIRequest
   = GetRequest Text
   | APIComment Text
 
-instance Show APIRequest where
-  show (GetRequest txt) = "GET " <> Text.unpack txt
-  show (APIComment txt) = "-- " <> Text.unpack txt
+formatAPIRequest :: APIRequest -> Text
+formatAPIRequest = \case
+  GetRequest txt -> "GET " <> txt
+  APIComment txt -> "-- " <> txt
 
 pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node
 pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info body) []
 
-data Stanza
+type Stanza = Either CMark.Node ProcessedBlock
+
+data ProcessedBlock
   = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
   | API [APIRequest]
-  | UnprocessedBlock CMark.Node
 
-instance Show UcmLine where
-  show = \case
-    UcmCommand context txt -> showContext context <> "> " <> Text.unpack txt
-    UcmComment txt -> "--" ++ Text.unpack txt
-    where
-      showContext (UcmContextProject projectAndBranch) = Text.unpack (into @Text projectAndBranch)
+formatUcmLine :: UcmLine -> Text
+formatUcmLine = \case
+  UcmCommand context txt -> formatContext context <> "> " <> txt
+  UcmComment txt -> "--" <> txt
+  where
+    formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
-instance Show Stanza where
-  show s = (<> "\n") . Text.unpack . CMark.nodeToCommonmark [] Nothing $ stanzaToNode s
+formatStanza :: Stanza -> Text
+formatStanza = either formatNode formatProcessedBlock
 
-stanzaToNode :: Stanza -> CMark.Node
-stanzaToNode =
-  \case
-    Ucm _ _ cmds ->
-      CMarkCodeBlock Nothing "ucm" . Text.pack $
-        foldl (\x y -> x ++ show y) "" cmds
-    Unison _hide _ fname txt ->
-      CMarkCodeBlock Nothing "unison" . Text.pack $
-        unlines
-          [ case fname of
-              Nothing -> Text.unpack txt
-              Just fname ->
-                unlines
-                  [ "---",
-                    "title: " <> Text.unpack fname,
-                    "---",
-                    Text.unpack txt
-                  ]
-          ]
-    API apiRequests ->
-      CMarkCodeBlock Nothing "api" . Text.pack $
-        ( apiRequests
-            & fmap show
-            & unlines
-        )
-    UnprocessedBlock node -> node
+formatNode :: CMark.Node -> Text
+formatNode = (<> "\n") . CMark.nodeToCommonmark [] Nothing
 
-parseFile :: FilePath -> IO (Either TranscriptError [Stanza])
-parseFile filePath = do
-  exists <- doesFileExist filePath
-  if exists
-    then do
-      txt <- readUtf8 filePath
-      pure $ parse filePath txt
-    else pure . Left . TranscriptParseError . Text.pack $ filePath <> " does not exist"
+formatProcessedBlock :: ProcessedBlock -> Text
+formatProcessedBlock = formatNode . processedBlockToNode
 
-parse :: String -> Text -> Either TranscriptError [Stanza]
-parse srcName txt = case stanzas srcName txt of
-  Right a -> Right a
-  Left e -> Left . TranscriptParseError . Text.pack . P.errorBundlePretty $ e
+processedBlockToNode :: ProcessedBlock -> CMark.Node
+processedBlockToNode = \case
+  Ucm _ _ cmds -> CMarkCodeBlock Nothing "ucm" $ foldr ((<>) . formatUcmLine) "" cmds
+  Unison _hide _ fname txt ->
+    CMarkCodeBlock Nothing "unison" $ maybe txt (\fname -> Text.unlines ["---", "title: " <> fname, "---", txt]) fname
+  API apiRequests -> CMarkCodeBlock Nothing "api" $ Text.unlines $ formatAPIRequest <$> apiRequests
 
-type TranscriptRunner =
-  ( String ->
-    Text ->
-    (FilePath, Codebase IO Symbol Ann) ->
-    IO (Either TranscriptError Text)
-  )
+parse :: FilePath -> Text -> Either Error [Stanza]
+parse srcName = first ParseError . stanzas srcName
 
-withTranscriptRunner ::
+type Runner =
+  String ->
+  Text ->
+  (FilePath, Codebase IO Symbol Ann) ->
+  IO (Either Error Text)
+
+withRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
   Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
@@ -194,16 +160,16 @@ withTranscriptRunner ::
   UCMVersion ->
   FilePath ->
   Maybe FilePath ->
-  (TranscriptRunner -> m r) ->
+  (Runner -> m r) ->
   m r
-withTranscriptRunner isTest verbosity ucmVersion nrtp configFile action = do
+withRunner isTest verbosity ucmVersion nrtp configFile action = do
   withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
           liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
-        pure $ join @(Either TranscriptError) result
+        pure $ join @(Either Error) result
   where
     withRuntimes ::
       FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
@@ -238,7 +204,7 @@ run ::
   Maybe Config ->
   UCMVersion ->
   Text ->
-  IO (Either TranscriptError Text)
+  IO (Either Error Text)
 run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
@@ -299,7 +265,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
 
       apiRequest :: APIRequest -> IO ()
       apiRequest req = do
-        output (show req <> "\n")
+        output . Text.unpack $ formatAPIRequest req <> "\n"
         case req of
           APIComment {} -> pure ()
           GetRequest path -> do
@@ -327,13 +293,13 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
               for (reverse scratchFileUpdates) \(fp, contents) -> do
                 let fenceDescription = "unison:added-by-ucm " <> fp
                 -- Output blocks for any scratch file updates the ucm block triggered.
-                Q.undequeue inputQueue (UnprocessedBlock $ CMarkCodeBlock Nothing fenceDescription contents, Nothing)
+                Q.undequeue inputQueue (Left $ CMarkCodeBlock Nothing fenceDescription contents, Nothing)
             awaitInput
           -- ucm command to run
           Just (Just ucmLine) -> do
             case ucmLine of
               p@(UcmComment {}) -> do
-                liftIO (output ("\n" <> show p))
+                liftIO . output . Text.unpack $ "\n" <> formatUcmLine p
                 awaitInput
               p@(UcmCommand context lineTxt) -> do
                 curPath <- Cli.getCurrentProjectPath
@@ -371,7 +337,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
                     case words . Text.unpack $ lineTxt of
                       [] -> awaitInput
                       args -> do
-                        liftIO (output ("\n" <> show p <> "\n"))
+                        liftIO . output . Text.unpack $ "\n" <> formatUcmLine p <> "\n"
                         numberedArgs <- use #numberedArgs
                         PP.ProjectAndBranch projId branchId <- PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
                         let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
@@ -407,35 +373,39 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
                       ++ show (length stanzas)
                       ++ "."
                   IO.hFlush IO.stdout
-                case s of
-                  UnprocessedBlock _ -> do
-                    liftIO (output $ show s)
-                    awaitInput
-                  Unison hide errOk filename txt -> do
-                    liftIO (writeIORef hidden hide)
-                    liftIO (outputEcho $ show s)
-                    liftIO (writeIORef allowErrors errOk)
-                    -- Open a ucm block which will contain the output from UCM
-                    -- after processing the UnisonFileChanged event.
-                    liftIO (output "``` ucm\n")
-                    -- Close the ucm block after processing the UnisonFileChanged event.
-                    atomically . Q.enqueue cmdQueue $ Nothing
-                    let sourceName = fromMaybe "scratch.u" filename
-                    liftIO $ updateVirtualFile sourceName txt
-                    pure $ Left (UnisonFileChanged sourceName txt)
-                  API apiRequests -> do
-                    liftIO (output "``` api\n")
-                    liftIO (for_ apiRequests apiRequest)
-                    liftIO (output "```\n\n")
-                    awaitInput
-                  Ucm hide errOk cmds -> do
-                    liftIO (writeIORef hidden hide)
-                    liftIO (writeIORef allowErrors errOk)
-                    liftIO (writeIORef hasErrors False)
-                    liftIO (output "``` ucm")
-                    traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
-                    atomically . Q.enqueue cmdQueue $ Nothing
-                    awaitInput
+                either
+                  ( \node -> do
+                      liftIO . output . Text.unpack $ formatNode node
+                      awaitInput
+                  )
+                  ( \block -> case block of
+                      Unison hide errOk filename txt -> do
+                        liftIO (writeIORef hidden hide)
+                        liftIO . outputEcho . Text.unpack $ formatProcessedBlock block
+                        liftIO (writeIORef allowErrors errOk)
+                        -- Open a ucm block which will contain the output from UCM
+                        -- after processing the UnisonFileChanged event.
+                        liftIO (output "``` ucm\n")
+                        -- Close the ucm block after processing the UnisonFileChanged event.
+                        atomically . Q.enqueue cmdQueue $ Nothing
+                        let sourceName = fromMaybe "scratch.u" filename
+                        liftIO $ updateVirtualFile sourceName txt
+                        pure $ Left (UnisonFileChanged sourceName txt)
+                      API apiRequests -> do
+                        liftIO (output "``` api\n")
+                        liftIO (for_ apiRequests apiRequest)
+                        liftIO (output "```\n\n")
+                        awaitInput
+                      Ucm hide errOk cmds -> do
+                        liftIO (writeIORef hidden hide)
+                        liftIO (writeIORef allowErrors errOk)
+                        liftIO (writeIORef hasErrors False)
+                        liftIO (output "``` ucm")
+                        traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
+                        atomically . Q.enqueue cmdQueue $ Nothing
+                        awaitInput
+                  )
+                  s
 
       loadPreviousUnisonBlock name = do
         ufs <- readIORef unisonFiles
@@ -492,7 +462,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
       appendFailingStanza = do
         stanzaOpt <- readIORef mStanza
         currentOut <- readIORef out
-        let stnz = maybe "" show (fmap fst stanzaOpt :: Maybe Stanza)
+        let stnz = maybe "" (Text.unpack . formatStanza . fst) stanzaOpt
         unless (stnz `isSubsequenceOf` concat currentOut) $
           modifyIORef' out (\acc -> acc <> pure stnz)
 
@@ -502,13 +472,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
         output "\n```\n\n"
         appendFailingStanza
         transcriptFailure out $
-          Text.unlines
-            [ "\128721",
-              "",
-              "The transcript failed due to an error in the stanza above. The error is:",
-              "",
-              Text.pack msg
-            ]
+          "The transcript failed due to an error in the stanza above. The error is:\n\n" <> Text.pack msg
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -517,12 +481,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
         when (errOk && not hasErr) $ do
           output "\n```\n\n"
           appendFailingStanza
-          transcriptFailure out $
-            Text.unlines
-              [ "\128721",
-                "",
-                "The transcript was expecting an error in the stanza above, but did not encounter one."
-              ]
+          transcriptFailure out "The transcript was expecting an error in the stanza above, but did not encounter one."
 
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
@@ -571,20 +530,17 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
   texts <- readIORef out
-  UnliftIO.throwIO
-    . TranscriptRunFailure
-    $ Text.concat (Text.pack <$> toList texts)
-      <> "\n\n"
-      <> msg
+  UnliftIO.throwIO . RunFailure $ mconcat (Text.pack <$> toList texts) <> "\n\n\128721\n\n" <> msg <> "\n"
 
 type P = P.Parsec Void Text
 
-stanzas :: String -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
-stanzas srcName = (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromBlock blocks) . CMark.commonmarkToNode []
+stanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
+stanzas srcName = (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks) . CMark.commonmarkToNode []
   where
-    stanzaFromBlock block = case block of
-      CMarkCodeBlock _ info body -> fromMaybe (UnprocessedBlock block) <$> P.parse (fenced info) srcName body
-      _ -> pure $ UnprocessedBlock block
+    stanzaFromNode :: CMark.Node -> Either (P.ParseErrorBundle Text Void) Stanza
+    stanzaFromNode node = case node of
+      CMarkCodeBlock _ info body -> maybe (Left node) pure <$> P.parse (fenced info) srcName body
+      _ -> pure $ Left node
 
 ucmLine :: P UcmLine
 ucmLine = ucmCommand <|> ucmComment
@@ -626,39 +582,32 @@ apiRequest = do
       pure (APIComment comment)
 
 -- | Produce the correct parser for the code block based on the provided info string.
-fenced :: Text -> P (Maybe Stanza)
+fenced :: Text -> P (Maybe ProcessedBlock)
 fenced info = do
   body <- P.getInput
   P.setInput info
   fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
-  stanza <-
-    case fenceType of
-      "ucm" -> do
-        hide <- hidden
-        err <- expectingError
+  case fenceType of
+    "ucm" -> do
+      hide <- hidden
+      err <- expectingError
+      P.setInput body
+      pure . Ucm hide err <$> (spaces *> many ucmLine)
+    "unison" ->
+      do
+        -- todo: this has to be more interesting
+        -- ```unison:hide
+        -- ```unison
+        -- ```unison:hide:all scratch.u
+        hide <- lineToken hidden
+        err <- lineToken expectingError
+        fileName <- optional untilSpace1
         P.setInput body
-        _ <- spaces
-        cmds <- many ucmLine
-        pure . pure $ Ucm hide err cmds
-      "unison" ->
-        do
-          -- todo: this has to be more interesting
-          -- ```unison:hide
-          -- ```unison
-          -- ```unison:hide:all scratch.u
-          hide <- lineToken hidden
-          err <- lineToken expectingError
-          fileName <- optional untilSpace1
-          P.setInput body
-          blob <- spaces *> (Text.init <$> P.getInput)
-          pure . pure $ Unison hide err fileName blob
-      "api" -> do
-        P.setInput body
-        _ <- spaces
-        apiRequests <- many apiRequest
-        pure . pure $ API apiRequests
-      _ -> pure Nothing
-  pure stanza
+        pure . Unison hide err fileName <$> (spaces *> P.getInput)
+    "api" -> do
+      P.setInput body
+      pure . API <$> (spaces *> many apiRequest)
+    _ -> pure Nothing
 
 word' :: Text -> P Text
 word' txt = P.try $ do
@@ -669,9 +618,6 @@ word' txt = P.try $ do
 word :: Text -> P Text
 word = word'
 
--- token :: P a -> P a
--- token p = p <* spaces
-
 lineToken :: P a -> P a
 lineToken p = p <* nonNewlineSpaces
 
@@ -679,11 +625,10 @@ nonNewlineSpaces :: P ()
 nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch == ' ' || ch == '\t')
 
 hidden :: P Hidden
-hidden = (\case Just x -> x; Nothing -> Shown) <$> optional go
-  where
-    go =
-      ((\_ -> HideAll) <$> (word ":hide:all"))
-        <|> ((\_ -> HideOutput) <$> (word ":hide"))
+hidden =
+  (HideAll <$ word ":hide:all")
+    <|> (HideOutput <$ word ":hide")
+    <|> pure Shown
 
 expectingError :: P ExpectingError
 expectingError = isJust <$> optional (word ":error")
@@ -697,11 +642,8 @@ language = P.takeWhileP Nothing (\ch -> Char.isDigit ch || Char.isLower ch || ch
 spaces :: P ()
 spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
 
--- single :: Char -> P Char
--- single t = P.satisfy (== t)
-
-data TranscriptError
-  = TranscriptRunFailure Text
-  | TranscriptParseError Text
+data Error
+  = ParseError (P.ParseErrorBundle Text Void)
+  | RunFailure Text
   deriving stock (Show)
   deriving anyclass (Exception)
