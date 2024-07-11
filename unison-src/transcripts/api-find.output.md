@@ -1,13 +1,13 @@
 # find api
 
-```unison
+``` unison
 rachel.filesystem.x = 42
 ross.httpClient.y = 43
 joey.httpServer.z = 44
 joey.yaml.zz = 45
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,7 +23,7 @@ joey.yaml.zz = 45
       ross.httpClient.y   : ##Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -34,7 +34,7 @@ scratch/main> add
     ross.httpClient.y   : ##Nat
 
 ```
-```api
+``` api
 --  Namespace segment prefix search
 GET /api/projects/scratch/branches/main/find?query=http
 [
@@ -253,3 +253,4 @@ GET /api/projects/scratch/branches/main/find?query=joey.http
     ]
 ]
 ```
+

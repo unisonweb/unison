@@ -41,7 +41,7 @@ scratch/a2> delete.namespace.force lib.builtins
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
 ```ucm:error
-scratch/main> diff.namespace /a1:. /a2:.
+scratch/main> diff.namespace /a1: /a2:
 ```
 
 Now check that definitions in 'reparses.u' at least parse on round trip:
@@ -77,7 +77,7 @@ scratch/a3_new> delete.namespace.force lib.builtins
 These are currently all expected to have different hashes on round trip.
 
 ```ucm
-scratch/main> diff.namespace /a3_new:. /a3:.
+scratch/main> diff.namespace /a3_new: /a3:
 ```
 
 ## Other regression tests not covered by above

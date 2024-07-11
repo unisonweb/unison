@@ -587,4 +587,4 @@ preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
   ch <- runTransaction codebase $ do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
-  preloadProjectRoot codebase ch
+  preloadBranch codebase ch

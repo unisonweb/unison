@@ -1,10 +1,9 @@
-
 Test for code serialization operations.
 
 Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
-```unison
+``` unison
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
@@ -152,7 +151,7 @@ swapped name link =
   rejected ("swapped " ++ name) rco
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -199,7 +198,7 @@ swapped name link =
                        ->{Throw Text} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -241,7 +240,7 @@ scratch/main> add
                      ->{Throw Text} ()
 
 ```
-```unison
+``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
 
@@ -316,7 +315,7 @@ badLoad _ =
     Left _ -> [Fail "Exception"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -343,7 +342,7 @@ This simply runs some functions to make sure there isn't a crash. Once
 we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -393,7 +392,7 @@ scratch/main> io.test badLoad
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 codeTests : '{io2.IO} [Result]
 codeTests =
   '[ idempotence "idem f" (termLink f)
@@ -429,7 +428,7 @@ codeTests =
    ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -442,7 +441,7 @@ codeTests =
       codeTests : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -489,7 +488,7 @@ scratch/main> io.test codeTests
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 validateTest : Link.Term ->{IO} Result
 validateTest l = match Code.lookup l with
   None -> Fail "Couldn't look up link"
@@ -515,7 +514,7 @@ vtests _ =
     ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -529,7 +528,7 @@ vtests _ =
       vtests       : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

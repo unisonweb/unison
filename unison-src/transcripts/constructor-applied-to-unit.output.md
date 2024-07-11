@@ -1,11 +1,11 @@
-```unison
+``` unison
 structural type Zoink a b c = Zoink a b c
 
 > Any ()
 > [ Zoink [0,1,2,3,4,5] [6,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,3] () ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

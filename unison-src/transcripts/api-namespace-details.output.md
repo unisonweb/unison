@@ -1,6 +1,6 @@
 # Namespace Details Test
 
-```unison
+``` unison
 {{ Documentation }}
 nested.names.x = 42
 
@@ -9,7 +9,7 @@ Here's a *README*!
 }}
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -24,7 +24,7 @@ Here's a *README*!
       nested.names.x.doc  : Doc2
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -34,7 +34,7 @@ scratch/main> add
     nested.names.x.doc  : Doc2
 
 ```
-```api
+``` api
 --  Should find names by suffix
 GET /api/projects/scratch/branches/main/namespaces/nested.names
 {
@@ -79,3 +79,4 @@ GET /api/projects/scratch/branches/main/namespaces/nested.names
     }
 }
 ```
+

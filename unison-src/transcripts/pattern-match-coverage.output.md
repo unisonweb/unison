@@ -1,6 +1,8 @@
 # Basics
+
 ## non-exhaustive patterns
-```unison
+
+``` unison
 unique type T = A | B | C
 
 test : T -> ()
@@ -8,7 +10,7 @@ test = cases
   A -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,7 +25,7 @@ test = cases
     * C
 
 ```
-```unison
+``` unison
 unique type T = A | B
 
 test : (T, Optional T) -> ()
@@ -34,7 +36,7 @@ test = cases
   (B, None) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -51,7 +53,8 @@ test = cases
 
 ```
 ## redundant patterns
-```unison
+
+``` unison
 unique type T = A | B | C
 
 test : T -> ()
@@ -62,7 +65,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -71,7 +74,7 @@ test = cases
     
 
 ```
-```unison
+``` unison
 unique type T = A | B
 
 test : (T, Optional T) -> ()
@@ -83,7 +86,7 @@ test = cases
   (A, Some A) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -95,7 +98,8 @@ test = cases
 # Uninhabited patterns
 
 match is complete without covering uninhabited patterns
-```unison
+
+``` unison
 unique type V =
 
 test : Optional (Optional V) -> ()
@@ -104,7 +108,7 @@ test = cases
   Some None -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -119,7 +123,8 @@ test = cases
 
 ```
 uninhabited patterns are reported as redundant
-```unison
+
+``` unison
 unique type V =
 
 test0 : V -> ()
@@ -127,7 +132,7 @@ test0 = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -136,7 +141,7 @@ test0 = cases
     
 
 ```
-```unison
+``` unison
 unique type V =
 
 test : Optional (Optional V) -> ()
@@ -146,7 +151,7 @@ test = cases
   Some _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -158,13 +163,14 @@ test = cases
 # Guards
 
 ## Incomplete patterns due to guards should be reported
-```unison
+
+``` unison
 test : () -> ()
 test = cases
   () | false -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -177,7 +183,7 @@ test = cases
    * ()
 
 ```
-```unison
+``` unison
 test : Optional Nat -> Nat
 test = cases
   None -> 0
@@ -185,7 +191,7 @@ test = cases
     | isEven x -> x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -201,7 +207,8 @@ test = cases
 
 ```
 ## Complete patterns with guards should be accepted
-```unison
+
+``` unison
 test : Optional Nat -> Nat
 test = cases
   None -> 0
@@ -210,7 +217,7 @@ test = cases
     | otherwise -> 0
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -227,7 +234,8 @@ test = cases
 
 Uncovered patterns are only instantiated as deeply as necessary to
 distinguish them from existing patterns.
-```unison
+
+``` unison
 unique type T = A | B | C
 
 test : Optional (Optional T) -> ()
@@ -236,7 +244,7 @@ test = cases
   Some None -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -250,7 +258,7 @@ test = cases
    * Some (Some _)
 
 ```
-```unison
+``` unison
 unique type T = A | B | C
 
 test : Optional (Optional T) -> ()
@@ -260,7 +268,7 @@ test = cases
   Some (Some A) -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -282,13 +290,14 @@ test = cases
 ## Non-exhaustive
 
 Nat
-```unison
+
+``` unison
 test : Nat -> ()
 test = cases
   0 -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -302,13 +311,14 @@ test = cases
 
 ```
 Boolean
-```unison
+
+``` unison
 test : Boolean -> ()
 test = cases
   true -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -324,14 +334,15 @@ test = cases
 ## Exhaustive
 
 Nat
-```unison
+
+``` unison
 test : Nat -> ()
 test = cases
   0 -> ()
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -345,14 +356,15 @@ test = cases
 
 ```
 Boolean
-```unison
+
+``` unison
 test : Boolean -> ()
 test = cases
   true -> ()
   false -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -368,7 +380,8 @@ test = cases
 # Redundant
 
 Nat
-```unison
+
+``` unison
 test : Nat -> ()
 test = cases
   0 -> ()
@@ -376,7 +389,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -386,7 +399,8 @@ test = cases
 
 ```
 Boolean
-```unison
+
+``` unison
 test : Boolean -> ()
 test = cases
   true -> ()
@@ -394,7 +408,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -406,14 +420,15 @@ test = cases
 # Sequences
 
 ## Exhaustive
-```unison
+
+``` unison
 test : [()] -> ()
 test = cases
   [] -> ()
   x +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -427,13 +442,14 @@ test = cases
 
 ```
 ## Non-exhaustive
-```unison
+
+``` unison
 test : [()] -> ()
 test = cases
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -446,13 +462,13 @@ test = cases
    * (() +: _)
 
 ```
-```unison
+``` unison
 test : [()] -> ()
 test = cases
   x +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -465,13 +481,13 @@ test = cases
    * []
 
 ```
-```unison
+``` unison
 test : [()] -> ()
 test = cases
   xs :+ x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -484,14 +500,14 @@ test = cases
    * []
 
 ```
-```unison
+``` unison
 test : [()] -> ()
 test = cases
   x0 +: (x1 +: xs) -> ()
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -505,14 +521,14 @@ test = cases
    * (() +: [])
 
 ```
-```unison
+``` unison
 test : [()] -> ()
 test = cases
   [] -> ()
   x0 +: [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -529,7 +545,8 @@ test = cases
 ## Uninhabited
 
 `Cons` is not expected since `V` is uninhabited
-```unison
+
+``` unison
 unique type V =
 
 test : [V] -> ()
@@ -537,7 +554,7 @@ test = cases
   [] -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -559,7 +576,8 @@ final element is `false`, while the fourth pattern matches when the
 first element is `true`. However, the only possible list length at
 the third or fourth clause is 1, so the first and final element must
 be equal. Thus, the pattern match is exhaustive.
-```unison
+
+``` unison
 test : [Boolean] -> ()
 test = cases
   [a, b] ++ xs -> ()
@@ -568,7 +586,7 @@ test = cases
   true +: xs -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -582,7 +600,8 @@ test = cases
 
 ```
 This is the same idea as above but shows that fourth match is redundant.
-```unison
+
+``` unison
 test : [Boolean] -> ()
 test = cases
   [a, b] ++ xs -> ()
@@ -592,7 +611,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -607,7 +626,8 @@ first and third element are true. The third matches lists of length 4
 or greater where the final 4 elements are `true, false, true, false`.
 The list must be exactly of length 4 to arrive at the second or third
 clause, so the third pattern is redundant.
-```unison
+
+``` unison
 test : [Boolean] -> ()
 test = cases
   [a, b, c, d, f] ++ xs -> ()
@@ -616,7 +636,7 @@ test = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -627,7 +647,7 @@ test = cases
 ```
 # bugfix: Sufficient data decl map
 
-```unison
+``` unison
 unique type T = A
 
 unit2t : Unit -> T
@@ -635,7 +655,7 @@ unit2t = cases
   () -> A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -649,7 +669,7 @@ unit2t = cases
       unit2t : 'T
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -665,13 +685,14 @@ transitive type dependencies of references that appear in the expression.
 
 This test ensures that we have fetched the `T` type although there is
 no data decl reference to `T` in `witht`.
-```unison
+
+``` unison
 witht : Unit
 witht = match unit2t () with
   x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -684,14 +705,14 @@ witht = match unit2t () with
       witht : ()
 
 ```
-```unison
+``` unison
 unique type V =
 
 evil : Unit -> V
 evil = bug ""
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -705,7 +726,7 @@ evil = bug ""
       evil : 'V
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -714,13 +735,13 @@ scratch/main> add
     evil : 'V
 
 ```
-```unison
+``` unison
 withV : Unit
 withV = match evil () with
   x -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -729,11 +750,11 @@ withV = match evil () with
     
 
 ```
-```unison
+``` unison
 unique type SomeType = A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -746,7 +767,7 @@ unique type SomeType = A
       type SomeType
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -754,14 +775,14 @@ scratch/main> add
     type SomeType
 
 ```
-```unison
+``` unison
 unique type R = R SomeType
 
 get x = match x with
   R y -> y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -775,11 +796,11 @@ get x = match x with
       get : R -> SomeType
 
 ```
-```unison
+``` unison
 unique type R = { someType : SomeType }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -799,7 +820,7 @@ unique type R = { someType : SomeType }
 
 ## Exhaustive ability handlers are accepted
 
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -810,7 +831,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -824,7 +845,7 @@ result f = handle !f with cases
       result : '{e, Abort} a ->{e} a
 
 ```
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -837,7 +858,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -856,7 +877,7 @@ result f = handle !f with cases
       type T
 
 ```
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -868,7 +889,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -882,7 +903,7 @@ result f =
       result : '{e, Abort} V ->{e} V
 
 ```
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -898,7 +919,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -915,7 +936,7 @@ handleMulti c =
 ```
 ## Non-exhaustive ability handlers are rejected
 
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
   abortWithMessage : Text -> {Abort} a
@@ -926,7 +947,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -941,7 +962,7 @@ result f = handle !f with cases
     * { abortWithMessage _ -> _ }
 
 ```
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -953,7 +974,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -967,7 +988,7 @@ result f = handle !f with cases
    * { B }
 
 ```
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -979,7 +1000,7 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -993,7 +1014,7 @@ result f = handle !f with cases
    * { give B -> _ }
 
 ```
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
 
@@ -1009,7 +1030,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1025,7 +1046,7 @@ handleMulti c =
 ```
 ## Redundant handler cases are rejected
 
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -1038,7 +1059,7 @@ result f = handle !f with cases
        { give A -> resume } -> result resume
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1049,7 +1070,7 @@ result f = handle !f with cases
 ```
 ## Exhaustive ability reinterpretations are accepted
 
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
   abortWithMessage : Text -> {Abort} a
@@ -1062,7 +1083,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1076,7 +1097,7 @@ result f = handle !f with cases
       result : '{e, Abort} a ->{e, Abort} a
 
 ```
-```unison
+``` unison
 structural ability Abort a where
   abort : {Abort a} r
   abortWithMessage : a -> {Abort a} r
@@ -1090,7 +1111,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1106,7 +1127,7 @@ result f =
 ```
 ## Non-exhaustive ability reinterpretations are rejected
 
-```unison
+``` unison
 structural ability Abort where
   abort : {Abort} a
   abortWithMessage : Text -> {Abort} a
@@ -1118,7 +1139,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1145,7 +1166,7 @@ they are all uninhabited.
 The messages here aren't the best, but I don't think uninhabited
 abilities will come up and get handlers written for them often.
 
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1158,7 +1179,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1173,7 +1194,7 @@ result f =
     * { give2 _ -> _ }
 
 ```
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1187,7 +1208,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1201,7 +1222,7 @@ result f =
       result : '{e, Give V} r ->{e} r
 
 ```
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1215,7 +1236,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1229,7 +1250,7 @@ result f =
       result : '{e, Give V} r ->{e} r
 
 ```
-```unison
+``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1244,7 +1265,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1253,7 +1274,7 @@ result f =
     
 
 ```
-```unison
+``` unison
 unique ability GiveA a where
   giveA : a -> {GiveA a} Unit
   giveA2 : a -> {GiveA a} Unit
@@ -1274,7 +1295,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -1283,7 +1304,7 @@ result f =
     
 
 ```
-```unison
+``` unison
 unique ability GiveA a where
   giveA : a -> {GiveA a} Unit
   giveA2 : a -> {GiveA a} Unit
@@ -1302,7 +1323,7 @@ result f =
   handle !f with impl
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

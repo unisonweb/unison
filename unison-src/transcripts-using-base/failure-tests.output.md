@@ -6,7 +6,7 @@ Exception ability directly, and the last is code validation. I don't
 have an easy way to test the last at the moment, but the other two are
 tested here.
 
-```unison
+``` unison
 test1 : '{IO, Exception} [Result]
 test1 = do
   _ = fromUtf8 0xsee
@@ -18,7 +18,7 @@ test2 = do
   [Ok "test2"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,7 +32,7 @@ test2 = do
       test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -41,7 +41,7 @@ scratch/main> add
     test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> io.test test1
 
   💔💥
@@ -57,7 +57,7 @@ scratch/main> io.test test1
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> io.test test2
 
   💔💥

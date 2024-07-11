@@ -1,4 +1,4 @@
-```unison
+``` unison
 foo = 1
 lib.foo = 2
 lib.bar = 3
@@ -8,7 +8,7 @@ cat.lib.bar = 6
 somewhere.bar = 7
 ```
 
-```ucm
+``` ucm
 scratch/main> find foo
 
   1. cat.foo : Nat
@@ -34,7 +34,7 @@ scratch/main> view 1
   cat.foo = 4
 
 ```
-```ucm
+``` ucm
 scratch/main> find-in cat foo
 
   1. foo : Nat
@@ -59,7 +59,7 @@ scratch/main> view 1
 ```
 Finding within a namespace
 
-```ucm
+``` ucm
 scratch/main> find bar
 
   1. somewhere.bar : Nat
@@ -73,7 +73,7 @@ scratch/main> find-in somewhere bar
   
 
 ```
-```ucm
+``` ucm
 scratch/main> find baz
 
   ☝️
@@ -90,7 +90,7 @@ scratch/main> find baz
   namespace.
 
 ```
-```ucm
+``` ucm
 scratch/main> find.global notHere
 
   😶

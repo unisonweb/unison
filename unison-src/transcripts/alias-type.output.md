@@ -1,6 +1,6 @@
 `alias.type` makes a new name for a type.
 
-```ucm
+``` ucm
 project/main> alias.type lib.builtins.Nat Foo
 
   Done.
@@ -13,7 +13,7 @@ project/main> ls
 ```
 It won't create a conflicted name, though.
 
-```ucm
+``` ucm
 project/main> alias.type lib.builtins.Int Foo
 
   ⚠️
@@ -21,7 +21,7 @@ project/main> alias.type lib.builtins.Int Foo
   A type by that name already exists.
 
 ```
-```ucm
+``` ucm
 project/main> ls
 
   1. Foo  (builtin type)
@@ -30,7 +30,7 @@ project/main> ls
 ```
 You can use `debug.alias.type.force` for that.
 
-```ucm
+``` ucm
 project/main> debug.alias.type.force lib.builtins.Int Foo
 
   Done.

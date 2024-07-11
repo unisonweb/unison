@@ -1,11 +1,12 @@
 # demonstrating our new input parsing errors
 
-```unison
+``` unison
 x = 55
 ```
 
 `handleNameArg` parse error in `add`
-```ucm
+
+``` ucm
 scratch/main> add .
 
 ⚠️
@@ -42,8 +43,8 @@ scratch/main> add 2
 
 ```
 todo:
-```haskell
 
+``` haskell
   SA.Name name -> pure name
   SA.NameWithBranchPrefix (Left _) name -> pure name
   SA.NameWithBranchPrefix (Right prefix) name -> pure $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
@@ -56,12 +57,11 @@ todo:
   SA.SearchResult mpath result ->
     maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
   otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
-
 ```
 
 aliasMany: skipped -- similar to `add`
 
-```ucm
+``` ucm
 scratch/main> update arg
 
 ⚠️
@@ -75,18 +75,17 @@ You can run `help update` for more information on using
 
 ```
 aliasTerm
-```scratch
-/main> alias.term ##Nat.+ Nat.+
 
-```
+    scratch/main> alias.term ##Nat.+ Nat.+
 
 aliasTermForce,
 aliasType,
 
-
 todo:
-```alias
-Many,
+
+``` 
+
+aliasMany,
 api,
 authLogin,
 back,
@@ -202,6 +201,5 @@ upgradeCommitInputPattern,
 view,
 viewGlobal,
 viewReflog
-
 ```
 

@@ -2,11 +2,11 @@ The `switch` command switches to an existing project or branch.
 
 Setup stuff.
 
-```unison
+``` unison
 someterm = 18
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ someterm = 18
       someterm : Nat
 
 ```
-```ucm
+``` ucm
 foo/main> add
 
   ⍟ I've added these definitions:
@@ -45,7 +45,7 @@ Now, the demo. When unambiguous, `switch` switches to either a project or a bran
 the current project can be preceded by a forward slash (which makes it unambiguous). A project can be followed by a
 forward slash (which makes it unambiguous).
 
-```ucm
+``` ucm
 scratch/main> switch foo
 
 scratch/main> switch foo/topic
@@ -59,7 +59,7 @@ foo/main> switch bar/
 ```
 It's an error to try to switch to something ambiguous.
 
-```ucm
+``` ucm
 foo/main> switch bar
 
   I'm not sure if you wanted to switch to the branch foo/bar or
@@ -73,20 +73,20 @@ foo/main> switch bar
 ```
 It's an error to try to switch to something that doesn't exist, of course.
 
-```ucm
+``` ucm
 scratch/main> switch foo/no-such-branch
 
   foo/no-such-branch does not exist.
 
 ```
-```ucm
+``` ucm
 scratch/main> switch no-such-project
 
   Neither project no-such-project nor branch /no-such-project
   exists.
 
 ```
-```ucm
+``` ucm
 foo/main> switch no-such-project-or-branch
 
   Neither project no-such-project-or-branch nor branch

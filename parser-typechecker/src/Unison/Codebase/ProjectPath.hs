@@ -54,12 +54,12 @@ instance From ProjectPath Text where
   from = from . toNames
 
 instance From ProjectPathNames Text where
-  from (ProjectPath proj branch path) =
-    into @Text (ProjectAndBranch proj branch) <> ":" <> Path.absToText path
+  from (ProjectPath proj branch (Path.Absolute path)) =
+    into @Text (ProjectAndBranch proj branch) <> ":" <> Path.toText path
 
 instance From (ProjectPathG () ProjectBranchName) Text where
-  from (ProjectPath () branch path) =
-    "/" <> into @Text branch <> ":" <> Path.absToText path
+  from (ProjectPath () branch (Path.Absolute path)) =
+    "/" <> into @Text branch <> ":" <> Path.toText path
 
 type ProjectPath = ProjectPathG Project ProjectBranch
 

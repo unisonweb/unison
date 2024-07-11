@@ -81,7 +81,6 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
-      Unison.Codebase.SqliteCodebase.ProjectRootCache
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing

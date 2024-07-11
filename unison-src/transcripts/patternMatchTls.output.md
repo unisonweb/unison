@@ -1,9 +1,7 @@
 We had bugs in the calling conventions for both send and terminate which would
 cause pattern matching on the resulting (Right ()) would cause a runtime error.
 
-
-
-```unison
+``` unison
 use builtin.io2.Tls newClient send handshake terminate
 
 frank: '{IO} ()
@@ -22,7 +20,7 @@ assertRight = cases
   Left _ -> bug "expected a right but got a left"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -36,7 +34,7 @@ assertRight = cases
       frank       : '{IO} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

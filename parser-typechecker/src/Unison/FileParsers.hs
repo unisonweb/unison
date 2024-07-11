@@ -100,12 +100,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
       --       name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
       --   ]
 
-      let possibleDeps = do
-            v <- Set.toList (Term.freeVars tm)
-            (name, r) <- Rel.toList (Names.terms preexistingNames)
-            let shortname = Name.unsafeParseVar v
-            guard $ name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
-            pure (name, shortname, r)
+      let possibleDeps = findMatchingTermSuffixes (Set.map Name.unsafeParseVar $ Term.freeVars tm) preexistingNames
       let possibleRefs = Referent.toReference . view _3 <$> possibleDeps
       tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
       -- For populating the TDNR environment, we pick definitions
@@ -222,3 +217,34 @@ synthesizeFile env0 uf = do
                 -- Decision
                 Just $ replacement
           _ -> Nothing
+
+findMatchingTermSuffixes :: Set Name.Name -> Names.Names -> [(Name.Name, Name.Name, Referent.Referent)]
+findMatchingTermSuffixes suffixes names =
+  findMatchingTermSuffixesHelper (Set.toList suffixes) (Rel.domain $ Names.terms names)
+
+-- | Efficiently looks up all names which match the provided suffixes in the provided names.
+--
+-- >>> import Unison.Syntax.Name qualified as Name
+-- >>> import Data.List qualified as List
+-- >>> let shortNames = List.sort [Name.unsafeParseText "foo", Name.unsafeParseText "bar.foo", Name.unsafeParseText "quaffle.qux"]
+-- >>> let names = Map.fromList [(Name.unsafeParseText "foo", Set.fromList [10, 20]), (Name.unsafeParseText "baz.bar.foo", Set.singleton 2), (Name.unsafeParseText "goose", Set.singleton 3), (Name.unsafeParseText "qux", Set.singleton 4), (Name.unsafeParseText "quaffle.qux", Set.singleton 5)]
+-- >>> findMatchingTermSuffixesHelper shortNames names
+-- [(Name Relative (NameSegment {toUnescapedText = "foo"} :| []),Name Relative (NameSegment {toUnescapedText = "foo"} :| []),10),(Name Relative (NameSegment {toUnescapedText = "foo"} :| []),Name Relative (NameSegment {toUnescapedText = "foo"} :| []),20),(Name Relative (NameSegment {toUnescapedText = "foo"} :| [NameSegment {toUnescapedText = "bar"},NameSegment {toUnescapedText = "baz"}]),Name Relative (NameSegment {toUnescapedText = "foo"} :| []),2),(Name Relative (NameSegment {toUnescapedText = "foo"} :| [NameSegment {toUnescapedText = "bar"},NameSegment {toUnescapedText = "baz"}]),Name Relative (NameSegment {toUnescapedText = "foo"} :| [NameSegment {toUnescapedText = "bar"}]),2),(Name Relative (NameSegment {toUnescapedText = "qux"} :| [NameSegment {toUnescapedText = "quaffle"}]),Name Relative (NameSegment {toUnescapedText = "qux"} :| [NameSegment {toUnescapedText = "quaffle"}]),5)]
+findMatchingTermSuffixesHelper :: (Show r) => [Name.Name {- must be in ascending order -}] -> Map Name.Name (Set r) -> [(Name.Name, Name.Name, r)]
+findMatchingTermSuffixesHelper [] _names = []
+findMatchingTermSuffixesHelper (shortName : shortNames) names =
+  let (_notMatches, possibleMatches) = Map.spanAntitone (\n -> n < shortName) names
+      (definitelyMatches, notMatches) = Map.spanAntitone (suffixMatchesName shortName) possibleMatches
+      matchTriples = do
+        (name, rs) <- Map.toList definitelyMatches
+        r <- Set.toList rs
+        pure (name, shortName, r)
+   in matchTriples
+        <>
+        -- There may still be some names in definitelyMatches which match the next shortname depending what it is.
+        findMatchingTermSuffixesHelper
+          shortNames
+          (Map.union definitelyMatches notMatches)
+  where
+    suffixMatchesName :: Name.Name -> Name.Name -> Bool
+    suffixMatchesName suff name = name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments suff)

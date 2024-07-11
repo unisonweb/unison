@@ -2,7 +2,7 @@
 
 When there's nothing to do, `todo` says this:
 
-```ucm
+``` ucm
 scratch/main> todo
 
   You have no pending todo items. Good work! ✅
@@ -12,7 +12,7 @@ scratch/main> todo
 
 The `todo` command shows local (outside `lib`) terms that directly call `todo`.
 
-```unison
+``` unison
 foo : Nat
 foo = todo "implement foo"
 
@@ -20,7 +20,7 @@ bar : Nat
 bar = foo + foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -34,7 +34,7 @@ bar = foo + foo
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -54,12 +54,12 @@ scratch/main> todo
 The `todo` command shows hashes of direct dependencies of local (outside `lib`) definitions that don't have names in
 the current namespace.
 
-```unison
+``` unison
 foo.bar = 15
 baz = foo.bar + foo.bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -73,7 +73,7 @@ baz = foo.bar + foo.bar
       foo.bar : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -104,12 +104,12 @@ scratch/main> todo
 
 The `todo` command shows conflicted names.
 
-```unison
+``` unison
 foo = 16
 bar = 17
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -123,7 +123,7 @@ bar = 17
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -152,11 +152,11 @@ scratch/main> todo
 
 The `todo` command complains about terms and types directly in `lib`.
 
-```unison
+``` unison
 lib.foo = 16
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -169,7 +169,7 @@ lib.foo = 16
       lib.foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -187,11 +187,11 @@ scratch/main> todo
 
 The `todo` command complains about constructor aliases.
 
-```unison
+``` unison
 type Foo = One
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -204,7 +204,7 @@ type Foo = One
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -229,11 +229,11 @@ scratch/main> todo
 
 The `todo` command complains about missing constructor names.
 
-```unison
+``` unison
 type Foo = Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -246,7 +246,7 @@ type Foo = Bar
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -272,12 +272,12 @@ scratch/main> todo
 
 The `todo` command complains about nested decl aliases.
 
-```unison
+``` unison
 structural type Foo a = One a | Two a a
 structural type Foo.inner.Bar a = Uno a | Dos a a
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -291,7 +291,7 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
       structural type Foo.inner.Bar a
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -312,11 +312,11 @@ scratch/main> todo
 
 The `todo` command complains about stray constructors.
 
-```unison
+``` unison
 type Foo = Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -329,7 +329,7 @@ type Foo = Bar
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -1,6 +1,6 @@
 # Definition Summary APIs
 
-```unison
+``` unison
 nat : Nat
 nat = 42
 doc : Doc2
@@ -21,7 +21,7 @@ structural ability Stream s where
 
 ## Term Summary APIs
 
-```api
+``` api
 --  term
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary?name=nat
 {
@@ -667,9 +667,11 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.
     },
     "tag": "Plain"
 }
-```## Type Summary APIs
+```
 
-```api
+## Type Summary APIs
+
+``` api
 --  data
 GET /api/projects/scratch/branches/main/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0/summary?name=Thing
 {
@@ -824,3 +826,4 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?
     "tag": "Data"
 }
 ```
+

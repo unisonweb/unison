@@ -1,6 +1,6 @@
 Update a member of a cycle with a type-changing update, thus severing the cycle.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = !pong + 1
 
@@ -8,7 +8,7 @@ pong : 'Nat
 pong _ = !ping + 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ pong _ = !ping + 2
       pong : 'Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -31,12 +31,12 @@ scratch/main> add
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : Nat
 ping = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,7 +50,7 @@ ping = 3
       ping : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:

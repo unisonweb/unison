@@ -1,9 +1,9 @@
-```unison
+``` unison
 x = 23
 fslkdjflskdjflksjdf = 663
 ```
 
-```ucm
+``` ucm
 scratch/b1> add
 
   ⍟ I've added these definitions:
@@ -12,13 +12,13 @@ scratch/b1> add
     x                   : Nat
 
 ```
-```unison
+``` unison
 x = 23
 fslkdjflskdjflksjdf = 23
 abc = 23
 ```
 
-```ucm
+``` ucm
 scratch/b2> add
 
   ⍟ I've added these definitions:
@@ -32,7 +32,7 @@ scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
   Done.
 
 ```
-```ucm
+``` ucm
 scratch/main> diff.namespace /b1: /b2:
 
   Resolved name conflicts:
@@ -52,16 +52,16 @@ scratch/main> diff.namespace /b1: /b2:
 ```
 Things we want to test:
 
-* Diffing identical namespaces
-* Adds, removes, updates
-  * Adds with multiple names
-* Moved and copied definitions
-  * Moves that have more that 1 initial or final name
-* ... terms and types
-* New patches, modified patches, deleted patches, moved patches
-* With and without propagated updates
+  - Diffing identical namespaces
+  - Adds, removes, updates
+      - Adds with multiple names
+  - Moved and copied definitions
+      - Moves that have more that 1 initial or final name
+  - ... terms and types
+  - New patches, modified patches, deleted patches, moved patches
+  - With and without propagated updates
 
-```unison
+``` unison
 fromJust = 1
 b = 2
 bdependent = b
@@ -72,7 +72,7 @@ structural type A a = A ()
 structural ability X a1 a2 where x : ()
 ```
 
-```ucm
+``` ucm
 scratch/ns1> add
 
   ⍟ I've added these definitions:
@@ -103,7 +103,7 @@ scratch/ns1> branch /ns2
 ```
 Here's what we've done so far:
 
-```ucm
+``` ucm
 scratch/main> diff.namespace .nothing /ns1:
 
   ⚠️
@@ -111,17 +111,17 @@ scratch/main> diff.namespace .nothing /ns1:
   The namespace scratch/main:.nothing is empty. Was there a typo?
 
 ```
-```ucm
+``` ucm
 scratch/main> diff.namespace /ns1: /ns2:
 
   The namespaces are identical.
 
 ```
-```unison
+``` unison
 junk = "asldkfjasldkfj"
 ```
 
-```ucm
+``` ucm
 scratch/ns1> add
 
   ⍟ I've added these definitions:
@@ -137,7 +137,7 @@ scratch/ns1> delete.term junk
   Done.
 
 ```
-```unison
+``` unison
 fromJust = 99
 b = "oog"
 d = 4
@@ -146,7 +146,7 @@ f = 6
 unique type Y a b = Y a b
 ```
 
-```ucm
+``` ucm
 scratch/ns2> update.old
 
   ⍟ I've added these definitions:
@@ -280,11 +280,11 @@ scratch/main> diff.namespace /ns3: /ns2:
     3. fromJust' ┘  4. fromJust' (removed)
 
 ```
-```unison
+``` unison
 bdependent = "banana"
 ```
 
-```ucm
+``` ucm
 scratch/ns3> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -313,14 +313,14 @@ scratch/main> diff.namespace /ns2: /ns3:
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
 
-```unison
+``` unison
 a = 333
 b = a + 1
 
 forconflicts = 777
 ```
 
-```ucm
+``` ucm
 scratch/nsx> add
 
   ⍟ I've added these definitions:
@@ -344,11 +344,11 @@ scratch/nsx> branch /nsz
        `switch /nsx` then `merge /nsz`.
 
 ```
-```unison
+``` unison
 a = 444
 ```
 
-```ucm
+``` ucm
 scratch/nsy> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -356,11 +356,11 @@ scratch/nsy> update.old
     a : Nat
 
 ```
-```unison
+``` unison
 a = 555
 ```
 
-```ucm
+``` ucm
 scratch/nsz> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -383,7 +383,7 @@ scratch/nsw> debug.alias.term.force .forconflicts .b
   Done.
 
 ```
-```ucm
+``` ucm
 scratch/main> diff.namespace /nsx: /nsw:
 
   New name conflicts:
@@ -429,11 +429,11 @@ scratch/nsw> view b
 ```
 ## Should be able to diff a namespace hash from history.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -446,7 +446,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 scratch/hashdiff> add
 
   ⍟ I've added these definitions:
@@ -454,11 +454,11 @@ scratch/hashdiff> add
     x : ##Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -471,7 +471,7 @@ y = 2
       y : ##Nat
 
 ```
-```ucm
+``` ucm
 scratch/hashdiff> add
 
   ⍟ I've added these definitions:
@@ -498,49 +498,50 @@ scratch/hashdiff> diff.namespace 2 1
     1. y : ##Nat
 
 ```
-##
+## 
 
 Updates:  -- 1 to 1
 
 New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS=LHS)
 
-  1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
-     ↓
-  2. ┌ foo#0ja1qfpej6 : Nat
-  3. └ foo#jk19sm5bf8 : Nat
+1.  foo\#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
+    ↓
+2.  ┌ foo\#0ja1qfpej6 : Nat
+3.  └ foo\#jk19sm5bf8 : Nat
 
 Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
 
-  4. ┌ bar#0ja1qfpej6 : Nat
-  5. └ bar#jk19sm5bf8 : Nat
-     ↓
-  6. bar#jk19sm5bf8 : Nat
+4.  ┌ bar\#0ja1qfpej6 : Nat
+5.  └ bar\#jk19sm5bf8 : Nat
+    ↓
+6.  bar\#jk19sm5bf8 : Nat
 
 ## Display issues to fixup
 
-- [d] Do we want to surface new edit conflicts in patches?
-- [t] two different auto-propagated changes creating a name conflict should show
-      up somewhere besides the auto-propagate count
-- [t] Things look screwy when the type signature doesn't fit and has to get broken
-      up into multiple lines. Maybe just disallow that?
-- [d] Delete blank line in between copies / renames entries if all entries are 1 to 1
-      see todo in the code
-- [x] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
-- [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
-- [x] might want unqualified names to be qualified sometimes:
-- [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
-- [x] similarly, if a conflicted name is resolved by deleting the last name to
-      a reference, I (arya) suspect it will show up as a Remove
-- [d] Maybe group and/or add headings to the types, constructors, terms
-- [x] add tagging of propagated updates to test propagated updates output
-- [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
-- [x] delete.term has some bonkers output
-- [x] Make a decision about how we want to show constructors in the diff
-- [x] 12.patch patch needs a space
-- [x] This looks like garbage
-- [x] Extra 2 blank lines at the end of the add section
-- [x] Fix alignment issues with buildTable, convert to column3M (to be written)
-- [x] adding an alias is showing up as an Add and a Copy; should just show as Copy
-- [x] removing one of multiple aliases appears in removes + moves + copies section
-- [x] some overlapping cases between Moves and Copies^
-- [x] Maybe don't list the type signature twice for aliases?
+  - \[d\] Do we want to surface new edit conflicts in patches?
+  - \[t\] two different auto-propagated changes creating a name conflict should show
+    up somewhere besides the auto-propagate count
+  - \[t\] Things look screwy when the type signature doesn't fit and has to get broken
+    up into multiple lines. Maybe just disallow that?
+  - \[d\] Delete blank line in between copies / renames entries if all entries are 1 to 1
+    see todo in the code
+  - \[x\] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
+  - \[x\] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
+  - \[x\] might want unqualified names to be qualified sometimes:
+  - \[x\] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+  - \[x\] similarly, if a conflicted name is resolved by deleting the last name to
+    a reference, I (arya) suspect it will show up as a Remove
+  - \[d\] Maybe group and/or add headings to the types, constructors, terms
+  - \[x\] add tagging of propagated updates to test propagated updates output
+  - \[x\] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
+  - \[x\] delete.term has some bonkers output
+  - \[x\] Make a decision about how we want to show constructors in the diff
+  - \[x\] 12.patch patch needs a space
+  - \[x\] This looks like garbage
+  - \[x\] Extra 2 blank lines at the end of the add section
+  - \[x\] Fix alignment issues with buildTable, convert to column3M (to be written)
+  - \[x\] adding an alias is showing up as an Add and a Copy; should just show as Copy
+  - \[x\] removing one of multiple aliases appears in removes + moves + copies section
+  - \[x\] some overlapping cases between Moves and Copies^
+  - \[x\] Maybe don't list the type signature twice for aliases?
+

@@ -1,18 +1,18 @@
 # namespace.dependencies command
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 
   Done.
 
 ```
-```unison
+``` unison
 const a b = a
 external.mynat = 1
 mynamespace.dependsOnText = const external.mynat 10
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

@@ -1,9 +1,9 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ unique type Baz = Qux Foo
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -26,11 +26,11 @@ scratch/main> add
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo a = Bar Nat a
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ unique type Foo a = Bar Nat a
       type Foo a
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -57,7 +57,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 type Baz = Qux Foo
 
 type Foo a = Bar Nat a

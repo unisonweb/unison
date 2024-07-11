@@ -1,16 +1,15 @@
-
 This transcript does some testing of higher-rank types. Regression tests related to higher-rank types can be added here.
 
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:
 
-```unison
+``` unison
 f : (forall a . a -> a) -> (Nat, Text)
 f id = (id 1, id "hi")
 
 > f (x -> x)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,14 +31,14 @@ f id = (id 1, id "hi")
 ```
 Another example, involving abilities. Here the ability-polymorphic function is instantiated with two different ability lists, `{}` and `{IO}`:
 
-```unison
+``` unison
 f : (forall a g . '{g} a -> '{g} a) -> () -> ()
 f id _ =
   _ = (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
   ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -54,7 +53,7 @@ f id _ =
 ```
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
 
-```unison
+``` unison
 unique type Functor f = Functor (forall a b . (a -> b) -> f a -> f b)
 
 Functor.map : Functor f -> (forall a b . (a -> b) -> f a -> f b)
@@ -67,7 +66,7 @@ Functor.blah = cases Functor f ->
   ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -85,7 +84,7 @@ Functor.blah = cases Functor f ->
 ```
 This example is similar, but involves abilities:
 
-```unison
+``` unison
 unique ability Remote t where doRemoteStuff : t ()
 unique type Loc = Loc (forall t a . '{Remote t} a ->{Remote t} t a)
 
@@ -111,7 +110,7 @@ Loc.transform2 nt = cases Loc f ->
   Loc f'
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -134,13 +133,13 @@ Loc.transform2 nt = cases Loc f ->
 ```
 ## Types with polymorphic fields
 
-```unison
+``` unison
 structural type HigherRanked = HigherRanked (forall a. a -> a)
 ```
 
 We should be able to add and view records with higher-rank fields.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

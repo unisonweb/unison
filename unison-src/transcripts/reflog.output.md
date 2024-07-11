@@ -1,10 +1,10 @@
 First we make some changes to the codebase so there's data in the reflog.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -25,11 +25,11 @@ scratch/main> add
     x : Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,7 +42,7 @@ y = 2
       y : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -71,7 +71,7 @@ newproject/main> alias.type lib.builtins.Nat MyNat
 ```
 Should see reflog entries from the current branch
 
-```ucm
+``` ucm
 scratch/main> reflog
 
   Below is a record of recent changes, you can use
@@ -84,13 +84,13 @@ scratch/main> reflog
        Branch         Hash          Description
   1.   scratch/main   #6mdl5gruh5   add
   2.   scratch/main   #3rqf1hbev7   add
-  3.   scratch/main   #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  3.   scratch/main   #ms9lggs2rg   builtins.merge scratch/main:lib.builtins
   4.   scratch/main   #sg60bvjo91   Project Created
 
 ```
 Should see reflog entries from the current project
 
-```ucm
+``` ucm
 scratch/main> project.reflog
 
   Below is a record of recent changes, you can use
@@ -101,17 +101,17 @@ scratch/main> project.reflog
        history.
   
        Branch          Hash          Description
-  1.   scratch/other   #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  1.   scratch/other   #148flqs4b1   alias.term scratch/other:.y scratch/other:z
   2.   scratch/other   #6mdl5gruh5   Branch created from scratch/main
   3.   scratch/main    #6mdl5gruh5   add
   4.   scratch/main    #3rqf1hbev7   add
-  5.   scratch/main    #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  5.   scratch/main    #ms9lggs2rg   builtins.merge scratch/main:lib.builtins
   6.   scratch/main    #sg60bvjo91   Project Created
 
 ```
 Should see reflog entries from all projects
 
-```ucm
+``` ucm
 scratch/main> reflog.global
 
   Below is a record of recent changes, you can use
@@ -122,14 +122,14 @@ scratch/main> reflog.global
        history.
   
        Branch            Hash          Description
-  1.   newproject/main   #2rjhs2vq43   alias.term newproject/main:.lib.builtins.Nat newproject/main...
-  2.   newproject/main   #ms9lggs2rg   builtins.merge newproject/main:.lib.builtins
+  1.   newproject/main   #2rjhs2vq43   alias.term newproject/main:lib.builtins.Nat newproject/main:...
+  2.   newproject/main   #ms9lggs2rg   builtins.merge newproject/main:lib.builtins
   3.   newproject/main   #sg60bvjo91   Branch Created
-  4.   scratch/other     #148flqs4b1   alias.term scratch/other:..y scratch/other:.z
+  4.   scratch/other     #148flqs4b1   alias.term scratch/other:.y scratch/other:z
   5.   scratch/other     #6mdl5gruh5   Branch created from scratch/main
   6.   scratch/main      #6mdl5gruh5   add
   7.   scratch/main      #3rqf1hbev7   add
-  8.   scratch/main      #ms9lggs2rg   builtins.merge scratch/main:.lib.builtins
+  8.   scratch/main      #ms9lggs2rg   builtins.merge scratch/main:lib.builtins
   9.   scratch/main      #sg60bvjo91   Project Created
 
 ```
