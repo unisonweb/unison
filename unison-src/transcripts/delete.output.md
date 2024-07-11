@@ -6,7 +6,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ``` ucm
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 
   ⚠️
   
@@ -23,56 +23,57 @@ structural type Foo = Foo ()
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
     foo : Nat
 
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 
   Removed definitions:
   
     1. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo
+scratch/main> delete.verbose Foo
 
   Removed definitions:
   
     1. structural type Foo
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo.Foo
+scratch/main> delete.verbose Foo.Foo
 
   Removed definitions:
   
     1. Foo.Foo : '#089vmor9c5
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 How about an ambiguous term?
 
 ``` unison
-foo = 1
-bar = 2
+a.foo = 1
+a.bar = 2
 ```
 
 ``` ucm
-  ☝️  The namespace .a is empty.
-
-.a> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    bar : ##Nat
-    foo : ##Nat
+    a.bar : Nat
+    a.foo : Nat
 
-.a> debug.alias.term.force bar foo
+scratch/main> debug.alias.term.force a.bar a.foo
 
   Done.
 
@@ -80,7 +81,7 @@ bar = 2
 A delete should remove both versions of the term.
 
 ``` ucm
-.> delete.verbose a.foo
+scratch/main> delete.verbose a.foo
 
   Removed definitions:
   
@@ -92,33 +93,35 @@ A delete should remove both versions of the term.
     2. a.bar            ┐  3. a.foo#dcgdua2lj6 (removed)
     4. a.foo#dcgdua2lj6 ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.a> ls
+scratch/main> ls a
 
-  1. bar (##Nat)
+  1. bar (Nat)
 
 ```
 Let's repeat all that on a type, for completeness.
 
 ``` unison
-structural type Foo = Foo ()
-structural type Bar = Bar
+structural type a.Foo = Foo ()
+structural type a.Bar = Bar
 ```
 
 ``` ucm
-.a> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    structural type Bar
-    structural type Foo
+    structural type a.Bar
+      (also named lib.builtins.Unit)
+    structural type a.Foo
 
-.a> debug.alias.type.force Bar Foo
+scratch/main> debug.alias.type.force a.Bar a.Foo
 
   Done.
 
-.> delete.verbose a.Foo
+scratch/main> delete.verbose a.Foo
 
   Removed definitions:
   
@@ -126,20 +129,22 @@ structural type Bar = Bar
   
   Name changes:
   
-    Original               Changes
-    2. a.Bar            ┐  3. a.Foo#00nv2kob8f (removed)
-    4. builtin.Unit     │  
-    5. a.Foo#00nv2kob8f ┘  
+    Original                Changes
+    2. a.Bar             ┐  3. a.Foo#00nv2kob8f (removed)
+    4. lib.builtins.Unit │  
+    5. a.Foo#00nv2kob8f  ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose a.Foo.Foo
+scratch/main> delete.verbose a.Foo.Foo
 
   Removed definitions:
   
     1. a.Foo.Foo : '#089vmor9c5
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
@@ -150,21 +155,22 @@ structural type foo = Foo ()
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type foo
     foo : Nat
 
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 
   Removed definitions:
   
     1. structural type foo
     2. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We want to be able to delete multiple terms at once
@@ -176,7 +182,7 @@ c = "c"
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -184,7 +190,7 @@ c = "c"
     b : Text
     c : Text
 
-.> delete.verbose a b c
+scratch/main> delete.verbose a b c
 
   Removed definitions:
   
@@ -192,7 +198,8 @@ c = "c"
     2. b : Text
     3. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete terms and types in the same invocation of delete
@@ -205,7 +212,7 @@ c = "c"
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -214,7 +221,7 @@ c = "c"
     b : Text
     c : Text
 
-.> delete.verbose a b c Foo
+scratch/main> delete.verbose a b c Foo
 
   Removed definitions:
   
@@ -223,9 +230,10 @@ c = "c"
     3. b : Text
     4. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo.Foo
+scratch/main> delete.verbose Foo.Foo
 
   Name changes:
   
@@ -233,7 +241,8 @@ c = "c"
     1. Foo.Foo ┐  2. Foo.Foo (removed)
     3. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete a type and its constructors
@@ -243,13 +252,13 @@ structural type Foo = Foo ()
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
 
-.> delete.verbose Foo Foo.Foo
+scratch/main> delete.verbose Foo Foo.Foo
 
   Removed definitions:
   
@@ -261,7 +270,8 @@ structural type Foo = Foo ()
     2. Foo.Foo ┐  3. Foo.Foo (removed)
     4. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should not be able to delete terms which are referenced by other terms
@@ -274,7 +284,7 @@ d = a + b + c
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -284,7 +294,7 @@ d = a + b + c
     c : Nat
     d : Nat
 
-.> delete.verbose a b c
+scratch/main> delete.verbose a b c
 
   ⚠️
   
@@ -307,7 +317,7 @@ h = e + f + g
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -316,7 +326,7 @@ h = e + f + g
     g : Nat
     h : Nat
 
-.> delete.verbose e f g h
+scratch/main> delete.verbose e f g h
 
   Removed definitions:
   
@@ -325,7 +335,8 @@ h = e + f + g
     3. g : Nat
     4. h : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should be able to delete a type and all the functions that reference it in a single command
@@ -339,22 +350,23 @@ incrementFoo = cases
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
     incrementFoo : Foo -> Nat
 
-.> delete.verbose Foo Foo.Foo incrementFoo
+scratch/main> delete.verbose Foo Foo.Foo incrementFoo
 
   Removed definitions:
   
     1. structural type Foo
-    2. Foo.Foo      : Nat -> #68k40ra7l7
-    3. incrementFoo : #68k40ra7l7 -> Nat
+    2. Foo.Foo      : Nat -> Foo
+    3. incrementFoo : Foo -> Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 If you mess up on one of the names of your command, delete short circuits
@@ -367,7 +379,7 @@ h = e + f + g
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -376,7 +388,7 @@ h = e + f + g
     g : Nat
     h : Nat
 
-.> delete.verbose e f gg
+scratch/main> delete.verbose e f gg
 
   ⚠️
   
@@ -392,22 +404,23 @@ pong _ = 4 Nat.+ !ping
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ping : 'Nat
     pong : 'Nat
 
-.> delete.verbose ping
+scratch/main> delete.verbose ping
 
   Removed definitions:
   
     1. ping : 'Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> view pong
+scratch/main> view pong
 
   pong : 'Nat
   pong _ =

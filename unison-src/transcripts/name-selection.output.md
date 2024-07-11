@@ -13,7 +13,7 @@ a.aaa.but.more.segments = 0 + 1
 Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment length alias), and show that it isn't used when viewing `a`:
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -21,10 +21,10 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
     a.aaa.but.more.segments : Nat
     a.b                     : Nat
 
-.a> view a
+scratch/main> view a.a
 
-  a : Nat
-  a =
+  a.a : Nat
+  a.a =
     use Nat +
     b + 1
 
@@ -48,7 +48,7 @@ a3.long.name.but.shortest.suffixification = 1
 ```
 
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -71,11 +71,11 @@ a3.long.name.but.shortest.suffixification = 1
     a3.d                                      : Nat
     a3.long.name.but.shortest.suffixification : Nat
 
-.> debug.alias.term.force a2.c a3.c
+scratch/main> debug.alias.term.force a2.c a3.c
 
   Done.
 
-.> debug.alias.term.force a2.d a3.d
+scratch/main> debug.alias.term.force a2.d a3.d
 
   Done.
 
@@ -85,7 +85,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
 ``` ucm
-.> view a b c d
+scratch/main> view a b c d
 
   a.a : Nat
   a.a =
@@ -141,7 +141,7 @@ a = 10
 
 ```
 ``` ucm
-.biasing> add
+scratch/biasing> add
 
   ⍟ I've added these definitions:
   
@@ -152,7 +152,7 @@ a = 10
 -- Despite being saved with name `a`,
 -- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
 -- It's closer to the term being printed.
-.biasing> view deeply.nested.term
+scratch/biasing> view deeply.nested.term
 
   deeply.nested.term : Nat
   deeply.nested.term =
@@ -180,7 +180,7 @@ other.num = 20
 
 ```
 ``` ucm
-.biasing> add
+scratch/biasing> add
 
   ⍟ I've added these definitions:
   
@@ -188,7 +188,7 @@ other.num = 20
 
 -- nested.num should be preferred over the shorter name `a` due to biasing
 -- because `deeply.nested.num` is nearby to the term being viewed.
-.biasing> view deeply.nested.term
+scratch/biasing> view deeply.nested.term
 
   deeply.nested.term : Nat
   deeply.nested.term =

@@ -1,10 +1,5 @@
 module U.Codebase.Sqlite.Operations
   ( -- * branches
-    saveRootBranch,
-    loadRootCausalHash,
-    expectRootCausalHash,
-    expectRootCausal,
-    expectRootBranchHash,
     loadCausalHashAtPath,
     expectCausalHashAtPath,
     loadCausalBranchAtPath,
@@ -13,6 +8,7 @@ module U.Codebase.Sqlite.Operations
     saveBranchV3,
     loadCausalBranchByCausalHash,
     expectCausalBranchByCausalHash,
+    expectBranchByCausalHashId,
     expectBranchByBranchHash,
     expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
@@ -100,9 +96,16 @@ module U.Codebase.Sqlite.Operations
     fuzzySearchDefinitions,
     namesPerspectiveForRootAndPath,
 
+    -- * Projects
+    expectProjectAndBranchNames,
+    expectProjectBranchHead,
+
     -- * reflog
-    getReflog,
-    appendReflog,
+    getDeprecatedRootReflog,
+    getProjectReflog,
+    getProjectBranchReflog,
+    getGlobalReflog,
+    appendProjectReflog,
 
     -- * low-level stuff
     expectDbBranch,
@@ -183,6 +186,9 @@ import U.Codebase.Sqlite.Patch.TermEdit qualified as S
 import U.Codebase.Sqlite.Patch.TermEdit qualified as S.TermEdit
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S.TypeEdit
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
@@ -200,6 +206,7 @@ import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
+import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment)
@@ -232,23 +239,10 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
     loadValueHashById :: Db.BranchHashId -> Transaction BranchHash
     loadValueHashById = fmap BranchHash . Q.expectHash . Db.unBranchHashId
 
-expectRootCausalHash :: Transaction CausalHash
-expectRootCausalHash = Q.expectCausalHash =<< Q.expectNamespaceRoot
-
-expectRootBranchHash :: Transaction BranchHash
-expectRootBranchHash = do
-  rootCausalHashId <- Q.expectNamespaceRoot
-  expectValueHashByCausalHashId rootCausalHashId
-
-loadRootCausalHash :: Transaction (Maybe CausalHash)
-loadRootCausalHash =
-  runMaybeT $
-    lift . Q.expectCausalHash =<< MaybeT Q.loadNamespaceRoot
-
 -- | Load the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-loadCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
-loadCausalHashAtPath mayRootCausalHash =
+loadCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
+loadCausalHashAtPath rootCausalHash =
   let go :: Db.CausalHashId -> [NameSegment] -> MaybeT Transaction CausalHash
       go hashId = \case
         [] -> lift (Q.expectCausalHash hashId)
@@ -258,15 +252,13 @@ loadCausalHashAtPath mayRootCausalHash =
           (_, hashId') <- MaybeT (pure (Map.lookup tid children))
           go hashId' ts
    in \path -> do
-        hashId <- case mayRootCausalHash of
-          Nothing -> Q.expectNamespaceRoot
-          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
+        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
         runMaybeT (go hashId path)
 
 -- | Expect the causal hash at the given path from the provided root, if Nothing, use the
 -- codebase root.
-expectCausalHashAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction CausalHash
-expectCausalHashAtPath mayRootCausalHash =
+expectCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction CausalHash
+expectCausalHashAtPath rootCausalHash =
   let go :: Db.CausalHashId -> [NameSegment] -> Transaction CausalHash
       go hashId = \case
         [] -> Q.expectCausalHash hashId
@@ -276,23 +268,21 @@ expectCausalHashAtPath mayRootCausalHash =
           let (_, hashId') = children Map.! tid
           go hashId' ts
    in \path -> do
-        hashId <- case mayRootCausalHash of
-          Nothing -> Q.expectNamespaceRoot
-          Just rootCH -> Q.expectCausalHashIdByCausalHash rootCH
+        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
         go hashId path
 
 loadCausalBranchAtPath ::
-  Maybe CausalHash ->
+  CausalHash ->
   [NameSegment] ->
   Transaction (Maybe (C.Branch.CausalBranch Transaction))
-loadCausalBranchAtPath maybeRootCausalHash path =
-  loadCausalHashAtPath maybeRootCausalHash path >>= \case
+loadCausalBranchAtPath rootCausalHash path =
+  loadCausalHashAtPath rootCausalHash path >>= \case
     Nothing -> pure Nothing
     Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
 
-loadBranchAtPath :: Maybe CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
-loadBranchAtPath maybeRootCausalHash path =
-  loadCausalBranchAtPath maybeRootCausalHash path >>= \case
+loadBranchAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
+loadBranchAtPath rootCausalHash path =
+  loadCausalBranchAtPath rootCausalHash path >>= \case
     Nothing -> pure Nothing
     Just causal -> Just <$> C.Causal.value causal
 
@@ -613,16 +603,6 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
           boId <- Q.expectBranchObjectIdByCausalHashId chId
           expectBranch boId
 
-saveRootBranch ::
-  HashHandle ->
-  C.Branch.CausalBranch Transaction ->
-  Transaction (Db.BranchObjectId, Db.CausalHashId)
-saveRootBranch hh c = do
-  when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
-  (boId, chId) <- saveBranch hh c
-  Q.setNamespaceRoot chId
-  pure (boId, chId)
-
 -- saveBranch is kind of a "deep save causal"
 
 -- we want a "shallow save causal" that could take a
@@ -748,9 +728,6 @@ saveCausalObject hh (C.Causal.Causal hc he parents _) = do
     -- Save these CausalHashIds to the causal_parents table,
     Q.saveCausal hh chId bhId parentCausalHashIds
     pure (chId, bhId)
-
-expectRootCausal :: Transaction (C.Branch.CausalBranch Transaction)
-expectRootCausal = Q.expectNamespaceRoot >>= expectCausalBranchByCausalHashId
 
 loadCausalBranchByCausalHash :: CausalHash -> Transaction (Maybe (C.Branch.CausalBranch Transaction))
 loadCausalBranchByCausalHash hc = do
@@ -1510,15 +1487,43 @@ namespaceStatsForDbBranch = \case
         expectNamespaceStatsByHashId bhId
 
 -- | Gets the specified number of reflog entries in chronological order, most recent first.
-getReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
-getReflog numEntries = do
-  entries <- Q.getReflog numEntries
+getDeprecatedRootReflog :: Int -> Transaction [Reflog.Entry CausalHash Text]
+getDeprecatedRootReflog numEntries = do
+  entries <- Q.getDeprecatedRootReflog numEntries
   traverse (bitraverse Q.expectCausalHash pure) entries
 
-appendReflog :: Reflog.Entry CausalHash Text -> Transaction ()
-appendReflog entry = do
-  dbEntry <- (bitraverse Q.saveCausalHash pure) entry
-  Q.appendReflog dbEntry
+-- | Gets the specified number of reflog entries for the given project in chronological order, most recent first.
+getProjectReflog :: Int -> Db.ProjectId -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
+getProjectReflog numEntries projectId = do
+  entries <- Q.getProjectReflog numEntries projectId
+  traverse hydrateProjectReflogEntry entries
+
+-- | Gets the specified number of reflog entries for the specified ProjectBranch in chronological order, most recent first.
+getProjectBranchReflog :: Int -> Db.ProjectBranchId -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
+getProjectBranchReflog numEntries projectBranchId = do
+  entries <- Q.getProjectBranchReflog numEntries projectBranchId
+  traverse hydrateProjectReflogEntry entries
+
+-- | Gets the specified number of reflog entries in chronological order, most recent first.
+getGlobalReflog :: Int -> Transaction [ProjectReflog.Entry Project ProjectBranch CausalHash]
+getGlobalReflog numEntries = do
+  entries <- Q.getGlobalReflog numEntries
+  traverse hydrateProjectReflogEntry entries
+
+hydrateProjectReflogEntry :: ProjectReflog.Entry Db.ProjectId Db.ProjectBranchId Db.CausalHashId -> Transaction (ProjectReflog.Entry Project ProjectBranch CausalHash)
+hydrateProjectReflogEntry entry = do
+  traverse Q.expectCausalHash entry
+    >>= ProjectReflog.projectAndBranch_
+      %%~ ( \(projId, branchId) -> do
+              proj <- Q.expectProject projId
+              branch <- Q.expectProjectBranch projId branchId
+              pure (proj, branch)
+          )
+
+appendProjectReflog :: ProjectReflog.Entry Db.ProjectId Db.ProjectBranchId CausalHash -> Transaction ()
+appendProjectReflog entry = do
+  dbEntry <- traverse Q.saveCausalHash entry
+  Q.appendProjectBranchReflog dbEntry
 
 -- | Delete any name lookup that's not in the provided list.
 --
@@ -1584,3 +1589,14 @@ stripPrefixFromNamedRef (PathSegments prefix) namedRef =
                 Nothing -> reversedName
                 Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| strippedReversedPath)
    in namedRef {S.reversedSegments = newReversedName}
+
+expectProjectAndBranchNames :: Db.ProjectId -> Db.ProjectBranchId -> Transaction (ProjectName, ProjectBranchName)
+expectProjectAndBranchNames projectId projectBranchId = do
+  Project {name = pName} <- Q.expectProject projectId
+  ProjectBranch {name = bName} <- Q.expectProjectBranch projectId projectBranchId
+  pure (pName, bName)
+
+expectProjectBranchHead :: Db.ProjectId -> Db.ProjectBranchId -> Transaction CausalHash
+expectProjectBranchHead projId projectBranchId = do
+  chId <- Q.expectProjectBranchHead projId projectBranchId
+  Q.expectCausalHash chId

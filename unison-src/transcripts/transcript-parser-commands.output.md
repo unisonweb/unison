@@ -20,7 +20,7 @@ x = 1
 
 ```
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -36,7 +36,7 @@ z
 ```
 
 ``` ucm
-.> delete foo
+scratch/main> delete foo
 
   ⚠️
   
@@ -45,7 +45,7 @@ z
 
 ```
 ``` ucm
-.> delete lineToken.call
+scratch/main> delete lineToken.call
 
   ⚠️
   
