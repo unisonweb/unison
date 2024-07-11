@@ -21,8 +21,6 @@ module Unison.Codebase.Branch.Type
     deepTypes,
     deepPaths,
     deepEdits,
-    names,
-    pped,
     Star,
     UnwrappedBranch,
   )
@@ -106,9 +104,7 @@ data Branch0 m = Branch0
     _deepTerms :: Relation Referent Name,
     _deepTypes :: Relation Reference Name,
     _deepPaths :: Set Path,
-    _deepEdits :: Map Name PatchHash,
-    _names :: Names,
-    _pped :: PrettyPrintEnvDecl
+    _deepEdits :: Map Name PatchHash
   }
 
 instance Eq (Branch0 m) where
@@ -163,12 +159,6 @@ deepPaths = _deepPaths
 deepEdits :: Branch0 m -> Map Name PatchHash
 deepEdits = _deepEdits
 
-names :: Branch0 m -> Names
-names = _names
-
-pped :: Branch0 m -> PrettyPrintEnvDecl
-pped = _pped
-
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
 
@@ -205,8 +195,6 @@ branch0 terms types children edits =
     & deriveDeepTypes
     & deriveDeepPaths
     & deriveDeepEdits
-    & deriveNames
-    & derivePPED
     & deriveIsEmpty
 
 deriveIsEmpty :: Branch0 m -> Branch0 m
@@ -300,23 +288,6 @@ deriveDeepEdits branch =
                   (fst <$> _edits b0)
           children <- deepChildrenHelper e
           go (work <> children) (edits <> acc)
-
-deriveNames :: Branch0 m -> Branch0 m
-deriveNames branch =
-  branch
-    { _names =
-        Names
-          (R.swap . deepTerms $ branch)
-          (R.swap . deepTypes $ branch)
-    }
-
-derivePPED :: Branch0 m -> Branch0 m
-derivePPED branch =
-  branch
-    { _pped = PPED.makePPED (PPE.hqNamer hashLen (names branch)) (PPE.suffixifyByHash (names branch))
-    }
-  where
-    hashLen = 10
 
 -- | State used by deepChildrenHelper to determine whether to descend into a child branch.
 -- Contains the set of visited namespace hashes.

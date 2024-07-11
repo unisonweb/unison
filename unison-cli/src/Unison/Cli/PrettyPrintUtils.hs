@@ -10,9 +10,8 @@ where
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Type qualified as Branch
 import Unison.Names (Names)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -33,8 +32,8 @@ prettyPrintEnvDeclFromNames ns =
 -- names object.
 currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl = do
-  Branch.pped <$> Cli.getCurrentBranch0
+  Cli.currentNames >>= prettyPrintEnvDeclFromNames
 
 projectBranchPPED :: ProjectBranch -> Cli PPED.PrettyPrintEnvDecl
 projectBranchPPED pb = do
-  Branch.pped . Branch.head <$> Cli.getProjectBranchRoot pb
+  Cli.projectBranchNames pb >>= prettyPrintEnvDeclFromNames
