@@ -18,12 +18,9 @@ import Data.Either.Extra ()
 import Data.IORef
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Time (getCurrentTime)
 import System.Console.ANSI qualified as ANSI
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
-import U.Codebase.Reflog qualified as Reflog
-import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Sync22 qualified as Sync22
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -37,13 +34,12 @@ import Unison.Codebase.Init qualified as Codebase
 import Unison.Codebase.Init.CreateCodebaseError qualified as Codebase1
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase1
-import Unison.Codebase.RootBranchCache
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
-import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
+import Unison.Codebase.SqliteCodebase.ProjectRootCache qualified as ProjectRootCache
 import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
@@ -62,6 +58,8 @@ import Unison.Type (Type)
 import Unison.Util.Timing (time)
 import Unison.WatchKind qualified as UF
 import UnliftIO (UnliftIO (..), finally)
+import UnliftIO qualified as UnliftIO
+import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 
@@ -106,8 +104,7 @@ createCodebaseOrError onCreate debugName path lockOption action = do
       withConnection (debugName ++ ".createSchema") path \conn -> do
         Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL
         Sqlite.runTransaction conn do
-          Q.createSchema
-          void . Ops.saveRootBranch v2HashHandle $ Cv.causalbranch1to2 Branch.empty
+          CodebaseOps.createSchema
           onCreate
 
       sqliteCodebase debugName path Local lockOption DontMigrate action >>= \case
@@ -136,7 +133,7 @@ initSchemaIfNotExist path = liftIO do
     createDirectoryIfMissing True (makeCodebaseDirPath path)
   unlessM (doesFileExist $ makeCodebasePath path) $
     withConnection "initSchemaIfNotExist" path \conn ->
-      Sqlite.runTransaction conn Q.createSchema
+      Sqlite.runTransaction conn CodebaseOps.createSchema
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -167,8 +164,8 @@ sqliteCodebase ::
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
-  rootBranchCache <- newEmptyRootBranchCacheIO
   branchCache <- newBranchCache
+  projectRootCache <- ProjectRootCache.newProjectRootCache 5 {- Cache the last n project roots for quick switching. -}
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -238,37 +235,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             putTypeDeclarationComponent =
               CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
 
-            getRootBranch :: m (Branch m)
-            getRootBranch =
-              Branch.transform runTransaction
-                <$> fetchRootBranch
-                  rootBranchCache
-                  (runTransaction (CodebaseOps.uncachedLoadRootBranch branchCache getDeclType))
-
-            putRootBranch :: Text -> Branch m -> m ()
-            putRootBranch reason branch1 = do
-              now <- liftIO getCurrentTime
-              withRunInIO \runInIO -> do
-                -- this is naughty, the type says Transaction but it
-                -- won't run automatically with whatever Transaction
-                -- it is composed into unless the enclosing
-                -- Transaction is applied to the same db connection.
-                let branch1Trans = Branch.transform (Sqlite.unsafeIO . runInIO) branch1
-                    putRootBranchTrans :: Sqlite.Transaction () = do
-                      let emptyCausalHash = Branch.headHash Branch.empty
-                      fromRootCausalHash <- fromMaybe emptyCausalHash <$> Ops.loadRootCausalHash
-                      let toRootCausalHash = Branch.headHash branch1
-                      CodebaseOps.putRootBranch branch1Trans
-                      Ops.appendReflog (Reflog.Entry {time = now, fromRootCausalHash, toRootCausalHash, reason})
-
-                -- We need to update the database and the cached
-                -- value. We want to keep these in sync, so we take
-                -- the cache lock while updating sqlite.
-                withLock
-                  rootBranchCache
-                  (\restore _ -> restore $ runInIO $ runTransaction putRootBranchTrans)
-                  (\_ -> Just branch1Trans)
-
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: CausalHash -> m (Maybe (Branch m))
@@ -279,6 +245,16 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             putBranch branch =
               withRunInIO \runInIO ->
                 runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
+
+            preloadProjectRoot :: CausalHash -> m ()
+            preloadProjectRoot h = do
+              void . UnliftIO.forkIO $ void $ do
+                getBranchForHash h >>= \case
+                  Nothing -> pure ()
+                  Just b -> do
+                    ProjectRootCache.stashBranch projectRootCache b
+                    UnliftIO.evaluate b
+                    pure ()
 
             syncFromDirectory :: Codebase1.CodebasePath -> Branch m -> m ()
             syncFromDirectory srcRoot b =
@@ -334,8 +310,6 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   putTypeDeclaration,
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
-                  getRootBranch,
-                  putRootBranch,
                   getBranchForHash,
                   putBranch,
                   syncFromDirectory,
@@ -347,7 +321,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   filterTermsByReferentIdHavingTypeImpl,
                   termReferentsByPrefix = referentsByPrefix,
                   withConnection = withConn,
-                  withConnectionIO = withConnection debugName root
+                  withConnectionIO = withConnection debugName root,
+                  preloadProjectRoot
                 }
         Right <$> action codebase
   where

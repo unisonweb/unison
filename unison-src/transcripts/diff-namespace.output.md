@@ -1,29 +1,39 @@
 ``` unison
-b1.x = 23
-b1.fslkdjflskdjflksjdf = 663
-b2.x = 23
-b2.fslkdjflskdjflksjdf = 23
-b2.abc = 23
+x = 23
+fslkdjflskdjflksjdf = 663
 ```
 
 ``` ucm
-.> add
+scratch/b1> add
 
   ⍟ I've added these definitions:
   
-    b1.fslkdjflskdjflksjdf : Nat
-    b1.x                   : Nat
-    b2.abc                 : Nat
-    b2.fslkdjflskdjflksjdf : Nat
-    b2.x                   : Nat
+    fslkdjflskdjflksjdf : Nat
+    x                   : Nat
 
-.> debug.alias.term.force b1.x b1.fslkdjflskdjflksjdf
+```
+``` unison
+x = 23
+fslkdjflskdjflksjdf = 23
+abc = 23
+```
+
+``` ucm
+scratch/b2> add
+
+  ⍟ I've added these definitions:
+  
+    abc                 : Nat
+    fslkdjflskdjflksjdf : Nat
+    x                   : Nat
+
+scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
 
   Done.
 
 ```
 ``` ucm
-.> diff.namespace b1 b2
+scratch/main> diff.namespace /b1: /b2:
 
   Resolved name conflicts:
   
@@ -31,22 +41,6 @@ b2.abc = 23
     2. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
        ↓
     3. fslkdjflskdjflksjdf#u520d1t9kc : Nat
-  
-  Name changes:
-  
-    Original                             Changes
-    4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#u520d1t9kc ┘  7. fslkdjflskdjflksjdf (added)
-                                         8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
-
-.b2> diff.namespace .b1
-
-  Resolved name conflicts:
-  
-    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : ##Nat
-    2. └ fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
-       ↓
-    3. fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
   
   Name changes:
   
@@ -79,9 +73,7 @@ structural ability X a1 a2 where x : ()
 ```
 
 ``` ucm
-  ☝️  The namespace .ns1 is empty.
-
-.ns1> add
+scratch/ns1> add
 
   ⍟ I've added these definitions:
   
@@ -93,31 +85,34 @@ structural ability X a1 a2 where x : ()
     fromJust   : ##Nat
     helloWorld : ##Text
 
-.ns1> alias.term fromJust fromJust'
+scratch/ns1> alias.term fromJust fromJust'
 
   Done.
 
-.ns1> alias.term helloWorld helloWorld2
+scratch/ns1> alias.term helloWorld helloWorld2
 
   Done.
 
-.ns1> fork .ns1 .ns2
+scratch/ns1> branch /ns2
 
-  Done.
+  Done. I've created the ns2 branch based off of ns1.
+  
+  Tip: To merge your work back into the ns1 branch, first
+       `switch /ns1` then `merge /ns2`.
 
 ```
 Here's what we've done so far:
 
 ``` ucm
-.> diff.namespace nothing ns1
+scratch/main> diff.namespace .nothing /ns1:
 
   ⚠️
   
-  The namespace .nothing is empty. Was there a typo?
+  The namespace scratch/main:.nothing is empty. Was there a typo?
 
 ```
 ``` ucm
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace /ns1: /ns2:
 
   The namespaces are identical.
 
@@ -127,17 +122,17 @@ junk = "asldkfjasldkfj"
 ```
 
 ``` ucm
-.ns1> add
+scratch/ns1> add
 
   ⍟ I've added these definitions:
   
     junk : ##Text
 
-.ns1> debug.alias.term.force junk fromJust
+scratch/ns1> debug.alias.term.force junk fromJust
 
   Done.
 
-.ns1> delete.term junk
+scratch/ns1> delete.term junk
 
   Done.
 
@@ -152,7 +147,7 @@ unique type Y a b = Y a b
 ```
 
 ``` ucm
-.ns2> update.old
+scratch/ns2> update.old
 
   ⍟ I've added these definitions:
   
@@ -167,7 +162,7 @@ unique type Y a b = Y a b
     fromJust : ##Nat
       (The old definition was also named fromJust'.)
 
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace /ns1: /ns2:
 
   Resolved name conflicts:
   
@@ -189,26 +184,26 @@ unique type Y a b = Y a b
   Added definitions:
   
     8.  type Y a b
-    9.  Y.Y : a -> b -> Y a b
+    9.  Y.Y : a -> b -> #md85ksgqel a b
     10. d   : Nat
     11. e   : Nat
     12. f   : Nat
   
     13. patch patch (added 2 updates)
 
-.> alias.term ns2.d ns2.d'
+scratch/ns2> alias.term d d'
 
   Done.
 
-.> alias.type ns2.A ns2.A'
+scratch/ns2> alias.type A A'
 
   Done.
 
-.> alias.type ns2.X ns2.X'
+scratch/ns2> alias.type X X'
 
   Done.
 
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace /ns1: /ns2:
 
   Resolved name conflicts:
   
@@ -230,7 +225,7 @@ unique type Y a b = Y a b
   Added definitions:
   
     8.  type Y a b
-    9.  Y.Y  : a -> b -> Y a b
+    9.  Y.Y  : a -> b -> #md85ksgqel a b
     10. ┌ d  : Nat
     11. └ d' : Nat
     12. e    : Nat
@@ -245,36 +240,38 @@ unique type Y a b = Y a b
     
     17. X    18. X' (added)
 
-.> alias.type ns1.X ns1.X2
+scratch/ns1> alias.type X X2
 
   Done.
 
-.> alias.type ns2.A' ns2.A''
+scratch/ns2> alias.type A' A''
 
   Done.
 
-.> fork ns2 ns3
+scratch/ns2> branch /ns3
+
+  Done. I've created the ns3 branch based off of ns2.
+  
+  Tip: To merge your work back into the ns2 branch, first
+       `switch /ns2` then `merge /ns3`.
+
+scratch/ns2> alias.term fromJust' yoohoo
 
   Done.
 
-.> alias.term ns2.fromJust' ns2.yoohoo
-
-  Done.
-
-.> delete.term.verbose ns2.fromJust'
+scratch/ns2> delete.term.verbose fromJust'
 
   Name changes:
   
-    Original            Changes
-    1. ns2.fromJust  ┐  2. ns2.fromJust' (removed)
-    3. ns2.fromJust' │  
-    4. ns2.yoohoo    │  
-    5. ns3.fromJust  │  
-    6. ns3.fromJust' ┘  
+    Original        Changes
+    1. fromJust  ┐  2. fromJust' (removed)
+    3. fromJust' │  
+    4. yoohoo    ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> diff.namespace ns3 ns2
+scratch/main> diff.namespace /ns3: /ns2:
 
   Name changes:
   
@@ -288,13 +285,13 @@ bdependent = "banana"
 ```
 
 ``` ucm
-.ns3> update.old
+scratch/ns3> update.old
 
   ⍟ I've updated these names to your new definition:
   
     bdependent : ##Text
 
-.> diff.namespace ns2 ns3
+scratch/main> diff.namespace /ns2: /ns3:
 
   Updates:
   
@@ -319,25 +316,32 @@ shown, only their also-conflicted dependency is shown.
 ``` unison
 a = 333
 b = a + 1
+
+forconflicts = 777
 ```
 
 ``` ucm
-  ☝️  The namespace .nsx is empty.
-
-.nsx> add
+scratch/nsx> add
 
   ⍟ I've added these definitions:
   
-    a : ##Nat
-    b : ##Nat
+    a            : Nat
+    b            : Nat
+    forconflicts : Nat
 
-.> fork nsx nsy
+scratch/nsx> branch /nsy
 
-  Done.
+  Done. I've created the nsy branch based off of nsx.
+  
+  Tip: To merge your work back into the nsx branch, first
+       `switch /nsx` then `merge /nsy`.
 
-.> fork nsx nsz
+scratch/nsx> branch /nsz
 
-  Done.
+  Done. I've created the nsz branch based off of nsx.
+  
+  Tip: To merge your work back into the nsx branch, first
+       `switch /nsx` then `merge /nsz`.
 
 ```
 ``` unison
@@ -345,11 +349,11 @@ a = 444
 ```
 
 ``` ucm
-.nsy> update.old
+scratch/nsy> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    a : ##Nat
+    a : Nat
 
 ```
 ``` unison
@@ -357,57 +361,70 @@ a = 555
 ```
 
 ``` ucm
-.nsz> update.old
+scratch/nsz> update.old
 
   ⍟ I've updated these names to your new definition:
   
-    a : ##Nat
+    a : Nat
 
-.> fork nsy nsw
+scratch/nsy> branch /nsw
+
+  Done. I've created the nsw branch based off of nsy.
+  
+  Tip: To merge your work back into the nsy branch, first
+       `switch /nsy` then `merge /nsw`.
+
+scratch/nsw> debug.alias.term.force .forconflicts .a
 
   Done.
 
-.> debug.alias.term.force nsz.a nsw.a
-
-  Done.
-
-.> debug.alias.term.force nsz.b nsw.b
+scratch/nsw> debug.alias.term.force .forconflicts .b
 
   Done.
 
 ```
 ``` ucm
-.> diff.namespace nsx nsw
+scratch/main> diff.namespace /nsx: /nsw:
 
   New name conflicts:
   
-    1. a#uiiiv8a86s : Nat
-       ↓
-    2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
+    1.  a#uiiiv8a86s : Nat
+        ↓
+    2.  ┌ a#mdl4vqtu00 : Nat
+    3.  └ a#r3msrbpp1v : Nat
     
-    4. b#lhigeb1let : Nat
-       ↓
-    5. ┌ b#aapqletas7 : Nat
-    6. └ b#unkqhuu66p : Nat
+    4.  b#lhigeb1let : Nat
+        ↓
+    5.  ┌ b#r3msrbpp1v : Nat
+    6.  └ b#unkqhuu66p : Nat
   
   Added definitions:
   
-    7. patch patch (added 1 updates)
+    7.  patch patch (added 1 updates)
+  
+  Name changes:
+  
+    Original            Changes
+    8.  forconflicts    9.  a#r3msrbpp1v (added)
+                        10. b#r3msrbpp1v (added)
 
-.nsw> view a b
+scratch/nsw> view a
 
-  a#mdl4vqtu00 : ##Nat
+  a#mdl4vqtu00 : Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : ##Nat
-  a#vrs8gtkl2t = 555
+  a#r3msrbpp1v : Nat
+  a#r3msrbpp1v = 777
+
+scratch/nsw> view b
+
+  b#r3msrbpp1v : Nat
+  b#r3msrbpp1v = 777
   
-  b#aapqletas7 : ##Nat
-  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
-  
-  b#unkqhuu66p : ##Nat
-  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
+  b#unkqhuu66p : Nat
+  b#unkqhuu66p =
+    use Nat +
+    a#mdl4vqtu00 + 1
 
 ```
 ## Should be able to diff a namespace hash from history.
@@ -426,13 +443,11 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : ##Nat
+      x : Nat
 
 ```
 ``` ucm
-  ☝️  The namespace .hashdiff is empty.
-
-.hashdiff> add
+scratch/hashdiff> add
 
   ⍟ I've added these definitions:
   
@@ -457,13 +472,13 @@ y = 2
 
 ```
 ``` ucm
-.hashdiff> add
+scratch/hashdiff> add
 
   ⍟ I've added these definitions:
   
     y : ##Nat
 
-.hashdiff> history
+scratch/hashdiff> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -476,7 +491,7 @@ y = 2
   
   □ 2. #i52j9fd57b (start of history)
 
-.hashdiff> diff.namespace 2 1
+scratch/hashdiff> diff.namespace 2 1
 
   Added definitions:
   

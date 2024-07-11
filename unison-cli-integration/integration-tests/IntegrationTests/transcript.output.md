@@ -1,7 +1,7 @@
 # Integration test: transcript
 
 ``` unison
-use .builtin
+use lib.builtins
 
 unique type MyBool = MyTrue | MyFalse
 
@@ -44,7 +44,7 @@ main = do
 
 ```
 ``` ucm
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -53,6 +53,6 @@ main = do
     main   : '{IO, Exception} ()
     resume : Request {g, Break} x -> x
 
-.> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
+scratch/main> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 
 ```

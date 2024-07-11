@@ -1,7 +1,7 @@
 # Delete
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 The delete command can delete both terms and types.
@@ -10,7 +10,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ```ucm:error
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 ```
 
 Now for some easy cases. Deleting an unambiguous term, then deleting an
@@ -22,43 +22,43 @@ structural type Foo = Foo ()
 ```
 
 ```ucm
-.> add
-.> delete.verbose foo
-.> delete.verbose Foo
-.> delete.verbose Foo.Foo
+scratch/main> add
+scratch/main> delete.verbose foo
+scratch/main> delete.verbose Foo
+scratch/main> delete.verbose Foo.Foo
 ```
 
 How about an ambiguous term?
 
 ```unison:hide
-foo = 1
-bar = 2
+a.foo = 1
+a.bar = 2
 ```
 
 ```ucm
-.a> add
-.a> debug.alias.term.force bar foo
+scratch/main> add
+scratch/main> debug.alias.term.force a.bar a.foo
 ```
 
 A delete should remove both versions of the term.
 
 ```ucm
-.> delete.verbose a.foo
-.a> ls
+scratch/main> delete.verbose a.foo
+scratch/main> ls a
 ```
 
 Let's repeat all that on a type, for completeness.
 
 ```unison:hide
-structural type Foo = Foo ()
-structural type Bar = Bar
+structural type a.Foo = Foo ()
+structural type a.Bar = Bar
 ```
 
 ```ucm
-.a> add
-.a> debug.alias.type.force Bar Foo
-.> delete.verbose a.Foo
-.> delete.verbose a.Foo.Foo
+scratch/main> add
+scratch/main> debug.alias.type.force a.Bar a.Foo
+scratch/main> delete.verbose a.Foo
+scratch/main> delete.verbose a.Foo.Foo
 ```
 
 Finally, let's try to delete a term and a type with the same name.
@@ -69,8 +69,8 @@ structural type foo = Foo ()
 ```
 
 ```ucm
-.> add
-.> delete.verbose foo
+scratch/main> add
+scratch/main> delete.verbose foo
 ```
 
 We want to be able to delete multiple terms at once
@@ -82,8 +82,8 @@ c = "c"
 ```
 
 ```ucm
-.> add
-.> delete.verbose a b c
+scratch/main> add
+scratch/main> delete.verbose a b c
 ```
 
 We can delete terms and types in the same invocation of delete
@@ -96,9 +96,9 @@ c = "c"
 ```
 
 ```ucm
-.> add
-.> delete.verbose a b c Foo
-.> delete.verbose Foo.Foo
+scratch/main> add
+scratch/main> delete.verbose a b c Foo
+scratch/main> delete.verbose Foo.Foo
 ```
 
 We can delete a type and its constructors
@@ -108,8 +108,8 @@ structural type Foo = Foo ()
 ```
 
 ```ucm
-.> add
-.> delete.verbose Foo Foo.Foo
+scratch/main> add
+scratch/main> delete.verbose Foo Foo.Foo
 ```
 
 You should not be able to delete terms which are referenced by other terms
@@ -122,8 +122,8 @@ d = a + b + c
 ```
 
 ```ucm:error
-.> add
-.> delete.verbose a b c
+scratch/main> add
+scratch/main> delete.verbose a b c
 ```
 
 But you should be able to delete all terms which reference each other in a single command
@@ -136,8 +136,8 @@ h = e + f + g
 ```
 
 ```ucm
-.> add
-.> delete.verbose e f g h
+scratch/main> add
+scratch/main> delete.verbose e f g h
 ```
 
 You should be able to delete a type and all the functions that reference it in a single command
@@ -151,8 +151,8 @@ incrementFoo = cases
 ```
 
 ```ucm
-.> add
-.> delete.verbose Foo Foo.Foo incrementFoo
+scratch/main> add
+scratch/main> delete.verbose Foo Foo.Foo incrementFoo
 ```
 
 If you mess up on one of the names of your command, delete short circuits
@@ -165,8 +165,8 @@ h = e + f + g
 ```
 
 ```ucm:error
-.> add
-.> delete.verbose e f gg
+scratch/main> add
+scratch/main> delete.verbose e f gg
 ```
 
 Cyclical terms which are guarded by a lambda are allowed to be deleted
@@ -177,7 +177,7 @@ pong _ = 4 Nat.+ !ping
 ```
 
 ```ucm
-.> add
-.> delete.verbose ping
-.> view pong
+scratch/main> add
+scratch/main> delete.verbose ping
+scratch/main> view pong
 ```

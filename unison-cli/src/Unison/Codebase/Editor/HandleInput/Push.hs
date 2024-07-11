@@ -9,13 +9,13 @@ import Control.Lens (_1, _2)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text as Text
 import Data.These (These (..))
-import Data.Void (absurd)
 import System.Console.Regions qualified as Console.Regions
 import Text.Builder qualified
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite (Project)
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
@@ -23,7 +23,6 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Cli.UnisonConfigUtils qualified as UnisonConfigUtils
 import Unison.Codebase.Editor.HandleInput.AuthLogin qualified as AuthLogin
 import Unison.Codebase.Editor.Input
   ( PushRemoteBranchInput (..),
@@ -32,13 +31,6 @@ import Unison.Codebase.Editor.Input
   )
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.Output.PushPull (PushPull (Push))
-import Unison.Codebase.Editor.RemoteRepo
-  ( WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-  )
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.PushBehavior qualified as PushBehavior
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.Hash32 (Hash32)
@@ -67,49 +59,16 @@ handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
 handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
   case sourceTarget of
     -- push <implicit> to <implicit>
-    PushSourceTarget0 ->
-      ProjectUtils.getCurrentProjectBranch >>= \case
-        Nothing -> do
-          localPath <- Cli.getCurrentPath
-          UnisonConfigUtils.resolveConfiguredUrl Push Path.currentPath >>= \case
-            WriteRemoteNamespaceShare namespace -> pushLooseCodeToShareLooseCode localPath namespace pushBehavior
-            WriteRemoteProjectBranch v -> absurd v
-        Just (localProjectAndBranch, _restPath) ->
-          pushProjectBranchToProjectBranch
-            force
-            localProjectAndBranch
-            Nothing
+    PushSourceTarget0 -> do
+      localProjectAndBranch <- Cli.getCurrentProjectAndBranch
+      pushProjectBranchToProjectBranch force localProjectAndBranch Nothing
     -- push <implicit> to .some.path (share)
-    PushSourceTarget1 (WriteRemoteNamespaceShare namespace) -> do
-      localPath <- Cli.getCurrentPath
-      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
     -- push <implicit> to @some/project
-    PushSourceTarget1 (WriteRemoteProjectBranch remoteProjectAndBranch0) ->
-      ProjectUtils.getCurrentProjectBranch >>= \case
-        Nothing -> do
-          localPath <- Cli.getCurrentPath
-          remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
-          pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
-        Just (localProjectAndBranch, _restPath) ->
-          pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
-    -- push .some.path to .some.path (share)
-    PushSourceTarget2 (PathySource localPath0) (WriteRemoteNamespaceShare namespace) -> do
-      localPath <- Cli.resolvePath' localPath0
-      pushLooseCodeToShareLooseCode localPath namespace pushBehavior
-    -- push .some.path to @some/project
-    PushSourceTarget2 (PathySource localPath0) (WriteRemoteProjectBranch remoteProjectAndBranch0) -> do
-      localPath <- Cli.resolvePath' localPath0
-      remoteProjectAndBranch <- ProjectUtils.hydrateNames remoteProjectAndBranch0
-      pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch
-    -- push @some/project to .some.path (share)
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteNamespaceShare namespace) -> do
-      ProjectAndBranch project branch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
-      pushLooseCodeToShareLooseCode
-        (ProjectUtils.projectBranchPath (ProjectAndBranch (project ^. #projectId) (branch ^. #branchId)))
-        namespace
-        pushBehavior
+    PushSourceTarget1 remoteProjectAndBranch0 -> do
+      localProjectAndBranch <- Cli.getCurrentProjectAndBranch
+      pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch0)
     -- push @some/project to @some/project
-    PushSourceTarget2 (ProjySource localProjectAndBranch0) (WriteRemoteProjectBranch remoteProjectAndBranch) -> do
+    PushSourceTarget2 (ProjySource localProjectAndBranch0) remoteProjectAndBranch -> do
       localProjectAndBranch <- ProjectUtils.expectProjectAndBranchByTheseNames localProjectAndBranch0
       pushProjectBranchToProjectBranch force localProjectAndBranch (Just remoteProjectAndBranch)
   where
@@ -118,24 +77,6 @@ handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
         PushBehavior.ForcePush -> True
         PushBehavior.RequireEmpty -> False
         PushBehavior.RequireNonEmpty -> False
-
--- Push a local namespace ("loose code") to a Share-hosted remote namespace ("loose code").
-pushLooseCodeToShareLooseCode :: Path.Absolute -> WriteShareRemoteNamespace -> PushBehavior -> Cli ()
-pushLooseCodeToShareLooseCode _ _ _ = do
-  Cli.returnEarly LooseCodePushDeprecated
-
--- Push a local namespace ("loose code") to a remote project branch.
-pushLooseCodeToProjectBranch :: Bool -> Path.Absolute -> ProjectAndBranch ProjectName ProjectBranchName -> Cli ()
-pushLooseCodeToProjectBranch force localPath remoteProjectAndBranch = do
-  _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
-  localBranchHead <-
-    Cli.runTransactionWithRollback \rollback -> do
-      loadCausalHashToPush localPath >>= \case
-        Nothing -> rollback (EmptyLooseCodePush (Path.absoluteToPath' localPath))
-        Just hash -> pure hash
-
-  uploadPlan <- pushToProjectBranch0 force PushingLooseCode localBranchHead remoteProjectAndBranch
-  executeUploadPlan uploadPlan
 
 -- | Push a local project branch to a remote project branch. If the remote project branch is left unspecified, we either
 -- use a pre-existing mapping for the local branch, or else infer what remote branch to push to (possibly creating it).
@@ -147,14 +88,11 @@ pushProjectBranchToProjectBranch ::
 pushProjectBranchToProjectBranch force localProjectAndBranch maybeRemoteProjectAndBranchNames = do
   _ <- AuthLogin.ensureAuthenticatedWithCodeserver Codeserver.defaultCodeserver
   let localProjectAndBranchIds = localProjectAndBranch & over #project (view #projectId) & over #branch (view #branchId)
-  let localProjectAndBranchNames = localProjectAndBranch & over #project (view #name) & over #branch (view #name)
 
   -- Load local project and branch from database and get the causal hash to push
   (localProjectAndBranch, localBranchHead) <-
-    Cli.runTransactionWithRollback \rollback -> do
-      hash <-
-        loadCausalHashToPush (ProjectUtils.projectBranchPath localProjectAndBranchIds) & onNothingM do
-          rollback (EmptyProjectBranchPush localProjectAndBranchNames)
+    Cli.runTransaction do
+      hash <- expectCausalHashToPush (localProjectAndBranch ^. #branch)
       localProjectAndBranch <- expectProjectAndBranch localProjectAndBranchIds
       pure (localProjectAndBranch, hash)
 
@@ -471,7 +409,7 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
       Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
   let ProjectAndBranch projectName branchName = remoteBranch
-  Cli.respond (ViewOnShare (Right (Share.hardCodedUri, projectName, branchName)))
+  Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- After upload actions
@@ -563,7 +501,7 @@ makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
 
   when (localBranchHead == Share.API.hashJWTHash remoteBranch.branchHead) do
     Cli.respond (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
-    Cli.returnEarly (ViewOnShare (Right (Share.hardCodedUri, remoteBranch.projectName, remoteBranch.branchName)))
+    Cli.returnEarly (ViewOnShare (Share.hardCodedUri, remoteBranch.projectName, remoteBranch.branchName))
 
   when (not force) do
     whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
@@ -633,14 +571,11 @@ expectProjectAndBranch (ProjectAndBranch projectId branchId) =
     <$> Queries.expectProject projectId
     <*> Queries.expectProjectBranch projectId branchId
 
--- Get the causal hash to push at the given path. Return Nothing if there's no history.
-loadCausalHashToPush :: Path.Absolute -> Sqlite.Transaction (Maybe Hash32)
-loadCausalHashToPush path =
-  Operations.loadCausalHashAtPath Nothing segments <&> \case
-    Nothing -> Nothing
-    Just (CausalHash hash) -> Just (Hash32.fromHash hash)
-  where
-    segments = Path.toList (Path.unabsolute path)
+-- Get the causal hash for the given project branch.
+expectCausalHashToPush :: ProjectBranch -> Sqlite.Transaction Hash32
+expectCausalHashToPush pb = do
+  CausalHash causalHash <- Operations.expectProjectBranchHead (pb ^. #projectId) (pb ^. #branchId)
+  pure (Hash32.fromHash causalHash)
 
 -- Were we to try to advance `remoteBranchHead` to `localBranchHead`, would it *not* be a fast-forward?
 wouldNotBeFastForward :: Hash32 -> Hash32 -> Sqlite.Transaction Bool

@@ -60,8 +60,8 @@ library
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
-      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -72,6 +72,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
@@ -80,6 +81,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
+      Unison.Codebase.SqliteCodebase.ProjectRootCache
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
@@ -131,7 +133,6 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
-      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Rehash
