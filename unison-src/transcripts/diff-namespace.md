@@ -3,6 +3,7 @@ scratch/b1> builtins.merge lib.builtins
 scratch/b2> builtins.merge lib.builtins
 scratch/nsx> builtins.merge lib.builtins
 scratch/main> builtins.merge lib.builtins
+scratch/ns1> builtins.merge lib.builtins
 ```
 
 ```unison:hide
@@ -79,7 +80,7 @@ scratch/ns1> delete.term junk
 
 ```unison:hide
 fromJust = 99
-b = "oog"
+b = 999999999
 d = 4
 e = 5
 f = 6
@@ -87,7 +88,7 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-scratch/ns2> update.old
+scratch/ns2> update
 scratch/main> diff.namespace /ns1: /ns2:
 scratch/ns2> alias.term d d'
 scratch/ns2> alias.type A A'
@@ -104,7 +105,7 @@ scratch/main> diff.namespace /ns3: /ns2:
 bdependent = "banana"
 ```
 ```ucm
-scratch/ns3> update.old
+scratch/ns3> update
 scratch/main> diff.namespace /ns2: /ns3:
 ```
 
@@ -132,7 +133,7 @@ a = 444
 ```
 
 ```ucm
-scratch/nsy> update.old
+scratch/nsy> update
 ```
 
 ```unison:hide
@@ -140,7 +141,7 @@ a = 555
 ```
 
 ```ucm
-scratch/nsz> update.old
+scratch/nsz> update
 scratch/nsy> branch /nsw
 scratch/nsw> debug.alias.term.force .forconflicts .a
 scratch/nsw> debug.alias.term.force .forconflicts .b
