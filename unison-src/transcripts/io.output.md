@@ -13,13 +13,15 @@ create a scratch directory which will automatically get cleaned up.
 
 ### Creating/Deleting/Renaming Directories
 
-Tests: createDirectory,
-       isDirectory,
-       fileExists,
-       renameDirectory,
-       deleteDirectory
+Tests:
 
-```unison
+  - createDirectory,
+  - isDirectory,
+  - fileExists,
+  - renameDirectory,
+  - deleteDirectory
+
+``` unison
 testCreateRename : '{io2.IO} [Result]
 testCreateRename _ =
   test = 'let
@@ -45,7 +47,7 @@ testCreateRename _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +60,7 @@ testCreateRename _ =
       testCreateRename : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -84,11 +86,13 @@ scratch/main> io.test testCreateRename
 ```
 ### Opening / Closing files
 
-Tests: openFile
-       closeFile
-       isFileOpen
+Tests:
 
-```unison
+  - openFile
+  - closeFile
+  - isFileOpen
+
+``` unison
 testOpenClose : '{io2.IO} [Result]
 testOpenClose _ =
   test = 'let
@@ -127,7 +131,7 @@ testOpenClose _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -140,7 +144,7 @@ testOpenClose _ =
       testOpenClose : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -165,12 +169,14 @@ scratch/main> io.test testOpenClose
 ```
 ### Reading files with getSomeBytes
 
-Tests: getSomeBytes
-       putBytes
-       isFileOpen
-       seekHandle
+Tests:
 
-```unison
+  - getSomeBytes
+  - putBytes
+  - isFileOpen
+  - seekHandle
+
+``` unison
 testGetSomeBytes : '{io2.IO} [Result]
 testGetSomeBytes _ =
   test = 'let
@@ -217,7 +223,7 @@ testGetSomeBytes _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -230,7 +236,7 @@ testGetSomeBytes _ =
       testGetSomeBytes : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -257,16 +263,18 @@ scratch/main> io.test testGetSomeBytes
 ```
 ### Seeking in open files
 
-Tests: openFile
-       putBytes
-       closeFile
-       isSeekable
-       isFileEOF
-       seekHandle
-       getBytes
-       getLine
+Tests:
 
-```unison
+  - openFile
+  - putBytes
+  - closeFile
+  - isSeekable
+  - isFileEOF
+  - seekHandle
+  - getBytes
+  - getLine
+
+``` unison
 testSeek : '{io2.IO} [Result]
 testSeek _ =
   test = 'let
@@ -324,7 +332,7 @@ testAppend _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -338,7 +346,7 @@ testAppend _ =
       testSeek   : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -374,7 +382,8 @@ scratch/main> io.test testAppend
 
 ```
 ### SystemTime
-```unison
+
+``` unison
 testSystemTime : '{io2.IO} [Result]
 testSystemTime _ =
   test = 'let
@@ -384,7 +393,7 @@ testSystemTime _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -397,7 +406,7 @@ testSystemTime _ =
       testSystemTime : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -417,7 +426,7 @@ scratch/main> io.test testSystemTime
 ```
 ### Get temp directory
 
-```unison
+``` unison
 testGetTempDirectory : '{io2.IO} [Result]
 testGetTempDirectory _ =
   test = 'let
@@ -427,7 +436,7 @@ testGetTempDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -448,7 +457,7 @@ scratch/main> io.test testGetTempDirectory
 ```
 ### Get current directory
 
-```unison
+``` unison
 testGetCurrentDirectory : '{io2.IO} [Result]
 testGetCurrentDirectory _ =
   test = 'let
@@ -458,7 +467,7 @@ testGetCurrentDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -479,7 +488,7 @@ scratch/main> io.test testGetCurrentDirectory
 ```
 ### Get directory contents
 
-```unison
+``` unison
 testDirContents : '{io2.IO} [Result]
 testDirContents _ =
   test = 'let
@@ -491,7 +500,7 @@ testDirContents _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -512,7 +521,7 @@ scratch/main> io.test testDirContents
 ```
 ### Read environment variables
 
-```unison
+``` unison
 testGetEnv : '{io2.IO} [Result]
 testGetEnv _ =
   test = 'let
@@ -524,7 +533,7 @@ testGetEnv _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -548,7 +557,7 @@ scratch/main> io.test testGetEnv
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
 unless they called with the right number of arguments.
 
-```unison
+``` unison
 testGetArgs.fail : Text -> Failure
 testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
 
@@ -578,7 +587,8 @@ testGetArgs.runMeWithTwoArgs = 'let
 ```
 
 Test that they can be run with the right number of args.
-```ucm
+
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -603,7 +613,7 @@ scratch/main> run runMeWithTwoArgs foo bar
 ```
 Calling our examples with the wrong number of args will error.
 
-```ucm
+``` ucm
 scratch/main> run runMeWithNoArgs foo
 
   💔💥
@@ -616,7 +626,7 @@ scratch/main> run runMeWithNoArgs foo
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithOneArg
 
   💔💥
@@ -629,7 +639,7 @@ scratch/main> run runMeWithOneArg
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithOneArg foo bar
 
   💔💥
@@ -643,7 +653,7 @@ scratch/main> run runMeWithOneArg foo bar
     ##raise
 
 ```
-```ucm
+``` ucm
 scratch/main> run runMeWithTwoArgs
 
   💔💥
@@ -658,14 +668,14 @@ scratch/main> run runMeWithTwoArgs
 ```
 ### Get the time zone
 
-```unison
+``` unison
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
   _ = (offset : Int, summer : Nat, name : Text)
   ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -679,7 +689,7 @@ scratch/main> run testTimeZone
 ```
 ### Get some random bytes
 
-```unison
+``` unison
 testRandom : '{io2.IO} [Result]
 testRandom = do
   test = do
@@ -688,7 +698,7 @@ testRandom = do
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

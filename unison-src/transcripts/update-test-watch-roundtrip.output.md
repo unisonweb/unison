@@ -1,7 +1,6 @@
-
 Given a test that depends on another definition,
 
-```unison
+``` unison
 foo n = n + 1
 
 test> mynamespace.foo.test =
@@ -9,7 +8,7 @@ test> mynamespace.foo.test =
   if (foo n) == 2 then [ Ok "passed" ] else [ Fail "wat" ]
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -20,11 +19,11 @@ scratch/main> add
 ```
 if we change the type of the dependency, the test should show in the scratch file as a test watch.
 
-```unison
+``` unison
 foo n = "hello, world!"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -38,7 +37,7 @@ foo n = "hello, world!"
       foo : n -> Text
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -51,7 +50,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 test> mynamespace.foo.test =
   n = 2
   if foo n == 2 then [Ok "passed"] else [Fail "wat"]

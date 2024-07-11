@@ -85,6 +85,7 @@ import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency as LD
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -1405,6 +1406,7 @@ notifyUser dir = \case
               <> "the same on both branches, or making neither of them a builtin, and then try the merge again."
           )
       ]
+  -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
   MergeConstructorAlias aliceOrBob typeName conName1 conName2 ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -1420,6 +1422,7 @@ notifyUser dir = \case
         "",
         P.wrap "Please delete all but one name for each constructor, and then try merging again."
       ]
+  -- Note [DefnsInLibMessage] If you change this, also change the other similar one
   MergeDefnsInLib aliceOrBob ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -1432,6 +1435,7 @@ notifyUser dir = \case
         "",
         P.wrap "Please move or remove it and then try merging again."
       ]
+  -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
   MergeMissingConstructorName aliceOrBob name ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -1450,6 +1454,7 @@ notifyUser dir = \case
             <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
             <> "to give names to each unnamed constructor, and then try the merge again."
       ]
+  -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
   MergeNestedDeclAlias aliceOrBob shorterName longerName ->
     pure . P.wrap $
       "On"
@@ -1460,6 +1465,7 @@ notifyUser dir = \case
         <> P.group (prettyName shorterName <> ".")
         <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
         <> "delete one copy, and then try merging again."
+  -- Note [StrayConstructorMessage] If you change this, also change the other similar one
   MergeStrayConstructor aliceOrBob name ->
     pure . P.lines $
       [ P.wrap $
@@ -2523,20 +2529,20 @@ unsafePrettyTermResultSig' ppe = \case
     head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
-renderNameConflicts :: PPE.PrettyPrintEnv -> Names -> Numbered Pretty
-renderNameConflicts ppe conflictedNames = do
+renderNameConflicts :: Int -> Names -> Numbered Pretty
+renderNameConflicts hashLen conflictedNames = do
   let conflictedTypeNames :: Map Name [HQ.HashQualified Name]
       conflictedTypeNames =
         conflictedNames
           & Names.types
           & R.domain
-          & fmap (foldMap (pure @[] . PPE.typeName ppe))
+          & Map.mapWithKey \name -> map (HQ.take hashLen . HQ.HashQualified name . Reference.toShortHash) . Set.toList
   let conflictedTermNames :: Map Name [HQ.HashQualified Name]
       conflictedTermNames =
         conflictedNames
           & Names.terms
           & R.domain
-          & fmap (foldMap (pure @[] . PPE.termName ppe))
+          & Map.mapWithKey \name -> map (HQ.take hashLen . HQ.HashQualified name . Referent.toShortHash) . Set.toList
   let allConflictedNames :: [Name]
       allConflictedNames = Set.toList (Map.keysSet conflictedTermNames <> Map.keysSet conflictedTypeNames)
   prettyConflictedTypes <- showConflictedNames "type" conflictedTypeNames
@@ -2569,13 +2575,14 @@ renderNameConflicts ppe conflictedNames = do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash
             pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
-          pure . P.wrap $
-            ( "The "
-                <> thingKind
-                <> " "
-                <> P.green (prettyName name)
-                <> " has conflicting definitions:"
-            )
+          pure $
+            P.wrap
+              ( "The "
+                  <> thingKind
+                  <> " "
+                  <> P.green (prettyName name)
+                  <> " has conflicting definitions:"
+              )
               <> P.newline
               <> P.newline
               <> P.indentN 2 (P.lines prettyConflicts)
@@ -2601,11 +2608,6 @@ handleTodoOutput :: TodoOutput -> Numbered Pretty
 handleTodoOutput todo
   | todoOutputIsEmpty todo = pure "You have no pending todo items. Good work! ✅"
   | otherwise = do
-      prettyConflicts <-
-        if todo.nameConflicts == mempty
-          then pure mempty
-          else renderNameConflicts todo.ppe.unsuffixifiedPPE todo.nameConflicts
-
       prettyDependentsOfTodo <- do
         if Set.null todo.dependentsOfTodo
           then pure mempty
@@ -2654,11 +2656,159 @@ handleTodoOutput todo
                 <> P.newline
                 <> P.indentN 2 (P.lines types)
 
+      prettyConflicts <-
+        if todo.nameConflicts == mempty
+          then pure mempty
+          else renderNameConflicts todo.hashLen todo.nameConflicts
+
+      let prettyDefnsInLib =
+            if todo.defnsInLib
+              then
+                P.wrap $
+                  -- Note [DefnsInLibMessage] If you change this, also change the other similar one
+                  "There's a type or term at the top level of the `lib` namespace, where I only expect to find"
+                    <> "subnamespaces representing library dependencies. Please move or remove it."
+              else mempty
+
+      prettyConstructorAliases <-
+        let -- We want to filter out constructor aliases whose types are part of a "nested decl alias" problem, because
+            -- otherwise we'd essentially be reporting those issues twice.
+            --
+            -- That is, if we have two nested aliases like
+            --
+            --   Foo = #XYZ
+            --   Foo.Bar = #XYZ#0
+            --
+            --   Foo.inner.Alias = #XYZ
+            --   Foo.inner.Alias.Constructor = #XYZ#0
+            --
+            -- then we'd prefer to say "oh no Foo and Foo.inner.Alias are aliases" but *not* additionally say "oh no
+            -- Foo.Bar and Foo.inner.Alias.Constructor are aliases".
+            notNestedDeclAlias (typeName, _, _) =
+              foldr
+                (\(short, long) acc -> typeName /= short && typeName /= long && acc)
+                True
+                todo.incoherentDeclReasons.nestedDeclAliases
+         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+              [] -> pure mempty
+              aliases -> do
+                things <-
+                  for aliases \(typeName, conName1, conName2) -> do
+                    n1 <- addNumberedArg (SA.Name conName1)
+                    n2 <- addNumberedArg (SA.Name conName2)
+                    pure (typeName, formatNum n1 <> prettyName conName1, formatNum n2 <> prettyName conName2)
+                pure $
+                  things
+                    & map
+                      ( \(typeName, prettyCon1, prettyCon2) ->
+                          -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
+                          P.wrap ("The type" <> prettyName typeName <> "has a constructor with multiple names.")
+                            <> P.newline
+                            <> P.newline
+                            <> P.indentN 2 (P.lines [prettyCon1, prettyCon2])
+                            <> P.newline
+                            <> P.newline
+                            <> P.wrap "Please delete all but one name for each constructor."
+                      )
+                    & P.sep "\n\n"
+
+      prettyMissingConstructorNames <-
+        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+          Nothing -> pure mempty
+          Just types0 -> do
+            stuff <-
+              for types0 \typ -> do
+                n <- addNumberedArg (SA.Name typ)
+                pure (n, typ)
+            -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
+            pure $
+              P.wrap
+                "These types have some constructors with missing names."
+                <> P.newline
+                <> P.newline
+                <> P.indentN 2 (P.lines (fmap (\(n, typ) -> formatNum n <> prettyName typ) stuff))
+                <> P.newline
+                <> P.newline
+                <> P.wrap
+                  ( "You can use"
+                      <> IP.makeExample
+                        IP.view
+                        [ let firstNum = fst (NEList.head stuff)
+                              lastNum = fst (NEList.last stuff)
+                           in if firstNum == lastNum
+                                then P.string (show firstNum)
+                                else P.string (show firstNum) <> "-" <> P.string (show lastNum)
+                        ]
+                      <> "and"
+                      <> IP.makeExample IP.aliasTerm ["<hash>", "<TypeName>.<ConstructorName>"]
+                      <> "to give names to each unnamed constructor."
+                  )
+
+      prettyNestedDeclAliases <-
+        case todo.incoherentDeclReasons.nestedDeclAliases of
+          [] -> pure mempty
+          aliases0 -> do
+            aliases1 <-
+              for aliases0 \(short, long) -> do
+                n1 <- addNumberedArg (SA.Name short)
+                n2 <- addNumberedArg (SA.Name long)
+                pure (formatNum n1 <> prettyName short, formatNum n2 <> prettyName long)
+            -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
+            pure $
+              aliases1
+                & map
+                  ( \(short, long) ->
+                      P.wrap
+                        ( "These types are aliases, but one is nested under the other. Please separate them or delete"
+                            <> "one copy."
+                        )
+                        <> P.newline
+                        <> P.newline
+                        <> P.indentN 2 (P.lines [short, long])
+                  )
+                & P.sep "\n\n"
+
+      prettyStrayConstructors <-
+        case todo.incoherentDeclReasons.strayConstructors of
+          [] -> pure mempty
+          constructors -> do
+            nums <-
+              for constructors \constructor -> do
+                addNumberedArg (SA.Name constructor)
+            -- Note [StrayConstructorMessage] If you change this, also change the other similar one
+            pure $
+              P.wrap "These constructors are not nested beneath their corresponding type names:"
+                <> P.newline
+                <> P.newline
+                <> P.indentN
+                  2
+                  ( P.lines
+                      ( zipWith
+                          (\n constructor -> formatNum n <> prettyName constructor)
+                          nums
+                          constructors
+                      )
+                  )
+                <> P.newline
+                <> P.newline
+                <> P.wrap
+                  ( "For each one, please either use"
+                      <> IP.makeExample' IP.moveAll
+                      <> "to move if, or if it's an extra copy, you can simply"
+                      <> IP.makeExample' IP.delete
+                      <> "it."
+                  )
+
       (pure . P.sep "\n\n" . P.nonEmpty)
         [ prettyDependentsOfTodo,
           prettyDirectTermDependenciesWithoutNames,
           prettyDirectTypeDependenciesWithoutNames,
-          prettyConflicts
+          prettyConflicts,
+          prettyDefnsInLib,
+          prettyConstructorAliases,
+          prettyMissingConstructorNames,
+          prettyNestedDeclAliases,
+          prettyStrayConstructors
         ]
 
 listOfDefinitions ::

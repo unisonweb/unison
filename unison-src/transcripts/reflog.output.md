@@ -1,10 +1,10 @@
 First we make some changes to the codebase so there's data in the reflog.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ x = 1
       x : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -25,11 +25,11 @@ scratch/main> add
     x : Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,7 +42,7 @@ y = 2
       y : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -71,7 +71,7 @@ newproject/main> alias.type lib.builtins.Nat MyNat
 ```
 Should see reflog entries from the current branch
 
-```ucm
+``` ucm
 scratch/main> reflog
 
   Below is a record of recent changes, you can use
@@ -90,7 +90,7 @@ scratch/main> reflog
 ```
 Should see reflog entries from the current project
 
-```ucm
+``` ucm
 scratch/main> project.reflog
 
   Below is a record of recent changes, you can use
@@ -111,7 +111,7 @@ scratch/main> project.reflog
 ```
 Should see reflog entries from all projects
 
-```ucm
+``` ucm
 scratch/main> reflog.global
 
   Below is a record of recent changes, you can use

@@ -1,9 +1,9 @@
-```unison
+``` unison
 foo = 5
 foo.bar = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,7 +17,7 @@ foo.bar = 1
       foo.bar : ##Nat
 
 ```
-```ucm
+``` ucm
 p0/main> add
 
   ⍟ I've added these definitions:
@@ -26,12 +26,12 @@ p0/main> add
     foo.bar : ##Nat
 
 ```
-```unison
+``` unison
 bonk = 5
 donk.bonk = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -47,7 +47,7 @@ donk.bonk = 1
         (also named foo.bar)
 
 ```
-```ucm
+``` ucm
 p1/main> add
 
   ⍟ I've added these definitions:

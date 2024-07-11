@@ -1,6 +1,6 @@
 Demonstrating `create.author`:
 
-```ucm
+``` ucm
 scratch/main> create.author alicecoder "Alice McGee"
 
   Added definitions:

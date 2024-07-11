@@ -1,4 +1,4 @@
-```unison
+``` unison
 unique type EncDec = EncDec Text (Nat -> Bytes) (Bytes -> Optional (Nat, Bytes))
 
 BE64 = EncDec "64 bit Big Endian" encodeNat64be decodeNat64be
@@ -53,7 +53,7 @@ testABunchOfNats _ =
   (runTest (testNat 0))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -75,7 +75,7 @@ testABunchOfNats _ =
       testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

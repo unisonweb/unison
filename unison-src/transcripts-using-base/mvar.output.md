@@ -9,8 +9,7 @@ MVars are the building block on which many other concurrency
 primitives can be built, such as Futures, Run at most once initializer
 blocks, Queues, etc.
 
-
-```unison
+``` unison
 eitherCk : (a -> Boolean) -> Either e a -> Boolean
 eitherCk f = cases
   Left _ -> false
@@ -51,7 +50,7 @@ testMvars _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -65,7 +64,7 @@ testMvars _ =
       testMvars : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

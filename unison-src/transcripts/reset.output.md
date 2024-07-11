@@ -1,8 +1,8 @@
-```unison
+``` unison
 def = "first value"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,13 +15,13 @@ def = "first value"
       def : Text
 
 ```
-```unison
+``` unison
 def = "second value"
 ```
 
 Can reset to a value from history by number.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -73,7 +73,7 @@ scratch/main> history
 ```
 Can reset to a value from reflog by number.
 
-```ucm
+``` ucm
 scratch/main> reflog
 
   Below is a record of recent changes, you can use
@@ -122,7 +122,7 @@ scratch/main> history
 ```
 # reset branch
 
-```ucm
+``` ucm
 foo/main> history
 
   Note: The most recent namespace hash is immediately below this
@@ -133,11 +133,11 @@ foo/main> history
   □ 1. #sg60bvjo91 (start of history)
 
 ```
-```unison
+``` unison
 a = 5
 ```
 
-```ucm
+``` ucm
 foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -165,11 +165,12 @@ foo/empty> history
 
 ```
 ## second argument is always interpreted as a branch
-```unison
+
+``` unison
 main.a = 3
 ```
 
-```ucm
+``` ucm
 foo/main> update
 
   Okay, I'm searching the branch for code that needs to be

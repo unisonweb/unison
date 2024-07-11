@@ -2,7 +2,7 @@
 
 Types and abilities may be prefixed with either `unique` or `structural`. When left unspecified, `unique` is assumed.
 
-```unison
+``` unison
 type Abc = Abc
 unique type Def = Def
 structural type Ghi = Ghi
@@ -12,7 +12,7 @@ unique ability MyAbilityU where const : a
 structural ability MyAbilityS where const : a
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

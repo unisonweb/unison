@@ -9,6 +9,9 @@ module Unison.Codebase.Editor.HandleInput.Merge2
     LcaMergeInfo (..),
     doMerge,
     doMergeLocalBranch,
+
+    -- * API exported for @todo@
+    hasDefnsInLib,
   )
 where
 
@@ -241,11 +244,7 @@ doMerge info = do
 
       -- Assert that neither Alice nor Bob have defns in lib
       for_ [(mergeTarget, branches.alice), (mergeSource, branches.bob)] \(who, branch) -> do
-        libdeps <-
-          case Map.lookup NameSegment.libSegment branch.children of
-            Nothing -> pure V2.Branch.empty
-            Just libdeps -> Cli.runTransaction libdeps.value
-        when (not (Map.null libdeps.terms) || not (Map.null libdeps.types)) do
+        whenM (Cli.runTransaction (hasDefnsInLib branch)) do
           done (Output.MergeDefnsInLib who)
 
       -- Load Alice/Bob/LCA definitions and decl name lookups
@@ -486,6 +485,17 @@ loadLibdeps branches = do
         Just libdepsCausal -> do
           libdepsBranch <- libdepsCausal.value
           pure libdepsBranch.children
+
+------------------------------------------------------------------------------------------------------------------------
+-- Merge precondition violation checks
+
+hasDefnsInLib :: Applicative m => V2.Branch m -> m Bool
+hasDefnsInLib branch = do
+  libdeps <-
+    case Map.lookup NameSegment.libSegment branch.children of
+      Nothing -> pure V2.Branch.empty
+      Just libdeps -> libdeps.value
+  pure (not (Map.null libdeps.terms) || not (Map.null libdeps.types))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files

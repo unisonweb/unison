@@ -1,4 +1,4 @@
-```unison
+``` unison
 mutual0 = cases
   0 -> "okay"
   n ->
@@ -12,7 +12,7 @@ mkTestCase = do
   saveTestCase "case-04" "v4" mutual1 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,7 +27,7 @@ mkTestCase = do
       mutual1    : Nat -> Text
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

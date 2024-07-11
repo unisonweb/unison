@@ -1,11 +1,11 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n+1)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ incrFoo = cases Bar n -> Bar (n+1)
       incrFoo : Foo -> Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -28,11 +28,11 @@ scratch/main> add
     incrFoo : Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -46,7 +46,7 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -59,7 +59,7 @@ scratch/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n Nat.+ 1)
 

@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,7 +15,7 @@ unique type Foo = Nat
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -23,11 +23,11 @@ scratch/main> add
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -47,7 +47,7 @@ unique type Foo = { bar : Nat }
       type Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

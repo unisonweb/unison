@@ -1,14 +1,14 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 test> foo = []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -29,7 +29,7 @@ test> foo = []
 ```
 After adding the test `foo`, we expect `view` to render it like a test. (Bug: It doesn't.)
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -42,11 +42,11 @@ scratch/main> view foo
   foo = []
 
 ```
-```unison
+``` unison
 foo = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -62,7 +62,7 @@ foo = 1
 ```
 After updating `foo` to not be a test, we expect `view` to not render it like a test.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

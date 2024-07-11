@@ -1,7 +1,6 @@
-
 A short script to test mutable references with local scope.
 
-```unison
+``` unison
 test = Scope.run 'let
   r = Scope.ref 0
   Ref.write r 1
@@ -14,7 +13,7 @@ test = Scope.run 'let
 > test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -57,6 +57,7 @@ import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -161,9 +162,11 @@ data NumberedOutput
       [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
 
 data TodoOutput = TodoOutput
-  { dependentsOfTodo :: !(Set TermReferenceId),
+  { defnsInLib :: !Bool,
+    dependentsOfTodo :: !(Set TermReferenceId),
     directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
     hashLen :: !Int,
+    incoherentDeclReasons :: !IncoherentDeclReasons,
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
@@ -173,6 +176,8 @@ todoOutputIsEmpty todo =
   Set.null todo.dependentsOfTodo
     && defnsAreEmpty todo.directDependenciesWithoutNames
     && Names.isEmpty todo.nameConflicts
+    && not todo.defnsInLib
+    && todo.incoherentDeclReasons == IncoherentDeclReasons [] [] [] []
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash

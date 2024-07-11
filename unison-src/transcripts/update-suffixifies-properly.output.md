@@ -1,4 +1,4 @@
-```unison
+``` unison
 a.x.x.x.x = 100
 b.x.x.x.x = 100
 foo = 25
@@ -7,7 +7,7 @@ d.y.y.y.y = foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -25,7 +25,7 @@ bar = a.x.x.x.x + c.y.y.y.y
       foo       : Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:
@@ -38,11 +38,11 @@ myproject/main> add
     foo       : Nat
 
 ```
-```unison
+``` unison
 foo = +30
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -56,7 +56,7 @@ foo = +30
       foo : Int
 
 ```
-```ucm
+``` ucm
 myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -69,7 +69,7 @@ myproject/main> update
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 bar : Nat
 bar =
   use Nat +

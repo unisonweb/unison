@@ -1,6 +1,6 @@
 # Integration test: transcript
 
-```unison
+``` unison
 use lib.builtins
 
 unique type MyBool = MyTrue | MyFalse
@@ -27,7 +27,7 @@ main = do
     _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,7 +43,7 @@ main = do
       resume : Request {g, Break} x -> x
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

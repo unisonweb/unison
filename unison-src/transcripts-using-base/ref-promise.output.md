@@ -3,7 +3,7 @@
 Ref support a CAS operation that can be used as a building block to
 change state atomically without locks.
 
-```unison
+``` unison
 casTest: '{io2.IO} [Result]
 casTest = do
   test = do
@@ -18,7 +18,7 @@ casTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -31,7 +31,7 @@ casTest = do
       casTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -52,7 +52,7 @@ scratch/main> io.test casTest
 ```
 Promise is a simple one-shot awaitable condition.
 
-```unison
+``` unison
 promiseSequentialTest : '{IO} [Result]
 promiseSequentialTest = do
   test = do
@@ -80,7 +80,7 @@ promiseConcurrentTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -94,7 +94,7 @@ promiseConcurrentTest = do
       promiseSequentialTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -126,7 +126,7 @@ scratch/main> io.test promiseConcurrentTest
 ```
 CAS can be used to write an atomic update function.
 
-```unison
+``` unison
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
   ticket = Ref.readForCas ref
@@ -134,7 +134,7 @@ atomicUpdate ref f =
   if Ref.cas ref ticket value then () else atomicUpdate ref f
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -147,7 +147,7 @@ atomicUpdate ref f =
       atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -158,7 +158,7 @@ scratch/main> add
 Promise can be used to write an operation that spawns N concurrent
 tasks and collects their results
 
-```unison
+``` unison
 spawnN : Nat -> '{IO} a ->{IO} [a]
 spawnN n fa =
   use Nat eq drop
@@ -173,7 +173,7 @@ spawnN n fa =
   map Promise.read (go n [])
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -186,7 +186,7 @@ spawnN n fa =
       spawnN : Nat -> '{IO} a ->{IO} [a]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -198,7 +198,7 @@ We can use these primitives to write a more interesting example, where
 multiple threads repeatedly update an atomic counter, we check that
 the value of the counter is correct after all threads are done.
 
-```unison
+``` unison
 fullTest : '{IO} [Result]
 fullTest = do
   use Nat * + eq drop
@@ -222,7 +222,7 @@ fullTest = do
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -235,7 +235,7 @@ fullTest = do
       fullTest : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

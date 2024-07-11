@@ -1,6 +1,6 @@
 # `names` command
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 
   Done.
@@ -8,7 +8,7 @@ scratch/main> builtins.merge lib.builtins
 ```
 Example uses of the `names` command and output
 
-```unison
+``` unison
 -- Some names with the same value
 some.place.x = 1
 some.otherplace.y = 1
@@ -18,7 +18,7 @@ somewhere.z = 1
 somewhere.y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -35,7 +35,7 @@ somewhere.y = 2
       somewhere.z       : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -49,7 +49,7 @@ scratch/main> add
 ```
 `names` searches relative to the current path.
 
-```ucm
+``` ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
 scratch/main> names x
 
@@ -83,16 +83,12 @@ scratch/main> names .some.place.x
 ```
 `names.global` searches from the root, and absolutely qualifies results
 
-
 TODO: swap this back to a 'ucm' block when names.global is re-implemented
 
-```
--- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
-scratch/other> names.global x
--- We can search by hash, and see all aliases of that hash in the codebase
-scratch/other> names.global #gjmq673r1v
--- We can search using an absolute name
-scratch/other> names.global .some.place.x
-
-```
+    -- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
+    scratch/other> names.global x
+    -- We can search by hash, and see all aliases of that hash in the codebase
+    scratch/other> names.global #gjmq673r1v
+    -- We can search using an absolute name
+    scratch/other> names.global .some.place.x
 

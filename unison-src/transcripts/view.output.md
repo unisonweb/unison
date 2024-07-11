@@ -1,11 +1,11 @@
 # View commands
 
-```unison
+``` unison
 a.thing = "a"
 b.thing = "b"
 ```
 
-```ucm
+``` ucm
 -- Should suffix-search and find values in sub-namespaces
 scratch/main> view thing
 
@@ -24,11 +24,8 @@ scratch/main> view .b.thing
 ```
 TODO: swap this back to a 'ucm' block when view.global is re-implemented
 
-```
--- view.global should search globally and be absolutely qualified
-scratch/other> view.global thing
--- Should support branch relative paths
-scratch/other> view /main:.a.thing
-
-```
+    -- view.global should search globally and be absolutely qualified
+    scratch/other> view.global thing
+    -- Should support branch relative paths
+    scratch/other> view /main:.a.thing
 
