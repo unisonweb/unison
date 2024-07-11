@@ -384,7 +384,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 DBTX i)
       ustk <- bump ustk
       bstk <- case tracer env False clo of
         NoTrace -> bstk <$ poke ustk 0
-        MsgTrace _ tx _ -> do
+        MsgTrace _ _ tx -> do
           poke ustk 1
           bstk <- bump bstk
           bstk <$ pokeBi bstk (Util.Text.pack tx)
