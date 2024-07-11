@@ -55,7 +55,7 @@ p1/main> add
     bonk      : ##Nat
     donk.bonk : ##Nat
 
-p1/main> fork p0/main:. zzz
+p1/main> fork p0/main: zzz
 
   Done.
 
@@ -65,7 +65,7 @@ p1/main> find zzz
   2. zzz.foo.bar : ##Nat
   
 
-p1/main> fork p0/main:.foo yyy
+p1/main> fork p0/main:foo yyy
 
   Done.
 
@@ -74,7 +74,7 @@ p1/main> find yyy
   1. yyy.bar : ##Nat
   
 
-p0/main> fork p1/main:. p0/main:.p1
+p0/main> fork p1/main: p0/main:p1
 
   Done.
 

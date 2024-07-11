@@ -46,7 +46,7 @@ a = 5
 
 ```ucm
 foo/main> update
-foo/empty> reset /main:.
+foo/empty> reset /main:
 foo/empty> view a
 foo/empty> history
 ```

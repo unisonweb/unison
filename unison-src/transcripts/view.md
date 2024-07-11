@@ -27,5 +27,5 @@ TODO: swap this back to a 'ucm' block when view.global is re-implemented
 -- view.global should search globally and be absolutely qualified
 scratch/other> view.global thing
 -- Should support branch relative paths
-scratch/other> view /main:.a.thing
+scratch/other> view /main:a.thing
 ```

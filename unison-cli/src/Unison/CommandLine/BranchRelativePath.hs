@@ -166,13 +166,13 @@ incrementalBranchRelativePathParser =
       Megaparsec.Parsec Void Text IncrementalBranchRelativePath
     startingAtColon projStuff = do
       _ <- Megaparsec.char ':'
-      p <- optionalEof absPath
+      p <- optionalEof brPath
       pure (IncompletePath projStuff p)
 
     pathRelativeToCurrentBranch :: Megaparsec.Parsec Void Text IncrementalBranchRelativePath
     pathRelativeToCurrentBranch = do
       _ <- Megaparsec.char ':'
-      p <- absPath
+      p <- brPath
       pure (PathRelativeToCurrentBranch p)
 
     optionalEof :: Megaparsec.Parsec Void Text a -> Megaparsec.Parsec Void Text (Maybe a)
@@ -183,12 +183,13 @@ incrementalBranchRelativePathParser =
 
     branchNameParser = Project.projectBranchNameParser False
 
-    absPath :: Megaparsec.Parsec Void Text Path.Absolute
-    absPath = do
+    brPath :: Megaparsec.Parsec Void Text Path.Absolute
+    brPath = do
       offset <- Megaparsec.getOffset
       path' >>= \(Path.Path' inner) -> case inner of
-        Left p -> pure p
-        Right _ -> failureAt offset "Expected an absolute path but found a relative path. Try adding a leading '.' to your path"
+        Left _ -> failureAt offset "Branch qualified paths don't require a leading '.'"
+        -- Branch relative paths are written as relative paths, but are always absolute to the branch root
+        Right (Path.Relative x) -> pure $ Path.Absolute x
     path' = Megaparsec.try do
       offset <- Megaparsec.getOffset
       pathStr <- Megaparsec.takeRest
@@ -235,6 +236,6 @@ branchRelativePathParser =
 
 toText :: BranchRelativePath -> Text
 toText = \case
-  BranchPathInCurrentProject pbName absPath -> ProjectPath () pbName absPath & into @Text
-  QualifiedBranchPath projName pbName absPath -> ProjectPath projName pbName absPath & into @Text
+  BranchPathInCurrentProject pbName path -> ProjectPath () pbName path & into @Text
+  QualifiedBranchPath projName pbName path -> ProjectPath projName pbName path & into @Text
   UnqualifiedPath path' -> Path.toText' path'

@@ -771,7 +771,7 @@ a |> f = f a
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
 ``` ucm
-scratch/main> diff.namespace /a1:. /a2:.
+scratch/main> diff.namespace /a1: /a2:
 
   The namespaces are identical.
 
@@ -820,7 +820,7 @@ sloppyDocEval =
 These are currently all expected to have different hashes on round trip.
 
 ``` ucm
-scratch/main> diff.namespace /a3_new:. /a3:.
+scratch/main> diff.namespace /a3_new: /a3:
 
   Updates:
   
