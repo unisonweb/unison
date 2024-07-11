@@ -421,7 +421,7 @@
        [(traces ...)
         (trace-decls trace? loc name:impl:stx)])
       (syntax/loc loc
-        (begin link ... impl fast traces ... call decls ...)))))
+        (begin link ... impl traces ... fast call decls ...)))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
