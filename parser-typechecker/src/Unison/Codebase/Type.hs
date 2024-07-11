@@ -85,7 +85,7 @@ data Codebase m v a = Codebase
     -- soon, but not immediately. E.g. the user has switched a branch, but hasn't run any commands on it yet.
     --
     -- This combinator returns immediately, but warms the cache in the background with the desired branch.
-    preloadProjectRoot :: CausalHash -> m ()
+    preloadBranch :: CausalHash -> m ()
   }
 
 -- | Whether a codebase is local or remote.

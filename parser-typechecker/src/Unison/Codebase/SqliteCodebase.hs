@@ -39,7 +39,6 @@ import Unison.Codebase.SqliteCodebase.Branch.Dependencies qualified as BD
 import Unison.Codebase.SqliteCodebase.Migrations qualified as Migrations
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
-import Unison.Codebase.SqliteCodebase.ProjectRootCache qualified as ProjectRootCache
 import Unison.Codebase.SqliteCodebase.SyncEphemeral qualified as SyncEphemeral
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
@@ -55,6 +54,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.Cache qualified as Cache
 import Unison.Util.Timing (time)
 import Unison.WatchKind qualified as UF
 import UnliftIO (UnliftIO (..), finally)
@@ -164,8 +164,17 @@ sqliteCodebase ::
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action = handleLockOption do
-  branchCache <- newBranchCache
-  projectRootCache <- ProjectRootCache.newProjectRootCache 5 {- Cache the last n project roots for quick switching. -}
+  -- The branchLoadCache ephemerally caches branches in memory, but doesn't prevent them from being GC'd.
+  -- This is very useful when loading root branches because the cache shouldn't be limited in size.
+  -- But this cache will automatically clean itself up and remove entries that are no longer reachable.
+  -- If you load another branch, which shares namespaces with another branch that's in memory (and therefor in the cache)
+  -- then those shared namespaces will be loaded from the cache and will be shared in memory.
+  branchLoadCache <- newBranchCache
+  -- The rootBranchCache is a semispace cache which keeps the most recent branch roots (e.g. project roots) alive in memory.
+  -- Unlike the branchLoadCache, this cache is bounded in size and will evict older branches when it reaches its limit.
+  -- The two work in tandem, so the rootBranchCache keeps relevant branches alive, and the branchLoadCache
+  -- stores ALL the subnamespaces of those branches, deduping them when loading from the DB.
+  rootBranchCache <- Cache.semispaceCache 10
   getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -238,21 +247,23 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: CausalHash -> m (Maybe (Branch m))
-            getBranchForHash h =
-              fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchCache getDeclType h)
+            getBranchForHash =
+              Cache.applyDefined rootBranchCache \h -> do
+                fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchLoadCache getDeclType h)
 
             putBranch :: Branch m -> m ()
             putBranch branch =
               withRunInIO \runInIO ->
-                runInIO (runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch)))
+                runInIO $ do
+                  Cache.insert rootBranchCache (Branch.headHash branch) branch
+                  runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
-            preloadProjectRoot :: CausalHash -> m ()
-            preloadProjectRoot h = do
+            preloadBranch :: CausalHash -> m ()
+            preloadBranch h = do
               void . UnliftIO.forkIO $ void $ do
                 getBranchForHash h >>= \case
                   Nothing -> pure ()
                   Just b -> do
-                    ProjectRootCache.stashBranch projectRootCache b
                     UnliftIO.evaluate b
                     pure ()
 
@@ -322,7 +333,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   termReferentsByPrefix = referentsByPrefix,
                   withConnection = withConn,
                   withConnectionIO = withConnection debugName root,
-                  preloadProjectRoot
+                  preloadBranch
                 }
         Right <$> action codebase
   where
