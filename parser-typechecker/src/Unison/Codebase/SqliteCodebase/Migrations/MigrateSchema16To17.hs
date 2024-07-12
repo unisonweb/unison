@@ -4,8 +4,10 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17 (migrateSchema16To17) where
 
 import Control.Lens
+import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import U.Codebase.Branch.Type qualified as V2Branch
@@ -59,10 +61,23 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
         (_, emptyCausalHashId) <- Codebase.emptyCausalHash
         (_proj, pb) <- Ops.insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
         pure pb
+
+  -- Try to set the recent project branch to what it was, default back to scratch if it doesn't exist or the user is in
+  -- loose code.
+  mayRecentProjectBranch <- runMaybeT $ do
+    (projectId, branchId) <- MaybeT getMostRecentProjectBranchIds
+    -- Make sure the project-branch still exists.
+    _projBranch <- MaybeT $ Q.loadProjectBranch projectId branchId
+    pure (projectId, branchId)
+
   Debug.debugLogM Debug.Migration "Adding current project path table"
   Q.addCurrentProjectPathTable
   Debug.debugLogM Debug.Migration "Setting current project path to scratch project"
-  Q.setCurrentProjectPath scratchMain.projectId scratchMain.branchId []
+
+  case mayRecentProjectBranch of
+    Just (projectId, branchId) ->
+      Q.setCurrentProjectPath projectId branchId []
+    Nothing -> Q.setCurrentProjectPath scratchMain.projectId scratchMain.branchId []
   Debug.debugLogM Debug.Migration "Done migrating to version 17"
   Q.setSchemaVersion 17
   where
@@ -154,7 +169,12 @@ without rowid;
     [Sqlite.sql| DELETE FROM project_branch_remote_mapping AS pbrp
       WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = pbrp.local_project_id AND npb.branch_id = pbrp.local_branch_id)
     |]
-  Sqlite.execute [Sqlite.sql| DELETE FROM most_recent_branch |]
+  -- Delete any project branch rows that don't have a matching branch in the current root.
+  Sqlite.execute
+    [Sqlite.sql|
+    DELETE FROM most_recent_branch AS mrb
+      WHERE NOT EXISTS(SELECT 1 FROM new_project_branch npb WHERE npb.project_id = mrb.project_id AND npb.branch_id = mrb.branch_id)
+    |]
 
   Debug.debugLogM Debug.Migration "Swapping old and new project branch tables"
   -- Drop the old project_branch table and rename the new one to take its place.
@@ -223,3 +243,27 @@ projectsNameSegment = NameSegment.unsafeParseText "__projects"
 
 branchesNameSegment :: NameSegment
 branchesNameSegment = NameSegment.unsafeParseText "branches"
+
+expectMostRecentNamespace :: Sqlite.Transaction [NameSegment]
+expectMostRecentNamespace =
+  Sqlite.queryOneColCheck
+    [Sqlite.sql|
+      SELECT namespace
+      FROM most_recent_namespace
+    |]
+    check
+  where
+    check :: Text -> Either Q.JsonParseFailure [NameSegment]
+    check bytes =
+      case Aeson.eitherDecodeStrict (Text.encodeUtf8 bytes) of
+        Left failure -> Left (Q.JsonParseFailure {bytes, failure = Text.pack failure})
+        Right namespace -> Right (map NameSegment namespace)
+
+getMostRecentProjectBranchIds :: Sqlite.Transaction (Maybe (ProjectId, ProjectBranchId))
+getMostRecentProjectBranchIds = do
+  nameSegments <- expectMostRecentNamespace
+  case nameSegments of
+    [proj, UUIDNameSegment projectId, branches, UUIDNameSegment branchId]
+      | proj == projectsNameSegment && branches == branchesNameSegment ->
+          pure . Just $ (ProjectId projectId, ProjectBranchId branchId)
+    _ -> pure Nothing
