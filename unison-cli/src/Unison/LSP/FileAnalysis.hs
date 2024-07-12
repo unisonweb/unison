@@ -29,6 +29,7 @@ import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.DataDeclaration qualified as DD
 import Unison.Debug qualified as Debug
+import Debug.Trace
 import Unison.FileParsers (ShouldUseTndr (..))
 import Unison.FileParsers qualified as FileParsers
 import Unison.KindInference.Error qualified as KindInference
@@ -111,8 +112,10 @@ checkFile doc = runMaybeT do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
+  for_ (parsedFile & foldMap (Map.toList . UF.terms )) \(v, (_, trm)) -> do
+    traceM (show $ (v, trm))
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
-  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri topLevelAnn trm)
+  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->

@@ -198,14 +198,14 @@ instance Functor SourceNode where
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
-  | annIsFilePosition (ABT.annotation term) && not (ABT.annotation term `Ann.contains` pos) = Nothing
+  | annIsFilePosition ann && not (ann `Ann.contains` pos) = Nothing
   | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
       -- In some rare cases it's possible for an External/Intrinsic node to have children that
       -- ARE in the file, so we need to make sure we still crawl their children.
-      let guardInFile = guard (annIsFilePosition (ABT.annotation term))
+      let guardInFile = guard (annIsFilePosition ann)
       let bestChild = case ABT.out term of
             ABT.Tm f -> case f of
               Term.Int {} -> guardInFile *> Just (TermNode term)
@@ -244,7 +244,7 @@ findSmallestEnclosingNode pos term
             ABT.Var _v -> guardInFile *> Just (TermNode term)
             ABT.Cycle r -> findSmallestEnclosingNode pos r
             ABT.Abs _v r -> findSmallestEnclosingNode pos r
-      let fallback = if annIsFilePosition (ABT.annotation term) then Just (TermNode term) else Nothing
+      let fallback = if annIsFilePosition ann then Just (TermNode term) else Nothing
       bestChild <|> fallback
   where
     -- tuples always end in an implicit unit, but it's annotated with the span of the whole
@@ -256,6 +256,14 @@ findSmallestEnclosingNode pos term
       ABT.Tm' (Term.App (ABT.Tm' (Term.App (ABT.Tm' (Term.Constructor (ConstructorReference ref 0))) x)) trm)
         | ref == Builtins.pairRef && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
       _ -> Nothing
+    ann = getTermSpanAnn term
+
+
+-- | Most nodes have the property that their annotation spans all their children, but there are some exceptions.
+getTermSpanAnn :: Term Symbol Ann -> Ann
+getTermSpanAnn tm = case ABT.out tm of
+  ABT.Abs _v r -> ABT.annotation tm <> getTermSpanAnn r
+  _ -> ABT.annotation tm
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
 findSmallestEnclosingPattern pos pat

@@ -169,7 +169,7 @@ expandSimple keep (v, bnd) = (v, apps' (var a v) evs)
     evs = map (var a) . Set.toList $ Set.difference fvs keep
 
 abstract :: (Var v) => Set v -> Term v a -> Term v a
-abstract keep bnd = lam' a evs bnd
+abstract keep bnd = lamWithoutBindingAnns a evs bnd
   where
     a = ABT.annotation bnd
     fvs = ABT.freeVars bnd
@@ -205,7 +205,7 @@ enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e) =
     annotate tm
       | Ann' _ ty <- b = ann a tm ty
       | otherwise = tm
-    lamb = lam' a evs (annotate $ lam' a vs lbody)
+    lamb = lamWithoutBindingAnns a evs (annotate $ lamWithoutBindingAnns a vs lbody)
 enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body)) =
   Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
@@ -218,7 +218,7 @@ enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body)) =
     annotate tm
       | Just ty <- mty = ann a tm ty
       | otherwise = tm
-    lamb = lam' a (evs ++ vs0) . annotate . lam' a vs1 $ lbody
+    lamb = lamWithoutBindingAnns a (evs ++ vs0) . annotate . lamWithoutBindingAnns a vs1 $ lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body =
       Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
@@ -232,8 +232,8 @@ enclose keep rec t@(Handle' h body)
       | null evs = [constructor a (ConstructorReference Ty.unitRef 0)]
       | otherwise = var a <$> evs
     lamb
-      | null evs = lam' a [fv] lbody
-      | otherwise = lam' a evs lbody
+      | null evs = lamWithoutBindingAnns a [fv] lbody
+      | otherwise = lamWithoutBindingAnns a evs lbody
 enclose keep rec t@(Match' s0 cs0) = Just $ match a s cs
   where
     a = ABT.annotation t
@@ -331,7 +331,7 @@ beta rec (LetRecNamedTop' top (fmap (fmap rec) -> vbs) (rec -> bd)) =
       vbs <&> \(v, b0) -> (v,ABT.annotation b0,) $ case b0 of
         LamsNamed' vs b
           | Just n <- Map.lookup v m ->
-              lam' (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
+              lamWithoutBindingAnns (ABT.annotation b0) (drop n vs) (dropPrefixes m b)
         -- shouldn't happen
         b -> dropPrefixes m b
 
@@ -340,7 +340,7 @@ beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
   | n > 0 = Just $ let1' top [(v, lamb)] (dropPrefix v n e)
   | otherwise = Nothing
   where
-    lamb = lam' al (drop n vs) (bd)
+    lamb = lamWithoutBindingAnns al (drop n vs) (bd)
     al = ABT.annotation l
     -- Calculate a maximum number of arguments to drop.
     -- Enclosing doesn't create let-bound lambdas, so we
@@ -353,7 +353,7 @@ beta rec (Let1NamedTop' top v l@(LamsNamed' vs bd) (rec -> e))
 beta rec (Apps' l@(LamsNamed' vs body) as)
   | n <- matchVars 0 vs as,
     n > 0 =
-      Just $ apps' (lam' al (drop n vs) (rec body)) (drop n as)
+      Just $ apps' (lamWithoutBindingAnns al (drop n vs) (rec body)) (drop n as)
   | otherwise = Nothing
   where
     al = ABT.annotation l
@@ -422,7 +422,7 @@ groupFloater rec vbs = do
   where
     rec' b
       | Just (vs0, mty, vs1, bd) <- unLamsAnnot b =
-          lam' a vs0 . maybe id (flip $ ann a) mty . lam' a vs1 <$> rec bd
+          lamWithoutBindingAnns a vs0 . maybe id (flip $ ann a) mty . lamWithoutBindingAnns a vs1 <$> rec bd
       where
         a = ABT.annotation b
     rec' b = rec b
@@ -453,12 +453,12 @@ lamFloater closed tm mv a vs bd =
       let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
        in ( v,
             ( Set.insert v cvs,
-              ctx <> [(v, lam' a vs bd)],
+              ctx <> [(v, lamWithoutBindingAnns a vs bd)],
               floatDecomp closed v tm dcmp
             )
           )
   where
-    tgt = unannotate (lam' a vs bd)
+    tgt = unannotate (lamWithoutBindingAnns a vs bd)
     p (_, flam) = unannotate flam == tgt
 
 floatDecomp ::
@@ -479,7 +479,7 @@ floater top rec tm0@(Ann' tm ty) =
 floater top rec (LetRecNamed' vbs e) =
   Just $
     letFloater rec vbs e >>= \case
-      lm@(LamsNamed' vs bd) | top -> lam' a vs <$> rec bd
+      lm@(LamsNamed' vs bd) | top -> lamWithoutBindingAnns a vs <$> rec bd
         where
           a = ABT.annotation lm
       tm -> rec tm
@@ -492,7 +492,7 @@ floater _ rec (Let1Named' v b e)
   where
     a = ABT.annotation b
 floater top rec tm@(LamsNamed' vs bd)
-  | top = Just $ lam' a vs <$> rec bd
+  | top = Just $ lamWithoutBindingAnns a vs <$> rec bd
   | otherwise = Just $ do
       bd <- rec bd
       lv <- lamFloater True tm Nothing a vs bd
@@ -627,7 +627,7 @@ saturate dat = ABT.visitPure $ \case
         | m < n,
           vs <- snd $ mapAccumL frsh fvs [1 .. n - m],
           nargs <- var mempty <$> vs ->
-            Just . lam' mempty vs . apps' f $ args' ++ nargs
+            Just . lamWithoutBindingAnns mempty vs . apps' f $ args' ++ nargs
         | m > n,
           (sargs, eargs) <- splitAt n args',
           sv <- Var.freshIn fvs $ typed Var.Eta ->
