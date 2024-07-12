@@ -1,14 +1,14 @@
-```ucm
+``` ucm
 scratch/main> builtins.mergeio
 
   Done.
 
 ```
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -28,7 +28,7 @@ test> pass = [Ok "Passed"]
     ✅ Passed Passed
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -36,11 +36,11 @@ scratch/main> add
     pass : [Result]
 
 ```
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -55,7 +55,7 @@ test> pass = [Ok "Passed"]
     ✅ Passed Passed (cached)
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⊡ Ignored previously added definitions: pass
@@ -71,12 +71,12 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 > ImmutableArray.fromList [?a, ?b, ?c]
 > ImmutableByteArray.fromBytes 0xs123456
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -1,9 +1,3 @@
-```ucm:hide
-scratch/main> builtins.merge
-scratch/main> project.create-empty p0
-scratch/main> project.create-empty p1
-```
-
 ```unison
 foo = 5
 foo.bar = 1

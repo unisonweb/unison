@@ -1,4 +1,4 @@
-```unison
+``` unison
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 
@@ -81,7 +81,7 @@ Table
 }}
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
@@ -159,7 +159,7 @@ scratch/main> debug.doc-to-markdown fulldoc
 ```
 You can add docs to a term or type with a top-level doc literal above the binding:
 
-```unison
+``` unison
 {{ This is a term doc }}
 myTerm = 10
 
@@ -174,7 +174,7 @@ unique type MyUniqueType = MyUniqueType
 structural type MyStructuralType = MyStructuralType
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

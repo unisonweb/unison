@@ -1,11 +1,11 @@
 Regression test for https://github.com/unisonweb/unison/issues/763
 
-```unison
+``` unison
 (+-+) : Nat -> Nat -> Nat
 (+-+) x y = x * y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -18,7 +18,7 @@ Regression test for https://github.com/unisonweb/unison/issues/763
       +-+ : Nat -> Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

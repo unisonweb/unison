@@ -1,10 +1,10 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 5
 
@@ -12,7 +12,7 @@ bar : Nat
 bar = foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,7 +26,7 @@ bar = foo + 10
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -35,12 +35,12 @@ scratch/main> add
     foo : Nat
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 6
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -54,7 +54,7 @@ foo = 6
       foo : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

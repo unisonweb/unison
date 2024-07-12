@@ -2,14 +2,14 @@
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
-```unison
+``` unison
 unique type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -25,7 +25,7 @@ fooToInt _ = +42
 ```
 And then we add it.
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -54,11 +54,11 @@ scratch/main> view fooToInt
 ```
 Then if we change the type `Foo`...
 
-```unison
+``` unison
 unique type Foo = Foo | Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -74,7 +74,7 @@ unique type Foo = Foo | Bar
 ```
 and update the codebase to use the new type `Foo`...
 
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -84,7 +84,7 @@ scratch/main> update.old
 ```
 ... it should automatically propagate the type to `fooToInt`.
 
-```ucm
+``` ucm
 scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
@@ -96,7 +96,7 @@ scratch/main> view fooToInt
 We make a term that has a dependency on another term and also a non-redundant
 user-provided type signature.
 
-```unison
+``` unison
 preserve.someTerm : Optional foo -> Optional foo
 preserve.someTerm x = x
 
@@ -104,7 +104,7 @@ preserve.otherTerm : Optional baz -> Optional baz
 preserve.otherTerm y = someTerm y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -120,7 +120,7 @@ preserve.otherTerm y = someTerm y
 ```
 Add that to the codebase:
 
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -131,12 +131,12 @@ scratch/main> add
 ```
 Let's now edit the dependency:
 
-```unison
+``` unison
 preserve.someTerm : Optional x -> Optional x
 preserve.someTerm _ = None
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -152,7 +152,7 @@ preserve.someTerm _ = None
 ```
 Update...
 
-```ucm
+``` ucm
 scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
@@ -163,7 +163,7 @@ scratch/main> update.old
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
-```ucm
+``` ucm
 scratch/main> view preserve.someTerm
 
   preserve.someTerm : Optional x -> Optional x
@@ -173,95 +173,5 @@ scratch/main> view preserve.otherTerm
 
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y
-
-```
-### Propagation only applies to the local branch
-
-Cleaning up a bit...
-
-```ucm
-  ☝️  The namespace .subpath.lib is empty.
-
-.subpath.lib> builtins.merge
-
-  Done.
-
-```
-Now, we make two terms, where one depends on the other.
-
-```unison
-one.someTerm : Optional foo -> Optional foo
-one.someTerm x = x
-
-one.otherTerm : Optional baz -> Optional baz
-one.otherTerm y = someTerm y
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      one.otherTerm : Optional baz -> Optional baz
-      one.someTerm  : Optional foo -> Optional foo
-
-```
-We'll make two copies of this namespace.
-
-```ucm
-.subpath> add
-
-  ⍟ I've added these definitions:
-  
-    one.otherTerm : Optional baz -> Optional baz
-    one.someTerm  : Optional foo -> Optional foo
-
-.subpath> fork one two
-
-  Done.
-
-```
-Now let's edit one of the terms...
-
-```unison
-someTerm : Optional x -> Optional x
-someTerm _ = None
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      someTerm : Optional x -> Optional x
-
-```
-... in one of the namespaces...
-
-```ucm
-.subpath.one> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
-
-```
-The other namespace should be left alone.
-
-```ucm
-.subpath> view two.someTerm
-
-  two.someTerm : Optional foo -> Optional foo
-  two.someTerm x = x
 
 ```

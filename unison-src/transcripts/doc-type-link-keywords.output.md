@@ -6,7 +6,7 @@ not the ability `Patterns`; the lexer should see this as a single identifier.
 
 See https://github.com/unisonweb/unison/issues/2642 for an example.
 
-```unison
+``` unison
 abilityPatterns : ()
 abilityPatterns = ()
 
@@ -25,7 +25,7 @@ docs.example4 = {{A doc that links to the {type Labels} type}}
 
 Now we check that each doc links to the object of the correct name:
 
-```ucm
+``` ucm
 scratch/main> display docs.example1
 
   A doc that links to the abilityPatterns term

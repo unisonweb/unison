@@ -2,14 +2,14 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 
 Docs can be used as inline code comments.
 
-```unison
+``` unison
 foo : Nat -> Nat
 foo n =
   _ = [: do the thing :]
   n + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ foo n =
       foo : Nat -> Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> view foo
 
   foo : Nat -> Nat
@@ -34,11 +34,11 @@ scratch/main> view foo
 ```
 Note that `@` and `:]` must be escaped within docs.
 
-```unison
+``` unison
 escaping = [: Docs look [: like \@this \:] :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -51,7 +51,7 @@ escaping = [: Docs look [: like \@this \:] :]
       escaping : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view escaping
 
   escaping : Doc
@@ -60,7 +60,7 @@ scratch/main> view escaping
 ```
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
 
-```unison
+``` unison
 -- Note that -- comments are preserved within doc literals.
 commented = [:
   example:
@@ -70,7 +70,7 @@ commented = [:
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -83,7 +83,7 @@ commented = [:
       commented : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view commented
 
   commented : Doc
@@ -98,14 +98,14 @@ scratch/main> view commented
 
 Handling of indenting in docs between the parser and pretty-printer is a bit fiddly.
 
-```unison
+``` unison
 -- The leading and trailing spaces are stripped from the stored Doc by the
 -- lexer, and one leading and trailing space is inserted again on view/edit
 -- by the pretty-printer.
 doc1 = [:   hi   :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -118,14 +118,14 @@ doc1 = [:   hi   :]
       doc1 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc1
 
   doc1 : Doc
   doc1 = [: hi :]
 
 ```
-```unison
+``` unison
 -- Lines (apart from the first line, i.e. the bit between the [: and the
 -- first newline) are unindented until at least one of
 -- them hits the left margin (by a post-processing step in the parser).
@@ -137,7 +137,7 @@ doc2 = [: hello
           and the rest. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -150,7 +150,7 @@ doc2 = [: hello
       doc2 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc2
 
   doc2 : Doc
@@ -161,7 +161,7 @@ scratch/main> view doc2
     and the rest. :]
 
 ```
-```unison
+``` unison
 doc3 = [: When Unison identifies a paragraph, it removes any newlines from it before storing it, and then reflows the paragraph text to fit the display window on display/view/edit.
 
 For these purposes, a paragraph is any sequence of non-empty lines that have zero indent (after the unindenting mentioned above.)
@@ -176,7 +176,7 @@ Note that because of the special treatment of the first line mentioned above, wh
    :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -189,7 +189,7 @@ Note that because of the special treatment of the first line mentioned above, wh
       doc3 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc3
 
   doc3 : Doc
@@ -215,7 +215,7 @@ scratch/main> view doc3
     :]
 
 ```
-```unison
+``` unison
 doc4 = [: Here's another example of some paragraphs.
 
           All these lines have zero indent.
@@ -223,7 +223,7 @@ doc4 = [: Here's another example of some paragraphs.
             - Apart from this one. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -236,7 +236,7 @@ doc4 = [: Here's another example of some paragraphs.
       doc4 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc4
 
   doc4 : Doc
@@ -248,7 +248,7 @@ scratch/main> view doc4
       - Apart from this one. :]
 
 ```
-```unison
+``` unison
 -- The special treatment of the first line does mean that the following
 -- is pretty-printed not so prettily.  To fix that we'd need to get the
 -- lexer to help out with interpreting doc literal indentation (because
@@ -258,7 +258,7 @@ doc5 = [:   - foo
           and the rest. :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -271,7 +271,7 @@ doc5 = [:   - foo
       doc5 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc5
 
   doc5 : Doc
@@ -281,7 +281,7 @@ scratch/main> view doc5
     and the rest. :]
 
 ```
-```unison
+``` unison
 -- You can do the following to avoid that problem.
 doc6 = [:
             - foo
@@ -290,7 +290,7 @@ doc6 = [:
        :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -303,7 +303,7 @@ doc6 = [:
       doc6 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view doc6
 
   doc6 : Doc
@@ -316,14 +316,14 @@ scratch/main> view doc6
 ```
 ### More testing
 
-```unison
+``` unison
 -- Check empty doc works.
 empty = [::]
 
 expr = foo 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -337,14 +337,14 @@ expr = foo 1
       expr  : Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> view empty
 
   empty : Doc
   empty = [:  :]
 
 ```
-```unison
+``` unison
 test1 = [:
 The internal logic starts to get hairy when you use the \@ features, for example referencing a name like @List.take.  Internally, the text between each such usage is its own blob (blob ends here --> @List.take), so paragraph reflow has to be aware of multiple blobs to do paragraph reflow (or, more accurately, to do the normalization step where newlines with a paragraph are removed.)
 
@@ -384,7 +384,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -397,7 +397,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
       test1 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view test1
 
   test1 : Doc
@@ -460,13 +460,13 @@ scratch/main> view test1
     :]
 
 ```
-```unison
+``` unison
 -- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
 reg1363 = [: `@List.take foo` bar
   baz :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -479,14 +479,14 @@ reg1363 = [: `@List.take foo` bar
       reg1363 : Doc
 
 ```
-```ucm
+``` ucm
 scratch/main> view reg1363
 
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
 
 ```
-```unison
+``` unison
 -- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
 -- whose output spans multiple lines.
 
@@ -496,7 +496,7 @@ test2 = [:
 :]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -510,7 +510,8 @@ test2 = [:
 
 ```
 View is fine.
-```ucm
+
+``` ucm
 scratch/main> view test2
 
   test2 : Doc
@@ -521,7 +522,8 @@ scratch/main> view test2
 
 ```
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
-```ucm
+
+``` ucm
 scratch/main> display test2
 
   Take a look at this:

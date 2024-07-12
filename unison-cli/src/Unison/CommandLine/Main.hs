@@ -6,10 +6,13 @@ where
 import Compat (withInterruptHandler)
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
-import Control.Lens (preview, (?~))
+import Control.Lens ((?~))
+import Control.Lens.Lens
 import Crypto.Random qualified as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
+import Data.List.NonEmpty qualified as NEL
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Ki qualified
@@ -18,24 +21,21 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.History qualified as Line
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Operations qualified as Operations
-import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
-import Unison.Cli.Pretty (prettyProjectAndBranchName)
-import Unison.Cli.ProjectUtils (projectBranchPathPrism)
+import Unison.Cli.Pretty qualified as P
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
@@ -46,7 +46,6 @@ import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..))
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -60,10 +59,11 @@ import UnliftIO.STM
 getUserInput ::
   Codebase IO Symbol Ann ->
   AuthenticatedHttpClient ->
-  Path.Absolute ->
+  PP.ProjectPath ->
+  IO (Branch IO) ->
   NumberedArgs ->
   IO Input
-getUserInput codebase authHTTPClient currentPath numberedArgs =
+getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
   Line.runInputT
     settings
     (haskelineCtrlCHandling go)
@@ -78,23 +78,7 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
         Just a -> pure a
     go :: Line.InputT IO Input
     go = do
-      promptString <-
-        case preview projectBranchPathPrism currentPath of
-          Nothing -> pure ((P.green . P.shown) currentPath)
-          Just (ProjectAndBranch projectId branchId, restPath) -> do
-            lift (Codebase.runTransaction codebase (Queries.loadProjectAndBranchNames projectId branchId)) <&> \case
-              -- If the project branch has been deleted from sqlite, just show a borked prompt
-              Nothing -> P.red "???"
-              Just (projectName, branchName) ->
-                P.sep
-                  " "
-                  ( catMaybes
-                      [ Just (prettyProjectAndBranchName (ProjectAndBranch projectName branchName)),
-                        case restPath of
-                          Path.Empty -> Nothing
-                          _ -> (Just . P.green . P.shown) restPath
-                      ]
-                  )
+      let promptString = P.prettyProjectPath pp
       let fullPrompt = P.toANSI 80 (promptString <> fromString prompt)
       line <- Line.getInputLine fullPrompt
       case line of
@@ -102,7 +86,7 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
         Just l -> case words l of
           [] -> go
           ws -> do
-            liftIO (parseInput codebase currentPath numberedArgs IP.patternMap ws) >>= \case
+            liftIO (parseInput codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
               Left msg -> do
                 -- We still add history that failed to parse so the user can easily reload
                 -- the input and fix it.
@@ -126,12 +110,20 @@ getUserInput codebase authHTTPClient currentPath numberedArgs =
           historyFile = Just ".unisonHistory",
           autoAddHistory = False
         }
-    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient currentPath
+    tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient pp
+
+loopStateProjectPath ::
+  Codebase IO Symbol Ann ->
+  Cli.LoopState ->
+  IO PP.ProjectPath
+loopStateProjectPath codebase loopState = do
+  let ppIds = NEL.head $ Cli.projectPathStack loopState
+  ppIds & PP.projectAndBranch_ %%~ \pabIds -> liftIO . Codebase.runTransaction codebase $ ProjectUtils.expectProjectAndBranchByIds pabIds
 
 main ::
   FilePath ->
   Welcome.Welcome ->
-  Path.Absolute ->
+  PP.ProjectPathIds ->
   Config ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
@@ -140,38 +132,18 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
-  (CausalHash -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
+  (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion notifyBranchChange notifyPathChange shouldWatchFiles = Ki.scoped \scope -> do
-  rootVar <- newEmptyTMVarIO
-  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
+main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = Ki.scoped \scope -> do
   _ <- Ki.fork scope do
-    root <- Codebase.getRootBranch codebase
-    atomically do
-      -- Try putting the root, but if someone else as already written over the root, don't
-      -- overwrite it.
-      void $ tryPutTMVar rootVar root
+    -- Pre-load the project root in the background so it'll be ready when a command needs it.
+    projectRoot <- Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch
     -- Start forcing thunks in a background thread.
-    -- This might be overly aggressive, maybe we should just evaluate the top level but avoid
-    -- recursive "deep*" things.
     UnliftIO.concurrently_
-      (UnliftIO.evaluate root)
+      (UnliftIO.evaluate projectRoot)
       (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
-  let initialState = Cli.loopState0 initialRootCausalHash rootVar initialPath
-  Ki.fork_ scope do
-    let loop lastRoot = do
-          -- This doesn't necessarily notify on _every_ update, but the LSP only needs the
-          -- most recent version at any given time, so it's fine to skip some intermediate
-          -- versions.
-          currentRoot <- atomically do
-            currentRoot <- readTMVar rootVar
-            guard $ Just currentRoot /= lastRoot
-            notifyBranchChange (Branch.headHash currentRoot)
-            pure (Just currentRoot)
-          loop currentRoot
-    loop Nothing
+  let initialState = Cli.loopState0 ppIds
   eventQueue <- Q.newIO
   initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
   pageOutput <- newIORef True
@@ -187,10 +159,14 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
       getInput loopState = do
         currentEcho <- hGetEcho stdin
         liftIO $ restoreEcho currentEcho
+        let PP.ProjectAndBranch projId branchId = PP.toProjectAndBranch $ NonEmpty.head loopState.projectPathStack
+        let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
+        pp <- loopStateProjectPath codebase loopState
         getUserInput
           codebase
           authHTTPClient
-          (loopState ^. #currentPath)
+          pp
+          getProjectRoot
           (loopState ^. #numberedArgs)
   let loadSourceFile :: Text -> IO Cli.LoadSourceResult
       loadSourceFile fname =
@@ -258,7 +234,8 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
             sandboxedRuntime = sbRuntime,
             nativeRuntime = nRuntime,
             serverBaseUrl,
-            ucmVersion
+            ucmVersion,
+            isTranscriptTest = False
           }
 
   (onInterrupt, waitForInterrupt) <- buildInterruptHandler
@@ -267,6 +244,9 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
     -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
     let loop0 :: Cli.LoopState -> IO ()
         loop0 s0 = do
+          -- It's always possible the previous command changed the branch head, so tell the LSP to check if the current
+          -- path or project has changed.
+          lspCheckForChanges (NEL.head $ Cli.projectPathStack s0)
           let step = do
                 input <- awaitInput s0
                 (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
@@ -284,7 +264,6 @@ main dir welcome initialPath config initialInputs runtime sbRuntime nRuntime cod
               Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
               loop0 s0
             Right (Right (result, s1)) -> do
-              when ((s0 ^. #currentPath) /= (s1 ^. #currentPath :: Path.Absolute)) (atomically . notifyPathChange $ s1 ^. #currentPath)
               case result of
                 Cli.Success () -> loop0 s1
                 Cli.Continue -> loop0 s1

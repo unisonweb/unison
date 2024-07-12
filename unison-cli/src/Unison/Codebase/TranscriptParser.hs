@@ -18,6 +18,7 @@ module Unison.Codebase.TranscriptParser
   )
 where
 
+import CMark qualified
 import Control.Lens (use, (?~))
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
@@ -28,11 +29,11 @@ import Data.Configurator qualified as Configurator
 import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List (isSubsequenceOf)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
-import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
@@ -41,7 +42,6 @@ import System.IO qualified as IO
 import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
-import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
@@ -51,15 +51,13 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
@@ -68,10 +66,11 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import Unison.Core.Project (ProjectBranchName, ProjectName (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous))
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
@@ -110,8 +109,7 @@ data UcmLine
 
 -- | Where a command is run: either loose code (.foo.bar.baz>) or a project branch (myproject/mybranch>).
 data UcmContext
-  = UcmContextLooseCode Path.Absolute
-  | UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
+  = UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
 
 data APIRequest
   = GetRequest Text
@@ -121,60 +119,51 @@ instance Show APIRequest where
   show (GetRequest txt) = "GET " <> Text.unpack txt
   show (APIComment txt) = "-- " <> Text.unpack txt
 
+pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node
+pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info body) []
+
 data Stanza
   = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
   | API [APIRequest]
-  | UnprocessedFence FenceType Text
-  | Unfenced Text
+  | UnprocessedBlock CMark.Node
 
 instance Show UcmLine where
   show = \case
     UcmCommand context txt -> showContext context <> "> " <> Text.unpack txt
     UcmComment txt -> "--" ++ Text.unpack txt
     where
-      showContext = \case
-        UcmContextLooseCode path -> show path
-        UcmContextProject projectAndBranch -> Text.unpack (into @Text projectAndBranch)
+      showContext (UcmContextProject projectAndBranch) = Text.unpack (into @Text projectAndBranch)
 
 instance Show Stanza where
-  show s = case s of
+  show s = (<> "\n") . Text.unpack . CMark.nodeToCommonmark [] Nothing $ stanzaToNode s
+
+stanzaToNode :: Stanza -> CMark.Node
+stanzaToNode =
+  \case
     Ucm _ _ cmds ->
-      unlines
-        [ "```ucm",
-          foldl (\x y -> x ++ show y) "" cmds,
-          "```"
-        ]
+      CMarkCodeBlock Nothing "ucm" . Text.pack $
+        foldl (\x y -> x ++ show y) "" cmds
     Unison _hide _ fname txt ->
-      unlines
-        [ "```unison",
-          case fname of
-            Nothing -> Text.unpack txt <> "```\n"
-            Just fname ->
-              unlines
-                [ "---",
-                  "title: " <> Text.unpack fname,
-                  "---",
-                  Text.unpack txt,
-                  "```",
-                  ""
-                ]
-        ]
+      CMarkCodeBlock Nothing "unison" . Text.pack $
+        unlines
+          [ case fname of
+              Nothing -> Text.unpack txt
+              Just fname ->
+                unlines
+                  [ "---",
+                    "title: " <> Text.unpack fname,
+                    "---",
+                    Text.unpack txt
+                  ]
+          ]
     API apiRequests ->
-      "```api\n"
-        <> ( apiRequests
-               & fmap show
-               & unlines
-           )
-        <> "```\n"
-    UnprocessedFence typ txt ->
-      unlines
-        [ "```" <> Text.unpack typ,
-          Text.unpack txt,
-          "```",
-          ""
-        ]
-    Unfenced txt -> Text.unpack txt
+      CMarkCodeBlock Nothing "api" . Text.pack $
+        ( apiRequests
+            & fmap show
+            & unlines
+        )
+    UnprocessedBlock node -> node
 
 parseFile :: FilePath -> IO (Either TranscriptError [Stanza])
 parseFile filePath = do
@@ -186,7 +175,7 @@ parseFile filePath = do
     else pure . Left . TranscriptParseError . Text.pack $ filePath <> " does not exist"
 
 parse :: String -> Text -> Either TranscriptError [Stanza]
-parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
+parse srcName txt = case stanzas srcName txt of
   Right a -> Right a
   Left e -> Left . TranscriptParseError . Text.pack . P.errorBundlePretty $ e
 
@@ -200,19 +189,20 @@ type TranscriptRunner =
 withTranscriptRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
+  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
   Verbosity ->
   UCMVersion ->
   FilePath ->
   Maybe FilePath ->
   (TranscriptRunner -> m r) ->
   m r
-withTranscriptRunner verbosity ucmVersion nrtp configFile action = do
+withTranscriptRunner isTest verbosity ucmVersion nrtp configFile action = do
   withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = parse transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
         pure $ join @(Either TranscriptError) result
   where
     withRuntimes ::
@@ -237,6 +227,7 @@ withTranscriptRunner verbosity ucmVersion nrtp configFile action = do
             (\(config, _cancelConfig) -> action (Just config))
 
 run ::
+  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
   Verbosity ->
   FilePath ->
   [Stanza] ->
@@ -248,9 +239,13 @@ run ::
   UCMVersion ->
   Text ->
   IO (Either TranscriptError Text)
-run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try $ Ki.scoped \scope -> do
+run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
-  let initialPath = Path.absoluteEmpty
+  (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
+    (_, emptyCausalHashId) <- Codebase.emptyCausalHash
+    initialPP <- Codebase.expectCurrentProjectPath
+    pure (initialPP, emptyCausalHashId)
+
   unless (isSilent verbosity) . putPrettyLn $
     Pretty.lines
       [ asciiartUnison,
@@ -258,11 +253,6 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
         "Running the provided transcript file...",
         ""
       ]
-  initialRootCausalHash <- Codebase.runTransaction codebase Operations.expectRootCausalHash
-  rootVar <- newEmptyTMVarIO
-  void $ Ki.fork scope do
-    root <- Codebase.getRootBranch codebase
-    atomically $ putTMVar rootVar root
   mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -337,7 +327,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
               for (reverse scratchFileUpdates) \(fp, contents) -> do
                 let fenceDescription = "unison:added-by-ucm " <> fp
                 -- Output blocks for any scratch file updates the ucm block triggered.
-                Q.undequeue inputQueue (UnprocessedFence fenceDescription contents, Nothing)
+                Q.undequeue inputQueue (UnprocessedBlock $ CMarkCodeBlock Nothing fenceDescription contents, Nothing)
             awaitInput
           -- ucm command to run
           Just (Just ucmLine) -> do
@@ -346,15 +336,11 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                 liftIO (output ("\n" <> show p))
                 awaitInput
               p@(UcmCommand context lineTxt) -> do
-                curPath <- Cli.getCurrentPath
+                curPath <- Cli.getCurrentProjectPath
                 -- We're either going to run the command now (because we're in the right context), else we'll switch to
                 -- the right context first, then run the command next.
                 maybeSwitchCommand <-
                   case context of
-                    UcmContextLooseCode path ->
-                      if curPath == path
-                        then pure Nothing
-                        else pure $ Just (SwitchBranchI (Path.absoluteToPath' path))
                     UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
                       Project {projectId, name = projectName} <-
                         Q.loadProjectByName projectName
@@ -369,12 +355,12 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                           Nothing -> do
                             branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
                             let projectBranch = ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                            Q.insertProjectBranch projectBranch
+                            Q.insertProjectBranch "Branch Created" emptyCausalHashId projectBranch
                             pure projectBranch
                           Just projBranch -> pure projBranch
                       let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
                       pure
-                        if curPath == ProjectUtils.projectBranchPath projectAndBranchIds
+                        if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
                           then Nothing
                           else Just (ProjectSwitchI (ProjectAndBranchNames'Unambiguous (These projectName branchName)))
                 case maybeSwitchCommand of
@@ -387,7 +373,9 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       args -> do
                         liftIO (output ("\n" <> show p <> "\n"))
                         numberedArgs <- use #numberedArgs
-                        liftIO (parseInput codebase curPath numberedArgs patternMap args) >>= \case
+                        PP.ProjectAndBranch projId branchId <- PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
+                        let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
+                        liftIO (parseInput codebase curPath getProjectRoot numberedArgs patternMap args) >>= \case
                           -- invalid command is treated as a failure
                           Left msg -> do
                             liftIO $ writeIORef hasErrors True
@@ -420,10 +408,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                       ++ "."
                   IO.hFlush IO.stdout
                 case s of
-                  Unfenced _ -> do
-                    liftIO (output $ show s)
-                    awaitInput
-                  UnprocessedFence _ _ -> do
+                  UnprocessedBlock _ -> do
                     liftIO (output $ show s)
                     awaitInput
                   Unison hide errOk filename txt -> do
@@ -432,22 +417,22 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
                     liftIO (writeIORef allowErrors errOk)
                     -- Open a ucm block which will contain the output from UCM
                     -- after processing the UnisonFileChanged event.
-                    liftIO (output "```ucm\n")
+                    liftIO (output "``` ucm\n")
                     -- Close the ucm block after processing the UnisonFileChanged event.
                     atomically . Q.enqueue cmdQueue $ Nothing
                     let sourceName = fromMaybe "scratch.u" filename
                     liftIO $ updateVirtualFile sourceName txt
                     pure $ Left (UnisonFileChanged sourceName txt)
                   API apiRequests -> do
-                    liftIO (output "```api\n")
+                    liftIO (output "``` api\n")
                     liftIO (for_ apiRequests apiRequest)
-                    liftIO (output "```")
+                    liftIO (output "```\n\n")
                     awaitInput
                   Ucm hide errOk cmds -> do
                     liftIO (writeIORef hidden hide)
                     liftIO (writeIORef allowErrors errOk)
                     liftIO (writeIORef hasErrors False)
-                    liftIO (output "```ucm")
+                    liftIO (output "``` ucm")
                     traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                     atomically . Q.enqueue cmdQueue $ Nothing
                     awaitInput
@@ -558,7 +543,8 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             sandboxedRuntime = sbRuntime,
             nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
-            ucmVersion
+            ucmVersion,
+            isTranscriptTest = isTest
           }
 
   let loop :: Cli.LoopState -> IO Text
@@ -580,7 +566,7 @@ run verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion 
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
 
-  loop (Cli.loopState0 initialRootCausalHash rootVar initialPath)
+  loop (Cli.loopState0 (PP.toIds initialPP))
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
@@ -593,8 +579,12 @@ transcriptFailure out msg = do
 
 type P = P.Parsec Void Text
 
-stanzas :: P [Stanza]
-stanzas = P.many (fenced <|> unfenced)
+stanzas :: String -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
+stanzas srcName = (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromBlock blocks) . CMark.commonmarkToNode []
+  where
+    stanzaFromBlock block = case block of
+      CMarkCodeBlock _ info body -> fromMaybe (UnprocessedBlock block) <$> P.parse (fenced info) srcName body
+      _ -> pure $ UnprocessedBlock block
 
 ucmLine :: P UcmLine
 ucmLine = ucmCommand <|> ucmComment
@@ -605,9 +595,8 @@ ucmLine = ucmCommand <|> ucmComment
         P.try do
           contextString <- P.takeWhile1P Nothing (/= '>')
           context <-
-            case (tryFrom @Text contextString, Path.parsePath' (Text.unpack contextString)) of
-              (Right (These project branch), _) -> pure (UcmContextProject (ProjectAndBranch project branch))
-              (Left _, Right (Path.unPath' -> Left abs)) -> pure (UcmContextLooseCode abs)
+            case (tryFrom @Text contextString) of
+              (Right (These project branch)) -> pure (UcmContextProject (ProjectAndBranch project branch))
               _ -> fail "expected project/branch or absolute path"
           void $ lineToken $ word ">"
           pure context
@@ -636,18 +625,21 @@ apiRequest = do
       spaces
       pure (APIComment comment)
 
-fenced :: P Stanza
-fenced = do
-  fence
+-- | Produce the correct parser for the code block based on the provided info string.
+fenced :: Text -> P (Maybe Stanza)
+fenced info = do
+  body <- P.getInput
+  P.setInput info
   fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
   stanza <-
     case fenceType of
       "ucm" -> do
         hide <- hidden
         err <- expectingError
+        P.setInput body
         _ <- spaces
         cmds <- many ucmLine
-        pure $ Ucm hide err cmds
+        pure . pure $ Ucm hide err cmds
       "unison" ->
         do
           -- todo: this has to be more interesting
@@ -657,43 +649,16 @@ fenced = do
           hide <- lineToken hidden
           err <- lineToken expectingError
           fileName <- optional untilSpace1
-          blob <- spaces *> untilFence
-          pure $ Unison hide err fileName blob
+          P.setInput body
+          blob <- spaces *> (Text.init <$> P.getInput)
+          pure . pure $ Unison hide err fileName blob
       "api" -> do
+        P.setInput body
         _ <- spaces
         apiRequests <- many apiRequest
-        pure $ API apiRequests
-      _ -> UnprocessedFence fenceType <$> untilFence
-  fence
+        pure . pure $ API apiRequests
+      _ -> pure Nothing
   pure stanza
-
--- Three backticks, consumes trailing spaces too
--- ```
-fence :: P ()
-fence = P.try $ do void (word "```"); spaces
-
--- Parses up until next fence
-unfenced :: P Stanza
-unfenced = Unfenced <$> untilFence
-
-untilFence :: P Text
-untilFence = do
-  _ <- P.lookAhead (P.takeP Nothing 1)
-  go mempty
-  where
-    go :: Seq Text -> P Text
-    go !acc = do
-      f <- P.lookAhead (P.optional fence)
-      case f of
-        Nothing -> do
-          oneOrTwoBackticks <- optional (word' "``" <|> word' "`")
-          let start = fromMaybe "" oneOrTwoBackticks
-          txt <- P.takeWhileP (Just "unfenced") (/= '`')
-          eof <- P.lookAhead (P.optional P.eof)
-          case eof of
-            Just _ -> pure $ fold (acc <> pure txt)
-            Nothing -> go (acc <> pure start <> pure txt)
-        Just _ -> pure $ fold acc
 
 word' :: Text -> P Text
 word' txt = P.try $ do

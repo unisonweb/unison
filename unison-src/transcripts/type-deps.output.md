@@ -4,18 +4,18 @@ https://github.com/unisonweb/unison/pull/2821
 
 Define a type.
 
-```unison
+``` unison
 structural type Y = Y
 ```
 
 Now, we update `Y`, and add a new type `Z` which depends on it.
 
-```unison
+``` unison
 structural type Z = Z Y
 structural type Y = Y Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -35,7 +35,8 @@ structural type Y = Y Nat
 
 ```
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.
-```ucm
+
+``` ucm
 scratch/main> add 
 
   x These definitions failed:

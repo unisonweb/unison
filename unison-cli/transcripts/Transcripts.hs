@@ -47,7 +47,8 @@ testBuilder ::
   Test ()
 testBuilder expectFailure recordFailure runtimePath dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
-    withTranscriptRunner Verbosity.Silent "TODO: pass version here" runtimePath Nothing \runTranscript -> do
+    let isTest = True
+    withTranscriptRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath Nothing \runTranscript -> do
       for files \filePath -> do
         transcriptSrc <- readUtf8 filePath
         out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)

@@ -1,11 +1,11 @@
 # Get Definitions Test
 
-```unison
+``` unison
 nested.names.x.doc = {{ Documentation }}
 nested.names.x = 42
 ```
 
-```api
+``` api
 --  Should NOT find names by suffix
 GET /api/projects/scratch/branches/main/getDefinition?names=x
 {
@@ -205,7 +205,9 @@ GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relati
     },
     "typeDefinitions": {}
 }
-``````unison
+```
+
+``` unison
 doctest.thing.doc = {{ The correct docs for the thing }}
 doctest.thing = "A thing"
 doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
@@ -216,7 +218,7 @@ doctest.otherstuff.thing = "A different thing"
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
 {
     "missingDefinitions": [],
@@ -332,9 +334,11 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doc
     },
     "typeDefinitions": {}
 }
-```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+```
 
-```api
+If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
 {
     "missingDefinitions": [],
@@ -508,3 +512,4 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo
     "typeDefinitions": {}
 }
 ```
+

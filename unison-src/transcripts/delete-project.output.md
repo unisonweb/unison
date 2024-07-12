@@ -1,6 +1,6 @@
 # delete.project
 
-```ucm
+``` ucm
 scratch/main> project.create-empty foo
 
   🎉 I've created the project foo.
@@ -33,17 +33,37 @@ scratch/main> project.create-empty bar
   
   🎉 🥳 Happy coding!
 
-scratch/main> projects
+-- I can delete the project I'm currently on
+scratch/main> delete.project scratch
+
+foo/main> projects
 
   1. bar
   2. foo
-  3. scratch
 
+-- I can delete a different project
+foo/main> delete.project bar
+
+foo/main> projects
+
+  1. foo
+
+-- I can delete the last project, a new scratch project will be created
 foo/main> delete.project foo
 
-scratch/main> projects
+project/main> projects
 
-  1. bar
+  1. project
   2. scratch
+
+-- If the last project is scratch, a scratch2 project will be created.
+scratch/main> delete.project project
+
+scratch/main> delete.project scratch
+
+project/main> projects
+
+  1. project
+  2. scratch2
 
 ```

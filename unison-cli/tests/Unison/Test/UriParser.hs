@@ -8,11 +8,6 @@ import EasyTest
 import Text.Megaparsec qualified as P
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
-    ShareCodeserver (..),
-    ShareUserHandle (..),
-    WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
-    pattern ReadShareLooseCode,
   )
 import Unison.Codebase.Editor.UriParser qualified as UriParser
 import Unison.Codebase.Path qualified as Path
@@ -27,8 +22,7 @@ test =
     [ parserTests
         "repoPath"
         (UriParser.readRemoteNamespaceParser ProjectBranchSpecifier'Name <* P.eof)
-        [ ("unisonweb.base._releases.M4", looseR "unisonweb" ["base", "_releases", "M4"]),
-          ("project", branchR (This "project")),
+        [ ("project", branchR (This "project")),
           ("/branch", branchR (That "branch")),
           ("project/branch", branchR (These "project" "branch"))
         ]
@@ -36,8 +30,7 @@ test =
       parserTests
         "writeRemoteNamespace"
         (UriParser.writeRemoteNamespace <* P.eof)
-        [ ("unisonweb.base._releases.M4", looseW "unisonweb" ["base", "_releases", "M4"]),
-          ("project", branchW (This "project")),
+        [ ("project", branchW (This "project")),
           ("/branch", branchW (That "branch")),
           ("project/branch", branchW (These "project" "branch"))
         ]
@@ -48,14 +41,6 @@ test =
 mkPath :: [Text] -> Path.Path
 mkPath = Path.fromList . fmap NameSegment
 
-looseR :: Text -> [Text] -> ReadRemoteNamespace void
-looseR user path =
-  ReadShare'LooseCode (ReadShareLooseCode DefaultCodeserver (ShareUserHandle user) (mkPath path))
-
-looseW :: Text -> [Text] -> WriteRemoteNamespace void
-looseW user path =
-  WriteRemoteNamespaceShare (WriteShareRemoteNamespace DefaultCodeserver (ShareUserHandle user) (mkPath path))
-
 branchR :: These Text Text -> ReadRemoteNamespace (These ProjectName ProjectBranchName)
 branchR =
   ReadShare'ProjectBranch . \case
@@ -63,9 +48,9 @@ branchR =
     That branch -> That (UnsafeProjectBranchName branch)
     These project branch -> These (UnsafeProjectName project) (UnsafeProjectBranchName branch)
 
-branchW :: These Text Text -> WriteRemoteNamespace (These ProjectName ProjectBranchName)
+branchW :: These Text Text -> (These ProjectName ProjectBranchName)
 branchW =
-  WriteRemoteProjectBranch . \case
+  \case
     This project -> This (UnsafeProjectName project)
     That branch -> That (UnsafeProjectBranchName branch)
     These project branch -> These (UnsafeProjectName project) (UnsafeProjectBranchName branch)

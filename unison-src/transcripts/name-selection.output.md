@@ -1,10 +1,10 @@
 This transcript shows how the pretty-printer picks names for a hash when multiple are available. The algorithm is:
 
-1. Names that are "name-only" come before names that are hash qualified. So `List.map` comes before `List.map#2384a` and also `aaaa#xyz`.
-2. Shorter names (in terms of segment count) come before longer ones, for instance `base.List.map` comes before `somelibrary.external.base.List.map`.
-3. Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
+1.  Names that are "name-only" come before names that are hash qualified. So `List.map` comes before `List.map#2384a` and also `aaaa#xyz`.
+2.  Shorter names (in terms of segment count) come before longer ones, for instance `base.List.map` comes before `somelibrary.external.base.List.map`.
+3.  Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
 
-```unison
+``` unison
 a.a = a.b + 1
 a.b = 0 + 1
 a.aaa.but.more.segments = 0 + 1
@@ -12,8 +12,8 @@ a.aaa.but.more.segments = 0 + 1
 
 Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment length alias), and show that it isn't used when viewing `a`:
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -21,17 +21,17 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
     a.aaa.but.more.segments : Nat
     a.b                     : Nat
 
-.a> view a
+scratch/main> view a.a
 
-  a : Nat
-  a =
+  a.a : Nat
+  a.a =
     use Nat +
     b + 1
 
 ```
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-```unison
+``` unison
 a2.a = a2.b + 1
 a2.b = 0 + 1
 a2.aaa.but.more.segments = 0 + 1
@@ -47,8 +47,8 @@ a3.d = a3.c + 10
 a3.long.name.but.shortest.suffixification = 1
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -71,11 +71,11 @@ a3.long.name.but.shortest.suffixification = 1
     a3.d                                      : Nat
     a3.long.name.but.shortest.suffixification : Nat
 
-.> debug.alias.term.force a2.c a3.c
+scratch/main> debug.alias.term.force a2.c a3.c
 
   Done.
 
-.> debug.alias.term.force a2.d a3.d
+scratch/main> debug.alias.term.force a2.d a3.d
 
   Done.
 
@@ -84,8 +84,8 @@ At this point, `a3` is conflicted for symbols `c` and `d`, so those are depriori
 The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope,
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
 
-```ucm
-.> view a b c d
+``` ucm
+scratch/main> view a b c d
 
   a.a : Nat
   a.a =
@@ -116,7 +116,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 ```
 ## Name biasing
 
-```unison
+``` unison
 deeply.nested.term =
   a + 1
 
@@ -125,7 +125,7 @@ deeply.nested.num = 10
 a = 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -140,8 +140,8 @@ a = 10
       deeply.nested.term : Nat
 
 ```
-```ucm
-.biasing> add
+``` ucm
+scratch/biasing> add
 
   ⍟ I've added these definitions:
   
@@ -152,7 +152,7 @@ a = 10
 -- Despite being saved with name `a`,
 -- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
 -- It's closer to the term being printed.
-.biasing> view deeply.nested.term
+scratch/biasing> view deeply.nested.term
 
   deeply.nested.term : Nat
   deeply.nested.term =
@@ -162,11 +162,11 @@ a = 10
 ```
 Add another term with `num` suffix to force longer suffixification of `deeply.nested.num`
 
-```unison
+``` unison
 other.num = 20
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -179,8 +179,8 @@ other.num = 20
       other.num : Nat
 
 ```
-```ucm
-.biasing> add
+``` ucm
+scratch/biasing> add
 
   ⍟ I've added these definitions:
   
@@ -188,7 +188,7 @@ other.num = 20
 
 -- nested.num should be preferred over the shorter name `a` due to biasing
 -- because `deeply.nested.num` is nearby to the term being viewed.
-.biasing> view deeply.nested.term
+scratch/biasing> view deeply.nested.term
 
   deeply.nested.term : Nat
   deeply.nested.term =

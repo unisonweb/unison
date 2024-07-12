@@ -1,13 +1,13 @@
 # Namespace list api
 
-```unison
+``` unison
 {{ Documentation }}
 nested.names.x = 42
 
 nested.names.readme = {{ I'm a readme! }}
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,7 +22,7 @@ nested.names.readme = {{ I'm a readme! }}
       nested.names.x.doc  : Doc2
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -32,7 +32,7 @@ scratch/main> add
     nested.names.x.doc  : Doc2
 
 ```
-```api
+``` api
 GET /api/projects/scratch/branches/main/list?namespace=nested.names
 {
     "namespaceListingChildren": [
@@ -132,3 +132,4 @@ GET /api/projects/scratch/branches/main/list?namespace=names&relativeTo=nested
     "namespaceListingHash": "#oms19b4f9s3c8tb5skeb8jii95ij35n3hdg038pu6rv5b0fikqe4gd7lnu6a1i6aq5tdh2opdo4s0sfrupvk6vfkr9lf0n752gbl8o0"
 }
 ```
+

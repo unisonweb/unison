@@ -1,6 +1,6 @@
 The order of a set of abilities is normalized before hashing.
 
-```unison
+``` unison
 unique ability Foo where
   foo : ()
 
@@ -14,7 +14,7 @@ term2 : () ->{Bar, Foo} ()
 term2 _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -30,7 +30,7 @@ term2 _ = ()
       term2 : '{Bar, Foo} ()
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

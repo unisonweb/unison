@@ -72,6 +72,7 @@ library
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GADTs
@@ -140,6 +141,7 @@ test-suite tests
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GADTs

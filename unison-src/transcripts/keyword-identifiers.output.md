@@ -4,34 +4,34 @@ In particular, following a keyword with a `wordyIdChar` should be a valid identi
 
 Related issues:
 
-- https://github.com/unisonweb/unison/issues/2091
-- https://github.com/unisonweb/unison/issues/2727
+  - https://github.com/unisonweb/unison/issues/2091
+  - https://github.com/unisonweb/unison/issues/2727
 
 ## Keyword list
 
 Checks the following keywords:
 
-- `type`
-- `ability`
-- `structural`
-- `unique`
-- `if`
-- `then`
-- `else`
-- `forall`
-- `handle`
-- `with`
-- `where`
-- `use`
-- `true`
-- `false`
-- `alias`
-- `typeLink`
-- `termLink`
-- `let`
-- `namespace`
-- `match`
-- `cases`
+  - `type`
+  - `ability`
+  - `structural`
+  - `unique`
+  - `if`
+  - `then`
+  - `else`
+  - `forall`
+  - `handle`
+  - `with`
+  - `where`
+  - `use`
+  - `true`
+  - `false`
+  - `alias`
+  - `typeLink`
+  - `termLink`
+  - `let`
+  - `namespace`
+  - `match`
+  - `cases`
 
 Note that although `∀` is a keyword, it cannot actually appear at the start of
 identifier.
@@ -40,7 +40,7 @@ identifier.
 
 `type`:
 
-```unison
+``` unison
 typeFoo = 99
 type1 = "I am a variable"
 type_ = 292
@@ -52,7 +52,7 @@ structural type type! type_ = type' type_ | type''
 
 `ability`:
 
-```unison
+``` unison
 abilityFoo = 99
 ability1 = "I am a variable"
 ability_ = 292
@@ -63,7 +63,7 @@ structural type ability! ability_ = ability' ability_ | ability''
 
 `structural`
 
-```unison
+``` unison
 structuralFoo = 99
 structural1 = "I am a variable"
 structural_ = 292
@@ -74,7 +74,7 @@ structural type structural! structural_ = structural' structural_ | structural''
 
 `unique`
 
-```unison
+``` unison
 uniqueFoo = 99
 unique1 = "I am a variable"
 unique_ = 292
@@ -85,7 +85,7 @@ structural type unique! unique_ = unique' unique_ | unique''
 
 `if`
 
-```unison
+``` unison
 ifFoo = 99
 if1 = "I am a variable"
 if_ = 292
@@ -96,7 +96,7 @@ structural type if! if_ = if' if_ | if''
 
 `then`
 
-```unison
+``` unison
 thenFoo = 99
 then1 = "I am a variable"
 then_ = 292
@@ -107,7 +107,7 @@ structural type then! then_ = then' then_ | then''
 
 `else`
 
-```unison
+``` unison
 elseFoo = 99
 else1 = "I am a variable"
 else_ = 292
@@ -118,7 +118,7 @@ structural type else! else_ = else' else_ | else''
 
 `forall`
 
-```unison
+``` unison
 forallFoo = 99
 forall1 = "I am a variable"
 forall_ = 292
@@ -129,7 +129,7 @@ structural type forall! forall_ = forall' forall_ | forall''
 
 `handle`
 
-```unison
+``` unison
 handleFoo = 99
 handle1 = "I am a variable"
 handle_ = 292
@@ -140,7 +140,7 @@ structural type handle! handle_ = handle' handle_ | handle''
 
 `with`
 
-```unison
+``` unison
 withFoo = 99
 with1 = "I am a variable"
 with_ = 292
@@ -151,7 +151,7 @@ structural type with! with_ = with' with_ | with''
 
 `where`
 
-```unison
+``` unison
 whereFoo = 99
 where1 = "I am a variable"
 where_ = 292
@@ -162,7 +162,7 @@ structural type where! where_ = where' where_ | where''
 
 `use`
 
-```unison
+``` unison
 useFoo = 99
 use1 = "I am a variable"
 use_ = 292
@@ -173,7 +173,7 @@ structural type use! use_ = use' use_ | use''
 
 `true`
 
-```unison
+``` unison
 trueFoo = 99
 true1 = "I am a variable"
 true_ = 292
@@ -184,7 +184,7 @@ structural type true! true_ = true' true_ | true''
 
 `false`
 
-```unison
+``` unison
 falseFoo = 99
 false1 = "I am a variable"
 false_ = 292
@@ -195,7 +195,7 @@ structural type false! false_ = false' false_ | false''
 
 `alias`
 
-```unison
+``` unison
 aliasFoo = 99
 alias1 = "I am a variable"
 alias_ = 292
@@ -206,7 +206,7 @@ structural type alias! alias_ = alias' alias_ | alias''
 
 `typeLink`
 
-```unison
+``` unison
 typeLinkFoo = 99
 typeLink1 = "I am a variable"
 typeLink_ = 292
@@ -217,7 +217,7 @@ structural type typeLink! typeLink_ = typeLink' typeLink_ | typeLink''
 
 `termLink`
 
-```unison
+``` unison
 termLinkFoo = 99
 termLink1 = "I am a variable"
 termLink_ = 292
@@ -228,7 +228,7 @@ structural type termLink! termLink_ = termLink' termLink_ | termLink''
 
 `let`
 
-```unison
+``` unison
 letFoo = 99
 let1 = "I am a variable"
 let_ = 292
@@ -239,7 +239,7 @@ structural type let! let_ = let' let_ | let''
 
 `namespace`
 
-```unison
+``` unison
 namespaceFoo = 99
 namespace1 = "I am a variable"
 namespace_ = 292
@@ -250,7 +250,7 @@ structural type namespace! namespace_ = namespace' namespace_ | namespace''
 
 `match`
 
-```unison
+``` unison
 matchFoo = 99
 match1 = "I am a variable"
 match_ = 292
@@ -261,7 +261,7 @@ structural type match! match_ = match' match_ | match''
 
 `cases`
 
-```unison
+``` unison
 casesFoo = 99
 cases1 = "I am a variable"
 cases_ = 292

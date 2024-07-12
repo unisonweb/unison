@@ -37,13 +37,13 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Position qualified as Position
 import Unison.Prelude
-import Unison.Project.Util (ProjectContext (..))
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
@@ -51,7 +51,7 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as Relation
 
-type OptionFetcher = Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
+type OptionFetcher = Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
 
 data FZFResolver = FZFResolver
   { getOptions :: OptionFetcher
@@ -121,7 +121,7 @@ fuzzySelectFromList options =
 -- | Combine multiple option fetchers into one resolver.
 multiResolver :: [OptionFetcher] -> FZFResolver
 multiResolver resolvers =
-  let getOptions :: Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
+  let getOptions :: Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
       getOptions codebase projCtx searchBranch0 = do
         List.nubOrd <$> foldMapM (\f -> f codebase projCtx searchBranch0) resolvers
    in (FZFResolver {getOptions})
@@ -177,11 +177,8 @@ projectBranchOptions codebase _projCtx _searchBranch0 = do
 -- E.g. '@unison/base/main'
 projectBranchOptionsWithinCurrentProject :: OptionFetcher
 projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
-  case projCtx of
-    LooseCodePath _ -> pure []
-    ProjectBranchPath currentProjectId _projectBranchId _path -> do
-      Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith currentProjectId Nothing)
-        <&> fmap (into @Text . snd)
+  Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith (projCtx ^. #project . #projectId) Nothing)
+    <&> fmap (into @Text . snd)
 
 -- | Exported from here just so the debug command and actual implementation can use the same
 -- messaging.

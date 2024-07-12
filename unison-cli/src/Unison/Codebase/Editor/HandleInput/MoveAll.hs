@@ -23,5 +23,6 @@ handleMoveAll hasConfirmed src' dest' description = do
   case (moveBranchFunc, moveTermTypeSteps) of
     (Nothing, []) -> Cli.respond (Output.MoveNothingFound src')
     (mupdates, steps) -> do
-      Cli.updateAndStepAt description (maybeToList mupdates) steps
+      pp <- Cli.getCurrentProjectPath
+      Cli.updateAndStepAt description (pp ^. #branch) (maybeToList mupdates) steps
       Cli.respond Output.Success

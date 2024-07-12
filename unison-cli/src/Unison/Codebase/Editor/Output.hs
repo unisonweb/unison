@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Output
     TestReportStats (..),
     TodoOutput (..),
     todoOutputIsEmpty,
+    MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
     UpdateOrUpgrade (..),
@@ -29,6 +30,7 @@ import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import Unison.Auth.Types (CredentialFailure)
 import Unison.Cli.MergeTypes (MergeSourceAndTarget, MergeSourceOrTarget)
 import Unison.Cli.Share.Projects.Types qualified as Share
@@ -43,16 +45,19 @@ import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.ProjectPath (Project, ProjectBranch, ProjectPath)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualified' qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -98,25 +103,25 @@ type NumberedArgs = [StructuredArgument]
 type HashLength = Int
 
 data NumberedOutput
-  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
+  = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMerge
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      ProjectPath
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePropagate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      ProjectPath
       Path.Path'
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterMergePreview
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      Path.Absolute
+      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+      ProjectPath
       PPE.PrettyPrintEnv
       (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -149,13 +154,19 @@ data NumberedOutput
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
-      Path.Absolute -- The namespace we're checking dependencies for.
+      ProjectPath -- The namespace we're checking dependencies for.
       (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
+  | ShowProjectBranchReflog
+      (Maybe UTCTime {- current time, omitted in transcript tests to be more deterministic -})
+      MoreEntriesThanShown
+      [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
 
 data TodoOutput = TodoOutput
-  { dependentsOfTodo :: !(Set TermReferenceId),
+  { defnsInLib :: !Bool,
+    dependentsOfTodo :: !(Set TermReferenceId),
     directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
     hashLen :: !Int,
+    incoherentDeclReasons :: !IncoherentDeclReasons,
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
@@ -165,6 +176,8 @@ todoOutputIsEmpty todo =
   Set.null todo.dependentsOfTodo
     && defnsAreEmpty todo.directDependenciesWithoutNames
     && Names.isEmpty todo.nameConflicts
+    && not todo.defnsInLib
+    && todo.incoherentDeclReasons == IncoherentDeclReasons [] [] [] []
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -186,15 +199,15 @@ data Output
   | -- | Function found, but has improper type
     -- Note: the constructor name is misleading here; we weren't necessarily looking for a "main".
     BadMainFunction
-      -- | what we were trying to do (e.g. "run", "io.test")
       Text
-      -- | name of function
+      -- ^ what we were trying to do (e.g. "run", "io.test")
       (HQ.HashQualified Name)
-      -- | bad type of function
+      -- ^ name of function
       (Type Symbol Ann)
+      -- ^ bad type of function
       PPE.PrettyPrintEnv
-      -- | acceptable type(s) of function
       [Type Symbol Ann]
+      -- ^ acceptable type(s) of function
   | BranchEmpty WhichBranchEmpty
   | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
@@ -231,12 +244,12 @@ data Output
     -- for terms. This additional info is used to provide an enhanced
     -- error message.
     SearchTermsNotFoundDetailed
-      -- | @True@ if we are searching for a term, @False@ if we are searching for a type
       Bool
-      -- | Misses (search terms that returned no hits for terms or types)
+      -- ^ @True@ if we are searching for a term, @False@ if we are searching for a type
       [HQ.HashQualified Name]
-      -- | Hits for types if we are searching for terms or terms if we are searching for types
+      -- ^ Misses (search terms that returned no hits for terms or types)
       [HQ.HashQualified Name]
+      -- ^ Hits for types if we are searching for terms or terms if we are searching for types
   | -- ask confirmation before deleting the last branch that contains some defns
     -- `Path` is one of the paths the user has requested to delete, and is paired
     -- with whatever named definitions would not have any remaining names if
@@ -285,7 +298,7 @@ data Output
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
   | ShareError ShareError
-  | ViewOnShare (Either WriteShareRemoteNamespace (URI, ProjectName, ProjectBranchName))
+  | ViewOnShare (URI, ProjectName, ProjectBranchName)
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | TermMissingType Reference
@@ -303,14 +316,10 @@ data Output
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | MergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
-      (Either Path' (ProjectAndBranch ProjectName ProjectBranchName))
+  | MergeAlreadyUpToDate BranchRelativePath BranchRelativePath
   | -- This will replace the above once `merge.old` is deleted
     MergeAlreadyUpToDate2 !MergeSourceAndTarget
-  | PreviewMergeAlreadyUpToDate
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      (Either Path' (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
+  | PreviewMergeAlreadyUpToDate ProjectPath ProjectPath
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
   | ListDependencies PPE.PrettyPrintEnv (Set LabeledDependency) [HQ.HashQualified Name] [HQ.HashQualified Name] -- types, terms
@@ -322,10 +331,8 @@ data Output
   | BadName Text
   | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
-  | NamespaceEmpty (NonEmpty AbsBranchId)
+  | NamespaceEmpty (NonEmpty (Either ShortCausalHash ProjectPath))
   | NoOp
-  | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-    RefusedToPush PushBehavior (WriteRemoteNamespace Void)
   | -- | @GistCreated repo@ means a causal was just published to @repo@.
     GistCreated (ReadRemoteNamespace Void)
   | -- | Directs the user to URI to begin an authorization flow.
@@ -385,8 +392,8 @@ data Output
   | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
-      -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
+      -- ^ Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
       (ProjectAndBranch ProjectName ProjectBranchName)
   | -- | The `remote` in a `clone remote local` is ambiguous
     AmbiguousCloneRemote ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -408,7 +415,6 @@ data Output
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
-  | LooseCodePushDeprecated
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
@@ -426,6 +432,10 @@ data Output
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
+  | Output'DebugSynhashTerm !TermReference !Hash !Text
+
+data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
+  deriving (Eq, Show)
 
 data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
@@ -444,12 +454,10 @@ data CreatedProjectBranchFrom
 -- | A branch was empty. But how do we refer to that branch?
 data WhichBranchEmpty
   = WhichBranchEmptyHash ShortCausalHash
-  | WhichBranchEmptyPath Path'
+  | WhichBranchEmptyPath ProjectPath
 
 data ShareError
-  = ShareErrorCheckAndSetPush Sync.CheckAndSetPushError
-  | ShareErrorDownloadEntities Share.DownloadEntitiesError
-  | ShareErrorFastForwardPush Sync.FastForwardPushError
+  = ShareErrorDownloadEntities Share.DownloadEntitiesError
   | ShareErrorGetCausalHashByPath Sync.GetCausalHashByPathError
   | ShareErrorPull Sync.PullError
   | ShareErrorTransport Sync.CodeserverTransportError
@@ -582,7 +590,6 @@ isFailure o = case o of
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty {} -> True
-  RefusedToPush {} -> True
   GistCreated {} -> False
   InitiateAuthFlow {} -> False
   UnknownCodeServer {} -> True
@@ -647,7 +654,6 @@ isFailure o = case o of
   ProjectHasNoReleases {} -> True
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
-  LooseCodePushDeprecated -> True
   MergeFailure {} -> True
   MergeSuccess {} -> False
   MergeSuccessFastForward {} -> False
@@ -665,6 +671,7 @@ isFailure o = case o of
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
+  Output'DebugSynhashTerm {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -689,3 +696,4 @@ isNumberedFailure = \case
   ListNamespaceDependencies {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False
+  ShowProjectBranchReflog {} -> False

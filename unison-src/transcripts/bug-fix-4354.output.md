@@ -1,4 +1,4 @@
-```unison
+``` unison
 bonk : forall a. a -> a
 bonk x =
   zonk : forall a. a -> a
@@ -8,7 +8,7 @@ bonk x =
   x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
