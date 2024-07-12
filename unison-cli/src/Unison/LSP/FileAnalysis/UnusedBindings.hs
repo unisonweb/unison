@@ -14,6 +14,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol (..))
 import Unison.Term (Term)
+import Unison.Util.Range qualified as Range
 import Unison.Var qualified as Var
 
 analyseTerm :: Lsp.Uri -> Term Symbol Ann -> [Diagnostic]
@@ -24,8 +25,10 @@ analyseTerm fileUri tm =
           (,ann) <$> getRelevantVarName v
       diagnostics =
         vars & mapMaybe \(varName, ann) -> do
-          lspRange <- Cv.annToRange ann
-          pure $ Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding " <> varName <> ". Use the binding, or prefix it with an _ to dismiss this warning.") []
+          -- Limit the range to the first line of the binding to not be too annoying.
+          -- Maybe in the future we can get the actual annotation of the variable name.
+          lspRange <- Cv.uToLspRange . Range.startingLine <$> Cv.annToURange ann
+          pure $ Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning [Lsp.DiagnosticTag_Unnecessary] ("Unused binding " <> tShow varName <> ". Use the binding, or prefix it with an _ to dismiss this warning.") []
    in diagnostics
   where
     getRelevantVarName :: Symbol -> Maybe Text
