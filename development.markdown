@@ -42,7 +42,7 @@ Some tests are executables instead:
 
 * `stack exec transcripts` runs the transcripts-related integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
 * `stack exec transcripts -- prefix-of-filename` runs only transcript tests with a matching filename prefix.
-* `stack exec integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `transcripts`.
+* `stack exec cli-integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `transcripts`.
 * `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
 * `stack exec unison -- transcript unison-src/transcripts-manual/benchmarks.md` runs the benchmark suite. Output goes in unison-src/transcripts-manual/benchmarks/output.txt.
 
