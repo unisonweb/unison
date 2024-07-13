@@ -263,7 +263,7 @@ getMostRecentProjectBranchIds :: Sqlite.Transaction (Maybe (ProjectId, ProjectBr
 getMostRecentProjectBranchIds = do
   nameSegments <- expectMostRecentNamespace
   case nameSegments of
-    [proj, UUIDNameSegment projectId, branches, UUIDNameSegment branchId]
+    (proj : UUIDNameSegment projectId : branches : UUIDNameSegment branchId : _)
       | proj == projectsNameSegment && branches == branchesNameSegment ->
           pure . Just $ (ProjectId projectId, ProjectBranchId branchId)
     _ -> pure Nothing
