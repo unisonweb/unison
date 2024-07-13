@@ -8,8 +8,6 @@ module Unison.Syntax.Lexer
     Pos (..),
     Lexeme (..),
     lexer,
-    line,
-    column,
     escapeChars,
     debugFileLex,
     debugLex',

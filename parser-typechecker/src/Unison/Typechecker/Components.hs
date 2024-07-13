@@ -78,7 +78,7 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
                       blockAnn
                       [(annotatedVar hdv, hdb)]
                       e
-                | otherwise = Term.singleLet isTop blockAnn (hdv, hdb) e
+                | otherwise = Term.singleLet isTop blockAnn (annotationFor hdv) (hdv, hdb) e
               mklet cycle@((_, _) : _) e =
                 Term.letRec
                   isTop
@@ -86,10 +86,7 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
                   (first annotatedVar <$> cycle)
                   e
               mklet [] e = e
-           in -- The outer annotation is going to be meaningful, so we make
-              -- sure to preserve it, whereas the annotations at intermediate Abs
-              -- nodes aren't necessarily meaningful
-              Right . Just . ABT.annotate blockAnn . foldr mklet e $ cs
+           in Right . Just . foldr mklet e $ cs
 minimize _ = Right Nothing
 
 minimize' ::

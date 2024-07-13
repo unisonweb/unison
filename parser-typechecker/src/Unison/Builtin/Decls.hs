@@ -776,8 +776,8 @@ tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: (Var v) => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.typed Var.Delay
+delayTerm :: (Var v) => a -> a -> Term v a -> Term v a
+delayTerm spanAnn argAnn = Term.lam spanAnn (argAnn, Var.typed Var.Delay)
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->

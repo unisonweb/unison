@@ -112,7 +112,7 @@ checkFile doc = runMaybeT do
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
-  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri topLevelAnn trm)
+  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
@@ -194,6 +194,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
                       fileUri
                       newRange
                       DiagnosticSeverity_Information
+                      []
                       msg
                       mempty
   pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
@@ -280,7 +281,7 @@ analyseNotes fileUri ppe src notes = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
-            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
+            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error [] txtMsg []
       -- TODO: Some parsing errors likely have reasonable code actions
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
@@ -336,7 +337,7 @@ analyseNotes fileUri ppe src notes = do
       let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
        in do
             (range, references) <- ranges
-            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error msg references
+            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error [] msg references
     -- Suggest name replacements or qualifications when there's ambiguity
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do
