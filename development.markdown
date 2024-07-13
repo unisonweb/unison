@@ -187,3 +187,7 @@ nix develop '.#cabal-unison-parser-typechecker'
 cd unison-cli
 cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
 ```
+
+## Native compilation
+
+See the [readme](scheme-libs/racket/unison/Readme.md).
