@@ -5,12 +5,12 @@ https://github.com/unisonweb/unison/issues/2786
 First we add an ability to the codebase.
 Note that this will create the name `Channels.send` as an ability constructor.
 
-```unison
+``` unison
 unique ability Channels where
   send : a -> {Channels} ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,19 +23,19 @@ unique ability Channels where
       ability Channels
 
 ```
-```ucm
-.ns> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ability Channels
 
 ```
-Now we update the ability, changing the name of the constructor, _but_, we simultaneously
+Now we update the ability, changing the name of the constructor, *but*, we simultaneously
 add a new top-level term with the same name as the constructor which is being
 removed from Channels.
 
-```unison
+``` unison
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
@@ -46,7 +46,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -67,8 +67,8 @@ thing _ = send 1
 ```
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
-```ucm
-.ns> update.old patch Channels.send
+``` ucm
+scratch/main> update.old patch Channels.send
 
   x These definitions failed:
   
@@ -77,7 +77,7 @@ These should fail with a term/ctor conflict since we exclude the ability from th
   
     Tip: Use `help filestatus` to learn more.
 
-.ns> update.old patch thing
+scratch/main> update.old patch thing
 
   ⍟ I've added these definitions:
   
@@ -89,9 +89,9 @@ These should fail with a term/ctor conflict since we exclude the ability from th
     ability Channels
 
 ```
-If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+If however, `Channels.send` and `thing` *depend* on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
 
-```unison
+``` unison
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
@@ -102,7 +102,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -121,8 +121,8 @@ thing _ = send 1
 ```
 These updates should succeed since `Channels` is a dependency.
 
-```ucm
-.ns> update.old.preview patch Channels.send
+``` ucm
+scratch/main> update.old.preview patch Channels.send
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -135,7 +135,7 @@ These updates should succeed since `Channels` is a dependency.
     
       Channels.send : a ->{Channels} ()
 
-.ns> update.old.preview patch thing
+scratch/main> update.old.preview patch thing
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -152,8 +152,8 @@ These updates should succeed since `Channels` is a dependency.
 ```
 We should also be able to successfully update the whole thing.
 
-```ucm
-.ns> update.old
+``` ucm
+scratch/main> update.old
 
   ⊡ Ignored previously added definitions: Channels
   
@@ -165,11 +165,11 @@ We should also be able to successfully update the whole thing.
 ```
 # Constructor-term conflict
 
-```unison
+``` unison
 X.x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -182,20 +182,20 @@ X.x = 1
       X.x : Nat
 
 ```
-```ucm
-.ns2> add
+``` ucm
+scratch/main2> add
 
   ⍟ I've added these definitions:
   
     X.x : Nat
 
 ```
-```unison
+``` unison
 structural ability X where
   x : ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -214,8 +214,8 @@ structural ability X where
 ```
 This should fail with a ctor/term conflict.
 
-```ucm
-.ns2> add
+``` ucm
+scratch/main2> add
 
   x These definitions failed:
   

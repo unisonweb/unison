@@ -1,3 +1,4 @@
+-- | @upgrade@ input handler.
 module Unison.Codebase.Editor.HandleInput.Upgrade
   ( handleUpgrade,
   )
@@ -11,8 +12,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Builder qualified
 import U.Codebase.Sqlite.DbId (ProjectId)
-import U.Codebase.Sqlite.Project qualified
-import U.Codebase.Sqlite.ProjectBranch qualified
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -20,6 +19,7 @@ import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..))
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2
   ( addDefinitionsToUnisonFile,
@@ -34,6 +34,7 @@ import Unison.Codebase.Editor.HandleInput.Update2
   )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -46,7 +47,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
+import Unison.Project (ProjectBranchName)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -66,21 +67,19 @@ handleUpgrade oldName newName = do
 
   Cli.Env {codebase, writeSource} <- ask
 
-  (projectAndBranch, _path) <- Cli.expectCurrentProjectBranch
-  let projectId = projectAndBranch.project.projectId
-  let projectPath = Cli.projectBranchPath (ProjectAndBranch projectId projectAndBranch.branch.branchId)
-  let oldPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, oldName]))
-  let newPath = Path.resolve projectPath (Path.Relative (Path.fromList [NameSegment.libSegment, newName]))
+  let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
+  let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
 
-  currentNamespace <- Cli.getBranch0At projectPath
-  let currentNamespaceSansOld = Branch.deleteLibdep oldName currentNamespace
-  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld
-  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld
-  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps currentNamespace)
+  currentNamespace <- Cli.getCurrentProjectRoot
+  let currentNamespaceSansOld = currentNamespace & Branch.step (Branch.deleteLibdep oldName)
+  let currentNamespaceSansOld0 = Branch.head currentNamespaceSansOld
+  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld0
+  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld0
+  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps $ Branch.head currentNamespace)
   let currentLocalConstructorNames = forwardCtorNames currentLocalNames
-  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld
+  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld0
 
-  oldNamespace <- Cli.expectBranch0AtPath' oldPath
+  oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
   let oldLocalTerms = Branch.deepTerms oldLocalNamespace
   let oldLocalTypes = Branch.deepTypes oldLocalNamespace
@@ -88,7 +87,7 @@ handleUpgrade oldName newName = do
   let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
   let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 
-  newNamespace <- Cli.expectBranch0AtPath' newPath
+  newNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' newPath)
   let newLocalNamespace = Branch.deleteLibdeps newNamespace
   let newLocalTerms = Branch.deepTerms newLocalNamespace
   let newLocalTypes = Branch.deepTypes newLocalNamespace
@@ -152,27 +151,24 @@ handleUpgrade oldName newName = do
             `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
         )
 
-  parsingEnv <- makeParsingEnv projectPath currentDeepNamesSansOld
+  pp@(PP.ProjectPath project projectBranch _path) <- Cli.getCurrentProjectPath
+  parsingEnv <- makeParsingEnv pp currentDeepNamesSansOld
   typecheckedUnisonFile <-
     prettyParseTypecheck unisonFile printPPE parsingEnv & onLeftM \prettyUnisonFile -> do
-      -- Small race condition: since picking a branch name and creating the branch happen in different
-      -- transactions, creating could fail.
-      temporaryBranchName <- Cli.runTransaction (findTemporaryBranchName projectId oldName newName)
-      temporaryBranchId <-
-        HandleInput.Branch.doCreateBranch
-          (HandleInput.Branch.CreateFrom'Branch projectAndBranch)
-          projectAndBranch.project
-          temporaryBranchName
+      let getTemporaryBranchName = findTemporaryBranchName (project ^. #projectId) oldName newName
+      (_temporaryBranchId, temporaryBranchName) <-
+        HandleInput.Branch.createBranch
           textualDescriptionOfUpgrade
-      let temporaryBranchPath = Path.unabsolute (Cli.projectBranchPath (ProjectAndBranch projectId temporaryBranchId))
-      Cli.stepAt textualDescriptionOfUpgrade (temporaryBranchPath, \_ -> currentNamespaceSansOld)
+          (CreateFrom'NamespaceWithParent projectBranch currentNamespaceSansOld)
+          project
+          getTemporaryBranchName
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
       liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
       Cli.returnEarly $
-        Output.UpgradeFailure projectAndBranch.branch.name temporaryBranchName scratchFilePath oldName newName
+        Output.UpgradeFailure (projectBranch ^. #name) temporaryBranchName scratchFilePath oldName newName
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
@@ -183,7 +179,7 @@ handleUpgrade oldName newName = do
         typecheckedUnisonFile
   Cli.stepAt
     textualDescriptionOfUpgrade
-    ( Path.unabsolute projectPath,
+    ( PP.toRoot pp,
       Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
     )
   Cli.respond (Output.UpgradeSuccess oldName newName)

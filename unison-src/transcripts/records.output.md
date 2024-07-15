@@ -2,11 +2,11 @@ Ensure that Records keep their syntax after being added to the codebase
 
 ## Record with 1 field
 
-```unison
+``` unison
 unique type Record1 = { a : Text }
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record1
 
   type Record1 = { a : Text }
@@ -14,11 +14,11 @@ scratch/main> view Record1
 ```
 ## Record with 2 fields
 
-```unison
+``` unison
 unique type Record2 = { a : Text, b : Int }
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record2
 
   type Record2 = { a : Text, b : Int }
@@ -26,11 +26,11 @@ scratch/main> view Record2
 ```
 ## Record with 3 fields
 
-```unison
+``` unison
 unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record3
 
   type Record3 = { a : Text, b : Int, c : Nat }
@@ -38,7 +38,7 @@ scratch/main> view Record3
 ```
 ## Record with many fields
 
-```unison
+``` unison
 unique type Record4 =
   { a : Text
   , b : Int
@@ -50,7 +50,7 @@ unique type Record4 =
   }
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record4
 
   type Record4
@@ -65,7 +65,7 @@ scratch/main> view Record4
 ```
 ## Record with many many fields
 
-```unison
+``` unison
 unique type Record5 = {
   zero : Nat,
   one : [Nat],
@@ -91,7 +91,7 @@ unique type Record5 = {
 }
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record5
 
   type Record5
@@ -122,15 +122,15 @@ scratch/main> view Record5
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
 
-```unison
+``` unison
 unique type UserType = UserType Nat
 
 unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 ```
 
-If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
+If you `view` or `edit` it, it *should* be treated as a record type, but it does not (which is a bug)
 
-```ucm
+``` ucm
 scratch/main> view RecordWithUserType
 
   type RecordWithUserType
@@ -141,14 +141,14 @@ scratch/main> view RecordWithUserType
 
 Trailing commas are allowed.
 
-```unison
+``` unison
 unique type Record5 =
   { a : Text,
     b : Int,
   }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

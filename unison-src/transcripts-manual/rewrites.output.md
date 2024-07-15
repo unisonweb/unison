@@ -1,9 +1,8 @@
-
 ## Structural find and replace
 
 Here's a scratch file with some rewrite rules:
 
-```unison
+``` unison
 ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
@@ -30,7 +29,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 
 Let's rewrite these:
 
-```ucm
+``` ucm
 scratch/main> rewrite rule1
 
   ☝️
@@ -49,7 +48,7 @@ scratch/main> rewrite eitherToOptional
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): ex1
 
@@ -79,7 +78,7 @@ type Optional2 a = Some2 a | None2
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
 
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): Either.mapRight
 
@@ -111,7 +110,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 
 After adding to the codebase, here's the rewritten source:
 
-```ucm
+``` ucm
 scratch/main> view ex1 Either.mapRight rule1
 
   Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
@@ -137,7 +136,7 @@ scratch/main> view ex1 Either.mapRight rule1
 ```
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
-```unison
+``` unison
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
@@ -157,7 +156,7 @@ blah2 = 456
 
 Let's apply the rewrite `woot1to2`:
 
-```ucm
+``` ucm
 scratch/main> rewrite woot1to2
 
   ☝️
@@ -167,7 +166,7 @@ scratch/main> rewrite woot1to2
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): wootEx
 
@@ -193,7 +192,7 @@ blah2 = 456
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
-```ucm
+``` ucm
 scratch/main> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
@@ -204,7 +203,7 @@ scratch/main> view wootEx
 ```
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
-```unison
+``` unison
 foo1 =
   b = "b"
   123
@@ -225,7 +224,7 @@ sameFileEx =
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
-```ucm
+``` ucm
 scratch/main> view foo1 foo2 sameFileEx
 
   foo1 : Nat
@@ -246,7 +245,7 @@ scratch/main> view foo1 foo2 sameFileEx
 ```
 ## Capture avoidance
 
-```unison
+``` unison
 bar1 =
   b = "bar"
   123
@@ -266,7 +265,7 @@ sameFileEx =
 
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
-```ucm
+``` ucm
 scratch/main> rewrite rule
 
   ☝️
@@ -276,7 +275,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): sameFileEx
 
@@ -300,7 +299,7 @@ sameFileEx =
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
-```ucm
+``` ucm
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -321,7 +320,7 @@ scratch/main> load
 ```
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
-```unison
+``` unison
 bar2 =
   a = 39494
   233
@@ -331,7 +330,7 @@ rule a = @rewrite
   term 233 ==> a
 ```
 
-```ucm
+``` ucm
 scratch/main> rewrite rule
 
   ☝️
@@ -341,7 +340,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): bar2
 
@@ -357,7 +356,7 @@ rule a =
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
-```ucm
+``` ucm
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -378,16 +377,16 @@ scratch/main> load
 ```
 ## Structural find
 
-```unison
+``` unison
 eitherEx = Left ("hello", "there")
 ```
 
-```unison
+``` unison
 findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
 findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
-```ucm
+``` ucm
 scratch/main> sfind findEitherEx
 
   🔎

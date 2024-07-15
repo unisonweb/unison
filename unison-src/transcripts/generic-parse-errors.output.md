@@ -1,11 +1,11 @@
 Just a bunch of random parse errors to test the error formatting.
 
-```unison
+``` unison
 x = 
   foo.123
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,11 +22,11 @@ x =
   * identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)
 
 ```
-```unison
+``` unison
 namespace.blah = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -38,11 +38,11 @@ namespace.blah = 1
   or wrapping it in backticks (like `namespace` ).
 
 ```
-```unison
+``` unison
 x = 1 ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,11 +52,11 @@ x = 1 ]
   
 
 ```
-```unison
+``` unison
 x = a.#abc
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -86,17 +86,18 @@ x = a.#abc
   * typeLink
 
 ```
-```unison
+``` unison
 x = "hi
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
   I got confused here:
   
-      2 | 
+      1 | x = "hi
+  
   
   I was surprised to find an end of input here.
   I was expecting one of these instead:
@@ -106,17 +107,18 @@ x = "hi
   * literal character
 
 ```
-```unison
+``` unison
 y : a 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
   I got confused here:
   
-      2 | 
+      1 | y : a 
+  
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:

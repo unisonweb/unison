@@ -1,8 +1,7 @@
-
 We can display the guide before and after adding it to the codebase:
 
-```ucm
-.> display doc.guide
+``` ucm
+scratch/main> display doc.guide
 
   # Unison computable documentation
   
@@ -200,7 +199,7 @@ We can display the guide before and after adding it to the codebase:
                             rendered table.
     Some text   More text   Zounds!
 
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -213,7 +212,7 @@ We can display the guide before and after adding it to the codebase:
     otherElements       : Doc2
     sqr                 : Nat -> Nat
 
-.> display doc.guide
+scratch/main> display doc.guide
 
   # Unison computable documentation
   
@@ -414,11 +413,11 @@ We can display the guide before and after adding it to the codebase:
 ```
 But we can't display this due to a decompilation problem.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -431,8 +430,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       rendered : Annotated () (Either SpecialForm ConsoleText)
 
 ```
-```ucm
-.> display rendered
+``` ucm
+scratch/main> display rendered
 
   # Unison computable documentation
   
@@ -630,13 +629,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                             rendered table.
     Some text   More text   Zounds!
 
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     rendered : Annotated () (Either SpecialForm ConsoleText)
 
-.> display rendered
+scratch/main> display rendered
 
   # Unison computable documentation
   
@@ -834,7 +833,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                             rendered table.
     Some text   More text   Zounds!
 
-.> undo
+scratch/main> undo
 
   Here are the changes I undid
   
@@ -845,13 +844,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.
 
-```unison
+``` unison
 rendered = Pretty.get (docFormatConsole doc.guide)
 
 > rendered
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -1,6 +1,7 @@
 Loops that access a shared counter variable, accessed in transactions.
 Some thread delaying is just accomplished by counting in a loop.
-```unison
+
+``` unison
 count : Nat -> ()
 count = cases
   0 -> ()
@@ -27,7 +28,7 @@ body k out v =
   atomically '(TVar.write out (Some n))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,7 +44,7 @@ body k out v =
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -56,7 +57,7 @@ scratch/main> add
 ```
 Test case.
 
-```unison
+``` unison
 spawn : Nat ->{io2.IO} Result
 spawn k = let
   out1 = TVar.newIO None
@@ -89,7 +90,7 @@ tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -105,7 +106,7 @@ tests = '(map spawn nats)
       tests   : '{IO} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:

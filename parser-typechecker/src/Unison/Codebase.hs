@@ -1,6 +1,11 @@
 module Unison.Codebase
   ( Codebase,
 
+    -- * UCM session state
+    expectCurrentProjectPath,
+    setCurrentProjectPath,
+    resolveProjectPathIds,
+
     -- * Terms
     getTerm,
     unsafeGetTerm,
@@ -43,18 +48,20 @@ module Unison.Codebase
     lca,
     SqliteCodebase.Operations.before,
     getShallowBranchAtPath,
+    getMaybeShallowBranchAtPath,
     getShallowCausalAtPath,
-    getBranchAtPath,
     Operations.expectCausalBranchByCausalHash,
-    getShallowCausalFromRoot,
-    getShallowRootBranch,
-    getShallowRootCausal,
+    getShallowCausalAtPathFromRootHash,
+    getShallowProjectBranchRoot,
+    expectShallowProjectBranchRoot,
+    getShallowBranchAtProjectPath,
+    getMaybeShallowBranchAtProjectPath,
+    getShallowProjectRootByNames,
+    expectProjectBranchRoot,
+    getBranchAtProjectPath,
+    preloadProjectBranch,
 
     -- * Root branch
-    getRootBranch,
-    SqliteCodebase.Operations.getRootBranchExists,
-    Operations.expectRootCausalHash,
-    putRootBranch,
     SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
@@ -70,7 +77,10 @@ module Unison.Codebase
     Queries.clearWatches,
 
     -- * Reflog
-    Operations.getReflog,
+    Operations.getDeprecatedRootReflog,
+    Operations.getProjectBranchReflog,
+    Operations.getProjectReflog,
+    Operations.getGlobalReflog,
 
     -- * Unambiguous hash length
     SqliteCodebase.Operations.hashLength,
@@ -103,16 +113,19 @@ module Unison.Codebase
     toCodeLookup,
     typeLookupForDependencies,
     unsafeGetComponentLength,
+    SqliteCodebase.Operations.emptyCausalHash,
   )
 where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
@@ -122,11 +135,13 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Operations
 import Unison.Codebase.Type (Codebase (..))
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.Core.Project (ProjectAndBranch)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
@@ -134,6 +149,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
+import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -164,72 +180,105 @@ runTransactionWithRollback ::
 runTransactionWithRollback Codebase {withConnection} action =
   withConnection \conn -> Sqlite.runTransactionWithRollback conn action
 
-getShallowCausalFromRoot ::
-  -- Optional root branch, if Nothing use the codebase's root branch.
-  Maybe CausalHash ->
+getShallowCausalAtPathFromRootHash ::
+  -- Causal to start at, if Nothing use the codebase's root branch.
+  CausalHash ->
   Path.Path ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalFromRoot mayRootHash p = do
-  rootCausal <- case mayRootHash of
-    Nothing -> getShallowRootCausal
-    Just ch -> Operations.expectCausalBranchByCausalHash ch
-  getShallowCausalAtPath p (Just rootCausal)
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootBranch :: Sqlite.Transaction (V2.Branch Sqlite.Transaction)
-getShallowRootBranch = do
-  getShallowRootCausal >>= V2Causal.value
-
--- | Get the shallow representation of the root branches without loading the children or
--- history.
-getShallowRootCausal :: Sqlite.Transaction (V2.CausalBranch Sqlite.Transaction)
-getShallowRootCausal = do
-  hash <- Operations.expectRootCausalHash
-  Operations.expectCausalBranchByCausalHash hash
+getShallowCausalAtPathFromRootHash rootCausalHash p = do
+  rootCausal <- Operations.expectCausalBranchByCausalHash rootCausalHash
+  getShallowCausalAtPath p rootCausal
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
 getShallowCausalAtPath ::
   Path ->
-  Maybe (V2Branch.CausalBranch Sqlite.Transaction) ->
+  (V2Branch.CausalBranch Sqlite.Transaction) ->
   Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalAtPath path mayCausal = do
-  causal <- whenNothing mayCausal getShallowRootCausal
+getShallowCausalAtPath path causal = do
   case path of
     Path.Empty -> pure causal
     ns Path.:< p -> do
       b <- V2Causal.value causal
       case V2Branch.childAt ns b of
         Nothing -> pure (Cv.causalbranch1to2 Branch.empty)
-        Just childCausal -> getShallowCausalAtPath p (Just childCausal)
+        Just childCausal -> getShallowCausalAtPath p childCausal
 
 -- | Recursively descend into causals following the given path,
 -- Use the root causal if none is provided.
 getShallowBranchAtPath ::
   Path ->
-  Maybe (V2Branch.Branch Sqlite.Transaction) ->
+  V2Branch.Branch Sqlite.Transaction ->
   Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
-getShallowBranchAtPath path mayBranch = do
-  branch <- whenNothing mayBranch (getShallowRootCausal >>= V2Causal.value)
+getShallowBranchAtPath path branch = fromMaybe V2Branch.empty <$> getMaybeShallowBranchAtPath path branch
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getMaybeShallowBranchAtPath ::
+  Path ->
+  V2Branch.Branch Sqlite.Transaction ->
+  Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
+getMaybeShallowBranchAtPath path branch = do
   case path of
-    Path.Empty -> pure branch
+    Path.Empty -> pure $ Just branch
     ns Path.:< p -> do
       case V2Branch.childAt ns branch of
-        Nothing -> pure V2Branch.empty
+        Nothing -> pure Nothing
         Just childCausal -> do
           childBranch <- V2Causal.value childCausal
-          getShallowBranchAtPath p (Just childBranch)
+          getMaybeShallowBranchAtPath p childBranch
 
--- | Get a v1 branch from the root following the given path.
-getBranchAtPath ::
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getShallowBranchAtProjectPath ::
+  PP.ProjectPath ->
+  Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
+getShallowBranchAtProjectPath pp = fromMaybe V2Branch.empty <$> getMaybeShallowBranchAtProjectPath pp
+
+-- | Recursively descend into causals following the given path,
+-- Use the root causal if none is provided.
+getMaybeShallowBranchAtProjectPath ::
+  PP.ProjectPath ->
+  Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
+getMaybeShallowBranchAtProjectPath (PP.ProjectPath _project projectBranch path) = do
+  getShallowProjectBranchRoot projectBranch >>= \case
+    Nothing -> pure Nothing
+    Just projectRootBranch -> getMaybeShallowBranchAtPath (Path.unabsolute path) projectRootBranch
+
+getShallowProjectRootByNames :: ProjectAndBranch ProjectName ProjectBranchName -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))
+getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMaybeT do
+  ProjectBranch {projectId, branchId} <- MaybeT $ Q.loadProjectBranchByNames projectName branchName
+  causalHashId <- lift $ Q.expectProjectBranchHead projectId branchId
+  causalHash <- lift $ Q.expectCausalHash causalHashId
+  lift $ Operations.expectCausalBranchByCausalHash causalHash
+
+expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> Db.ProjectId -> Db.ProjectBranchId -> m (Branch m)
+expectProjectBranchRoot codebase projectId branchId = do
+  causalHash <- runTransaction codebase $ do
+    causalHashId <- Q.expectProjectBranchHead projectId branchId
+    Q.expectCausalHash causalHashId
+  expectBranchForHash codebase causalHash
+
+expectShallowProjectBranchRoot :: ProjectBranch -> Sqlite.Transaction (V2Branch.Branch Sqlite.Transaction)
+expectShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
+  causalHashId <- Q.expectProjectBranchHead projectId branchId
+  causalHash <- Q.expectCausalHash causalHashId
+  Operations.expectCausalBranchByCausalHash causalHash >>= V2Causal.value
+
+getShallowProjectBranchRoot :: ProjectBranch -> Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
+getShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
+  causalHashId <- Q.expectProjectBranchHead projectId branchId
+  causalHash <- Q.expectCausalHash causalHashId
+  Operations.loadCausalBranchByCausalHash causalHash >>= traverse V2Causal.value
+
+getBranchAtProjectPath ::
   (MonadIO m) =>
   Codebase m v a ->
-  Path.Absolute ->
-  m (Branch m)
-getBranchAtPath codebase path = do
-  V2Causal.Causal {causalHash} <- runTransaction codebase $ getShallowCausalAtPath (Path.unabsolute path) Nothing
-  expectBranchForHash codebase causalHash
+  PP.ProjectPath ->
+  m (Maybe (Branch m))
+getBranchAtProjectPath codebase pp = runMaybeT do
+  rootBranch <- lift $ expectProjectBranchRoot codebase pp.branch.projectId pp.branch.branchId
+  hoistMaybe $ Branch.getAt (pp ^. PP.path_) rootBranch
 
 -- | Like 'getBranchForHash', but for when the hash is known to be in the codebase.
 expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
@@ -347,9 +396,12 @@ typeLookupForDependencies codebase s = do
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
       isNothing
-        ( Map.lookup r (TL.dataDecls tl) $> ()
-            <|> Map.lookup r (TL.typeOfTerms tl) $> ()
-            <|> Map.lookup r (TL.effectDecls tl) $> ()
+        ( Map.lookup r (TL.dataDecls tl)
+            $> ()
+            <|> Map.lookup r (TL.typeOfTerms tl)
+            $> ()
+            <|> Map.lookup r (TL.effectDecls tl)
+            $> ()
         )
 
 toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
@@ -509,3 +561,30 @@ unsafeGetTermComponent codebase hash =
   getTermComponentWithTypes codebase hash <&> \case
     Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
+
+expectCurrentProjectPath :: (HasCallStack) => Sqlite.Transaction PP.ProjectPath
+expectCurrentProjectPath = do
+  (projectId, projectBranchId, path) <- Q.expectCurrentProjectPath
+  proj <- Q.expectProject projectId
+  projBranch <- Q.expectProjectBranch projectId projectBranchId
+  let absPath = Path.Absolute (Path.fromList path)
+  pure $ PP.ProjectPath proj projBranch absPath
+
+setCurrentProjectPath :: PP.ProjectPathIds -> Sqlite.Transaction ()
+setCurrentProjectPath (PP.ProjectPath projectId projectBranchId path) =
+  Q.setCurrentProjectPath projectId projectBranchId (Path.toList (Path.unabsolute path))
+
+-- | Hydrate the project and branch from IDs.
+resolveProjectPathIds :: PP.ProjectPathIds -> Sqlite.Transaction PP.ProjectPath
+resolveProjectPathIds (PP.ProjectPath projectId projectBranchId path) = do
+  proj <- Q.expectProject projectId
+  projBranch <- Q.expectProjectBranch projectId projectBranchId
+  pure $ PP.ProjectPath proj projBranch path
+
+-- | Starts loading the given project branch into cache in a background thread without blocking.
+preloadProjectBranch :: (MonadUnliftIO m) => Codebase m v a -> ProjectAndBranch Db.ProjectId Db.ProjectBranchId -> m ()
+preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
+  ch <- runTransaction codebase $ do
+    causalHashId <- Q.expectProjectBranchHead projectId branchId
+    Q.expectCausalHash causalHashId
+  preloadBranch codebase ch

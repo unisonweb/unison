@@ -3,9 +3,9 @@
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
 branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
-```ucm:error
-.> help merge
-.> help merge.commit
+```ucm
+scratch/main> help merge
+scratch/main> help merge.commit
 ```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
@@ -464,7 +464,7 @@ project/main> merge /topic
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: someone deleted something
@@ -962,7 +962,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## `merge.commit` example (success)
@@ -971,7 +971,6 @@ After merge conflicts are resolved, you can use `merge.commit` rather than `swit
 "commit" your changes.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio lib.builtins
 ```
 
@@ -1028,7 +1027,7 @@ project/alice> branches
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## `merge.commit` example (failure)
@@ -1036,7 +1035,6 @@ project/alice> branches
 `merge.commit` can only be run on a "merge branch".
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio lib.builtins
 ```
 
@@ -1049,7 +1047,7 @@ project/topic> merge.commit
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 
@@ -1527,7 +1525,7 @@ project/main> view Foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Dependent that doesn't need to be in the file
@@ -1592,7 +1590,7 @@ project/alice> merge /bob
 But `bar` was put into the scratch file instead.
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Merge loop test
@@ -1644,4 +1642,62 @@ project/carol> add
 project/bob> merge /alice
 project/carol> merge /bob
 project/carol> history
+```
+
+```ucm:hide
+scratch/main> project.delete project
+```
+
+### Variables named `_`
+
+This test demonstrates a change in syntactic hashing that fixed a bug due to auto-generated variable names for ignored
+results.
+
+```ucm:hide
+scratch/alice> builtins.mergeio lib.builtins
+```
+
+```unison
+ignore : a -> ()
+ignore _ = ()
+
+foo : Nat
+foo = 18
+
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo
+```
+
+```ucm
+scratch/alice> add
+scratch/alice> branch bob
+```
+
+```unison
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo + foo
+```
+
+```ucm
+scratch/bob> update
+```
+
+Previously, this update to `foo` would also cause a "real update" on `bar`, its dependent. Now it doesn't, so the merge
+will succeed.
+
+```unison
+foo : Nat
+foo = 19
+```
+
+```ucm
+scratch/alice> update
+```
+
+```ucm
+scratch/alice> merge /bob
 ```

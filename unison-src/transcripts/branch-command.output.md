@@ -2,11 +2,11 @@ The `branch` command creates a new branch.
 
 First, we'll create a term to include in the branches.
 
-```unison
+``` unison
 someterm = 18
 ```
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 
   Done.
@@ -23,7 +23,7 @@ Now, the `branch` demo:
 `branch` can create a branch from a different branch in the same project, from a different branch in a different
 project. It can also create an empty branch.
 
-```ucm
+``` ucm
 foo/main> branch topic1
 
   Done. I've created the topic1 branch based off of main.
@@ -151,7 +151,7 @@ scratch/main> branch.empty foo/empty4
 ```
 The `branch` command can create branches named `releases/drafts/*` (because why not).
 
-```ucm
+``` ucm
 foo/main> branch releases/drafts/1.2.3
 
   Done. I've created the releases/drafts/1.2.3 branch based off
@@ -165,7 +165,7 @@ foo/main> switch /releases/drafts/1.2.3
 ```
 The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
 
-```ucm
+``` ucm
 foo/main> branch releases/1.2.3
 
   Branch names like releases/1.2.3 are reserved for releases.

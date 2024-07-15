@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -21,6 +21,9 @@ extra-source-files:
     sql/009-add-squash-cache-table.sql
     sql/010-ensure-squash-cache-table.sql
     sql/011-cd-to-project-root.sql
+    sql/012-add-current-project-path-table.sql
+    sql/013-add-project-branch-reflog-table.sql
+    sql/014-add-project-branch-causal-hash-id.sql
     sql/create.sql
 
 source-repository head
@@ -54,6 +57,7 @@ library
       U.Codebase.Sqlite.Patch.TypeEdit
       U.Codebase.Sqlite.Project
       U.Codebase.Sqlite.ProjectBranch
+      U.Codebase.Sqlite.ProjectReflog
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
@@ -121,11 +125,13 @@ library
     , nonempty-containers
     , safe
     , text
+    , time
     , transformers
     , unison-codebase
     , unison-codebase-sync
     , unison-core
     , unison-core-orphans-sqlite
+    , unison-core1
     , unison-hash
     , unison-hash-orphans-sqlite
     , unison-prelude
@@ -133,7 +139,6 @@ library
     , unison-util-base32hex
     , unison-util-cache
     , unison-util-file-embed
-    , unison-util-nametree
     , unison-util-serialization
     , unison-util-term
     , unliftio

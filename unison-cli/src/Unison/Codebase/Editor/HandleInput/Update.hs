@@ -22,6 +22,7 @@ import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -35,6 +36,7 @@ import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.TypeEdit qualified as TypeEdit
 import Unison.DataDeclaration (Decl)
@@ -73,7 +75,8 @@ import Unison.WatchKind (WatchKind)
 handleUpdate :: Input -> OptionalPatch -> Set Name -> Cli ()
 handleUpdate input optionalPatch requestedNames = do
   Cli.Env {codebase} <- ask
-  currentPath' <- Cli.getCurrentPath
+  ppRoot <- PP.toRoot <$> Cli.getCurrentProjectPath
+  currentPathAbs <- Cli.getCurrentPath
   let patchPath =
         case optionalPatch of
           NoPatch -> Nothing
@@ -165,43 +168,56 @@ handleUpdate input optionalPatch requestedNames = do
             p' = foldl' step1 p typeEdits
             step1 p (_, r, r') = Patch.updateType r (TypeEdit.Replace r') p
             step2 p (_, r, r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-        (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
+        (p, seg) = Path.toAbsoluteSplit currentPathAbs patchPath
         updatePatches :: (Monad m) => Branch0 m -> m (Branch0 m)
         updatePatches = Branch.modifyPatches seg updatePatch
     pure (updatePatch ye'ol'Patch, updatePatches, p)
 
-  when (Slurp.hasAddsOrUpdates sr) $ do
-    -- take a look at the `updates` from the SlurpResult
-    -- and make a patch diff to record a replacement from the old to new references
-    Cli.stepManyAtMNoSync
-      ( [ ( Path.unabsolute currentPath',
-            pure . doSlurpUpdates typeEdits termEdits termDeprecations
-          ),
-          ( Path.unabsolute currentPath',
-            pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
-          )
-        ]
-          ++ case patchOps of
-            Nothing -> []
-            Just (_, update, p) -> [(Path.unabsolute p, update)]
-      )
-    Cli.runTransaction
-      . Codebase.addDefsToCodebase codebase
-      . Slurp.filterUnisonFile sr
-      $ Slurp.originalFile sr
-  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) currentCodebaseNames
+  updatedProjectRootBranch <-
+    if Slurp.hasAddsOrUpdates sr
+      then do
+        -- First add the new definitions to the codebase
+        Cli.runTransaction
+          . Codebase.addDefsToCodebase codebase
+          . Slurp.filterUnisonFile sr
+          $ Slurp.originalFile sr
+        projectRootBranch <- Cli.getCurrentProjectRoot
+        -- take a look at the `updates` from the SlurpResult
+        -- and make a patch diff to record a replacement from the old to new references
+        projectRootBranch
+          & Branch.stepManyAtM
+            ( [ ( Path.unabsolute currentPathAbs,
+                  pure . doSlurpUpdates typeEdits termEdits termDeprecations
+                ),
+                ( Path.unabsolute currentPathAbs,
+                  pure . doSlurpAdds addsAndUpdates (Slurp.originalFile sr)
+                )
+              ]
+                ++ case patchOps of
+                  Nothing -> []
+                  Just (_, update, p) -> [(Path.unabsolute p, update)]
+            )
+          & liftIO
+      else Cli.getCurrentProjectRoot
+
+  projectRootBranchWithPropagatedPatch <- case patchOps of
+    Nothing -> pure updatedProjectRootBranch
+    Just (updatedPatch, _, _) -> do
+      -- Propagate the patch to the whole project.
+      let scopePath = Path.empty
+      propagatePatch updatedPatch scopePath updatedProjectRootBranch
+  let description = case patchPath of
+        Nothing -> "update.nopatch"
+        Just p ->
+          p
+            & Path.unsplit'
+            & Path.resolve @_ @_ @Path.Absolute currentPathAbs
+            & tShow
+  void $ Cli.updateAt description ppRoot (const projectRootBranchWithPropagatedPatch)
+  let codebaseAndFileNames = UF.addNamesFromTypeCheckedUnisonFile (Slurp.originalFile sr) (Branch.toNames $ Branch.head projectRootBranchWithPropagatedPatch)
   pped <- Cli.prettyPrintEnvDeclFromNames codebaseAndFileNames
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
-  whenJust patchOps \(updatedPatch, _, _) ->
-    void $ propagatePatchNoSync updatedPatch currentPath'
-  Cli.syncRoot case patchPath of
-    Nothing -> "update.nopatch"
-    Just p ->
-      p
-        & Path.unsplit'
-        & Path.resolve @_ @_ @Path.Absolute currentPath'
-        & tShow
 
 getSlurpResultForUpdate :: Set Name -> Names -> Cli SlurpResult
 getSlurpResultForUpdate requestedNames slurpCheckNames = do
@@ -646,10 +662,11 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
         split = Path.splitFromName n
 
 -- Returns True if the operation changed the namespace, False otherwise.
-propagatePatchNoSync :: Patch -> Path.Absolute -> Cli Bool
-propagatePatchNoSync patch scopePath =
+propagatePatch :: Patch -> Path.Path -> Branch.Branch IO -> Cli (Branch.Branch IO)
+propagatePatch patch scopePath b = do
   Cli.time "propagatePatchNoSync" do
-    Cli.stepAtNoSync' (Path.unabsolute scopePath, Propagate.propagateAndApply patch)
+    let names = Branch.toNames $ Branch.head b
+    Branch.stepManyAtM [(scopePath, Propagate.propagateAndApply names patch)] b
 
 recomponentize :: [(Reference.Id, a)] -> [(Hash, [a])]
 recomponentize =

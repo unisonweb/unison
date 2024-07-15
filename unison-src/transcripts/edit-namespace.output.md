@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ ping doc }}
 nested.cycle.ping n = n Nat.+ pong n
 
@@ -17,7 +17,7 @@ lib.project.ignoreMe = 30
 unique type Foo = { bar : Nat, baz : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,7 +44,7 @@ unique type Foo = { bar : Nat, baz : Nat }
       toplevel              : Text
 
 ```
-```ucm
+``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
@@ -68,7 +68,7 @@ project/main> add
 ```
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
-```ucm
+``` ucm
 project/main> edit.namespace
 
   ☝️
@@ -79,7 +79,7 @@ project/main> edit.namespace
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 type Foo = { bar : Nat, baz : Nat }
 
 nested.cycle.ping : Nat -> Nat
@@ -110,7 +110,7 @@ toplevel = "hi"
 
 `edit.namespace` can also accept explicit paths
 
-```ucm
+``` ucm
 project/main> edit.namespace nested simple
 
   ☝️
@@ -121,7 +121,7 @@ project/main> edit.namespace nested simple
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
   use Nat +

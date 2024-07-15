@@ -9,9 +9,11 @@ module Unison.Codebase.Editor.Input
     Event (..),
     OutputLocation (..),
     PatchPath,
+    BranchIdG (..),
     BranchId,
+    BranchId2,
     AbsBranchId,
-    LooseCodeOrProject,
+    UnresolvedProjectBranch,
     parseBranchId,
     parseBranchId2,
     parseShortCausalHash,
@@ -31,10 +33,11 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
 import Unison.Codebase.Branch.Merge qualified as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -60,15 +63,26 @@ type PatchPath = Path.Split'
 data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
   deriving (Eq, Ord, Show)
 
-type BranchId = Either ShortCausalHash Path'
+data BranchIdG p
+  = BranchAtSCH ShortCausalHash
+  | BranchAtPath p
+  | BranchAtProjectPath ProjectPath
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
--- | A lot of commands can take either a loose code path or a project branch in the same argument slot. Usually, those
--- have distinct syntaxes, but sometimes it's ambiguous, in which case we'd parse a `These`. The command itself can
--- decide what to do with the ambiguity.
-type LooseCodeOrProject =
-  These Path' (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+instance (From p Text) => From (BranchIdG p) Text where
+  from = \case
+    BranchAtSCH h -> "#" <> SCH.toText h
+    BranchAtPath p -> from p
+    BranchAtProjectPath pp -> from pp
 
-type AbsBranchId = Either ShortCausalHash Path.Absolute
+type BranchId = BranchIdG Path'
+
+type BranchId2 = Either ShortCausalHash BranchRelativePath
+
+type AbsBranchId = BranchIdG Path.Absolute
+
+-- | An unambiguous project branch name, use the current project name if not provided.
+type UnresolvedProjectBranch = ProjectAndBranch (Maybe ProjectName) ProjectBranchName
 
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
@@ -79,8 +93,8 @@ data Insistence = Force | Try
 parseBranchId :: String -> Either Text BranchId
 parseBranchId ('#' : s) = case SCH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
-  Just h -> pure $ Left h
-parseBranchId s = Right <$> Path.parsePath' s
+  Just h -> pure $ BranchAtSCH h
+parseBranchId s = BranchAtPath <$> Path.parsePath' s
 
 parseBranchId2 :: String -> Either (P.Pretty P.ColorText) (Either ShortCausalHash BranchRelativePath)
 parseBranchId2 ('#' : s) = case SCH.fromText (Text.pack s) of
@@ -106,20 +120,15 @@ data Input
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | -- merge first causal into destination
-    MergeLocalBranchI LooseCodeOrProject LooseCodeOrProject Branch.MergeMode
-  | PreviewMergeLocalBranchI LooseCodeOrProject LooseCodeOrProject
-  | DiffNamespaceI BranchId BranchId -- old new
+    MergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath) Branch.MergeMode
+  | PreviewMergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath)
+  | DiffNamespaceI BranchId2 BranchId2 -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
-  | ResetRootI (Either ShortCausalHash Path')
-  | ResetI
-      ( These
-          (Either ShortCausalHash Path')
-          (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-      )
-      (Maybe LooseCodeOrProject)
-  | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
-    --          Does it make sense to fork from not-the-root of a Github repo?
+  | ResetRootI BranchId
+  | ResetI (BranchId2 {- namespace to reset it to -}) (Maybe UnresolvedProjectBranch {- ProjectBranch to reset -})
+  -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
+  | --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
     CreateMessage (P.Pretty P.ColorText)
   | -- Change directory.
@@ -182,7 +191,10 @@ data Input
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
-  | ShowReflogI
+  | ShowRootReflogI {- Deprecated -}
+  | ShowGlobalReflogI
+  | ShowProjectReflogI (Maybe ProjectName)
+  | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
   | UpdateBuiltinsI
   | MergeBuiltinsI (Maybe Path)
   | MergeIOBuiltinsI (Maybe Path)
@@ -192,6 +204,7 @@ data Input
     -- no path is provided.
     NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
+  | DebugLSPNameCompletionI Text -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments
   | DebugFormatI
   | DebugNumberedArgsI
@@ -229,6 +242,7 @@ data Input
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
   | UpgradeCommitI
   | MergeCommitI
+  | DebugSynhashTermI !Name
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
@@ -237,8 +251,8 @@ data BranchSourceI
     BranchSourceI'CurrentContext
   | -- | Create an empty branch
     BranchSourceI'Empty
-  | -- | Create a branch from this loose-code-or-project
-    BranchSourceI'LooseCodeOrProject LooseCodeOrProject
+  | -- | Create a branch from this other branch
+    BranchSourceI'UnresolvedProjectBranch UnresolvedProjectBranch
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.
@@ -249,15 +263,14 @@ data PullSourceTarget
   deriving stock (Eq, Show)
 
 data PushSource
-  = PathySource Path'
-  | ProjySource (These ProjectName ProjectBranchName)
+  = ProjySource (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 -- | Push source and target: either neither is specified, or only a target, or both.
 data PushSourceTarget
   = PushSourceTarget0
-  | PushSourceTarget1 (WriteRemoteNamespace (These ProjectName ProjectBranchName))
-  | PushSourceTarget2 PushSource (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+  | PushSourceTarget1 (These ProjectName ProjectBranchName)
+  | PushSourceTarget2 PushSource (These ProjectName ProjectBranchName)
   deriving stock (Eq, Show)
 
 data PushRemoteBranchInput = PushRemoteBranchInput

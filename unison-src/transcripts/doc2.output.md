@@ -1,6 +1,6 @@
 # Test parsing and round-trip of doc2 syntax elements
 
-```unison
+``` unison
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 
@@ -109,11 +109,11 @@ Inline '' text literal with 1 space of padding '' in the middle of a sentence.
 
 Format it to check that everything pretty-prints in a valid way.
 
-```ucm
+``` ucm
 scratch/main> debug.format
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 

@@ -35,6 +35,7 @@ import Unison.KindInference.Error qualified as KindInference
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
+import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
@@ -77,7 +78,7 @@ import Witherable
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT do
-  currentPath <- lift getCurrentPath
+  pp <- lift getCurrentProjectPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getCurrentNames
@@ -90,7 +91,7 @@ checkFile doc = runMaybeT do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
             names = parseNames
           }
   (notes, parsedFile, typecheckedFile) <- do
@@ -111,12 +112,13 @@ checkFile doc = runMaybeT do
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
+  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
       lift $ computeConflictWarningDiagnostics fileUri fs
   let diagnosticRanges =
-        (errDiagnostics <> conflictWarningDiagnostics)
+        (errDiagnostics <> conflictWarningDiagnostics <> unusedBindingDiagnostics)
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
@@ -192,6 +194,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
                       fileUri
                       newRange
                       DiagnosticSeverity_Information
+                      []
                       msg
                       mempty
   pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
@@ -278,7 +281,7 @@ analyseNotes fileUri ppe src notes = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
-            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
+            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error [] txtMsg []
       -- TODO: Some parsing errors likely have reasonable code actions
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
@@ -334,7 +337,7 @@ analyseNotes fileUri ppe src notes = do
       let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
        in do
             (range, references) <- ranges
-            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error msg references
+            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error [] msg references
     -- Suggest name replacements or qualifications when there's ambiguity
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do

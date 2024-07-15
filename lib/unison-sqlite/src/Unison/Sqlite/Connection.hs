@@ -151,7 +151,7 @@ logQuery (Sql sql params) result =
 
 -- Without results
 
-execute :: Connection -> Sql -> IO ()
+execute :: HasCallStack => Connection -> Sql -> IO ()
 execute conn@(Connection _ _ conn0) sql@(Sql s params) = do
   logQuery sql Nothing
   doExecute `catch` \(exception :: Sqlite.SQLError) ->
@@ -171,7 +171,7 @@ execute conn@(Connection _ _ conn0) sql@(Sql s params) = do
 -- | Execute one or more semicolon-delimited statements.
 --
 -- This function does not support parameters, and is mostly useful for executing DDL and migrations.
-executeStatements :: Connection -> Text -> IO ()
+executeStatements :: HasCallStack => Connection -> Text -> IO ()
 executeStatements conn@(Connection _ _ (Sqlite.Connection database _tempNameCounter)) sql = do
   logQuery (Sql sql []) Nothing
   Direct.Sqlite.exec database sql `catch` \(exception :: Sqlite.SQLError) ->
@@ -184,7 +184,7 @@ executeStatements conn@(Connection _ _ (Sqlite.Connection database _tempNameCoun
 
 -- With results, without checks
 
-queryStreamRow :: (Sqlite.FromRow a) => Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r
+queryStreamRow :: (HasCallStack, Sqlite.FromRow a) => Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r
 queryStreamRow conn@(Connection _ _ conn0) sql@(Sql s params) callback =
   run `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
@@ -201,7 +201,7 @@ queryStreamRow conn@(Connection _ _ conn0) sql@(Sql s params) callback =
 
 queryStreamCol ::
   forall a r.
-  (Sqlite.FromField a) =>
+  (HasCallStack, Sqlite.FromField a) =>
   Connection ->
   Sql ->
   (IO (Maybe a) -> IO r) ->
@@ -212,7 +212,7 @@ queryStreamCol =
     @(Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r)
     queryStreamRow
 
-queryListRow :: forall a. (Sqlite.FromRow a) => Connection -> Sql -> IO [a]
+queryListRow :: forall a. (Sqlite.FromRow a, HasCallStack) => Connection -> Sql -> IO [a]
 queryListRow conn@(Connection _ _ conn0) sql@(Sql s params) = do
   result <-
     doQuery
@@ -237,35 +237,35 @@ queryListRow conn@(Connection _ _ conn0) sql@(Sql s params) = do
                 Just row -> loop (row : rows)
         loop []
 
-queryListCol :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO [a]
+queryListCol :: forall a. (Sqlite.FromField a, HasCallStack) => Connection -> Sql -> IO [a]
 queryListCol =
   coerce @(Connection -> Sql -> IO [Sqlite.Only a]) @(Connection -> Sql -> IO [a]) queryListRow
 
-queryMaybeRow :: (Sqlite.FromRow a) => Connection -> Sql -> IO (Maybe a)
+queryMaybeRow :: (Sqlite.FromRow a, HasCallStack) => Connection -> Sql -> IO (Maybe a)
 queryMaybeRow conn s =
   queryListRowCheck conn s \case
     [] -> Right Nothing
     [x] -> Right (Just x)
     xs -> Left (ExpectedAtMostOneRowException (anythingToString xs))
 
-queryMaybeCol :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO (Maybe a)
+queryMaybeCol :: forall a. (Sqlite.FromField a, HasCallStack) => Connection -> Sql -> IO (Maybe a)
 queryMaybeCol conn s =
   coerce @(IO (Maybe (Sqlite.Only a))) @(IO (Maybe a)) (queryMaybeRow conn s)
 
-queryOneRow :: (Sqlite.FromRow a) => Connection -> Sql -> IO a
+queryOneRow :: (Sqlite.FromRow a, HasCallStack) => Connection -> Sql -> IO a
 queryOneRow conn s =
   queryListRowCheck conn s \case
     [x] -> Right x
     xs -> Left (ExpectedExactlyOneRowException (anythingToString xs))
 
-queryOneCol :: forall a. (Sqlite.FromField a) => Connection -> Sql -> IO a
+queryOneCol :: forall a. (Sqlite.FromField a, HasCallStack) => Connection -> Sql -> IO a
 queryOneCol conn s = do
   coerce @(IO (Sqlite.Only a)) @(IO a) (queryOneRow conn s)
 
 -- With results, with checks
 
 queryListRowCheck ::
-  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  (Sqlite.FromRow a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   ([a] -> Either e r) ->
@@ -274,7 +274,7 @@ queryListRowCheck conn s check =
   gqueryListCheck conn s (mapLeft SomeSqliteExceptionReason . check)
 
 gqueryListCheck ::
-  (Sqlite.FromRow a) =>
+  (Sqlite.FromRow a, HasCallStack) =>
   Connection ->
   Sql ->
   ([a] -> Either SomeSqliteExceptionReason r) ->
@@ -293,7 +293,7 @@ gqueryListCheck conn sql check = do
 
 queryListColCheck ::
   forall a e r.
-  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   ([a] -> Either e r) ->
@@ -302,7 +302,7 @@ queryListColCheck conn s check =
   queryListRowCheck conn s (coerce @([a] -> Either e r) @([Sqlite.Only a] -> Either e r) check)
 
 queryMaybeRowCheck ::
-  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  (Sqlite.FromRow a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   (a -> Either e r) ->
@@ -315,7 +315,7 @@ queryMaybeRowCheck conn s check =
 
 queryMaybeColCheck ::
   forall a e r.
-  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   (a -> Either e r) ->
@@ -324,7 +324,7 @@ queryMaybeColCheck conn s check =
   queryMaybeRowCheck conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
 
 queryOneRowCheck ::
-  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  (Sqlite.FromRow a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   (a -> Either e r) ->
@@ -336,7 +336,7 @@ queryOneRowCheck conn s check =
 
 queryOneColCheck ::
   forall a e r.
-  (Sqlite.FromField a, SqliteExceptionReason e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e, HasCallStack) =>
   Connection ->
   Sql ->
   (a -> Either e r) ->

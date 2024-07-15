@@ -1,27 +1,33 @@
 ```ucm:hide
-.> builtins.merge
+scratch/b1> builtins.merge lib.builtins
+scratch/b2> builtins.merge lib.builtins
+scratch/nsx> builtins.merge lib.builtins
+scratch/main> builtins.merge lib.builtins
+scratch/ns1> builtins.merge lib.builtins
 ```
 
 ```unison:hide
 x = 23
-```
-
-```ucm
-.b1> add
-.b1> alias.term x fslkdjflskdjflksjdf
-.> fork b1 b2
-.b2> alias.term x abc
-```
-
-```unison:hide
 fslkdjflskdjflksjdf = 663
 ```
 
 ```ucm
-.b0> add
-.> merge.old b0 b1
-.> diff.namespace b1 b2
-.b2> diff.namespace .b1
+scratch/b1> add
+```
+
+```unison:hide
+x = 23
+fslkdjflskdjflksjdf = 23
+abc = 23
+```
+
+```ucm
+scratch/b2> add
+scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
+```
+
+```ucm
+scratch/main> diff.namespace /b1: /b2:
 ```
 Things we want to test:
 
@@ -46,34 +52,35 @@ structural ability X a1 a2 where x : ()
 ```
 
 ```ucm
-.ns1> add
-.ns1> alias.term fromJust fromJust'
-.ns1> alias.term helloWorld helloWorld2
-.ns1> fork .ns1 .ns2
+scratch/ns1> add
+scratch/ns1> alias.term fromJust fromJust'
+scratch/ns1> alias.term helloWorld helloWorld2
+scratch/ns1> branch /ns2
 ```
 
 Here's what we've done so far:
 
 ```ucm:error
-.> diff.namespace nothing ns1
+scratch/main> diff.namespace .nothing /ns1:
 ```
 
 ```ucm:error
-.> diff.namespace ns1 ns2
+scratch/main> diff.namespace /ns1: /ns2:
 ```
 
 ```unison:hide
-fromJust = "asldkfjasldkfj"
+junk = "asldkfjasldkfj"
 ```
 
 ```ucm
-.ns1b> add
-.> merge.old ns1b ns1
+scratch/ns1> add
+scratch/ns1> debug.alias.term.force junk fromJust
+scratch/ns1> delete.term junk
 ```
 
 ```unison:hide
 fromJust = 99
-b = "oog"
+b = 999999999
 d = 4
 e = 5
 f = 6
@@ -81,59 +88,69 @@ unique type Y a b = Y a b
 ```
 
 ```ucm
-.ns2> update.old
-.> diff.namespace ns1 ns2
-.> alias.term ns2.d ns2.d'
-.> alias.type ns2.A ns2.A'
-.> alias.type ns2.X ns2.X'
-.> diff.namespace ns1 ns2
-.> alias.type ns1.X ns1.X2
-.> alias.type ns2.A' ns2.A''
-.> fork ns2 ns3
-.> alias.term ns2.fromJust' ns2.yoohoo
-.> delete.term.verbose ns2.fromJust'
-.> diff.namespace ns3 ns2
+scratch/ns2> update
+scratch/main> diff.namespace /ns1: /ns2:
+scratch/ns2> alias.term d d'
+scratch/ns2> alias.type A A'
+scratch/ns2> alias.type X X'
+scratch/main> diff.namespace /ns1: /ns2:
+scratch/ns1> alias.type X X2
+scratch/ns2> alias.type A' A''
+scratch/ns2> branch /ns3
+scratch/ns2> alias.term fromJust' yoohoo
+scratch/ns2> delete.term.verbose fromJust'
+scratch/main> diff.namespace /ns3: /ns2:
 ```
 ```unison:hide
 bdependent = "banana"
 ```
 ```ucm
-.ns3> update.old
-.> diff.namespace ns2 ns3
+scratch/ns3> update
+scratch/main> diff.namespace /ns2: /ns3:
 ```
 
 
 ## Two different auto-propagated changes creating a name conflict
+
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
+
 ```unison:hide
 a = 333
 b = a + 1
+
+forconflicts = 777
 ```
+
 ```ucm
-.nsx> add
-.> fork nsx nsy
-.> fork nsx nsz
+scratch/nsx> add
+scratch/nsx> branch /nsy
+scratch/nsx> branch /nsz
 ```
+
 ```unison:hide
 a = 444
 ```
+
 ```ucm
-.nsy> update.old
+scratch/nsy> update
 ```
+
 ```unison:hide
 a = 555
 ```
+
 ```ucm
-.nsz> update.old
-.> merge.old nsy nsw
+scratch/nsz> update
+scratch/nsy> branch /nsw
+scratch/nsw> debug.alias.term.force .forconflicts .a
+scratch/nsw> debug.alias.term.force .forconflicts .b
 ```
-```ucm:error
-.> merge.old nsz nsw
-```
+
 ```ucm
-.> diff.namespace nsx nsw
-.nsw> view a b
+scratch/main> diff.namespace /nsx: /nsw:
+scratch/nsw> view a
+scratch/nsw> view b
 ```
 
 ## Should be able to diff a namespace hash from history.
@@ -143,7 +160,7 @@ x = 1
 ```
 
 ```ucm
-.hashdiff> add
+scratch/hashdiff> add
 ```
 
 ```unison
@@ -151,9 +168,9 @@ y = 2
 ```
 
 ```ucm
-.hashdiff> add
-.hashdiff> history
-.hashdiff> diff.namespace 2 1
+scratch/hashdiff> add
+scratch/hashdiff> history
+scratch/hashdiff> diff.namespace 2 1
 ```
 
 ##

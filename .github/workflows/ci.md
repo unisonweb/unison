@@ -9,7 +9,7 @@ At a high level, the CI process is:
 Some version numbers that are used during CI:
 - `ormolu_version: "0.5.0.1"`
 - `racket_version: "8.7"`
-- `jit_version: "@unison/internal/releases/0.0.17"`
+- `jit_version: "@unison/internal/releases/0.0.18"`
 
 Some cached directories:
   - `ucm_local_bin` a temp path for caching a built `ucm`

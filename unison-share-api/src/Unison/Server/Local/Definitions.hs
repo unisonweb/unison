@@ -81,7 +81,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-  (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase (Just shallowRoot) namesRoot
+  (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase shallowRoot namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength localNamesOnly
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do

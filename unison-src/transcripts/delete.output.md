@@ -5,8 +5,8 @@ The delete command can delete both terms and types.
 First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
-```ucm
-.> delete.verbose foo
+``` ucm
+scratch/main> delete.verbose foo
 
   ⚠️
   
@@ -17,97 +17,71 @@ exist.
 Now for some easy cases. Deleting an unambiguous term, then deleting an
 unambiguous type.
 
-```unison
+``` unison
 foo = 1
 structural type Foo = Foo ()
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
     foo : Nat
 
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 
   Removed definitions:
   
     1. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo
+scratch/main> delete.verbose Foo
 
   Removed definitions:
   
     1. structural type Foo
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo.Foo
+scratch/main> delete.verbose Foo.Foo
 
   Removed definitions:
   
     1. Foo.Foo : '#089vmor9c5
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 How about an ambiguous term?
 
-```unison
-foo = 1
+``` unison
+a.foo = 1
+a.bar = 2
 ```
 
-```ucm
-  ☝️  The namespace .a is empty.
-
-.a> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    foo : ##Nat
+    a.bar : Nat
+    a.foo : Nat
 
-```
-```unison
-foo = 2
-```
+scratch/main> debug.alias.term.force a.bar a.foo
 
-```ucm
-  ☝️  The namespace .b is empty.
-
-.b> add
-
-  ⍟ I've added these definitions:
-  
-    foo : ##Nat
-
-.a> merge.old .b
-
-  Here's what's changed in the current namespace after the
-  merge:
-  
-  New name conflicts:
-  
-    1. foo#gjmq673r1v : ##Nat
-       ↓
-    2. ┌ foo#dcgdua2lj6 : ##Nat
-    3. └ foo#gjmq673r1v : ##Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
+  Done.
 
 ```
 A delete should remove both versions of the term.
 
-```ucm
-.> delete.verbose a.foo
+``` ucm
+scratch/main> delete.verbose a.foo
 
   Removed definitions:
   
@@ -116,72 +90,38 @@ A delete should remove both versions of the term.
   Name changes:
   
     Original               Changes
-    2. b.foo            ┐  3. a.foo#dcgdua2lj6 (removed)
+    2. a.bar            ┐  3. a.foo#dcgdua2lj6 (removed)
     4. a.foo#dcgdua2lj6 ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-```
-```ucm
-  ☝️  The namespace .a is empty.
+scratch/main> ls a
 
-.a> ls
-
-  nothing to show
+  1. bar (Nat)
 
 ```
 Let's repeat all that on a type, for completeness.
 
-```unison
-structural type Foo = Foo ()
+``` unison
+structural type a.Foo = Foo ()
+structural type a.Bar = Bar
 ```
 
-```ucm
-.a> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    structural type Foo
+    structural type a.Bar
+      (also named lib.builtins.Unit)
+    structural type a.Foo
 
-```
-```unison
-structural type Foo = Foo
-```
+scratch/main> debug.alias.type.force a.Bar a.Foo
 
-```ucm
-.b> add
+  Done.
 
-  ⍟ I've added these definitions:
-  
-    structural type Foo
-
-.a> merge.old .b
-
-  Here's what's changed in the current namespace after the
-  merge:
-  
-  New name conflicts:
-  
-    1. structural type Foo#089vmor9c5
-       ↓
-    2. ┌ structural type Foo#00nv2kob8f
-    3. └ structural type Foo#089vmor9c5
-    
-    4. Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
-       ↓
-    5. ┌ Foo.Foo#00nv2kob8f#0 : ()
-    6. └ Foo.Foo#089vmor9c5#0 : 'Foo#089vmor9c5
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
-
-```
-```ucm
-.> delete.verbose a.Foo
+scratch/main> delete.verbose a.Foo
 
   Removed definitions:
   
@@ -189,68 +129,60 @@ structural type Foo = Foo
   
   Name changes:
   
-    Original               Changes
-    2. b.Foo            ┐  3. a.Foo#00nv2kob8f (removed)
-    4. builtin.Unit     │  
-    5. a.Foo#00nv2kob8f ┘  
+    Original                Changes
+    2. a.Bar             ┐  3. a.Foo#00nv2kob8f (removed)
+    4. lib.builtins.Unit │  
+    5. a.Foo#00nv2kob8f  ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-```
-```ucm
-.> delete.verbose a.Foo.Foo
+scratch/main> delete.verbose a.Foo.Foo
 
   Removed definitions:
   
-    1. a.Foo.Foo#089vmor9c5#0 : '#089vmor9c5
+    1. a.Foo.Foo : '#089vmor9c5
   
-  Name changes:
-  
-    Original                     Changes
-    2. b.Foo.Foo              ┐  3. a.Foo.Foo#00nv2kob8f#0 (removed)
-    4. builtin.Unit.Unit      │  
-    5. a.Foo.Foo#00nv2kob8f#0 ┘  
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 Finally, let's try to delete a term and a type with the same name.
 
-```unison
+``` unison
 foo = 1
 structural type foo = Foo ()
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type foo
     foo : Nat
 
-```
-```ucm
-.> delete.verbose foo
+scratch/main> delete.verbose foo
 
   Removed definitions:
   
     1. structural type foo
     2. foo : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We want to be able to delete multiple terms at once
 
-```unison
+``` unison
 a = "a"
 b = "b"
 c = "c"
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -258,7 +190,7 @@ c = "c"
     b : Text
     c : Text
 
-.> delete.verbose a b c
+scratch/main> delete.verbose a b c
 
   Removed definitions:
   
@@ -266,20 +198,21 @@ c = "c"
     2. b : Text
     3. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete terms and types in the same invocation of delete
 
-```unison
+``` unison
 structural type Foo = Foo ()
 a = "a"
 b = "b"
 c = "c"
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -288,7 +221,7 @@ c = "c"
     b : Text
     c : Text
 
-.> delete.verbose a b c Foo
+scratch/main> delete.verbose a b c Foo
 
   Removed definitions:
   
@@ -297,9 +230,10 @@ c = "c"
     3. b : Text
     4. c : Text
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> delete.verbose Foo.Foo
+scratch/main> delete.verbose Foo.Foo
 
   Name changes:
   
@@ -307,23 +241,24 @@ c = "c"
     1. Foo.Foo ┐  2. Foo.Foo (removed)
     3. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 We can delete a type and its constructors
 
-```unison
+``` unison
 structural type Foo = Foo ()
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
 
-.> delete.verbose Foo Foo.Foo
+scratch/main> delete.verbose Foo Foo.Foo
 
   Removed definitions:
   
@@ -335,30 +270,31 @@ structural type Foo = Foo ()
     2. Foo.Foo ┐  3. Foo.Foo (removed)
     4. foo.Foo ┘  
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should not be able to delete terms which are referenced by other terms
 
-```unison
+``` unison
 a = 1
 b = 2
 c = 3
 d = a + b + c
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     a : Nat
     b : Nat
-      (also named b.foo)
+      (also named a.bar)
     c : Nat
     d : Nat
 
-.> delete.verbose a b c
+scratch/main> delete.verbose a b c
 
   ⚠️
   
@@ -373,15 +309,15 @@ d = a + b + c
 ```
 But you should be able to delete all terms which reference each other in a single command
 
-```unison
+``` unison
 e = 11
 f = 12 + e
 g = 13 + f
 h = e + f + g
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -390,7 +326,7 @@ h = e + f + g
     g : Nat
     h : Nat
 
-.> delete.verbose e f g h
+scratch/main> delete.verbose e f g h
 
   Removed definitions:
   
@@ -399,12 +335,13 @@ h = e + f + g
     3. g : Nat
     4. h : Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 You should be able to delete a type and all the functions that reference it in a single command
 
-```unison
+``` unison
 structural type Foo = Foo Nat
 
 incrementFoo : Foo -> Nat
@@ -412,36 +349,37 @@ incrementFoo = cases
   (Foo n) -> n + 1
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
     incrementFoo : Foo -> Nat
 
-.> delete.verbose Foo Foo.Foo incrementFoo
+scratch/main> delete.verbose Foo Foo.Foo incrementFoo
 
   Removed definitions:
   
     1. structural type Foo
-    2. Foo.Foo      : Nat -> #68k40ra7l7
-    3. incrementFoo : #68k40ra7l7 -> Nat
+    2. Foo.Foo      : Nat -> Foo
+    3. incrementFoo : Foo -> Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
 ```
 If you mess up on one of the names of your command, delete short circuits
 
-```unison
+``` unison
 e = 11
 f = 12 + e
 g = 13 + f
 h = e + f + g
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -450,7 +388,7 @@ h = e + f + g
     g : Nat
     h : Nat
 
-.> delete.verbose e f gg
+scratch/main> delete.verbose e f gg
 
   ⚠️
   
@@ -460,28 +398,29 @@ h = e + f + g
 ```
 Cyclical terms which are guarded by a lambda are allowed to be deleted
 
-```unison
+``` unison
 ping _ = 1 Nat.+ !pong
 pong _ = 4 Nat.+ !ping
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ping : 'Nat
     pong : 'Nat
 
-.> delete.verbose ping
+scratch/main> delete.verbose ping
 
   Removed definitions:
   
     1. ping : 'Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> view pong
+scratch/main> view pong
 
   pong : 'Nat
   pong _ =

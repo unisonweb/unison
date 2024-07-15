@@ -57,7 +57,7 @@ test =
               ref = R.Id h 0
               v1 = Var.unnamedRef @Symbol ref
               -- input component: `ref = \v1 -> ref`
-              component = Map.singleton ref (Term.lam () v1 (Term.refId () ref))
+              component = Map.singleton ref (Term.lam () ((), v1) (Term.refId () ref))
               component' = Term.unhashComponent component
               -- expected unhashed component: `v2 = \v1 -> v2`, where `v2 /= v1`,
               -- i.e. `v2` cannot be just `ref` converted to a ref-named variable,

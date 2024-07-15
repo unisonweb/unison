@@ -1,10 +1,10 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
-```unison
+``` unison
 x = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,8 +19,8 @@ x = ()
 ```
 So we can see the pretty-printed output:
 
-```ucm
-.a1> edit 1-1000
+``` ucm
+scratch/a1> edit 1-1000
 
   ☝️
   
@@ -30,7 +30,7 @@ So we can see the pretty-printed output:
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+````` unison:added-by-ucm scratch.u
 structural ability Abort where abort : {Abort} a
 
 structural ability Ask a where ask : {Ask a} a
@@ -766,12 +766,12 @@ UUID.randomUUIDBytes = do
 
 (|>) : a -> (a ->{e} b) ->{e} b
 a |> f = f a
-```
+`````
 
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
-```ucm
-.> diff.namespace a1 a2
+``` ucm
+scratch/main> diff.namespace /a1: /a2:
 
   The namespaces are identical.
 
@@ -780,12 +780,12 @@ Now check that definitions in 'reparses.u' at least parse on round trip:
 
 This just makes 'roundtrip.u' the latest scratch file.
 
-```unison
+``` unison
 x = ()
 ```
 
-```ucm
-.a3> edit 1-5000
+``` ucm
+scratch/a3> edit 1-5000
 
   ☝️
   
@@ -795,7 +795,7 @@ x = ()
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm scratch.u
+```` unison:added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
   """
@@ -815,12 +815,12 @@ sloppyDocEval =
   1 + 1
   ```
   }}
-```
+````
 
 These are currently all expected to have different hashes on round trip.
 
-```ucm
-.> diff.namespace a3 a3_old
+``` ucm
+scratch/main> diff.namespace /a3_new: /a3:
 
   Updates:
   
@@ -831,7 +831,32 @@ These are currently all expected to have different hashes on round trip.
 ```
 ## Other regression tests not covered by above
 
-### Comment out builtins in the edit command
+### Builtins should appear commented out in the edit command
 
 Regression test for https://github.com/unisonweb/unison/pull/3548
+
+``` ucm
+scratch/regressions> alias.term ##Nat.+ plus
+
+  Done.
+
+scratch/regressions> edit plus
+
+  ☝️
+  
+  I added 1 definitions to the top of scratch.u
+  
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
+
+scratch/regressions> load
+
+  Loading changes detected in scratch.u.
+
+  I loaded scratch.u and didn't find anything.
+
+```
+``` unison:added-by-ucm scratch.u
+-- builtin plus : ##Nat -> ##Nat -> ##Nat
+```
 

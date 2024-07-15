@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.HandleInput.MoveType (doMoveType, moveTypeSteps) where
 
-import Control.Lens (_2)
+import Control.Lens (_1, _2)
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -9,13 +9,14 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path (Path, Path')
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 
-moveTypeSteps :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Cli [(Path, Branch0 m -> Branch0 m)]
+moveTypeSteps :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Cli [(Path.Absolute, Branch0 m -> Branch0 m)]
 moveTypeSteps src' dest' = do
   src <- Cli.resolveSplit' src'
   srcTypes <- Cli.getTypesAt src
@@ -29,11 +30,11 @@ moveTypeSteps src' dest' = do
       destTypes <- Cli.getTypesAt (HQ'.NameOnly <$> dest)
       when (not (Set.null destTypes)) do
         Cli.returnEarly (Output.TypeAlreadyExists dest' destTypes)
-      let p = first Path.unabsolute src
+      let p = over _1 (view PP.absPath_) src
       pure
         [ -- Mitchell: throwing away any hash-qualification here seems wrong!
           BranchUtil.makeDeleteTypeName (over _2 HQ'.toName p) srcType,
-          BranchUtil.makeAddTypeName (first Path.unabsolute dest) srcType
+          BranchUtil.makeAddTypeName (over _1 (view PP.absPath_) dest) srcType
         ]
 
 doMoveType :: (Path', HQ'.HQSegment) -> (Path', NameSegment) -> Text -> Cli ()
@@ -41,5 +42,6 @@ doMoveType src' dest' description = do
   steps <- moveTypeSteps src' dest'
   when (null steps) do
     Cli.returnEarly (Output.TypeNotFound src')
-  Cli.stepManyAt description steps
+  pb <- Cli.getCurrentProjectBranch
+  Cli.stepManyAt pb description steps
   Cli.respond Output.Success

@@ -38,8 +38,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
-import Unison.Parser.Ann qualified as Ann
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -348,7 +348,9 @@ parsePattern = label "pattern" root
 lam :: (Var v) => TermP v m -> TermP v m
 lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved "->") <*> p
   where
-    mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
+    mkLam vs b =
+      let annotatedArgs = vs <&> \v -> (ann v, L.payload v)
+       in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
 letBlock = label "let" $ (snd <$> block "let")
@@ -383,7 +385,8 @@ lamCase = do
         es -> DD.tupleTerm es
       anns = ann start <> ann (NonEmpty.last cases)
       matchTerm = Term.match anns lamvarTerm (toList cases)
-  pure $ Term.lam' anns vars matchTerm
+  let annotatedVars = (Ann.GeneratedFrom $ ann start,) <$> vars
+  pure $ Term.lam' anns annotatedVars matchTerm
 
 ifthen = label "if" do
   start <- peekAny
@@ -412,7 +415,7 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
-quasikeyword :: Ord v => Text -> P v m (L.Token ())
+quasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
   L.WordyId (HQ'.NameOnly n) | nameIsKeyword n kw -> Just ()
   _ -> Nothing
@@ -595,11 +598,12 @@ doc2Block = do
           "syntax.docExample" -> do
             trm <- term
             endTok <- closeBlock
-            pure . (ann startTok <> ann endTok,) $ case trm of
+            let spanAnn = ann startTok <> ann endTok
+            pure . (spanAnn,) $ case trm of
               tm@(Term.Apps' _ xs) ->
                 let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
                     n = Term.nat (ann tm) (fromIntegral (length fvs))
-                    lam = addDelay $ Term.lam' (ann tm) fvs tm
+                    lam = addDelay $ Term.lam' (ann tm) ((Ann.GeneratedFrom spanAnn,) <$> fvs) tm
                  in Term.apps' f [n, lam]
               tm -> Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
           "syntax.docTransclude" -> evalLike id
@@ -980,12 +984,13 @@ delayQuote :: (Monad m, Var v) => TermP v m
 delayQuote = P.label "quote" do
   start <- reserved "'"
   e <- termLeaf
-  pure $ DD.delayTerm (ann start <> ann e) e
+  pure $ DD.delayTerm (ann start <> ann e) (ann start) e
 
 delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
   (spanAnn, b) <- block "do"
-  pure $ (spanAnn, DD.delayTerm (ann b) b)
+  let argSpan = (ann b {- would be nice to use the annotation for 'do' here, but it's not terribly important -})
+  pure $ (spanAnn, DD.delayTerm (ann b) argSpan b)
 
 bang :: (Monad m, Var v) => TermP v m
 bang = P.label "bang" do
@@ -993,10 +998,10 @@ bang = P.label "bang" do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-force :: forall m v . (Monad m, Var v) => TermP v m
+force :: forall m v. (Monad m, Var v) => TermP v m
 force = P.label "force" $ P.try do
   -- `forkAt pool() blah` parses as `forkAt (pool ()) blah`
-  -- That is, empty parens immediately (no space) following a symbol 
+  -- That is, empty parens immediately (no space) following a symbol
   -- is treated as high precedence function application of `Unit`
   fn <- hashQualifiedPrefixTerm
   tok <- ann <$> openBlockWith "("
@@ -1008,10 +1013,10 @@ seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
   Pattern.Snoc
     <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
-    <|> Pattern.Cons
-      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
-    <|> Pattern.Concat
-      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
+      <|> Pattern.Cons
+    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
+      <|> Pattern.Concat
+    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
@@ -1134,7 +1139,8 @@ binding = label "binding" do
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
     mkBinding _lhsLoc [] body = body
     mkBinding lhsLoc args body =
-      (Term.lam' (lhsLoc <> ann body) (L.payload <$> args) body)
+      let annotatedArgs = args <&> \arg -> (ann arg, L.payload arg)
+       in Term.lam' (lhsLoc <> ann body) annotatedArgs body
 
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure

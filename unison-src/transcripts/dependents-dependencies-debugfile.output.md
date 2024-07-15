@@ -1,8 +1,10 @@
 ### `debug.file`
+
 I can use `debug.file` to see the hashes of the last typechecked file.
 
 Given this .u file:
-```unison
+
+``` unison
 structural type outside.A = A Nat outside.B
 structural type outside.B = B Int
 outside.c = 3
@@ -14,7 +16,7 @@ inside.q x = x + p * p
 inside.r = d
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.file
 
   type inside.M#h37a56c5ep
@@ -30,8 +32,10 @@ scratch/main> debug.file
 This will help me make progress in some situations when UCM is being deficient or broken.
 
 ### `dependents` / `dependencies`
+
 But wait, there's more.  I can check the dependencies and dependents of a definition:
-```ucm
+
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -110,3 +114,4 @@ scratch/main> dependents d
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.
+

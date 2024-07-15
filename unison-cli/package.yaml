@@ -19,6 +19,7 @@ dependencies:
   - base
   - bytes
   - bytestring
+  - cmark
   - co-log-core
   - code-page
   - concurrent-output
@@ -54,6 +55,7 @@ dependencies:
   - network-udp
   - network-uri
   - nonempty-containers
+  - numerals
   - open-browser
   - optparse-applicative >= 0.16.1.0
   - pretty-simple
@@ -93,7 +95,6 @@ dependencies:
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
-  - unison-util-nametree
   - unison-util-relation
   - unliftio
   - unordered-containers

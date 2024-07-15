@@ -5,7 +5,9 @@ module Unison.Codebase.Path
     Path' (..),
     Absolute (..),
     pattern AbsolutePath',
+    absPath_,
     Relative (..),
+    relPath_,
     pattern RelativePath',
     Resolve (..),
     pattern Empty,
@@ -30,6 +32,8 @@ module Unison.Codebase.Path
     prefixNameIfRel,
     unprefixName,
     HQSplit,
+    HQSplitAbsolute,
+    AbsSplit,
     Split,
     Split',
     HQSplit',
@@ -58,6 +62,8 @@ module Unison.Codebase.Path
     toName',
     toText,
     toText',
+    absToText,
+    relToText,
     unsplit,
     unsplit',
     unsplitAbsolute,
@@ -113,11 +119,18 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
--- | A namespace path that starts from the root.
+-- | An absolute from the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+absPath_ :: Lens' Absolute Path
+absPath_ = lens unabsolute (\_ new -> Absolute new)
+
 -- | A namespace path that doesn’t necessarily start from the root.
+-- Typically refers to a path from the current namespace.
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
+
+relPath_ :: Lens' Relative Path
+relPath_ = lens unrelative (\_ new -> Relative new)
 
 -- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
@@ -148,14 +161,14 @@ absoluteToPath' = AbsolutePath'
 
 instance Show Path' where
   show = \case
-    AbsolutePath' abs -> show abs
-    RelativePath' rel -> show rel
+    AbsolutePath' abs -> Text.unpack $ absToText abs
+    RelativePath' rel -> Text.unpack $ relToText rel
 
 instance Show Absolute where
-  show s = "." ++ show (unabsolute s)
+  show s = Text.unpack $ absToText s
 
 instance Show Relative where
-  show = show . unrelative
+  show = Text.unpack . relToText
 
 unsplit' :: Split' -> Path'
 unsplit' = \case
@@ -174,6 +187,8 @@ nameFromHQSplit = nameFromHQSplit' . first (RelativePath' . Relative)
 
 nameFromHQSplit' :: HQSplit' -> HQ'.HashQualified Name
 nameFromHQSplit' (p, a) = fmap (nameFromSplit' . (p,)) a
+
+type AbsSplit = (Absolute, NameSegment)
 
 type Split = (Path, NameSegment)
 
@@ -368,10 +383,28 @@ empty = Path mempty
 instance Show Path where
   show = Text.unpack . toText
 
+instance From Path Text where
+  from = toText
+
+instance From Absolute Text where
+  from = absToText
+
+instance From Relative Text where
+  from = relToText
+
+instance From Path' Text where
+  from = toText'
+
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
 toText =
   maybe Text.empty Name.toText . toName
+
+absToText :: Absolute -> Text
+absToText abs = "." <> toText (unabsolute abs)
+
+relToText :: Relative -> Text
+relToText rel = toText (unrelative rel)
 
 unsafeParseText :: Text -> Path
 unsafeParseText = \case
@@ -508,6 +541,9 @@ instance Resolve Absolute Relative Absolute where
 
 instance Resolve Absolute Relative Path' where
   resolve l r = AbsolutePath' (resolve l r)
+
+instance Resolve Absolute Path Absolute where
+  resolve (Absolute l) r = Absolute (resolve l r)
 
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a

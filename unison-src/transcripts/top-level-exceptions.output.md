@@ -1,9 +1,8 @@
-
 A simple transcript to test the use of exceptions that bubble to the top level.
 
 FYI, here are the `Exception` and `Failure` types:
 
-```ucm
+``` ucm
 scratch/main> view Exception Failure
 
   structural ability builtin.Exception where
@@ -15,7 +14,7 @@ scratch/main> view Exception Failure
 ```
 Here's a sample program just to verify that the typechecker allows `run` to throw exceptions:
 
-```unison
+``` unison
 use builtin IO Exception Test.Result
 
 main : '{IO, Exception} ()
@@ -25,7 +24,7 @@ mytest : '{IO, Exception} [Test.Result]
 mytest _ = [Ok "Great"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -39,7 +38,7 @@ mytest _ = [Ok "Great"]
       mytest : '{IO, Exception} [Result]
 
 ```
-```ucm
+``` ucm
 scratch/main> run main
 
   ()
@@ -64,7 +63,7 @@ scratch/main> io.test mytest
 ```
 Now a test to show the handling of uncaught exceptions:
 
-```unison
+``` unison
 main2 = '(error "oh noes!" ())
 
 error : Text -> a ->{Exception} x
@@ -74,7 +73,7 @@ error msg a =
 unique type RuntimeError =
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -89,7 +88,7 @@ unique type RuntimeError =
       main2 : '{Exception} r
 
 ```
-```ucm
+``` ucm
 scratch/main> run main2
 
   💔💥

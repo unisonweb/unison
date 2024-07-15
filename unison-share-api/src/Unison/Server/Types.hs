@@ -20,6 +20,7 @@ import Data.OpenApi.Lens qualified as OpenApi
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text
+import Servant qualified
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -540,3 +541,6 @@ instance ToJSON TypeDiffResponse where
             "oldType" .= oldType,
             "newType" .= newType
           ]
+
+-- | Servant utility for a query param that's required, providing a useful error message if it's missing.
+type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]

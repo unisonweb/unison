@@ -1,6 +1,6 @@
 # delete.namespace.force
 
-```unison
+``` unison
 no_dependencies.thing = "no dependents on this term"
 
 dependencies.term1 = 1
@@ -12,7 +12,7 @@ dependents.usage2 = dependencies.term1 * dependencies.term2
 
 Deleting a namespace with no external dependencies should succeed.
 
-```ucm
+``` ucm
 scratch/main> delete.namespace no_dependencies
 
   Done.
@@ -20,7 +20,7 @@ scratch/main> delete.namespace no_dependencies
 ```
 Deleting a namespace with external dependencies should fail and list all dependents.
 
-```ucm
+``` ucm
 scratch/main> delete.namespace dependencies
 
   ⚠️
@@ -41,7 +41,7 @@ scratch/main> delete.namespace dependencies
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
 
-```ucm
+``` ucm
 scratch/main> delete.namespace.force dependencies
 
   Done.
@@ -61,7 +61,7 @@ scratch/main> delete.namespace.force dependencies
 ```
 I should be able to view an affected dependency by number
 
-```ucm
+``` ucm
 scratch/main> view 2
 
   dependents.usage2 : Nat
@@ -72,13 +72,14 @@ scratch/main> view 2
 ```
 Deleting the root namespace should require confirmation if not forced.
 
-```ucm
+``` ucm
 scratch/main> delete.namespace .
 
   ⚠️
   
   Are you sure you want to clear away everything?
-  You could use `project.create` to switch to a new project instead.
+  You could use `project.create` to switch to a new project
+  instead, or delete the current branch with `delete.branch`
 
 scratch/main> delete.namespace .
 
@@ -89,12 +90,17 @@ scratch/main> delete.namespace .
 -- Should have an empty history
 scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Deleting the root namespace shouldn't require confirmation if forced.
 
-```ucm
+``` ucm
 scratch/main> delete.namespace.force .
 
   Okay, I deleted everything except the history. Use `undo` to
@@ -104,6 +110,11 @@ scratch/main> delete.namespace.force .
 -- Should have an empty history
 scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```

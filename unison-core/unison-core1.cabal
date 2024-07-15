@@ -55,12 +55,14 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.Util.Components
+      Unison.Util.Defns
+      Unison.Util.Nametree
       Unison.Var
       Unison.WatchKind
   hs-source-dirs:
       src
   default-extensions:
-      ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveAnyClass
       DeriveFoldable
@@ -68,17 +70,21 @@ library
       DeriveGeneric
       DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      InstanceSigs
       KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedStrings
+      OverloadedRecordDot
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables
@@ -102,6 +108,8 @@ library
     , nonempty-containers
     , rfc5051
     , safe
+    , semialign
+    , semigroups
     , text
     , text-builder
     , these
@@ -123,7 +131,7 @@ test-suite tests
   hs-source-dirs:
       test
   default-extensions:
-      ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveAnyClass
       DeriveFoldable
@@ -131,17 +139,21 @@ test-suite tests
       DeriveGeneric
       DeriveTraversable
       DerivingStrategies
+      DerivingVia
       DoAndIfThenElse
+      DuplicateRecordFields
       FlexibleContexts
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
       ImportQualifiedPost
+      InstanceSigs
       KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedStrings
+      OverloadedRecordDot
       PatternSynonyms
       RankNTypes
       ScopedTypeVariables

@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat, baz : Int }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,7 +21,7 @@ unique type Foo = { bar : Nat, baz : Int }
       Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```ucm
+``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
@@ -35,11 +35,11 @@ scratch/main> add
     Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,7 +58,7 @@ unique type Foo = { bar : Nat }
 ```
 We want the field accessors to go away; but for now they are here, causing the update to fail.
 
-```ucm
+``` ucm
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -103,7 +103,7 @@ scratch/main> find.verbose
   
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 Foo.baz : Foo -> Int
 Foo.baz = cases Foo _ baz -> baz
 

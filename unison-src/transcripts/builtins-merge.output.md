@@ -1,6 +1,6 @@
 The `builtins.merge` command adds the known builtins to the specified subnamespace within the current namespace.
 
-```ucm
+``` ucm
 scratch/main> builtins.merge builtins
 
   Done.

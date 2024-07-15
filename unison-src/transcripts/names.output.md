@@ -1,8 +1,14 @@
 # `names` command
 
+``` ucm
+scratch/main> builtins.merge lib.builtins
+
+  Done.
+
+```
 Example uses of the `names` command and output
 
-```unison
+``` unison
 -- Some names with the same value
 some.place.x = 1
 some.otherplace.y = 1
@@ -12,7 +18,7 @@ somewhere.z = 1
 somewhere.y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,86 +28,67 @@ somewhere.y = 2
   
     ⍟ These new definitions are ok to `add`:
     
-      some.otherplace.x : ##Nat
-      some.otherplace.y : ##Nat
-      some.place.x      : ##Nat
-      somewhere.y       : ##Nat
-      somewhere.z       : ##Nat
+      some.otherplace.x : Nat
+      some.otherplace.y : Nat
+      some.place.x      : Nat
+      somewhere.y       : Nat
+      somewhere.z       : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    some.otherplace.x : ##Nat
-    some.otherplace.y : ##Nat
-    some.place.x      : ##Nat
-    somewhere.y       : ##Nat
-    somewhere.z       : ##Nat
+    some.otherplace.x : Nat
+    some.otherplace.y : Nat
+    some.place.x      : Nat
+    somewhere.y       : Nat
+    somewhere.z       : Nat
 
 ```
 `names` searches relative to the current path.
 
-```ucm
+``` ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
--- But we don't see somewhere.z which is has the same value but is out of our namespace
-.some> names x
+scratch/main> names x
 
   Terms
   Hash:   #gjmq673r1v
-  Names:  otherplace.y place.x
+  Names:  some.otherplace.y some.place.x somewhere.z
   
   Hash:   #pi25gcdv0o
-  Names:  otherplace.x
+  Names:  some.otherplace.x
   
   Tip: Use `names.global` to see more results.
 
 -- We can search by hash, and see all aliases of that hash
-.some> names #gjmq673r1v
+scratch/main> names #gjmq673r1v
 
   Term
   Hash:   #gjmq673r1v
-  Names:  otherplace.y place.x
+  Names:  some.otherplace.y some.place.x somewhere.z
   
   Tip: Use `names.global` to see more results.
 
--- If the query is absolute, treat it as a `names.global`
-.some> names .some.place.x
+-- Works with absolute names too
+scratch/main> names .some.place.x
 
   Term
   Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
+  Names:  some.otherplace.y some.place.x somewhere.z
   
   Tip: Use `names.global` to see more results.
 
 ```
 `names.global` searches from the root, and absolutely qualifies results
 
+TODO: swap this back to a 'ucm' block when names.global is re-implemented
 
-```ucm
--- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.
-.some> names.global x
+    -- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
+    scratch/other> names.global x
+    -- We can search by hash, and see all aliases of that hash in the codebase
+    scratch/other> names.global #gjmq673r1v
+    -- We can search using an absolute name
+    scratch/other> names.global .some.place.x
 
-  Terms
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-  
-  Hash:   #pi25gcdv0o
-  Names:  .some.otherplace.x
-
--- We can search by hash, and see all aliases of that hash in the codebase
-.some> names.global #gjmq673r1v
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-
--- We can search using an absolute name
-.some> names.global .some.place.x
-
-  Term
-  Hash:   #gjmq673r1v
-  Names:  .some.otherplace.y .some.place.x .somewhere.z
-
-```

@@ -25,7 +25,6 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
-import Control.Concurrent.STM
 import Control.Exception (displayException, evaluate)
 import Data.ByteString.Lazy qualified as BL
 import Data.Configurator.Types (Config)
@@ -48,6 +47,7 @@ import System.Directory
   )
 import System.Environment (getExecutablePath, getProgName, withArgs)
 import System.Exit qualified as Exit
+import System.Exit qualified as System
 import System.FilePath
   ( replaceExtension,
     takeDirectory,
@@ -60,8 +60,8 @@ import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
-import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input qualified as Input
@@ -70,16 +70,20 @@ import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResul
 import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.TranscriptParser qualified as TR
 import Unison.Codebase.Verbosity qualified as Verbosity
-import Unison.CommandLine (plural', watchConfig)
+import Unison.CommandLine (watchConfig)
+import Unison.CommandLine.Helpers (plural')
 import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.LSP qualified as LSP
+import Unison.LSP.Util.Signal qualified as Signal
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -171,10 +175,9 @@ main version = do
                     getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                       withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                         let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                        let noOpRootNotifier _ = pure ()
-                        let noOpPathNotifier _ = pure ()
+                        let noOpCheckForChanges _ = pure ()
                         let serverUrl = Nothing
-                        let startPath = Nothing
+                        startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                         launch
                           version
                           currentDir
@@ -185,10 +188,9 @@ main version = do
                           theCodebase
                           [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                           serverUrl
-                          startPath
+                          (PP.toIds startProjectPath)
                           initRes
-                          noOpRootNotifier
-                          noOpPathNotifier
+                          noOpCheckForChanges
                           CommandLine.ShouldNotWatchFiles
           Run (RunFromPipe mainName) args -> do
             e <- safeReadUtf8StdIn
@@ -198,10 +200,9 @@ main version = do
                 getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                   withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
                     let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-                    let noOpRootNotifier _ = pure ()
-                    let noOpPathNotifier _ = pure ()
+                    let noOpCheckForChanges _ = pure ()
                     let serverUrl = Nothing
-                    let startPath = Nothing
+                    startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                     launch
                       version
                       currentDir
@@ -212,10 +213,9 @@ main version = do
                       theCodebase
                       [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                       serverUrl
-                      startPath
+                      (PP.toIds startProjectPath)
                       initRes
-                      noOpRootNotifier
-                      noOpPathNotifier
+                      noOpCheckForChanges
                       CommandLine.ShouldNotWatchFiles
           Run (RunCompiled file) args ->
             BL.readFile file >>= \bs ->
@@ -286,33 +286,38 @@ main version = do
             case mrtsStatsFp of
               Nothing -> action
               Just fp -> recordRtsStats fp action
-          Launch isHeadless codebaseServerOpts mayStartingPath shouldWatchFiles -> do
+          Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
             getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
               withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
-                startingPath <- case isHeadless of
-                  WithCLI -> do
-                    -- If the user didn't provide a starting path on the command line, put them in the most recent
-                    -- path they cd'd to
-                    case mayStartingPath of
-                      Just startingPath -> pure startingPath
-                      Nothing -> do
-                        segments <- Codebase.runTransaction theCodebase Queries.expectMostRecentNamespace
-                        pure (Path.Absolute (Path.fromList segments))
-                  Headless -> pure $ fromMaybe defaultInitialPath mayStartingPath
-                rootCausalHash <- Codebase.runTransaction theCodebase (Queries.expectNamespaceRoot >>= Queries.expectCausalHash)
-                rootCausalHashVar <- newTVarIO rootCausalHash
-                pathVar <- newTVarIO startingPath
-                let notifyOnRootChanges :: CausalHash -> STM ()
-                    notifyOnRootChanges b = do
-                      writeTVar rootCausalHashVar b
-                let notifyOnPathChanges :: Path.Absolute -> STM ()
-                    notifyOnPathChanges = writeTVar pathVar
+                startingProjectPath <- do
+                  -- If the user didn't provide a starting path on the command line, put them in the most recent
+                  -- path they cd'd to
+                  case mayStartingProject of
+                    Just startingProject -> do
+                      Codebase.runTransaction theCodebase (ProjectUtils.getProjectAndBranchByNames startingProject) >>= \case
+                        Nothing -> do
+                          PT.putPrettyLn $
+                            P.callout
+                              "❓"
+                              ( P.lines
+                                  [ P.indentN 2 "I couldn't find the project branch: " <> P.text (into @Text startingProject)
+                                  ]
+                              )
+                          System.exitFailure
+                        Just pab -> do
+                          pure $ PP.fromProjectAndBranch pab Path.absoluteEmpty
+                    Nothing -> do
+                      Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
+                currentPP <- Codebase.runTransaction theCodebase do
+                  PP.toIds <$> Codebase.expectCurrentProjectPath
+                changeSignal <- Signal.newSignalIO (Just currentPP)
+                let lspCheckForChanges pp = Signal.writeSignalIO changeSignal pp
                 -- Unfortunately, the windows IO manager on GHC 8.* is prone to just hanging forever
                 -- when waiting for input on handles, so if we listen for LSP connections it will
                 -- prevent UCM from shutting down properly. Hopefully we can re-enable LSP on
                 -- Windows when we move to GHC 9.*
                 -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
-                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime (readTVar rootCausalHashVar) (readTVar pathVar)
+                void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
                 Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
                   case exitOption of
                     DoNotExit -> do
@@ -323,7 +328,7 @@ main version = do
                               [ "I've started the Codebase API server at",
                                 P.text $ Server.urlFor Server.Api baseUrl,
                                 "and the Codebase UI at",
-                                P.text $ Server.urlFor (Server.LooseCodeUI Path.absoluteEmpty Nothing) baseUrl
+                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main")) Path.absoluteEmpty Nothing) baseUrl
                               ]
                           PT.putPrettyLn $
                             P.string "Running the codebase manager headless with "
@@ -346,10 +351,9 @@ main version = do
                             theCodebase
                             []
                             (Just baseUrl)
-                            (Just startingPath)
+                            (PP.toIds startingProjectPath)
                             initRes
-                            notifyOnRootChanges
-                            notifyOnPathChanges
+                            lspCheckForChanges
                             shouldWatchFiles
                     Exit -> do Exit.exitSuccess
   where
@@ -421,7 +425,8 @@ runTranscripts' version progName mcodepath nativeRtp transcriptDir markdownFiles
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
-    TR.withTranscriptRunner Verbosity.Verbose (Version.gitDescribeWithDate version) nativeRtp (Just configFilePath) $ \runTranscript -> do
+    let isTest = False
+    TR.withTranscriptRunner isTest Verbosity.Verbose (Version.gitDescribeWithDate version) nativeRtp (Just configFilePath) $ \runTranscript -> do
       for markdownFiles $ \(MarkdownFile fileName) -> do
         transcriptSrc <- readUtf8 fileName
         result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
@@ -512,9 +517,6 @@ runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodeba
             )
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
-defaultInitialPath :: Path.Absolute
-defaultInitialPath = Path.absoluteEmpty
-
 launch ::
   Version ->
   FilePath ->
@@ -525,13 +527,12 @@ launch ::
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
-  Maybe Path.Absolute ->
+  PP.ProjectPathIds ->
   InitResult ->
-  (CausalHash -> STM ()) ->
-  (Path.Absolute -> STM ()) ->
+  (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl mayStartingPath initResult notifyRootChange notifyPathChange shouldWatchFiles = do
+launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -541,7 +542,7 @@ launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseU
    in CommandLine.main
         dir
         welcome
-        (fromMaybe defaultInitialPath mayStartingPath)
+        startingPath
         config
         inputs
         runtime
@@ -550,8 +551,7 @@ launch version dir config runtime sbRuntime nRuntime codebase inputs serverBaseU
         codebase
         serverBaseUrl
         ucmVersion
-        notifyRootChange
-        notifyPathChange
+        lspCheckForChanges
         shouldWatchFiles
 
 newtype MarkdownFile = MarkdownFile FilePath
@@ -571,7 +571,8 @@ getConfigFilePath mcodepath = (</> ".unisonConfig") <$> Codebase.getCodebaseDir 
 getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions SC.DoLock migrationStrategy \case
+  let cbInit = SC.init
+  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions SC.DoLock migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""

@@ -490,7 +490,7 @@ pretty0
               (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
                 px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
                 pure . paren (p >= 11 || isBlock x && p >= 3) $
-                  px <> fmt S.DelayForceChar (l "()")
+                  px <> fmt S.Unit (l "()")
               (Apps' f (unsnoc -> Just (args, lastArg)), _)
                 | isSoftHangable lastArg -> do
                     fun <- goNormal 9 f
@@ -1958,7 +1958,7 @@ toDocExample' suffix ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
   | nameEndsWith ppe suffix r,
     ABT.freeVars l == mempty,
     ok tm =
-      Just (lam' (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
+      Just (lamWithoutBindingAnns (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
   where
     ok (Apps' f _) = ABT.freeVars f == mempty
     ok tm = ABT.freeVars tm == mempty

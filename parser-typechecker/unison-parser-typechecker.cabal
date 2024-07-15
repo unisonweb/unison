@@ -60,8 +60,8 @@ library
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
-      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -72,6 +72,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
@@ -131,7 +132,6 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
-      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Rehash
@@ -332,7 +332,6 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
-    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -533,7 +532,6 @@ test-suite parser-typechecker-tests
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
-    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization

@@ -62,6 +62,13 @@ packages:
   original:
     hackage: recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
 - completed:
+    hackage: numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
+    pantry-tree:
+      sha256: c616791b08f1792fd1d4ca03c6d2c773dedb25b24b66454c97864aefd85a5d0a
+      size: 13751
+  original:
+    hackage: numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
+- completed:
     hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
     pantry-tree:
       sha256: 6a3617038d3970095100d14d026c396002a115700500cf3004ffb67ae5a75611

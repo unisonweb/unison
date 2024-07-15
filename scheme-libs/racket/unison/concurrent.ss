@@ -66,17 +66,17 @@
              [cas! (lambda () (unsafe-struct*-cas! promise 2 value (some new-value)))]
              [awake-readers (lambda () (semaphore-post (promise-semaphore promise)))])
         (cond
-          [(some? value) false]
+          [(some? value) sum-false]
           [else
-           (let ([ok (parameterize-break #f (if (cas!) (awake-readers) false))])
-             (if ok true (loop)))]))))
+           (let ([ok (parameterize-break #f (if (cas!) (awake-readers) sum-false))])
+             (if ok sum-true (loop)))]))))
 
   (define (ref-cas ref ticket value)
-    (if (box-cas! ref ticket value) true false))
+    (if (box-cas! ref ticket value) sum-true sum-false))
 
   (define (sleep n)
     (sleep-secs (/ n 1000000))
-    (right unit))
+    (right sum-unit))
 
   ;; Swallows uncaught breaks/thread kills rather than logging them to
   ;; match the behaviour of the Haskell runtime
@@ -88,5 +88,5 @@
 
   (define (kill threadId)
     (break-thread threadId)
-    (right unit))
+    (right sum-unit))
   )

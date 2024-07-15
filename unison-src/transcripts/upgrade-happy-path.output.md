@@ -1,10 +1,10 @@
-```unison
+``` unison
 lib.old.foo = 17
 lib.new.foo = 18
 thingy = lib.old.foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ thingy = lib.old.foo + 10
       thingy      : Nat
 
 ```
-```ucm
+``` ucm
 proj/main> add
 
   ⍟ I've added these definitions:
@@ -31,7 +31,7 @@ proj/main> add
 ```
 Test tab completion and fzf options of upgrade command.
 
-```ucm
+``` ucm
 proj/main> debug.tab-complete upgrade ol
 
    old
@@ -51,7 +51,7 @@ proj/main> debug.fuzzy-options upgrade old _
     * old
 
 ```
-```ucm
+``` ucm
 proj/main> upgrade old new
 
   I upgraded old to new, and removed old.

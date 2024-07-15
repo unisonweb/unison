@@ -27,10 +27,12 @@ dependencies:
   - nonempty-containers
   - safe
   - text
+  - time
   - transformers
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-core1
   - unison-core-orphans-sqlite
   - unison-hash
   - unison-hash-orphans-sqlite
@@ -39,7 +41,6 @@ dependencies:
   - unison-util-base32hex
   - unison-util-cache
   - unison-util-file-embed
-  - unison-util-nametree
   - unison-util-serialization
   - unison-util-term
   - unliftio

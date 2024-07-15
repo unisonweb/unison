@@ -55,6 +55,7 @@
   bytes
   control
   define-unison
+  define-unison-builtin
   handle
   name
   data
@@ -116,14 +117,16 @@
 (require
   (for-syntax
     racket/set
-    (only-in racket partition flatten))
+    (only-in racket partition flatten split-at)
+    (only-in racket/string string-prefix?)
+    (only-in racket/syntax format-id))
   (rename-in
     (except-in racket false true unit any)
     [make-continuation-prompt-tag make-prompt])
   ; (for (only (compatibility mlist) mlist->list list->mlist) expand)
   ; (for (only (racket base) quasisyntax/loc) expand)
   ; (for-syntax (only-in unison/core syntax->list))
-  (only-in racket/control prompt0-at control0-at)
+  (only-in racket/control control0-at)
   racket/performance-hint
   unison/core
   unison/data
@@ -151,115 +154,301 @@
   (syntax-rules ()
     [(with-name name e) (let ([name e]) name)]))
 
-; function definition with slow/fast path. Slow path allows for
-; under/overapplication. Fast path is exact application.
+; Our definition macro needs to generate multiple entry points for the
+; defined procedures, so this is a function for making up names for
+; those based on the original.
+(define-for-syntax (adjust-symbol name post)
+  (string->symbol
+    (string-append
+      (symbol->string name)
+      ":"
+      post)))
+
+(define-for-syntax (adjust-name name post)
+  (datum->syntax name (adjust-symbol (syntax->datum name) post) name))
+
+; Helper function. Turns a list of syntax objects into a
+; list-syntax object.
+(define-for-syntax (list->syntax l) #`(#,@l))
+
+; These are auxiliary functions for manipulating a unison definition
+; into a form amenable for the right runtime behavior. This involves
+; multiple separate definitions:
 ;
-; The intent is for the scheme compiler to be able to recognize and
-; optimize static, fast path calls itself, while still supporting
-; unison-like automatic partial application and such.
-(define-syntax (define-unison x)
-  (define (fast-path-symbol name)
-    (string->symbol
-      (string-append
-        (symbol->string name)
-        ":fast-path")))
+; 1. an :impl definition is generated containing the actual code body
+; 2. a :fast definition, which takes exactly the number of arguments
+;    as the original, but checks if stack information needs to be
+;    stored for continuation serialization.
+; 3. a :slow path which implements under/over application to unison
+;    definitions, so they act like curried functions, not scheme
+;    procedures
+; 4. a macro that implements the actual occurrences, and directly
+;    calls the fast path for static calls with exactly the right
+;    number of arguments
+;
+; Additionally, arguments are threaded through the internal
+; definitions that indicate whether an ability handler is in place
+; that could potentially result in the continuation being serialized.
+; If so, then calls write additional information to the continuation
+; for that serialization. This isn't cheap for tight loops, so we
+; attempt to avoid this as much as possible (conditioning the
+; annotation on a flag checkseems to cause no performance loss).
 
-  (define (fast-path-name name)
-    (datum->syntax name (fast-path-symbol (syntax->datum name))))
 
-  ; Helper function. Turns a list of syntax objects into a
-  ; list-syntax object.
-  (define (list->syntax l) #`(#,@l))
-  ; Builds partial application cases for unison functions.
-  ; It seems most efficient to have a case for each posible
-  ; under-application.
-  (define (build-partials name formals)
-    (let rec ([us formals] [acc '()])
-      (syntax-case us ()
-        [() (list->syntax (cons #`[() #,name] acc))]
-        [(a ... z)
-         (rec #'(a ...)
-              (cons
-                #`[(a ... z)
-                   (with-name
-                     #,(datum->syntax name (syntax->datum name))
-                     (partial-app #,name a ... z))]
-                acc))])))
+; This builds the core definition for a unison definition. It is just
+; a lambda expression with the original code, but with an additional
+; keyword argument for threading purity information.
+(define-for-syntax (make-impl name:impl:stx arg:stx body:stx)
+  (with-syntax ([name:impl name:impl:stx]
+                [args arg:stx]
+                [body body:stx])
+    (syntax/loc body:stx
+      (define (name:impl #:pure pure? . args) . body))))
 
-  ; Given an overall function name, a fast path name, and a list of
-  ; arguments, builds the case-lambda body of a unison function that
-  ; enables applying to arbitrary numbers of arguments.
-  (define (func-cases name name:fast args)
-    (syntax-case args ()
-      [() (quasisyntax/loc x
-            (case-lambda
-              [() (#,name:fast)]
-              [r (apply (#,name:fast) r)]))]
-      [(a ... z)
-       (quasisyntax/loc x
-         (case-lambda
-           #,@(build-partials name #'(a ...))
-           [(a ... z) (#,name:fast a ... z)]
-           [(a ... z . r) (apply (#,name:fast a ... z) r)]))]))
+(define frame-contents (gensym))
 
-  (syntax-case x ()
-    [(define-unison (name a ...) e ...)
-     (let ([fname (fast-path-name #'name)])
-       (with-syntax ([name:fast fname]
-                     [fast (syntax/loc x (lambda (a ...) e ...))]
-                     [slow (func-cases #'name fname #'(a ...))])
-         (syntax/loc x
-           (define-values (name:fast name) (values fast slow)))))]))
+; Builds the wrapper definition, 'fast path,' which just tests the
+; purity, writes the stack information if necessary, and calls the
+; implementation. If #:force-pure is specified, the fast path just
+; directly calls the implementation procedure. This should allow
+; tight loops to still perform well if we can detect that they
+; (hereditarily) cannot make ability requests, even in contexts
+; where a handler is present.
+(define-for-syntax
+  (make-fast-path
+    #:force-pure force-pure?
+    loc ; original location
+    name:fast:stx name:impl:stx
+    arg:stx)
+
+  (with-syntax ([name:impl name:impl:stx]
+                [name:fast name:fast:stx]
+                [args arg:stx])
+    (if force-pure?
+      (syntax/loc loc
+        (define name:fast name:impl))
+
+      (syntax/loc loc
+        (define (name:fast #:pure pure? . args)
+          (if pure?
+            (name:impl #:pure pure? . args)
+            (with-continuation-mark
+              frame-contents
+              (vector . args)
+              (name:impl #:pure pure? . args))))))))
+
+; Slow path -- unnecessary
+; (define-for-syntax (make-slow-path loc name argstx)
+;   (with-syntax ([name:slow (adjust-symbol name "slow")]
+;                 [n (length (syntax->list argstx))])
+;     (syntax/loc loc
+;       (define (name:slow #:pure pure? . as)
+;         (define k (length as))
+;         (cond
+;           [(< k n) (unison-closure n name:slow as)]
+;           [(= k n) (apply name:fast #:pure pure? as)]
+;           [(> k n)
+;            (define-values (h t) (split-at as n))
+;            (apply
+;              (apply name:fast #:pure pure? h)
+;              #:pure pure?
+;              t)])))))
+
+; This definition builds a macro that defines the behavior of actual
+; occurences of the definition names. It has the following behavior:
+;
+; 1. Exactly saturated occurences directly call the fast path
+; 2. Undersaturated or unapplied occurrences become closure
+;    construction
+; 3. Oversaturated occurrences become an appropriate nested
+;    application
+;
+; Because of point 2, all function values end up represented as
+; unison-closure objects, so a slow path procedure is no longer
+; necessary; it is handled by the prop:procedure of the closure
+; structure. This should also make various universal operations easier
+; to handle, because we can just test for unison-closures, instead of
+; having to deal with raw procedures.
+(define-for-syntax
+  (make-callsite-macro
+    #:internal internal?
+    loc ; original location
+    name:stx name:fast:stx
+    arity:val)
+  (with-syntax ([name name:stx]
+                [name:fast name:fast:stx]
+                [arity arity:val])
+    (cond
+      [internal?
+        (syntax/loc loc
+          (define-syntax (name stx)
+            (syntax-case stx ()
+              [(_ #:by-name _ . bs)
+               (syntax/loc stx
+                 (unison-closure arity name:fast (list . bs)))]
+              [(_ . bs)
+               (let ([k (length (syntax->list #'bs))])
+                 (cond
+                   [(= arity k) ; saturated
+                    (syntax/loc stx
+                      (name:fast #:pure #t . bs))]
+                   [(> arity k) ; undersaturated
+                    (syntax/loc stx
+                      (unison-closure arity name:fast (list . bs)))]
+                   [(< arity k) ; oversaturated
+                    (define-values (h t)
+                      (split-at (syntax->list #'bs) arity))
+
+                    (quasisyntax/loc stx
+                      ((name:fast #:pure #t #,@h) #,@t))]))]
+              [_ (syntax/loc stx
+                   (unison-closure arity name:fast (list)))])))]
+      [else
+        (syntax/loc loc
+          (define-syntax (name stx)
+            (syntax-case stx ()
+              [(_ #:by-name _ . bs)
+               (syntax/loc stx
+                 (unison-closure arity name:fast (list . bs)))]
+              [(_ . bs)
+               (let ([k (length (syntax->list #'bs))])
+
+                 ; todo: purity
+
+                 ; capture local pure?
+                 (with-syntax ([pure? (format-id stx "pure?")])
+                   (cond
+                     [(= arity k) ; saturated
+                      (syntax/loc stx
+                        (name:fast #:pure pure? . bs))]
+                     [(> arity k)
+                      (syntax/loc stx
+                        (unison-closure n name:fast (list . bs)))]
+                     [(< arity k) ; oversaturated
+                      (define-values (h t)
+                        (split-at (syntax->list #'bs) arity))
+
+                      ; TODO: pending argument frame
+                      (quasisyntax/loc stx
+                        ((name:fast #:pure pure? #,@h)
+                         #:pure pure?
+                         #,@t))])))]
+              ; non-applied occurrence; partial ap immediately
+              [_ (syntax/loc stx
+                   (unison-closure arity name:fast (list)))])))])))
+
+(define-for-syntax
+  (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)
+  (if no-link-decl?
+    #'()
+    (let ([name:link:stx (adjust-name name:stx "termlink")])
+      (with-syntax
+        ([name:fast name:fast:stx]
+         [name:impl name:impl:stx]
+         [name:link name:link:stx])
+        (syntax/loc loc
+          ((declare-function-link name:fast name:link)
+           (declare-function-link name:impl name:link)))))))
+
+(define-for-syntax (process-hints hs)
+  (for/fold ([internal? #f]
+             [force-pure? #t]
+             [gen-link? #f]
+             [no-link-decl? #f])
+            ([h hs])
+    (values
+      (or internal? (eq? h 'internal))
+      (or force-pure? (eq? h 'force-pure) (eq? h 'internal))
+      (or gen-link? (eq? h 'gen-link))
+      (or no-link-decl? (eq? h 'no-link-decl)))))
+
+(define-for-syntax
+  (make-link-def gen-link? loc name:stx name:link:stx)
+
+  (define (chop s)
+    (if (string-prefix? s "builtin-")
+      (substring s 8)
+      s))
+
+  (define name:txt
+    (chop
+      (symbol->string
+        (syntax->datum name:stx))))
+
+  (cond
+    [gen-link?
+      (with-syntax ([name:link name:link:stx])
+        (quasisyntax/loc loc
+          ((define name:link
+             (unison-termlink-builtin #,name:txt)))))]
+    [else #'()]))
+
+(define-for-syntax
+  (expand-define-unison
+    #:hints hints
+    loc name:stx arg:stx expr:stx)
+
+  (define-values
+    (internal? force-pure? gen-link? no-link-decl?)
+    (process-hints hints))
+
+  (let ([name:fast:stx (adjust-name name:stx "fast")]
+        [name:impl:stx (adjust-name name:stx "impl")]
+        [name:link:stx (adjust-name name:stx "termlink")]
+        [arity (length (syntax->list arg:stx))])
+    (with-syntax
+      ([(link ...) (make-link-def gen-link? loc name:stx name:link:stx)]
+       [fast (make-fast-path
+               #:force-pure force-pure?
+               loc name:fast:stx name:impl:stx arg:stx)]
+       [impl (make-impl name:impl:stx arg:stx expr:stx)]
+       [call (make-callsite-macro
+               #:internal internal?
+               loc name:stx name:fast:stx arity)]
+       [(decls ...)
+        (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)])
+      (syntax/loc loc
+        (begin link ... impl fast call decls ...)))))
+
+; Function definition supporting various unison features, like
+; partial application and continuation serialization. See above for
+; details.
+;
+; `#:internal #t` indicates that the definition is for builtin
+; functions. These should always be built in a way that does not
+; annotate the stack, because they don't make relevant ability
+; requests. This is important for performance and some correct
+; behavior (i.e. they may occur in non-unison contexts where a
+; `pure?` indicator is not being threaded).
+(define-syntax (define-unison stx)
+  (syntax-case stx ()
+    [(define-unison #:hints hs (name . args) . exprs)
+     (expand-define-unison
+       #:hints (syntax->datum #'hs)
+       stx #'name #'args #'exprs)]
+    [(define-unison (name . args) . exprs)
+     (expand-define-unison
+       #:hints '[internal]
+       stx #'name #'args #'exprs)]))
+
+(define-syntax (define-unison-builtin stx)
+  (syntax-case stx ()
+    [(define-unison-builtin . rest)
+     (syntax/loc stx
+       (define-unison #:hints [internal gen-link] . rest))]))
 
 ; call-by-name bindings
-(define-syntax name
-  (lambda (stx)
-    (syntax-case stx ()
-      ((name ([v (f . args)] ...) body ...)
-       (with-syntax ([(lam ...)
-                      (map (lambda (body)
-                             (quasisyntax/loc stx
-                               (lambda r #,body)))
-                           (syntax->list #'[(apply f (append (list . args) r)) ...]))])
-         #`(let ([v lam] ...)
-             body ...))))))
+(define-syntax (name stx)
+  (syntax-case stx ()
+    [(name ([v (f . args)] ...) body ...)
+     (syntax/loc stx
+       (let ([v (f #:by-name #t . args)] ...) body ...))]))
 
 ; Wrapper that more closely matches `handle` constructs
-;
-; Note: this uses the prompt _twice_ to achieve the sort of dynamic
-; scoping we want. First we push an outer delimiter, then install
-; the continuation marks corresponding to the handled abilities
-; (which tells which propt to use for that ability and which
-; functions to use for each request). Then we re-delimit by the same
-; prompt.
-;
-; If we just used one delimiter, we'd have a problem. If we pushed
-; the marks _after_ the delimiter, then the continuation captured
-; when handling would contain those marks, and would effectively
-; retain the handler for requests within the continuation. If the
-; marks were outside the prompt, we'd be in a similar situation,
-; except where the handler would be automatically handling requests
-; within its own implementation (although, in both these cases we'd
-; get control errors, because we would be using the _function_ part
-; of the handler without the necessary delimiters existing on the
-; continuation). Both of these situations are wrong for _shallow_
-; handlers.
-;
-; Instead, what we need to be able to do is capture the continuation
-; _up to_ the marks, then _discard_ the marks, and this is what the
-; multiple delimiters accomplish. There might be more efficient ways
-; to accomplish this with some specialized mark functions, but I'm
-; uncertain of what pitfalls there are with regard to that (whehter
-; they work might depend on exact frame structure of the
-; metacontinuation).
 (define-syntax handle
   (syntax-rules ()
     [(handle [r ...] h e ...)
-     (let ([p (make-prompt)])
-       (prompt0-at p
-         (let ([v (let-marks (list r ...) (cons p h)
-                    (prompt0-at p e ...))])
-           (h (make-pure v)))))]))
+     (call-with-handler (list r ...) h (lambda () e ...))]))
 
 ; wrapper that more closely matches ability requests
 (define-syntax request
