@@ -388,7 +388,7 @@ jobs:
           write-mode: overwrite
           contents: |
             ```ucm
-            .> project.create-empty jit-setup
+            scratch/main> project.create-empty jit-setup
             jit-setup/main> lib.install ${{ env.jit_version }}
             ```
             ```unison
