@@ -117,7 +117,7 @@ import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.LabeledDependency qualified as LabeledDependency

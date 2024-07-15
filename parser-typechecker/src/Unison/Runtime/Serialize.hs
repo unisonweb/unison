@@ -2,7 +2,6 @@
 
 module Unison.Runtime.Serialize where
 
-import Control.Applicative (liftA2)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
 import Data.ByteString qualified as B

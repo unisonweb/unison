@@ -20,7 +20,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment

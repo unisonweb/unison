@@ -72,7 +72,7 @@ import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
 import Unison.Names (Names)

@@ -1,4 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+-- Manipulating JWT claims with addClaim etc. directly is deprecated, so we'll need to fix that eventually.
+-- The new way appears to be to define custom types with JSON instances and use those to encode/decode the JWT;
+-- see https://github.com/frasertweedale/hs-jose/issues/116
+-- https://github.com/unisonweb/unison/issues/5153
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- | Hash-related types in the Share API.
 module Unison.Share.API.Hash

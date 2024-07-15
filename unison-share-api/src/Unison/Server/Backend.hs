@@ -125,7 +125,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
@@ -155,7 +155,7 @@ import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch)
 import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult qualified as SR
-import Unison.Server.SearchResult' qualified as SR'
+import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
 import Unison.Server.Types qualified as ServerTypes
@@ -164,7 +164,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Name as Name (toText, unsafeParseText)
 import Unison.Syntax.NamePrinter qualified as NP
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)

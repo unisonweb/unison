@@ -44,7 +44,7 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -54,7 +54,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)

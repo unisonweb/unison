@@ -8,17 +8,17 @@
 
   inputs = {
     haskellNix.url = "github:input-output-hk/haskell.nix";
-    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-haskellNix.follows = "haskellNix/nixpkgs-unstable";
+    nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
     self,
-    nixpkgs,
-    flake-utils,
     haskellNix,
-    nixpkgs-unstable,
+    nixpkgs-haskellNix,
+    nixpkgs-release,
+    flake-utils,
   }:
     flake-utils.lib.eachSystem [
       "x86_64-linux"
@@ -27,99 +27,55 @@
     ]
     (system: let
       versions = {
-        ghc = "928";
-        ormolu = "0.5.2.0";
-        hls = "2.4.0.0";
-        stack = "2.13.1";
+        ormolu = "0.7.2.0";
+        hls = "2.8.0.0";
+        stack = "2.15.7";
         hpack = "0.35.2";
       };
-      overlays = [
-        haskellNix.overlay
-        (import ./nix/haskell-nix-overlay.nix)
-        (import ./nix/unison-overlay.nix)
-      ];
-      pkgs = import nixpkgs {
-        inherit system overlays;
-        inherit (haskellNix) config;
-      };
-      haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
-        inherit pkgs versions;
-        inherit (nixpkgs-packages) stack hpack;
-      };
-      unstable = import nixpkgs-unstable {
+      pkgs = import nixpkgs-haskellNix {
         inherit system;
+        inherit (haskellNix) config;
         overlays = [
-          (import ./nix/unison-overlay.nix)
-          (import ./nix/nixpkgs-overlay.nix {inherit versions;})
+          haskellNix.overlay
+          (import ./nix/dependencies.nix {inherit nixpkgs-release;})
         ];
       };
-      nixpkgs-packages = let
-        hpkgs = unstable.haskell.packages.ghcunison;
-        exe = unstable.haskell.lib.justStaticExecutables;
-      in {
-        ghc = unstable.haskell.compiler."ghc${versions.ghc}";
-        ormolu = exe hpkgs.ormolu;
-        hls = unstable.unison-hls;
-        stack = unstable.unison-stack;
-        unwrapped-stack = unstable.stack;
-        hpack = unstable.hpack;
+      unison-project = import ./nix/unison-project.nix {
+        inherit (nixpkgs-haskellNix) lib;
+        inherit (pkgs) haskell-nix;
       };
-      nixpkgs-devShells = {
-        only-tools-nixpkgs = unstable.mkShell {
-          name = "only-tools-nixpkgs";
-          buildInputs = let
-            build-tools = with nixpkgs-packages; [
-              ghc
-              ormolu
-              hls
-              stack
-              hpack
-            ];
-            native-packages =
-              pkgs.lib.optionals pkgs.stdenv.isDarwin
-              (with unstable.darwin.apple_sdk.frameworks; [Cocoa]);
-            c-deps = with unstable; [pkg-config zlib glibcLocales];
-          in
-            build-tools ++ c-deps ++ native-packages;
-          shellHook = ''
-            export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-          '';
-        };
+      haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
+        inherit pkgs unison-project versions;
+        inherit (nixpkgs-haskellNix) lib;
       };
-
       renameAttrs = fn:
-        nixpkgs.lib.mapAttrs' (name: value: {
+        nixpkgs-haskellNix.lib.mapAttrs' (name: value: {
           inherit value;
           name = fn name;
         });
     in
-      assert nixpkgs-packages.ormolu.version == versions.ormolu;
-      assert nixpkgs-packages.hls.version == versions.hls;
-      assert nixpkgs-packages.unwrapped-stack.version == versions.stack;
-      assert nixpkgs-packages.hpack.version == versions.hpack; {
+      assert pkgs.stack.version == versions.stack;
+      assert pkgs.hpack.version == versions.hpack; {
         packages =
-          nixpkgs-packages
-          // renameAttrs (name: "component-${name}") haskell-nix-flake.packages
+          renameAttrs (name: "component-${name}") haskell-nix-flake.packages
           // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
             inherit pkgs;
             haskell-nix = haskell-nix-flake.packages;
           })
           // {
             default = haskell-nix-flake.defaultPackage;
-            build-tools = pkgs.symlinkJoin {
-              name = "build-tools";
-              paths = self.devShells."${system}".only-tools-nixpkgs.buildInputs;
-            };
             all = pkgs.symlinkJoin {
               name = "all";
               paths = let
-                all-other-packages = builtins.attrValues (builtins.removeAttrs self.packages."${system}" ["all" "build-tools"]);
+                all-other-packages =
+                  builtins.attrValues (builtins.removeAttrs self.packages."${system}" [
+                    "all"
+                    "docker-ucm" # this package doesn’t produce a directory
+                  ]);
                 devshell-inputs =
                   builtins.concatMap
                   (devShell: devShell.buildInputs ++ devShell.nativeBuildInputs)
-                  [
-                    self.devShells."${system}".only-tools-nixpkgs
-                  ];
+                  (builtins.attrValues self.devShells."${system}");
               in
                 all-other-packages ++ devshell-inputs;
             };
@@ -130,9 +86,8 @@
           // {default = self.apps."${system}"."component-unison-cli-main:exe:unison";};
 
         devShells =
-          nixpkgs-devShells
-          // renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
-          // {default = self.devShells."${system}".only-tools-nixpkgs;};
+          renameAttrs (name: "cabal-${name}") haskell-nix-flake.devShells
+          // {default = self.devShells."${system}".cabal-local;};
 
         checks = renameAttrs (name: "component-${name}") haskell-nix-flake.checks;
 

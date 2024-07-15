@@ -4,7 +4,9 @@ This markdown file is also a Unison transcript file. Transcript files are an eas
 
 The format is just a regular markdown file with some fenced code blocks that are typechecked and elaborated by `ucm`. For example, you can call this transcript via:
 
-    $ ucm transcript hello.md
+``` 
+$ ucm transcript hello.md
+```
 
 This runs it on a freshly generated empty codebase. Alternately `ucm transcript.fork --codebase /path/to/code hello.md` runs the transcript on a freshly generated copy of the provided codebase. Do `ucm help` to learn more about usage.
 

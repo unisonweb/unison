@@ -73,7 +73,7 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent'
+import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term qualified as Term

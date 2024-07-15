@@ -66,6 +66,24 @@ x = a.#abc
   
   
   I was surprised to find a '.' here.
+  I was expecting one of these instead:
+  
+  * and
+  * bang
+  * do
+  * false
+  * force
+  * handle
+  * if
+  * infixApp
+  * let
+  * newline or semicolon
+  * or
+  * quote
+  * termLink
+  * true
+  * tuple
+  * typeLink
 
 ```
 ``` unison

@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Server.SearchResult' where
+module Unison.Server.SearchResultPrime where
 
 import Data.Set qualified as Set
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
@@ -8,7 +8,7 @@ import Unison.Codebase.Editor.DisplayObject qualified as DT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)

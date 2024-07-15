@@ -76,7 +76,9 @@ You can run `help update` for more information on using
 ```
 aliasTerm
 
-    scratch/main> alias.term ##Nat.+ Nat.+
+``` 
+scratch/main> alias.term ##Nat.+ Nat.+
+```
 
 aliasTermForce,
 aliasType,

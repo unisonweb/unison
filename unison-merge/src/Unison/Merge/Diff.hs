@@ -13,7 +13,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Hash (Hash (Hash))
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Merge.Database (MergeDatabase (..))
 import Unison.Merge.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.DeclNameLookup qualified as DeclNameLookup

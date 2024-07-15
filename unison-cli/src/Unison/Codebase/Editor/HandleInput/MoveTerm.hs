@@ -12,7 +12,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 

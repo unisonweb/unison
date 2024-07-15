@@ -2,7 +2,9 @@ This tests a variable related bug in the ANF compiler.
 
 The nested let would get flattened out, resulting in:
 
-    bar = result
+``` 
+bar = result
+```
 
 which would be handled by renaming. However, the *context* portion of
 the rest of the code was not being renamed correctly, so `bar` would

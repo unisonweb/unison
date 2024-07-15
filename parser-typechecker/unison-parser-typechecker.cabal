@@ -224,7 +224,6 @@ library
   build-depends:
       IntervalMap
     , ListLike
-    , NanoID
     , aeson
     , ansi-terminal
     , asn1-encoding
@@ -244,6 +243,9 @@ library
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -284,7 +286,7 @@ library
     , nonempty-containers
     , open-browser
     , openapi3
-    , optparse-applicative >=0.16.1.0
+    , optparse-applicative
     , pem
     , pretty-simple
     , primitive
@@ -342,9 +344,6 @@ library
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010
@@ -419,7 +418,6 @@ test-suite parser-typechecker-tests
   build-depends:
       IntervalMap
     , ListLike
-    , NanoID
     , aeson
     , ansi-terminal
     , asn1-encoding
@@ -440,6 +438,9 @@ test-suite parser-typechecker-tests
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -483,7 +484,7 @@ test-suite parser-typechecker-tests
     , nonempty-containers
     , open-browser
     , openapi3
-    , optparse-applicative >=0.16.1.0
+    , optparse-applicative
     , pem
     , pretty-simple
     , primitive
@@ -543,9 +544,6 @@ test-suite parser-typechecker-tests
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010

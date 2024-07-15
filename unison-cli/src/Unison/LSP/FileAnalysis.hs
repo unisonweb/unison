@@ -56,7 +56,7 @@ import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
