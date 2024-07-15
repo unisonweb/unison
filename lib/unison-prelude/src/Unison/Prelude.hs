@@ -46,9 +46,14 @@ module Unison.Prelude
     view,
     set,
     over,
+
+   -- * Common Classes
+   NFData(..),
+   NFData1(..),
   )
 where
 
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)

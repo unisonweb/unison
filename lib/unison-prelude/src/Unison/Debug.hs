@@ -9,17 +9,19 @@ module Unison.Debug
     debugLog,
     debugLogM,
     shouldDebug,
+    deepEvaluate,
     DebugFlag (..),
   )
 where
 
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Debug.Pretty.Simple (pTrace, pTraceM)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Pretty.Simple (pShow)
 import Unison.Prelude
 import UnliftIO.Environment (lookupEnv)
+import UnliftIO qualified as UnliftIO
+import Control.DeepSeq qualified as DeepSeq
 
 data DebugFlag
   = Auth
@@ -163,12 +165,12 @@ debugM flag msg a =
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
   if shouldDebug flag
-    then pTrace msg
+    then trace msg
     else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
-  whenDebug flag $ pTraceM msg
+  whenDebug flag $ traceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: (Monad m) => DebugFlag -> m () -> m ()
@@ -193,3 +195,7 @@ shouldDebug = \case
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver
   KindInference -> debugKindInference
   Update -> debugUpdate
+
+-- | Evaluate a value to normal form, forcing all thunks, useful when timing things for performance profiling.
+deepEvaluate :: (MonadIO m, NFData a) => a -> m a
+deepEvaluate a = liftIO . UnliftIO.evaluate $ DeepSeq.force a

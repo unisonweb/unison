@@ -56,7 +56,6 @@ where
 import Basement.Block.Mutable (Block (Block))
 import Codec.Compression.GZip qualified as GZip
 import Codec.Compression.Zlib qualified as Zlib
-import Control.DeepSeq (NFData (..))
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA

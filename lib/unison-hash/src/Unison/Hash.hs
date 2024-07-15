@@ -29,13 +29,14 @@ import Unison.Prelude
 -- | A hash.
 newtype Hash = Hash {toShort :: ShortByteString}
   deriving stock (Eq, Ord, Generic)
+  deriving newtype (NFData)
 
 instance Show Hash where
   show = show . toBase32HexText
 
 -- | A hash tagged with the type it's a hash of, useful for maintaining type safety guarantees.
 newtype HashFor t = HashFor {genericHash :: Hash}
-  deriving newtype (Show, Eq, Ord, Generic)
+  deriving newtype (Show, Eq, Ord, Generic, NFData)
 
 instance From Hash Text where
   from = toBase32HexText

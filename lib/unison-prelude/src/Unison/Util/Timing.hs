@@ -1,17 +1,18 @@
 module Unison.Util.Timing
   ( time,
-    unsafeTime,
+    deepTime,
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.Time.Clock (picosecondsToDiffTime)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import System.CPUTime (getCPUTime)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Debug qualified as Debug
-import UnliftIO (MonadIO, liftIO)
+import UnliftIO (MonadIO, evaluate, liftIO)
 
+-- | Time how long it takes to run an action, including evaluating the returned result to WHNF.
 time :: (MonadIO m) => String -> m a -> m a
 time label ma =
   if Debug.shouldDebug Debug.Timing
@@ -19,7 +20,7 @@ time label ma =
       systemStart <- liftIO getSystemTime
       cpuPicoStart <- liftIO getCPUTime
       liftIO $ putStrLn $ "Timing " ++ label ++ "..."
-      a <- ma
+      a <- ma >>= UnliftIO.evaluate
       cpuPicoEnd <- liftIO getCPUTime
       systemEnd <- liftIO getSystemTime
       let systemDiff = diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart)
@@ -28,19 +29,19 @@ time label ma =
       pure a
     else ma
 
--- Mitchell says: this function doesn't look like it would work at all; let's just delete it
-unsafeTime :: (Monad m) => String -> m a -> m a
-unsafeTime label ma =
+-- | Time how long it takes to run an action, including fully evaluating the returned result to normal form.
+deepTime :: (MonadIO m) => (NFData a) => String -> m a -> m a
+deepTime label ma =
   if Debug.shouldDebug Debug.Timing
     then do
-      let !systemStart = unsafePerformIO getSystemTime
-          !cpuPicoStart = unsafePerformIO getCPUTime
-          !_ = unsafePerformIO $ putStrLn $ "Timing " ++ label ++ "..."
-      a <- ma
-      let !cpuPicoEnd = unsafePerformIO getCPUTime
-          !systemEnd = unsafePerformIO getSystemTime
+      systemStart <- liftIO getSystemTime
+      cpuPicoStart <- liftIO getCPUTime
+      liftIO $ putStrLn $ "Timing " ++ label ++ "..."
+      a <- ma >>= Debug.deepEvaluate
+      cpuPicoEnd <- liftIO getCPUTime
+      systemEnd <- liftIO getSystemTime
       let systemDiff = diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart)
       let cpuDiff = picosecondsToDiffTime (cpuPicoEnd - cpuPicoStart)
-      let !_ = unsafePerformIO $ putStrLn $ "Finished " ++ label ++ " in " ++ show cpuDiff ++ " (cpu), " ++ show systemDiff ++ " (system)"
+      liftIO $ putStrLn $ "Finished " ++ label ++ " in " ++ show cpuDiff ++ " (cpu), " ++ show systemDiff ++ " (system)"
       pure a
     else ma

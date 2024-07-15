@@ -151,7 +151,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
     codebaseNames =
-      Names.filter (`Set.notMember` deprecatedConstructors) unalteredCodebaseNames
+      Names.withoutTheseNames deprecatedConstructors unalteredCodebaseNames
     constructorsUnderConsideration :: Set Name
     constructorsUnderConsideration =
       Map.toList (UF.dataDeclarationsId' uf)
