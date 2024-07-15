@@ -165,22 +165,21 @@ match = do
     P.try (openBlockWith "with") <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
-  (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
+  (_arities, cases) <- List.unzip <$> matchCases
   _ <- closeBlock
   pure $
     Term.match
-      (ann start <> ann (NonEmpty.last cases))
+      (ann start <> foldMap ann cases)
       scrutinee
-      (toList cases)
+      cases
 
-matchCases1 :: (Monad m, Var v) => L.Token () -> P v m (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
-matchCases1 start = do
-  cases <-
-    (sepBy semi matchCase)
-      <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
-  case cases of
-    [] -> P.customFailure (EmptyMatch start)
-    (c : cs) -> pure (c NonEmpty.:| cs)
+matchCases :: (Monad m, Var v) => P v m [(Int, Term.MatchCase Ann (Term v Ann))]
+matchCases = do
+  -- Note: zero cases are okay, since it's valid for Void types,
+  -- and we should get a good error message about inexhaustive patterns
+  -- if it's a non-void type.
+  (sepBy semi matchCase)
+    <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -362,8 +361,11 @@ handle = label "handle" do
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
   pure $ Term.handle (handleSpan <> ann handler) handler b
 
-checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v m (Int, NonEmpty a)
-checkCasesArities cases@((i, _) NonEmpty.:| rest) =
+checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v m (Int, [a])
+checkCasesArities [] =
+  -- If there are no cases, there are no args.
+  pure (0, [])
+checkCasesArities cases@((i, _) : rest) =
   case List.find (\(j, _) -> j /= i) rest of
     Nothing -> pure (i, snd <$> cases)
     Just (j, a) -> P.customFailure $ PatternArityMismatch i j (ann a)
@@ -371,7 +373,7 @@ checkCasesArities cases@((i, _) NonEmpty.:| rest) =
 lamCase :: (Monad m, Var v) => TermP v m
 lamCase = do
   start <- openBlockWith "cases"
-  cases <- matchCases1 start
+  cases <- matchCases
   (arity, cases) <- checkCasesArities cases
   _ <- closeBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
@@ -383,7 +385,7 @@ lamCase = do
       lamvarTerm = case lamvarTerms of
         [e] -> e
         es -> DD.tupleTerm es
-      anns = ann start <> ann (NonEmpty.last cases)
+      anns = ann start <> foldMap ann cases
       matchTerm = Term.match anns lamvarTerm (toList cases)
   let annotatedVars = (Ann.GeneratedFrom $ ann start,) <$> vars
   pure $ Term.lam' anns annotatedVars matchTerm
