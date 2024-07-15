@@ -85,10 +85,12 @@ scratch/main> names .some.place.x
 
 TODO: swap this back to a 'ucm' block when names.global is re-implemented
 
-    -- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
-    scratch/other> names.global x
-    -- We can search by hash, and see all aliases of that hash in the codebase
-    scratch/other> names.global #gjmq673r1v
-    -- We can search using an absolute name
-    scratch/other> names.global .some.place.x
+``` 
+-- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
+scratch/other> names.global x
+-- We can search by hash, and see all aliases of that hash in the codebase
+scratch/other> names.global #gjmq673r1v
+-- We can search using an absolute name
+scratch/other> names.global .some.place.x
+```
 

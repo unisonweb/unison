@@ -1,12 +1,14 @@
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
-    scratch/main> help alias.many
-    
-      alias.many (or copy)
-      `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
-      in the namespace `namespace`.
-      `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
+``` 
+scratch/main> help alias.many
+
+  alias.many (or copy)
+  `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
+  in the namespace `namespace`.
+  `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
+```
 
 Let's try it\!
 

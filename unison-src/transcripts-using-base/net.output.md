@@ -30,26 +30,28 @@ This mapping of names to port numbers is maintained by the [nsswitch
 service](https://en.wikipedia.org/wiki/Name_Service_Switch), typically
 stored in `/etc/services` and queried with the `getent` tool:
 
-    # map number to name
-    $ getent services 22
-    ssh                   22/tcp
-    
-    # map name to number
-    $ getent services finger
-    finger                79/tcp
-    
-    # get a list of all known names
-    $ getent services | head
-    tcpmux                1/tcp
-    echo                  7/tcp
-    echo                  7/udp
-    discard               9/tcp sink null
-    discard               9/udp sink null
-    systat                11/tcp users
-    daytime               13/tcp
-    daytime               13/udp
-    netstat               15/tcp
-    qotd                  17/tcp quote
+``` 
+# map number to name
+$ getent services 22
+ssh                   22/tcp
+
+# map name to number
+$ getent services finger
+finger                79/tcp
+
+# get a list of all known names
+$ getent services | head
+tcpmux                1/tcp
+echo                  7/tcp
+echo                  7/udp
+discard               9/tcp sink null
+discard               9/udp sink null
+systat                11/tcp users
+daytime               13/tcp
+daytime               13/udp
+netstat               15/tcp
+qotd                  17/tcp quote
+```
 
 Below shows different examples of how we might specify the server coordinates.
 
