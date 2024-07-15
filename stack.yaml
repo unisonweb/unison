@@ -1,3 +1,6 @@
+## We pin a specific Stack version when possible. We shouldn’t then tell contributors to upgrade from there.
+recommend-stack-upgrade: false
+
 flags:
   haskeline:
     terminfo: false
