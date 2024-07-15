@@ -372,7 +372,7 @@ jobs:
         id: cache-generated-source
         with:
           path: ${{ env.jit_generated_src_scheme }}
-          key: jit_generated_src_scheme-jit_${{env.jit_version}}-${{env.jit_causalhash}}
+          key: jit_generated_src_scheme-jit_${{env.jit_version}}-${{env.jit_causalhash}}-${{ hashFiles('**/ci.yaml') }}
       - name: create transcript
         if: steps.cache-generated-source.outputs.cache-hit != 'true'
         uses: DamianReeves/write-file-action@v1.3
