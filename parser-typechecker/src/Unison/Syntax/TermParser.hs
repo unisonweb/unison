@@ -1015,10 +1015,10 @@ seqOp :: (Ord v) => P v m Pattern.SeqOp
 seqOp =
   Pattern.Snoc
     <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
-      <|> Pattern.Cons
-    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
-      <|> Pattern.Concat
-    <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
+    <|> Pattern.Cons
+      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
+    <|> Pattern.Concat
+      <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
