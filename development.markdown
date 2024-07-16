@@ -113,6 +113,28 @@ Stack doesn't work deterministically in Windows due to mismatched expectations a
 
 ## Building with Nix
 
+__NB__: It is important that the Unison Nix cache is trusted when building, otherwise you will likely end up building hundreds of packages, including GHC itself.
+
+The recommended way to do this is to add the public key and URL for the cache to your system’s Nix configuration. /etc/nix/nix.conf should have lines similar to
+```conf
+trusted-public-keys = unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k=
+trusted-substituters = https://unison.cachix.org
+```
+these lines could be prefixed with `extra-` and they may have additional entries besides the ones for our cache.
+
+This command should work if you don’t want to edit the file manually:
+```shell
+sudo sh -c 'echo "extra-trusted-public-keys = unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k=
+extra-trusted-substituters = https://unison.cachix.org" >>/etc/nix/nix.conf'
+```
+If you use NixOS, you may instead add this via your configuration.nix with
+```nix
+nix.settings.trusted-public-keys = ["unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="];
+nix.settings.trusted-substituters = ["https://unison.cachix.org"];
+```
+
+It is _not_ recommended to add your user to `trusted-users`. This _can_ make enabling flake configurations simpler (like the Unison Nix cache here), but [it is equivalent to giving that user root access (without need for sudo)](https://nix.dev/manual/nix/2.23/command-ref/conf-file.html#conf-trusted-users).
+
 ## Building package components with nix
 
 ### Build the unison executable
