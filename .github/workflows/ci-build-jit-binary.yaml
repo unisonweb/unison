@@ -10,7 +10,7 @@ defaults:
 env:
   jit_src: unison-jit-src/
   jit_dist: unison-jit-dist/
-  racket_version: "8.7"
+  racket_version: "8.12"
 
 jobs:
   build-jit-binary:
