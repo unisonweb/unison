@@ -25,7 +25,7 @@ import System.IO.Silently (silence)
 import Text.Megaparsec qualified as MP
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.TranscriptParser as Transcript
+import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 import UnliftIO.STM qualified as STM

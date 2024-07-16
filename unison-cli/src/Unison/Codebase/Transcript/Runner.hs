@@ -1,23 +1,18 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 
--- | Parse and execute CommonMark (like Github-flavored Markdown) transcripts.
-module Unison.Codebase.TranscriptParser
+-- | Execute transcripts.
+module Unison.Codebase.Transcript.Runner
   ( Error (..),
     Runner,
     withRunner,
   )
 where
 
-import CMark qualified
 import Control.Lens (use, (?~))
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Lazy.Char8 qualified as BL
-import Data.Char qualified as Char
 import Data.Configurator qualified as Configurator
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -51,6 +46,8 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Transcript
+import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
@@ -58,7 +55,6 @@ import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import Unison.Core.Project (ProjectBranchName, ProjectName (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -86,66 +82,6 @@ terminalWidth = 65
 accessTokenEnvVarKey :: String
 accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
-type ExpectingError = Bool
-
-type ScratchFileName = Text
-
-data Hidden = Shown | HideOutput | HideAll
-  deriving (Eq, Show)
-
-data UcmLine
-  = UcmCommand UcmContext Text
-  | UcmComment Text -- Text does not include the '--' prefix.
-
--- | Where a command is run: either loose code (.foo.bar.baz>) or a project branch (myproject/mybranch>).
-data UcmContext
-  = UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
-
-data APIRequest
-  = GetRequest Text
-  | APIComment Text
-
-formatAPIRequest :: APIRequest -> Text
-formatAPIRequest = \case
-  GetRequest txt -> "GET " <> txt
-  APIComment txt -> "-- " <> txt
-
-pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node
-pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info body) []
-
-type Stanza = Either CMark.Node ProcessedBlock
-
-data ProcessedBlock
-  = Ucm Hidden ExpectingError [UcmLine]
-  | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
-  | API [APIRequest]
-
-formatUcmLine :: UcmLine -> Text
-formatUcmLine = \case
-  UcmCommand context txt -> formatContext context <> "> " <> txt
-  UcmComment txt -> "--" <> txt
-  where
-    formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
-
-formatStanza :: Stanza -> Text
-formatStanza = either formatNode formatProcessedBlock
-
-formatNode :: CMark.Node -> Text
-formatNode = (<> "\n") . CMark.nodeToCommonmark [] Nothing
-
-formatProcessedBlock :: ProcessedBlock -> Text
-formatProcessedBlock = formatNode . processedBlockToNode
-
-processedBlockToNode :: ProcessedBlock -> CMark.Node
-processedBlockToNode = \case
-  Ucm _ _ cmds -> CMarkCodeBlock Nothing "ucm" $ foldr ((<>) . formatUcmLine) "" cmds
-  Unison _hide _ fname txt ->
-    CMarkCodeBlock Nothing "unison" $ maybe txt (\fname -> Text.unlines ["---", "title: " <> fname, "---", txt]) fname
-  API apiRequests -> CMarkCodeBlock Nothing "api" $ Text.unlines $ formatAPIRequest <$> apiRequests
-
-parse :: FilePath -> Text -> Either Error [Stanza]
-parse srcName = first ParseError . stanzas srcName
-
 type Runner =
   String ->
   Text ->
@@ -155,7 +91,8 @@ type Runner =
 withRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
-  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
+  -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
+  Bool ->
   Verbosity ->
   UCMVersion ->
   FilePath ->
@@ -166,10 +103,10 @@ withRunner isTest verbosity ucmVersion nrtp configFile action = do
   withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
-        let parsed = parse transcriptName transcriptSrc
+        let parsed = Transcript.stanzas transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
           liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
-        pure $ join @(Either Error) result
+        pure . join $ first ParseError result
   where
     withRuntimes ::
       FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
@@ -193,7 +130,8 @@ withRunner isTest verbosity ucmVersion nrtp configFile action = do
             (\(config, _cancelConfig) -> action (Just config))
 
 run ::
-  Bool {- Whether to treat this transcript run as a transcript test, which will try to make output deterministic -} ->
+  -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
+  Bool ->
   Verbosity ->
   FilePath ->
   [Stanza] ->
@@ -265,7 +203,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
 
       apiRequest :: APIRequest -> IO ()
       apiRequest req = do
-        output . Text.unpack $ formatAPIRequest req <> "\n"
+        output . Text.unpack $ Transcript.formatAPIRequest req <> "\n"
         case req of
           APIComment {} -> pure ()
           GetRequest path -> do
@@ -299,7 +237,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
           Just (Just ucmLine) -> do
             case ucmLine of
               p@(UcmComment {}) -> do
-                liftIO . output . Text.unpack $ "\n" <> formatUcmLine p
+                liftIO . output . Text.unpack $ "\n" <> Transcript.formatUcmLine p
                 awaitInput
               p@(UcmCommand context lineTxt) -> do
                 curPath <- Cli.getCurrentProjectPath
@@ -337,7 +275,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
                     case words . Text.unpack $ lineTxt of
                       [] -> awaitInput
                       args -> do
-                        liftIO . output . Text.unpack $ "\n" <> formatUcmLine p <> "\n"
+                        liftIO . output . Text.unpack $ "\n" <> Transcript.formatUcmLine p <> "\n"
                         numberedArgs <- use #numberedArgs
                         PP.ProjectAndBranch projId branchId <- PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
                         let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
@@ -375,13 +313,13 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
                   IO.hFlush IO.stdout
                 either
                   ( \node -> do
-                      liftIO . output . Text.unpack $ formatNode node
+                      liftIO . output . Text.unpack $ Transcript.formatNode node
                       awaitInput
                   )
                   ( \block -> case block of
                       Unison hide errOk filename txt -> do
                         liftIO (writeIORef hidden hide)
-                        liftIO . outputEcho . Text.unpack $ formatProcessedBlock block
+                        liftIO . outputEcho . Text.unpack $ Transcript.formatProcessedBlock block
                         liftIO (writeIORef allowErrors errOk)
                         -- Open a ucm block which will contain the output from UCM
                         -- after processing the UnisonFileChanged event.
@@ -462,7 +400,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
       appendFailingStanza = do
         stanzaOpt <- readIORef mStanza
         currentOut <- readIORef out
-        let stnz = maybe "" (Text.unpack . formatStanza . fst) stanzaOpt
+        let stnz = maybe "" (Text.unpack . Transcript.formatStanza . fst) stanzaOpt
         unless (stnz `isSubsequenceOf` concat currentOut) $
           modifyIORef' out (\acc -> acc <> pure stnz)
 
@@ -531,116 +469,6 @@ transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
   texts <- readIORef out
   UnliftIO.throwIO . RunFailure $ mconcat (Text.pack <$> toList texts) <> "\n\n\128721\n\n" <> msg <> "\n"
-
-type P = P.Parsec Void Text
-
-stanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
-stanzas srcName = (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks) . CMark.commonmarkToNode []
-  where
-    stanzaFromNode :: CMark.Node -> Either (P.ParseErrorBundle Text Void) Stanza
-    stanzaFromNode node = case node of
-      CMarkCodeBlock _ info body -> maybe (Left node) pure <$> P.parse (fenced info) srcName body
-      _ -> pure $ Left node
-
-ucmLine :: P UcmLine
-ucmLine = ucmCommand <|> ucmComment
-  where
-    ucmCommand :: P UcmLine
-    ucmCommand = do
-      context <-
-        P.try do
-          contextString <- P.takeWhile1P Nothing (/= '>')
-          context <-
-            case (tryFrom @Text contextString) of
-              (Right (These project branch)) -> pure (UcmContextProject (ProjectAndBranch project branch))
-              _ -> fail "expected project/branch or absolute path"
-          void $ lineToken $ word ">"
-          pure context
-      line <- P.takeWhileP Nothing (/= '\n') <* spaces
-      pure $ UcmCommand context line
-
-    ucmComment :: P UcmLine
-    ucmComment = do
-      word "--"
-      line <- P.takeWhileP Nothing (/= '\n') <* spaces
-      pure $ UcmComment line
-
-apiRequest :: P APIRequest
-apiRequest = do
-  apiComment <|> getRequest
-  where
-    getRequest = do
-      word "GET"
-      spaces
-      path <- P.takeWhile1P Nothing (/= '\n')
-      spaces
-      pure (GetRequest path)
-    apiComment = do
-      word "--"
-      comment <- P.takeWhileP Nothing (/= '\n')
-      spaces
-      pure (APIComment comment)
-
--- | Produce the correct parser for the code block based on the provided info string.
-fenced :: Text -> P (Maybe ProcessedBlock)
-fenced info = do
-  body <- P.getInput
-  P.setInput info
-  fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
-  case fenceType of
-    "ucm" -> do
-      hide <- hidden
-      err <- expectingError
-      P.setInput body
-      pure . Ucm hide err <$> (spaces *> many ucmLine)
-    "unison" ->
-      do
-        -- todo: this has to be more interesting
-        -- ```unison:hide
-        -- ```unison
-        -- ```unison:hide:all scratch.u
-        hide <- lineToken hidden
-        err <- lineToken expectingError
-        fileName <- optional untilSpace1
-        P.setInput body
-        pure . Unison hide err fileName <$> (spaces *> P.getInput)
-    "api" -> do
-      P.setInput body
-      pure . API <$> (spaces *> many apiRequest)
-    _ -> pure Nothing
-
-word' :: Text -> P Text
-word' txt = P.try $ do
-  chs <- P.takeP (Just $ show txt) (Text.length txt)
-  guard (chs == txt)
-  pure txt
-
-word :: Text -> P Text
-word = word'
-
-lineToken :: P a -> P a
-lineToken p = p <* nonNewlineSpaces
-
-nonNewlineSpaces :: P ()
-nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch == ' ' || ch == '\t')
-
-hidden :: P Hidden
-hidden =
-  (HideAll <$ word ":hide:all")
-    <|> (HideOutput <$ word ":hide")
-    <|> pure Shown
-
-expectingError :: P ExpectingError
-expectingError = isJust <$> optional (word ":error")
-
-untilSpace1 :: P Text
-untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)
-
-language :: P Text
-language = P.takeWhileP Nothing (\ch -> Char.isDigit ch || Char.isLower ch || ch == '_')
-
-spaces :: P ()
-spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
 
 data Error
   = ParseError (P.ParseErrorBundle Text Void)

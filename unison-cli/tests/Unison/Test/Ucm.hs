@@ -24,7 +24,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError (..))
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.TranscriptParser qualified as Transcript
+import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude (traceM)

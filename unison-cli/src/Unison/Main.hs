@@ -74,7 +74,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.TranscriptParser qualified as Transcript
+import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine (watchConfig)
 import Unison.CommandLine.Helpers (plural')
