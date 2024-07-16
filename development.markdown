@@ -22,7 +22,7 @@ We use 0.5.0.1 of Ormolu and CI will add an extra commit, if needed, to autoform
 
 Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
 
-```
+```haskell
 {- ORMOLU_DISABLE -}
 dontFormatMe = do blah
                     blah
@@ -96,11 +96,13 @@ This codebase uses symlinks as a workaround for some inconveniences in the `here
 
 First you'll need to enable "Developer Mode" in your Windows settings.
 
-	See https://consumer.huawei.com/en/support/content/en-us15594140/
+> See https://consumer.huawei.com/en/support/content/en-us15594140/
 
 Then you'll need to enable symlink support in your `git` configuration, e.g.
 
-    `git config core.symlinks true`
+```shell
+git config core.symlinks true
+```
 
 And then ask `git` to fix up your symlinks with `git checkout .`
 
@@ -147,7 +149,7 @@ It is _not_ recommended to add your user to `trusted-users`. This _can_ make ena
 ## Building package components with nix
 
 ### Build the unison executable
-```
+```shell
 nix build
 ```
 
@@ -156,7 +158,7 @@ This is specified with the normal
 `<package>:<component-type>:<component-name>` triple.
 
 Some examples:
-```
+```shell
 nix build '.#component-unison-cli:lib:unison-cli'
 nix build '.#component-unison-syntax:test:syntax-tests'
 nix build '.#component-unison-cli:exe:transcripts'
@@ -174,7 +176,7 @@ include:
 - ormolu
 - haskell-language-server
 
-```
+```shell
 nix develop
 ```
 
@@ -184,7 +186,7 @@ versions of the compiler and other development tools. Additionally,
 all non-local haskell dependencies (including profiling dependencies)
 are provided in the nix shell.
 
-```
+```shell
 nix develop '.#cabal-local'
 ```
 
@@ -194,17 +196,17 @@ versions of the compiler and other development tools. Additionally,
 all haskell dependencies of this package are provided by the nix shell
 (including profiling dependencies).
 
-```
+```shell
 nix develop '.#cabal-<package-name>'
 ```
 
 for example:
 
-```
+```shell
 nix develop '.#cabal-unison-cli'
 ```
 or
-```
+```shell
 nix develop '.#cabal-unison-parser-typechecker'
 ```
 
@@ -213,7 +215,7 @@ want to profile `unison-cli-main:exe:unison` then you could get into one of thes
 shells, cd into its directory, then run the program with
 profiling.
 
-```
+```shell
 nix develop '.#cabal-unison-parser-typechecker'
 cd unison-cli
 cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
