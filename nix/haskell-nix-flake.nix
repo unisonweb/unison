@@ -28,7 +28,7 @@
       tools =
         (args.tools or {})
         // {
-          cabal = {};
+          cabal = {version = versions.cabal;};
           ormolu = {version = versions.ormolu;};
           haskell-language-server = {
             version = versions.hls;
