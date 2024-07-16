@@ -127,11 +127,20 @@ This command should work if you don’t want to edit the file manually:
 sudo sh -c 'echo "extra-trusted-public-keys = unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k=
 extra-trusted-substituters = https://unison.cachix.org" >>/etc/nix/nix.conf'
 ```
+After updating /etc/nix/nix.conf, you need to restart the Nix daemon. To do this on
+- Ubuntu: `sudo systemctl restart nix-daemon`
+- MacOS:
+    ```shell
+    sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+    sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+    ```
+
 If you use NixOS, you may instead add this via your configuration.nix with
 ```nix
 nix.settings.trusted-public-keys = ["unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="];
 nix.settings.trusted-substituters = ["https://unison.cachix.org"];
 ```
+and run `sudo nixos-rebuild switch` afterward.
 
 It is _not_ recommended to add your user to `trusted-users`. This _can_ make enabling flake configurations simpler (like the Unison Nix cache here), but [it is equivalent to giving that user root access (without need for sudo)](https://nix.dev/manual/nix/2.23/command-ref/conf-file.html#conf-trusted-users).
 
