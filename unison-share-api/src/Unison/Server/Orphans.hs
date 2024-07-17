@@ -155,6 +155,15 @@ instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
     MissingObject sh -> object ["tag" Aeson..= String "MissingObject", "contents" Aeson..= sh]
     UserObject a -> object ["tag" Aeson..= String "UserObject", "contents" Aeson..= a]
 
+instance (FromJSON a, FromJSON b) => FromJSON (DisplayObject b a) where
+  parseJSON = withObject "DisplayObject" \o -> do
+    tag <- o .: "tag"
+    case tag of
+      "BuiltinObject" -> BuiltinObject <$> o .: "contents"
+      "MissingObject" -> MissingObject <$> o .: "contents"
+      "UserObject" -> UserObject <$> o .: "contents"
+      _ -> fail $ "Invalid tag: " <> Text.unpack tag
+
 deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
 -- [21/10/07] Hello, this is Mitchell. Name refactor in progress. Changing internal representation from a flat text to a
