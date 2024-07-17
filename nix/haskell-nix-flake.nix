@@ -31,6 +31,7 @@
       nativeBuildInputs =
         (args.nativeBuildInputs or [])
         ++ [
+          pkgs.cachix
           pkgs.hpack
           pkgs.pkg-config
           pkgs.stack-wrapped
