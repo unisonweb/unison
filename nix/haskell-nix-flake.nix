@@ -12,15 +12,29 @@
       # https://github.com/input-output-hk/haskell.nix/issues/1793
       # https://github.com/input-output-hk/haskell.nix/issues/1885
       allToolDeps = false;
-      additional = hpkgs: with hpkgs; [Cabal stm exceptions ghc ghc-heap];
-      buildInputs = let
-        native-packages =
-          lib.optionals pkgs.stdenv.isDarwin
-          (with pkgs.darwin.apple_sdk.frameworks; [Cocoa]);
-      in
+
+      additional = hpkgs:
+        (args.additional or (_: [])) hpkgs
+        ++ [
+          hpkgs.Cabal
+          hpkgs.exceptions
+          hpkgs.ghc
+          hpkgs.ghc-heap
+          hpkgs.stm
+        ];
+      buildInputs =
         (args.buildInputs or [])
-        ++ [pkgs.stack-wrapped pkgs.hpack pkgs.pkg-config pkgs.zlib pkgs.glibcLocales]
-        ++ native-packages;
+        ++ [
+          pkgs.glibcLocales
+          pkgs.zlib
+        ];
+      nativeBuildInputs =
+        (args.nativeBuildInputs or [])
+        ++ [
+          pkgs.hpack
+          pkgs.pkg-config
+          pkgs.stack-wrapped
+        ];
       # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
       shellHook = ''
         export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
