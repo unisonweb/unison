@@ -22,12 +22,11 @@ You'll need to have a couple things installed on your system:
 * [Racket](https://racket-lang.org/), with the executable `racket` on your path somewhere
 * [BLAKE2](https://github.com/BLAKE2/libb2) (you may need to install this manually)
 
-
-In particular, our crypto functions require on both `libcrypto` (from
-openssl) and `libb2`. You may have to tell racket where to find `libb2`,
-by adding an entry to the hash table in your `config.rktd`
-[file](https://docs.racket-lang.org/raco/config-file.html).
-This is what I had, for an M1 mac w/ `libb2` installed via Homebrew:
+In particular, our crypto functions require both `libcrypto` (from openssl or
+eg. libressl) and `libb2`. You may have to tell racket where to find `libb2`, by
+adding an entry to the hash table in your
+[`config.rktd` file](https://docs.racket-lang.org/raco/config-file.html).
+This is what I had, for an M1 mac with `libb2` installed via Homebrew:
 ```
 $ cat scheme-libs/racket/config/config.rktd
 #hash(
