@@ -25,8 +25,8 @@ You'll need to have a couple things installed on your system:
 
 In particular, our crypto functions require on both `libcrypto` (from
 openssl) and `libb2`. You may have to tell racket where to find `libb2`,
-by adding an entry to the hash table in your
-[`config.rktd` file](https://docs.racket-lang.org/raco/config-file.html).
+by adding an entry to the hash table in your `config.rktd`
+[file](https://docs.racket-lang.org/raco/config-file.html).
 This is what I had, for an M1 mac w/ `libb2` installed via Homebrew:
 ```
 $ cat scheme-libs/racket/config/config.rktd
@@ -46,7 +46,7 @@ First, make sure unison is built (see [development](../../../development.markdow
 
 Next, use unison to generate the racket libraries.  These are dependencies for
 building `unison-runtime`.
-* Read [gen-racket-libs.md](../../../../unison-src-transcripts-manual/gen-racket-libs.md).
+* Read [gen-racket-libs.md](../../../unison-src/transcripts-manual/gen-racket-libs.md).
   It will contain two things:
   * `ucm` and `unison` transcripts that generate the libraries
   * Instructions on how to build `unison-runtime` using `raco`
