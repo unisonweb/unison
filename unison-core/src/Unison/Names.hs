@@ -542,7 +542,7 @@ lenientToNametree names =
     (lenientRelationToNametree names.terms)
     (lenientRelationToNametree names.types)
   where
-    lenientRelationToNametree :: Ord a => Relation Name a -> Nametree (Map NameSegment a)
+    lenientRelationToNametree :: (Ord a) => Relation Name a -> Nametree (Map NameSegment a)
     lenientRelationToNametree =
       unflattenNametree . lenientRelationToLeftUniqueRelation
 

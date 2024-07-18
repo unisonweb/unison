@@ -154,7 +154,8 @@ baseFunctor_ ::
   m (Term f v a)
 baseFunctor_ f t =
   t
-    & abt_ %%~ \case
+    & abt_
+    %%~ \case
       Tm fx -> Tm <$> f (fx)
       x -> pure x
 

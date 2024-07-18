@@ -101,7 +101,7 @@ sequenceTyp = do
   let a = ann open <> ann close
   pure $ Type.app a (Type.list a) t
 
-tupleOrParenthesizedType :: Var v => TypeP v m -> TypeP v m
+tupleOrParenthesizedType :: (Var v) => TypeP v m -> TypeP v m
 tupleOrParenthesizedType rec = do
   (spanAnn, ty) <- tupleOrParenthesized rec DD.unitType pair
   pure (ty {ABT.annotation = ABT.annotation ty <> spanAnn})

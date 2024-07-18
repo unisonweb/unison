@@ -25,11 +25,11 @@ classifyConnectionError exception0 =
           HttpClient.ConnectionFailure exception1 -> do
             ioException <- fromException @IOException exception1
             if
-                | -- This may not be 100% accurate... but if the initial `getAddrInfo` request fails it will indeed throw
-                  -- a "does not exist" error. It seems in order to *know* that `getAddrInfo` was the cause of this
-                  -- exception, we'd have to parse the `show` output, which is preposterous.
-                  isDoesNotExistError ioException ->
-                    Just ConnectionError'Offline
-                | otherwise -> Nothing
+              | -- This may not be 100% accurate... but if the initial `getAddrInfo` request fails it will indeed throw
+                -- a "does not exist" error. It seems in order to *know* that `getAddrInfo` was the cause of this
+                -- exception, we'd have to parse the `show` output, which is preposterous.
+                isDoesNotExistError ioException ->
+                  Just ConnectionError'Offline
+              | otherwise -> Nothing
           _ -> Nothing
     _ -> ConnectionError'SomethingEntirelyUnexpected exception0

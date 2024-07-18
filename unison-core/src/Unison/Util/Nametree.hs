@@ -49,7 +49,7 @@ instance Unzip Nametree where
       (ys, zs) = unzipWith (unzipWith f) xs
 
 -- | Traverse over a nametree, with access to the list of name segments (in reverse order) leading to each value.
-traverseNametreeWithName :: Applicative f => ([NameSegment] -> a -> f b) -> Nametree a -> f (Nametree b)
+traverseNametreeWithName :: (Applicative f) => ([NameSegment] -> a -> f b) -> Nametree a -> f (Nametree b)
 traverseNametreeWithName f =
   go []
   where
@@ -81,7 +81,7 @@ unfoldNametree f x =
 -- > }
 flattenNametree ::
   forall a b.
-  Ord b =>
+  (Ord b) =>
   (a -> Map NameSegment b) ->
   Nametree a ->
   BiMultimap b Name
@@ -120,7 +120,7 @@ flattenNametree f =
 -- >     "baz" = #baz
 -- >   }
 -- > }
-unflattenNametree :: Ord a => BiMultimap a Name -> Nametree (Map NameSegment a)
+unflattenNametree :: (Ord a) => BiMultimap a Name -> Nametree (Map NameSegment a)
 unflattenNametree =
   unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList . BiMultimap.range
   where

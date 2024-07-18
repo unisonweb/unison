@@ -64,7 +64,7 @@ makeInitialIdentifyConflictsState diff =
     }
 
 identifyConflicts ::
-  HasCallStack =>
+  (HasCallStack) =>
   TwoWay DeclNameLookup ->
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference ->
@@ -97,7 +97,8 @@ identifyConflicts declNameLookups defns =
             typeConflicts <- Map.upsertF (maybe (Just ref) (const Nothing)) name (view myTypeConflicts_ s)
             Just $
               s
-                & myTypeConflicts_ .~ typeConflicts
+                & myTypeConflicts_
+                .~ typeConflicts
                 & case ref of
                   ReferenceBuiltin _ -> id -- builtin types don't have constructors
                   ReferenceDerived _ -> theirTermStack_ %~ (expectConstructorNames myDeclNameLookup name ++)

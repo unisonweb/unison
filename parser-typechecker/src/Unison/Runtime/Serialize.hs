@@ -117,11 +117,11 @@ getLength = unVarInt <$> deserialize
 -- Checks for negatives, in case you put an Integer, which does not
 -- behave properly for negative numbers.
 putPositive ::
-  MonadPut m =>
-  Bits n =>
-  Bits (Unsigned n) =>
-  Integral n =>
-  Integral (Unsigned n) =>
+  (MonadPut m) =>
+  (Bits n) =>
+  (Bits (Unsigned n)) =>
+  (Integral n) =>
+  (Integral (Unsigned n)) =>
   n ->
   m ()
 putPositive n
@@ -132,9 +132,9 @@ putPositive n
 -- result type.
 getPositive ::
   forall m n.
-  Bounded n =>
-  Integral n =>
-  MonadGet m =>
+  (Bounded n) =>
+  (Integral n) =>
+  (MonadGet m) =>
   m n
 getPositive = validate . unVarInt =<< deserialize
   where

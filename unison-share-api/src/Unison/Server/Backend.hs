@@ -213,10 +213,10 @@ data BackendError
   = NoSuchNamespace Path.Absolute
   | -- Failed to parse path
     BadNamespace
+      -- | error message
       String
-      -- ^ error message
+      -- | namespace
       String
-      -- ^ namespace
   | CouldntExpandBranchHash ShortCausalHash
   | AmbiguousBranchHash ShortCausalHash (Set ShortCausalHash)
   | AmbiguousHashForDefinition ShortHash
@@ -462,11 +462,11 @@ getTermTag codebase r sig = do
     V2Referent.Con ref _ -> Just <$> Codebase.runTransaction codebase (Codebase.getDeclType codebase ref)
   pure $
     if
-        | isDoc -> Doc
-        | isTest -> Test
-        | Just CT.Effect <- constructorType -> Constructor Ability
-        | Just CT.Data <- constructorType -> Constructor Data
-        | otherwise -> Plain
+      | isDoc -> Doc
+      | isTest -> Test
+      | Just CT.Effect <- constructorType -> Constructor Ability
+      | Just CT.Data <- constructorType -> Constructor Data
+      | otherwise -> Plain
 
 getTypeTag ::
   (Var v) =>

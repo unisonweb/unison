@@ -30,8 +30,10 @@ type P = P.Parsec Void Text.Text
 
 readRemoteNamespaceParser :: ProjectBranchSpecifier branch -> P (ReadRemoteNamespace (These ProjectName branch))
 readRemoteNamespaceParser specifier =
-  ReadShare'ProjectBranch <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
-    <|> ReadShare'LooseCode <$> readShareLooseCode
+  ReadShare'ProjectBranch
+    <$> projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier
+      <|> ReadShare'LooseCode
+    <$> readShareLooseCode
 
 projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ::
   ProjectBranchSpecifier branch ->

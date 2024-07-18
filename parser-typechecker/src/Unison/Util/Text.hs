@@ -140,16 +140,17 @@ indexOf needle haystack =
 ordinal :: (IsString s) => Int -> s
 ordinal n = do
   let s = show n
-  fromString $ s ++
-    case L.drop (L.length s - 2) s of
-      ['1', '1'] -> "th"
-      ['1', '2'] -> "th"
-      ['1', '3'] -> "th"
-      _ -> case last s of
-        '1' -> "st"
-        '2' -> "nd"
-        '3' -> "rd"
-        _ -> "th"
+  fromString $
+    s
+      ++ case L.drop (L.length s - 2) s of
+        ['1', '1'] -> "th"
+        ['1', '2'] -> "th"
+        ['1', '3'] -> "th"
+        _ -> case last s of
+          '1' -> "st"
+          '2' -> "nd"
+          '3' -> "rd"
+          _ -> "th"
 
 -- Drop with both a maximum size and a predicate. Yields actual number of
 -- dropped characters.

@@ -19,11 +19,11 @@ data Causal m hc he pe e = Causal
   }
   deriving stock (Functor, Generic)
 
-instance Eq hc => Eq (Causal m hc he pe e) where
+instance (Eq hc) => Eq (Causal m hc he pe e) where
   (==) = (==) `on` causalHash
 
 -- | @emap f g@ maps over the values and parents' values with @f@ and @g@.
-emap :: Functor m => (e -> e') -> (pe -> pe') -> Causal m hc he pe e -> Causal m hc he pe' e'
+emap :: (Functor m) => (e -> e') -> (pe -> pe') -> Causal m hc he pe e -> Causal m hc he pe' e'
 emap f g causal@Causal {parents, value} =
   causal
     { parents = Map.map (fmap (emap g g)) parents,

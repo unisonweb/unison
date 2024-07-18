@@ -89,7 +89,7 @@ step e st cs =
           Right () -> Right finalState
 
 -- | Default any unconstrained vars to @Type@
-defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
+defaultUnconstrainedVars :: (Var v) => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
   let newConstraints = foldl' phi (constraints st) (newUnifVars st)
       phi b a = U.alter a handleNothing handleJust b
@@ -167,8 +167,8 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
 -- contradictory constraint.
 addConstraint ::
   forall v loc.
-  Ord loc =>
-  Var v =>
+  (Ord loc) =>
+  (Var v) =>
   GeneratedConstraint v loc ->
   Solve v loc (Either (KindError v loc) ())
 addConstraint constraint = do
@@ -200,8 +200,8 @@ addConstraint constraint = do
 -- satisfied.
 addConstraint' ::
   forall v loc.
-  Ord loc =>
-  Var v =>
+  (Ord loc) =>
+  (Var v) =>
   UnsolvedConstraint v loc ->
   Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
 addConstraint' = \case
@@ -304,7 +304,7 @@ union _unionLoc a b = do
 -- | Do an occurence check and return an error or the resulting solve
 -- state
 verify ::
-  Var v =>
+  (Var v) =>
   SolveState v loc ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
 verify st =
@@ -347,7 +347,7 @@ assertGen gen = do
 -- | occurence check and report any errors
 occCheck ::
   forall v loc.
-  Var v =>
+  (Var v) =>
   ConstraintMap v loc ->
   Either (NonEmpty (KindError v loc)) (ConstraintMap v loc)
 occCheck constraints0 =
@@ -401,7 +401,7 @@ data OccCheckState v loc = OccCheckState
     kindErrors :: [KindError v loc]
   }
 
-markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
+markVisiting :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
 markVisiting x = do
   OccCheckState {visitingSet, visitingStack} <- M.get
   case Set.member x visitingSet of
@@ -420,7 +420,7 @@ markVisiting x = do
           }
       pure NoCycle
 
-unmarkVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) ()
+unmarkVisiting :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) ()
 unmarkVisiting x = M.modify \st ->
   st
     { visitingSet = Set.delete x (visitingSet st),
@@ -431,7 +431,7 @@ unmarkVisiting x = M.modify \st ->
 addError :: KindError v loc -> M.State (OccCheckState v loc) ()
 addError ke = M.modify \st -> st {kindErrors = ke : kindErrors st}
 
-isSolved :: Var v => UVar v loc -> M.State (OccCheckState v loc) Bool
+isSolved :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) Bool
 isSolved x = do
   OccCheckState {solvedSet} <- M.get
   pure $ Set.member x solvedSet
@@ -444,7 +444,7 @@ data CycleCheck
 -- Debug output helpers
 --------------------------------------------------------------------------------
 
-prettyConstraintD' :: Show loc => Var v => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
+prettyConstraintD' :: (Show loc) => (Var v) => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
 prettyConstraintD' ppe =
   P.wrap . \case
     Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
@@ -455,10 +455,10 @@ prettyConstraintD' ppe =
     prettyProv x =
       "[" <> P.string (show x) <> "]"
 
-prettyConstraints :: Show loc => Var v => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
+prettyConstraints :: (Show loc) => (Var v) => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
 prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
 
-prettyUVar :: Var v => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
+prettyUVar :: (Var v) => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
 prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 
 tracePretty :: P.Pretty P.ColorText -> a -> a

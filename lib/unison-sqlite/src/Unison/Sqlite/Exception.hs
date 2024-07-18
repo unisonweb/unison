@@ -138,7 +138,7 @@ data SqliteQueryExceptionInfo = SqliteQueryExceptionInfo
     exception :: SomeSqliteExceptionReason
   }
 
-throwSqliteQueryException :: HasCallStack => SqliteQueryExceptionInfo -> IO a
+throwSqliteQueryException :: (HasCallStack) => SqliteQueryExceptionInfo -> IO a
 throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql = Sql sql params} = do
   threadId <- myThreadId
   throwIO

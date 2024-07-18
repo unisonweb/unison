@@ -41,7 +41,7 @@ import Data.Vector qualified as Vector
 import Unison.Prelude hiding (bimap, foldM, for_)
 
 -- | A common case of @Map.merge@. Like @alignWith@, but includes the key.
-alignWithKey :: Ord k => (k -> These a b -> c) -> Map k a -> Map k b -> Map k c
+alignWithKey :: (Ord k) => (k -> These a b -> c) -> Map k a -> Map k b -> Map k c
 alignWithKey f =
   Map.merge
     (Map.mapMissing \k x -> f k (This x))
@@ -60,7 +60,7 @@ bitraversed keyT valT f m =
 
 -- | Traverse a map as a list of key-value pairs.
 -- Note: This can have unexpected results if the result contains duplicate keys.
-asList_ :: Ord k' => Traversal (Map k v) (Map k' v') [(k, v)] [(k', v')]
+asList_ :: (Ord k') => Traversal (Map k v) (Map k' v') [(k, v)] [(k', v')]
 asList_ f s =
   s
     & Map.toList
@@ -73,13 +73,13 @@ swap =
   Map.foldlWithKey' (\z a b -> Map.insert b a z) mempty
 
 -- | Like 'Map.insert', but returns the old value as well.
-insertLookup :: Ord k => k -> v -> Map k v -> (Maybe v, Map k v)
+insertLookup :: (Ord k) => k -> v -> Map k v -> (Maybe v, Map k v)
 insertLookup k v =
   upsertLookup (const v) k
 
 -- | Invert a map's keys and values. This probably only makes sense with injective maps, but otherwise, later key/value
 -- pairs (ordered by the original map's keys) overwrite earlier ones.
-invert :: Ord v => Map k v -> Map v k
+invert :: (Ord v) => Map k v -> Map v k
 invert =
   Map.foldlWithKey' (\m k v -> Map.insert v k m) Map.empty
 
@@ -94,7 +94,7 @@ upsertF f =
   Map.alterF (fmap Just . f)
 
 -- | Like 'upsert', but returns the old value as well.
-upsertLookup :: Ord k => (Maybe v -> v) -> k -> Map k v -> (Maybe v, Map k v)
+upsertLookup :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> (Maybe v, Map k v)
 upsertLookup f =
   upsertF (\v -> (v, f v))
 
@@ -113,12 +113,12 @@ deleteLookupJust =
   Map.alterF (maybe (error (reportBug "E525283" "deleteLookupJust: element not found")) (,Nothing))
 
 -- | Like 'Map.elems', but return the values as a set.
-elemsSet :: Ord v => Map k v -> Set v
+elemsSet :: (Ord v) => Map k v -> Set v
 elemsSet =
   Set.fromList . Map.elems
 
 -- | Like 'Map.foldlWithKey'', but with a monadic accumulator.
-foldM :: Monad m => (acc -> k -> v -> m acc) -> acc -> Map k v -> m acc
+foldM :: (Monad m) => (acc -> k -> v -> m acc) -> acc -> Map k v -> m acc
 foldM f acc0 =
   go acc0
   where
@@ -141,7 +141,7 @@ foldMapM f =
       pure $! Map.insert k v acc
 
 -- | Run a monadic action for each key/value pair in a map.
-for_ :: Monad m => Map k v -> (k -> v -> m ()) -> m ()
+for_ :: (Monad m) => Map k v -> (k -> v -> m ()) -> m ()
 for_ m f =
   go m
   where

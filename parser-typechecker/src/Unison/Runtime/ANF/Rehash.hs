@@ -19,7 +19,7 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Var (Var)
 
 checkGroupHashes ::
-  Var v =>
+  (Var v) =>
   [(Referent, SuperGroup v)] ->
   Either (Text, [Referent]) (Either [Referent] [Referent])
 checkGroupHashes rgs = case checkMissing rgs of
@@ -32,7 +32,7 @@ checkGroupHashes rgs = case checkMissing rgs of
   Right ms -> Right (Left $ Ref <$> ms)
 
 rehashGroups ::
-  Var v =>
+  (Var v) =>
   Map.Map Reference (SuperGroup v) ->
   Either (Text, [Referent]) (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
 rehashGroups m
@@ -56,7 +56,7 @@ rehashGroups m
         (rm, sgs) = rehashSCC scc
 
 checkMissing ::
-  Var v =>
+  (Var v) =>
   [(Referent, SuperGroup v)] ->
   Either (Text, [Referent]) [Reference]
 checkMissing (unzip -> (rs, gs)) = do
@@ -74,7 +74,7 @@ checkMissing (unzip -> (rs, gs)) = do
     p _ _ = False
 
 rehashSCC ::
-  Var v =>
+  (Var v) =>
   SCC (Reference, SuperGroup v) ->
   (Map.Map Reference Reference, Map.Map Reference (SuperGroup v))
 rehashSCC scc

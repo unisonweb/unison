@@ -45,7 +45,7 @@ test =
             (b1 <> b2 <> b3)
               `compare` b3
               == (b1s <> b2s <> b3s)
-              `compare` b3s
+                `compare` b3s
           scope "take" . expect' $
             Bytes.toArray (Bytes.take k (b1s <> b2s)) == BS.take k (b1 <> b2)
           scope "drop" . expect' $

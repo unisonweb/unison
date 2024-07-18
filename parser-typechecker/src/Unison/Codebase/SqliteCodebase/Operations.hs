@@ -543,7 +543,7 @@ filterReferentsHavingTypeImpl ::
 filterReferentsHavingTypeImpl doGetDeclType typRef termRefs =
   Ops.filterTermsByReferentHavingType (Cv.reference1to2 typRef) (Cv.referentid1to2 <$> toList termRefs)
     >>= traverse (Cv.referentid2to1 doGetDeclType)
-    <&> Set.fromList
+      <&> Set.fromList
 
 -- | The number of base32 characters needed to distinguish any two references in the codebase.
 hashLength :: Transaction Int

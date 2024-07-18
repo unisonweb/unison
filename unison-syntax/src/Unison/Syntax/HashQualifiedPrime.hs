@@ -48,7 +48,7 @@ toText =
 
 -- | A hash-qualified parser.
 hashQualifiedP ::
-  Monad m =>
+  (Monad m) =>
   ParsecT (Token Text) [Char] m name ->
   ParsecT (Token Text) [Char] m (HQ'.HashQualified name)
 hashQualifiedP nameP =

@@ -78,7 +78,7 @@ emptyUnisonFile =
       watches = Map.empty
     }
 
-leftBiasedMerge :: forall v a. Ord v => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
+leftBiasedMerge :: forall v a. (Ord v) => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
 leftBiasedMerge lhs rhs =
   let mergedTerms = Map.foldlWithKey' (addNotIn lhsTermNames) (terms lhs) (terms rhs)
       mergedWatches = Map.foldlWithKey' addWatch (watches lhs) (watches rhs)
@@ -128,10 +128,20 @@ allWatches = join . Map.elems . watches
 -- | Get the location of a given definition in the file.
 definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
 definitionLocation v uf =
-  terms uf ^? ix v . _1
-    <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
-    <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
-    <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
+  terms uf
+    ^? ix v
+      . _1
+      <|> watches uf
+    ^? folded
+      . folded
+      . filteredBy (_1 . only v)
+      . _2
+      <|> dataDeclarations uf
+    ^? ix v
+      . _2
+      . to DD.annotation
+      <|> effectDeclarations uf
+    ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
@@ -282,8 +292,10 @@ lookupDecl ::
   TypecheckedUnisonFile v a ->
   Maybe (Reference.Id, DD.Decl v a)
 lookupDecl v uf =
-  over _2 Right <$> (Map.lookup v (dataDeclarationsId' uf))
-    <|> over _2 Left <$> (Map.lookup v (effectDeclarationsId' uf))
+  over _2 Right
+    <$> (Map.lookup v (dataDeclarationsId' uf))
+      <|> over _2 Left
+    <$> (Map.lookup v (effectDeclarationsId' uf))
 
 indexByReference ::
   TypecheckedUnisonFile v a ->
@@ -340,7 +352,7 @@ dependencies (UnisonFile ds es ts ws) =
     <> foldMap (Term.dependencies . snd) ts
     <> foldMap (foldMap (Term.dependencies . view _3)) ws
 
-discardTypes :: Ord v => TypecheckedUnisonFile v a -> UnisonFile v a
+discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]
