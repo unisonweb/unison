@@ -256,7 +256,7 @@ formatStructuredArgument schLength = \case
       BranchAtProjectPath pp ->
         pp
           & PP.absPath_
-          %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+            %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
           & PP.toNames
           & into @Text
 
@@ -507,7 +507,7 @@ handleBranchIdArg =
           BranchAtProjectPath pp ->
             pp
               & PP.absPath_
-              %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+                %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
               & BranchAtProjectPath
       SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg

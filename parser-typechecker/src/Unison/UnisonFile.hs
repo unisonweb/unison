@@ -128,20 +128,10 @@ allWatches = join . Map.elems . watches
 -- | Get the location of a given definition in the file.
 definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
 definitionLocation v uf =
-  terms uf
-    ^? ix v
-      . _1
-      <|> watches uf
-    ^? folded
-      . folded
-      . filteredBy (_1 . only v)
-      . _2
-      <|> dataDeclarations uf
-    ^? ix v
-      . _2
-      . to DD.annotation
-      <|> effectDeclarations uf
-    ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
+  terms uf ^? ix v . _1
+    <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
+    <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
+    <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
@@ -292,10 +282,8 @@ lookupDecl ::
   TypecheckedUnisonFile v a ->
   Maybe (Reference.Id, DD.Decl v a)
 lookupDecl v uf =
-  over _2 Right
-    <$> (Map.lookup v (dataDeclarationsId' uf))
-      <|> over _2 Left
-    <$> (Map.lookup v (effectDeclarationsId' uf))
+  over _2 Right <$> (Map.lookup v (dataDeclarationsId' uf))
+    <|> over _2 Left <$> (Map.lookup v (effectDeclarationsId' uf))
 
 indexByReference ::
   TypecheckedUnisonFile v a ->

@@ -1911,35 +1911,31 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.Constructor _ (ConstructorReference r t) ps <- p = do
       (,)
         <$> expandBindings ps vs
-        <*> anfBody bd <&> \(us, bd) ->
-          AccumData r Nothing
-            . EC.mapSingleton (fromIntegral t)
-            . (BX <$ us,)
-            . ABTN.TAbss us
-            $ bd
+        <*> anfBody bd
+        <&> \(us, bd) ->
+          AccumData r Nothing . EC.mapSingleton (fromIntegral t) . (BX <$ us,) $ ABTN.TAbss us bd
   | P.EffectPure _ q <- p =
       (,)
         <$> expandBindings [q] vs
-        <*> anfBody bd <&> \(us, bd) ->
-          AccumPure $ ABTN.TAbss us bd
+        <*> anfBody bd
+        <&> \(us, bd) -> AccumPure $ ABTN.TAbss us bd
   | P.EffectBind _ (ConstructorReference r t) ps pk <- p = do
       (,,)
         <$> expandBindings (snoc ps pk) vs
         <*> Compose (pure <$> fresh)
         <*> anfBody bd
-          <&> \(exp, kf, bd) ->
-            let (us, uk) =
-                  maybe (internalBug "anfInitCase: unsnoc impossible") id $
-                    unsnoc exp
-                jn = Builtin "jumpCont"
-             in flip AccumRequest Nothing
-                  . Map.singleton r
-                  . EC.mapSingleton (fromIntegral t)
-                  . (BX <$ us,)
-                  . ABTN.TAbss us
-                  . TShift r kf
-                  . TName uk (Left jn) [kf]
-                  $ bd
+        <&> \(exp, kf, bd) ->
+          let (us, uk) =
+                maybe (internalBug "anfInitCase: unsnoc impossible") id $
+                  unsnoc exp
+              jn = Builtin "jumpCont"
+           in flip AccumRequest Nothing
+                . Map.singleton r
+                . EC.mapSingleton (fromIntegral t)
+                . (BX <$ us,)
+                . ABTN.TAbss us
+                . TShift r kf
+                $ TName uk (Left jn) [kf] bd
   | P.SequenceLiteral _ [] <- p =
       AccumSeqEmpty <$> anfBody bd
   | P.SequenceOp _ l op r <- p,

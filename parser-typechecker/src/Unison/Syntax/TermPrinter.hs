@@ -2016,10 +2016,8 @@ toDocSourceElement ppe (Apps' (Ref' r) [tm, toDocSourceAnnotations ppe -> Just a
       (,annotations) <$> ok tm
   where
     ok tm =
-      Right
-        <$> toDocEmbedTermLink ppe tm
-          <|> Left
-        <$> toDocEmbedTypeLink ppe tm
+      Right <$> toDocEmbedTermLink ppe tm
+        <|> Left <$> toDocEmbedTypeLink ppe tm
 toDocSourceElement _ _ = Nothing
 
 toDocSource' ::

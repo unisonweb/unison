@@ -378,12 +378,12 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
                 overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
                   uf
                     & #effectDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
               Right dd ->
                 overwriteConstructorNames name dd <&> \dd' ->
                   uf
                     & #dataDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)

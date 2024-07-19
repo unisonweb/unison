@@ -97,8 +97,7 @@ identifyConflicts declNameLookups defns =
             typeConflicts <- Map.upsertF (maybe (Just ref) (const Nothing)) name (view myTypeConflicts_ s)
             Just $
               s
-                & myTypeConflicts_
-                .~ typeConflicts
+                & myTypeConflicts_ .~ typeConflicts
                 & case ref of
                   ReferenceBuiltin _ -> id -- builtin types don't have constructors
                   ReferenceDerived _ -> theirTermStack_ %~ (expectConstructorNames myDeclNameLookup name ++)
