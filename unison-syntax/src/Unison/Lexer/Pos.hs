@@ -10,7 +10,7 @@ type Line = Int
 
 type Column = Int
 
-data Pos = Pos { line :: {-# UNPACK #-} !Line, column :: {-# UNPACK #-} !Column} deriving (Show, Eq, Ord)
+data Pos = Pos {line :: {-# UNPACK #-} !Line, column :: {-# UNPACK #-} !Column} deriving (Show, Eq, Ord)
 
 instance Semigroup Pos where
   Pos line col <> Pos line2 col2 =

@@ -154,7 +154,7 @@ getVector getA = do
   length <- getVarInt
   Vector.replicateM length getA
 
-skipVector :: MonadGet m => m a -> m ()
+skipVector :: (MonadGet m) => m a -> m ()
 skipVector getA = do
   length <- getVarInt
   replicateM_ length getA

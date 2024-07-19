@@ -125,7 +125,7 @@ file = do
 
 -- | Final validations and sanity checks to perform before finishing parsing.
 validateUnisonFile ::
-  Ord v =>
+  (Ord v) =>
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->
@@ -139,7 +139,7 @@ validateUnisonFile datas effects terms watches =
 -- constructors and verify that no duplicates exist in the file, triggering an error if needed.
 checkForDuplicateTermsAndConstructors ::
   forall m v.
-  Ord v =>
+  (Ord v) =>
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
   [(v, Ann, Term v Ann)] ->

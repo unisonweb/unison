@@ -134,7 +134,7 @@ data IncoherentDeclReason
 
 checkDeclCoherency ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m (Either IncoherentDeclReason DeclNameLookup)
@@ -162,7 +162,7 @@ data IncoherentDeclReasons = IncoherentDeclReasons
 -- | Like 'checkDeclCoherency', but returns info about all of the incoherent decls found, not just the first.
 checkAllDeclCoherency ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m (Either IncoherentDeclReasons DeclNameLookup)
@@ -207,7 +207,7 @@ data OnIncoherentDeclReasons m = OnIncoherentDeclReasons
 
 checkDeclCoherencyWith ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (TypeReferenceId -> m Int) ->
   OnIncoherentDeclReasons m ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
@@ -232,7 +232,7 @@ checkDeclCoherencyWith loadDeclNumConstructors callbacks =
 
 checkDeclCoherencyWith_DoTerms ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   OnIncoherentDeclReasons m ->
   [NameSegment] ->
   (NameSegment, Referent) ->
@@ -262,7 +262,7 @@ checkDeclCoherencyWith_DoTerms callbacks prefix = \case
 
 checkDeclCoherencyWith_DoTypes ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (TypeReferenceId -> m Int) ->
   OnIncoherentDeclReasons m ->
   ( [NameSegment] ->
@@ -331,7 +331,7 @@ checkDeclCoherencyWith_DoTypes loadDeclNumConstructors callbacks go prefix child
 -- does, we still need to compute *some* syntactic hash for its decls.
 lenientCheckDeclCoherency ::
   forall m.
-  Monad m =>
+  (Monad m) =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m PartialDeclNameLookup
@@ -432,7 +432,7 @@ emptyConstructorNames :: Int -> ConstructorNames
 emptyConstructorNames numConstructors =
   IntMap.fromAscList [(i, Nothing) | i <- [0 .. numConstructors - 1]]
 
-recordConstructorName :: HasCallStack => ConstructorId -> Name -> ConstructorNames -> Either Name ConstructorNames
+recordConstructorName :: (HasCallStack) => ConstructorId -> Name -> ConstructorNames -> Either Name ConstructorNames
 recordConstructorName conId conName =
   IntMap.alterF f (fromIntegral @Word64 @Int conId)
   where

@@ -969,7 +969,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
                           PP.group $
                             PP.group (defnLhs v vs <> fmt S.BindingEquals " = ")
                               <> prettyBody
-                              `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
+                                `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
                       }
             _ ->
               pure $
@@ -1532,7 +1532,7 @@ immediateChildBlockTerms = \case
     doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet t = error (show t) []
 
-isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
+isSoftHangable :: (Var v) => Term2 vt at ap v a -> Bool
 -- isSoftHangable (Delay' d) = isLet d || isSoftHangable d || case d of
 --    Match' scrute cases -> isDestructuringBind scrute cases
 --    _ -> False
@@ -2160,7 +2160,7 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
                   & maybe fullName HQ'.NameOnly
            in (fullName, minimallySuffixed)
     tweak _ p = p
-    varToName :: Var v => v -> [Name]
+    varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name
 
 isLeaf :: Term2 vt at ap v a -> Bool

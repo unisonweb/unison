@@ -41,11 +41,11 @@ data DeclR r v = DataDeclaration
   }
   deriving (Show)
 
-allVars :: Ord v => DeclR r v -> Set v
+allVars :: (Ord v) => DeclR r v -> Set v
 allVars (DataDeclaration _ _ bound constructorTypes) =
   (Set.fromList $ foldMap ABT.allVars constructorTypes) <> Set.fromList bound
 
-vmap :: Ord v' => (v -> v') -> DeclR r v -> DeclR r v'
+vmap :: (Ord v') => (v -> v') -> DeclR r v -> DeclR r v'
 vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
   DataDeclaration
     { declType,
@@ -82,7 +82,7 @@ data F a
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
   forall v extra.
-  ABT.Var v =>
+  (ABT.Var v) =>
   Hash ->
   -- | A function to convert a reference to a variable. The actual var names aren't important.
   (Reference.Id -> v) ->

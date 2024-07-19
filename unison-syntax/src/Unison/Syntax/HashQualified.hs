@@ -66,7 +66,7 @@ toVar =
 
 -- | A hash-qualified parser.
 hashQualifiedP ::
-  Monad m =>
+  (Monad m) =>
   ParsecT (Token Text) [Char] m name ->
   ParsecT (Token Text) [Char] m (HashQualified name)
 hashQualifiedP nameP =

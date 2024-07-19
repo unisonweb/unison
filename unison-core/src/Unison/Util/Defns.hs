@@ -56,7 +56,7 @@ type DefnsF3 f g h terms types =
 type DefnsF4 f g h i terms types =
   Defns (f (g (h (i terms)))) (f (g (h (i types))))
 
-alignDefnsWith :: Semialign f => (These a b -> c) -> Defns (f a) (f b) -> f c
+alignDefnsWith :: (Semialign f) => (These a b -> c) -> Defns (f a) (f b) -> f c
 alignDefnsWith f defns =
   alignWith f defns.terms defns.types
 

@@ -115,9 +115,9 @@ checkCodebaseIsUpToDate = do
   -- The highest schema that this ucm knows how to migrate to.
   pure $
     if
-        | schemaVersion == Q.currentSchemaVersion -> CodebaseUpToDate
-        | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
-        | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
+      | schemaVersion == Q.currentSchemaVersion -> CodebaseUpToDate
+      | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
+      | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
 
 -- | Migrates a codebase up to the most recent version known to ucm.
 -- This is a No-op if it's up to date
