@@ -211,8 +211,7 @@ foo = match 1 with
 
   I got confused here:
   
-      2 |   2 -- no right-hand-side
-  
+      3 | 
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:
@@ -258,8 +257,7 @@ x = match Some a with
 
   I got confused here:
   
-      6 |         2
-  
+      7 | 
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:
