@@ -167,8 +167,7 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
 -- contradictory constraint.
 addConstraint ::
   forall v loc.
-  (Ord loc) =>
-  (Var v) =>
+  (Ord loc, Var v) =>
   GeneratedConstraint v loc ->
   Solve v loc (Either (KindError v loc) ())
 addConstraint constraint = do
@@ -200,8 +199,7 @@ addConstraint constraint = do
 -- satisfied.
 addConstraint' ::
   forall v loc.
-  (Ord loc) =>
-  (Var v) =>
+  (Ord loc, Var v) =>
   UnsolvedConstraint v loc ->
   Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
 addConstraint' = \case
@@ -444,7 +442,7 @@ data CycleCheck
 -- Debug output helpers
 --------------------------------------------------------------------------------
 
-prettyConstraintD' :: (Show loc) => (Var v) => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
+prettyConstraintD' :: (Show loc, Var v) => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
 prettyConstraintD' ppe =
   P.wrap . \case
     Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
@@ -455,7 +453,7 @@ prettyConstraintD' ppe =
     prettyProv x =
       "[" <> P.string (show x) <> "]"
 
-prettyConstraints :: (Show loc) => (Var v) => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
+prettyConstraints :: (Show loc, Var v) => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
 prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
 
 prettyUVar :: (Var v) => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
