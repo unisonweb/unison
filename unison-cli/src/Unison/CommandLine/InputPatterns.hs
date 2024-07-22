@@ -2270,13 +2270,13 @@ deprecatedViewRootReflog =
 branchReflog :: InputPattern
 branchReflog =
   InputPattern
-    "branch.reflog"
-    ["reflog.branch", "reflog"]
+    "reflog"
+    ["reflog.branch", "branch.reflog"]
     I.Visible
     []
     ( P.lines
-        [ "`branch.reflog` lists all the changes that have affected the current branch.",
-          "`branch.reflog /mybranch` lists all the changes that have affected /mybranch."
+        [ "`reflog` lists all the changes that have affected the current branch.",
+          "`reflog /mybranch` lists all the changes that have affected /mybranch."
         ]
     )
     ( \case
