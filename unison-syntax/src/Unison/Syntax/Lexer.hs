@@ -1564,7 +1564,7 @@ stanzas = go []
 -- Moves type and ability declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder = join . sortWith f . stanzas
+reorder = foldr fixup [] . join . sortWith f . stanzas
   where
     f [] = 3 :: Int
     f (t0 : _) = case payload $ headToken t0 of
@@ -1572,16 +1572,17 @@ reorder = join . sortWith f . stanzas
       Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 1
       Reserved "use" -> 0
       _ -> 3 :: Int
+    -- after reordering can end up with trailing semicolon at the end of
+    -- a block, which we remove with this pass
+    fixup (payload . headToken -> Semi _) [] = []
+    fixup tok tail = tok : tail
+
+-- | This turns the lexeme stream into a tree, reordering some lexeme subsequences.
+preParse :: [Token Lexeme] -> T (Token Lexeme)
+preParse = reorderTree reorder . tree
 
 lexer :: String -> String -> [Token Lexeme]
-lexer scope rem =
-  let t = tree $ lexer0' scope rem
-      -- after reordering can end up with trailing semicolon at the end of
-      -- a block, which we remove with this pass
-      fixup ((payload -> Semi _) : t@(payload -> Close) : tl) = t : fixup tl
-      fixup [] = []
-      fixup (h : t) = h : fixup t
-   in fixup . toList $ reorderTree reorder t
+lexer scope = toList . preParse . lexer0' scope
 
 isDelayOrForce :: Char -> Bool
 isDelayOrForce op = op == '\'' || op == '!'
