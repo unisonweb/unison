@@ -1520,15 +1520,18 @@ pop = drop 1
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
 
-data T a = T a [T a] [a] | L a deriving (Functor, Foldable, Traversable)
+data BlockTree a
+  = Block a [BlockTree a] [a]
+  | Leaf a
+  deriving (Functor, Foldable, Traversable)
 
-headToken :: T a -> a
-headToken (T a _ _) = a
-headToken (L a) = a
+headToken :: BlockTree a -> a
+headToken (Block a _ _) = a
+headToken (Leaf a) = a
 
-instance (Show a) => Show (T a) where
-  show (L a) = show a
-  show (T open mid close) =
+instance (Show a) => Show (BlockTree a) where
+  show (Leaf a) = show a
+  show (Block open mid close) =
     show open
       ++ "\n"
       ++ indent "  " (intercalateMap "\n" show mid)
@@ -1539,26 +1542,26 @@ instance (Show a) => Show (T a) where
       go by '\n' = '\n' : by
       go _ c = [c]
 
-reorderTree :: ([T a] -> [T a]) -> T a -> T a
-reorderTree _ l@(L _) = l
-reorderTree f (T open mid close) = T open (f (reorderTree f <$> mid)) close
+reorderTree :: ([BlockTree a] -> [BlockTree a]) -> BlockTree a -> BlockTree a
+reorderTree f (Block open mid close) = Block open (f (reorderTree f <$> mid)) close
+reorderTree _ l = l
 
-tree :: [Token Lexeme] -> T (Token Lexeme)
+tree :: [Token Lexeme] -> BlockTree (Token Lexeme)
 tree toks = one toks const
   where
-    one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
-    one (t : ts) k = k (L t) ts
+    one (open@(payload -> Open _) : ts) k = many (Block open) [] ts k
+    one (t : ts) k = k (Leaf t) ts
     one [] k = k lastErr []
       where
-        lastErr = case drop (length toks - 1) toks of
-          [] -> L (Token (Err LayoutError) topLeftCorner topLeftCorner)
-          (t : _) -> L $ t {payload = Err LayoutError}
+        lastErr = Leaf case drop (length toks - 1) toks of
+          [] -> Token (Err LayoutError) topLeftCorner topLeftCorner
+          (t : _) -> t {payload = Err LayoutError}
 
     many open acc [] k = k (open (reverse acc) []) []
     many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) [t]) ts
     many open acc ts k = one ts $ \t ts -> many open (t : acc) ts k
 
-stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
+stanzas :: [BlockTree (Token Lexeme)] -> [[BlockTree (Token Lexeme)]]
 stanzas = go []
   where
     go acc [] = [reverse acc]
@@ -1568,7 +1571,7 @@ stanzas = go []
 
 -- Moves type and ability declarations to the front of the token stream
 -- and move `use` statements to the front of each block
-reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
+reorder :: [BlockTree (Token Lexeme)] -> [BlockTree (Token Lexeme)]
 reorder = foldr fixup [] . join . sortWith f . stanzas
   where
     f [] = 3 :: Int
@@ -1583,7 +1586,7 @@ reorder = foldr fixup [] . join . sortWith f . stanzas
     fixup tok tail = tok : tail
 
 -- | This turns the lexeme stream into a tree, reordering some lexeme subsequences.
-preParse :: [Token Lexeme] -> T (Token Lexeme)
+preParse :: [Token Lexeme] -> BlockTree (Token Lexeme)
 preParse = reorderTree reorder . tree
 
 -- | A few transformations that happen between lexing and parsing.
@@ -1631,8 +1634,8 @@ inc (Pos line col) = Pos line (col + 1)
 debugFilePreParse :: FilePath -> IO ()
 debugFilePreParse file = putStrLn . debugPreParse . preParse . lexer file . Text.unpack =<< readUtf8 file
 
-debugPreParse :: T (Token Lexeme) -> String
-debugPreParse (L (Token (Err (UnexpectedTokens msg)) start end)) =
+debugPreParse :: BlockTree (Token Lexeme) -> String
+debugPreParse (Leaf (Token (Err (UnexpectedTokens msg)) start end)) =
   (if start == end then msg1 else msg2) <> ":\n" <> msg
   where
     msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
