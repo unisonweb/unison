@@ -683,14 +683,16 @@ scratch/main> help
   
   reset
   `reset #pvfd222s8n`         reset the current namespace to the
-                              causal `#pvfd222s8n`
-  `reset foo`                 reset the current namespace to
-                              that of the `foo` namespace.
-  `reset foo bar`             reset the namespace `bar` to that
-                              of the `foo` namespace.
+                              hash `#pvfd222s8n`
+  `reset foo`                 reset the current namespace to the
+                              state of the `foo` namespace.
   `reset #pvfd222s8n /topic`  reset the branch `topic` of the
                               current project to the causal
                               `#pvfd222s8n`.
+  
+  If you make a mistake using reset, consult the `branch.reflog`
+  command and use another `reset` command to return to a
+  previous state.
   
   rewrite (or sfind.replace)
   `rewrite rule1` rewrites definitions in the latest scratch file.
