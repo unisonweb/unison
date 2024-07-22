@@ -221,8 +221,8 @@ test =
 
 t :: String -> [Lexeme] -> Test ()
 t s expected =
-  let actual0 = payload <$> lexer "ignored filename" s
-      actual = take (length actual0 - 2) . drop 1 $ actual0
+  let actual0 = payload <$> preParse (lexer "ignored filename" s)
+      actual = take (length actual0 - 2) . drop 1 $ toList actual0
    in scope s $
         if actual == expected
           then ok

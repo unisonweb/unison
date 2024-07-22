@@ -19,11 +19,11 @@ module Unison.Syntax.Lexer
     DocJoin (..),
     DocEmbedAnnotation (..),
     lexer,
+    preParse,
     escapeChars,
-    debugFileLex,
-    debugLex',
-    debugLex'',
-    debugLex''',
+    debugFilePreParse,
+    debugPreParse,
+    debugPreParse',
     showEscapeChar,
     touches,
 
@@ -1628,14 +1628,11 @@ typeModifiersAlt f =
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
 
-debugFileLex :: String -> IO ()
-debugFileLex file = do
-  contents <- readUtf8 file
-  let s = debugLex'' (lexer file (Text.unpack contents))
-  putStrLn s
+debugFilePreParse :: FilePath -> IO ()
+debugFilePreParse file = putStrLn . debugPreParse . preParse . lexer file . Text.unpack =<< readUtf8 file
 
-debugLex'' :: [Token Lexeme] -> String
-debugLex'' [Token (Err (UnexpectedTokens msg)) start end] =
+debugPreParse :: T (Token Lexeme) -> String
+debugPreParse (L (Token (Err (UnexpectedTokens msg)) start end)) =
   (if start == end then msg1 else msg2) <> ":\n" <> msg
   where
     msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
@@ -1648,13 +1645,10 @@ debugLex'' [Token (Err (UnexpectedTokens msg)) start end] =
         <> show (line end)
         <> ", column "
         <> show (column end)
-debugLex'' ts = show . fmap payload . tree $ ts
+debugPreParse ts = show $ payload <$> ts
 
-debugLex' :: String -> String
-debugLex' = debugLex'' . lexer "debugLex"
-
-debugLex''' :: String -> String -> String
-debugLex''' s = debugLex'' . lexer s
+debugPreParse' :: String -> String
+debugPreParse' = debugPreParse . preParse . lexer "debugPreParse"
 
 instance EP.ShowErrorComponent (Token Err) where
   showErrorComponent (Token err _ _) = go err

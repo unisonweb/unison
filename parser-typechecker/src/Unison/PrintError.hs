@@ -1336,7 +1336,7 @@ prettyParseError s e =
     lexerOutput :: Pretty (AnnotatedText a)
     lexerOutput =
       if showLexerOutput
-        then "\nLexer output:\n" <> fromString (L.debugLex' s)
+        then "\nLexer output:\n" <> fromString (L.debugPreParse' s)
         else mempty
 
 renderParseErrors ::

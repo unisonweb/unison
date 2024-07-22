@@ -61,6 +61,7 @@ where
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.Reader.Class (asks)
 import Crypto.Random qualified as Random
+import Data.Bool (bool)
 import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
 import Data.Bytes.VarInt (VarInt (..))
@@ -199,8 +200,7 @@ label = P.label
 traceRemainingTokens :: (Ord v) => String -> P v m ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
-  let _ =
-        trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
+  let _ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugPreParse (L.preParse remainingTokens)) ()
   pure ()
 
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
@@ -231,12 +231,9 @@ rootFile p = p <* P.eof
 
 run' :: (Monad m, Ord v) => P v m a -> String -> String -> ParsingEnv m -> m (Either (Err v) a)
 run' p s name env =
-  let lex =
-        if debug
-          then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
-          else L.lexer name s
+  let lex = bool id (traceWith L.debugPreParse) debug . L.preParse $ L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-   in runReaderT (runParserT pTraced name (Input lex)) env <&> \case
+   in runReaderT (runParserT pTraced name . Input $ toList lex) env <&> \case
         Left err -> Left (Nel.head (P.bundleErrors err))
         Right x -> Right x
 
