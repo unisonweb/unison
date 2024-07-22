@@ -1,10 +1,10 @@
 {
-  stack,
-  hpack,
+  lib,
   pkgs,
+  unison-project,
   versions,
 }: let
-  haskell-nix-flake = pkgs.unison-project.flake {};
+  haskell-nix-flake = unison-project.flake {};
   commonShellArgs = args:
     args
     // {
@@ -12,13 +12,30 @@
       # https://github.com/input-output-hk/haskell.nix/issues/1793
       # https://github.com/input-output-hk/haskell.nix/issues/1885
       allToolDeps = false;
-      additional = hpkgs: with hpkgs; [Cabal stm exceptions ghc ghc-heap];
-      buildInputs = let
-        native-packages =
-          pkgs.lib.optionals pkgs.stdenv.isDarwin
-          (with pkgs.darwin.apple_sdk.frameworks; [Cocoa]);
-      in
-        (args.buildInputs or []) ++ [stack hpack pkgs.pkg-config pkgs.zlib pkgs.glibcLocales] ++ native-packages;
+
+      additional = hpkgs:
+        (args.additional or (_: [])) hpkgs
+        ++ [
+          hpkgs.Cabal
+          hpkgs.exceptions
+          hpkgs.ghc
+          hpkgs.ghc-heap
+          hpkgs.stm
+        ];
+      buildInputs =
+        (args.buildInputs or [])
+        ++ [
+          pkgs.glibcLocales
+          pkgs.zlib
+        ];
+      nativeBuildInputs =
+        (args.nativeBuildInputs or [])
+        ++ [
+          pkgs.cachix
+          pkgs.hpack
+          pkgs.pkg-config
+          pkgs.stack-wrapped
+        ];
       # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
       shellHook = ''
         export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
@@ -26,7 +43,7 @@
       tools =
         (args.tools or {})
         // {
-          cabal = {};
+          cabal = {version = versions.cabal;};
           ormolu = {version = versions.ormolu;};
           haskell-language-server = {
             version = versions.hls;
@@ -49,49 +66,42 @@
         };
     };
 
-  shellFor = args: pkgs.unison-project.shellFor (commonShellArgs args);
+  shellFor = args: unison-project.shellFor (commonShellArgs args);
 
-  localPackages = with pkgs.lib; filterAttrs (k: v: v.isLocal or false) pkgs.unison-project.hsPkgs;
-  localPackageNames = builtins.attrNames localPackages;
-  devShells = let
-    mkDevShell = pkgName:
-      shellFor {
-        packages = hpkgs: [hpkgs."${pkgName}"];
-        withHoogle = true;
-      };
-    localPackageDevShells =
-      pkgs.lib.genAttrs localPackageNames mkDevShell;
-  in
-    {
-      only-tools = shellFor {
-        packages = _: [];
-        withHoogle = false;
-      };
-      local = shellFor {
-        packages = hpkgs: (map (p: hpkgs."${p}") localPackageNames);
-        withHoogle = false;
-      };
-    }
-    // localPackageDevShells;
-
-  checks =
-    haskell-nix-flake.checks
-    // {
-      ## This check has a test that tries to write to $HOME, so we give it a fake one.
-      "unison-cli:test:cli-tests" = haskell-nix-flake.checks."unison-cli:test:cli-tests".overrideAttrs (old: {
-        ## The builder here doesn’t `runHook preBuild`, so we just prepend onto `buildPhase`.
-        buildPhase =
-          ''
-            export HOME="$TMP/fake-home"
-            mkdir -p "$HOME"
-          ''
-          + old.buildPhase or "";
-      });
-    };
+  localPackages = lib.filterAttrs (k: v: v.isLocal or false) unison-project.hsPkgs;
 in
   haskell-nix-flake
   // {
+    checks =
+      haskell-nix-flake.checks
+      // {
+        ## This check has a test that tries to write to $HOME, so we give it a fake one.
+        "unison-cli:test:cli-tests" = haskell-nix-flake.checks."unison-cli:test:cli-tests".overrideAttrs (old: {
+          ## The builder here doesn’t `runHook preBuild`, so we just prepend onto `buildPhase`.
+          buildPhase =
+            ''
+              export HOME="$TMP/fake-home"
+              mkdir -p "$HOME"
+            ''
+            + old.buildPhase or "";
+        });
+      };
+
     defaultPackage = haskell-nix-flake.packages."unison-cli-main:exe:unison";
-    inherit (pkgs) unison-project;
-    inherit checks devShells localPackageNames;
+
+    devShells = let
+      mkDevShell = pkg:
+        shellFor {
+          packages = _hpkgs: [pkg];
+          ## Enabling Hoogle causes us to rebuild GHC.
+          withHoogle = false;
+        };
+    in
+      {
+        local = shellFor {
+          packages = _hpkgs: builtins.attrValues localPackages;
+          withHoogle = false;
+        };
+      }
+      // pkgs.lib.mapAttrs (_name: mkDevShell) localPackages;
   }

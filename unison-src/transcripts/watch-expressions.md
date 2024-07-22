@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison
@@ -7,7 +7,7 @@ test> pass = [Ok "Passed"]
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -15,8 +15,8 @@ test> pass = [Ok "Passed"]
 ```
 
 ```ucm
-.> add
-.> test
+scratch/main> add
+scratch/main> test
 ```
 
 ```unison

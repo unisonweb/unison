@@ -2,43 +2,43 @@ Ensure that Records keep their syntax after being added to the codebase
 
 ## Record with 1 field
 
-```unison
+``` unison
 unique type Record1 = { a : Text }
 ```
 
-```ucm
-.> view Record1
+``` ucm
+scratch/main> view Record1
 
   type Record1 = { a : Text }
 
 ```
 ## Record with 2 fields
 
-```unison
+``` unison
 unique type Record2 = { a : Text, b : Int }
 ```
 
-```ucm
-.> view Record2
+``` ucm
+scratch/main> view Record2
 
   type Record2 = { a : Text, b : Int }
 
 ```
 ## Record with 3 fields
 
-```unison
+``` unison
 unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
-```ucm
-.> view Record3
+``` ucm
+scratch/main> view Record3
 
   type Record3 = { a : Text, b : Int, c : Nat }
 
 ```
 ## Record with many fields
 
-```unison
+``` unison
 unique type Record4 =
   { a : Text
   , b : Int
@@ -50,8 +50,8 @@ unique type Record4 =
   }
 ```
 
-```ucm
-.> view Record4
+``` ucm
+scratch/main> view Record4
 
   type Record4
     = { a : Text,
@@ -65,7 +65,7 @@ unique type Record4 =
 ```
 ## Record with many many fields
 
-```unison
+``` unison
 unique type Record5 = {
   zero : Nat,
   one : [Nat],
@@ -91,8 +91,8 @@ unique type Record5 = {
 }
 ```
 
-```ucm
-.> view Record5
+``` ucm
+scratch/main> view Record5
 
   type Record5
     = { zero : Nat,
@@ -122,16 +122,16 @@ unique type Record5 = {
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
 
-```unison
+``` unison
 unique type UserType = UserType Nat
 
 unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 ```
 
-If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
+If you `view` or `edit` it, it *should* be treated as a record type, but it does not (which is a bug)
 
-```ucm
-.> view RecordWithUserType
+``` ucm
+scratch/main> view RecordWithUserType
 
   type RecordWithUserType
     = { a : Text, b : Record4, c : UserType }
@@ -141,14 +141,14 @@ If you `view` or `edit` it, it _should_ be treated as a record type, but it does
 
 Trailing commas are allowed.
 
-```unison
+``` unison
 unique type Record5 =
   { a : Text,
     b : Int,
   }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

@@ -31,6 +31,7 @@ data Token h
   | Double !Double
   | Hashed !h
   | Nat !Word64
+  deriving stock (Show)
 
 class Accumulate h where
   accumulate :: [Token h] -> h

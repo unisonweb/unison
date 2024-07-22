@@ -1,10 +1,10 @@
-```ucm
-.> builtins.merge
+``` ucm
+scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 5
 
@@ -12,7 +12,7 @@ bar : Nat
 bar = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,8 +26,8 @@ bar = 5
       foo : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -35,12 +35,12 @@ bar = 5
     foo : Nat
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 6
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -55,15 +55,15 @@ foo = 6
         (The old definition is also named bar.)
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view foo bar
+scratch/main> view foo bar
 
   bar : Nat
   bar = 5

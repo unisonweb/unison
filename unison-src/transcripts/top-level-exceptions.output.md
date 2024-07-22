@@ -1,10 +1,9 @@
-
 A simple transcript to test the use of exceptions that bubble to the top level.
 
 FYI, here are the `Exception` and `Failure` types:
 
-```ucm
-.> view Exception Failure
+``` ucm
+scratch/main> view Exception Failure
 
   structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
@@ -15,7 +14,7 @@ FYI, here are the `Exception` and `Failure` types:
 ```
 Here's a sample program just to verify that the typechecker allows `run` to throw exceptions:
 
-```unison
+``` unison
 use builtin IO Exception Test.Result
 
 main : '{IO, Exception} ()
@@ -25,7 +24,7 @@ mytest : '{IO, Exception} [Test.Result]
 mytest _ = [Ok "Great"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -39,32 +38,32 @@ mytest _ = [Ok "Great"]
       mytest : '{IO, Exception} [Result]
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   ()
 
-.> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     main   : '{IO, Exception} ()
     mytest : '{IO, Exception} [Result]
 
-.> io.test mytest
+scratch/main> io.test mytest
 
     New test results:
   
-  ◉ mytest   Great
+    1. mytest   ◉ Great
   
   ✅ 1 test(s) passing
   
-  Tip: Use view mytest to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Now a test to show the handling of uncaught exceptions:
 
-```unison
+``` unison
 main2 = '(error "oh noes!" ())
 
 error : Text -> a ->{Exception} x
@@ -74,7 +73,7 @@ error msg a =
 unique type RuntimeError =
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -89,8 +88,8 @@ unique type RuntimeError =
       main2 : '{Exception} r
 
 ```
-```ucm
-.> run main2
+``` ucm
+scratch/main> run main2
 
   💔💥
   

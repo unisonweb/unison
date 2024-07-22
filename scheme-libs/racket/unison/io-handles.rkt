@@ -3,7 +3,7 @@
          rnrs/io/ports-6
          (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
          (only-in racket empty? with-output-to-string system/exit-code system false?)
-         (only-in unison/boot data-case define-unison)
+         (only-in unison/boot data-case define-unison-builtin)
          unison/data
          unison/chunked-seq
          unison/data
@@ -15,26 +15,39 @@
 (provide
  unison-FOp-IO.stdHandle
  unison-FOp-IO.openFile.impl.v3
- (prefix-out
-  builtin-IO.
-  (combine-out
-    seekHandle.impl.v3
-    getLine.impl.v1
-    getSomeBytes.impl.v1
-    getBuffering.impl.v3
-    setBuffering.impl.v3
-    getEcho.impl.v1
-    setEcho.impl.v1
-    getArgs.impl.v1
-    getEnv.impl.v1
-    getChar.impl.v1
-    isFileOpen.impl.v3
-    isSeekable.impl.v3
-    handlePosition.impl.v3
-    process.call
-    getCurrentDirectory.impl.v3
-    ready.impl.v1
-    ))
+
+ builtin-IO.seekHandle.impl.v3
+ builtin-IO.seekHandle.impl.v3:termlink
+ builtin-IO.getLine.impl.v1
+ builtin-IO.getLine.impl.v1:termlink
+ builtin-IO.getSomeBytes.impl.v1
+ builtin-IO.getSomeBytes.impl.v1:termlink
+ builtin-IO.getBuffering.impl.v3
+ builtin-IO.getBuffering.impl.v3:termlink
+ builtin-IO.setBuffering.impl.v3
+ builtin-IO.setBuffering.impl.v3:termlink
+ builtin-IO.getEcho.impl.v1
+ builtin-IO.getEcho.impl.v1:termlink
+ builtin-IO.setEcho.impl.v1
+ builtin-IO.setEcho.impl.v1:termlink
+ builtin-IO.getArgs.impl.v1
+ builtin-IO.getArgs.impl.v1:termlink
+ builtin-IO.getEnv.impl.v1
+ builtin-IO.getEnv.impl.v1:termlink
+ builtin-IO.getChar.impl.v1
+ builtin-IO.getChar.impl.v1:termlink
+ builtin-IO.isFileOpen.impl.v3
+ builtin-IO.isFileOpen.impl.v3:termlink
+ builtin-IO.isSeekable.impl.v3
+ builtin-IO.isSeekable.impl.v3:termlink
+ builtin-IO.handlePosition.impl.v3
+ builtin-IO.handlePosition.impl.v3:termlink
+ builtin-IO.process.call
+ builtin-IO.process.call:termlink
+ builtin-IO.getCurrentDirectory.impl.v3
+ builtin-IO.getCurrentDirectory.impl.v3:termlink
+ builtin-IO.ready.impl.v1
+ builtin-IO.ready.impl.v1:termlink
 
 ; Still to implement:
 ;    handlePosition.impl.v3
@@ -49,28 +62,34 @@
            [f (ref-failure-failure typeLink msg a)])
     (ref-either-left f)))
 
-(define-unison (isFileOpen.impl.v3 port)
+(define-unison-builtin
+  (builtin-IO.isFileOpen.impl.v3 port)
     (ref-either-right (not (port-closed? port))))
 
-(define-unison (ready.impl.v1 port)
+(define-unison-builtin
+  (builtin-IO.ready.impl.v1 port)
     (if (byte-ready? port)
         (ref-either-right #t)
         (if (port-eof? port)
             (Exception ref-iofailure:typelink "EOF" port)
             (ref-either-right #f))))
 
-(define-unison (getCurrentDirectory.impl.v3 unit)
+(define-unison-builtin
+  (builtin-IO.getCurrentDirectory.impl.v3 unit)
     (ref-either-right
       (string->chunked-string (path->string (current-directory)))))
 
-(define-unison (isSeekable.impl.v3 handle)
+(define-unison-builtin
+  (builtin-IO.isSeekable.impl.v3 handle)
     (ref-either-right
         (port-has-set-port-position!? handle)))
 
-(define-unison (handlePosition.impl.v3 handle)
+(define-unison-builtin
+  (builtin-IO.handlePosition.impl.v3 handle)
     (ref-either-right (port-position handle)))
 
-(define-unison (seekHandle.impl.v3 handle mode amount)
+(define-unison-builtin
+  (builtin-IO.seekHandle.impl.v3 handle mode amount)
     (data-case mode
         (0 ()
             (set-port-position! handle amount)
@@ -85,14 +104,16 @@
               "SeekFromEnd not supported"
               0))))
 
-(define-unison (getLine.impl.v1 handle)
+(define-unison-builtin
+  (builtin-IO.getLine.impl.v1 handle)
   (let* ([line (read-line handle)])
     (if (eof-object? line)
         (ref-either-right (string->chunked-string ""))
         (ref-either-right (string->chunked-string line))
         )))
 
-(define-unison (getChar.impl.v1 handle)
+(define-unison-builtin
+  (builtin-IO.getChar.impl.v1 handle)
   (let* ([char (read-char handle)])
     (if (eof-object? char)
         (Exception
@@ -101,7 +122,8 @@
           ref-unit-unit)
         (ref-either-right char))))
 
-(define-unison (getSomeBytes.impl.v1 handle nbytes)
+(define-unison-builtin
+  (builtin-IO.getSomeBytes.impl.v1 handle nbytes)
   (let* ([buffer (make-bytes nbytes)]
          [line (read-bytes-avail! buffer handle)])
     (cond
@@ -119,7 +141,8 @@
              (subbytes buffer 0 line)
              buffer)))])))
 
-(define-unison (getBuffering.impl.v3 handle)
+(define-unison-builtin
+  (builtin-IO.getBuffering.impl.v3 handle)
     (case (file-stream-buffer-mode handle)
         [(none) (ref-either-right ref-buffermode-no-buffering)]
         [(line) (ref-either-right
@@ -135,7 +158,8 @@
                 "Unexpected response from file-stream-buffer-mode"
                 ref-unit-unit)]))
 
-(define-unison (setBuffering.impl.v3 handle mode)
+(define-unison-builtin
+  (builtin-IO.setBuffering.impl.v3 handle mode)
     (data-case mode
         (0 ()
             (file-stream-buffer-mode handle 'none)
@@ -166,7 +190,8 @@
     [(1) stdout]
     [(2) stderr]))
 
-(define-unison (getEcho.impl.v1 handle)
+(define-unison-builtin
+  (builtin-IO.getEcho.impl.v1 handle)
   (if (eq? handle stdin)
       (ref-either-right (get-stdin-echo))
       (Exception
@@ -174,7 +199,8 @@
         "getEcho only supported on stdin"
         ref-unit-unit)))
 
-(define-unison (setEcho.impl.v1 handle echo)
+(define-unison-builtin
+  (builtin-IO.setEcho.impl.v1 handle echo)
   (if (eq? handle stdin)
       (begin
         (if echo
@@ -190,12 +216,14 @@
   (let ([current (with-output-to-string (lambda () (system "stty -a")))])
     (string-contains? current " echo ")))
 
-(define-unison (getArgs.impl.v1 unit)
+(define-unison-builtin
+  (builtin-IO.getArgs.impl.v1 unit)
     (ref-either-right
       (vector->chunked-list
         (vector-map string->chunked-string (current-command-line-arguments)))))
 
-(define-unison (getEnv.impl.v1 key)
+(define-unison-builtin
+  (builtin-IO.getEnv.impl.v1 key)
     (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
         (if (false? value)
             (Exception
@@ -224,7 +252,8 @@
           s)
       "''"))
 
-(define-unison (process.call command arguments)
+(define-unison-builtin
+  (builtin-IO.process.call command arguments)
   (system/exit-code
           (string-join (cons
                         (chunked-string->string command)

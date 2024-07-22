@@ -1,13 +1,11 @@
-The `builtins.merge` command adds the known builtins to a `builtin` subnamespace within the current namespace.
+The `builtins.merge` command adds the known builtins to the specified subnamespace within the current namespace.
 
-```ucm
-  ☝️  The namespace .tmp is empty.
-
-.tmp> builtins.merge
+``` ucm
+scratch/main> builtins.merge builtins
 
   Done.
 
-.tmp> ls builtin
+scratch/main> ls builtins
 
   1.  Any                 (builtin type)
   2.  Any/                (2 terms)

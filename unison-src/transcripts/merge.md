@@ -3,9 +3,9 @@
 The `merge` command merges together two branches in the same project: the current branch (unspecificed), and the target
 branch. For example, to merge `topic` into `main`, switch to `main` and run `merge topic`:
 
-```ucm:error
-.> help merge
-.> help merge.commit
+```ucm
+scratch/main> help merge
+scratch/main> help merge.commit
 ```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
@@ -48,7 +48,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Basic merge: two identical adds
@@ -89,7 +89,7 @@ project/alice> view foo bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Simple update propagation
@@ -142,7 +142,7 @@ project/alice> display bar
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update propagation with common dependent
@@ -208,7 +208,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Propagating an update to an update
@@ -278,7 +278,7 @@ project/alice> display foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Update + delete isn't (currently) a conflict
@@ -323,7 +323,7 @@ project/alice> view foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 In a future version, we'd like to give the user a warning at least.
@@ -379,7 +379,7 @@ project/alice> view foo bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob = Alice)
@@ -397,7 +397,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## No-op merge (Bob < Alice)
@@ -425,7 +425,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Fast-forward merge (Bob > Alice)
@@ -453,7 +453,18 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
+```
+
+## No-op merge: merge empty namespace into empty namespace
+
+```ucm
+project/main> branch topic
+project/main> merge /topic
+```
+
+```ucm:hide
+scratch/main> project.delete project
 ```
 
 ## Merge failure: someone deleted something
@@ -498,7 +509,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type error
@@ -548,7 +559,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple term conflict
@@ -613,7 +624,7 @@ project/merge-bob-into-alice> view bar baz
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: simple type conflict
@@ -656,7 +667,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type-update + constructor-rename conflict
@@ -699,7 +710,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: constructor-rename conflict
@@ -737,7 +748,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: non-constructor/constructor conflict
@@ -778,7 +789,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge failure: type/type conflict with term/constructor conflict
@@ -829,7 +840,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 Here's a more involved example that demonstrates the same idea.
@@ -902,7 +913,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Merge algorithm quirk: add/add unique types
@@ -951,7 +962,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## `merge.commit` example (success)
@@ -960,7 +971,6 @@ After merge conflicts are resolved, you can use `merge.commit` rather than `swit
 "commit" your changes.
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio lib.builtins
 ```
 
@@ -1017,7 +1027,7 @@ project/alice> branches
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## `merge.commit` example (failure)
@@ -1025,7 +1035,6 @@ project/alice> branches
 `merge.commit` can only be run on a "merge branch".
 
 ```ucm:hide
-.> project.create-empty project
 project/main> builtins.mergeio lib.builtins
 ```
 
@@ -1038,7 +1047,7 @@ project/topic> merge.commit
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 
@@ -1097,7 +1106,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Conflict involving builtin
@@ -1138,7 +1147,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Constructor alias
@@ -1184,7 +1193,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Missing constructor name
@@ -1231,7 +1240,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Nested decl alias
@@ -1279,7 +1288,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Stray constructor alias
@@ -1323,7 +1332,7 @@ project/alice> merge bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Term or type in `lib`
@@ -1364,7 +1373,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## LCA precondition violations
@@ -1430,7 +1439,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ## Regression tests
@@ -1475,7 +1484,7 @@ project/alice> merge /bob
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
 ```
 
 ### Delete a constructor
@@ -1516,5 +1525,179 @@ project/main> view Foo
 ```
 
 ```ucm:hide
-.> project.delete project
+scratch/main> project.delete project
+```
+
+### Dependent that doesn't need to be in the file
+
+This test demonstrates a bug.
+
+
+```ucm:hide
+project/alice> builtins.mergeio lib.builtins
+```
+
+In the LCA, we have `foo` with dependent `bar`, and `baz`.
+
+```unison
+foo : Nat
+foo = 17
+
+bar : Nat
+bar = foo + foo
+
+baz : Text
+baz = "lca"
+```
+
+```ucm
+project/alice> add
+project/alice> branch bob
+```
+
+On Bob, we update `baz` to "bob".
+
+```unison
+baz : Text
+baz = "bob"
+```
+
+```ucm
+project/bob> update
+```
+
+On Alice, we update `baz` to "alice" (conflict), but also update `foo` (unconflicted), which propagates to `bar`.
+
+```unison
+foo : Nat
+foo = 18
+
+baz : Text
+baz = "alice"
+```
+
+```ucm
+project/alice> update
+```
+
+When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
+the underlying namespace.
+
+```ucm:error
+project/alice> merge /bob
+```
+
+But `bar` was put into the scratch file instead.
+
+```ucm:hide
+scratch/main> project.delete project
+```
+
+### Merge loop test
+
+This tests for regressions of https://github.com/unisonweb/unison/issues/1276 where trivial merges cause loops in the
+history.
+
+Let's make three identical namespaces with different histories:
+
+```unison
+a = 1
+```
+
+```ucm
+project/alice> add
+```
+
+```unison
+b = 2
+```
+
+```ucm
+project/alice> add
+```
+
+```unison
+b = 2
+```
+
+```ucm
+project/bob> add
+```
+
+```unison
+a = 1
+```
+
+```ucm
+project/bob> add
+```
+
+```unison
+a = 1
+b = 2
+```
+
+```ucm
+project/carol> add
+project/bob> merge /alice
+project/carol> merge /bob
+project/carol> history
+```
+
+```ucm:hide
+scratch/main> project.delete project
+```
+
+### Variables named `_`
+
+This test demonstrates a change in syntactic hashing that fixed a bug due to auto-generated variable names for ignored
+results.
+
+```ucm:hide
+scratch/alice> builtins.mergeio lib.builtins
+```
+
+```unison
+ignore : a -> ()
+ignore _ = ()
+
+foo : Nat
+foo = 18
+
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo
+```
+
+```ucm
+scratch/alice> add
+scratch/alice> branch bob
+```
+
+```unison
+bar : Nat
+bar =
+  ignore "hi"
+  foo + foo + foo
+```
+
+```ucm
+scratch/bob> update
+```
+
+Previously, this update to `foo` would also cause a "real update" on `bar`, its dependent. Now it doesn't, so the merge
+will succeed.
+
+```unison
+foo : Nat
+foo = 19
+```
+
+```ucm
+scratch/alice> update
+```
+
+```ucm
+scratch/alice> merge /bob
 ```

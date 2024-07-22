@@ -24,6 +24,8 @@ library:
     - mtl
     - rfc5051
     - safe
+    - semialign
+    - semigroups
     - text
     - text-builder
     - these
@@ -54,7 +56,7 @@ tests:
     source-dirs: test
 
 default-extensions:
-  - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - DeriveAnyClass
   - DeriveFoldable
@@ -62,17 +64,21 @@ default-extensions:
   - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
+  - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
+  - InstanceSigs
   - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedStrings
+  - OverloadedRecordDot
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables

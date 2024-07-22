@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat, baz : Int }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,8 +21,8 @@ unique type Foo = { bar : Nat, baz : Int }
       Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -35,11 +35,11 @@ unique type Foo = { bar : Nat, baz : Int }
     Foo.baz.set    : Int -> Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -58,8 +58,8 @@ unique type Foo = { bar : Nat }
 ```
 We want the field accessors to go away; but for now they are here, causing the update to fail.
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -70,11 +70,11 @@ We want the field accessors to go away; but for now they are here, causing the u
   definitions that need fixing. Once the file is compiling, try
   `update` again.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = { bar : Nat, baz : Int }
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
      type Foo
@@ -103,7 +103,7 @@ We want the field accessors to go away; but for now they are here, causing the u
   
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 Foo.baz : Foo -> Int
 Foo.baz = cases Foo _ baz -> baz
 

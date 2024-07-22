@@ -1,6 +1,6 @@
 # Tests for TLS builtins
 
-```unison
+``` unison
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
 
@@ -15,7 +15,7 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 
 First lets make sure we can load our cert and private key
 
-```unison
+``` unison
 this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
   Left (Failure _ t _) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
@@ -27,7 +27,7 @@ this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
 what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -42,8 +42,8 @@ what_should_work _ = this_should_work ++ this_should_not_work
       what_should_work     : ∀ _. _ -> [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -51,16 +51,16 @@ what_should_work _ = this_should_work ++ this_should_not_work
     this_should_work     : [Result]
     what_should_work     : ∀ _. _ -> [Result]
 
-.> io.test what_should_work
+scratch/main> io.test what_should_work
 
     New test results:
   
-  ◉ what_should_work   succesfully decoded self_signed_pem
-  ◉ what_should_work   failed
+    1. what_should_work   ◉ succesfully decoded self_signed_pem
+                          ◉ failed
   
   ✅ 2 test(s) passing
   
-  Tip: Use view what_should_work to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 Test handshaking a client/server a local TCP connection using our
@@ -71,7 +71,7 @@ We'll create a server and a client, and start threads for each.
 The server will report the port it is bound to via a passed MVar which
 the client can read.
 
-```unison
+``` unison
 serverThread: MVar Nat -> Text -> '{io2.IO}()
 serverThread portVar toSend = 'let
   go: '{io2.IO, Exception}()
@@ -217,7 +217,7 @@ testCNReject _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -237,8 +237,8 @@ testCNReject _ =
       testConnectSelfSigned : '{IO} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -251,35 +251,34 @@ testCNReject _ =
                             -> '{IO, Exception} Text
     testConnectSelfSigned : '{IO} [Result]
 
-.> io.test testConnectSelfSigned
+scratch/main> io.test testConnectSelfSigned
 
     New test results:
   
-  ◉ testConnectSelfSigned   should have reaped what we've sown
+    1. testConnectSelfSigned   ◉ should have reaped what we've sown
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testConnectSelfSigned to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
-.> io.test testCAReject
+scratch/main> io.test testCAReject
 
     New test results:
   
-  ◉ testCAReject   correctly rejected self-signed cert
+    1. testCAReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testCAReject to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
-.> io.test testCNReject
+scratch/main> io.test testCNReject
 
     New test results:
   
-  ◉ testCNReject   correctly rejected self-signed cert
+    1. testCNReject   ◉ correctly rejected self-signed cert
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testCNReject to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

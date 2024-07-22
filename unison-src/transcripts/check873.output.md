@@ -1,10 +1,10 @@
 See [this ticket](https://github.com/unisonweb/unison/issues/873); the point being, this shouldn't crash the runtime. :)
 
-```unison
+``` unison
 (-) = builtin.Nat.sub
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,19 +17,19 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
       - : Nat -> Nat -> Int
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     - : Nat -> Nat -> Int
 
 ```
-```unison
+``` unison
 baz x = x - 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

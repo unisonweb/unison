@@ -1,9 +1,47 @@
 # Tests for `move.namespace`
 
+
+## Moving the Root
+
+I should be able to move the root into a sub-namespace
+
+```unison:hide
+foo = 1
+```
+
+```ucm
+scratch/main> add
+-- Should request confirmation
+scratch/main> move.namespace . .root.at.path
+scratch/main> move.namespace . .root.at.path
+scratch/main> ls
+scratch/main> history
+```
+
+```ucm
+scratch/main> ls .root.at.path
+scratch/main> history .root.at.path
+```
+
+I should be able to move a sub namespace _over_ the root.
+
+```ucm
+-- Should request confirmation
+scratch/main> move.namespace .root.at.path .
+scratch/main> move.namespace .root.at.path .
+scratch/main> ls
+scratch/main> history
+```
+
+
+```ucm:error
+-- should be empty
+scratch/main> ls .root.at.path
+scratch/main> history .root.at.path
+```
+
 ```ucm:hide
-.happy> builtins.merge
-.history> builtins.merge
-.existing> builtins.merge
+scratch/happy> builtins.merge lib.builtins
 ```
 
 ## Happy path
@@ -16,7 +54,7 @@ unique type a.T = T
 ```
 
 ```ucm
-.happy> add
+scratch/happy> add
 ```
 
 ```unison
@@ -25,20 +63,23 @@ unique type a.T = T1 | T2
 ```
 
 ```ucm
-.happy> update
+scratch/happy> update
 ```
 
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
 
 ```ucm
-.happy> move.namespace a b
-.happy> ls b
-.happy> history b
+scratch/happy> move.namespace a b
+scratch/happy> ls b
+scratch/happy> history b
 ```
 
 
 ## Namespace history
 
+```ucm:hide
+scratch/history> builtins.merge lib.builtins
+```
 
 Create some namespaces and add some history to them
 
@@ -48,7 +89,7 @@ b.termInB = 10
 ```
 
 ```ucm
-.history> add
+scratch/history> add
 ```
 
 ```unison
@@ -57,24 +98,28 @@ b.termInB = 11
 ```
 
 ```ucm
-.history> update
+scratch/history> update
 ```
 
 Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
-of the moved namespace. 
+of the moved namespace.
 
 ```ucm
-.history> delete.namespace b
-.history> move.namespace a b
+scratch/history> delete.namespace b
+scratch/history> move.namespace a b
 -- Should be the history from 'a'
-.history> history b
+scratch/history> history b
 -- Should be empty
-.history> history a
+scratch/history> history a
 ```
 
 
-## Moving over an existing branch 
+## Moving over an existing branch
+
+```ucm:hide
+scratch/existing> builtins.merge lib.builtins
+```
 
 Create some namespace and add some history to them
 
@@ -84,7 +129,7 @@ b.termInB = 10
 ```
 
 ```ucm
-.existing> add
+scratch/existing> add
 ```
 
 ```unison
@@ -93,40 +138,7 @@ b.termInB = 11
 ```
 
 ```ucm
-.existing> update
-.existing> move.namespace a b
+scratch/existing> update
+scratch/existing> move.namespace a b
 ```
 
-## Moving the Root 
-
-I should be able to move the root into a sub-namespace
-
-```ucm
--- Should request confirmation
-.> move.namespace . .root.at.path
-.> move.namespace . .root.at.path
-.> ls
-.> history
-```
-
-```ucm
-.> ls .root.at.path
-.> history .root.at.path
-```
-
-I should be able to move a sub namespace _over_ the root.
-
-```ucm
--- Should request confirmation
-.> move.namespace .root.at.path.happy .
-.> move.namespace .root.at.path.happy .
-.> ls
-.> history
-```
-
-
-```ucm:error
--- should be empty
-.> ls .root.at.path.happy
-.> history .root.at.path.happy
-```

@@ -78,7 +78,7 @@ module Unison.Util.Pretty
     lineSkip,
     nonEmpty,
     numbered,
-    numberedColumn2,
+    numberedColumn2ListFrom,
     numberedColumn2Header,
     numberedColumnNHeader,
     numberedList,
@@ -544,12 +544,12 @@ numberedHeader num ps = column2 (fmap num (Nothing : fmap Just [1 ..]) `zip` toL
 -- 1. one thing     : this is a thing
 -- 2. another thing : this is another thing
 -- 3. and another   : yet one more thing
-numberedColumn2 ::
-  (Foldable f, LL.ListLike s Char, IsString s) =>
-  (Int -> Pretty s) ->
-  f (Pretty s, Pretty s) ->
-  Pretty s
-numberedColumn2 num ps = numbered num (align $ toList ps)
+numberedColumn2ListFrom ::
+  (Foldable f) =>
+  Int ->
+  f (Pretty ColorText, Pretty ColorText) ->
+  Pretty ColorText
+numberedColumn2ListFrom num ps = numberedListFrom num (align $ toList ps)
 
 numberedColumn2Header ::
   (Foldable f, LL.ListLike s Char, IsString s) =>

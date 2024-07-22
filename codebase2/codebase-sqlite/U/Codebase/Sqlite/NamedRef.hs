@@ -58,7 +58,7 @@ instance (FromRow ref) => FromRow (NamedRef ref) where
 newtype ScopedRow ref
   = ScopedRow (NamedRef ref)
 
-instance ToRow ref => ToRow (ScopedRow ref) where
+instance (ToRow ref) => ToRow (ScopedRow ref) where
   toRow (ScopedRow (NamedRef {reversedSegments = revSegments, ref})) =
     SQLText reversedName : SQLText namespace : SQLText lastNameSegment : toRow ref
     where

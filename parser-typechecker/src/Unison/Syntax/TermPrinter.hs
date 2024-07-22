@@ -35,7 +35,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -459,7 +459,7 @@ pretty0
                     go tm = goNormal 10 tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
-                pure $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
+                pure $ PP.group $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
               BinaryAppsPred' apps lastArg -> do
                 prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
                 prettyApps <- binaryApps apps prettyLast
@@ -490,7 +490,7 @@ pretty0
               (App' x (Constructor' (ConstructorReference DD.UnitRef 0)), _) | isLeaf x -> do
                 px <- pretty0 (ac (if isBlock x then 0 else 9) Normal im doc) x
                 pure . paren (p >= 11 || isBlock x && p >= 3) $
-                  fmt S.DelayForceChar (l "!") <> PP.indentNAfterNewline 1 px
+                  px <> fmt S.Unit (l "()")
               (Apps' f (unsnoc -> Just (args, lastArg)), _)
                 | isSoftHangable lastArg -> do
                     fun <- goNormal 9 f
@@ -969,7 +969,7 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
                           PP.group $
                             PP.group (defnLhs v vs <> fmt S.BindingEquals " = ")
                               <> prettyBody
-                              `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
+                                `PP.orElse` ("\n" <> PP.indentN 2 prettyBody)
                       }
             _ ->
               pure $
@@ -1532,7 +1532,7 @@ immediateChildBlockTerms = \case
     doLet (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet t = error (show t) []
 
-isSoftHangable :: Var v => Term2 vt at ap v a -> Bool
+isSoftHangable :: (Var v) => Term2 vt at ap v a -> Bool
 -- isSoftHangable (Delay' d) = isLet d || isSoftHangable d || case d of
 --    Match' scrute cases -> isDestructuringBind scrute cases
 --    _ -> False
@@ -1958,7 +1958,7 @@ toDocExample' suffix ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
   | nameEndsWith ppe suffix r,
     ABT.freeVars l == mempty,
     ok tm =
-      Just (lam' (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
+      Just (lamWithoutBindingAnns (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
   where
     ok (Apps' f _) = ABT.freeVars f == mempty
     ok tm = ABT.freeVars tm == mempty
@@ -2160,7 +2160,7 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
                   & maybe fullName HQ'.NameOnly
            in (fullName, minimallySuffixed)
     tweak _ p = p
-    varToName :: Var v => v -> [Name]
+    varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name
 
 isLeaf :: Term2 vt at ap v a -> Bool

@@ -23,7 +23,7 @@ test = scope "clearWatchCache" $
         c
         [i|
       ```ucm
-      .> alias.term ##Nat.+ +
+      scratch/main> alias.term ##Nat.+ +
       ```
       ```unison
       > 1 + 1
@@ -38,7 +38,7 @@ test = scope "clearWatchCache" $
         c
         [i|
       ```ucm
-      .> debug.clear-cache
+      scratch/main> debug.clear-cache
       ```
     |]
 

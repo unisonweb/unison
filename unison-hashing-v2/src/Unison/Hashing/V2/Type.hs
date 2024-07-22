@@ -103,15 +103,15 @@ charRef = ReferenceBuiltin "Char"
 listRef = ReferenceBuiltin "Sequence"
 effectRef = ReferenceBuiltin "Effect"
 
-forall :: (Ord v) => a -> v -> Type v a -> Type v a
-forall a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))
+forAll :: (Ord v) => a -> v -> Type v a -> Type v a
+forAll a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
 generalize :: (Ord v) => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
   where
     f v t =
-      if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
+      if Set.member v (ABT.freeVars t) then forAll (ABT.annotation t) v t else t
 
 unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)

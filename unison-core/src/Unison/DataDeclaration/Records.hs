@@ -41,7 +41,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
 
         -- point -> case point of Point _ y _ -> y
         get =
-          Term.lam ann argname $
+          Term.lam ann (ann, argname) $
             Term.match
               ann
               (Term.var ann argname)
@@ -57,7 +57,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
 
         -- y' point -> case point of Point x _ z -> Point x y' z
         set =
-          Term.lam' ann [fname', argname] $
+          Term.lam' ann [(ann, fname'), (ann, argname)] $
             Term.match
               ann
               (Term.var ann argname)
@@ -86,7 +86,7 @@ generateRecordAccessors namespaced generatedAnn fields typename typ =
 
         -- example: `f point -> case point of Point x y z -> Point x (f y) z`
         modify =
-          Term.lam' ann [fname', argname] $
+          Term.lam' ann [(ann, fname'), (ann, argname)] $
             Term.match
               ann
               (Term.var ann argname)

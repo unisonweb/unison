@@ -1,4 +1,4 @@
-```unison
+``` unison
 structural ability DC r where
   shift : ((a -> r) -> r) -> a
 
@@ -43,7 +43,7 @@ mkTestCase = do
   saveTestCase "case-03" "v4" finish trip
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -67,8 +67,8 @@ mkTestCase = do
       suspSum    : [Nat] -> Delayed Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -84,7 +84,7 @@ mkTestCase = do
     reset      : '{DC r} r -> r
     suspSum    : [Nat] -> Delayed Nat
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

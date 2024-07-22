@@ -4,14 +4,14 @@
 
 Create a term, type, and namespace with history
 
-```unison
+``` unison
 Foo = 2
 unique type Foo = Foo
 Foo.termInA = 1
 unique type Foo.T = T
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,8 +27,8 @@ unique type Foo.T = T
       Foo.termInA : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -38,12 +38,12 @@ unique type Foo.T = T
     Foo.termInA : Nat
 
 ```
-```unison
+``` unison
 Foo.termInA = 2
 unique type Foo.T = T1 | T2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -59,8 +59,8 @@ unique type Foo.T = T1 | T2
         (also named Foo)
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -70,26 +70,26 @@ unique type Foo.T = T1 | T2
 ```
 Should be able to move the term, type, and namespace, including its types, terms, and sub-namespaces.
 
-```ucm
-.> move Foo Bar
+``` ucm
+scratch/main> move Foo Bar
 
   Done.
 
-.> ls
+scratch/main> ls
 
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
   4. builtin/ (469 terms, 74 types)
 
-.> ls Bar
+scratch/main> ls Bar
 
   1. Foo     (Bar)
   2. T       (type)
   3. T/      (2 terms)
   4. termInA (Nat)
 
-.> history Bar
+scratch/main> history Bar
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -109,11 +109,11 @@ Should be able to move the term, type, and namespace, including its types, terms
 ```
 ## Happy Path - Just term
 
-```unison
+``` unison
 bonk = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -126,24 +126,22 @@ bonk = 5
       bonk : Nat
 
 ```
-```ucm
-  ☝️  The namespace .z is empty.
-
-.z> builtins.merge
+``` ucm
+z/main> builtins.merge
 
   Done.
 
-.z> add
+z/main> add
 
   ⍟ I've added these definitions:
   
     bonk : Nat
 
-.z> move bonk zonk
+z/main> move bonk zonk
 
   Done.
 
-.z> ls
+z/main> ls
 
   1. builtin/ (469 terms, 74 types)
   2. zonk     (Nat)
@@ -151,11 +149,11 @@ bonk = 5
 ```
 ## Happy Path - Just namespace
 
-```unison
+``` unison
 bonk.zonk = 5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -169,29 +167,27 @@ bonk.zonk = 5
         (also named zonk)
 
 ```
-```ucm
-  ☝️  The namespace .a is empty.
-
-.a> builtins.merge
+``` ucm
+a/main> builtins.merge
 
   Done.
 
-.a> add
+a/main> add
 
   ⍟ I've added these definitions:
   
     bonk.zonk : Nat
 
-.a> move bonk zonk
+a/main> move bonk zonk
 
   Done.
 
-.a> ls
+a/main> ls
 
   1. builtin/ (469 terms, 74 types)
   2. zonk/    (1 term)
 
-.a> view zonk.zonk
+a/main> view zonk.zonk
 
   zonk.zonk : Nat
   zonk.zonk = 5
@@ -199,8 +195,8 @@ bonk.zonk = 5
 ```
 ## Sad Path - No term, type, or namespace named src
 
-```ucm
-.> move doesntexist foo
+``` ucm
+scratch/main> move doesntexist foo
 
   ⚠️
   

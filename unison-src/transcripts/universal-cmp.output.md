@@ -1,8 +1,7 @@
-
 File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
-```unison
+``` unison
 unique type A = A
 
 threadEyeDeez _ =
@@ -11,7 +10,7 @@ threadEyeDeez _ =
   (t1 == t2, t1 < t2)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -25,27 +24,27 @@ threadEyeDeez _ =
       threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
-.> run threadEyeDeez
+scratch/main> run threadEyeDeez
 
   (false, true)
 
 ```
-```unison
+``` unison
 > typeLink A == typeLink A
 > typeLink Text == typeLink Text
 > typeLink Text == typeLink A
 > termLink threadEyeDeez == termLink threadEyeDeez
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

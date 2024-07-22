@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/issues/2786
 
 ```ucm:hide
-.ns> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 First we add an ability to the codebase.
@@ -15,7 +15,7 @@ unique ability Channels where
 ```
 
 ```ucm
-.ns> add
+scratch/main> add
 ```
 
 Now we update the ability, changing the name of the constructor, _but_, we simultaneously
@@ -36,8 +36,8 @@ thing _ = send 1
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
 ```ucm:error
-.ns> update.old patch Channels.send
-.ns> update.old patch thing
+scratch/main> update.old patch Channels.send
+scratch/main> update.old patch thing
 ```
 
 If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
@@ -56,20 +56,20 @@ thing _ = send 1
 These updates should succeed since `Channels` is a dependency.
 
 ```ucm
-.ns> update.old.preview patch Channels.send
-.ns> update.old.preview patch thing
+scratch/main> update.old.preview patch Channels.send
+scratch/main> update.old.preview patch thing
 ```
 
 We should also be able to successfully update the whole thing.
 
 ```ucm
-.ns> update.old
+scratch/main> update.old
 ```
 
 # Constructor-term conflict
 
 ```ucm:hide
-.ns2> builtins.merge
+scratch/main2> builtins.merge lib.builtins
 ```
 
 
@@ -78,7 +78,7 @@ X.x = 1
 ```
 
 ```ucm
-.ns2> add
+scratch/main2> add
 ```
 
 ```unison
@@ -89,5 +89,5 @@ structural ability X where
 This should fail with a ctor/term conflict.
 
 ```ucm:error
-.ns2> add
+scratch/main2> add
 ```

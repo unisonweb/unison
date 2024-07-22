@@ -67,7 +67,6 @@ type TermSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TermSummary
@@ -98,11 +97,11 @@ serveTermSummary ::
   Codebase IO Symbol Ann ->
   Referent ->
   Maybe Name ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TermSummary
-serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
+serveTermSummary codebase referent mayName root relativeTo mayWidth = do
   let shortHash = Referent.toShortHash referent
   let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
   let relativeToPath = fromMaybe Path.empty relativeTo
@@ -111,7 +110,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
 
   (root, sig) <-
     Backend.hoistBackend (Codebase.runTransaction codebase) do
-      root <- Backend.normaliseRootCausalHash mayRoot
+      root <- Backend.normaliseRootCausalHash root
       sig <- lift (Backend.loadReferentType codebase referent)
       pure (root, sig)
   case sig of
@@ -126,7 +125,7 @@ serveTermSummary codebase referent mayName mayRoot relativeTo mayWidth = do
               namesPerspective <- Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce . Path.toList $ fromMaybe Path.Empty relativeTo)
               PPESqlite.ppedForReferences namesPerspective deps
           False -> do
-            (_localNames, ppe) <- Backend.namesAtPathFromRootBranchHash codebase (Just root) relativeToPath
+            (_localNames, ppe) <- Backend.namesAtPathFromRootBranchHash codebase root relativeToPath
             pure ppe
       let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
       let summary = mkSummary termReference formattedTermSig
@@ -150,7 +149,6 @@ type TypeSummaryAPI =
     -- It's propagated through to the response as-is.
     -- If missing, the short hash will be used instead.
     :> QueryParam "name" Name
-    :> QueryParam "rootBranch" ShortCausalHash
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TypeSummary
@@ -181,7 +179,7 @@ serveTypeSummary ::
   Codebase IO Symbol Ann ->
   Reference ->
   Maybe Name ->
-  Maybe (Either ShortCausalHash CausalHash) ->
+  Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->
   Maybe Width ->
   Backend IO TypeSummary

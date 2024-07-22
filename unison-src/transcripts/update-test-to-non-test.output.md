@@ -1,14 +1,14 @@
-```ucm
-.> builtins.merge
+``` ucm
+scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 test> foo = []
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -29,24 +29,24 @@ test> foo = []
 ```
 After adding the test `foo`, we expect `view` to render it like a test. (Bug: It doesn't.)
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     foo : [Result]
 
-.> view foo
+scratch/main> view foo
 
   foo : [Result]
   foo = []
 
 ```
-```unison
+``` unison
 foo = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -62,15 +62,15 @@ foo = 1
 ```
 After updating `foo` to not be a test, we expect `view` to not render it like a test.
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view foo
+scratch/main> view foo
 
   foo : Nat
   foo = 1

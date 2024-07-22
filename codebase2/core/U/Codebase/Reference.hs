@@ -74,7 +74,7 @@ data ReferenceType = RtTerm | RtType deriving (Eq, Ord, Show)
 data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
-  deriving stock (Eq, Generic, Ord, Show)
+  deriving stock (Eq, Generic, Functor, Ord, Show)
 
 -- | A type declaration reference.
 type TermReference' t h = Reference' t h

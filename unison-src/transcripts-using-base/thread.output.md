@@ -1,6 +1,6 @@
 Lets just make sure we can start a thread
 
-```unison
+``` unison
 otherThread : '{io2.IO}()
 otherThread = 'let
   watch "I'm the other Thread" ()
@@ -16,7 +16,7 @@ testBasicFork = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,7 +32,7 @@ testBasicFork = 'let
 ```
 See if we can get another thread to stuff a value into a MVar
 
-```unison
+``` unison
 thread1 : Nat -> MVar Nat -> '{io2.IO}()
 thread1 x mv = 'let
   go = 'let
@@ -56,7 +56,7 @@ testBasicMultiThreadMVar = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -70,27 +70,26 @@ testBasicMultiThreadMVar = 'let
       thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testBasicMultiThreadMVar : '{IO} [Result]
     thread1                  : Nat -> MVar Nat -> '{IO} ()
 
-.> io.test testBasicMultiThreadMVar
+scratch/main> io.test testBasicMultiThreadMVar
 
     New test results:
   
-  ◉ testBasicMultiThreadMVar   other thread should have incremented
+    1. testBasicMultiThreadMVar   ◉ other thread should have incremented
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testBasicMultiThreadMVar to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
-```unison
+``` unison
 sendingThread: Nat -> MVar Nat -> '{io2.IO}()
 sendingThread toSend mv = 'let
   go = 'let
@@ -128,7 +127,7 @@ testTwoThreads = 'let
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -144,8 +143,8 @@ testTwoThreads = 'let
       testTwoThreads  : '{IO} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -154,14 +153,14 @@ testTwoThreads = 'let
       (also named thread1)
     testTwoThreads  : '{IO} [Result]
 
-.> io.test testTwoThreads
+scratch/main> io.test testTwoThreads
 
     New test results:
   
-  ◉ testTwoThreads   
+    1. testTwoThreads   ◉ 
   
   ✅ 1 test(s) passing
   
-  Tip: Use view testTwoThreads to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

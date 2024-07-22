@@ -207,7 +207,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
 rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
 rmapPattern ft fr p = runIdentity . rmapPatternM (pure . ft) (pure . fr) $ p
 
-rmapPatternM :: Applicative m => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
+rmapPatternM :: (Applicative m) => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
 rmapPatternM ft fr = go
   where
     go = \case
@@ -260,7 +260,7 @@ dependencies =
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
   forall v extra.
-  ABT.Var v =>
+  (ABT.Var v) =>
   -- | The hash of the component, this is used to fill in self-references.
   Hash ->
   -- | A function to convert a reference to a variable. The actual var names aren't important.

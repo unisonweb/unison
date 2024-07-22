@@ -51,7 +51,7 @@ testMvars _ =
   runTest test
 ```
 ```ucm
-.> add
-.> io.test testMvars
+scratch/main> add
+scratch/main> io.test testMvars
 ```
 

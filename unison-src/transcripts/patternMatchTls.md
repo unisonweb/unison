@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 We had bugs in the calling conventions for both send and terminate which would
@@ -29,6 +29,6 @@ assertRight = cases
 
 
 ```ucm
-.> add
-.> run frank
+scratch/main> add
+scratch/main> run frank
 ```

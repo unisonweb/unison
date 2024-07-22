@@ -1,3 +1,4 @@
+-- | @update@ input handler.
 module Unison.Codebase.Editor.HandleInput.Update2
   ( handleUpdate2,
 
@@ -49,6 +50,7 @@ import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.Type (Codebase)
 import Unison.ConstructorReference (GConstructorReference (ConstructorReference))
 import Unison.DataDeclaration (DataDeclaration, Decl)
@@ -106,8 +108,8 @@ handleUpdate2 = do
   Cli.Env {codebase, writeSource} <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
-  currentPath <- Cli.getCurrentPath
-  currentBranch0 <- Cli.getBranch0At currentPath
+  pp <- Cli.getCurrentProjectPath
+  currentBranch0 <- Cli.getCurrentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames (currentBranch0 & over Branch.children (Map.delete NameSegment.libSegment))
   let ctorNames = forwardCtorNames namesExcludingLibdeps
@@ -141,7 +143,7 @@ handleUpdate2 = do
       then pure tuf
       else do
         Cli.respond Output.UpdateStartTypechecking
-        parsingEnv <- makeParsingEnv currentPath namesIncludingLibdeps
+        parsingEnv <- makeParsingEnv pp namesIncludingLibdeps
         secondTuf <-
           prettyParseTypecheck bigUf pped parsingEnv & onLeftM \prettyUf -> do
             scratchFilePath <- fst <$> Cli.expectLatestFile
@@ -185,7 +187,7 @@ prettyParseTypecheck2 prettyUf parsingEnv = do
           Result.Result _notes Nothing -> Left prettyUf
 
 -- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
-makeParsingEnv :: Path.Absolute -> Names -> Cli (Parser.ParsingEnv Transaction)
+makeParsingEnv :: ProjectPath -> Names -> Cli (Parser.ParsingEnv Transaction)
 makeParsingEnv path names = do
   Cli.Env {generateUniqueName} <- ask
   uniqueName <- liftIO generateUniqueName
@@ -200,12 +202,12 @@ makeParsingEnv path names = do
 saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
 saveTuf getConstructors tuf = do
   Cli.Env {codebase} <- ask
-  currentPath <- Cli.getCurrentPath
+  pp <- Cli.getCurrentProjectPath
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
       Codebase.addDefsToCodebase codebase tuf
       typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
-  Cli.stepAt "update" (Path.unabsolute currentPath, Branch.batchUpdates branchUpdates)
+  Cli.stepAt "update" (pp, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
@@ -511,17 +513,8 @@ getNamespaceDependentsOf ::
   Set Reference ->
   Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf names dependencies = do
-  dependents <- Ops.dependentsWithinScope (Names.referenceIds names) dependencies
-  let dependents1 :: DefnsF Set TermReferenceId TypeReferenceId
-      dependents1 =
-        Map.foldlWithKey'
-          ( \defns refId -> \case
-              Reference.RtTerm -> let !terms1 = Set.insert refId defns.terms in defns & #terms .~ terms1
-              Reference.RtType -> let !types1 = Set.insert refId defns.types in defns & #types .~ types1
-          )
-          (Defns Set.empty Set.empty)
-          dependents
-  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents1)
+  dependents <- Ops.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
+  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
   where
     nameTerm :: TermReferenceId -> Relation Name TermReferenceId
     nameTerm ref =
@@ -542,26 +535,21 @@ getNamespaceDependentsOf2 defns dependencies = do
   let scope = bifoldMap toTermScope toTypeScope defns
 
   dependents <-
-    Ops.dependentsWithinScope scope dependencies
-
-  let (termDependentRefs, typeDependentRefs) =
-        dependents & Map.partition \case
-          Reference.RtTerm -> True
-          Reference.RtType -> False
+    Ops.transitiveDependentsWithinScope scope dependencies
 
   pure
     Defns
-      { terms = Map.foldlWithKey' addTerms Map.empty termDependentRefs,
-        types = Map.foldlWithKey' addTypes Map.empty typeDependentRefs
+      { terms = Set.foldl' addTerms Map.empty dependents.terms,
+        types = Set.foldl' addTypes Map.empty dependents.types
       }
   where
-    addTerms :: Map Name TermReferenceId -> TermReferenceId -> ignored -> Map Name TermReferenceId
-    addTerms acc0 ref _ =
+    addTerms :: Map Name TermReferenceId -> TermReferenceId -> Map Name TermReferenceId
+    addTerms acc0 ref =
       let names = BiMultimap.lookupDom (Referent.fromTermReferenceId ref) defns.terms
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
-    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> ignored -> Map Name TypeReferenceId
-    addTypes acc0 ref _ =
+    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> Map Name TypeReferenceId
+    addTypes acc0 ref =
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 

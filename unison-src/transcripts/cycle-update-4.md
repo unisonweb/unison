@@ -1,7 +1,7 @@
 `update` properly discovers and establishes new cycles.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -13,7 +13,7 @@ pong _ = !ping + 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -25,6 +25,6 @@ clang _ = !pong + 3
 ```
 
 ```ucm
-.> update.old ping
-.> view ping pong clang
+scratch/main> update.old ping
+scratch/main> view ping pong clang
 ```

@@ -8,8 +8,6 @@ module Unison.Syntax.Lexer
     Pos (..),
     Lexeme (..),
     lexer,
-    line,
-    column,
     escapeChars,
     debugFileLex,
     debugLex',
@@ -46,7 +44,7 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Lexer.Pos (Column, Line, Pos (Pos), column, line)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -56,7 +54,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
@@ -71,11 +69,18 @@ type BlockName = String
 type Layout = [(BlockName, Column)]
 
 data ParsingEnv = ParsingEnv
-  { layout :: !Layout, -- layout stack
-    opening :: Maybe BlockName, -- `Just b` if a block of type `b` is being opened
-    inLayout :: Bool, -- are we inside a construct that uses layout?
-    parentSection :: Int, -- 1 means we are inside a # Heading 1
-    parentListColumn :: Int -- 4 means we are inside a list starting at the fourth column
+  { -- layout stack
+    layout :: !Layout,
+    -- `Just b` if a block of type `b` is being opened
+    opening :: Maybe BlockName,
+    -- are we inside a construct that uses layout?
+    inLayout :: Bool,
+    -- Use a stack to remember the parent section and
+    -- allow docSections within docSections.
+    -- 1 means we are inside a # Heading 1
+    parentSections :: [Int],
+    -- 4 means we are inside a list starting at the fourth column
+    parentListColumn :: Int
   }
   deriving (Show)
 
@@ -95,8 +100,7 @@ parseFailure :: EP.ParseError [Char] (Token Err) -> P a
 parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
-  = InvalidWordyId String
-  | ReservedWordyId String
+  = ReservedWordyId String
   | InvalidSymbolyId String
   | ReservedSymbolyId String
   | InvalidShortHash String
@@ -309,7 +313,7 @@ lexer0' scope rem =
       (P.EndOfInput) -> "end of input"
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
     toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-    env0 = ParsingEnv [] (Just scope) True 0 0
+    env0 = ParsingEnv [] (Just scope) True [0] 0
     -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
     -- fix without adding more state to the lexer:
     --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -428,13 +432,20 @@ lexemes' eof =
       -- Construct the token for opening the doc block.
       let openTok = Token (Open "syntax.docUntitledSection") openStart openEnd
       env0 <- S.get
-      -- Disable layout while parsing the doc block
-      (bodyToks0, closeTok) <- local (\env -> env {inLayout = False}) do
-        bodyToks <- body
-        closeStart <- posP
-        lit "}}"
-        closeEnd <- posP
-        pure (bodyToks, Token Close closeStart closeEnd)
+      -- Disable layout while parsing the doc block and reset the section number
+      (bodyToks0, closeTok) <- local
+        ( \env ->
+            env
+              { inLayout = False,
+                parentSections = 0 : (parentSections env0)
+              }
+        )
+        do
+          bodyToks <- body
+          closeStart <- posP
+          lit "}}"
+          closeEnd <- posP
+          pure (bodyToks, Token Close closeStart closeEnd)
       let docToks = beforeStartToks <> [openTok] <> bodyToks0 <> [closeTok]
       -- Parse any layout tokens after the doc block, e.g. virtual semicolon
       endToks <- token' ignore (pure ())
@@ -813,12 +824,12 @@ lexemes' eof =
         -- # A section title (not a subsection)
         section :: P [Token Lexeme]
         section = wrap "syntax.docSection" $ do
-          n <- S.gets parentSection
-          hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
+          ns <- S.gets parentSections
+          hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
           title <- paragraph <* CP.space
-          let m = length hashes + n
+          let m = length hashes + head ns
           body <-
-            local (\env -> env {parentSection = m}) $
+            local (\env -> env {parentSections = (m : (tail ns))}) $
               P.many (sectionElem <* CP.space)
           pure $ title <> join body
 

@@ -106,7 +106,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
-handleIntroOuter :: Var v => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
+handleIntroOuter :: (Var v) => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do
   let typ = Type.var loc v
   new <- freshVar typ
@@ -171,7 +171,7 @@ dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
 -- Our rewrite signature machinery generates type annotations that are
 -- not well kinded. Work around this for now by stripping those
 -- annotations.
-hackyStripAnns :: Ord v => Term.Term v loc -> Term.Term v loc
+hackyStripAnns :: (Ord v) => Term.Term v loc -> Term.Term v loc
 hackyStripAnns =
   snd . ABT.cata \ann abt0 -> case abt0 of
     ABT.Var v -> (False, ABT.var ann v)

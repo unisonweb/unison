@@ -20,6 +20,7 @@ import Data.OpenApi.Lens qualified as OpenApi
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text
+import Servant qualified
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
@@ -41,7 +42,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectName)
@@ -104,7 +105,7 @@ data ExactName name ref = ExactName
   { name :: name,
     ref :: ref
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance ToParamSchema (ExactName Name ShortHash) where
   toParamSchema _ =
@@ -540,3 +541,6 @@ instance ToJSON TypeDiffResponse where
             "oldType" .= oldType,
             "newType" .= newType
           ]
+
+-- | Servant utility for a query param that's required, providing a useful error message if it's missing.
+type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]

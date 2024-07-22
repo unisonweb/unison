@@ -4,39 +4,53 @@ module Unison.Codebase.Editor.HandleInput.DeleteProject
   )
 where
 
-import Data.Function (on)
+import Control.Lens
+import Data.List qualified as List
+import U.Codebase.Sqlite.DbId
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
+import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..))
+import Unison.Sqlite qualified as Sqlite
 
 -- | Delete a project
 handleDeleteProject :: ProjectName -> Cli ()
 handleDeleteProject projectName = do
-  maybeCurrentBranch <- ProjectUtils.getCurrentProjectBranch
+  ProjectPath currentProject _ _ <- Cli.getCurrentProjectPath
 
-  deletedProject <-
+  projectToDelete <-
     Cli.runTransactionWithRollback \rollback -> do
-      project <-
-        Queries.loadProjectByName projectName & onNothingM do
-          rollback (Output.LocalProjectDoesntExist projectName)
-      Queries.deleteProject (project ^. #projectId)
-      pure project
+      Queries.loadProjectByName projectName & onNothingM do
+        rollback (Output.LocalProjectDoesntExist projectName)
 
-  let projectId = deletedProject ^. #projectId
+  when (projectToDelete.projectId == currentProject.projectId) do
+    nextLoc <- Cli.runTransaction $ findAnyBranchInCodebaseNotInProject (projectToDelete.projectId) `whenNothingM` createDummyProjectExcept projectToDelete.name
+    Cli.switchProject nextLoc
 
-  Cli.updateAt
-    ("delete.project " <> into @Text projectName)
-    (ProjectUtils.projectPath projectId)
-    (const Branch.empty)
+  Cli.runTransaction do
+    Queries.deleteProject (projectToDelete ^. #projectId)
+  where
+    findAnyBranchInCodebaseNotInProject :: ProjectId -> Sqlite.Transaction (Maybe (ProjectAndBranch ProjectId ProjectBranchId))
+    findAnyBranchInCodebaseNotInProject exceptProjectId = do
+      Queries.loadAllProjectBranchNamePairs
+        <&> List.find (\(_, ProjectAndBranch projId _) -> projId /= exceptProjectId)
+        <&> fmap \(_, pbIds) -> pbIds
 
-  -- If the user is on the project that they're deleting, we cd to the root path
-  whenJust maybeCurrentBranch \(ProjectAndBranch currentProject _currentBranch, _restPath) ->
-    when (on (==) (view #projectId) deletedProject currentProject) do
-      Cli.cd (Path.Absolute Path.empty)
+    createDummyProjectExcept :: ProjectName -> Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
+    createDummyProjectExcept (UnsafeProjectName "scratch") = do
+      (_, emptyCausalHashId) <- Codebase.emptyCausalHash
+      Ops.insertProjectAndBranch (UnsafeProjectName "scratch2") (UnsafeProjectBranchName "main") emptyCausalHashId
+        <&> \(proj, branch) -> ProjectAndBranch proj.projectId branch.branchId
+    createDummyProjectExcept _ = do
+      (_, emptyCausalHashId) <- Codebase.emptyCausalHash
+      Ops.insertProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main") emptyCausalHashId
+        <&> \(proj, branch) -> ProjectAndBranch proj.projectId branch.branchId

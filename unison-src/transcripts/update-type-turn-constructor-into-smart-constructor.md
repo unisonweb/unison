@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -10,7 +10,7 @@ makeFoo n = Bar (n+10)
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -21,7 +21,7 @@ Foo.Bar n = internal.Bar n
 ```
 
 ```ucm
-.> update
-.> view Foo
-.> find.verbose
+scratch/main> update
+scratch/main> view Foo
+scratch/main> find.verbose
 ```

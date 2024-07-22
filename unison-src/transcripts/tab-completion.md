@@ -5,8 +5,8 @@ Test that tab completion works as expected.
 ## Tab Complete Command Names
 
 ```ucm
-.> debug.tab-complete vi
-.> debug.tab-complete delete.
+scratch/main> debug.tab-complete vi
+scratch/main> debug.tab-complete delete.
 ```
 
 ## Tab complete terms & types
@@ -21,35 +21,43 @@ unique type subnamespace.AType = A | B
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
 -- Should tab complete namespaces since they may contain terms/types
-.> debug.tab-complete view sub
+scratch/main> debug.tab-complete view sub
 -- Should not complete things from child namespaces of the current query if there are other completions at this level
-.> debug.tab-complete view subnamespace
+scratch/main> debug.tab-complete view subnamespace
 -- Should complete things from child namespaces of the current query if it's dot-suffixed
-.> debug.tab-complete view subnamespace.
+scratch/main> debug.tab-complete view subnamespace.
 -- Should complete things from child namespaces of the current query if there are no more completions at this level.
-.> debug.tab-complete view subnamespace2
+scratch/main> debug.tab-complete view subnamespace2
 -- Should prefix-filter by query suffix
-.> debug.tab-complete view subnamespace.some
-.> debug.tab-complete view subnamespace.someOther
+scratch/main> debug.tab-complete view subnamespace.some
+scratch/main> debug.tab-complete view subnamespace.someOther
+```
+
+```unison:hide
+absolute.term = "absolute"
+```
+
+```ucm
+scratch/main> add
 -- Should tab complete absolute names
-.othernamespace> debug.tab-complete view .subnamespace.some
+scratch/main> debug.tab-complete view .absolute.te
 ```
 
 ## Tab complete namespaces
 
 ```ucm
 -- Should tab complete namespaces
-.> debug.tab-complete find-in sub
-.> debug.tab-complete find-in subnamespace
-.> debug.tab-complete find-in subnamespace.
-.> debug.tab-complete io.test sub
-.> debug.tab-complete io.test subnamespace
-.> debug.tab-complete io.test subnamespace.
+scratch/main> debug.tab-complete find-in sub
+scratch/main> debug.tab-complete find-in subnamespace
+scratch/main> debug.tab-complete find-in subnamespace.
+scratch/main> debug.tab-complete io.test sub
+scratch/main> debug.tab-complete io.test subnamespace
+scratch/main> debug.tab-complete io.test subnamespace.
 ```
 
 Tab Complete Delete Subcommands
@@ -61,9 +69,9 @@ add b = b
 ```
 
 ```ucm
-.> update.old
-.> debug.tab-complete delete.type Foo
-.> debug.tab-complete delete.term add
+scratch/main> update.old
+scratch/main> debug.tab-complete delete.type Foo
+scratch/main> debug.tab-complete delete.term add
 ```
 
 ## Tab complete projects and branches

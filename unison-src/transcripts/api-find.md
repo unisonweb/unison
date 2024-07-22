@@ -8,19 +8,19 @@ joey.yaml.zz = 45
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api
 -- Namespace segment prefix search
-GET /api/non-project-code/find?query=http
+GET /api/projects/scratch/branches/main/find?query=http
 
 -- Namespace segment suffix search
-GET /api/non-project-code/find?query=Server
+GET /api/projects/scratch/branches/main/find?query=Server
 
 -- Substring search
-GET /api/non-project-code/find?query=lesys
+GET /api/projects/scratch/branches/main/find?query=lesys
 
 -- Cross-segment search
-GET /api/non-project-code/find?query=joey.http
+GET /api/projects/scratch/branches/main/find?query=joey.http
 ```

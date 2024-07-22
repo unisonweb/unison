@@ -33,7 +33,7 @@ test =
                           Type.arrow () (tv "a") (tv "x")
                       )
                   )
-                  (Type.forall () (v "a") (tv "a"))
+                  (Type.forAll () (v "a") (tv "a"))
               tm' = Term.substTypeVar (v "x") (tv "a") tm
               expected =
                 Term.ann
@@ -45,7 +45,7 @@ test =
                           Type.arrow () (Type.var () $ v1 "a") (tv "a")
                       )
                   )
-                  (Type.forall () (v1 "a") (Type.var () $ v1 "a"))
+                  (Type.forAll () (v1 "a") (Type.var () $ v1 "a"))
           note $ show tm'
           note $ show expected
           expect $ tm == tm
@@ -57,7 +57,7 @@ test =
               ref = R.Id h 0
               v1 = Var.unnamedRef @Symbol ref
               -- input component: `ref = \v1 -> ref`
-              component = Map.singleton ref (Term.lam () v1 (Term.refId () ref))
+              component = Map.singleton ref (Term.lam () ((), v1) (Term.refId () ref))
               component' = Term.unhashComponent component
               -- expected unhashed component: `v2 = \v1 -> v2`, where `v2 /= v1`,
               -- i.e. `v2` cannot be just `ref` converted to a ref-named variable,

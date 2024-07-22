@@ -3,7 +3,7 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 Docs can be used as inline code comments.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -14,10 +14,10 @@ foo n =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view foo
+scratch/main> view foo
 ```
 
 Note that `@` and `:]` must be escaped within docs.
@@ -27,10 +27,10 @@ escaping = [: Docs look [: like \@this \:] :]
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view escaping
+scratch/main> view escaping
 ```
 
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
@@ -46,10 +46,10 @@ commented = [:
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view commented
+scratch/main> view commented
 ```
 
 ### Indenting, and paragraph reflow
@@ -64,10 +64,10 @@ doc1 = [:   hi   :]
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc1
+scratch/main> view doc1
 ```
 
 ```unison
@@ -83,10 +83,10 @@ doc2 = [: hello
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc2
+scratch/main> view doc2
 ```
 
 ```unison
@@ -105,10 +105,10 @@ Note that because of the special treatment of the first line mentioned above, wh
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc3
+scratch/main> view doc3
 ```
 
 ```unison
@@ -120,10 +120,10 @@ doc4 = [: Here's another example of some paragraphs.
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc4
+scratch/main> view doc4
 ```
 
 ```unison
@@ -137,10 +137,10 @@ doc5 = [:   - foo
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc5
+scratch/main> view doc5
 ```
 
 ```unison
@@ -153,10 +153,10 @@ doc6 = [:
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view doc6
+scratch/main> view doc6
 ```
 
 ### More testing
@@ -168,10 +168,10 @@ empty = [::]
 expr = foo 1
 ```
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view empty
+scratch/main> view empty
 ```
 
 ```unison
@@ -214,10 +214,10 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 :]
 ```
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view test1
+scratch/main> view test1
 ```
 
 ```unison
@@ -226,10 +226,10 @@ reg1363 = [: `@List.take foo` bar
   baz :]
 ```
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 ```ucm
-.> view reg1363
+scratch/main> view reg1363
 ```
 
 ```unison
@@ -242,13 +242,13 @@ test2 = [:
 :]
 ```
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 View is fine.
 ```ucm
-.> view test2
+scratch/main> view test2
 ```
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 ```ucm
-.> display test2
+scratch/main> display test2
 ```

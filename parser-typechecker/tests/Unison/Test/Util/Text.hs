@@ -46,10 +46,8 @@ test =
           scope "<>" . expect' $
             Text.toText (t1s <> t2s <> t3s) == t1 <> t2 <> t3
           scope "Ord" . expect' $
-            (t1 <> t2 <> t3)
-              `compare` t3
-              == (t1s <> t2s <> t3s)
-              `compare` t3s
+            (t1 <> t2 <> t3) `compare` t3
+              == (t1s <> t2s <> t3s) `compare` t3s
           scope "take" . expect' $
             Text.toText (Text.take k (t1s <> t2s)) == T.take k (t1 <> t2)
           scope "drop" . expect' $
@@ -178,7 +176,28 @@ test =
                   )
                   (P.Join [P.Capture (P.Literal "zzzaaa"), P.Capture (P.Literal "!")])
            in P.run p "zzzaaa!!!"
-        ok
+        ok,
+      scope "ordinal" do
+        expectEqual (Text.ordinal 1) ("1st" :: String)
+        expectEqual (Text.ordinal 2) ("2nd" :: String)
+        expectEqual (Text.ordinal 3) ("3rd" :: String)
+        expectEqual (Text.ordinal 4) ("4th" :: String)
+        expectEqual (Text.ordinal 5) ("5th" :: String)
+        expectEqual (Text.ordinal 10) ("10th" :: String)
+        expectEqual (Text.ordinal 11) ("11th" :: String)
+        expectEqual (Text.ordinal 12) ("12th" :: String)
+        expectEqual (Text.ordinal 13) ("13th" :: String)
+        expectEqual (Text.ordinal 14) ("14th" :: String)
+        expectEqual (Text.ordinal 21) ("21st" :: String)
+        expectEqual (Text.ordinal 22) ("22nd" :: String)
+        expectEqual (Text.ordinal 23) ("23rd" :: String)
+        expectEqual (Text.ordinal 24) ("24th" :: String)
+        expectEqual (Text.ordinal 111) ("111th" :: String)
+        expectEqual (Text.ordinal 112) ("112th" :: String)
+        expectEqual (Text.ordinal 113) ("113th" :: String)
+        expectEqual (Text.ordinal 121) ("121st" :: String)
+        expectEqual (Text.ordinal 122) ("122nd" :: String)
+        expectEqual (Text.ordinal 123) ("123rd" :: String)
     ]
   where
     log2 :: Int -> Int

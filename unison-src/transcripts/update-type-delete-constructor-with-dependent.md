@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -14,7 +14,7 @@ foo = cases
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -23,5 +23,5 @@ unique type Foo
 ```
 
 ```ucm:error
-.> update
+scratch/main> update
 ```

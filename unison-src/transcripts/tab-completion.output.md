@@ -4,13 +4,13 @@ Test that tab completion works as expected.
 
 ## Tab Complete Command Names
 
-```ucm
-.> debug.tab-complete vi
+``` ucm
+scratch/main> debug.tab-complete vi
 
    view
    view.global
 
-.> debug.tab-complete delete.
+scratch/main> debug.tab-complete delete.
 
    delete.branch
    delete.namespace
@@ -25,7 +25,7 @@ Test that tab completion works as expected.
 ```
 ## Tab complete terms & types
 
-```unison
+``` unison
 subnamespace.someName = 1
 subnamespace.someOtherName = 2
 subnamespace2.thing = 3
@@ -34,7 +34,7 @@ othernamespace.someName = 4
 unique type subnamespace.AType = A | B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -51,21 +51,21 @@ unique type subnamespace.AType = A | B
       subnamespace2.thing        : ##Nat
 
 ```
-```ucm
+``` ucm
 -- Should tab complete namespaces since they may contain terms/types
-.> debug.tab-complete view sub
+scratch/main> debug.tab-complete view sub
 
    subnamespace.
    subnamespace2.
 
 -- Should not complete things from child namespaces of the current query if there are other completions at this level
-.> debug.tab-complete view subnamespace
+scratch/main> debug.tab-complete view subnamespace
 
    subnamespace.
    subnamespace2.
 
 -- Should complete things from child namespaces of the current query if it's dot-suffixed
-.> debug.tab-complete view subnamespace.
+scratch/main> debug.tab-complete view subnamespace.
 
   * subnamespace.AType
     subnamespace.AType.
@@ -73,57 +73,68 @@ unique type subnamespace.AType = A | B
   * subnamespace.someOtherName
 
 -- Should complete things from child namespaces of the current query if there are no more completions at this level.
-.> debug.tab-complete view subnamespace2
+scratch/main> debug.tab-complete view subnamespace2
 
     subnamespace2.
   * subnamespace2.thing
 
 -- Should prefix-filter by query suffix
-.> debug.tab-complete view subnamespace.some
+scratch/main> debug.tab-complete view subnamespace.some
 
   * subnamespace.someName
   * subnamespace.someOtherName
 
-.> debug.tab-complete view subnamespace.someOther
+scratch/main> debug.tab-complete view subnamespace.someOther
 
   * subnamespace.someOtherName
 
--- Should tab complete absolute names
-.othernamespace> debug.tab-complete view .subnamespace.some
+```
+``` unison
+absolute.term = "absolute"
+```
 
-  * .subnamespace.someName
-  * .subnamespace.someOtherName
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    absolute.term : ##Text
+
+-- Should tab complete absolute names
+scratch/main> debug.tab-complete view .absolute.te
+
+  * .absolute.term
 
 ```
 ## Tab complete namespaces
 
-```ucm
+``` ucm
 -- Should tab complete namespaces
-.> debug.tab-complete find-in sub
+scratch/main> debug.tab-complete find-in sub
 
    subnamespace
    subnamespace2
 
-.> debug.tab-complete find-in subnamespace
+scratch/main> debug.tab-complete find-in subnamespace
 
    subnamespace
    subnamespace2
 
-.> debug.tab-complete find-in subnamespace.
+scratch/main> debug.tab-complete find-in subnamespace.
 
    subnamespace.AType
 
-.> debug.tab-complete io.test sub
+scratch/main> debug.tab-complete io.test sub
 
    subnamespace.
    subnamespace2.
 
-.> debug.tab-complete io.test subnamespace
+scratch/main> debug.tab-complete io.test subnamespace
 
    subnamespace.
    subnamespace2.
 
-.> debug.tab-complete io.test subnamespace.
+scratch/main> debug.tab-complete io.test subnamespace.
 
     subnamespace.AType.
   * subnamespace.someName
@@ -132,13 +143,13 @@ unique type subnamespace.AType = A | B
 ```
 Tab Complete Delete Subcommands
 
-```unison
+``` unison
 unique type Foo = A | B
 add : a -> a
 add b = b
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -152,27 +163,27 @@ add b = b
       add : a -> a
 
 ```
-```ucm
-.> update.old
+``` ucm
+scratch/main> update.old
 
   ⍟ I've added these definitions:
   
     type Foo
     add : a -> a
 
-.> debug.tab-complete delete.type Foo
+scratch/main> debug.tab-complete delete.type Foo
 
   * Foo
     Foo.
 
-.> debug.tab-complete delete.term add
+scratch/main> debug.tab-complete delete.term add
 
   * add
 
 ```
 ## Tab complete projects and branches
 
-```ucm
+``` ucm
 myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
@@ -191,11 +202,11 @@ myproject/main> debug.tab-complete project.rename my
 ```
 Commands which complete namespaces OR branches should list both
 
-```unison
+``` unison
 mybranchsubnamespace.term = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -208,7 +219,7 @@ mybranchsubnamespace.term = 1
       mybranchsubnamespace.term : ##Nat
 
 ```
-```ucm
+``` ucm
 myproject/main> add
 
   ⍟ I've added these definitions:

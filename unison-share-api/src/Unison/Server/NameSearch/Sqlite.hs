@@ -17,7 +17,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name

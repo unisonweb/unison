@@ -1,6 +1,7 @@
 Loops that access a shared counter variable, accessed in transactions.
 Some thread delaying is just accomplished by counting in a loop.
-```unison
+
+``` unison
 count : Nat -> ()
 count = cases
   0 -> ()
@@ -27,7 +28,7 @@ body k out v =
   atomically '(TVar.write out (Some n))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,8 +44,8 @@ body k out v =
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -56,7 +57,7 @@ body k out v =
 ```
 Test case.
 
-```unison
+``` unison
 spawn : Nat ->{io2.IO} Result
 spawn k = let
   out1 = TVar.newIO None
@@ -89,7 +90,7 @@ tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -105,8 +106,8 @@ tests = '(map spawn nats)
       tests   : '{IO} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -115,23 +116,23 @@ tests = '(map spawn nats)
     spawn   : Nat ->{IO} Result
     tests   : '{IO} [Result]
 
-.> io.test tests
+scratch/main> io.test tests
 
     New test results:
   
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
+    1. tests   ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
   
   ✅ 10 test(s) passing
   
-  Tip: Use view tests to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

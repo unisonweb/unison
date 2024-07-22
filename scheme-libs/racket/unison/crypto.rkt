@@ -96,6 +96,7 @@
                     (error 'blake2 "~a failed with return value ~a" fn r))))))
 
 (define blake2b-raw (libb2-raw "blake2b"))
+(define blake2s-raw (libb2-raw "blake2s"))
 
 (define HashAlgorithm.Md5 (lc-algo "EVP_md5" 128))
 (define HashAlgorithm.Sha1 (lc-algo "EVP_sha1" 160))
@@ -103,8 +104,6 @@
 (define HashAlgorithm.Sha2_512 (lc-algo "EVP_sha512" 512))
 (define HashAlgorithm.Sha3_256 (lc-algo "EVP_sha3_256" 256))
 (define HashAlgorithm.Sha3_512 (lc-algo "EVP_sha3_512" 512))
-(define HashAlgorithm.Blake2s_256 (lc-algo "EVP_blake2s256" 256))
-(define HashAlgorithm.Blake2b_512 (lc-algo "EVP_blake2b512" 512))
 
 (define _EVP_PKEY-pointer (_cpointer 'EVP_PKEY))
 (define _EVP_MD_CTX-pointer (_cpointer 'EVP_MD_CTX))
@@ -234,6 +233,8 @@
         (chunked-bytes->bytes input)
         (chunked-bytes->bytes signature)))
 
+(define (HashAlgorithm.Blake2s_256) (cons 'blake2s 256))
+(define (HashAlgorithm.Blake2b_512) (cons 'blake2b 512))
 ; This one isn't provided by libcrypto, for some reason
 (define (HashAlgorithm.Blake2b_256) (cons 'blake2b 256))
 
@@ -252,6 +253,7 @@
          [algo (car kind)])
     (case algo
       ['blake2b (blake2b-raw output input #f bytes (bytes-length input) 0)]
+      ['blake2s (blake2s-raw output input #f bytes (bytes-length input) 0)]
       [else (EVP_Digest input (bytes-length input) output #f algo #f)])
 
     output))
@@ -294,6 +296,7 @@
 (define (hmacBytes-raw kind key input)
   (case (car kind)
     ['blake2b (hmacBlake kind key input)]
+    ['blake2s (hmacBlake kind key input)]
     [else
      (let* ([bytes (/ (cdr kind) 8)]
             [output (make-bytes bytes)]

@@ -4,7 +4,7 @@ If you want to add or update tests, you can create a branch of that project, and
 
 Before merging the PR on Github, we'll merge your branch on Share and restore `runtime_tests_version` to /main or maybe a release.
 
-```ucm
+``` ucm
 runtime-tests/selected> run.native tests
 
   ()
@@ -17,7 +17,8 @@ runtime-tests/selected> run.native tests.jit.only
 Per Dan:
 It's testing a flaw in how we were sending code from a scratch file to the native runtime, when that happened multiple times.
 Related to the verifiable refs and recursive functions.
-```unison
+
+``` unison
 foo = do
   go : Nat ->{Exception} ()
   go = cases
@@ -26,7 +27,7 @@ foo = do
   go 1000
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -39,12 +40,12 @@ foo = do
       foo : '{Exception} ()
 
 ```
-```ucm
-.> run.native foo
+``` ucm
+scratch/main> run.native foo
 
   ()
 
-.> run.native foo
+scratch/main> run.native foo
 
   ()
 
@@ -53,7 +54,7 @@ This can also only be tested by separately running this test, because
 it is exercising the protocol that ucm uses to talk to the jit during
 an exception.
 
-```ucm
+``` ucm
 runtime-tests/selected> run.native testBug
 
   💔💥

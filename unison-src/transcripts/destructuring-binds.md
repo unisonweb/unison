@@ -1,7 +1,7 @@
 # Destructuring binds
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Here's a couple examples:
@@ -19,8 +19,8 @@ ex1 tup =
 ```
 
 ```ucm
-.> add
-.> view ex0 ex1
+scratch/main> add
+scratch/main> view ex0 ex1
 ```
 
 Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pretty-printer currently prefers the `cases` syntax if definition can be printed using either destructuring bind or `cases`.
@@ -58,8 +58,8 @@ ex5a _ = match (99 + 1, "hi") with
 ```
 
 ```ucm
-.> add
-.> view ex5 ex5a
+scratch/main> add
+scratch/main> view ex5 ex5a
 ```
 
 Notice how it prints both an ordinary match.
@@ -74,6 +74,6 @@ ex6 x = match x with
 For clarity, the pretty-printer leaves this alone, even though in theory it could be written `(x,y) = x; x + y`:
 
 ```ucm
-.> add
-.> view ex6
+scratch/main> add
+scratch/main> view ex6
 ```

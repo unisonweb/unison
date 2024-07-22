@@ -1,5 +1,9 @@
 # `names` command
 
+```ucm
+scratch/main> builtins.merge lib.builtins
+```
+
 Example uses of the `names` command and output
 
 ```unison
@@ -13,7 +17,7 @@ somewhere.y = 2
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 
@@ -21,22 +25,23 @@ somewhere.y = 2
 
 ```ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
--- But we don't see somewhere.z which is has the same value but is out of our namespace
-.some> names x
+scratch/main> names x
 -- We can search by hash, and see all aliases of that hash
-.some> names #gjmq673r1v
--- If the query is absolute, treat it as a `names.global`
-.some> names .some.place.x
+scratch/main> names #gjmq673r1v
+-- Works with absolute names too
+scratch/main> names .some.place.x
 ```
 
 `names.global` searches from the root, and absolutely qualifies results
 
 
-```ucm
--- We can search by suffix and find all definitions in the codebase named 'x', and each of their aliases respectively.
-.some> names.global x
+TODO: swap this back to a 'ucm' block when names.global is re-implemented
+
+```
+-- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
+scratch/other> names.global x
 -- We can search by hash, and see all aliases of that hash in the codebase
-.some> names.global #gjmq673r1v
+scratch/other> names.global #gjmq673r1v
 -- We can search using an absolute name
-.some> names.global .some.place.x
+scratch/other> names.global .some.place.x
 ```

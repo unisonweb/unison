@@ -1,5 +1,5 @@
-```ucm
-.> delete foo
+``` ucm
+scratch/main> delete foo
 
   ⚠️
   
@@ -7,28 +7,28 @@
     foo
 
 ```
-```unison
+``` unison
 foo = 1
 structural type Foo = Foo ()
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
     foo : ##Nat
 
-.> delete foo
+scratch/main> delete foo
 
   Done.
 
-.> delete.type Foo
+scratch/main> delete.type Foo
 
   Done.
 
-.> delete.term Foo.Foo
+scratch/main> delete.term Foo.Foo
 
   Done.
 
