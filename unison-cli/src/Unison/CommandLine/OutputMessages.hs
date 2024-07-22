@@ -997,7 +997,6 @@ notifyUser dir = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -1290,8 +1289,8 @@ notifyUser dir = \case
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySCH prevSCH],
-                        "to reset the root namespace and its history to that of the specified"
+                      ( IP.makeExample IP.reset [prettySCH prevSCH],
+                        "to reset the current namespace and its history to that of the specified"
                           <> "namespace."
                       )
                     ]
