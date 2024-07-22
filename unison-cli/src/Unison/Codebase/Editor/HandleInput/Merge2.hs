@@ -15,10 +15,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
-import Control.Monad.Writer (Writer)
-import Control.Monad.Writer qualified as Writer
 import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
@@ -47,12 +44,12 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
-import Unison.Builtin.Decls qualified as Builtin.Decls
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.UpdateUtils (hydrateDefns, renderDefnsForUnisonFile)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
@@ -74,13 +71,8 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
-import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.HashQualified qualified as HQ
-import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency, lenientCheckDeclCoherency)
@@ -112,7 +104,6 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -123,13 +114,7 @@ import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
-import Unison.Syntax.DeclPrinter (AccessorName)
-import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name
-import Unison.Syntax.TermPrinter qualified as TermPrinter
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Typechecker qualified as Typechecker
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
@@ -141,8 +126,6 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
-import Unison.Util.SyntaxText (SyntaxText')
-import Unison.Var (Var)
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -260,14 +243,21 @@ doMerge info = do
               Just (who, branch) -> do
                 defns <- loadDefns branch
                 declNameLookup <-
-                  Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns) & onLeftM \err ->
-                    done case err of
-                      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-                        Output.MergeConstructorAlias who typeName conName1 conName2
-                      IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
-                      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-                        Output.MergeNestedDeclAlias who shorterName longerName
-                      IncoherentDeclReason'StrayConstructor name -> Output.MergeStrayConstructor who name
+                  Cli.runTransaction
+                    ( checkDeclCoherency
+                        db.loadDeclNumConstructors
+                        Referent.toConstructorReferenceId
+                        Reference.toId
+                        defns
+                    )
+                    & onLeftM \err ->
+                      done case err of
+                        IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+                          Output.MergeConstructorAlias who typeName conName1 conName2
+                        IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
+                        IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+                          Output.MergeNestedDeclAlias who shorterName longerName
+                        IncoherentDeclReason'StrayConstructor _typeRef name -> Output.MergeStrayConstructor who name
                 pure (defns, declNameLookup)
 
         (aliceDefns0, aliceDeclNameLookup) <- load (Just (mergeTarget, branches.alice))
@@ -345,32 +335,14 @@ doMerge info = do
              in (,) <$> hydrate conflicts1 <*> hydrate dependents1
 
       let (renderedConflicts, renderedDependents) =
-            let honk declNameLookup ppe defns =
-                  let (types, accessorNames) =
-                        Writer.runWriter $
-                          defns.types & Map.traverseWithKey \name (ref, typ) ->
-                            renderTypeBinding
-                              -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
-                              -- we just delete all term names out and add back the constructors...
-                              -- probably no need to wipe out the suffixified side but we do it anyway
-                              (setPpedToConstructorNames declNameLookup name ref ppe)
-                              name
-                              ref
-                              typ
-                      terms =
-                        defns.terms & Map.mapMaybeWithKey \name (term, typ) ->
-                          if Set.member name accessorNames
-                            then Nothing
-                            else Just (renderTermBinding ppe.suffixifiedPPE name term typ)
-                   in Defns {terms, types}
-             in unzip $
-                  ( \declNameLookup (conflicts, dependents) ppe ->
-                      let honk1 = honk declNameLookup ppe
-                       in (honk1 conflicts, honk1 dependents)
-                  )
-                    <$> declNameLookups
-                    <*> hydratedThings
-                    <*> ppes
+            unzip $
+              ( \declNameLookup (conflicts, dependents) ppe ->
+                  let honk1 = renderDefnsForUnisonFile declNameLookup ppe
+                   in (honk1 conflicts, honk1 dependents)
+              )
+                <$> declNameLookups
+                <*> hydratedThings
+                <*> ppes
 
       let prettyUnisonFile =
             makePrettyUnisonFile
@@ -489,7 +461,7 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Merge precondition violation checks
 
-hasDefnsInLib :: Applicative m => V2.Branch m -> m Bool
+hasDefnsInLib :: (Applicative m) => V2.Branch m -> m Bool
 hasDefnsInLib branch = do
   libdeps <-
     case Map.lookup NameSegment.libSegment branch.children of
@@ -499,95 +471,6 @@ hasDefnsInLib branch = do
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Creating Unison files
-
-hydrateDefns ::
-  (Monad m, Ord name) =>
-  (Hash -> m [term]) ->
-  (Hash -> m [typ]) ->
-  DefnsF (Map name) TermReferenceId TypeReferenceId ->
-  m (DefnsF (Map name) term (TypeReferenceId, typ))
-hydrateDefns getTermComponent getTypeComponent = do
-  bitraverse (hydrateTerms getTermComponent) (hydrateTypes getTypeComponent)
-
-hydrateTerms :: (Monad m, Ord name) => (Hash -> m [term]) -> Map name TermReferenceId -> m (Map name term)
-hydrateTerms getTermComponent terms =
-  componenty getTermComponent terms \_ _ -> id
-
-hydrateTypes ::
-  (Monad m, Ord name) =>
-  (Hash -> m [typ]) ->
-  Map name TypeReferenceId ->
-  m (Map name (TypeReferenceId, typ))
-hydrateTypes getTypeComponent types =
-  componenty getTypeComponent types \_ -> (,)
-
-componenty ::
-  forall a b name m.
-  (Monad m, Ord name) =>
-  (Hash -> m [a]) ->
-  Map name Reference.Id ->
-  (name -> Reference.Id -> a -> b) ->
-  m (Map name b)
-componenty getComponent things modify =
-  Foldable.foldlM f Map.empty (foldMap (Set.singleton . Reference.idToHash) things)
-  where
-    f :: Map name b -> Hash -> m (Map name b)
-    f acc hash =
-      List.foldl' g acc . Reference.componentFor hash <$> getComponent hash
-
-    g :: Map name b -> (Reference.Id, a) -> Map name b
-    g acc (ref, thing) =
-      Set.foldl' (h ref thing) acc (BiMultimap.lookupDom ref things2)
-
-    h :: Reference.Id -> a -> Map name b -> name -> Map name b
-    h ref thing acc name =
-      Map.insert name (modify name ref thing) acc
-
-    things2 :: BiMultimap Reference.Id name
-    things2 =
-      BiMultimap.fromRange things
-
-renderTermBinding :: (Monoid a, Var v) => PrettyPrintEnv -> Name -> Term v a -> Type v a -> Pretty ColorText
-renderTermBinding ppe (HQ.NameOnly -> name) term typ =
-  Pretty.syntaxToColor rendered
-  where
-    rendered :: Pretty (SyntaxText' Reference)
-    rendered =
-      if Typechecker.isEqual (Builtin.Decls.testResultListType mempty) typ
-        then "test> " <> TermPrinter.prettyBindingWithoutTypeSignature ppe name term
-        else TermPrinter.prettyBinding ppe name term
-
-renderTypeBinding ::
-  (Var v) =>
-  PrettyPrintEnvDecl ->
-  Name ->
-  TypeReferenceId ->
-  Decl v a ->
-  Writer (Set AccessorName) (Pretty ColorText)
-renderTypeBinding ppe name ref decl =
-  Pretty.syntaxToColor <$> DeclPrinter.prettyDeclW ppe (Reference.fromId ref) (HQ.NameOnly name) decl
-
-setPpedToConstructorNames :: DeclNameLookup -> Name -> TypeReferenceId -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
-setPpedToConstructorNames declNameLookup name ref =
-  set (#unsuffixifiedPPE . #termNames) referentNames
-    . set (#suffixifiedPPE . #termNames) referentNames
-  where
-    constructorNameMap :: Map ConstructorReference Name
-    constructorNameMap =
-      Map.fromList
-        ( name
-            & expectConstructorNames declNameLookup
-            & List.zip [0 ..]
-            & over (mapped . _1) (ConstructorReference (Reference.fromId ref))
-        )
-
-    referentNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
-    referentNames = \case
-      Referent.Con conRef _ ->
-        case Map.lookup conRef constructorNameMap of
-          Nothing -> []
-          Just conName -> let hqConName = HQ'.NameOnly conName in [(hqConName, hqConName)]
-      Referent.Ref _ -> []
 
 makePrettyUnisonFile ::
   TwoWay Text ->
@@ -696,7 +579,7 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
   let -- Unflatten the collection of terms into tree, ditto for types
       nametrees :: DefnsF2 Nametree (Map NameSegment) Referent TypeReference
       nametrees =
-        bimap go go defns
+        bimap unflattenNametree unflattenNametree defns
 
       -- Align the tree of terms and tree of types into one tree
       nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
@@ -715,10 +598,6 @@ defnsAndLibdepsToBranch0 codebase defns libdeps =
       -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
       branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
    in branch2
-  where
-    go :: (Ord v) => Map Name v -> Nametree (Map NameSegment v)
-    go =
-      unflattenNametree . BiMultimap.fromRange
 
 nametreeToBranch0 :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
 nametreeToBranch0 nametree =

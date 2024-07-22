@@ -2773,7 +2773,7 @@ handleTodoOutput todo
           [] -> pure mempty
           constructors -> do
             nums <-
-              for constructors \constructor -> do
+              for constructors \(_typeRef, constructor) -> do
                 addNumberedArg (SA.Name constructor)
             -- Note [StrayConstructorMessage] If you change this, also change the other similar one
             pure $
@@ -2784,7 +2784,7 @@ handleTodoOutput todo
                   2
                   ( P.lines
                       ( zipWith
-                          (\n constructor -> formatNum n <> prettyName constructor)
+                          (\n (_typeRef, constructor) -> formatNum n <> prettyName constructor)
                           nums
                           constructors
                       )

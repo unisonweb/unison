@@ -544,10 +544,6 @@ lenientToNametree names =
   where
     lenientRelationToNametree :: Ord a => Relation Name a -> Nametree (Map NameSegment a)
     lenientRelationToNametree =
-      unflattenNametree . lenientRelationToLeftUniqueRelation
-
-    lenientRelationToLeftUniqueRelation :: (Ord a, Ord b) => Relation a b -> BiMultimap b a
-    lenientRelationToLeftUniqueRelation =
-      -- The partial `Set.findMin` are fine here because Relation.domain only has non-empty Set values. A NESet would be
+      -- The partial `Set.findMin` is fine here because Relation.domain only has non-empty Set values. A NESet would be
       -- better.
-      BiMultimap.fromRange . Map.map Set.findMin . Relation.domain
+      unflattenNametree . Map.map Set.findMin . Relation.domain

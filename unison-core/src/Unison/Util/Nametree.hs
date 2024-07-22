@@ -120,9 +120,9 @@ flattenNametree f =
 -- >     "baz" = #baz
 -- >   }
 -- > }
-unflattenNametree :: Ord a => BiMultimap a Name -> Nametree (Map NameSegment a)
+unflattenNametree :: Ord a => Map Name a -> Nametree (Map NameSegment a)
 unflattenNametree =
-  unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList . BiMultimap.range
+  unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList
   where
     unflattenLevel :: [(NonEmpty NameSegment, a)] -> (Map NameSegment a, Map NameSegment [(NonEmpty NameSegment, a)])
     unflattenLevel =
