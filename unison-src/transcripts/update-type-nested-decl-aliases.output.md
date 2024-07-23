@@ -48,28 +48,12 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-Bug: we want this update to be rejected earlier, because it violates the "decl coherency" precondition that there's
-only one name for each constructor. We instead get too far in the update process, and are delivered a bogus scratch.u
-file to stare at.
-
 ``` ucm
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  That's done. Now I'm making sure everything typechecks...
-
-  Typechecking failed. I've updated your scratch file with the
-  definitions that need fixing. Once the file is compiling, try
-  `update` again.
+  The type A.B is an alias of A. I'm not able to perform an
+  update when a type exists nested under an alias of itself.
+  Please separate them or delete one copy, and then try updating
+  again.
 
 ```
-``` unison:added-by-ucm scratch.u
-structural type A = B.OneAlias Foo
-
-structural type A.B = OneAlias Foo
-
-type Foo = Bar Nat Nat
-```
-

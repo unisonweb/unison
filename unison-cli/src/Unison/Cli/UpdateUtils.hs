@@ -5,14 +5,12 @@
 module Unison.Cli.UpdateUtils
   ( -- * Loading definitions
     loadNamespaceDefinitions,
-    ConflictedName (..),
 
     -- * Narrowing definitions
     narrowDefns,
 
     -- * Hydrating definitions
     hydrateDefns,
-    hydrateDefnsRel,
 
     -- * Rendering definitions
     renderDefnsForUnisonFile,
@@ -27,11 +25,9 @@ import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
-import Data.These (These (..))
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Causal qualified
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
@@ -61,15 +57,14 @@ import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
-import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametree, unflattenNametrees)
+import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametrees)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -85,7 +80,11 @@ loadNamespaceDefinitions ::
   (Monad m) =>
   (V2.Referent -> m Referent) ->
   V2.Branch m ->
-  m (Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
+  m
+    ( Either
+        (Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+        (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+    )
 loadNamespaceDefinitions referent2to1 =
   fmap assertNamespaceHasNoConflictedNames . go (Map.delete NameSegment.libSegment)
   where
@@ -102,25 +101,25 @@ loadNamespaceDefinitions referent2to1 =
           go id child
       pure Nametree {value = Defns {terms, types}, children}
 
-data ConflictedName
-  = ConflictedName'Term !Name !(NESet Referent)
-  | ConflictedName'Type !Name !(NESet TypeReference)
-
 -- | Assert that there are no unconflicted names in a namespace.
 assertNamespaceHasNoConflictedNames ::
   Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference) ->
-  Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+  Either
+    (Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+    (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
 assertNamespaceHasNoConflictedNames =
-  traverseNametreeWithName \names defns -> do
+  traverseNametreeWithName \segments defns -> do
+    let toName segment =
+          Name.fromReverseSegments (segment List.NonEmpty.:| segments)
     terms <-
-      defns.terms & Map.traverseWithKey \name ->
-        assertUnconflicted (ConflictedName'Term (Name.fromReverseSegments (name List.NonEmpty.:| names)))
+      defns.terms & Map.traverseWithKey \segment ->
+        assertUnconflicted (TermDefn . Conflicted (toName segment))
     types <-
-      defns.types & Map.traverseWithKey \name ->
-        assertUnconflicted (ConflictedName'Type (Name.fromReverseSegments (name List.NonEmpty.:| names)))
+      defns.types & Map.traverseWithKey \segment ->
+        assertUnconflicted (TypeDefn . Conflicted (toName segment))
     pure Defns {terms, types}
   where
-    assertUnconflicted :: (NESet ref -> ConflictedName) -> NESet ref -> Either ConflictedName ref
+    assertUnconflicted :: (NESet ref -> x) -> NESet ref -> Either x ref
     assertUnconflicted conflicted refs
       | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
       | otherwise = Left (conflicted refs)
@@ -134,19 +133,28 @@ narrowDefns ::
   forall term typ.
   (Ord term, Ord typ) =>
   DefnsF (Relation Name) term typ ->
-  Either (Defn Name Name) (Nametree (DefnsF (Map NameSegment) term typ))
+  Either
+    ( Defn
+        (Conflicted Name term)
+        (Conflicted Name typ)
+    )
+    (Nametree (DefnsF (Map NameSegment) term typ))
 narrowDefns =
-  fmap unflattenNametrees . bitraverse (mapLeft TermDefn . go) (mapLeft TypeDefn . go)
+  fmap unflattenNametrees
+    . bitraverse
+      (go (\name -> TermDefn . Conflicted name))
+      (go (\name -> TypeDefn . Conflicted name))
   where
-    go :: (Ord ref) => Relation Name ref -> Either Name (Map Name ref)
-    go =
+    go :: forall ref x. (Ord ref) => (Name -> NESet ref -> x) -> Relation Name ref -> Either x (Map Name ref)
+    go conflicted =
       Map.traverseWithKey unconflicted . Relation.domain
       where
-        unconflicted :: Name -> Set ref -> Either Name ref
-        unconflicted name refs =
-          case Set.asSingleton refs of
-            Nothing -> Left name
-            Just ref -> Right ref
+        unconflicted :: Name -> Set ref -> Either x ref
+        unconflicted name refs0
+          | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
+          | otherwise = Left (conflicted name refs)
+          where
+            refs = Set.NonEmpty.unsafeFromSet refs0
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions
@@ -195,58 +203,6 @@ hydrateDefns_ getComponent defns modify =
     defns2 :: BiMultimap Reference.Id name
     defns2 =
       BiMultimap.fromRange defns
-
--- | Like 'hydrateDefns', but when you have a relation (i.e. names can be conflicted). Maybe this code should be deleted
--- in favor of just asserting that names can't be conflicted before doing something (since it's easy to resolve: just
--- rename one). But, for now, this exists.
-hydrateDefnsRel ::
-  forall m name term typ.
-  (Monad m, Ord name, Ord term, Ord typ) =>
-  (Hash -> m [term]) ->
-  (Hash -> m [typ]) ->
-  DefnsF (Relation name) TermReferenceId TypeReferenceId ->
-  m (DefnsF (Relation name) term (TypeReferenceId, typ))
-hydrateDefnsRel getTermComponent getTypeComponent = do
-  bitraverse hydrateTerms hydrateTypes
-  where
-    hydrateTerms :: Relation name TermReferenceId -> m (Relation name term)
-    hydrateTerms terms =
-      hydrateDefnsRel_ getTermComponent terms \_ _ -> id
-
-    hydrateTypes :: Relation name TypeReferenceId -> m (Relation name (TypeReferenceId, typ))
-    hydrateTypes types =
-      hydrateDefnsRel_ getTypeComponent types \_ -> (,)
-
-hydrateDefnsRel_ ::
-  forall a b name m.
-  (Ord b, Monad m, Ord name) =>
-  (Hash -> m [a]) ->
-  Relation name Reference.Id ->
-  (name -> Reference.Id -> a -> b) ->
-  m (Relation name b)
-hydrateDefnsRel_ getComponent defns modify =
-  let hashes :: [Hash]
-      hashes =
-        defns
-          & Relation.toList
-          & List.foldl' (\acc (_, ref) -> Set.insert (Reference.idToHash ref) acc) Set.empty
-          & Set.toList
-   in hashes & Monoid.foldMapM \hash -> do
-        component <- getComponent hash
-        pure
-          ( List.foldl'
-              f
-              Relation.empty
-              (Reference.componentFor hash component)
-          )
-  where
-    f :: Relation name b -> (Reference.Id, a) -> Relation name b
-    f acc (ref, x) =
-      List.foldl' (g ref x) acc (Set.toList (Relation.lookupRan ref defns))
-
-    g :: Reference.Id -> a -> Relation name b -> name -> Relation name b
-    g ref x acc2 name =
-      Relation.insert name (modify name ref x) acc2
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Rendering definitions

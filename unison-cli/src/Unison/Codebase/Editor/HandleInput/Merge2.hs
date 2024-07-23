@@ -44,7 +44,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (hydrateDefns, renderDefnsForUnisonFile, ConflictedName (..), loadNamespaceDefinitions)
+import Unison.Cli.UpdateUtils (hydrateDefns, loadNamespaceDefinitions, renderDefnsForUnisonFile)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
@@ -70,7 +70,7 @@ import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency, lenientCheckDeclCoherency)
+import Unison.Merge.DeclCoherencyCheck (checkDeclCoherency, lenientCheckDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.Diff qualified as Merge
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -228,10 +228,8 @@ doMerge info = do
       (defns3, declNameLookups, lcaDeclNameLookup) <- do
         let emptyNametree = Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
         let loadDefns branch =
-              Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch) & onLeftM \conflictedName ->
-                done case conflictedName of
-                  ConflictedName'Term name refs -> Output.MergeConflictedTermName name refs
-                  ConflictedName'Type name refs -> Output.MergeConflictedTypeName name refs
+              Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch)
+                & onLeftM (done . Output.ConflictedDefn "merge")
         let load = \case
               Nothing -> pure (emptyNametree, DeclNameLookup Map.empty Map.empty)
               Just (who, branch) -> do
@@ -244,14 +242,7 @@ doMerge info = do
                         Reference.toId
                         defns
                     )
-                    & onLeftM \err ->
-                      done case err of
-                        IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-                          Output.MergeConstructorAlias who typeName conName1 conName2
-                        IncoherentDeclReason'MissingConstructorName name -> Output.MergeMissingConstructorName who name
-                        IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-                          Output.MergeNestedDeclAlias who shorterName longerName
-                        IncoherentDeclReason'StrayConstructor _typeRef name -> Output.MergeStrayConstructor who name
+                    & onLeftM (done . Output.IncoherentDeclDuringMerge who)
                 pure (defns, declNameLookup)
 
         (aliceDefns0, aliceDeclNameLookup) <- load (Just (mergeTarget, branches.alice))

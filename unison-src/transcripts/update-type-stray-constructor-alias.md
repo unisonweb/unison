@@ -15,9 +15,6 @@ scratch/main> alias.term Foo.Bar Stray.BarAlias
 unique type Foo = Bar Nat Nat
 ```
 
-Bug: we leave `Stray.BarAlias` in the namespace with a nameless decl.
-
-```ucm
+```ucm:error
 scratch/main> update
-scratch/main> find.verbose
 ```

@@ -58,8 +58,12 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+type Foo a = Bar Nat a
+
+-- The definitions below are not compatible with the updated definitions above.
+-- Please fix the errors and run `update` again.
+
 type Baz = Qux Foo
 
-type Foo a = Bar Nat a
 ```
 

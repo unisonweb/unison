@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.Update2
 
     -- * Misc helpers to be organized later
     addDefinitionsToUnisonFile,
-    makeUnisonFile,
     findCtorNames,
     findCtorNamesMaybe,
     forwardCtorNames,
@@ -15,7 +14,6 @@ module Unison.Codebase.Editor.HandleInput.Update2
     typecheckedUnisonFileToBranchAdds,
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
-    makeComplicatedPPE,
   )
 where
 
@@ -28,24 +26,22 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.NonEmpty.Extra ((|>))
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Lazy.Text
-import Data.These (These (..))
 import Text.Pretty.Simple (pShow)
 import U.Codebase.Reference (Reference, TermReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.Builtin.Decls qualified as Decls
-import Unison.Cli.Monad (Cli)
+import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
-import Unison.Cli.UpdateUtils (hydrateDefns, hydrateDefnsRel, narrowDefns, renderDefnsForUnisonFile)
+import Unison.Cli.UpdateUtils (hydrateDefns, narrowDefns, renderDefnsForUnisonFile)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -67,13 +63,13 @@ import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Merge.DeclCoherencyCheck (checkDeclCoherency)
+import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Name.Forward (ForwardName (..))
 import Unison.Name.Forward qualified as ForwardName
-import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
-import Unison.Names (Names (Names))
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
@@ -83,7 +79,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Reference (Reference' (..), TypeReference, TypeReferenceId)
+import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -103,7 +99,7 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree, unflattenNametree, flattenNametrees)
+import Unison.Util.Nametree (flattenNametrees)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -114,7 +110,7 @@ import Unison.WatchKind qualified as WK
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
-  Cli.Env {codebase, writeSource} <- ask
+  env <- ask
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   pp <- Cli.getCurrentProjectPath
@@ -122,13 +118,11 @@ handleUpdate2 = do
   let currentBranch0ExcludingLibdeps = Branch.deleteLibdeps currentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
   let namesExcludingLibdeps = Branch.toNames currentBranch0ExcludingLibdeps
-  let ctorNames = forwardCtorNames namesExcludingLibdeps
 
   -- Assert that the namespace doesn't have any conflicted names
   defns <-
-    narrowDefns
-      (Branch.deepDefns currentBranch0ExcludingLibdeps)
-      & onLeft \conflictedName -> wundefined
+    narrowDefns (Branch.deepDefns currentBranch0ExcludingLibdeps)
+      & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
@@ -139,55 +133,54 @@ handleUpdate2 = do
           Reference.toId
           defns
       )
-      & onLeftM \err -> wundefined
-
-  let defns1 = flattenNametrees defns
+      & onLeftM (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   Cli.respond Output.UpdateLookingForDependents
 
-  dependents0 <-
+  (dependents, hydratedDependents) <-
     Cli.runTransaction do
-      getNamespaceDependentsOf2
-        defns1
-        (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
+      -- Get all dependents of things being updated
+      dependents0 <-
+        getNamespaceDependentsOf2
+          (flattenNametrees defns)
+          (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
 
-  -- Throw away the dependents that are shadowed by the file itself
-  let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
-      dependents1 =
-        bimap
-          (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)))
-          (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)))
-          dependents0
+      -- Throw away the dependents that are shadowed by the file itself
+      let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
+          dependents1 =
+            bimap
+              (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)))
+              (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)))
+              dependents0
+
+      -- Hydrate the dependents for rendering
+      hydratedDependents <-
+        hydrateDefns
+          (Codebase.unsafeGetTermComponent env.codebase)
+          Operations.expectDeclComponent
+          dependents1
+
+      pure (dependents1, hydratedDependents)
 
   secondTuf <- do
-    case defnsAreEmpty dependents1 of
+    case defnsAreEmpty dependents of
       -- If there are no dependents of the updates, then just use the already-typechecked file.
       True -> pure tuf
       False -> do
-        hydratedDependents <-
-          Cli.runTransaction do
-            hydrateDefns
-              (Codebase.unsafeGetTermComponent codebase)
-              Operations.expectDeclComponent
-              dependents1
-
-        let ppe = makeComplicatedPPE2 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents1
-
-        let renderedDependents :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
-            renderedDependents =
-              renderDefnsForUnisonFile declNameLookup ppe hydratedDependents
+        Cli.respond Output.UpdateStartTypechecking
 
         let prettyUnisonFile =
-              makePrettyUnisonFile (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf)) renderedDependents
-
-        Cli.respond Output.UpdateStartTypechecking
+              let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
+               in makePrettyUnisonFile
+                    (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
+                    (renderDefnsForUnisonFile declNameLookup ppe hydratedDependents)
 
         parsingEnv <- makeParsingEnv pp namesIncludingLibdeps
 
         secondTuf <-
           prettyParseTypecheck2 prettyUnisonFile parsingEnv & onLeftM \prettyUf -> do
             scratchFilePath <- fst <$> Cli.expectLatestFile
-            liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUf)
+            liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUf)
             Cli.returnEarly Output.UpdateTypecheckingFailure
 
         Cli.respond Output.UpdateTypecheckingSuccess
@@ -201,7 +194,7 @@ handleUpdate2 = do
       Codebase.addDefsToCodebase env.codebase secondTuf
       typecheckedUnisonFileToBranchUpdates
         abort
-        (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing)
+        (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
         secondTuf
   Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
 
@@ -219,7 +212,7 @@ makePrettyUnisonFile originalFile dependents =
     <> Pretty.newline
     <> ( dependents
            & inAlphabeticalOrder
-           & let f = foldMap (<> "\n") in bifoldMap f f
+           & let f = foldMap (\defn -> defn <> Pretty.newline <> Pretty.newline) in bifoldMap f f
        )
   where
     inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
@@ -308,7 +301,10 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
           -- some decls will be deleted, we want to delete their
           -- constructors as well
           deleteConstructorActions <-
-            (maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName)) <$> getConstructors (Name.unsafeParseVar symbol)) & onLeft abort
+            ( maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName))
+                <$> getConstructors (Name.unsafeParseVar symbol)
+              )
+              & onLeft abort
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol
               insertTypeAction = BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
@@ -635,72 +631,16 @@ getNamespaceDependentsOf2 defns dependencies = do
 --     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
 --
 --       hey = foo + foo
-makeComplicatedPPE ::
-  Int ->
-  Names ->
-  Names ->
-  DefnsF (Relation Name) TermReferenceId TypeReferenceId ->
-  PrettyPrintEnvDecl
-makeComplicatedPPE hashLen names initialFileNames dependents =
-  primaryPPE `PPED.addFallback` secondaryPPE
-  where
-    primaryPPE =
-      PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)
-
-    secondaryPPE =
-      PPED.makePPED
-        (PPE.hqNamer hashLen names)
-        -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
-        -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
-        -- ambiguous in the context of namespace + file names.
-        --
-        -- So, we use `unionLeftName`, which starts with the LHS names (the namespace), and adds to it names from the
-        -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
-        (PPE.suffixifyByHash (Names.unionLeftName names initialFileNames))
-
-    namesInTheFile =
-      initialFileNames <> dependentsNames
-
-    dependentsNames =
-      Names
-        { terms = Relation.mapRan Referent.fromTermReferenceId dependents.terms,
-          types = Relation.mapRan Reference.fromId dependents.types
-        }
-
--- The big picture behind PPE building, though there are many details:
---
---   * We are updating old references to new references by rendering old references as names that are then parsed
---     back to resolve to new references (the world's weirdest implementation of AST substitution).
---
---   * We have to render names that refer to definitions in the file with a different suffixification strategy
---     (namely, "suffixify by name") than names that refer to things in the codebase.
---
---     This is because you *may* refer to aliases that share a suffix by that suffix for definitions in the
---     codebase, but not in the file.
---
---     For example, the following file will fail to parse:
---
---       one.foo = 10
---       two.foo = 10
---       hey = foo + foo -- "Which foo do you mean? There are two."
---
---     However, the following file will not fail to parse, if `one.foo` and `two.foo` are aliases in the codebase:
---
---       hey = foo + foo
-makeComplicatedPPE2 ::
+makePPE ::
   Int ->
   Names ->
   Names ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   PrettyPrintEnvDecl
-makeComplicatedPPE2 hashLen names initialFileNames dependents =
-  primaryPPE `PPED.addFallback` secondaryPPE
-  where
-    primaryPPE =
-      PPED.makePPED (PPE.namer namesInTheFile) (PPE.suffixifyByName namesInTheFile)
-
-    secondaryPPE =
-      PPED.makePPED
+makePPE hashLen names initialFileNames dependents =
+  PPED.addFallback
+    (PPED.makeFilePPED (initialFileNames <> Names.fromUnconflictedReferenceIds dependents))
+    ( PPED.makePPED
         (PPE.hqNamer hashLen names)
         -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
@@ -709,12 +649,4 @@ makeComplicatedPPE2 hashLen names initialFileNames dependents =
         -- So, we use `unionLeftName`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
         (PPE.suffixifyByHash (Names.unionLeftName names initialFileNames))
-
-    namesInTheFile =
-      initialFileNames <> dependentsNames
-
-    dependentsNames =
-      Names
-        { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId dependents.terms),
-          types = Relation.fromMap (Map.map Reference.fromId dependents.types)
-        }
+    )

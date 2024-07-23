@@ -27,7 +27,6 @@ import Unison.Codebase.Editor.HandleInput.Update2
     findCtorNamesMaybe,
     forwardCtorNames,
     getNamespaceDependentsOf,
-    makeComplicatedPPE,
     makeParsingEnv,
     prettyParseTypecheck,
     typecheckedUnisonFileToBranchUpdates,
@@ -47,6 +46,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED (makeCodebasePPED, makeFilePPED)
 import Unison.Project (ProjectBranchName)
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
@@ -138,7 +138,6 @@ handleUpgrade oldName newName = do
           (findCtorNames Output.UOUUpgrade currentLocalNames currentLocalConstructorNames)
           dependents
           UnisonFile.emptyUnisonFile
-      hashLength <- Codebase.hashLength
       pure
         ( unisonFile,
           makeOldDepPPE
@@ -148,7 +147,8 @@ handleUpgrade oldName newName = do
             (Branch.toNames oldNamespace)
             (Branch.toNames oldLocalNamespace)
             (Branch.toNames newLocalNamespace)
-            `PPED.addFallback` makeComplicatedPPE hashLength currentDeepNamesSansOld mempty dependents
+            `PPED.addFallback` PPED.makeFilePPED (Names.fromReferenceIds dependents)
+            `PPED.addFallback` PPED.makeCodebasePPED currentDeepNamesSansOld
         )
 
   pp@(PP.ProjectPath project projectBranch _path) <- Cli.getCurrentProjectPath

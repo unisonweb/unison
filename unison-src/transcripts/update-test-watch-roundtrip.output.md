@@ -51,10 +51,14 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+foo n = "hello, world!"
+
+-- The definitions below are not compatible with the updated definitions above.
+-- Please fix the errors and run `update` again.
+
 test> mynamespace.foo.test =
   n = 2
   if foo n == 2 then [Ok "passed"] else [Fail "wat"]
 
-foo n = "hello, world!"
 ```
 

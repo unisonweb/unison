@@ -55,6 +55,7 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.Util.Components
+      Unison.Util.Conflicted
       Unison.Util.Defn
       Unison.Util.Defns
       Unison.Util.Nametree

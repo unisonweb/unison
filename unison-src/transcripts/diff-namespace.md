@@ -92,10 +92,14 @@ scratch/ns2> update
 scratch/main> diff.namespace /ns1: /ns2:
 scratch/ns2> alias.term d d'
 scratch/ns2> alias.type A A'
+scratch/ns2> alias.term A.A A'.A
 scratch/ns2> alias.type X X'
+scratch/ns2> alias.term X.x X'.x
 scratch/main> diff.namespace /ns1: /ns2:
 scratch/ns1> alias.type X X2
+scratch/ns1> alias.term X.x X2.x
 scratch/ns2> alias.type A' A''
+scratch/ns2> alias.term A'.A A''.A
 scratch/ns2> branch /ns3
 scratch/ns2> alias.term fromJust' yoohoo
 scratch/ns2> delete.term.verbose fromJust'

@@ -1,6 +1,6 @@
 # Update on conflict
 
-Updating conflicted definitions works fine.
+Conflicted definitions prevent `update` from succeeding.
 
 ```ucm:hide
 scratch/main> builtins.merge lib.builtins
@@ -21,7 +21,6 @@ scratch/main> delete.term temp
 x = 3
 ```
 
-```ucm
+```ucm:error
 scratch/main> update
-scratch/main> view x
 ```

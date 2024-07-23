@@ -70,6 +70,11 @@ myproject/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+foo = +30
+
+-- The definitions below are not compatible with the updated definitions above.
+-- Please fix the errors and run `update` again.
+
 bar : Nat
 bar =
   use Nat +
@@ -85,6 +90,5 @@ d.y.y.y.y =
   use Nat +
   foo + 10
 
-foo = +30
 ```
 

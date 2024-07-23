@@ -12,6 +12,8 @@ module Unison.Names
     filterByHQs,
     filterBySHs,
     filterTypes,
+    fromReferenceIds,
+    fromUnconflictedReferenceIds,
     map,
     makeAbsolute,
     makeRelative,
@@ -69,7 +71,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -104,6 +106,22 @@ instance Monoid (Names) where
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null n.terms && R.null n.types
+
+-- | Construct a 'Names' from unconflicted reference ids.
+fromReferenceIds :: DefnsF (Relation Name) TermReferenceId TypeReferenceId -> Names
+fromReferenceIds defns =
+  Names
+    { terms = Relation.mapRan Referent.fromTermReferenceId defns.terms,
+      types = Relation.mapRan Reference.fromId defns.types
+    }
+
+-- | Construct a 'Names' from unconflicted reference ids.
+fromUnconflictedReferenceIds :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Names
+fromUnconflictedReferenceIds defns =
+  Names
+    { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
+      types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
 
 map :: (Name -> Name) -> Names -> Names
 map f (Names {terms, types}) = Names terms' types'
@@ -542,7 +560,7 @@ lenientToNametree names =
     (lenientRelationToNametree names.terms)
     (lenientRelationToNametree names.types)
   where
-    lenientRelationToNametree :: Ord a => Relation Name a -> Nametree (Map NameSegment a)
+    lenientRelationToNametree :: (Ord a) => Relation Name a -> Nametree (Map NameSegment a)
     lenientRelationToNametree =
       -- The partial `Set.findMin` is fine here because Relation.domain only has non-empty Set values. A NESet would be
       -- better.

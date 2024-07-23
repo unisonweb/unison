@@ -1,6 +1,6 @@
 # Update on conflict
 
-Updating conflicted definitions works fine.
+Conflicted definitions prevent `update` from succeeding.
 
 ``` unison
 x = 1
@@ -59,14 +59,7 @@ x = 3
 ``` ucm
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-scratch/main> view x
-
-  x : Nat
-  x = 3
+  The term name x is ambiguous. Please resolve the ambiguity,
+  then try to update again.
 
 ```
