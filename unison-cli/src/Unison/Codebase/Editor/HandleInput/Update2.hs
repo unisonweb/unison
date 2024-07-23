@@ -103,7 +103,7 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree, unflattenNametree)
+import Unison.Util.Nametree (Nametree, unflattenNametree, flattenNametrees)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -124,90 +124,43 @@ handleUpdate2 = do
   let namesExcludingLibdeps = Branch.toNames currentBranch0ExcludingLibdeps
   let ctorNames = forwardCtorNames namesExcludingLibdeps
 
-  Cli.respond Output.UpdateLookingForDependents
+  -- Assert that the namespace doesn't have any conflicted names
+  defns <-
+    narrowDefns
+      (Branch.deepDefns currentBranch0ExcludingLibdeps)
+      & onLeft \conflictedName -> wundefined
 
-  -- Get all namings of all dependents of the stuff we're considering updating.
-  dependentsAndConstructors <- do
-    dependents0 <-
-      Cli.runTransaction do
-        getNamespaceDependentsOf
-          namesExcludingLibdeps
-          (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
-
-    -- Throw away the dependents that are shadowed by the file itself
-    let dependents1 :: DefnsF (Relation Name) TermReferenceId TypeReferenceId
-        dependents1 =
-          bimap
-            (Relation.subtractDom (Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)))
-            (Relation.subtractDom (Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)))
-            dependents0
-
-    let dependentTypeRefs :: Set TypeReferenceId
-        dependentTypeRefs =
-          Relation.ran dependents1.types
-
-    -- Add in constructors of dependent types. The constructors aren't "dependents" per se, but we need them for
-    -- computing the decl name lookup for all dependent types.
-    --
-    -- Unlike top-level term and type definitions, these names aren't shadowed by the Unison file. For example, if some
-    -- "Foo.Bar = 5" term exists, we still want to fetch any "Foo.Bar" constructor here, too. The name collision will
-    -- manifest as a duplicate binding error later on.
-    let dependents2 :: DefnsF (Relation Name) Referent.Id TypeReferenceId
-        dependents2 =
-          dependents1
-            & over #terms \terms ->
-              Relation.union
-                (Relation.mapRanMonotonic Referent.RefId terms)
-                ( foldr
-                    ( \case
-                        (Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) conTy, name)
-                          | Set.member typeRef dependentTypeRefs ->
-                              Relation.insert name (Referent.ConId (ConstructorReference typeRef conId) conTy)
-                        _ -> id
-                    )
-                    Relation.empty
-                    (Relation.toList (Branch.deepTerms currentBranch0ExcludingLibdeps))
-                )
-
-    -- Of the ones that remain, try to narrow to a left-unique relation (no conflicted names).
-    dependents3 <-
-      narrowDefns dependents2 & onLeft \conflictedName ->
-        wundefined conflictedName
-
-    -- Throw away the ref->name direction because we don't need it
-    let dependents4 :: DefnsF (Map Name) Referent.Id TypeReferenceId
-        dependents4 =
-          bimap BiMultimap.range BiMultimap.range dependents3
-
-    pure dependents4
-
-  let dependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId
-      dependents =
-        over #terms (Map.mapMaybe Referent.toTermReference) dependentsAndConstructors
-
-  let dependentsNametree :: Nametree (DefnsF (Map NameSegment) Referent.Id TypeReferenceId)
-      dependentsNametree =
-        alignWith
-          ( \case
-              This terms -> Defns {terms, types = Map.empty}
-              That types -> Defns {terms = Map.empty, types}
-              These terms types -> Defns {terms, types}
-          )
-          (unflattenNametree dependentsAndConstructors.terms)
-          (unflattenNametree dependentsAndConstructors.types)
-
-  dependentsDeclNameLookup <-
+  -- Assert that the namespace doesn't have any incoherent decls
+  declNameLookup <-
     Cli.runTransaction
       ( checkDeclCoherency
           Operations.expectDeclNumConstructors
-          Referent.toConstructorReference
-          Just
-          dependentsNametree
+          Referent.toConstructorReferenceId
+          Reference.toId
+          defns
       )
-      & onLeftM \err -> liftIO (print err) >> wundefined
+      & onLeftM \err -> wundefined
+
+  let defns1 = flattenNametrees defns
+
+  Cli.respond Output.UpdateLookingForDependents
+
+  dependents0 <-
+    Cli.runTransaction do
+      getNamespaceDependentsOf2
+        defns1
+        (getExistingReferencesNamed termAndDeclNames namesExcludingLibdeps)
+
+  -- Throw away the dependents that are shadowed by the file itself
+  let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
+      dependents1 =
+        bimap
+          (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)))
+          (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)))
+          dependents0
 
   secondTuf <- do
-    case defnsAreEmpty dependents of
+    case defnsAreEmpty dependents1 of
       -- If there are no dependents of the updates, then just use the already-typechecked file.
       True -> pure tuf
       False -> do
@@ -216,21 +169,16 @@ handleUpdate2 = do
             hydrateDefns
               (Codebase.unsafeGetTermComponent codebase)
               Operations.expectDeclComponent
-              dependents
+              dependents1
 
-        let ppe = makeComplicatedPPE2 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
+        let ppe = makeComplicatedPPE2 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents1
 
         let renderedDependents :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
             renderedDependents =
-              renderDefnsForUnisonFile dependentsDeclNameLookup ppe hydratedDependents
+              renderDefnsForUnisonFile declNameLookup ppe hydratedDependents
 
         let prettyUnisonFile =
-              makePrettyUnisonFile
-                ( Pretty.prettyUnisonFile
-                    (makeComplicatedPPE2 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents)
-                    (UF.discardTypes tuf)
-                )
-                renderedDependents
+              makePrettyUnisonFile (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf)) renderedDependents
 
         Cli.respond Output.UpdateStartTypechecking
 
@@ -246,7 +194,17 @@ handleUpdate2 = do
 
         pure secondTuf
 
-  saveTuf (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing) secondTuf
+  env <- ask
+  path <- Cli.getCurrentProjectPath
+  branchUpdates <-
+    Cli.runTransactionWithRollback \abort -> do
+      Codebase.addDefsToCodebase env.codebase secondTuf
+      typecheckedUnisonFileToBranchUpdates
+        abort
+        (findCtorNamesMaybe Output.UOUUpdate namesExcludingLibdeps ctorNames Nothing)
+        secondTuf
+  Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
+
   Cli.respond Output.Success
 
 makePrettyUnisonFile :: Pretty ColorText -> DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
@@ -255,6 +213,7 @@ makePrettyUnisonFile originalFile dependents =
     <> Pretty.newline
     <> Pretty.newline
     <> "-- The definitions below are not compatible with the updated definitions above."
+    <> Pretty.newline
     <> "-- Please fix the errors and run `update` again."
     <> Pretty.newline
     <> Pretty.newline
@@ -311,17 +270,6 @@ makeParsingEnv path names = do
         uniqueTypeGuid = Cli.loadUniqueTypeGuid path,
         names
       }
-
--- save definitions and namespace
-saveTuf :: (Name -> Either Output (Maybe [Name])) -> TypecheckedUnisonFile Symbol Ann -> Cli ()
-saveTuf getConstructors tuf = do
-  Cli.Env {codebase} <- ask
-  pp <- Cli.getCurrentProjectPath
-  branchUpdates <-
-    Cli.runTransactionWithRollback \abort -> do
-      Codebase.addDefsToCodebase codebase tuf
-      typecheckedUnisonFileToBranchUpdates abort getConstructors tuf
-  Cli.stepAt "update" (pp, Branch.batchUpdates branchUpdates)
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.

@@ -3,7 +3,11 @@
 --
 -- This occurs in the `pull`, `merge`, `update`, and `upgrade` commands.
 module Unison.Cli.UpdateUtils
-  ( -- * Narrowing definitions
+  ( -- * Loading definitions
+    loadNamespaceDefinitions,
+    ConflictedName (..),
+
+    -- * Narrowing definitions
     narrowDefns,
 
     -- * Hydrating definitions
@@ -15,15 +19,23 @@ module Unison.Cli.UpdateUtils
   )
 where
 
-import Control.Lens (mapped, _1, _2)
+import Control.Lens (mapped, _1)
 import Control.Monad.Writer (Writer)
 import Control.Monad.Writer qualified as Writer
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Semialign (alignWith)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
+import Data.These (These (..))
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Causal qualified
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
+import U.Codebase.Referent qualified as V2
 import Unison.Builtin.Decls qualified as Builtin.Decls
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -32,8 +44,12 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Name (Name)
+import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
+import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -46,8 +62,9 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametree, unflattenNametrees)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -57,20 +74,73 @@ import Unison.Var (Var)
 import Prelude hiding (unzip, zip, zipWith)
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Loading definitions
+
+-- Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
+-- in the "lib" namespace.
+--
+-- Fails if there is a conflicted name.
+loadNamespaceDefinitions ::
+  forall m.
+  (Monad m) =>
+  (V2.Referent -> m Referent) ->
+  V2.Branch m ->
+  m (Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
+loadNamespaceDefinitions referent2to1 =
+  fmap assertNamespaceHasNoConflictedNames . go (Map.delete NameSegment.libSegment)
+  where
+    go ::
+      (forall x. Map NameSegment x -> Map NameSegment x) ->
+      V2.Branch m ->
+      m (Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference))
+    go f branch = do
+      terms <- for branch.terms (fmap (Set.NonEmpty.fromList . List.NonEmpty.fromList) . traverse referent2to1 . Map.keys)
+      let types = Map.map (Set.NonEmpty.unsafeFromSet . Map.keysSet) branch.types
+      children <-
+        for (f branch.children) \childCausal -> do
+          child <- childCausal.value
+          go id child
+      pure Nametree {value = Defns {terms, types}, children}
+
+data ConflictedName
+  = ConflictedName'Term !Name !(NESet Referent)
+  | ConflictedName'Type !Name !(NESet TypeReference)
+
+-- | Assert that there are no unconflicted names in a namespace.
+assertNamespaceHasNoConflictedNames ::
+  Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference) ->
+  Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+assertNamespaceHasNoConflictedNames =
+  traverseNametreeWithName \names defns -> do
+    terms <-
+      defns.terms & Map.traverseWithKey \name ->
+        assertUnconflicted (ConflictedName'Term (Name.fromReverseSegments (name List.NonEmpty.:| names)))
+    types <-
+      defns.types & Map.traverseWithKey \name ->
+        assertUnconflicted (ConflictedName'Type (Name.fromReverseSegments (name List.NonEmpty.:| names)))
+    pure Defns {terms, types}
+  where
+    assertUnconflicted :: (NESet ref -> ConflictedName) -> NESet ref -> Either ConflictedName ref
+    assertUnconflicted conflicted refs
+      | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
+      | otherwise = Left (conflicted refs)
+
+------------------------------------------------------------------------------------------------------------------------
 -- Narrowing definitions
 
 -- | "Narrow" a namespace that may contain conflicted names, resulting in either a failure (if we find a conflicted
--- name), or the narrowed left-unique relation namespace without conflicted names.
+-- name), or the narrowed nametree without conflicted names.
 narrowDefns ::
+  forall term typ.
   (Ord term, Ord typ) =>
   DefnsF (Relation Name) term typ ->
-  Either (Defn Name Name) (Defns (BiMultimap term Name) (BiMultimap typ Name))
+  Either (Defn Name Name) (Nametree (DefnsF (Map NameSegment) term typ))
 narrowDefns =
-  bitraverse (mapLeft TermDefn . go) (mapLeft TypeDefn . go)
+  fmap unflattenNametrees . bitraverse (mapLeft TermDefn . go) (mapLeft TypeDefn . go)
   where
-    go :: (Ord ref) => Relation Name ref -> Either Name (BiMultimap ref Name)
+    go :: (Ord ref) => Relation Name ref -> Either Name (Map Name ref)
     go =
-      fmap BiMultimap.fromRange . Map.traverseWithKey unconflicted . Relation.domain
+      Map.traverseWithKey unconflicted . Relation.domain
       where
         unconflicted :: Name -> Set ref -> Either Name ref
         unconflicted name refs =

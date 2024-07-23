@@ -20,13 +20,9 @@ import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
-import Data.List.NonEmpty (pattern (:|))
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Semialign (align, unzip)
 import Data.Set qualified as Set
-import Data.Set.NonEmpty (NESet)
-import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -38,7 +34,6 @@ import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
 import U.Codebase.HashTags (CausalHash, unCausalHash)
 import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
-import U.Codebase.Referent qualified as V2 (Referent)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
@@ -49,7 +44,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (hydrateDefns, renderDefnsForUnisonFile)
+import Unison.Cli.UpdateUtils (hydrateDefns, renderDefnsForUnisonFile, ConflictedName (..), loadNamespaceDefinitions)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
@@ -97,7 +92,6 @@ import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
@@ -119,7 +113,7 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree (..), flattenNametree, traverseNametreeWithName, unflattenNametree)
+import Unison.Util.Nametree (Nametree (..), flattenNametrees, unflattenNametree)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -265,8 +259,7 @@ doMerge info = do
         lcaDefns0 <- maybe (pure emptyNametree) loadDefns branches.lca
         lcaDeclNameLookup <- Cli.runTransaction (lenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
 
-        let flatten defns = Defns (flattenNametree (view #terms) defns) (flattenNametree (view #types) defns)
-        let defns3 = flatten <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
+        let defns3 = flattenNametrees <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
         let declNameLookups = TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup}
 
         pure (defns3, declNameLookups, lcaDeclNameLookup)
@@ -772,55 +765,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
         <> Text.Builder.decimal y
         <> Text.Builder.char '.'
         <> Text.Builder.decimal z
-
--- Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
--- in the "lib" namespace.
---
--- Fails if there is a conflicted name.
-loadNamespaceDefinitions ::
-  forall m.
-  (Monad m) =>
-  (V2.Referent -> m Referent) ->
-  V2.Branch m ->
-  m (Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
-loadNamespaceDefinitions referent2to1 =
-  fmap assertNamespaceHasNoConflictedNames . go (Map.delete NameSegment.libSegment)
-  where
-    go ::
-      (forall x. Map NameSegment x -> Map NameSegment x) ->
-      V2.Branch m ->
-      m (Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference))
-    go f branch = do
-      terms <- for branch.terms (fmap (Set.NonEmpty.fromList . List.NonEmpty.fromList) . traverse referent2to1 . Map.keys)
-      let types = Map.map (Set.NonEmpty.unsafeFromSet . Map.keysSet) branch.types
-      children <-
-        for (f branch.children) \childCausal -> do
-          child <- childCausal.value
-          go id child
-      pure Nametree {value = Defns {terms, types}, children}
-
-data ConflictedName
-  = ConflictedName'Term !Name !(NESet Referent)
-  | ConflictedName'Type !Name !(NESet TypeReference)
-
--- | Assert that there are no unconflicted names in a namespace.
-assertNamespaceHasNoConflictedNames ::
-  Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference) ->
-  Either ConflictedName (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
-assertNamespaceHasNoConflictedNames =
-  traverseNametreeWithName \names defns -> do
-    terms <-
-      defns.terms & Map.traverseWithKey \name ->
-        assertUnconflicted (ConflictedName'Term (Name.fromReverseSegments (name :| names)))
-    types <-
-      defns.types & Map.traverseWithKey \name ->
-        assertUnconflicted (ConflictedName'Type (Name.fromReverseSegments (name :| names)))
-    pure Defns {terms, types}
-  where
-    assertUnconflicted :: (NESet ref -> ConflictedName) -> NESet ref -> Either ConflictedName ref
-    assertUnconflicted conflicted refs
-      | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
-      | otherwise = Left (conflicted refs)
 
 -- @findConflictedAlias namespace diff@, given an old namespace and a diff to a new namespace, will return the first
 -- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same

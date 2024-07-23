@@ -84,6 +84,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       OverloadedRecordDot
       PatternSynonyms
@@ -153,6 +154,7 @@ test-suite tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       OverloadedRecordDot
       PatternSynonyms
