@@ -39,6 +39,7 @@ module Unison.Syntax.Lexer
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
+import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
@@ -1521,7 +1522,13 @@ topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
 
 data BlockTree a
-  = Block a [BlockTree a] [a]
+  = Block
+      -- | The token that opens the block
+      a
+      -- | “Stanzas” of nested tokens
+      [[BlockTree a]]
+      -- | The closing token, if any
+      (Maybe a)
   | Leaf a
   deriving (Functor, Foldable, Traversable)
 
@@ -1534,22 +1541,22 @@ instance (Show a) => Show (BlockTree a) where
   show (Block open mid close) =
     show open
       ++ "\n"
-      ++ indent "  " (intercalateMap "\n" show mid)
+      ++ indent "  " (intercalateMap "\n" (intercalateMap " " show) mid)
       ++ "\n"
-      ++ intercalateMap "" show close
+      ++ maybe "" show close
     where
       indent by s = by ++ (s >>= go by)
       go by '\n' = '\n' : by
       go _ c = [c]
 
-reorderTree :: ([BlockTree a] -> [BlockTree a]) -> BlockTree a -> BlockTree a
-reorderTree f (Block open mid close) = Block open (f (reorderTree f <$> mid)) close
+reorderTree :: ([[BlockTree a]] -> [[BlockTree a]]) -> BlockTree a -> BlockTree a
+reorderTree f (Block open mid close) = Block open (f (fmap (reorderTree f) <$> mid)) close
 reorderTree _ l = l
 
 tree :: [Token Lexeme] -> BlockTree (Token Lexeme)
 tree toks = one toks const
   where
-    one (open@(payload -> Open _) : ts) k = many (Block open) [] ts k
+    one (open@(payload -> Open _) : ts) k = many (Block open . stanzas) [] ts k
     one (t : ts) k = k (Leaf t) ts
     one [] k = k lastErr []
       where
@@ -1557,22 +1564,24 @@ tree toks = one toks const
           [] -> Token (Err LayoutError) topLeftCorner topLeftCorner
           (t : _) -> t {payload = Err LayoutError}
 
-    many open acc [] k = k (open (reverse acc) []) []
-    many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) [t]) ts
+    many open acc [] k = k (open (reverse acc) Nothing) []
+    many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) $ pure t) ts
     many open acc ts k = one ts $ \t ts -> many open (t : acc) ts k
 
 stanzas :: [BlockTree (Token Lexeme)] -> [[BlockTree (Token Lexeme)]]
-stanzas = go []
-  where
-    go acc [] = [reverse acc]
-    go acc (t : ts) = case payload $ headToken t of
-      Semi _ -> reverse (t : acc) : go [] ts
-      _ -> go (t : acc) ts
+stanzas =
+  toList
+    . foldr
+      ( \tok (curr :| stanzas) -> case tok of
+          Leaf (Token (Semi _) _ _) -> [tok] :| curr : stanzas
+          _ -> (tok : curr) :| stanzas
+      )
+      ([] :| [])
 
 -- Moves type and ability declarations to the front of the token stream
 -- and move `use` statements to the front of each block
-reorder :: [BlockTree (Token Lexeme)] -> [BlockTree (Token Lexeme)]
-reorder = foldr fixup [] . join . sortWith f . stanzas
+reorder :: [[BlockTree (Token Lexeme)]] -> [[BlockTree (Token Lexeme)]]
+reorder = foldr fixup [] . sortWith f
   where
     f [] = 3 :: Int
     f (t0 : _) = case payload $ headToken t0 of
@@ -1582,8 +1591,13 @@ reorder = foldr fixup [] . join . sortWith f . stanzas
       _ -> 3 :: Int
     -- after reordering can end up with trailing semicolon at the end of
     -- a block, which we remove with this pass
-    fixup (payload . headToken -> Semi _) [] = []
-    fixup tok tail = tok : tail
+    fixup stanza [] = case Lens.unsnoc stanza of
+      Nothing -> []
+      -- remove any trailing `Semi` from the last non-empty stanza
+      Just (init, Leaf (Token (Semi _) _ _)) -> [init]
+      -- don’t touch other stanzas
+      Just (_, _) -> [stanza]
+    fixup stanza tail = stanza : tail
 
 -- | This turns the lexeme stream into a tree, reordering some lexeme subsequences.
 preParse :: [Token Lexeme] -> BlockTree (Token Lexeme)
