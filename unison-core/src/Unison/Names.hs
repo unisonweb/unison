@@ -77,8 +77,6 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
-import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Nametree (Nametree, unflattenNametree)
 import Unison.Util.Relation (Relation)

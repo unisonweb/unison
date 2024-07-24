@@ -14,7 +14,6 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Reference (Reference, TermReferenceId)
-import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
