@@ -72,11 +72,11 @@ mergeDiffs ::
 mergeDiffs alice bob =
   catMaybes (alignWith combineDiffOps alice bob)
 
-combineDiffOps :: Eq a => These (DiffOp a) (DiffOp a) -> Maybe (LibdepDiffOp a)
+combineDiffOps :: (Eq a) => These (DiffOp a) (DiffOp a) -> Maybe (LibdepDiffOp a)
 combineDiffOps =
   TwoDiffOps.make >>> combineDiffOps1
 
-combineDiffOps1 :: Eq a => TwoDiffOps a -> Maybe (LibdepDiffOp a)
+combineDiffOps1 :: (Eq a) => TwoDiffOps a -> Maybe (LibdepDiffOp a)
 combineDiffOps1 = \case
   TwoDiffOps'Add new -> Just (AddLibdep (EitherWay.value new))
   -- If Alice deletes a dep and Bob doesn't touch it, ignore the delete, since Bob may still be using it.

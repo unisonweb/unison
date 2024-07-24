@@ -396,12 +396,9 @@ typeLookupForDependencies codebase s = do
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
       isNothing
-        ( Map.lookup r (TL.dataDecls tl)
-            $> ()
-            <|> Map.lookup r (TL.typeOfTerms tl)
-            $> ()
-            <|> Map.lookup r (TL.effectDecls tl)
-            $> ()
+        ( Map.lookup r (TL.dataDecls tl) $> ()
+            <|> Map.lookup r (TL.typeOfTerms tl) $> ()
+            <|> Map.lookup r (TL.effectDecls tl) $> ()
         )
 
 toCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann

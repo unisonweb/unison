@@ -505,7 +505,7 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     evalInContext ppe ctx activeThreads initw
       `UnliftIO.finally` cleanupThreads
 
-ensureExists :: HasCallStack => CreateProcess -> (CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
+ensureExists :: (HasCallStack) => CreateProcess -> (CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
 ensureExists cmd err =
   ccall >>= \case
     Nothing -> pure ()
@@ -517,13 +517,13 @@ ensureExists cmd err =
         (ExitFailure exitCode, stdout, stderr) -> pure (Just (Left (exitCode, stdout, stderr)))
     ccall = call `UnliftIO.catch` \(e :: IOException) -> pure . Just $ Right e
 
-ensureRuntimeExists :: HasCallStack => FilePath -> IO ()
+ensureRuntimeExists :: (HasCallStack) => FilePath -> IO ()
 ensureRuntimeExists executable =
   ensureExists cmd runtimeErrMsg
   where
     cmd = proc executable ["--help"]
 
-ensureRacoExists :: HasCallStack => IO ()
+ensureRacoExists :: (HasCallStack) => IO ()
 ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
 
 prettyCmdSpec :: CmdSpec -> Pretty ColorText

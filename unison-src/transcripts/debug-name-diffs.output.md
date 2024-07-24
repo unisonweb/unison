@@ -45,8 +45,8 @@ scratch/main> delete.term.verbose a.b.one
   
     1. a.b.one : ##Nat
   
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
 scratch/main> alias.term a.two a.newtwo
 

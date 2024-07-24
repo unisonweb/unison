@@ -53,9 +53,9 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
-import Prelude hiding (filter)
 import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation qualified as Relation
+import Prelude hiding (filter)
 
 -- | A left-unique relation.
 --
@@ -75,32 +75,32 @@ isEmpty :: BiMultimap a b -> Bool
 isEmpty =
   Map.null . domain
 
-memberDom :: Ord a => a -> BiMultimap a b -> Bool
+memberDom :: (Ord a) => a -> BiMultimap a b -> Bool
 memberDom x =
   Map.member x . domain
 
 -- | Look up the set of @b@ related to an @a@.
 --
 -- /O(log a)/.
-lookupDom :: Ord a => a -> BiMultimap a b -> Set b
+lookupDom :: (Ord a) => a -> BiMultimap a b -> Set b
 lookupDom a =
   lookupDom_ a . domain
 
-lookupDom_ :: Ord a => a -> Map a (NESet b) -> Set b
+lookupDom_ :: (Ord a) => a -> Map a (NESet b) -> Set b
 lookupDom_ x xs =
   maybe Set.empty Set.NonEmpty.toSet (Map.lookup x xs)
 
 -- | Look up the @a@ related to a @b@.
 --
 -- /O(log b)/.
-lookupRan :: Ord b => b -> BiMultimap a b -> Maybe a
+lookupRan :: (Ord b) => b -> BiMultimap a b -> Maybe a
 lookupRan b (BiMultimap _ r) =
   Map.lookup b r
 
 -- | Look up the @a@ related to a @b@.
 --
 -- /O(log b)/.
-unsafeLookupRan :: Ord b => b -> BiMultimap a b -> a
+unsafeLookupRan :: (Ord b) => b -> BiMultimap a b -> a
 unsafeLookupRan b (BiMultimap _ r) =
   r Map.! b
 
@@ -175,11 +175,11 @@ range = toMapR
 
 -- | Construct a left-unique relation from a mapping from its left-elements to set-of-right-elements. The caller is
 -- responsible for ensuring that no right-element is mapped to by two different left-elements.
-unsafeFromDomain :: Ord b => Map a (NESet b) -> BiMultimap a b
+unsafeFromDomain :: (Ord b) => Map a (NESet b) -> BiMultimap a b
 unsafeFromDomain domain =
   BiMultimap domain (invertDomain domain)
 
-invertDomain :: forall a b. Ord b => Map a (NESet b) -> Map b a
+invertDomain :: forall a b. (Ord b) => Map a (NESet b) -> Map b a
 invertDomain =
   Map.foldlWithKey' f Map.empty
   where
@@ -234,7 +234,7 @@ insert a b m@(BiMultimap l r) =
     l' = Map.upsert (maybe (Set.NonEmpty.singleton b) (Set.NonEmpty.insert b)) a l
 
 -- @upsertFunc x@ returns a function that upserts @x@, suitable for passing to @Map.alterF@.
-upsertFunc :: Eq a => a -> Maybe a -> (UpsertResult a, Maybe a)
+upsertFunc :: (Eq a) => a -> Maybe a -> (UpsertResult a, Maybe a)
 upsertFunc new existing =
   case existing of
     Nothing -> (Inserted, Just new)
@@ -266,7 +266,7 @@ unsafeUnion xs ys =
 ------------------------------------------------------------------------------------------------------------------------
 
 -- @deriveRangeFromDomain x ys range@ is a helper that inserts @(x, y1)@, @(x, y2)@, ... into range @r@.
-deriveRangeFromDomain :: Ord b => a -> NESet b -> Map b a -> Map b a
+deriveRangeFromDomain :: (Ord b) => a -> NESet b -> Map b a -> Map b a
 deriveRangeFromDomain x ys acc =
   foldr (flip Map.insert x) acc ys
 {-# INLINE deriveRangeFromDomain #-}

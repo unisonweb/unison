@@ -78,7 +78,7 @@ instance (Applicative m) => Semigroup (TreeDiff m) where
 instance (Applicative m) => Monoid (TreeDiff m) where
   mempty = TreeDiff (mempty :< Compose mempty)
 
-hoistTreeDiff :: Functor m => (forall x. m x -> n x) -> TreeDiff m -> TreeDiff n
+hoistTreeDiff :: (Functor m) => (forall x. m x -> n x) -> TreeDiff m -> TreeDiff n
 hoistTreeDiff f (TreeDiff cfr) =
   TreeDiff $ Cofree.hoistCofree (\(Compose m) -> Compose (fmap f m)) cfr
 

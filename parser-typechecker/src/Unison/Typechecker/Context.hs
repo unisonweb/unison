@@ -606,15 +606,15 @@ debugTrace :: String -> Bool
 debugTrace e | debugEnabled = trace e False
 debugTrace _ = False
 
-showType :: Var v => Type.Type v a -> String
+showType :: (Var v) => Type.Type v a -> String
 showType ty = TP.prettyStr (Just 120) PPE.empty ty
 
-debugType :: Var v => String -> Type.Type v a -> Bool
+debugType :: (Var v) => String -> Type.Type v a -> Bool
 debugType tag ty
   | debugEnabled = debugTrace $ "(" <> show tag <> "," <> showType ty <> ")"
   | otherwise = False
 
-debugTypes :: Var v => String -> Type.Type v a -> Type.Type v a -> Bool
+debugTypes :: (Var v) => String -> Type.Type v a -> Type.Type v a -> Bool
 debugTypes tag t1 t2
   | debugEnabled = debugTrace $ "(" <> show tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
   | otherwise = False

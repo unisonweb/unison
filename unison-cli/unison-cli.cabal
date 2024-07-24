@@ -107,7 +107,9 @@ library
       Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.TranscriptParser
+      Unison.Codebase.Transcript
+      Unison.Codebase.Transcript.Parser
+      Unison.Codebase.Transcript.Runner
       Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.BranchRelativePath

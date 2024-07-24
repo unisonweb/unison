@@ -100,7 +100,7 @@ v2ToH2Referent = \case
   V2Referent.Ref r -> H2.ReferentRef (v2ToH2Reference r)
   V2Referent.Con r cid -> H2.ReferentCon (v2ToH2Reference r) cid
 
-v2ToH2Branch :: Monad m => V2.Branch m -> m H2.Branch
+v2ToH2Branch :: (Monad m) => V2.Branch m -> m H2.Branch
 v2ToH2Branch V2.Branch {terms, types, patches, children} = do
   hterms <-
     traverse sequenceA terms
@@ -166,7 +166,7 @@ hashPatchFormatToH2Patch Memory.PatchFull.Patch {termEdits, typeEdits} =
       V2Referent.Con typeRef conId -> do
         (H2.ReferentCon (v2ToH2Reference $ second unComponentHash typeRef) conId)
 
-v2ToH2Term :: forall v. Ord v => V2.Term.HashableTerm v -> H2.Term v ()
+v2ToH2Term :: forall v. (Ord v) => V2.Term.HashableTerm v -> H2.Term v ()
 v2ToH2Term = ABT.transform convertF
   where
     convertF :: V2.Term.F' Text V2.Term.HashableTermRef V2.Term.TypeRef V2.Term.HashableTermLink V2.Term.TypeLink v a1 -> H2.TermF v () () a1

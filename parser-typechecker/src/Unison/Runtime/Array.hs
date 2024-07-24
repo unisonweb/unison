@@ -56,7 +56,7 @@ import Data.Primitive.PrimArray as EPA hiding
 import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
 import Data.Word (Word8)
-import GHC.IsList (toList )
+import GHC.IsList (toList)
 
 #ifdef ARRAY_CHECK
 import GHC.Stack
