@@ -103,7 +103,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
-import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
@@ -111,6 +111,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.Defns (Defns (..), DefnsF)
@@ -134,14 +135,11 @@ data IncoherentDeclReason
   deriving stock (Show)
 
 checkDeclCoherency ::
-  forall m tm ty.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
-  (tm -> Maybe ConstructorReferenceId) ->
-  (ty -> Maybe TypeReferenceId) ->
-  Nametree (DefnsF (Map NameSegment) tm ty) ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m (Either IncoherentDeclReason DeclNameLookup)
-checkDeclCoherency loadDeclNumConstructors toConRefId toTypeRefId nametree =
+checkDeclCoherency loadDeclNumConstructors nametree =
   Except.runExceptT $
     checkDeclCoherencyWith
       (lift . loadDeclNumConstructors)
@@ -151,8 +149,6 @@ checkDeclCoherency loadDeclNumConstructors toConRefId toTypeRefId nametree =
           onNestedDeclAlias = \x y -> Except.throwError (IncoherentDeclReason'NestedDeclAlias x y),
           onStrayConstructor = \x y -> Except.throwError (IncoherentDeclReason'StrayConstructor x y)
         }
-      toConRefId
-      toTypeRefId
       nametree
 
 data IncoherentDeclReasons = IncoherentDeclReasons
@@ -165,14 +161,12 @@ data IncoherentDeclReasons = IncoherentDeclReasons
 
 -- | Like 'checkDeclCoherency', but returns info about all of the incoherent decls found, not just the first.
 checkAllDeclCoherency ::
-  forall m tm ty.
+  forall m.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
-  (tm -> Maybe ConstructorReferenceId) ->
-  (ty -> Maybe TypeReferenceId) ->
-  Nametree (DefnsF (Map NameSegment) tm ty) ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m (Either IncoherentDeclReasons DeclNameLookup)
-checkAllDeclCoherency loadDeclNumConstructors toConRefId toTypeRefId nametree = do
+checkAllDeclCoherency loadDeclNumConstructors nametree = do
   State.runStateT doCheck emptyReasons <&> \(declNameLookup, reasons) ->
     if reasons == emptyReasons
       then Right declNameLookup
@@ -189,8 +183,6 @@ checkAllDeclCoherency loadDeclNumConstructors toConRefId toTypeRefId nametree = 
               onStrayConstructor = \x y -> #strayConstructors %= ((x, y) :)
             }
         )
-        toConRefId
-        toTypeRefId
         nametree
 
     emptyReasons :: IncoherentDeclReasons
@@ -214,48 +206,44 @@ data OnIncoherentDeclReasons m = OnIncoherentDeclReasons
   }
 
 checkDeclCoherencyWith ::
-  forall m tm ty.
+  forall m.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
   OnIncoherentDeclReasons m ->
-  (tm -> Maybe ConstructorReferenceId) ->
-  (ty -> Maybe TypeReferenceId) ->
-  Nametree (DefnsF (Map NameSegment) tm ty) ->
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m DeclNameLookup
-checkDeclCoherencyWith loadDeclNumConstructors callbacks toConRefId toTypeRefId =
+checkDeclCoherencyWith loadDeclNumConstructors callbacks =
   fmap (view #declNameLookup)
     . (`State.execStateT` DeclCoherencyCheckState Map.empty (DeclNameLookup Map.empty Map.empty))
     . go []
   where
     go ::
       [NameSegment] ->
-      (Nametree (DefnsF (Map NameSegment) tm ty)) ->
+      (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
       StateT DeclCoherencyCheckState m ()
     go prefix (Nametree defns children) = do
       for_
         (Map.toList defns.terms)
         ( checkDeclCoherencyWith_DoTerms
             callbacks
-            toConRefId
             prefix
         )
       childrenWeWentInto <-
         forMaybe
           (Map.toList defns.types)
-          (checkDeclCoherencyWith_DoTypes loadDeclNumConstructors callbacks toTypeRefId go prefix children)
+          (checkDeclCoherencyWith_DoTypes loadDeclNumConstructors callbacks go prefix children)
       let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
       for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
 
 checkDeclCoherencyWith_DoTerms ::
-  forall m ref.
+  forall m.
   (Monad m) =>
   OnIncoherentDeclReasons m ->
-  (ref -> Maybe ConstructorReferenceId) ->
   [NameSegment] ->
-  (NameSegment, ref) ->
+  (NameSegment, Referent) ->
   StateT DeclCoherencyCheckState m ()
-checkDeclCoherencyWith_DoTerms callbacks toConRefId prefix (segment, ref) =
-  whenJust (toConRefId ref) \(ConstructorReference typeRef conId) -> do
+checkDeclCoherencyWith_DoTerms callbacks prefix (segment, ref) =
+  whenJust (Referent.toConstructorReferenceId ref) \(ConstructorReference typeRef conId) -> do
     let f :: Maybe (Name, ConstructorNames) -> MaybeT m (Name, ConstructorNames)
         f = \case
           Nothing -> do
@@ -275,36 +263,35 @@ checkDeclCoherencyWith_DoTerms callbacks toConRefId prefix (segment, ref) =
       #expectedConstructors .= expectedConstructors1
 
 checkDeclCoherencyWith_DoTypes ::
-  forall m tm ty.
+  forall m.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
   OnIncoherentDeclReasons m ->
-  (ty -> Maybe TypeReferenceId) ->
   ( [NameSegment] ->
-    (Nametree (DefnsF (Map NameSegment) tm ty)) ->
+    (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
     StateT DeclCoherencyCheckState m ()
   ) ->
   [NameSegment] ->
-  Map NameSegment (Nametree (DefnsF (Map NameSegment) tm ty)) ->
-  (NameSegment, ty) ->
+  Map NameSegment (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
+  (NameSegment, TypeReference) ->
   StateT DeclCoherencyCheckState m (Maybe NameSegment)
-checkDeclCoherencyWith_DoTypes loadDeclNumConstructors callbacks toTypeRefId go prefix children (name, ref) =
-  case toTypeRefId ref of
+checkDeclCoherencyWith_DoTypes loadDeclNumConstructors callbacks go prefix children (name, ref) =
+  case Reference.toId ref of
     Nothing -> pure Nothing
     Just refId ->
       checkDeclCoherencyWith_DoTypes2 loadDeclNumConstructors callbacks go prefix children name refId
 
 checkDeclCoherencyWith_DoTypes2 ::
-  forall m tm ty.
+  forall m.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
   OnIncoherentDeclReasons m ->
   ( [NameSegment] ->
-    (Nametree (DefnsF (Map NameSegment) tm ty)) ->
+    (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
     StateT DeclCoherencyCheckState m ()
   ) ->
   [NameSegment] ->
-  Map NameSegment (Nametree (DefnsF (Map NameSegment) tm ty)) ->
+  Map NameSegment (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
   NameSegment ->
   TypeReferenceId ->
   StateT DeclCoherencyCheckState m (Maybe NameSegment)

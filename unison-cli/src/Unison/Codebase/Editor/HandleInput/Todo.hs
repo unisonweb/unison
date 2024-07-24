@@ -27,8 +27,6 @@ import Unison.Reference (TermReference)
 import Unison.Syntax.Name qualified as Name
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Set qualified as Set
-import qualified Unison.Referent as Referent
-import qualified Unison.Reference as Reference
 
 handleTodo :: Cli ()
 handleTodo = do
@@ -74,8 +72,6 @@ handleTodo = do
         fmap (Either.fromLeft (IncoherentDeclReasons [] [] [] [])) $
           checkAllDeclCoherency
             Operations.expectDeclNumConstructors
-            Referent.toConstructorReferenceId
-            Reference.toId
             (Names.lenientToNametree (Branch.toNames currentNamespaceWithoutLibdeps))
 
       pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen, incoherentDeclReasons)

@@ -250,13 +250,7 @@ doMerge info = do
               Just (who, branch) -> do
                 defns <- loadDefns branch
                 declNameLookup <-
-                  Cli.runTransaction
-                    ( checkDeclCoherency
-                        db.loadDeclNumConstructors
-                        Referent.toConstructorReferenceId
-                        Reference.toId
-                        defns
-                    )
+                  Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns)
                     & onLeftM (done . Output.IncoherentDeclDuringMerge who)
                 pure (defns, declNameLookup)
 

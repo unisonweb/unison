@@ -85,13 +85,7 @@ handleUpdate2 = do
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
-    Cli.runTransaction
-      ( checkDeclCoherency
-          Operations.expectDeclNumConstructors
-          Referent.toConstructorReferenceId
-          Reference.toId
-          defns
-      )
+    Cli.runTransaction (checkDeclCoherency Operations.expectDeclNumConstructors defns)
       & onLeftM (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   Cli.respond Output.UpdateLookingForDependents
