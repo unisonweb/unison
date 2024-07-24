@@ -1,7 +1,7 @@
 # Hello\!
 
 ``` ucm :hide
-scratch/main> builtins.merge
+scratch/main> builtins.mergeio
 ```
 
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
