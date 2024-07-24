@@ -21,7 +21,7 @@ import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
-import Data.Semialign (align, unzip)
+import Data.Semialign (align, unzip, zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -44,19 +44,20 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (hydrateDefns, loadNamespaceDefinitions, renderDefnsForUnisonFile)
+import Unison.Cli.UpdateUtils
+  ( getNamespaceDependentsOf2,
+    hydrateDefns,
+    loadNamespaceDefinitions,
+    parseAndTypecheck,
+    renderDefnsForUnisonFile,
+  )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
-import Unison.Codebase.Editor.HandleInput.Update2
-  ( getNamespaceDependentsOf2,
-    makeParsingEnv,
-    prettyParseTypecheck2,
-    typecheckedUnisonFileToBranchAdds,
-  )
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode (..))
 import Unison.Codebase.Path (Path)
@@ -66,6 +67,8 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
+import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
@@ -97,18 +100,29 @@ import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, Semver (..), classifyProjectBranchName)
+import Unison.Project
+  ( ProjectAndBranch (..),
+    ProjectBranchName,
+    ProjectBranchNameKind (..),
+    ProjectName,
+    Semver (..),
+    classifyProjectBranchName,
+  )
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
+import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
@@ -120,6 +134,7 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
+import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -356,8 +371,8 @@ doMerge info = do
               then pure Nothing
               else do
                 currentPath <- Cli.getCurrentProjectPath
-                parsingEnv <- makeParsingEnv currentPath (Branch.toNames stageOneBranch)
-                prettyParseTypecheck2 prettyUnisonFile parsingEnv <&> eitherToMaybe
+                parsingEnv <- Cli.makeParsingEnv currentPath (Branch.toNames stageOneBranch)
+                parseAndTypecheck prettyUnisonFile parsingEnv
 
       let parents =
             (\causal -> (causal.causalHash, Codebase.expectBranchForHash codebase causal.causalHash)) <$> causals
@@ -856,6 +871,40 @@ libdepsToBranch0 db libdeps = do
   -- FIXME how slow/bad is this without that branch cache?
   branchCache <- Sqlite.unsafeIO newBranchCache
   Conversions.branch2to1 branchCache db.loadDeclType branch
+
+typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
+typecheckedUnisonFileToBranchAdds tuf = do
+  declAdds ++ termAdds
+  where
+    declAdds :: [(Path, Branch0 m -> Branch0 m)]
+    declAdds = do
+      foldMap makeDataDeclAdds (Map.toList (UnisonFile.dataDeclarationsId' tuf))
+        ++ foldMap makeEffectDeclUpdates (Map.toList (UnisonFile.effectDeclarationsId' tuf))
+      where
+        makeDataDeclAdds (symbol, (typeRefId, dataDecl)) = makeDeclAdds (symbol, (typeRefId, Right dataDecl))
+        makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclAdds (symbol, (typeRefId, Left effectDecl))
+
+        makeDeclAdds :: (Symbol, (TypeReferenceId, Decl Symbol Ann)) -> [(Path, Branch0 m -> Branch0 m)]
+        makeDeclAdds (symbol, (typeRefId, decl)) =
+          let insertTypeAction = BranchUtil.makeAddTypeName (splitVar symbol) (Reference.fromId typeRefId)
+              insertTypeConstructorActions =
+                zipWith
+                  (\sym rid -> BranchUtil.makeAddTermName (splitVar sym) (Reference.fromId <$> rid))
+                  (DataDeclaration.constructorVars (DataDeclaration.asDataDecl decl))
+                  (DataDeclaration.declConstructorReferents typeRefId decl)
+           in insertTypeAction : insertTypeConstructorActions
+
+    termAdds :: [(Path, Branch0 m -> Branch0 m)]
+    termAdds =
+      tuf
+        & UnisonFile.hashTermsId
+        & Map.toList
+        & mapMaybe \(var, (_, ref, wk, _, _)) -> do
+          guard (WatchKind.watchKindShouldBeStoredInDatabase wk)
+          Just (BranchUtil.makeAddTermName (splitVar var) (Referent.fromTermReferenceId ref))
+
+    splitVar :: Symbol -> Path.Split
+    splitVar = Path.splitFromName . Name.unsafeParseVar
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Debugging by printing a bunch of stuff out

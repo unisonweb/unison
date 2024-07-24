@@ -6,6 +6,10 @@ module Unison.Cli.UpdateUtils
   ( -- * Loading definitions
     loadNamespaceDefinitions,
 
+    -- * Getting dependents in a namespace
+    getNamespaceDependentsOf,
+    getNamespaceDependentsOf2,
+
     -- * Narrowing definitions
     narrowDefns,
 
@@ -14,12 +18,17 @@ module Unison.Cli.UpdateUtils
 
     -- * Rendering definitions
     renderDefnsForUnisonFile,
+
+    -- * Parsing and typechecking
+    parseAndTypecheck,
   )
 where
 
 import Control.Lens (mapped, _1)
+import Control.Monad.Reader (ask)
 import Control.Monad.Writer (Writer)
 import Control.Monad.Writer qualified as Writer
+import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
@@ -32,9 +41,15 @@ import U.Codebase.Branch qualified as V2
 import U.Codebase.Causal qualified
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Referent qualified as V2
+import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Builtin.Decls qualified as Builtin.Decls
+import Unison.Cli.Monad (Cli, Env (..))
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
+import Unison.Debug qualified as Debug
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -43,18 +58,25 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.Reference (TypeReference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
+import Unison.Sqlite (Transaction)
+import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter (AccessorName)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
+import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted (..))
@@ -65,8 +87,11 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Prelude hiding (unzip, zip, zipWith)
+import Unison.Names (Names)
+import qualified Unison.Names as Names
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading definitions
@@ -123,6 +148,50 @@ assertNamespaceHasNoConflictedNames =
     assertUnconflicted conflicted refs
       | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
       | otherwise = Left (conflicted refs)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Getting dependents in a namespace
+
+-- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
+-- (transitive) dependents of the dependencies.
+getNamespaceDependentsOf ::
+  Names ->
+  Set Reference ->
+  Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
+getNamespaceDependentsOf names dependencies = do
+  dependents <- Operations.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
+  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
+  where
+    nameTerm :: TermReferenceId -> Relation Name TermReferenceId
+    nameTerm ref =
+      Relation.fromManyDom (Relation.lookupRan (Referent.fromTermReferenceId ref) (Names.terms names)) ref
+
+    nameType :: TypeReferenceId -> Relation Name TypeReferenceId
+    nameType ref =
+      Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
+
+-- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
+-- (transitive) dependents of the dependencies.
+getNamespaceDependentsOf2 ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Set Reference ->
+  Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+getNamespaceDependentsOf2 defns dependencies = do
+  let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
+  let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
+  let scope = bifoldMap toTermScope toTypeScope defns
+  Operations.transitiveDependentsWithinScope scope dependencies
+    <&> bimap (Set.foldl' addTerms Map.empty) (Set.foldl' addTypes Map.empty)
+  where
+    addTerms :: Map Name TermReferenceId -> TermReferenceId -> Map Name TermReferenceId
+    addTerms acc0 ref =
+      let names = BiMultimap.lookupDom (Referent.fromTermReferenceId ref) defns.terms
+       in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
+
+    addTypes :: Map Name TypeReferenceId -> TypeReferenceId -> Map Name TypeReferenceId
+    addTypes acc0 ref =
+      let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
+       in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Narrowing definitions
@@ -269,3 +338,26 @@ setPpedToConstructorNames declNameLookup name ref =
           Nothing -> []
           Just conName -> let hqConName = HQ'.NameOnly conName in [(hqConName, hqConName)]
       Referent.Ref _ -> []
+
+------------------------------------------------------------------------------------------------------------------------
+-- Parsing and typechecking
+
+-- TODO: find a better module for this function, as it's used in a couple places
+parseAndTypecheck ::
+  Pretty Pretty.ColorText ->
+  Parser.ParsingEnv Transaction ->
+  Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
+parseAndTypecheck prettyUf parsingEnv = do
+  env <- ask
+  let stringUf = Pretty.toPlain 80 prettyUf
+  Debug.whenDebug Debug.Update do
+    liftIO do
+      putStrLn "--- Scratch ---"
+      putStrLn stringUf
+  Cli.runTransaction do
+    Parsers.parseFile "<update>" stringUf parsingEnv >>= \case
+      Left _ -> pure Nothing
+      Right uf -> do
+        typecheckingEnv <-
+          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) env.codebase [] uf
+        pure (Result.result (FileParsers.synthesizeFile typecheckingEnv uf))
