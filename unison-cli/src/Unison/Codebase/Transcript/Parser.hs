@@ -24,11 +24,10 @@ where
 import CMark qualified
 import Data.Char qualified as Char
 import Data.Text qualified as Text
-import Data.These (These (..))
 import Text.Megaparsec qualified as P
 import Unison.Codebase.Transcript
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (ProjectAndBranch))
+import Unison.Project (fullyQualifiedProjectAndBranchNamesParser)
 
 formatAPIRequest :: APIRequest -> Text
 formatAPIRequest = \case
@@ -72,24 +71,16 @@ ucmLine :: P UcmLine
 ucmLine = ucmCommand <|> ucmComment
   where
     ucmCommand :: P UcmLine
-    ucmCommand = do
-      context <-
-        P.try do
-          contextString <- P.takeWhile1P Nothing (/= '>')
-          context <-
-            case (tryFrom @Text contextString) of
-              (Right (These project branch)) -> pure (UcmContextProject (ProjectAndBranch project branch))
-              _ -> fail "expected project/branch or absolute path"
-          void $ lineToken $ word ">"
-          pure context
-      line <- P.takeWhileP Nothing (/= '\n') <* spaces
-      pure $ UcmCommand context line
+    ucmCommand =
+      UcmCommand
+        <$> fmap UcmContextProject (P.try $ fullyQualifiedProjectAndBranchNamesParser <* lineToken (word ">"))
+        <*> P.takeWhileP Nothing (/= '\n')
+        <* spaces
 
     ucmComment :: P UcmLine
-    ucmComment = do
-      word "--"
-      line <- P.takeWhileP Nothing (/= '\n') <* spaces
-      pure $ UcmComment line
+    ucmComment =
+      P.label "comment (delimited with “--”)" $
+        UcmComment <$> (word "--" *> P.takeWhileP Nothing (/= '\n')) <* spaces
 
 apiRequest :: P APIRequest
 apiRequest = do
@@ -118,7 +109,7 @@ fenced info = do
       hide <- hidden
       err <- expectingError
       P.setInput body
-      pure . Ucm hide err <$> (spaces *> many ucmLine)
+      pure . Ucm hide err <$> (spaces *> P.manyTill ucmLine P.eof)
     "unison" ->
       do
         -- todo: this has to be more interesting
@@ -132,7 +123,7 @@ fenced info = do
         pure . Unison hide err fileName <$> (spaces *> P.getInput)
     "api" -> do
       P.setInput body
-      pure . API <$> (spaces *> many apiRequest)
+      pure . API <$> (spaces *> P.manyTill apiRequest P.eof)
     _ -> pure Nothing
 
 word :: Text -> P Text
