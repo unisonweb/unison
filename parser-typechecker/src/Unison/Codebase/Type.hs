@@ -55,13 +55,6 @@ data Codebase m v a = Codebase
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
-    -- | Get the root branch.
-    getRootBranch :: m (Branch m),
-    -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
-    putRootBranch ::
-      Text -> -- Reason for the change, will be recorded in the reflog
-      Branch m ->
-      m (),
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
@@ -87,7 +80,12 @@ data Codebase m v a = Codebase
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
     withConnection :: forall x. (Sqlite.Connection -> m x) -> m x,
     -- | Acquire a new connection to the same underlying database file this codebase object connects to.
-    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x
+    withConnectionIO :: forall x. (Sqlite.Connection -> IO x) -> IO x,
+    -- | This optimization allows us to pre-fetch a branch from SQLite into the branch cache when we know we'll need it
+    -- soon, but not immediately. E.g. the user has switched a branch, but hasn't run any commands on it yet.
+    --
+    -- This combinator returns immediately, but warms the cache in the background with the desired branch.
+    preloadBranch :: CausalHash -> m ()
   }
 
 -- | Whether a codebase is local or remote.

@@ -10,7 +10,7 @@ import Unison.Codebase.BranchDiff (BranchDiff (BranchDiff))
 import Unison.Codebase.BranchDiff qualified as BranchDiff
 import Unison.Codebase.Patch qualified as P
 import Unison.DataDeclaration (DeclOrBuiltin)
-import Unison.HashQualified' (HashQualified)
+import Unison.HashQualifiedPrime (HashQualified)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names (Names)

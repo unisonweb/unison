@@ -1,13 +1,14 @@
 We were seeing an issue where (it seemed) that every namespace that was visited during a propagate would get a new history node, even when it didn't contain any dependents.
 
 Example:
-```unison
+
+``` unison
 a = "a term"
 X.foo = "a namespace"
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -16,12 +17,13 @@ X.foo = "a namespace"
 
 ```
 Here is an update which should not affect `X`:
-```unison
+
+``` unison
 a = "an update"
 ```
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -30,8 +32,9 @@ a = "an update"
 
 ```
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
-```ucm
-.> history X
+
+``` ucm
+scratch/main> history X
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -42,8 +45,9 @@ As of the time of this writing, the history for `X` should be a single node, `#4
 
 ```
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
-```ucm
-.> history #7nl6ppokhg
+
+``` ucm
+scratch/main> history #7nl6ppokhg
 
   😶
   

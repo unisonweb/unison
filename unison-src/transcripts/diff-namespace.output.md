@@ -1,61 +1,39 @@
-```unison
+``` unison
 x = 23
-```
-
-```ucm
-  ☝️  The namespace .b1 is empty.
-
-.b1> add
-
-  ⍟ I've added these definitions:
-  
-    x : ##Nat
-
-.b1> alias.term x fslkdjflskdjflksjdf
-
-  Done.
-
-.> fork b1 b2
-
-  Done.
-
-.b2> alias.term x abc
-
-  Done.
-
-```
-```unison
 fslkdjflskdjflksjdf = 663
 ```
 
-```ucm
-  ☝️  The namespace .b0 is empty.
-
-.b0> add
+``` ucm
+scratch/b1> add
 
   ⍟ I've added these definitions:
   
-    fslkdjflskdjflksjdf : ##Nat
+    fslkdjflskdjflksjdf : Nat
+    x                   : Nat
 
-.> merge.old b0 b1
+```
+``` unison
+x = 23
+fslkdjflskdjflksjdf = 23
+abc = 23
+```
 
-  Here's what's changed in b1 after the merge:
+``` ucm
+scratch/b2> add
+
+  ⍟ I've added these definitions:
   
-  New name conflicts:
-  
-    1. fslkdjflskdjflksjdf#u520d1t9kc : Nat
-       ↓
-    2. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
-    3. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+    abc                 : Nat
+    fslkdjflskdjflksjdf : Nat
+    x                   : Nat
 
-  Applying changes from patch...
+scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
 
-.> diff.namespace b1 b2
+  Done.
+
+```
+``` ucm
+scratch/main> diff.namespace /b1: /b2:
 
   Resolved name conflicts:
   
@@ -71,35 +49,19 @@ fslkdjflskdjflksjdf = 663
     6. fslkdjflskdjflksjdf#u520d1t9kc ┘  7. fslkdjflskdjflksjdf (added)
                                          8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
 
-.b2> diff.namespace .b1
-
-  Resolved name conflicts:
-  
-    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : ##Nat
-    2. └ fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
-       ↓
-    3. fslkdjflskdjflksjdf#u520d1t9kc : ##Nat
-  
-  Name changes:
-  
-    Original                             Changes
-    4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#u520d1t9kc ┘  7. fslkdjflskdjflksjdf (added)
-                                         8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
-
 ```
 Things we want to test:
 
-* Diffing identical namespaces
-* Adds, removes, updates
-  * Adds with multiple names
-* Moved and copied definitions
-  * Moves that have more that 1 initial or final name
-* ... terms and types
-* New patches, modified patches, deleted patches, moved patches
-* With and without propagated updates
+  - Diffing identical namespaces
+  - Adds, removes, updates
+      - Adds with multiple names
+  - Moved and copied definitions
+      - Moves that have more that 1 initial or final name
+  - ... terms and types
+  - New patches, modified patches, deleted patches, moved patches
+  - With and without propagated updates
 
-```unison
+``` unison
 fromJust = 1
 b = 2
 bdependent = b
@@ -110,108 +72,93 @@ structural type A a = A ()
 structural ability X a1 a2 where x : ()
 ```
 
-```ucm
-  ☝️  The namespace .ns1 is empty.
-
-.ns1> add
+``` ucm
+scratch/ns1> add
 
   ⍟ I've added these definitions:
   
     structural type A a
     structural ability X a1 a2
-    b          : ##Nat
-    bdependent : ##Nat
-    c          : ##Nat
-    fromJust   : ##Nat
-    helloWorld : ##Text
+    b          : Nat
+    bdependent : Nat
+    c          : Nat
+    fromJust   : Nat
+    helloWorld : Text
 
-.ns1> alias.term fromJust fromJust'
-
-  Done.
-
-.ns1> alias.term helloWorld helloWorld2
+scratch/ns1> alias.term fromJust fromJust'
 
   Done.
 
-.ns1> fork .ns1 .ns2
+scratch/ns1> alias.term helloWorld helloWorld2
 
   Done.
+
+scratch/ns1> branch /ns2
+
+  Done. I've created the ns2 branch based off of ns1.
+  
+  Tip: To merge your work back into the ns1 branch, first
+       `switch /ns1` then `merge /ns2`.
 
 ```
 Here's what we've done so far:
 
-```ucm
-.> diff.namespace nothing ns1
+``` ucm
+scratch/main> diff.namespace .nothing /ns1:
 
   ⚠️
   
-  The namespace .nothing is empty. Was there a typo?
+  The namespace scratch/main:.nothing is empty. Was there a typo?
 
 ```
-```ucm
-.> diff.namespace ns1 ns2
+``` ucm
+scratch/main> diff.namespace /ns1: /ns2:
 
   The namespaces are identical.
 
 ```
-```unison
-fromJust = "asldkfjasldkfj"
+``` unison
+junk = "asldkfjasldkfj"
 ```
 
-```ucm
-  ☝️  The namespace .ns1b is empty.
-
-.ns1b> add
+``` ucm
+scratch/ns1> add
 
   ⍟ I've added these definitions:
   
-    fromJust : ##Text
+    junk : Text
 
-.> merge.old ns1b ns1
+scratch/ns1> debug.alias.term.force junk fromJust
 
-  Here's what's changed in ns1 after the merge:
-  
-  New name conflicts:
-  
-    1. fromJust#gjmq673r1v : Nat
-       ↓
-    2. ┌ fromJust#gjmq673r1v : Nat
-    3. └ fromJust#rnbo52q2sh : Text
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Done.
 
-  Applying changes from patch...
+scratch/ns1> delete.term junk
+
+  Done.
 
 ```
-```unison
+``` unison
 fromJust = 99
-b = "oog"
+b = 999999999
 d = 4
 e = 5
 f = 6
 unique type Y a b = Y a b
 ```
 
-```ucm
-.ns2> update.old
+``` ucm
+scratch/ns2> update
 
-  ⍟ I've added these definitions:
-  
-    type Y a b
-    d : ##Nat
-    e : ##Nat
-    f : ##Nat
-  
-  ⍟ I've updated these names to your new definition:
-  
-    b        : ##Text
-    fromJust : ##Nat
-      (The old definition was also named fromJust'.)
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.> diff.namespace ns1 ns2
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+
+scratch/main> diff.namespace /ns1: /ns2:
 
   Resolved name conflicts:
   
@@ -224,11 +171,11 @@ unique type Y a b = Y a b
   
     4.  b : Nat
         ↓
-    5.  b : Text
+    5.  b : Nat
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Nat
   
   Added definitions:
   
@@ -238,21 +185,25 @@ unique type Y a b = Y a b
     11. e   : Nat
     12. f   : Nat
   
-    13. patch patch (added 2 updates)
+  Name changes:
+  
+    Original                   Changes
+    13. fromJust'           ┐  14. fromJust#gjmq673r1v (removed)
+    15. fromJust#gjmq673r1v ┘  
 
-.> alias.term ns2.d ns2.d'
-
-  Done.
-
-.> alias.type ns2.A ns2.A'
-
-  Done.
-
-.> alias.type ns2.X ns2.X'
+scratch/ns2> alias.term d d'
 
   Done.
 
-.> diff.namespace ns1 ns2
+scratch/ns2> alias.type A A'
+
+  Done.
+
+scratch/ns2> alias.type X X'
+
+  Done.
+
+scratch/main> diff.namespace /ns1: /ns2:
 
   Resolved name conflicts:
   
@@ -265,11 +216,11 @@ unique type Y a b = Y a b
   
     4.  b : Nat
         ↓
-    5.  b : Text
+    5.  b : Nat
     
-    6.  fromJust' : Nat
+    6.  bdependent : Nat
         ↓
-    7.  fromJust' : Nat
+    7.  bdependent : Nat
   
   Added definitions:
   
@@ -280,65 +231,68 @@ unique type Y a b = Y a b
     12. e    : Nat
     13. f    : Nat
   
-    14. patch patch (added 2 updates)
-  
   Name changes:
   
-    Original  Changes
-    15. A     16. A' (added)
+    Original                   Changes
+    14. A                      15. A' (added)
     
-    17. X    18. X' (added)
+    16. X                      17. X' (added)
+    
+    18. fromJust'           ┐  19. fromJust#gjmq673r1v (removed)
+    20. fromJust#gjmq673r1v ┘  
 
-.> alias.type ns1.X ns1.X2
-
-  Done.
-
-.> alias.type ns2.A' ns2.A''
-
-  Done.
-
-.> fork ns2 ns3
+scratch/ns1> alias.type X X2
 
   Done.
 
-.> alias.term ns2.fromJust' ns2.yoohoo
+scratch/ns2> alias.type A' A''
 
   Done.
 
-.> delete.term.verbose ns2.fromJust'
+scratch/ns2> branch /ns3
 
-  Name changes:
+  Done. I've created the ns3 branch based off of ns2.
   
-    Original            Changes
-    1. ns2.fromJust  ┐  2. ns2.fromJust' (removed)
-    3. ns2.fromJust' │  
-    4. ns2.yoohoo    │  
-    5. ns3.fromJust  │  
-    6. ns3.fromJust' ┘  
-  
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: To merge your work back into the ns2 branch, first
+       `switch /ns2` then `merge /ns3`.
 
-.> diff.namespace ns3 ns2
+scratch/ns2> alias.term fromJust' yoohoo
+
+  Done.
+
+scratch/ns2> delete.term.verbose fromJust'
 
   Name changes:
   
     Original        Changes
-    1. fromJust  ┐  2. yoohoo (added)
-    3. fromJust' ┘  4. fromJust' (removed)
+    1. fromJust' ┐  2. fromJust' (removed)
+    3. yoohoo    ┘  
+  
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
+
+scratch/main> diff.namespace /ns3: /ns2:
+
+  Name changes:
+  
+    Original        Changes
+    1. fromJust'    2. yoohoo (added)
+                    3. fromJust' (removed)
 
 ```
-```unison
+``` unison
 bdependent = "banana"
 ```
 
-```ucm
-.ns3> update.old
+``` ucm
+scratch/ns3> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    bdependent : ##Text
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.> diff.namespace ns2 ns3
+  Done.
+
+scratch/main> diff.namespace /ns2: /ns3:
 
   Updates:
   
@@ -346,157 +300,145 @@ bdependent = "banana"
        ↓
     2. bdependent : Text
   
-    3. patch patch (added 1 updates)
-  
   Name changes:
   
-    Original       Changes
-    4. fromJust ┐  5. fromJust' (added)
-    6. yoohoo   ┘  7. yoohoo (removed)
+    Original     Changes
+    3. yoohoo    4. fromJust' (added)
+                 5. yoohoo (removed)
 
 ```
 ## Two different auto-propagated changes creating a name conflict
+
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
-```unison
+
+``` unison
 a = 333
 b = a + 1
+
+forconflicts = 777
 ```
 
-```ucm
-  ☝️  The namespace .nsx is empty.
-
-.nsx> add
+``` ucm
+scratch/nsx> add
 
   ⍟ I've added these definitions:
   
-    a : ##Nat
-    b : ##Nat
+    a            : Nat
+    b            : Nat
+    forconflicts : Nat
 
-.> fork nsx nsy
+scratch/nsx> branch /nsy
 
-  Done.
+  Done. I've created the nsy branch based off of nsx.
+  
+  Tip: To merge your work back into the nsx branch, first
+       `switch /nsx` then `merge /nsy`.
 
-.> fork nsx nsz
+scratch/nsx> branch /nsz
 
-  Done.
+  Done. I've created the nsz branch based off of nsx.
+  
+  Tip: To merge your work back into the nsx branch, first
+       `switch /nsx` then `merge /nsz`.
 
 ```
-```unison
+``` unison
 a = 444
 ```
 
-```ucm
-.nsy> update.old
+``` ucm
+scratch/nsy> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 
 ```
-```unison
+``` unison
 a = 555
 ```
 
-```ucm
-.nsz> update.old
+``` ucm
+scratch/nsz> update
 
-  ⍟ I've updated these names to your new definition:
-  
-    a : ##Nat
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-.> merge.old nsy nsw
+  That's done. Now I'm making sure everything typechecks...
 
-  Here's what's changed in nsw after the merge:
-  
-  Added definitions:
-  
-    1. a : Nat
-    2. b : Nat
-  
-    3. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Everything typechecks, so I'm saving the results...
 
-  Applying changes from patch...
+  Done.
 
-```
-```ucm
-.> merge.old nsz nsw
+scratch/nsy> branch /nsw
 
-  Here's what's changed in nsw after the merge:
+  Done. I've created the nsw branch based off of nsy.
   
-  New name conflicts:
-  
-    1. a#mdl4vqtu00 : Nat
-       ↓
-    2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
-    
-    4. b#unkqhuu66p : Nat
-       ↓
-    5. ┌ b#aapqletas7 : Nat
-    6. └ b#unkqhuu66p : Nat
-  
-  Updates:
-  
-    7. patch patch (added 1 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
+  Tip: To merge your work back into the nsy branch, first
+       `switch /nsy` then `merge /nsw`.
 
-  Applying changes from patch...
+scratch/nsw> debug.alias.term.force .forconflicts .a
 
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
+  Done.
+
+scratch/nsw> debug.alias.term.force .forconflicts .b
+
+  Done.
 
 ```
-```ucm
-.> diff.namespace nsx nsw
+``` ucm
+scratch/main> diff.namespace /nsx: /nsw:
 
   New name conflicts:
   
     1. a#uiiiv8a86s : Nat
        ↓
     2. ┌ a#mdl4vqtu00 : Nat
-    3. └ a#vrs8gtkl2t : Nat
+    3. └ a#r3msrbpp1v : Nat
     
     4. b#lhigeb1let : Nat
        ↓
-    5. ┌ b#aapqletas7 : Nat
+    5. ┌ b#r3msrbpp1v : Nat
     6. └ b#unkqhuu66p : Nat
   
-  Added definitions:
+  Name changes:
   
-    7. patch patch (added 2 updates)
+    Original           Changes
+    7. forconflicts    8. a#r3msrbpp1v (added)
+                       9. b#r3msrbpp1v (added)
 
-.nsw> view a b
+scratch/nsw> view a
 
-  a#mdl4vqtu00 : ##Nat
+  a#mdl4vqtu00 : Nat
   a#mdl4vqtu00 = 444
   
-  a#vrs8gtkl2t : ##Nat
-  a#vrs8gtkl2t = 555
+  a#r3msrbpp1v : Nat
+  a#r3msrbpp1v = 777
+
+scratch/nsw> view b
+
+  b#r3msrbpp1v : Nat
+  b#r3msrbpp1v = 777
   
-  b#aapqletas7 : ##Nat
-  b#aapqletas7 = ##Nat.+ a#vrs8gtkl2t 1
-  
-  b#unkqhuu66p : ##Nat
-  b#unkqhuu66p = ##Nat.+ a#mdl4vqtu00 1
+  b#unkqhuu66p : Nat
+  b#unkqhuu66p =
+    use Nat +
+    a#mdl4vqtu00 + 1
 
 ```
 ## Should be able to diff a namespace hash from history.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -506,24 +448,22 @@ x = 1
   
     ⍟ These new definitions are ok to `add`:
     
-      x : ##Nat
+      x : Nat
 
 ```
-```ucm
-  ☝️  The namespace .hashdiff is empty.
-
-.hashdiff> add
+``` ucm
+scratch/hashdiff> add
 
   ⍟ I've added these definitions:
   
     x : ##Nat
 
 ```
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -536,14 +476,14 @@ y = 2
       y : ##Nat
 
 ```
-```ucm
-.hashdiff> add
+``` ucm
+scratch/hashdiff> add
 
   ⍟ I've added these definitions:
   
     y : ##Nat
 
-.hashdiff> history
+scratch/hashdiff> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -556,56 +496,57 @@ y = 2
   
   □ 2. #i52j9fd57b (start of history)
 
-.hashdiff> diff.namespace 2 1
+scratch/hashdiff> diff.namespace 2 1
 
   Added definitions:
   
     1. y : ##Nat
 
 ```
-##
+## 
 
 Updates:  -- 1 to 1
 
 New name conflicts: -- updates where RHS has multiple hashes (excluding when RHS=LHS)
 
-  1. foo#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
-     ↓
-  2. ┌ foo#0ja1qfpej6 : Nat
-  3. └ foo#jk19sm5bf8 : Nat
+1.  foo\#jk19sm5bf8 : Nat - do we want to force a hashqualified? Arya thinks so
+    ↓
+2.  ┌ foo\#0ja1qfpej6 : Nat
+3.  └ foo\#jk19sm5bf8 : Nat
 
 Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has one
 
-  4. ┌ bar#0ja1qfpej6 : Nat
-  5. └ bar#jk19sm5bf8 : Nat
-     ↓
-  6. bar#jk19sm5bf8 : Nat
+4.  ┌ bar\#0ja1qfpej6 : Nat
+5.  └ bar\#jk19sm5bf8 : Nat
+    ↓
+6.  bar\#jk19sm5bf8 : Nat
 
 ## Display issues to fixup
 
-- [d] Do we want to surface new edit conflicts in patches?
-- [t] two different auto-propagated changes creating a name conflict should show
-      up somewhere besides the auto-propagate count
-- [t] Things look screwy when the type signature doesn't fit and has to get broken
-      up into multiple lines. Maybe just disallow that?
-- [d] Delete blank line in between copies / renames entries if all entries are 1 to 1
-      see todo in the code
-- [x] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
-- [x] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
-- [x] might want unqualified names to be qualified sometimes:
-- [x] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
-- [x] similarly, if a conflicted name is resolved by deleting the last name to
-      a reference, I (arya) suspect it will show up as a Remove
-- [d] Maybe group and/or add headings to the types, constructors, terms
-- [x] add tagging of propagated updates to test propagated updates output
-- [x] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
-- [x] delete.term has some bonkers output
-- [x] Make a decision about how we want to show constructors in the diff
-- [x] 12.patch patch needs a space
-- [x] This looks like garbage
-- [x] Extra 2 blank lines at the end of the add section
-- [x] Fix alignment issues with buildTable, convert to column3M (to be written)
-- [x] adding an alias is showing up as an Add and a Copy; should just show as Copy
-- [x] removing one of multiple aliases appears in removes + moves + copies section
-- [x] some overlapping cases between Moves and Copies^
-- [x] Maybe don't list the type signature twice for aliases?
+  - \[d\] Do we want to surface new edit conflicts in patches?
+  - \[t\] two different auto-propagated changes creating a name conflict should show
+    up somewhere besides the auto-propagate count
+  - \[t\] Things look screwy when the type signature doesn't fit and has to get broken
+    up into multiple lines. Maybe just disallow that?
+  - \[d\] Delete blank line in between copies / renames entries if all entries are 1 to 1
+    see todo in the code
+  - \[x\] incorrectly calculated bracket alignment on hashqualified "Name changes"  (delete.output.md)
+  - \[x\] just handle deletion of isPropagated in propagate function, leave HandleInput alone (assuming this does the trick)
+  - \[x\] might want unqualified names to be qualified sometimes:
+  - \[x\] if a name is updated to a not-yet-named reference, it's shown as both an update and an add
+  - \[x\] similarly, if a conflicted name is resolved by deleting the last name to
+    a reference, I (arya) suspect it will show up as a Remove
+  - \[d\] Maybe group and/or add headings to the types, constructors, terms
+  - \[x\] add tagging of propagated updates to test propagated updates output
+  - \[x\] missing old names in deletion ppe (delete.output.md)  (superseded by \#1143)
+  - \[x\] delete.term has some bonkers output
+  - \[x\] Make a decision about how we want to show constructors in the diff
+  - \[x\] 12.patch patch needs a space
+  - \[x\] This looks like garbage
+  - \[x\] Extra 2 blank lines at the end of the add section
+  - \[x\] Fix alignment issues with buildTable, convert to column3M (to be written)
+  - \[x\] adding an alias is showing up as an Add and a Copy; should just show as Copy
+  - \[x\] removing one of multiple aliases appears in removes + moves + copies section
+  - \[x\] some overlapping cases between Moves and Copies^
+  - \[x\] Maybe don't list the type signature twice for aliases?
+

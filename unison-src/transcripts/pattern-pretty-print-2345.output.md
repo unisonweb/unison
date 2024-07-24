@@ -1,7 +1,6 @@
 Regression test for https://github.com/unisonweb/unison/pull/2377
 
-
-```unison
+``` unison
 structural ability Ab where
   a: Nat -> ()
 
@@ -60,7 +59,7 @@ doc = cases
   _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -87,8 +86,8 @@ doc = cases
       tremulous : (Nat, Nat) -> ()
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -108,94 +107,94 @@ doc = cases
     throaty   : Request {g, Ab} x -> ()
     tremulous : (Nat, Nat) -> ()
 
-.> view dopey
+scratch/main> view dopey
 
   dopey : Char -> ()
   dopey = cases
     ?0 -> ()
     _  -> ()
 
-.> view grumpy
+scratch/main> view grumpy
 
   grumpy : ff284oqf651 -> ()
   grumpy = cases d -> ()
 
-.> view happy
+scratch/main> view happy
 
   happy : Boolean -> ()
   happy = cases
     true  -> ()
     false -> ()
 
-.> view sneezy
+scratch/main> view sneezy
 
   sneezy : Int -> ()
   sneezy = cases
     +1 -> ()
     _  -> ()
 
-.> view bashful
+scratch/main> view bashful
 
   bashful : Optional a -> ()
   bashful = cases
     Some a -> ()
     _      -> ()
 
-.> view mouthy
+scratch/main> view mouthy
 
   mouthy : [t] -> ()
   mouthy = cases
     [] -> ()
     _  -> ()
 
-.> view pokey
+scratch/main> view pokey
 
   pokey : [t] -> ()
   pokey = cases
     h +: t -> ()
     _      -> ()
 
-.> view sleepy
+scratch/main> view sleepy
 
   sleepy : [t] -> ()
   sleepy = cases
     i :+ l -> ()
     _      -> ()
 
-.> view demure
+scratch/main> view demure
 
   demure : [Nat] -> ()
   demure = cases
     [0] -> ()
     _   -> ()
 
-.> view angry
+scratch/main> view angry
 
   angry : [t] -> ()
   angry = cases a ++ [] -> ()
 
-.> view tremulous
+scratch/main> view tremulous
 
   tremulous : (Nat, Nat) -> ()
   tremulous = cases
     (0, 1) -> ()
     _      -> ()
 
-.> view throaty
+scratch/main> view throaty
 
   throaty : Request {g, Ab} x -> ()
   throaty = cases
     { Ab.a a -> k } -> ()
     { _ }           -> ()
 
-.> view agitated
+scratch/main> view agitated
 
   agitated : Nat -> ()
   agitated = cases
     a | a == 2 -> ()
     _ -> ()
 
-.> view doc
+scratch/main> view doc
 
   doc : Nat -> ()
   doc = cases

@@ -1,7 +1,7 @@
 # Integration test: transcript
 
-```unison
-use .builtin
+``` unison
+use lib.builtins
 
 unique type MyBool = MyTrue | MyFalse
 
@@ -27,7 +27,7 @@ main = do
     _ -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -43,8 +43,8 @@ main = do
       resume : Request {g, Break} x -> x
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -53,6 +53,6 @@ main = do
     main   : '{IO, Exception} ()
     resume : Request {g, Break} x -> x
 
-.> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
+scratch/main> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 
 ```

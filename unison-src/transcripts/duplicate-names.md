@@ -1,7 +1,7 @@
 # Duplicate names in scratch file.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 Term and ability constructor collisions should cause a parse error.
@@ -49,6 +49,6 @@ X = ()
 ```
 
 ```ucm
-.> add
-.> view X
+scratch/main> add
+scratch/main> view X
 ```

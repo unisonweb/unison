@@ -1,13 +1,13 @@
 Some tests of pattern behavior.
 
-```unison
+``` unison
 p1 = join [literal "blue", literal "frog"]
 
 > Pattern.run (many p1) "bluefrogbluegoat" 
 > Pattern.run (many.corrected p1) "bluefrogbluegoat"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

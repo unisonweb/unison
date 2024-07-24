@@ -33,10 +33,10 @@ import Unison.Util.Alphabetical
 -- - ".."       --> Name Absolute (".." :| [])
 data Name
   = Name
+      -- | whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
       Position
-      -- ^ whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
+      -- | the name segments in reverse order
       (List.NonEmpty NameSegment)
-      -- ^ the name segments in reverse order
   deriving stock (Eq, Generic, Show)
 
 -- | Compare names (kinda) alphabetically: absolute comes before relative, but otherwise compare the name segments
@@ -49,10 +49,11 @@ instance Alphabetical Name where
       _ -> compareAlphabetical (segments n1) (segments n2)
 
 instance
-  TypeError
-    ( 'TypeError.Text
-        "You cannot make a Name from a string literal because there may (some day) be more than one syntax"
-    ) =>
+  ( TypeError
+      ( 'TypeError.Text
+          "You cannot make a Name from a string literal because there may (some day) be more than one syntax"
+      )
+  ) =>
   IsString Name
   where
   fromString = undefined

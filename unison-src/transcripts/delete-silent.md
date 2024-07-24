@@ -1,5 +1,5 @@
 ```ucm:error
-.> delete foo
+scratch/main> delete foo
 ```
 
 ```unison:hide
@@ -8,8 +8,8 @@ structural type Foo = Foo ()
 ```
 
 ```ucm
-.> add
-.> delete foo
-.> delete.type Foo
-.> delete.term Foo.Foo
+scratch/main> add
+scratch/main> delete foo
+scratch/main> delete.type Foo
+scratch/main> delete.term Foo.Foo
 ```

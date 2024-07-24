@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -17,7 +17,7 @@ main _ =
 ```
 
 ```ucm
-.> find unsafe.coerceAbilities
-.> add
-.> io.test main
+scratch/main> find unsafe.coerceAbilities
+scratch/main> add
+scratch/main> io.test main
 ```

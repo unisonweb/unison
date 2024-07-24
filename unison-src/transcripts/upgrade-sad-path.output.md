@@ -1,10 +1,10 @@
-```unison
+``` unison
 lib.old.foo = 17
 lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,7 +19,7 @@ thingy = lib.old.foo + 10
       thingy      : Nat
 
 ```
-```ucm
+``` ucm
 proj/main> add
 
   ⍟ I've added these definitions:
@@ -29,7 +29,7 @@ proj/main> add
     thingy      : Nat
 
 ```
-```ucm
+``` ucm
 proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've
@@ -49,7 +49,7 @@ proj/main> upgrade old new
   to delete the temporary branch and switch back to main.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 thingy : Nat
 thingy =
   use Nat +
@@ -58,11 +58,11 @@ thingy =
 
 Resolve the error and commit the upgrade.
 
-```unison
+``` unison
 thingy = foo + +10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -76,7 +76,7 @@ thingy = foo + +10
       thingy : Int
 
 ```
-```ucm
+``` ucm
 proj/upgrade-old-to-new> update
 
   Okay, I'm searching the branch for code that needs to be

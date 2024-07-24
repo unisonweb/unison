@@ -6,7 +6,7 @@ Exception ability directly, and the last is code validation. I don't
 have an easy way to test the last at the moment, but the other two are
 tested here.
 
-```unison
+``` unison
 test1 : '{IO, Exception} [Result]
 test1 = do
   _ = fromUtf8 0xsee
@@ -18,7 +18,7 @@ test2 = do
   [Ok "test2"]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,8 +32,8 @@ test2 = do
       test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -41,8 +41,8 @@ test2 = do
     test2 : '{IO, Exception} [Result]
 
 ```
-```ucm
-.> io.test test1
+``` ucm
+scratch/main> io.test test1
 
   💔💥
   
@@ -50,15 +50,15 @@ test2 = do
   
     Failure
       (typeLink IOFailure)
-      "Cannot decode byte '\\xee': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
+      "Cannot decode byte '\\xee': Data.Text.Encoding: Invalid UTF-8 stream"
       (Any ())
   
   Stack trace:
     ##raise
 
 ```
-```ucm
-.> io.test test2
+``` ucm
+scratch/main> io.test test2
 
   💔💥
   

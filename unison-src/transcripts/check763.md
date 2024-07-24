@@ -1,7 +1,7 @@
 Regression test for https://github.com/unisonweb/unison/issues/763
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -10,8 +10,8 @@ Regression test for https://github.com/unisonweb/unison/issues/763
 ```
 
 ```ucm
-.> add
-.> move.term +-+ boppitybeep
-.> move.term boppitybeep +-+
+scratch/main> add
+scratch/main> move.term +-+ boppitybeep
+scratch/main> move.term boppitybeep +-+
 ```
 

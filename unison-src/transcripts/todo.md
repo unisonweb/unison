@@ -1,139 +1,188 @@
-# Test the `todo` command
+# Nothing to do
 
-## Simple type-changing update.
+When there's nothing to do, `todo` says this:
+
+```ucm
+scratch/main> todo
+```
+
+# Dependents of `todo`
+
+The `todo` command shows local (outside `lib`) terms that directly call `todo`.
 
 ```ucm:hide
-.simple> builtins.merge
-```
-
-```unison:hide
-x = 1
-useX = x + 10
-
-type MyType = MyType Nat
-useMyType = match MyType 1 with
-  MyType a -> a + 10
-```
-
-```ucm:hide
-.simple> add
-```
-
-Perform a type-changing update so dependents are added to our update frontier.
-
-```unison:hide
-x = -1
-
-type MyType = MyType Text
-```
-
-```ucm:error
-.simple> update.old
-.simple> todo
-```
-
-## A merge with conflicting updates.
-
-```ucm:hide
-.mergeA> builtins.merge
-```
-
-```unison:hide
-x = 1
-type MyType = MyType
-```
-
-Set up two branches with the same starting point.
-
-```ucm:hide
-.mergeA> add
-.> fork .mergeA .mergeB
-```
-
-Update `x` to a different term in each branch.
-
-```unison:hide
-x = 2
-type MyType = MyType Nat
-```
-
-```ucm:hide
-.mergeA> update.old
-```
-
-```unison:hide
-x = 3
-type MyType = MyType Int
-```
-
-```ucm:hide
-.mergeB> update.old
-```
-
-```ucm:error
-.mergeA> merge.old .mergeB
-.mergeA> todo
-```
-
-## A named value that appears on the LHS of a patch isn't shown
-
-```ucm:hide
-.lhs> builtins.merge
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
-foo = 801
+foo : Nat
+foo = todo "implement foo"
+
+bar : Nat
+bar = foo + foo
 ```
 
 ```ucm
-.lhs> add
+scratch/main> add
+scratch/main> todo
 ```
-
-```unison
-foo = 802
-```
-
-```ucm
-.lhs> update.old
-```
-
-```unison
-oldfoo = 801
-```
-
-```ucm
-.lhs> add
-.lhs> todo
-```
-
-## A type-changing update to one element of a cycle, which doesn't propagate to the other
 
 ```ucm:hide
-.cycle2> builtins.merge
+scratch/main> delete.project scratch
+```
+
+# Direct dependencies without names
+
+The `todo` command shows hashes of direct dependencies of local (outside `lib`) definitions that don't have names in
+the current namespace.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
-even = cases
-  0 -> true
-  n -> odd (drop 1 n)
-
-odd = cases
-  0 -> false
-  n -> even (drop 1 n)
+foo.bar = 15
+baz = foo.bar + foo.bar
 ```
 
 ```ucm
-.cycle2> add
+scratch/main> add
+scratch/main> delete.namespace.force foo
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Conflicted names
+
+The `todo` command shows conflicted names.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
-even = 17
+foo = 16
+bar = 17
 ```
 
 ```ucm
-.cycle2> update.old
+scratch/main> add
+scratch/main> debug.alias.term.force foo bar
+scratch/main> todo
 ```
 
-```ucm:error
-.cycle2> todo
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Definitions in lib
+
+The `todo` command complains about terms and types directly in `lib`.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+lib.foo = 16
+```
+
+```ucm
+scratch/main> add
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Constructor aliases
+
+The `todo` command complains about constructor aliases.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = One
+```
+
+```ucm
+scratch/main> add
+scratch/main> alias.term Foo.One Foo.Two
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Missing constructor names
+
+The `todo` command complains about missing constructor names.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+scratch/main> add
+scratch/main> delete.term Foo.Bar
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Nested decl aliases
+
+The `todo` command complains about nested decl aliases.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+structural type Foo a = One a | Two a a
+structural type Foo.inner.Bar a = Uno a | Dos a a
+```
+
+```ucm
+scratch/main> add
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
+```
+
+# Stray constructors
+
+The `todo` command complains about stray constructors.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = Bar
+```
+
+```ucm
+scratch/main> add
+scratch/main> alias.term Foo.Bar Baz
+scratch/main> todo
+```
+
+```ucm:hide
+scratch/main> delete.project scratch
 ```

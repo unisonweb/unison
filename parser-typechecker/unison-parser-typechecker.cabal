@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -60,8 +60,8 @@ library
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
-      Unison.Codebase.RootBranchCache
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
@@ -72,6 +72,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
@@ -131,7 +132,6 @@ library
       Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
-      Unison.Project.Util
       Unison.Result
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Rehash
@@ -224,7 +224,6 @@ library
   build-depends:
       IntervalMap
     , ListLike
-    , NanoID
     , aeson
     , ansi-terminal
     , asn1-encoding
@@ -244,6 +243,9 @@ library
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -284,7 +286,7 @@ library
     , nonempty-containers
     , open-browser
     , openapi3
-    , optparse-applicative >=0.16.1.0
+    , optparse-applicative
     , pem
     , pretty-simple
     , primitive
@@ -330,7 +332,6 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
-    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -343,9 +344,6 @@ library
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010
@@ -420,7 +418,6 @@ test-suite parser-typechecker-tests
   build-depends:
       IntervalMap
     , ListLike
-    , NanoID
     , aeson
     , ansi-terminal
     , asn1-encoding
@@ -441,6 +438,9 @@ test-suite parser-typechecker-tests
     , concurrent-output
     , configurator
     , containers >=0.6.3
+    , crypton-x509
+    , crypton-x509-store
+    , crypton-x509-system
     , cryptonite
     , data-default
     , data-memocombinators
@@ -484,7 +484,7 @@ test-suite parser-typechecker-tests
     , nonempty-containers
     , open-browser
     , openapi3
-    , optparse-applicative >=0.16.1.0
+    , optparse-applicative
     , pem
     , pretty-simple
     , primitive
@@ -532,7 +532,6 @@ test-suite parser-typechecker-tests
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
-    , unison-util-nametree
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization
@@ -545,9 +544,6 @@ test-suite parser-typechecker-tests
     , warp
     , witch
     , witherable
-    , x509
-    , x509-store
-    , x509-system
     , yaml
     , zlib
   default-language: Haskell2010

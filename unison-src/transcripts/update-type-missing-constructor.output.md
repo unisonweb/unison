@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,25 +15,25 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-.> delete.term Foo.Bar
+scratch/main> delete.term Foo.Bar
 
   Done.
 
 ```
 Now we've set up a situation where the original constructor missing.
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -47,12 +47,12 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-```ucm
-.> view Foo
+``` ucm
+scratch/main> view Foo
 
   type Foo = #b509v3eg4k#0 Nat
 
-.> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

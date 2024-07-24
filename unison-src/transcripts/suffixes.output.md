@@ -2,7 +2,7 @@
 
 Any unique name suffix can be used to refer to a definition. For instance:
 
-```unison
+``` unison
 -- No imports needed even though FQN is `builtin.{Int,Nat}`
 foo.bar.a : Int
 foo.bar.a = +99
@@ -15,15 +15,15 @@ optional.isNone = cases
 
 This also affects commands like find. Notice lack of qualified names in output:
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     foo.bar.a       : Int
     optional.isNone : Optional a -> Boolean
 
-.> find take
+scratch/main> find take
 
   1. builtin.Bytes.take : Nat -> Bytes -> Bytes
   2. builtin.List.take : Nat -> [a] -> [a]
@@ -35,12 +35,12 @@ This also affects commands like find. Notice lack of qualified names in output:
 ```
 The `view` and `display` commands also benefit from this:
 
-```ucm
-.> view List.drop
+``` ucm
+scratch/main> view List.drop
 
   builtin builtin.List.drop : builtin.Nat -> [a] -> [a]
 
-.> display bar.a
+scratch/main> display bar.a
 
   +99
 
@@ -49,8 +49,8 @@ In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name
 
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
 
-```ucm
-.> find : Nat -> [a] -> [a]
+``` ucm
+scratch/main> find : Nat -> [a] -> [a]
 
   1. builtin.List.drop : Nat -> [a] -> [a]
   2. builtin.List.take : Nat -> [a] -> [a]
@@ -61,14 +61,14 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
 
 Suffix-based resolution prefers names that are not in an indirect dependency.
 
-```unison
+``` unison
 cool.abra.cadabra = "my project"
 lib.distributed.abra.cadabra = "direct dependency 1"
 lib.distributed.baz.qux = "direct dependency 2"
 lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -84,8 +84,8 @@ lib.distributed.lib.baz.qux = "indirect dependency"
       lib.distributed.lib.baz.qux  : Text
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -95,11 +95,11 @@ lib.distributed.lib.baz.qux = "indirect dependency"
     lib.distributed.lib.baz.qux  : Text
 
 ```
-```unison
+``` unison
 > abra.cadabra
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -117,11 +117,11 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   distributed.abra.cadabra : Text
 
 ```
-```unison
+``` unison
 > baz.qux
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -137,8 +137,8 @@ lib.distributed.lib.baz.qux = "indirect dependency"
           "direct dependency 2"
 
 ```
-```ucm
-.> view abra.cadabra
+``` ucm
+scratch/main> view abra.cadabra
 
   cool.abra.cadabra : Text
   cool.abra.cadabra = "my project"
@@ -146,7 +146,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
-.> view baz.qux
+scratch/main> view baz.qux
 
   lib.distributed.baz.qux : Text
   lib.distributed.baz.qux = "direct dependency 2"
@@ -154,13 +154,13 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 Note that we can always still view indirect dependencies by using more name segments:
 
-```ucm
-.> view distributed.abra.cadabra
+``` ucm
+scratch/main> view distributed.abra.cadabra
 
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
-.> names distributed.lib.baz.qux
+scratch/main> names distributed.lib.baz.qux
 
   Term
   Hash:   #nhup096n2s
@@ -173,15 +173,15 @@ Note that we can always still view indirect dependencies by using more name segm
 
 If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:
 
-```unison
+``` unison
 unique type A = Thing1 Nat | thing2 Nat
 
 foo.a = 23
 bar = 100
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -190,7 +190,7 @@ bar = 100
     foo.a : Nat
 
 ```
-```unison
+``` unison
 unique type B = Thing1 Text | thing2 Text | Thing3 Text
 
 zoink.a = "hi"
@@ -207,7 +207,7 @@ fn = cases
   _ -> todo "hmm"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

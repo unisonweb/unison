@@ -3,9 +3,11 @@
 module Unison.Cli.PrettyPrintUtils
   ( prettyPrintEnvDeclFromNames,
     currentPrettyPrintEnvDecl,
+    projectBranchPPED,
   )
 where
 
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
@@ -14,6 +16,7 @@ import Unison.Names (Names)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 
 -- | Builds a pretty print env decl from a names object.
@@ -30,3 +33,7 @@ prettyPrintEnvDeclFromNames ns =
 currentPrettyPrintEnvDecl :: Cli PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl = do
   Cli.currentNames >>= prettyPrintEnvDeclFromNames
+
+projectBranchPPED :: ProjectBranch -> Cli PPED.PrettyPrintEnvDecl
+projectBranchPPED pb = do
+  Cli.projectBranchNames pb >>= prettyPrintEnvDeclFromNames

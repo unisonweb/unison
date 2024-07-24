@@ -2,7 +2,7 @@
 
 Term and ability constructor collisions should cause a parse error.
 
-```unison
+``` unison
 structural ability Stream where
   send : a -> ()
 
@@ -10,7 +10,7 @@ Stream.send : a -> ()
 Stream.send _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,14 +26,14 @@ Stream.send _ = ()
 ```
 Term and type constructor collisions should cause a parse error.
 
-```unison
+``` unison
 structural type X = x 
 
 X.x : a -> ()
 X.x _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -49,13 +49,13 @@ X.x _ = ()
 ```
 Ability and type constructor collisions should cause a parse error.
 
-```unison
+``` unison
 structural type X = x 
 structural ability X where
   x : ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -69,14 +69,14 @@ structural ability X where
 ```
 Field accessors and terms with the same name should cause a parse error.
 
-```unison
+``` unison
 structural type X = {x : ()}
 X.x.modify = ()
 X.x.set = ()
 X.x = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -103,13 +103,13 @@ X.x = ()
 ```
 Types and terms with the same name are allowed.
 
-```unison
+``` unison
 structural type X = Z
 
 X = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -124,8 +124,8 @@ X = ()
       X : ()
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -133,7 +133,7 @@ X = ()
       (also named builtin.Unit)
     X : ()
 
-.> view X
+scratch/main> view X
 
   structural type X = Z
   

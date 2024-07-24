@@ -1,4 +1,4 @@
-```unison
+``` unison
 a.b.one = 1
 a.two = 2
 
@@ -9,7 +9,7 @@ structural type a.x.Foo = Foo | Bar
 structural type a.b.Baz = Boo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -27,8 +27,8 @@ structural type a.b.Baz = Boo
       a.x.three : ##Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -39,23 +39,24 @@ structural type a.b.Baz = Boo
     a.x.four  : ##Nat
     a.x.three : ##Nat
 
-.> delete.term.verbose a.b.one
+scratch/main> delete.term.verbose a.b.one
 
   Removed definitions:
   
     1. a.b.one : ##Nat
   
-  Tip: You can use `undo` or `reflog` to undo this change.
+  Tip: You can use `undo` or use a hash from `branch.reflog` to
+       undo this change.
 
-.> alias.term a.two a.newtwo
-
-  Done.
-
-.> move.namespace a.x a.y
+scratch/main> alias.term a.two a.newtwo
 
   Done.
 
-.> history
+scratch/main> move.namespace a.x a.y
+
+  Done.
+
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -90,7 +91,7 @@ structural type a.b.Baz = Boo
   
   □ 4. #gss5s88mo3 (start of history)
 
-.> debug.name-diff 4 1
+scratch/main> debug.name-diff 4 1
 
   Kind   Name          Change    Ref
   Term   a.newtwo      Added     #dcgdua2lj6upd1ah5v0qp09gjsej0d77d87fu6qn8e2qrssnlnmuinoio46hiu53magr7qn8vnqke8ndt0v76700o5u8gcvo7st28jg

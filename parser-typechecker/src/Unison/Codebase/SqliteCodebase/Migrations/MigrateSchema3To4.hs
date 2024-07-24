@@ -81,7 +81,7 @@ numMigrated =
 migrateSchema3To4 :: Sqlite.Transaction ()
 migrateSchema3To4 = do
   Q.expectSchemaVersion 3
-  rootCausalHashId <- Q.expectNamespaceRoot
+  rootCausalHashId <- expectNamespaceRoot
   totalCausals <- causalCount
   migrationState <- flip execStateT (MigrationState mempty mempty 0) $ Sync.sync migrationSync (migrationProgress totalCausals) [rootCausalHashId]
   let MigrationState {_canonicalBranchForCausalHashId = mapping} = migrationState
@@ -97,6 +97,17 @@ migrateSchema3To4 = do
         [Sqlite.sql|
           SELECT count(*) FROM causal;
         |]
+
+expectNamespaceRoot :: Sqlite.Transaction DB.CausalHashId
+expectNamespaceRoot =
+  Sqlite.queryOneCol loadNamespaceRootSql
+
+loadNamespaceRootSql :: Sqlite.Sql
+loadNamespaceRootSql =
+  [Sqlite.sql|
+    SELECT causal_id
+    FROM namespace_root
+  |]
 
 migrationProgress :: Int -> Sync.Progress (StateT MigrationState Sqlite.Transaction) DB.CausalHashId
 migrationProgress totalCausals =

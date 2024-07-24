@@ -1,4 +1,4 @@
-```unison
+``` unison
 l1 = [1.0,2.0,3.0]
 l2 = [+1,+2,+3]
 l3 = [?a, ?b, ?c]
@@ -15,7 +15,7 @@ mkTestCase = do
   saveTestCase "case-01" "v4" combines (l1, l2, l3)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -32,8 +32,8 @@ mkTestCase = do
       mkTestCase : '{IO, Exception} ()
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -43,7 +43,7 @@ mkTestCase = do
     l3         : [Char]
     mkTestCase : '{IO, Exception} ()
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

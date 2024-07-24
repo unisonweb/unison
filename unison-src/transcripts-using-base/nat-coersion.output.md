@@ -1,4 +1,4 @@
-```unison
+``` unison
 testNat: Nat -> Optional Int -> Optional Float -> {Stream Result}()
 testNat n expectInt expectFloat =
   float = Float.fromRepresentation n
@@ -31,7 +31,7 @@ test = 'let
    runTest testABunchOfNats
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -48,8 +48,8 @@ test = 'let
                 ->{Stream Result} ()
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -59,27 +59,27 @@ test = 'let
               -> Optional Float
               ->{Stream Result} ()
 
-.> io.test test
+scratch/main> io.test test
 
     New test results:
   
-  ◉ test   expected 0.0 got 0.0
-  ◉ test   round trip though float, expected 0 got 0
-  ◉ test   expected 0 got 0
-  ◉ test   round trip though Int, expected 0 got 0
-  ◉ test   skipped
-  ◉ test   expected 1 got 1
-  ◉ test   round trip though Int, expected 1 got 1
-  ◉ test   skipped
-  ◉ test   expected -1 got -1
-  ◉ test   round trip though Int, expected 18446744073709551615 got 18446744073709551615
-  ◉ test   expected 1.0000000000000002 got 1.0000000000000002
-  ◉ test   round trip though float, expected 4607182418800017409 got 4607182418800017409
-  ◉ test   expected 4607182418800017409 got 4607182418800017409
-  ◉ test   round trip though Int, expected 4607182418800017409 got 4607182418800017409
+    1. test   ◉ expected 0.0 got 0.0
+              ◉ round trip though float, expected 0 got 0
+              ◉ expected 0 got 0
+              ◉ round trip though Int, expected 0 got 0
+              ◉ skipped
+              ◉ expected 1 got 1
+              ◉ round trip though Int, expected 1 got 1
+              ◉ skipped
+              ◉ expected -1 got -1
+              ◉ round trip though Int, expected 18446744073709551615 got 18446744073709551615
+              ◉ expected 1.0000000000000002 got 1.0000000000000002
+              ◉ round trip though float, expected 4607182418800017409 got 4607182418800017409
+              ◉ expected 4607182418800017409 got 4607182418800017409
+              ◉ round trip though Int, expected 4607182418800017409 got 4607182418800017409
   
   ✅ 14 test(s) passing
   
-  Tip: Use view test to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

@@ -1,8 +1,7 @@
-
 # Hello!
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.mergeio
 ```
 
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
@@ -33,8 +32,8 @@ x = 42
 Let's go ahead and add that to the codebase, then make sure it's there:
 
 ```ucm
-.> add
-.> view x
+scratch/main> add
+scratch/main> view x
 ```
 
 If `view` returned no results, the transcript would fail at this point.
@@ -50,13 +49,13 @@ y = 99
 This works for `ucm` blocks as well.
 
 ```ucm:hide
-.> rename.term x answerToUltimateQuestionOfLife
+scratch/main> rename.term x answerToUltimateQuestionOfLife
 ```
 
 Doing `unison:hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
 
 ```unison:hide:all
-> [: you won't see me :]
+> {{ you won't see me }}
 ```
 
 ## Expecting failures

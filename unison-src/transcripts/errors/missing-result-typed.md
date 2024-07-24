@@ -6,7 +6,7 @@ then the transcript parser should print the stanza
 and surface a helpful message.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison:hide:all

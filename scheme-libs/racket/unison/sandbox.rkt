@@ -4,7 +4,7 @@
 (provide expand-sandbox check-sandbox set-sandbox)
 
 (require racket racket/hash)
-(require (except-in unison/data true false unit))
+(require unison/data)
 
 ; sandboxing information
 (define sandbox-links (make-hash))

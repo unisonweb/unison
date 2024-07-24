@@ -1,5 +1,5 @@
 ```ucm:hide
-.lib> builtins.merge
+scratch/main> builtins.merge lib.builtins
 ```
 
 ```unison
@@ -7,6 +7,6 @@ unique type Foo = { bar : Nat }
 ```
 
 ```ucm
-.> update
-.> view Foo
+scratch/main> update
+scratch/main> view Foo
 ```

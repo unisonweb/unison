@@ -1,11 +1,11 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 structural type A.B = OneAlias Foo
 structural type A = B.TheOtherAlias Foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -20,8 +20,8 @@ structural type A = B.TheOtherAlias Foo
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -30,11 +30,11 @@ structural type A = B.TheOtherAlias Foo
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,8 +52,8 @@ Bug: we want this update to be rejected earlier, because it violates the "decl c
 only one name for each constructor. We instead get too far in the update process, and are delivered a bogus scratch.u
 file to stare at.
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -65,7 +65,7 @@ file to stare at.
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 structural type A = B.OneAlias Foo
 
 structural type A.B = OneAlias Foo

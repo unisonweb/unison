@@ -1,11 +1,11 @@
 Just a bunch of random parse errors to test the error formatting.
 
-```unison
+``` unison
 x = 
   foo.123
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,25 +22,27 @@ x =
   * identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)
 
 ```
-```unison
+``` unison
 namespace.blah = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
-  The identifier used here isn't allowed to be a reserved keyword: 
+  The identifier `namespace` used here is a reserved keyword: 
   
       1 | namespace.blah = 1
   
+  You can avoid this problem either by renaming the identifier
+  or wrapping it in backticks (like `namespace` ).
 
 ```
-```unison
+``` unison
 x = 1 ]
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,11 +52,11 @@ x = 1 ]
   
 
 ```
-```unison
+``` unison
 x = a.#abc
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -64,13 +66,31 @@ x = a.#abc
   
   
   I was surprised to find a '.' here.
+  I was expecting one of these instead:
+  
+  * and
+  * bang
+  * do
+  * false
+  * force
+  * handle
+  * if
+  * infixApp
+  * let
+  * newline or semicolon
+  * or
+  * quote
+  * termLink
+  * true
+  * tuple
+  * typeLink
 
 ```
-```unison
+``` unison
 x = "hi
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -86,11 +106,11 @@ x = "hi
   * literal character
 
 ```
-```unison
+``` unison
 y : a 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

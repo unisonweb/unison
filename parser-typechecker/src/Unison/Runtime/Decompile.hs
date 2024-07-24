@@ -230,7 +230,11 @@ decompileForeign backref topTerms f
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
 decompileForeign _ _ (Wrap r _) =
-  err (BadForeign r) $ bug "<Foreign>"
+  err (BadForeign r) $ bug text
+  where
+    text
+      | Builtin name <- r = "<" <> name <> ">"
+      | otherwise = "<Foreign>"
 
 decompileBytes :: (Var v) => By.Bytes -> Term v ()
 decompileBytes =

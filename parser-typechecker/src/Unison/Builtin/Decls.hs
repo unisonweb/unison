@@ -174,13 +174,13 @@ rewriteCaseRef = lookupDeclRef "RewriteCase"
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
 
-rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteCase :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
     r = ConstructorReference rewriteCaseRef 0
 
-rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteTerm :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
@@ -596,7 +596,7 @@ builtinEffectDecls =
         Structural
         ()
         []
-        [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+        [ ((), v "Exception.raise", Type.forAll () (v "x") (failureType () `arr` self (var "x")))
         ]
 
 pattern UnitRef :: Reference
@@ -776,8 +776,8 @@ tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: (Var v) => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.typed Var.Delay
+delayTerm :: (Var v) => a -> a -> Term v a -> Term v a
+delayTerm spanAnn argAnn = Term.lam spanAnn (argAnn, Var.typed Var.Delay)
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->

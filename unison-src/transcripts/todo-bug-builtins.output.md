@@ -1,11 +1,12 @@
 # The `todo` and `bug` builtin
 
 `todo` and `bug` have type `a -> b`. They take a message or a value of type `a` and crash during runtime displaying `a` in ucm.
-```unison
+
+``` unison
 > todo "implement me later"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -28,11 +29,11 @@
     #qe5e1lcfn8
 
 ```
-```unison
+``` unison
 > bug "there's a bug in my code"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -56,12 +57,14 @@
 
 ```
 ## Todo
+
 `todo` is useful if you want to come back to a piece of code later but you want your project to compile.
-```unison
+
+``` unison
 complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -75,14 +78,16 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 
 ```
 ## Bug
+
 `bug` is used to indicate that a particular branch is not expected to execute.
-```unison
+
+``` unison
 test = match true with
     true -> "Yay"
     false -> bug "Wow, that's unexpected"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

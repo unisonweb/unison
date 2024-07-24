@@ -1,6 +1,6 @@
 `update` properly discovers and establishes new cycles.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = 1
 
@@ -8,7 +8,7 @@ pong : 'Nat
 pong _ = !ping + 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,8 +22,8 @@ pong _ = !ping + 2
       pong : 'Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -31,7 +31,7 @@ pong _ = !ping + 2
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : 'Nat
 ping _ = !clang + 1
 
@@ -39,7 +39,7 @@ clang : 'Nat
 clang _ = !pong + 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -57,8 +57,8 @@ clang _ = !pong + 3
       ping : 'Nat
 
 ```
-```ucm
-.> update.old ping
+``` ucm
+scratch/main> update.old ping
 
   ⍟ I've added these definitions:
   
@@ -69,21 +69,21 @@ clang _ = !pong + 3
     ping : 'Nat
     pong : 'Nat
 
-.> view ping pong clang
+scratch/main> view ping pong clang
 
   clang : 'Nat
   clang _ =
     use Nat +
-    !pong + 3
+    pong() + 3
   
   ping : 'Nat
   ping _ =
     use Nat +
-    !clang + 1
+    clang() + 1
   
   pong : 'Nat
   pong _ =
     use Nat +
-    !ping + 2
+    ping() + 2
 
 ```

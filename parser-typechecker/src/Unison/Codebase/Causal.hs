@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Causal
-  ( Causal (currentHash, head, tail, tails),
+  ( Causal (currentHash, valueHash, head, tail, tails),
     pattern One,
     pattern Cons,
     pattern Merge,
@@ -40,7 +40,8 @@ import Unison.Codebase.Causal.Type
         currentHash,
         head,
         tail,
-        tails
+        tails,
+        valueHash
       ),
     before,
     lca,

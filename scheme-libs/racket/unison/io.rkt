@@ -9,7 +9,7 @@
            date-dst?
            date-time-zone-offset
            date*-time-zone-name)
-         (only-in unison/boot data-case define-unison)
+         (only-in unison/boot data-case define-unison-builtin)
          (only-in
            rnrs/arithmetic/flonums-6
            flmod))
@@ -33,20 +33,29 @@
    getTempDirectory.impl.v3
    removeFile.impl.v3
    getFileSize.impl.v3))
-  (prefix-out
-    builtin-IO.
-    (combine-out
-        fileExists.impl.v3
-        renameFile.impl.v3
-        createDirectory.impl.v3
-        removeDirectory.impl.v3
-        directoryContents.impl.v3
-        setCurrentDirectory.impl.v3
-        renameDirectory.impl.v3
-        isDirectory.impl.v3
-        systemTime.impl.v3
-        systemTimeMicroseconds.impl.v3
-        createTempDirectory.impl.v3)))
+
+  builtin-IO.fileExists.impl.v3
+  builtin-IO.fileExists.impl.v3:termlink
+  builtin-IO.renameFile.impl.v3
+  builtin-IO.renameFile.impl.v3:termlink
+  builtin-IO.createDirectory.impl.v3
+  builtin-IO.createDirectory.impl.v3:termlink
+  builtin-IO.removeDirectory.impl.v3
+  builtin-IO.removeDirectory.impl.v3:termlink
+  builtin-IO.directoryContents.impl.v3
+  builtin-IO.directoryContents.impl.v3:termlink
+  builtin-IO.setCurrentDirectory.impl.v3
+  builtin-IO.setCurrentDirectory.impl.v3:termlink
+  builtin-IO.renameDirectory.impl.v3
+  builtin-IO.renameDirectory.impl.v3:termlink
+  builtin-IO.isDirectory.impl.v3
+  builtin-IO.isDirectory.impl.v3:termlink
+  builtin-IO.systemTime.impl.v3
+  builtin-IO.systemTime.impl.v3:termlink
+  builtin-IO.systemTimeMicroseconds.impl.v3
+  builtin-IO.systemTimeMicroseconds.impl.v3:termlink
+  builtin-IO.createTempDirectory.impl.v3
+  builtin-IO.createTempDirectory.impl.v3:termlink)
 
 (define (failure-result ty msg vl)
   (ref-either-left
@@ -76,7 +85,8 @@
         (right (file-or-directory-modify-seconds (chunked-string->string path)))))
 
 ; in haskell, it's not just file but also directory
-(define-unison (fileExists.impl.v3 path)
+(define-unison-builtin
+  (builtin-IO.fileExists.impl.v3 path)
     (let ([path-string (chunked-string->string path)])
     (ref-either-right
         (or
@@ -90,11 +100,13 @@
 (define (getTempDirectory.impl.v3)
     (right (string->chunked-string (path->string (find-system-path 'temp-dir)))))
 
-(define-unison (setCurrentDirectory.impl.v3 path)
+(define-unison-builtin
+  (builtin-IO.setCurrentDirectory.impl.v3 path)
     (current-directory (chunked-string->string path))
     (ref-either-right none))
 
-(define-unison (directoryContents.impl.v3 path)
+(define-unison-builtin
+  (builtin-IO.directoryContents.impl.v3 path)
   (with-handlers
     [[exn:fail:filesystem?
        (lambda (e)
@@ -112,7 +124,8 @@
               (list* "." ".." dirss))))))))
 
 
-(define-unison (createTempDirectory.impl.v3 prefix)
+(define-unison-builtin
+  (builtin-IO.createTempDirectory.impl.v3 prefix)
     (ref-either-right
         (string->chunked-string
             (path->string
@@ -120,35 +133,43 @@
                     (string->bytes/utf-8
                         (chunked-string->string prefix)) #"")))))
 
-(define-unison (createDirectory.impl.v3 file)
+(define-unison-builtin
+  (builtin-IO.createDirectory.impl.v3 file)
     (make-directory (chunked-string->string file))
     (ref-either-right none))
 
-(define-unison (removeDirectory.impl.v3 file)
+(define-unison-builtin
+  (builtin-IO.removeDirectory.impl.v3 file)
     (delete-directory/files (chunked-string->string file))
     (ref-either-right none))
 
-(define-unison (isDirectory.impl.v3 path)
+(define-unison-builtin
+  (builtin-IO.isDirectory.impl.v3 path)
     (ref-either-right
         (directory-exists? (chunked-string->string path))))
 
-(define-unison (renameDirectory.impl.v3 old new)
+(define-unison-builtin
+  (builtin-IO.renameDirectory.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
     (ref-either-right none))
 
-(define-unison (renameFile.impl.v3 old new)
+(define-unison-builtin
+  (builtin-IO.renameFile.impl.v3 old new)
     (rename-file-or-directory (chunked-string->string old)
         (chunked-string->string new))
     (ref-either-right none))
 
-(define-unison (systemTime.impl.v3 unit)
+(define-unison-builtin
+  (builtin-IO.systemTime.impl.v3 unit)
     (ref-either-right (current-seconds)))
 
-(define-unison (systemTimeMicroseconds.impl.v3 unit)
+(define-unison-builtin
+  (builtin-IO.systemTimeMicroseconds.impl.v3 unit)
     (ref-either-right (inexact->exact (* 1000 (current-inexact-milliseconds)))))
 
-(define-unison (builtin-Clock.internals.systemTimeZone.v1 secs)
+(define-unison-builtin
+  (builtin-Clock.internals.systemTimeZone.v1 secs)
   (let* ([d (seconds->date secs)])
     (list->unison-tuple
       (list

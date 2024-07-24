@@ -1,140 +1,26 @@
-# Test the `todo` command
+# Nothing to do
 
-## Simple type-changing update.
+When there's nothing to do, `todo` says this:
 
-```unison
-x = 1
-useX = x + 10
+``` ucm
+scratch/main> todo
 
-type MyType = MyType Nat
-useMyType = match MyType 1 with
-  MyType a -> a + 10
-```
-
-Perform a type-changing update so dependents are added to our update frontier.
-
-```unison
-x = -1
-
-type MyType = MyType Text
-```
-
-```ucm
-.simple> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    type MyType
-    x : Int
-
-.simple> todo
-
-  🚧
-  
-  The namespace has 2 transitive dependent(s) left to upgrade.
-  Your edit frontier is the dependents of these definitions:
-  
-    type #vijug0om28
-    #gjmq673r1v : Nat
-  
-  I recommend working on them in the following order:
-  
-  1. useMyType : Nat
-  2. useX      : Nat
-  
-  
+  You have no pending todo items. Good work! ✅
 
 ```
-## A merge with conflicting updates.
+# Dependents of `todo`
 
-```unison
-x = 1
-type MyType = MyType
+The `todo` command shows local (outside `lib`) terms that directly call `todo`.
+
+``` unison
+foo : Nat
+foo = todo "implement foo"
+
+bar : Nat
+bar = foo + foo
 ```
 
-Set up two branches with the same starting point.
-
-Update `x` to a different term in each branch.
-
-```unison
-x = 2
-type MyType = MyType Nat
-```
-
-```unison
-x = 3
-type MyType = MyType Int
-```
-
-```ucm
-.mergeA> merge.old .mergeB
-
-  Here's what's changed in the current namespace after the
-  merge:
-  
-  New name conflicts:
-  
-    1.  type MyType#ig1g2ka7lv
-        ↓
-    2.  ┌ type MyType#8c6f40i3tj
-    3.  └ type MyType#ig1g2ka7lv
-    
-    4.  MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
-        ↓
-    5.  ┌ MyType.MyType#8c6f40i3tj#0 : Int -> MyType#8c6f40i3tj
-    6.  └ MyType.MyType#ig1g2ka7lv#0 : Nat -> MyType#ig1g2ka7lv
-    
-    7.  x#dcgdua2lj6 : Nat
-        ↓
-    8.  ┌ x#dcgdua2lj6 : Nat
-    9.  └ x#f3lgjvjqoo : Nat
-  
-  Updates:
-  
-    10. patch patch (added 2 updates)
-  
-  Tip: You can use `todo` to see if this generated any work to
-       do in this namespace and `test` to run the tests. Or you
-       can use `undo` or `reflog` to undo the results of this
-       merge.
-
-  Applying changes from patch...
-
-  I tried to auto-apply the patch, but couldn't because it
-  contained contradictory entries.
-
-.mergeA> todo
-
-  ❓
-  
-  These definitions were edited differently in namespaces that
-  have been merged into this one. You'll have to tell me what to
-  use as the new definition:
-  
-    The type 1. #8h7qq3ougl was replaced with
-      2. MyType#8c6f40i3tj
-      3. MyType#ig1g2ka7lv
-    The term 4. #gjmq673r1v was replaced with
-      5. x#dcgdua2lj6
-      6. x#f3lgjvjqoo
-  ❓
-  
-  The term MyType.MyType has conflicting definitions:
-    7. MyType.MyType#8c6f40i3tj#0
-    8. MyType.MyType#ig1g2ka7lv#0
-  
-  Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `move.term` or `delete.term`
-       to resolve the conflicts.
-
-```
-## A named value that appears on the LHS of a patch isn't shown
-
-```unison
-foo = 801
-```
-
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -144,22 +30,36 @@ foo = 801
   
     ⍟ These new definitions are ok to `add`:
     
+      bar : Nat
       foo : Nat
 
 ```
-```ucm
-.lhs> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
+    bar : Nat
     foo : Nat
 
+scratch/main> todo
+
+  These terms call `todo`:
+  
+    1. foo
+
 ```
-```unison
-foo = 802
+# Direct dependencies without names
+
+The `todo` command shows hashes of direct dependencies of local (outside `lib`) definitions that don't have names in
+the current namespace.
+
+``` unison
+foo.bar = 15
+baz = foo.bar + foo.bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -167,25 +67,96 @@ foo = 802
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
+      baz     : Nat
+      foo.bar : Nat
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    baz     : Nat
+    foo.bar : Nat
+
+scratch/main> delete.namespace.force foo
+
+  Done.
+
+  ⚠️
+  
+  Of the things I deleted, the following are still used in the
+  following definitions. They now contain un-named references.
+  
+  Dependency   Referenced In
+  bar          1. baz
+
+scratch/main> todo
+
+  These terms do not have any names in the current namespace:
+  
+    1. #1jujb8oelv
+
+```
+# Conflicted names
+
+The `todo` command shows conflicted names.
+
+``` unison
+foo = 16
+bar = 17
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
       foo : Nat
 
 ```
-```ucm
-.lhs> update.old
+``` ucm
+scratch/main> add
 
-  ⍟ I've updated these names to your new definition:
+  ⍟ I've added these definitions:
   
+    bar : Nat
     foo : Nat
 
+scratch/main> debug.alias.term.force foo bar
+
+  Done.
+
+scratch/main> todo
+
+  ❓
+  
+  The term bar has conflicting definitions:
+  
+    1. bar#14ibahkll6
+    2. bar#cq22mm4sca
+  
+  Tip: Use `move.term` or `delete.term` to resolve the
+       conflicts.
+
 ```
-```unison
-oldfoo = 801
+# Definitions in lib
+
+The `todo` command complains about terms and types directly in `lib`.
+
+``` unison
+lib.foo = 16
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -195,36 +166,32 @@ oldfoo = 801
   
     ⍟ These new definitions are ok to `add`:
     
-      oldfoo : Nat
+      lib.foo : Nat
 
 ```
-```ucm
-.lhs> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    oldfoo : Nat
+    lib.foo : Nat
 
-.lhs> todo
+scratch/main> todo
 
-  ✅
-  
-  No conflicts or edits in progress.
+  There's a type or term at the top level of the `lib`
+  namespace, where I only expect to find subnamespaces
+  representing library dependencies. Please move or remove it.
 
 ```
-## A type-changing update to one element of a cycle, which doesn't propagate to the other
+# Constructor aliases
 
-```unison
-even = cases
-  0 -> true
-  n -> odd (drop 1 n)
+The `todo` command complains about constructor aliases.
 
-odd = cases
-  0 -> false
-  n -> even (drop 1 n)
+``` unison
+type Foo = One
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -234,24 +201,39 @@ odd = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      even : Nat -> Boolean
-      odd  : Nat -> Boolean
+      type Foo
 
 ```
-```ucm
-.cycle2> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    even : Nat -> Boolean
-    odd  : Nat -> Boolean
+    type Foo
+
+scratch/main> alias.term Foo.One Foo.Two
+
+  Done.
+
+scratch/main> todo
+
+  The type Foo has a constructor with multiple names.
+  
+    1. Foo.One
+    2. Foo.Two
+  
+  Please delete all but one name for each constructor.
 
 ```
-```unison
-even = 17
+# Missing constructor names
+
+The `todo` command complains about missing constructor names.
+
+``` unison
+type Foo = Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -259,34 +241,113 @@ even = 17
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
-      even : Nat
+      type Foo
 
 ```
-```ucm
-.cycle2> update.old
+``` ucm
+scratch/main> add
 
-  ⍟ I've updated these names to your new definition:
+  ⍟ I've added these definitions:
   
-    even : Nat
+    type Foo
+
+scratch/main> delete.term Foo.Bar
+
+  Done.
+
+scratch/main> todo
+
+  These types have some constructors with missing names.
+  
+    1. Foo
+  
+  You can use `view 1` and
+  `alias.term <hash> <TypeName>.<ConstructorName>` to give names
+  to each unnamed constructor.
 
 ```
-```ucm
-.cycle2> todo
+# Nested decl aliases
 
-  🚧
+The `todo` command complains about nested decl aliases.
+
+``` unison
+structural type Foo a = One a | Two a a
+structural type Foo.inner.Bar a = Uno a | Dos a a
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-  The namespace has 1 transitive dependent(s) left to upgrade.
-  Your edit frontier is the dependents of these definitions:
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Foo a
+      structural type Foo.inner.Bar a
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
   
-    #kkohl7ba1e : Nat -> Boolean
+    structural type Foo a
+    structural type Foo.inner.Bar a
+
+scratch/main> todo
+
+  These types are aliases, but one is nested under the other.
+  Please separate them or delete one copy.
   
-  I recommend working on them in the following order:
+    1. Foo
+    2. Foo.inner.Bar
+
+```
+# Stray constructors
+
+The `todo` command complains about stray constructors.
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-  1. odd : Nat -> Boolean
+    ⍟ These new definitions are ok to `add`:
+    
+      type Foo
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
   
+    type Foo
+
+scratch/main> alias.term Foo.Bar Baz
+
+  Done.
+
+scratch/main> todo
+
+  These constructors are not nested beneath their corresponding
+  type names:
   
+    1. Baz
+  
+  For each one, please either use `move` to move if, or if it's
+  an extra copy, you can simply `delete` it.
 
 ```

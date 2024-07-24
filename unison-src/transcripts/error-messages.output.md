@@ -1,4 +1,3 @@
-
 This file contains programs with parse errors and type errors, for visual inspection of error message quality and to check for regressions or changes to error reporting.
 
 ## Parse errors
@@ -7,11 +6,11 @@ Some basic errors of literals.
 
 ### Floating point literals
 
-```unison
+``` unison
 x = 1. -- missing some digits after the decimal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,15 +18,15 @@ x = 1. -- missing some digits after the decimal
   
       1 | x = 1. -- missing some digits after the decimal
   
-  I was expecting some digits after the '.', for example: 1.0 or
-  1.1e37.
+  I was expecting some digits after the `.` , for example: `1.0`
+  or `1.1e37`.
 
 ```
-```unison
+``` unison
 x = 1e -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -36,14 +35,14 @@ x = 1e -- missing an exponent
       1 | x = 1e -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e37.
+  `1e37`.
 
 ```
-```unison
+``` unison
 x = 1e- -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,14 +51,14 @@ x = 1e- -- missing an exponent
       1 | x = 1e- -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e-37.
+  `1e-37`.
 
 ```
-```unison
+``` unison
 x = 1E+ -- missing an exponent
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -68,16 +67,16 @@ x = 1E+ -- missing an exponent
       1 | x = 1E+ -- missing an exponent
   
   I was expecting some digits for the exponent, for example:
-  1e+37.
+  `1e+37`.
 
 ```
 ### Hex, octal, and bytes literals
 
-```unison
+``` unison
 x = 0xoogabooga -- invalid hex chars
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -89,11 +88,11 @@ x = 0xoogabooga -- invalid hex chars
   0123456789abcdefABCDEF) after the 0x.
 
 ```
-```unison
+``` unison
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -105,11 +104,11 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
   the 0o.
 
 ```
-```unison
+``` unison
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -121,11 +120,11 @@ x = 0xsf -- odd number of hex chars in a bytes literal
   of 0123456789abcdefABCDEF) after the 0xs.
 
 ```
-```unison
+``` unison
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -139,11 +138,11 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 ### Layout errors
 
-```unison
+``` unison
 foo = else -- not matching if
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -153,11 +152,11 @@ foo = else -- not matching if
   
 
 ```
-```unison
+``` unison
 foo = then -- unclosed
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -167,11 +166,11 @@ foo = then -- unclosed
   
 
 ```
-```unison
+``` unison
 foo = with -- unclosed
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -183,12 +182,12 @@ foo = with -- unclosed
 ```
 ### Matching
 
-```unison
+``` unison
 -- No cases
 foo = match 1 with
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -201,12 +200,12 @@ foo = match 1 with
     
 
 ```
-```unison
+``` unison
 foo = match 1 with
   2 -- no right-hand-side
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -222,14 +221,14 @@ foo = match 1 with
   * pattern guard
 
 ```
-```unison
+``` unison
 -- Mismatched arities
 foo = cases
   1, 2 -> ()
   3 -> ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -243,7 +242,7 @@ foo = cases
     
 
 ```
-```unison
+``` unison
 -- Missing a '->'
 x = match Some a with
       None -> 
@@ -252,7 +251,7 @@ x = match Some a with
         2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -271,7 +270,7 @@ x = match Some a with
   * true
 
 ```
-```unison
+``` unison
 -- Missing patterns
 x = match Some a with
       None -> 1
@@ -279,7 +278,7 @@ x = match Some a with
            -> 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -294,14 +293,14 @@ x = match Some a with
   * newline or semicolon
 
 ```
-```unison
+``` unison
 -- Guards following an unguarded case
 x = match Some a with
       None     -> 1
         | true -> 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -318,12 +317,12 @@ x = match Some a with
 ```
 ### Watches
 
-```unison
+``` unison
 -- Empty watch
 >
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -335,26 +334,28 @@ x = match Some a with
 ```
 ### Keywords
 
-```unison
+``` unison
 use.keyword.in.namespace = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
-  The identifier used here isn't allowed to be a reserved keyword: 
+  The identifier `namespace` used here is a reserved keyword: 
   
       1 | use.keyword.in.namespace = 1
   
+  You can avoid this problem either by renaming the identifier
+  or wrapping it in backticks (like `namespace` ).
 
 ```
-```unison
+``` unison
 -- reserved operator
 a ! b = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

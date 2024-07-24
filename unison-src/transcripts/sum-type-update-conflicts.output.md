@@ -4,11 +4,11 @@ https://github.com/unisonweb/unison/issues/2786
 
 First we add a sum-type to the codebase.
 
-```unison
+``` unison
 structural type X = x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,22 +19,22 @@ structural type X = x
     ⍟ These new definitions are ok to `add`:
     
       structural type X
-        (also named builtin.Unit)
+        (also named lib.builtins.Unit)
 
 ```
-```ucm
-.ns> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type X
-      (also named builtin.Unit)
+      (also named lib.builtins.Unit)
 
 ```
-Now we update the type, changing the name of the constructors, _but_, we simultaneously
+Now we update the type, changing the name of the constructors, *but*, we simultaneously
 add a new top-level term with the same name as the old constructor.
 
-```unison
+``` unison
 structural type X = y | z
 
 X.x : Text
@@ -43,7 +43,7 @@ X.x = "some text that's not in the codebase"
 dependsOnX = Text.size X.x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -60,14 +60,14 @@ dependsOnX = Text.size X.x
       new definition:
     
       structural type X
-        (The old definition is also named builtin.Unit.)
+        (The old definition is also named lib.builtins.Unit.)
 
 ```
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
-```ucm
-.ns> update.old
+``` ucm
+scratch/main> update.old
 
   ⍟ I've added these definitions:
   
@@ -77,6 +77,6 @@ is removed in the same update that the new term is being added.
   ⍟ I've updated these names to your new definition:
   
     structural type X
-      (The old definition was also named builtin.Unit.)
+      (The old definition was also named lib.builtins.Unit.)
 
 ```

@@ -2,7 +2,7 @@ module Unison.Syntax.NamePrinter where
 
 import Data.Text qualified as Text
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)

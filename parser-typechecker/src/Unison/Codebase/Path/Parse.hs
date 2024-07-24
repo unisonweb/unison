@@ -22,7 +22,7 @@ import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P (char)
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Codebase.Path
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Prelude hiding (empty, toList)
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.Lexer qualified as Lexer

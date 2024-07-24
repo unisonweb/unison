@@ -28,7 +28,7 @@ import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
-import Unison.Codebase.Path as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.FZFResolvers (FZFResolver (..))
 import Unison.Prelude
 import Unison.Util.ColorText qualified as CT
@@ -66,7 +66,16 @@ data InputPattern = InputPattern
     visibility :: Visibility, -- Allow hiding certain commands when debugging or work-in-progress
     args :: [(ArgumentDescription, IsOptional, ArgumentType)],
     help :: P.Pretty CT.ColorText,
-    parse :: Arguments -> Either (P.Pretty CT.ColorText) Input
+    -- | Parse the arguments and return either an error message or a command `Input`.
+    --
+    --  __NB__: This function should return `Left` only on failure. For commands (like `help`) that simply produce
+    --          formatted output, use `pure . Input.CreateMessage`. The failure output should be fully formatted (using
+    --         `wrap`, etc.), but shouldn’t include any general error components like a warninng flag or the full help
+    --          message, and shouldn’t plan for the context it is being output to (e.g., don’t `P.indentN` the entire
+    --          message).
+    parse ::
+      Arguments ->
+      Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType
@@ -78,7 +87,7 @@ data ArgumentType = ArgumentType
       String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute -> -- Current path
+      PP.ProjectPath ->
       m [Line.Completion],
     -- | If an argument is marked as required, but not provided, the fuzzy finder will be triggered if
     -- available.
@@ -157,14 +166,14 @@ unionSuggestions ::
   [ ( String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute ->
+      PP.ProjectPath ->
       m [Line.Completion]
     )
   ] ->
   ( String ->
     Codebase m v a ->
     AuthenticatedHttpClient ->
-    Path.Absolute ->
+    PP.ProjectPath ->
     m [Line.Completion]
   )
 unionSuggestions suggesters inp codebase httpClient path = do
@@ -179,14 +188,14 @@ suggestionFallbacks ::
   [ ( String ->
       Codebase m v a ->
       AuthenticatedHttpClient ->
-      Path.Absolute ->
+      PP.ProjectPath ->
       m [Line.Completion]
     )
   ] ->
   ( String ->
     Codebase m v a ->
     AuthenticatedHttpClient ->
-    Path.Absolute ->
+    PP.ProjectPath ->
     m [Line.Completion]
   )
 suggestionFallbacks suggesters inp codebase httpClient path = go suggesters

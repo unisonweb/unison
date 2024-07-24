@@ -1,9 +1,9 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,8 +17,8 @@ unique type Baz = Qux Foo
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -26,11 +26,11 @@ unique type Baz = Qux Foo
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,8 +44,8 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -56,15 +56,15 @@ unique type Foo = Bar Nat Nat
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = Bar Nat Nat
 
-.> view Baz
+scratch/main> view Baz
 
   type Baz = Qux Foo
 
-.> find.verbose
+scratch/main> find.verbose
 
   1. -- #34msh9satlfog576493eo9pkjn6aj7d8fj6jfheglvgr5s39iptb81649bpkad1lqraheqb8em9ms551k01oternhknc4m7jicgtk08
      type Baz

@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ # Doc
 This is a *doc*! 
 
@@ -83,11 +83,11 @@ with a strike-through block~
 }}
 ```
 
-```ucm
-.> debug.format
+``` ucm
+scratch/main> debug.format
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
 x.doc =
   {{
   # Doc This is a **doc**!
@@ -142,7 +142,7 @@ provide a action =
   h = cases
     { ask -> resume } -> handle resume a with h
     { r }             -> r
-  handle !action with h
+  handle action() with h
 
 Optional.doc = {{ A Doc before a type }}
 structural type Optional a = More Text | Some | Other a | None Nat 
@@ -167,11 +167,11 @@ multilineBold =
 
 Formatter should leave things alone if the file doesn't typecheck.
 
-```unison
+``` unison
 brokenDoc = {{ hello }} + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -199,7 +199,7 @@ brokenDoc = {{ hello }} + 1
   (Nat.+) : Nat -> Nat -> Nat
 
 ```
-```ucm
-.> debug.format
+``` ucm
+scratch/main> debug.format
 
 ```

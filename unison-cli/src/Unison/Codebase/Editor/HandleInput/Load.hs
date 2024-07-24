@@ -40,7 +40,9 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Timing qualified as Timing
 import Unison.WatchKind qualified as WK
 
 handleLoad :: Maybe FilePath -> Cli ()
@@ -65,11 +67,14 @@ loadUnisonFile sourceName text = do
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
-  (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
-  let e' = Map.map go e
-      go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-  when (not (null e')) do
-    Cli.respond $ Output.Evaluated text ppe bindings e'
+
+  when (not . null $ UF.watchComponents unisonFile) do
+    Timing.time "evaluating watches" do
+      (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
+      let e' = Map.map go e
+          go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+      when (not (null e')) do
+        Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
   where
     withFile ::
@@ -78,17 +83,17 @@ loadUnisonFile sourceName text = do
       Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
     withFile names sourceName text = do
-      currentPath <- Cli.getCurrentPath
+      pp <- Cli.getCurrentProjectPath
       State.modify' \loopState ->
         loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
+          & (#latestFile .~ Just (Text.unpack sourceName, False))
+          & (#latestTypecheckedFile .~ Nothing)
       Cli.Env {codebase, generateUniqueName} <- ask
       uniqueName <- liftIO generateUniqueName
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
                 names
               }
       unisonFile <-

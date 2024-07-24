@@ -1,7 +1,7 @@
 # delete.project
 
-```ucm
-.> project.create-empty foo
+``` ucm
+scratch/main> project.create-empty foo
 
   🎉 I've created the project foo.
 
@@ -17,9 +17,7 @@
   
   🎉 🥳 Happy coding!
 
-  ☝️  The namespace . is empty.
-
-.> project.create-empty bar
+scratch/main> project.create-empty bar
 
   🎉 I've created the project bar.
 
@@ -35,17 +33,37 @@
   
   🎉 🥳 Happy coding!
 
-  ☝️  The namespace . is empty.
+-- I can delete the project I'm currently on
+scratch/main> delete.project scratch
 
-.> projects
+foo/main> projects
 
   1. bar
   2. foo
 
+-- I can delete a different project
+foo/main> delete.project bar
+
+foo/main> projects
+
+  1. foo
+
+-- I can delete the last project, a new scratch project will be created
 foo/main> delete.project foo
 
-.> projects
+project/main> projects
 
-  1. bar
+  1. project
+  2. scratch
+
+-- If the last project is scratch, a scratch2 project will be created.
+scratch/main> delete.project project
+
+scratch/main> delete.project scratch
+
+project/main> projects
+
+  1. project
+  2. scratch2
 
 ```

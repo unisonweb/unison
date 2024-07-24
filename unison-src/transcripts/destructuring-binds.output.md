@@ -2,7 +2,7 @@
 
 Here's a couple examples:
 
-```unison
+``` unison
 ex0 : Nat -> Nat
 ex0 n =
   (a, _, (c,d)) = ("uno", "dos", (n, 7))
@@ -14,7 +14,7 @@ ex1 tup =
   c + d
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -28,15 +28,15 @@ ex1 tup =
       ex1 : (a, b, (Nat, Nat)) -> Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex0 : Nat -> Nat
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
-.> view ex0 ex1
+scratch/main> view ex0 ex1
 
   ex0 : Nat -> Nat
   ex0 n =
@@ -52,13 +52,13 @@ Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pr
 
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:
 
-```unison
+``` unison
 ex2 : (a,b,(Nat,Nat)) -> Nat
 ex2 tup = match tup with
   (a, b, (c,d)) -> c + d
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -76,13 +76,13 @@ ex2 tup = match tup with
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:
 
-```unison
+``` unison
 ex4 =
   (a,b) = (a Nat.+ b, 19)
   "Doesn't typecheck"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -104,7 +104,7 @@ ex4 =
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
 
-```unison
+``` unison
 ex5 : 'Text
 ex5 _ = match 99 + 1 with
   12 -> "Hi"
@@ -116,7 +116,7 @@ ex5a _ = match (99 + 1, "hi") with
   _ -> "impossible"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -130,15 +130,15 @@ ex5a _ = match (99 + 1, "hi") with
       ex5a : 'Text
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex5  : 'Text
     ex5a : 'Text
 
-.> view ex5 ex5a
+scratch/main> view ex5 ex5a
 
   ex5 : 'Text
   ex5 _ = match 99 Nat.+ 1 with
@@ -155,21 +155,21 @@ Notice how it prints both an ordinary match.
 
 Also, for clarity, the pretty-printer shows a single-branch match if the match shadows free variables of the scrutinee, for example:
 
-```unison
+``` unison
 ex6 x = match x with
   (x, y) -> x Nat.+ y
 ```
 
 For clarity, the pretty-printer leaves this alone, even though in theory it could be written `(x,y) = x; x + y`:
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     ex6 : (Nat, Nat) -> Nat
 
-.> view ex6
+scratch/main> view ex6
 
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases (x, y) -> x Nat.+ y

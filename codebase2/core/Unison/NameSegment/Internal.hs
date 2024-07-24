@@ -27,12 +27,13 @@ newtype NameSegment = NameSegment
   deriving newtype (Alphabetical)
 
 instance
-  TypeError
-    ( 'TypeError.Text "You cannot implicitly convert a ‘String’ to a ‘NameSegment’. If you need a"
-        ':$$: 'TypeError.Text "special-cased segment it should exist as a constant in"
-        ':$$: 'TypeError.Text "“Unison.NameSegment”, otherwise it should be parsed via"
-        ':$$: 'TypeError.Text "“Unison.Syntax.NameSegment”."
-    ) =>
+  ( TypeError
+      ( 'TypeError.Text "You cannot implicitly convert a ‘String’ to a ‘NameSegment’. If you need a"
+          ':$$: 'TypeError.Text "special-cased segment it should exist as a constant in"
+          ':$$: 'TypeError.Text "“Unison.NameSegment”, otherwise it should be parsed via"
+          ':$$: 'TypeError.Text "“Unison.Syntax.NameSegment”."
+      )
+  ) =>
   IsString NameSegment
   where
   fromString = undefined

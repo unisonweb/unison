@@ -1,6 +1,6 @@
 Update a member of a cycle with a type-preserving update, but sever the cycle.
 
-```unison
+``` unison
 ping : 'Nat
 ping _ = !pong + 1
 
@@ -8,7 +8,7 @@ pong : 'Nat
 pong _ = !ping + 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -22,8 +22,8 @@ pong _ = !ping + 2
       pong : 'Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -31,12 +31,12 @@ pong _ = !ping + 2
     pong : 'Nat
 
 ```
-```unison
+``` unison
 ping : 'Nat
 ping _ = 3
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,8 +50,8 @@ ping _ = 3
       ping : 'Nat
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -62,7 +62,7 @@ ping _ = 3
 
   Done.
 
-.> view ping pong
+scratch/main> view ping pong
 
   ping : 'Nat
   ping _ = 3
@@ -70,6 +70,6 @@ ping _ = 3
   pong : 'Nat
   pong _ =
     use Nat +
-    !ping + 2
+    ping() + 2
 
 ```

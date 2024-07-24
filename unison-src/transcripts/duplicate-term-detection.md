@@ -1,7 +1,7 @@
 # Duplicate Term Detection
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 

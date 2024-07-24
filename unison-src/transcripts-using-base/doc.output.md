@@ -2,18 +2,18 @@
 
 Unison documentation is written in Unison and has some neat features:
 
-* The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.
-* Docs may contain Unison code which is parsed and typechecked to ensure validity. No more out of date examples that don't compile or assume a bunch of implicit context!
-* Embeded examples are live and can show the results of evaluation. This uses the same evaluation cache as Unison's scratch files, allowing Unison docs to function like well-commented spreadsheets or notebooks.
-* Links to other definitions are typechecked to ensure they point to valid definitions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
-* Docs can be included in other docs and you can assemble documentation programmatically, using Unison code.
-* There's a powerful textual syntax for all of the above, which we'll introduce next.
+  - The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.
+  - Docs may contain Unison code which is parsed and typechecked to ensure validity. No more out of date examples that don't compile or assume a bunch of implicit context\!
+  - Embeded examples are live and can show the results of evaluation. This uses the same evaluation cache as Unison's scratch files, allowing Unison docs to function like well-commented spreadsheets or notebooks.
+  - Links to other definitions are typechecked to ensure they point to valid definitions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
+  - Docs can be included in other docs and you can assemble documentation programmatically, using Unison code.
+  - There's a powerful textual syntax for all of the above, which we'll introduce next.
 
 ## Introduction
 
 Documentation blocks start with `{{` and end with a matching `}}`. You can introduce doc blocks anywhere you'd use an expression, and you can also have anonymous documentation blocks immediately before a top-level term or type.
 
-```unison
+``` unison
 name = {{Alice}}
 d1 = {{ Hello there {{name}}! }}
 
@@ -28,7 +28,7 @@ The 7 days of the week, defined as:
 unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,16 +50,16 @@ Notice that an anonymous documentation block `{{ ... }}` before a definition `Im
 
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
-```ucm
-.> display d1
+``` ucm
+scratch/main> display d1
 
   Hello there Alice!
 
-.> docs ImportantConstant
+scratch/main> docs ImportantConstant
 
   An important constant, equal to `42`
 
-.> docs DayOfWeek
+scratch/main> docs DayOfWeek
 
   The 7 days of the week, defined as:
   
@@ -72,8 +72,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
-```ucm
-.> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+``` ucm
+scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 
   Loading changes detected in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
@@ -99,8 +99,8 @@ Now we can review different portions of the guide.
 we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
-```ucm
-.> view basicFormatting
+``` ucm
+scratch/main> view basicFormatting
 
   basicFormatting : Doc2
   basicFormatting =
@@ -130,7 +130,7 @@ and the rendered output using `display`:
       __Next up:__ {lists}
     }}
 
-.> display basicFormatting
+scratch/main> display basicFormatting
 
   # Basic formatting
   
@@ -155,7 +155,7 @@ and the rendered output using `display`:
   
     *Next up:* lists
 
-.> view lists
+scratch/main> view lists
 
   lists : Doc2
   lists =
@@ -198,7 +198,7 @@ and the rendered output using `display`:
          3. Get dressed.
     }}
 
-.> display lists
+scratch/main> display lists
 
   # Lists
   
@@ -237,7 +237,7 @@ and the rendered output using `display`:
       2. Take shower.
       3. Get dressed.
 
-.> view evaluation
+scratch/main> view evaluation
 
   evaluation : Doc2
   evaluation =
@@ -272,7 +272,7 @@ and the rendered output using `display`:
       ```
     }}
 
-.> display evaluation
+scratch/main> display evaluation
 
   # Evaluation
   
@@ -300,7 +300,7 @@ and the rendered output using `display`:
         cube : Nat -> Nat
         cube x = x * x * x
 
-.> view includingSource
+scratch/main> view includingSource
 
   includingSource : Doc2
   includingSource =
@@ -341,7 +341,7 @@ and the rendered output using `display`:
            {{ docExample 1 do x -> sqr x }}.
     }}
 
-.> display includingSource
+scratch/main> display includingSource
 
   # Including Unison source code
   
@@ -387,7 +387,7 @@ and the rendered output using `display`:
         application, you can put it in double backticks, like
         so: `sqr x`. This is equivalent to `sqr x`.
 
-.> view nonUnisonCodeBlocks
+scratch/main> view nonUnisonCodeBlocks
 
   nonUnisonCodeBlocks : Doc2
   nonUnisonCodeBlocks =
@@ -420,7 +420,7 @@ and the rendered output using `display`:
       ```
     }}
 
-.> display nonUnisonCodeBlocks
+scratch/main> display nonUnisonCodeBlocks
 
   # Non-Unison code blocks
   
@@ -449,7 +449,7 @@ and the rendered output using `display`:
       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
     ```
 
-.> view otherElements
+scratch/main> view otherElements
 
   otherElements : Doc2
   otherElements =
@@ -506,7 +506,7 @@ and the rendered output using `display`:
       ] }}
     }}
 
-.> display otherElements
+scratch/main> display otherElements
 
   There are also asides, callouts, tables, tooltips, and more.
   These don't currently have special syntax; just use the
@@ -548,8 +548,8 @@ and the rendered output using `display`:
 ```
 Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
-```ucm
-.> view doc.guide
+``` ucm
+scratch/main> view doc.guide
 
   doc.guide : Doc2
   doc.guide =
@@ -569,7 +569,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       {{ otherElements }}
     }}
 
-.> display doc.guide
+scratch/main> display doc.guide
 
   # Unison computable documentation
   
@@ -769,3 +769,4 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
 
 ```
 🌻 THE END
+

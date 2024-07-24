@@ -1,15 +1,16 @@
-
 This tests a variable related bug in the ANF compiler.
 
 The nested let would get flattened out, resulting in:
 
-    bar = result
+``` 
+bar = result
+```
 
-which would be handled by renaming. However, the _context_ portion of
+which would be handled by renaming. However, the *context* portion of
 the rest of the code was not being renamed correctly, so `bar` would
 remain in the definition of `baz`.
 
-```unison
+``` unison
 foo _ =
   id x = x
   void x = ()
@@ -24,7 +25,7 @@ foo _ =
 > !foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,8 +45,8 @@ foo _ =
            5
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   

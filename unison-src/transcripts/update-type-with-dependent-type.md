@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison
@@ -8,7 +8,7 @@ unique type Baz = Qux Foo
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -16,8 +16,8 @@ unique type Foo = Bar Nat Nat
 ```
 
 ```ucm
-.> update
-.> view Foo
-.> view Baz
-.> find.verbose
+scratch/main> update
+scratch/main> view Foo
+scratch/main> view Baz
+scratch/main> find.verbose
 ```
