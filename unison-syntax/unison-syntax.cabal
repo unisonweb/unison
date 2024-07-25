@@ -26,6 +26,7 @@ library
       Unison.Syntax.Name
       Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.Parser.Doc.Data
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash
       Unison.Syntax.Var

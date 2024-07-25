@@ -9,6 +9,7 @@ import Data.Text qualified as Text
 import Text.Megaparsec (ParsecT, TraversableStream)
 import Text.Megaparsec qualified as P
 import Unison.Lexer.Pos (Pos (Pos))
+import Unison.Parser.Ann (Ann (Ann), Annotated (..))
 import Unison.Prelude
 
 data Token a = Token
@@ -17,6 +18,9 @@ data Token a = Token
     end :: !Pos
   }
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+instance Annotated (Token a) where
+  ann (Token _ s e) = Ann s e
 
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)

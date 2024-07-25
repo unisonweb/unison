@@ -90,6 +90,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText)
+import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Term (MatchCase (..))
 import Unison.UnisonFile.Error qualified as UF
 import Unison.Util.Bytes (Bytes)
@@ -270,7 +271,7 @@ closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
 -- | With layout, blocks might “close” without an explicit outdent (e.g., not even a newline at the end of a
---  `DocTransclude`). This allows those blocks to be closed by EOF.
+--  `Doc.Transclude`). This allows those blocks to be closed by EOF.
 optionalCloseBlock :: (Ord v) => P v m (L.Token ())
 optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
@@ -399,7 +400,7 @@ string = queryToken getString
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
 
-doc :: (Ord v) => P v m (L.Token (L.DocUntitledSection L.DocTree))
+doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection L.DocTree))
 doc = queryToken \case
   L.Doc d -> pure d
   _ -> Nothing

@@ -25,7 +25,7 @@ import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Tuple.Extra qualified as TupleE
-import Data.Void (vacuous)
+import Data.Void (absurd, vacuous)
 import Text.Megaparsec qualified as P
 import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
@@ -52,6 +52,7 @@ import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -525,43 +526,43 @@ doc2Block = do
     f :: (Annotated a) => a -> String -> Term v Ann
     f a = Term.var (gann a) . Var.nameds . ("syntax.doc" <>)
 
-    docUntitledSection :: Ann -> L.DocUntitledSection (Term v Ann) -> Term v Ann
-    docUntitledSection ann (L.DocUntitledSection tops) =
+    docUntitledSection :: Ann -> Doc.UntitledSection (Term v Ann) -> Term v Ann
+    docUntitledSection ann (Doc.UntitledSection tops) =
       Term.app ann (f ann "UntitledSection") $ Term.list (gann tops) tops
 
-    docTop :: L.DocTop (Term v Ann) -> TermP v m
+    docTop :: Doc.Top [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docTop d = case d of
-      L.DocSection title body -> pure $ Term.apps' (f d "Section") [title, Term.list (gann body) body]
-      L.DocEval code ->
+      Doc.Section title body -> pure $ Term.apps' (f d "Section") [title, Term.list (gann body) body]
+      Doc.Eval code ->
         Term.app (gann d) (f d "Eval") . addDelay . snd
           <$> subParse (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof) code
-      L.DocExampleBlock code ->
+      Doc.ExampleBlock code ->
         Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
           <$> subParse (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof) code
-      L.DocCodeBlock label body ->
+      Doc.CodeBlock label body ->
         pure $
           Term.apps'
             (f d "CodeBlock")
             [Term.text (ann label) . Text.pack $ L.payload label, Term.text (ann body) . Text.pack $ L.payload body]
-      L.DocBulletedList items ->
+      Doc.BulletedList items ->
         pure $ Term.app (gann d) (f d "BulletedList") . Term.list (gann items) . toList $ docColumn <$> items
-      L.DocNumberedList items@((n, _) :| _) ->
+      Doc.NumberedList items@((n, _) :| _) ->
         pure $
           Term.apps'
             (f d "NumberedList")
             [Term.nat (ann d) $ L.payload n, Term.list (gann $ snd <$> items) . toList $ docColumn . snd <$> items]
-      L.DocParagraph leaves ->
+      Doc.Paragraph leaves ->
         Term.app (gann d) (f d "Paragraph") . Term.list (ann leaves) . toList <$> traverse docLeaf leaves
 
-    docColumn :: L.DocColumn (Term v Ann) -> Term v Ann
-    docColumn d@(L.DocColumn para sublist) =
+    docColumn :: Doc.Column (Term v Ann) -> Term v Ann
+    docColumn d@(Doc.Column para sublist) =
       Term.app (gann d) (f d "Column") . Term.list (gann d) $ para : toList sublist
 
-    docLeaf :: L.DocLeaf (Term v Ann) -> TermP v m
+    docLeaf :: Doc.Leaf [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docLeaf d = case d of
-      L.DocLink link -> Term.app (gann d) (f d "Link") <$> docEmbedLink link
-      L.DocNamedLink para target -> Term.apps' (f d "NamedLink") . (para :) . pure <$> docLeaf (vacuous target)
-      L.DocExample code -> do
+      Doc.Link link -> Term.app (gann d) (f d "Link") <$> docEmbedLink link
+      Doc.NamedLink para target -> Term.apps' (f d "NamedLink") . (para :) . pure <$> docLeaf (vacuous target)
+      Doc.Example code -> do
         trm <- subParse term code
         pure . Term.apps' (f d "Example") $ case trm of
           tm@(Term.Apps' _ xs) ->
@@ -570,45 +571,45 @@ doc2Block = do
                 lam = addDelay $ Term.lam' (ann tm) ((mempty,) <$> fvs) tm
              in [n, lam]
           tm -> [Term.nat (ann tm) 0, addDelay tm]
-      L.DocTransclude code -> Term.app (gann d) (f d "Transclude") <$> subParse term code
-      L.DocBold para -> pure $ Term.app (gann d) (f d "Bold") para
-      L.DocItalic para -> pure $ Term.app (gann d) (f d "Italic") para
-      L.DocStrikethrough para -> pure $ Term.app (gann d) (f d "Strikethrough") para
-      L.DocVerbatim leaf -> Term.app (gann d) (f d "Verbatim") <$> docLeaf (vacuous leaf)
-      L.DocCode leaf -> Term.app (gann d) (f d "Code") <$> docLeaf (vacuous leaf)
-      L.DocSource elems ->
+      Doc.Transclude code -> Term.app (gann d) (f d "Transclude") <$> subParse term code
+      Doc.Bold para -> pure $ Term.app (gann d) (f d "Bold") para
+      Doc.Italic para -> pure $ Term.app (gann d) (f d "Italic") para
+      Doc.Strikethrough para -> pure $ Term.app (gann d) (f d "Strikethrough") para
+      Doc.Verbatim leaf -> Term.app (gann d) (f d "Verbatim") <$> docLeaf (bimap absurd absurd leaf)
+      Doc.Code leaf -> Term.app (gann d) (f d "Code") <$> docLeaf (bimap absurd absurd leaf)
+      Doc.Source elems ->
         Term.app (gann d) (f d "Source") . Term.list (ann elems) . toList <$> traverse docSourceElement elems
-      L.DocFoldedSource elems ->
+      Doc.FoldedSource elems ->
         Term.app (gann d) (f d "FoldedSource") . Term.list (ann elems) . toList <$> traverse docSourceElement elems
-      L.DocEvalInline code -> Term.app (gann d) (f d "EvalInline") . addDelay <$> subParse term code
-      L.DocSignature links ->
+      Doc.EvalInline code -> Term.app (gann d) (f d "EvalInline") . addDelay <$> subParse term code
+      Doc.Signature links ->
         Term.app (gann d) (f d "Signature") . Term.list (ann links) . toList <$> traverse docEmbedSignatureLink links
-      L.DocSignatureInline link -> Term.app (gann d) (f d "SignatureInline") <$> docEmbedSignatureLink link
-      L.DocWord txt -> pure . Term.app (gann d) (f d "Word") . Term.text (ann txt) . Text.pack $ L.payload txt
-      L.DocGroup (L.DocJoin leaves) ->
+      Doc.SignatureInline link -> Term.app (gann d) (f d "SignatureInline") <$> docEmbedSignatureLink link
+      Doc.Word txt -> pure . Term.app (gann d) (f d "Word") . Term.text (ann txt) . Text.pack $ L.payload txt
+      Doc.Group (Doc.Join leaves) ->
         Term.app (gann d) (f d "Group") . Term.app (gann d) (f d "Join") . Term.list (ann leaves) . toList
           <$> traverse docLeaf leaves
 
-    docEmbedLink :: L.DocEmbedLink -> TermP v m
+    docEmbedLink :: Doc.EmbedLink -> TermP v m
     docEmbedLink d = case d of
-      L.DocEmbedTypeLink ident ->
+      Doc.EmbedTypeLink ident ->
         Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
           <$> findUniqueType (HQ'.toHQ <$> ident)
-      L.DocEmbedTermLink ident ->
+      Doc.EmbedTermLink ident ->
         Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docSourceElement :: L.DocSourceElement -> TermP v m
-    docSourceElement d@(L.DocSourceElement link anns) = do
+    docSourceElement :: Doc.SourceElement [L.Token L.Lexeme] -> TermP v m
+    docSourceElement d@(Doc.SourceElement link anns) = do
       link' <- docEmbedLink link
       anns' <- traverse docEmbedAnnotation anns
       pure $ Term.apps' (f d "SourceElement") [link', Term.list (ann anns) anns']
 
-    docEmbedSignatureLink :: L.DocEmbedSignatureLink -> TermP v m
-    docEmbedSignatureLink d@(L.DocEmbedSignatureLink ident) =
+    docEmbedSignatureLink :: Doc.EmbedSignatureLink -> TermP v m
+    docEmbedSignatureLink d@(Doc.EmbedSignatureLink ident) =
       Term.app (gann d) (f d "EmbedSignatureLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docEmbedAnnotation :: L.DocEmbedAnnotation -> TermP v m
-    docEmbedAnnotation d@(L.DocEmbedAnnotation a) =
+    docEmbedAnnotation :: Doc.EmbedAnnotation [L.Token L.Lexeme] -> TermP v m
+    docEmbedAnnotation d@(Doc.EmbedAnnotation a) =
       -- This is the only place I’m not sure we’re doing the right thing. In the lexer, this can be an identifier or a
       -- DocLeaf, but here it could be either /text/ or a Doc element. And I don’t think there’s any way the lexemes
       -- produced for an identifier and the lexemes consumed for text line up. So, I think this is a bugfix I can’t

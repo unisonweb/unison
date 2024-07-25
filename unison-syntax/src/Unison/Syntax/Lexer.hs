@@ -9,15 +9,6 @@ module Unison.Syntax.Lexer
     Pos (..),
     Lexeme (..),
     DocTree,
-    DocUntitledSection (..),
-    DocTop (..),
-    DocColumn (..),
-    DocLeaf (..),
-    DocEmbedLink (..),
-    DocSourceElement (..),
-    DocEmbedSignatureLink (..),
-    DocJoin (..),
-    DocEmbedAnnotation (..),
     lexer,
     preParse,
     escapeChars,
@@ -43,7 +34,6 @@ import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isControl, isDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
-import Data.Functor.Classes
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -66,7 +56,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
-import Unison.Parser.Ann (Ann (Ann), Annotated (..))
+import Unison.Parser.Ann (Ann, Annotated (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -75,6 +65,7 @@ import Unison.Syntax.Lexer.Token (Token (..), posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
 import Unison.Syntax.NameSegment (symbolyIdChar, wordyIdChar, wordyIdStartChar)
 import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
+import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
 import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 import Unison.Util.Bytes qualified as Bytes
@@ -82,9 +73,6 @@ import Unison.Util.Monoid (intercalateMap)
 
 instance (Annotated a) => Annotated (Cofree f a) where
   ann (a :< _) = ann a
-
-instance Annotated (Token a) where
-  ann (Token _ s e) = Ann s e
 
 type BlockName = String
 
@@ -158,7 +146,7 @@ data Lexeme
   | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash -- hash literals
   | Err Err
-  | Doc (DocUntitledSection DocTree)
+  | Doc (Doc.UntitledSection DocTree)
   deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
@@ -422,6 +410,8 @@ restoreStack lbl p = do
   S.put (s2 {layout = layout1})
   pure $ p <> closes
 
+type DocTree = Cofree (Doc.Top [Token Lexeme]) Ann
+
 -- | The `Doc` lexer as documented on unison-lang.org
 doc2 :: P [Token Lexeme]
 doc2 = do
@@ -508,148 +498,18 @@ someTill' p end = liftA2 (:|) p $ P.manyTill p end
 sepBy1' :: P a -> P sep -> P (NonEmpty a)
 sepBy1' p sep = liftA2 (:|) p . many $ sep *> p
 
-newtype DocUntitledSection a = DocUntitledSection [a]
-  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
-
--- | Haskell parallel to @unison/base.Doc@.
---
---   This is much more restricted than @unison/base.Doc@, but it covers everything we can parse from Haskell. The
---   mismatch with Unison is a problem, as someone can create a Unison Doc with explicit constructors or function calls,
---   have it rendered to a scratch file, and then we can’t parse it. Changing the types here to match Unison wouldn’t
---   fix the issue. We have to modify the types and parser in concert (in both Haskell and Unison) to bring them in
---   line.
---
---  __NB__: Uses of @[`Token` `Lexeme`]@ here indicate a nested transition to the Unison lexer.
-data DocTop a
-  = -- | The first argument is always a Paragraph
-    DocSection a [a]
-  | DocEval [Token Lexeme]
-  | DocExampleBlock [Token Lexeme]
-  | DocCodeBlock (Token String) (Token String)
-  | DocBulletedList (NonEmpty (DocColumn a))
-  | DocNumberedList (NonEmpty (Token Word64, DocColumn a))
-  | DocParagraph (NonEmpty (DocLeaf a))
-  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
-
-instance Eq1 DocTop where
-  liftEq _ _ _ = True
-
-instance Ord1 DocTop where
-  liftCompare _ _ _ = LT
-
-instance Show1 DocTop where
-  liftShowsPrec _ _ _ _ x = x
-
-data DocColumn a
-  = -- | The first is always a Paragraph, and the second a Bulleted or Numbered List
-    DocColumn a (Maybe a)
-  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
-
-data DocLeaf a
-  = DocLink DocEmbedLink
-  | -- | first is a Paragraph, second is always a Group (which contains either a single Term/Type link or list of
-    --   Transcludes & Words)
-    DocNamedLink a (DocLeaf Void)
-  | DocExample [Token Lexeme]
-  | DocTransclude [Token Lexeme]
-  | -- | Always a Paragraph
-    DocBold a
-  | -- | Always a Paragraph
-    DocItalic a
-  | -- | Always a Paragraph
-    DocStrikethrough a
-  | -- | Always a Word
-    DocVerbatim (DocLeaf Void)
-  | -- | Always a Word
-    DocCode (DocLeaf Void)
-  | DocSource (NonEmpty DocSourceElement)
-  | DocFoldedSource (NonEmpty DocSourceElement)
-  | DocEvalInline [Token Lexeme]
-  | DocSignature (NonEmpty DocEmbedSignatureLink)
-  | DocSignatureInline DocEmbedSignatureLink
-  | DocWord (Token String)
-  | DocGroup (DocJoin a)
-  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
-
-data DocEmbedLink
-  = DocEmbedTypeLink (Token (HQ'.HashQualified Name))
-  | DocEmbedTermLink (Token (HQ'.HashQualified Name))
-  deriving (Eq, Ord, Show)
-
-data DocSourceElement = DocSourceElement DocEmbedLink [DocEmbedAnnotation]
-  deriving (Eq, Ord, Show)
-
-newtype DocEmbedSignatureLink = DocEmbedSignatureLink (Token (HQ'.HashQualified Name))
-  deriving (Eq, Ord, Show)
-
-newtype DocJoin a = DocJoin (NonEmpty (DocLeaf a))
-  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
-
-newtype DocEmbedAnnotation
-  = -- | Always a DocTransclude
-    DocEmbedAnnotation (Either (Token (HQ'.HashQualified Name)) (DocLeaf Void))
-  deriving (Eq, Ord, Show)
-
-type DocTree = Cofree DocTop Ann
-
-instance (Annotated a) => Annotated (DocTop a) where
-  ann = \case
-    DocSection title body -> ann title <> ann body
-    DocEval code -> ann code
-    DocExampleBlock code -> ann code
-    DocCodeBlock label body -> ann label <> ann body
-    DocBulletedList items -> ann items
-    DocNumberedList items -> ann $ snd <$> items
-    DocParagraph leaves -> ann leaves
-
-instance (Annotated a) => Annotated (DocColumn a) where
-  ann (DocColumn para list) = ann para <> ann list
-
-instance (Annotated a) => Annotated (DocLeaf a) where
-  ann = \case
-    DocLink link -> ann link
-    DocNamedLink label target -> ann label <> ann target
-    DocExample code -> ann code
-    DocTransclude code -> ann code
-    DocBold para -> ann para
-    DocItalic para -> ann para
-    DocStrikethrough para -> ann para
-    DocVerbatim word -> ann word
-    DocCode word -> ann word
-    DocSource elems -> ann elems
-    DocFoldedSource elems -> ann elems
-    DocEvalInline code -> ann code
-    DocSignature links -> ann links
-    DocSignatureInline link -> ann link
-    DocWord text -> ann text
-    DocGroup (DocJoin leaves) -> ann leaves
-
-instance Annotated DocEmbedLink where
-  ann = \case
-    DocEmbedTypeLink name -> ann name
-    DocEmbedTermLink name -> ann name
-
-instance Annotated DocSourceElement where
-  ann (DocSourceElement link target) = ann link <> ann target
-
-instance Annotated DocEmbedSignatureLink where
-  ann (DocEmbedSignatureLink name) = ann name
-
-instance Annotated DocEmbedAnnotation where
-  ann (DocEmbedAnnotation a) = either ann ann a
-
 -- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
 --   Unison wraps `Doc` literals in `}}`).
-docBody :: P end -> P (DocUntitledSection DocTree)
-docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
+docBody :: P end -> P (Doc.UntitledSection DocTree)
+docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
   where
     wordyKw kw = separated wordySep (lit kw)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
-    paragraph = wrap' . DocParagraph <$> spaced leaf
+    paragraph = wrap' . Doc.Paragraph <$> spaced leaf
     reserved word = List.isPrefixOf "}}" word || all (== '#') word
 
-    wordy :: P end -> P (DocLeaf void)
-    wordy closing = fmap DocWord . tokenP . P.try $ do
+    wordy :: P end -> P (Doc.Leaf [Token Lexeme] void)
+    wordy closing = fmap Doc.Word . tokenP . P.try $ do
       let end =
             P.lookAhead $
               void docClose
@@ -677,10 +537,10 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
       where
         comma = lit "," <* CP.space
         src =
-          src' DocSource "@source"
-            <|> src' DocFoldedSource "@foldedSource"
+          src' Doc.Source "@source"
+            <|> src' Doc.FoldedSource "@foldedSource"
         srcElem =
-          DocSourceElement
+          Doc.SourceElement
             <$> (typeLink <|> termLink)
             <*> ( fmap (fromMaybe []) . P.optional $
                     (lit "@") *> (CP.space *> annotations)
@@ -688,38 +548,38 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
           where
             annotation = fmap Left (tokenP identifierP) <|> fmap Right expr <* CP.space
             annotations =
-              P.some (DocEmbedAnnotation <$> annotation)
+              P.some (Doc.EmbedAnnotation <$> annotation)
         src' name atName = fmap name $ do
           _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
           s <- sepBy1' srcElem comma
           _ <- lit "}"
           pure s
-        signature = fmap DocSignature $ do
+        signature = fmap Doc.Signature $ do
           _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
           s <- sepBy1' signatureLink comma
           _ <- lit "}"
           pure s
-        signatureInline = fmap DocSignatureInline $ do
+        signatureInline = fmap Doc.SignatureInline $ do
           _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
           s <- signatureLink
           _ <- lit "}"
           pure s
-        evalInline = fmap DocEvalInline $ do
+        evalInline = fmap Doc.EvalInline $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose = [] <$ lit "}"
           s <- lexemes' inlineEvalClose
           pure s
 
-    typeLink = fmap DocEmbedTypeLink $ do
+    typeLink = fmap Doc.EmbedTypeLink $ do
       _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
       tokenP identifierP <* CP.space
 
     termLink =
-      fmap DocEmbedTermLink $
+      fmap Doc.EmbedTermLink $
         tokenP identifierP <* CP.space
 
     signatureLink =
-      fmap DocEmbedSignatureLink $
+      fmap Doc.EmbedSignatureLink $
         tokenP identifierP <* CP.space
 
     groupy closing p = do
@@ -728,8 +588,8 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
       pure $ case after of
         Nothing -> p
         Just after ->
-          DocGroup
-            . DocJoin
+          Doc.Group
+            . Doc.Join
             $ p
               :| pure after
 
@@ -748,17 +608,17 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
             let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
             -- If it's a multi-line verbatim block we trim any whitespace representing
             -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
-            pure . DocVerbatim $
-              DocWord $
+            pure . Doc.Verbatim $
+              Doc.Word $
                 Token txt start stop
           else
-            pure . DocCode $
-              DocWord $
+            pure . Doc.Code $
+              Doc.Word $
                 Token originalText start stop
 
     exampleInline =
       P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
-        fmap DocExample $ do
+        fmap Doc.Example $ do
           n <- P.try $ do
             _ <- lit "`"
             length <$> P.takeWhile1P (Just "backticks") (== '`')
@@ -770,12 +630,12 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
 
     link =
       P.label "link (examples: {type List}, {Nat.+})" $
-        fmap DocLink $
+        fmap Doc.Link $
           P.try $
             lit "{" *> (typeLink <|> termLink) <* lit "}"
 
     expr =
-      fmap DocTransclude . P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
+      fmap Doc.Transclude . P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
         openAs "{{" "syntax.docTransclude"
           *> do
             env0 <- S.get
@@ -806,7 +666,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
       P.label "block eval (syntax: a fenced code block)" $
         evalUnison <|> exampleBlock <|> other
       where
-        evalUnison = fmap (wrap' . DocEval) $ do
+        evalUnison = fmap (wrap' . Doc.Eval) $ do
           -- commit after seeing that ``` is on its own line
           fence <- P.try $ do
             fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
@@ -817,7 +677,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
               (\env -> env {inLayout = True, opening = Just "docEval"})
               (restoreStack "docEval" $ lexemes' ([] <$ lit fence))
 
-        exampleBlock = fmap (wrap' . DocExampleBlock) $ do
+        exampleBlock = fmap (wrap' . Doc.ExampleBlock) $ do
           void $ lit "@typecheck" <* CP.space
           fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
           local
@@ -834,7 +694,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
               skip _ s = s
            in List.intercalate "\n" $ skip column <$> lines s
 
-        other = fmap (uncurry $ wrapSimple2 DocCodeBlock) $ do
+        other = fmap (uncurry $ wrapSimple2 Doc.CodeBlock) $ do
           column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
           let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
           fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
@@ -857,26 +717,26 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
                 (P.satisfy (== '~'))
           name s =
             if take 1 s == "~"
-              then DocStrikethrough
-              else if take 1 s == "*" then DocBold else DocItalic
+              then Doc.Strikethrough
+              else if take 1 s == "*" then Doc.Bold else Doc.Italic
       end <- P.try $ do
         end <- start
         P.lookAhead (P.satisfy (not . isSpace))
         pure end
-      name end . wrap' . DocParagraph
+      name end . wrap' . Doc.Paragraph
         <$> someTill'
           (leafy (closing <|> (void $ lit end)) <* whitespaceWithoutParagraphBreak)
           (lit end)
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
-        fmap (uncurry DocNamedLink) $ do
+        fmap (uncurry Doc.NamedLink) $ do
           _ <- lit "["
           p <- leafies (void $ char ']')
           _ <- lit "]"
           _ <- lit "("
           target <-
-            fmap (DocGroup . DocJoin) $
+            fmap (Doc.Group . Doc.Join) $
               fmap pure link <|> some' (expr <|> wordy (char ')'))
           _ <- lit ")"
           pure (p, target)
@@ -894,12 +754,12 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
         ok s = length [() | '\n' <- s] < 2
 
     spaced p = some' (p <* P.optional sp)
-    leafies close = wrap' . DocParagraph <$> spaced (leafy close)
+    leafies close = wrap' . Doc.Paragraph <$> spaced (leafy close)
 
     list = bulletedList <|> numberedList
 
-    bulletedList = wrap' . DocBulletedList <$> sepBy1' bullet listSep
-    numberedList = wrap' . DocNumberedList <$> sepBy1' numberedItem listSep
+    bulletedList = wrap' . Doc.BulletedList <$> sepBy1' bullet listSep
+    numberedList = wrap' . Doc.NumberedList <$> sepBy1' numberedItem listSep
 
     listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (void bulletedStart <|> void numberedStart)
 
@@ -921,7 +781,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
     numberedStart =
       listItemStart' $ P.try (tokenP $ LP.decimal <* lit ".")
 
-    listItemParagraph = fmap (wrap' . DocParagraph) $ do
+    listItemParagraph = fmap (wrap' . Doc.Paragraph) $ do
       col <- column <$> posP
       some' (leaf <* sep col)
       where
@@ -947,7 +807,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
     numberedItem = P.label msg $ do
       (col, s) <- numberedStart
       (s,)
-        <$> ( fmap (uncurry DocColumn) $ do
+        <$> ( fmap (uncurry Doc.Column) $ do
                 p <- nonNewlineSpaces *> listItemParagraph
                 subList <-
                   local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> list)
@@ -956,7 +816,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
       where
         msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
 
-    bullet = fmap (uncurry DocColumn) . P.label "bullet (examples: * item1, - item2)" $ do
+    bullet = fmap (uncurry Doc.Column) . P.label "bullet (examples: * item1, - item2)" $ do
       (col, _) <- bulletedStart
       p <- nonNewlineSpaces *> listItemParagraph
       subList <-
@@ -978,7 +838,7 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
 
     -- # A section title (not a subsection)
     section :: P DocTree
-    section = fmap (wrap' . uncurry DocSection) $ do
+    section = fmap (wrap' . uncurry Doc.Section) $ do
       ns <- S.gets parentSections
       hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
       title <- paragraph <* CP.space
@@ -988,10 +848,10 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
           P.many (sectionElem <* CP.space)
       pure $ (title, body)
 
-    wrap' :: DocTop DocTree -> DocTree
+    wrap' :: Doc.Top [Token Lexeme] DocTree -> DocTree
     wrap' doc = ann doc :< doc
 
-    wrapSimple2 :: (Annotated a, Annotated b) => (a -> b -> DocTop DocTree) -> a -> b -> DocTree
+    wrapSimple2 :: (Annotated a, Annotated b) => (a -> b -> Doc.Top [Token Lexeme] DocTree) -> a -> b -> DocTree
     wrapSimple2 fn a b = ann a <> ann b :< fn a b
 
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
