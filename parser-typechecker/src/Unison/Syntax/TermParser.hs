@@ -598,7 +598,7 @@ doc2Block = do
       Doc.EmbedTermLink ident ->
         Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docSourceElement :: Doc.SourceElement [L.Token L.Lexeme] -> TermP v m
+    docSourceElement :: Doc.SourceElement (Doc.Leaf [L.Token L.Lexeme] Void) -> TermP v m
     docSourceElement d@(Doc.SourceElement link anns) = do
       link' <- docEmbedLink link
       anns' <- traverse docEmbedAnnotation anns
@@ -608,7 +608,7 @@ doc2Block = do
     docEmbedSignatureLink d@(Doc.EmbedSignatureLink ident) =
       Term.app (gann d) (f d "EmbedSignatureLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docEmbedAnnotation :: Doc.EmbedAnnotation [L.Token L.Lexeme] -> TermP v m
+    docEmbedAnnotation :: Doc.EmbedAnnotation (Doc.Leaf [L.Token L.Lexeme] Void) -> TermP v m
     docEmbedAnnotation d@(Doc.EmbedAnnotation a) =
       -- This is the only place I’m not sure we’re doing the right thing. In the lexer, this can be an identifier or a
       -- DocLeaf, but here it could be either /text/ or a Doc element. And I don’t think there’s any way the lexemes

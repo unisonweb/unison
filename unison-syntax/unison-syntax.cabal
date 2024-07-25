@@ -69,6 +69,7 @@ library
     , bytes
     , containers
     , cryptonite
+    , deriving-compat
     , extra
     , free
     , lens
@@ -127,6 +128,7 @@ test-suite syntax-tests
     , code-page
     , containers
     , cryptonite
+    , deriving-compat
     , easytest
     , extra
     , free

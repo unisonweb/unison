@@ -9,6 +9,7 @@ dependencies:
   - bytes
   - containers
   - cryptonite
+  - deriving-compat
   - extra
   - free
   - lens
