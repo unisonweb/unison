@@ -90,17 +90,16 @@ type BlockName = String
 type Layout = [(BlockName, Column)]
 
 data ParsingEnv = ParsingEnv
-  { -- layout stack
+  { -- | layout stack
     layout :: !Layout,
-    -- `Just b` if a block of type `b` is being opened
+    -- | `Just b` if a block of type `b` is being opened
     opening :: Maybe BlockName,
-    -- are we inside a construct that uses layout?
+    -- | are we inside a construct that uses layout?
     inLayout :: Bool,
-    -- Use a stack to remember the parent section and
-    -- allow docSections within docSections.
-    -- 1 means we are inside a # Heading 1
+    -- | Use a stack to remember the parent section and allow docSections within docSections.
+    -- - 1 means we are inside a # Heading 1
     parentSections :: [Int],
-    -- 4 means we are inside a list starting at the fourth column
+    -- | 4 means we are inside a list starting at the fourth column
     parentListColumn :: Int
   }
   deriving (Show)

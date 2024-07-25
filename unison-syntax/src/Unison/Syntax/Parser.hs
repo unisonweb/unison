@@ -158,19 +158,20 @@ data Error v
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
-  | -- Indicates a cases or match/with which doesn't have any patterns
+  | -- | Indicates a cases or match/with which doesn't have any patterns
     EmptyMatch (L.Token ())
   | EmptyWatch Ann
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
-  | -- MissingTypeModifier (type|ability) name
+  | -- | MissingTypeModifier (type|ability) name
     MissingTypeModifier (L.Token String) (L.Token v)
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
-  | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
+  | -- | PatternArityMismatch expectedArity actualArity location
+    PatternArityMismatch Int Int Ann
   | FloatPattern Ann
   deriving (Show, Eq, Ord)
 
@@ -242,11 +243,11 @@ run' p s name env =
 run :: (Monad m, Ord v) => P v m a -> String -> ParsingEnv m -> m (Either (Err v) a)
 run p s = run' p s ""
 
--- Virtual pattern match on a lexeme.
+-- | Virtual pattern match on a lexeme.
 queryToken :: (Ord v) => (L.Lexeme -> Maybe a) -> P v m (L.Token a)
 queryToken f = P.token (traverse f) Set.empty
 
--- Consume a block opening and return the string that opens the block.
+-- | Consume a block opening and return the string that opens the block.
 openBlock :: (Ord v) => P v m (L.Token String)
 openBlock = queryToken getOpen
   where
@@ -256,23 +257,23 @@ openBlock = queryToken getOpen
 openBlockWith :: (Ord v) => String -> P v m (L.Token ())
 openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
 
--- Match a particular lexeme exactly, and consume it.
+-- | Match a particular lexeme exactly, and consume it.
 matchToken :: (Ord v) => L.Lexeme -> P v m (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
--- Consume a virtual semicolon
+-- | Consume a virtual semicolon
 semi :: (Ord v) => P v m (L.Token ())
 semi = label "newline or semicolon" $ queryToken go
   where
     go (L.Semi _) = Just ()
     go _ = Nothing
 
--- Consume the end of a block
+-- | Consume the end of a block
 closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
 -- | With layout, blocks might “close” without an explicit outdent (e.g., not even a newline at the end of a
--- `DocTransclude`). This allows those blocks to be closed by EOF.
+--  `DocTransclude`). This allows those blocks to be closed by EOF.
 optionalCloseBlock :: (Ord v) => P v m (L.Token ())
 optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
@@ -281,13 +282,13 @@ wordyPatternName = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
   _ -> Nothing
 
--- Parse an prefix identifier e.g. Foo or (+), discarding any hash
+-- | Parse a prefix identifier e.g. Foo or (+), discarding any hash
 prefixDefinitionName :: (Var v) => P v m (L.Token v)
 prefixDefinitionName =
   wordyDefinitionName <|> parenthesize symbolyDefinitionName
 
--- Parse a prefix identifier e.g. Foo or (+), rejecting any hash
--- This is useful for term declarations, where type signatures and term names should not have hashes.
+-- | Parse a prefix identifier e.g. Foo or (+), rejecting any hash
+--   This is useful for term declarations, where type signatures and term names should not have hashes.
 prefixTermName :: (Var v) => P v m (L.Token v)
 prefixTermName = wordyTermName <|> parenthesize symbolyTermName
   where
@@ -299,34 +300,34 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
       L.SymbolyId (HQ'.NameOnly n) -> Just $ Name.toVar n
       _ -> Nothing
 
--- Parse a wordy identifier e.g. Foo, discarding any hash
+-- | Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken $ \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
   L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing
 
--- Parse a wordyId as a Name, rejecting any hash
+-- | Parse a wordyId as a Name, rejecting any hash
 importWordyId :: (Ord v) => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
   L.Blank s | not (null s) -> Just $ Name.unsafeParseText (Text.pack ("_" <> s))
   _ -> Nothing
 
--- The `+` in: use Foo.bar + as a Name
+-- | The `+` in: use Foo.bar + as a Name
 importSymbolyId :: (Ord v) => P v m (L.Token Name)
 importSymbolyId = queryToken \case
   L.SymbolyId (HQ'.NameOnly n) -> Just n
   _ -> Nothing
 
--- Parse a symboly ID like >>= or &&, discarding any hash
+-- | Parse a symboly ID like >>= or &&, discarding any hash
 symbolyDefinitionName :: (Var v) => P v m (L.Token v)
 symbolyDefinitionName = queryToken $ \case
   L.SymbolyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
 
 -- | Expect parentheses around a token, includes the parentheses within the start/end
--- annotations of the resulting token.
+--   annotations of the resulting token.
 parenthesize :: (Ord v) => P v m (L.Token a) -> P v m (L.Token a)
 parenthesize p = do
   (start, a) <- P.try do
@@ -340,7 +341,7 @@ hqPrefixId, hqInfixId :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
 hqInfixId = hqSymbolyId_
 
--- Parse a hash-qualified alphanumeric identifier
+-- | Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
   L.WordyId n -> Just $ HQ'.toHQ n
@@ -348,20 +349,20 @@ hqWordyId_ = queryToken \case
   L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeParseText (Text.pack ("_" <> s)))
   _ -> Nothing
 
--- Parse a hash-qualified symboly ID like >>=#foo or &&
+-- | Parse a hash-qualified symboly ID like >>=#foo or &&
 hqSymbolyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqSymbolyId_ = queryToken \case
   L.SymbolyId n -> Just (HQ'.toHQ n)
   _ -> Nothing
 
--- Parse a reserved word
+-- | Parse a reserved word
 reserved :: (Ord v) => String -> P v m (L.Token String)
 reserved w = label w $ queryToken getReserved
   where
     getReserved (L.Reserved w') | w == w' = Just w
     getReserved _ = Nothing
 
--- Parse a placeholder or typed hole
+-- | Parse a placeholder or typed hole
 blank :: (Ord v) => P v m (L.Token String)
 blank = label "blank" $ queryToken getBlank
   where
@@ -436,12 +437,12 @@ chainr1 p op = go1
     go1 = p >>= go2
     go2 hd = do { op <- op; op hd <$> go1 } <|> pure hd
 
--- Parse `p` 1+ times, combining with `op`
+-- | Parse `p` 1+ times, combining with `op`
 chainl1 :: (Ord v) => P v m a -> P v m (a -> a -> a) -> P v m a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
--- If `p` would succeed, this fails uncommitted.
--- Otherwise, `failIfOk` used to produce the output
+-- | If `p` would succeed, this fails uncommitted.
+--   Otherwise, `failIfOk` used to produce the output
 failureIf :: (Ord v) => P v m (P v m b) -> P v m a -> P v m b
 failureIf failIfOk p = do
   dontwant <- P.try . P.lookAhead $ failIfOk
@@ -449,9 +450,9 @@ failureIf failIfOk p = do
   when (isJust p) $ fail "failureIf"
   dontwant
 
--- Gives this var an id based on its position - a useful trick to
--- obtain a variable whose id won't match any other id in the file
--- `positionalVar a Var.missingResult`
+-- | Gives this var an id based on its position - a useful trick to
+--   obtain a variable whose id won't match any other id in the file
+--  `positionalVar a Var.missingResult`
 positionalVar :: (Annotated a, Var v) => a -> v -> v
 positionalVar a v =
   let s = start (ann a)
