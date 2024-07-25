@@ -17,6 +17,7 @@ module Unison.Syntax.Parser
     chainr1,
     character,
     closeBlock,
+    optionalCloseBlock,
     doc,
     failCommitted,
     failureIf,
@@ -269,6 +270,11 @@ semi = label "newline or semicolon" $ queryToken go
 -- Consume the end of a block
 closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
+
+-- | With layout, blocks might “close” without an explicit outdent (e.g., not even a newline at the end of a
+-- `DocTransclude`). This allows those blocks to be closed by EOF.
+optionalCloseBlock :: (Ord v) => P v m (L.Token ())
+optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
 wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case

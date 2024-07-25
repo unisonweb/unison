@@ -288,9 +288,9 @@ showErrorFancy = \case
         GT -> "greater than "
   P.ErrorCustom a -> P.showErrorComponent a
 
-lexer0' :: String -> String -> [Token Lexeme]
-lexer0' scope rem =
-  case flip S.evalState env0 $ P.runParserT lexemes scope rem of
+lexer :: String -> String -> [Token Lexeme]
+lexer scope rem =
+  case flip S.evalState env0 $ P.runParserT (lexemes eof) scope rem of
     Left e ->
       let errsWithSourcePos =
             fst $
@@ -326,8 +326,14 @@ lexer0' scope rem =
                   endPos = startPos & \(Pos l c) -> Pos l (c + errorLength)
                in [Token (Err err) startPos endPos]
        in errsWithSourcePos >>= errorToTokens
-    Right ts -> Token (Open scope) topLeftCorner topLeftCorner : tweak ts
+    Right ts -> postLex $ Token (Open scope) topLeftCorner topLeftCorner : ts
   where
+    eof :: P [Token Lexeme]
+    eof = P.try do
+      p <- P.eof >> posP
+      n <- maybe 0 (const 1) <$> S.gets opening
+      l <- S.gets layout
+      pure $ replicate (length l + n) (Token Close p p)
     errorItemToString :: EP.ErrorItem Char -> String
     errorItemToString = \case
       (P.Tokens ts) -> Foldable.toList ts
@@ -336,28 +342,31 @@ lexer0' scope rem =
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
     toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
     env0 = ParsingEnv [] (Just scope) True [0] 0
-    -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
-    -- fix without adding more state to the lexer:
-    --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
-    --   - when a semi followed by a virtual semi, drop the virtual, lets you
-    --     write
-    --       foo x = action1;
-    --               2
-    --   - semi immediately after first Open is ignored
-    tweak [] = []
-    tweak (h@(payload -> Semi False) : (payload -> Semi True) : t) = h : tweak t
-    tweak (h@(payload -> Reserved _) : t) = h : tweak t
-    tweak (t1 : t2@(payload -> Numeric num) : rem)
-      | notLayout t1 && touches t1 t2 && isSigned num =
-          t1
-            : Token
-              (SymbolyId (HQ'.fromName (Name.unsafeParseText (Text.pack (take 1 num)))))
-              (start t2)
-              (inc $ start t2)
-            : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
-            : tweak rem
-    tweak (h : t) = h : tweak t
+
+-- | hacky postprocessing pass to do some cleanup of stuff that's annoying to
+-- fix without adding more state to the lexer:
+--   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
+--   - when a semi followed by a virtual semi, drop the virtual, lets you
+--     write
+--       foo x = action1;
+--               2
+--   - semi immediately after first Open is ignored
+tweak :: (Token Lexeme) -> [Token Lexeme] -> [Token Lexeme]
+tweak h@(Token (Semi False) _ _) (Token (Semi True) _ _ : t) = h : t
+-- __NB__: This case only exists to guard against the following one
+tweak h@(Token (Reserved _) _ _) t = h : t
+tweak t1 (t2@(Token (Numeric num) _ _) : rem)
+  | notLayout t1 && touches t1 t2 && isSigned num =
+      t1
+        : Token
+          (SymbolyId (HQ'.fromName (Name.unsafeParseText (Text.pack (take 1 num)))))
+          (start t2)
+          (inc $ start t2)
+        : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+        : rem
+  where
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
+tweak h t = h : t
 
 formatTrivialError :: Set String -> Set String -> [Char]
 formatTrivialError unexpectedTokens expectedTokens =
@@ -377,7 +386,7 @@ formatTrivialError unexpectedTokens expectedTokens =
 displayLexeme :: Lexeme -> String
 displayLexeme = \case
   Open o -> o
-  Semi True -> "end of section"
+  Semi True -> "end of stanza"
   Semi False -> "semicolon"
   Close -> "end of section"
   Reserved r -> "'" <> r <> "'"
@@ -396,16 +405,6 @@ infixl 2 <+>
 
 (<+>) :: (Monoid a) => P a -> P a -> P a
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
-
-lexemes :: P [Token Lexeme]
-lexemes = lexemes' eof
-  where
-    eof :: P [Token Lexeme]
-    eof = P.try do
-      p <- P.eof >> posP
-      n <- maybe 0 (const 1) <$> S.gets opening
-      l <- S.gets layout
-      pure $ replicate (length l + n) (Token Close p p)
 
 -- Runs the parser `p`, then:
 --   1. resets the layout stack to be what it was before `p`.
@@ -998,7 +997,14 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
     wrapSimple2 fn a b = ann a <> ann b :< fn a b
 
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
-lexemes' eof =
+lexemes' =
+  -- NB: `postLex` requires the token stream to start with an `Open`, otherwise it can’t create a `T`, so this adds one,
+  --     runs `postLex`, then removes it.
+  fmap (tail . postLex . (Token (Open "fake") mempty mempty :)) . lexemes
+
+-- | Consumes an entire Unison “module”.
+lexemes :: P [Token Lexeme] -> P [Token Lexeme]
+lexemes eof =
   P.optional space >> do
     hd <- join <$> P.manyTill toks (P.lookAhead eof)
     tl <- eof
@@ -1581,8 +1587,11 @@ reorder = foldr fixup [] . join . sortWith f . stanzas
 preParse :: [Token Lexeme] -> T (Token Lexeme)
 preParse = reorderTree reorder . tree
 
-lexer :: String -> String -> [Token Lexeme]
-lexer scope = toList . preParse . lexer0' scope
+-- | A few transformations that happen between lexing and parsing.
+--
+--   All of these things should move out of the lexer, and be applied in the parse.
+postLex :: [Token Lexeme] -> [Token Lexeme]
+postLex = toList . preParse . foldr tweak []
 
 isDelayOrForce :: Char -> Bool
 isDelayOrForce op = op == '\'' || op == '!'

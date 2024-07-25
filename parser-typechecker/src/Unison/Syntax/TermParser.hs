@@ -103,7 +103,7 @@ rewriteBlock = do
     rewriteTermlike kw mk = do
       kw <- quasikeyword kw
       lhs <- term
-      (_spanAnn, rhs) <- block "==>"
+      (_spanAnn, rhs) <- layoutBlock "==>"
       pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
@@ -164,13 +164,13 @@ match :: (Monad m, Var v) => TermP v m
 match = do
   start <- openBlockWith "match"
   scrutinee <- term
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   _ <-
     P.try (openBlockWith "with") <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
   (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   pure $
     Term.match
       (ann start <> ann (NonEmpty.last cases))
@@ -212,10 +212,10 @@ matchCase = do
             [ Nothing <$ P.try (quasikeyword "otherwise"),
               Just <$> infixAppOrBooleanOp
             ]
-        (_spanAnn, t) <- block "->"
+        (_spanAnn, t) <- layoutBlock "->"
         pure (guard, t)
   let unguardedBlock = label "case match" do
-        (_spanAnn, t) <- block "->"
+        (_spanAnn, t) <- layoutBlock "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
@@ -357,10 +357,10 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
        in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
-letBlock = label "let" $ (snd <$> block "let")
+letBlock = label "let" $ (snd <$> layoutBlock "let")
 handle = label "handle" do
   (handleSpan, b) <- block "handle"
-  (_withSpan, handler) <- block "with"
+  (_withSpan, handler) <- layoutBlock "with"
   -- We don't use the annotation span from 'with' here because it will
   -- include a dedent if it's at the end of block.
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
@@ -377,7 +377,7 @@ lamCase = do
   start <- openBlockWith "cases"
   cases <- matchCases1 start
   (arity, cases) <- checkCasesArities cases
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
   let vars =
         Var.named <$> [tweak v i | (v, i) <- lamvars `zip` [(1 :: Int) ..]]
@@ -396,7 +396,7 @@ ifthen = label "if" do
   start <- peekAny
   (_spanAnn, c) <- block "if"
   (_spanAnn, t) <- block "then"
-  (_spanAnn, f) <- block "else"
+  (_spanAnn, f) <- layoutBlock "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: (Var v) => TermP v m
@@ -987,7 +987,7 @@ delayQuote = P.label "quote" do
 
 delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
-  (spanAnn, b) <- block "do"
+  (spanAnn, b) <- layoutBlock "do"
   let argSpan = (ann b {- would be nice to use the annotation for 'do' here, but it's not terribly important -})
   pure $ (spanAnn, DD.delayTerm (ann b) argSpan b)
 
@@ -1074,7 +1074,7 @@ destructuringBind = do
     let boundVars' = snd <$> boundVars
     _ <- P.lookAhead (openBlockWith "=")
     pure (p, boundVars')
-  (_spanAnn, scrute) <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
@@ -1143,6 +1143,9 @@ customFailure = P.customFailure
 
 block :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
 block s = block' False False s (openBlockWith s) closeBlock
+
+layoutBlock :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+layoutBlock s = block' False False s (openBlockWith s) optionalCloseBlock
 
 -- example: use Foo.bar.Baz + ++ x
 -- + ++ and x are called the "suffixes" of the `use` statement, and
