@@ -30,12 +30,13 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as Ppe
-import Unison.Reference (Reference' (..), TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReferenceId, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Term (Term)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
@@ -99,6 +100,48 @@ synhashLcaDefns db ppe declNameLookup =
           Just names -> do
             decl <- loadDeclWithGoodConstructorNames db names ref
             pure (synhashDerivedDecl ppe name decl)
+
+synhashLcaDefns2 ::
+  PrettyPrintEnv ->
+  Map TermReferenceId (Term Symbol Ann) ->
+  Map TypeReferenceId (Decl Symbol Ann) ->
+  PartialDeclNameLookup ->
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  DefnsF2 (Map Name) Synhashed Referent TypeReference
+synhashLcaDefns2 ppe termsById declsById declNameLookup =
+  synhashDefnsWith2 hashReferent hashType
+  where
+    -- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,
+    -- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).
+    --
+    -- This is safe and correct; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk
+    -- that we accidentally get an equal hash and classify a real update as unchanged.
+
+    hashReferent :: Name -> Referent -> Hash
+    hashReferent name = \case
+      Referent.Con (ConstructorReference ref _) _ ->
+        case Map.lookup name declNameLookup.constructorToDecl of
+          Nothing -> Hash mempty -- see note above
+          Just declName -> hashType declName ref
+      Referent.Ref (ReferenceBuiltin builtin) -> synhashBuiltinTerm builtin
+      Referent.Ref (ReferenceDerived ref) ->
+        synhashDerivedTerm ppe case Map.lookup ref termsById of
+          Nothing -> error (reportBug "E488229" ("term ref " ++ show ref ++ " not found in map " ++ show termsById))
+          Just term -> term
+
+    hashType :: Name -> TypeReference -> Hash
+    hashType name = \case
+      ReferenceBuiltin builtin -> synhashBuiltinDecl builtin
+      ReferenceDerived ref ->
+        case sequence (declNameLookup.declToConstructors Map.! name) of
+          Nothing -> Hash mempty -- see note above
+          Just names ->
+            synhashDerivedDecl
+              ppe
+              name
+              case Map.lookup ref declsById of
+                Nothing -> error (reportBug "E663160" ("type ref " ++ show ref ++ " not found in map " ++ show declsById))
+                Just decl -> DataDeclaration.setConstructorNames (map Name.toVar names) decl
 
 synhashDefns ::
   MergeDatabase ->
@@ -185,3 +228,19 @@ synhashDefnsWith hashTerm hashType = do
     hashType1 name typ = do
       hash <- hashType name typ
       pure (Synhashed hash typ)
+
+synhashDefnsWith2 ::
+  (Name -> term -> Hash) ->
+  (Name -> typ -> Hash) ->
+  Defns (BiMultimap term Name) (BiMultimap typ Name) ->
+  DefnsF2 (Map Name) Synhashed term typ
+synhashDefnsWith2 hashTerm hashType = do
+  bimap
+    (Map.mapWithKey hashTerm1 . BiMultimap.range)
+    (Map.mapWithKey hashType1 . BiMultimap.range)
+  where
+    hashTerm1 name term =
+      Synhashed (hashTerm name term) term
+
+    hashType1 name typ =
+      Synhashed (hashType name typ) typ
