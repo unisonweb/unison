@@ -257,7 +257,7 @@ token'' tok p = do
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
     topHasClosePair ((name, _) : _) =
-      name `elem` ["syntax.docTransclude", "{", "(", "[", "handle", "match", "if", "then"]
+      name `elem` ["DUMMY", "{", "(", "[", "handle", "match", "if", "then"]
 
 showErrorFancy :: (P.ShowErrorComponent e) => P.ErrorFancy e -> String
 showErrorFancy = \case
@@ -394,22 +394,6 @@ infixl 2 <+>
 (<+>) :: (Monoid a) => P a -> P a -> P a
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
 
--- Runs the parser `p`, then:
---   1. resets the layout stack to be what it was before `p`.
---   2. emits enough closing tokens to reach `lbl` but not pop it.
---      (you can think of this as just dealing with a final "unclosed"
---       block at the end of `p`)
-restoreStack :: String -> P [Token Lexeme] -> P [Token Lexeme]
-restoreStack lbl p = do
-  layout1 <- S.gets layout
-  p <- p
-  s2 <- S.get
-  let (pos1, pos2) = foldl' (\_ b -> (start b, end b)) mempty p
-      unclosed = takeWhile (\(lbl', _) -> lbl' /= lbl) (layout s2)
-      closes = replicate (length unclosed) (Token Close pos1 pos2)
-  S.put (s2 {layout = layout1})
-  pure $ p <> closes
-
 type DocTree = Cofree (Doc.Top [Token Lexeme]) Ann
 
 -- | The `Doc` lexer as documented on unison-lang.org
@@ -501,7 +485,7 @@ sepBy1' p sep = liftA2 (:|) p . many $ sep *> p
 -- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
 --   Unison wraps `Doc` literals in `}}`).
 docBody :: P end -> P (Doc.UntitledSection DocTree)
-docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
+docBody docClose = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
   where
     wordyKw kw = separated wordySep (lit kw)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
@@ -626,8 +610,6 @@ docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
           ex <- CP.space *> lexemes' end
           pure ex
 
-    docClose = [] <$ docClose'
-
     link =
       P.label "link (examples: {type List}, {Nat.+})" $
         fmap Doc.Link $
@@ -636,20 +618,7 @@ docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
 
     expr =
       fmap Doc.Transclude . P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
-        openAs "{{" "syntax.docTransclude"
-          *> do
-            env0 <- S.get
-            -- we re-allow layout within a transclusion, then restore it to its
-            -- previous state after
-            S.put (env0 {inLayout = True})
-            -- Note: this P.lookAhead ensures the }} isn't consumed,
-            -- so it can be consumed below by the `close` which will
-            -- pop items off the layout stack up to the nearest enclosing
-            -- syntax.docTransclude.
-            ts <- lexemes' (P.lookAhead ([] <$ lit "}}"))
-            S.modify (\env -> env {inLayout = inLayout env0})
-            pure ts
-          <* close ["syntax.docTransclude"] (lit "}}")
+        lit "{{" *> lexemes' ([] <$ lit "}}")
 
     nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
     nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
@@ -673,16 +642,12 @@ docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
             b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
             fence <$ guard b
           CP.space
-            *> local
-              (\env -> env {inLayout = True, opening = Just "docEval"})
-              (restoreStack "docEval" $ lexemes' ([] <$ lit fence))
+            *> lexemes' ([] <$ lit fence)
 
         exampleBlock = fmap (wrap' . Doc.ExampleBlock) $ do
           void $ lit "@typecheck" <* CP.space
           fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
-          local
-            (\env -> env {inLayout = True, opening = Just "docExampleBlock"})
-            (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
+          lexemes' $ [] <$ lit fence
 
         uncolumn column tabWidth s =
           let skip col r | col < 1 = r
@@ -855,10 +820,16 @@ docBody docClose' = Doc.UntitledSection <$> P.many (sectionElem <* CP.space)
     wrapSimple2 fn a b = ann a <> ann b :< fn a b
 
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
-lexemes' =
+lexemes' eof =
   -- NB: `postLex` requires the token stream to start with an `Open`, otherwise it can’t create a `T`, so this adds one,
   --     runs `postLex`, then removes it.
-  fmap (tail . postLex . (Token (Open "fake") mempty mempty :)) . lexemes
+  fmap (tail . postLex . (Token (Open "fake") mempty mempty :)) $
+    local (\env -> env {inLayout = True, opening = Just "DUMMY"}) do
+      p <- lexemes eof
+      -- deals with a final "unclosed" block at the end of `p`)
+      unclosed <- takeWhile (("DUMMY" /=) . fst) . layout <$> S.get
+      let pos = end $ last p
+      pure $ p <> replicate (length unclosed) (Token Close pos pos)
 
 -- | Consumes an entire Unison “module”.
 lexemes :: P [Token Lexeme] -> P [Token Lexeme]
@@ -1245,11 +1216,8 @@ separated :: (Char -> Bool) -> P a -> P a
 separated ok p = P.try $ p <* P.lookAhead (void (P.satisfy ok) <|> P.eof)
 
 open :: String -> P [Token Lexeme]
-open b = openAs b b
-
-openAs :: String -> String -> P [Token Lexeme]
-openAs syntax b = do
-  token <- tokenP $ lit syntax
+open b = do
+  token <- tokenP $ lit b
   env <- S.get
   S.put (env {opening = Just b})
   pure [Open b <$ token]
