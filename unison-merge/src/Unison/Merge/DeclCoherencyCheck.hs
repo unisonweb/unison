@@ -84,6 +84,7 @@ module Unison.Merge.DeclCoherencyCheck
     checkDeclCoherency,
     checkDeclCoherency2,
     lenientCheckDeclCoherency,
+    lenientCheckDeclCoherency2,
 
     -- * Getting all failures rather than just the first
     IncoherentDeclReasons (..),
@@ -95,6 +96,7 @@ import Control.Lens ((%=), (.=), _2)
 import Control.Monad.Except qualified as Except
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
+import Control.Monad.Trans.State.Strict (State)
 import Data.Functor.Compose (Compose (..))
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
@@ -153,18 +155,13 @@ checkDeclCoherency loadDeclNumConstructors nametree =
     )
 
 checkDeclCoherency2 ::
+  (HasCallStack) =>
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Map TypeReferenceId Int ->
   Either IncoherentDeclReason DeclNameLookup
 checkDeclCoherency2 nametree numConstructorsById =
   checkDeclCoherencyWith
-    ( \refId ->
-        case Map.lookup refId numConstructorsById of
-          Just numConstructors -> Right numConstructors
-          Nothing ->
-            error $
-              reportBug "E061715" ("type ref " ++ show refId ++ " not found in map " ++ show numConstructorsById)
-    )
+    (\refId -> Right (expectNumConstructors refId numConstructorsById))
     OnIncoherentDeclReasons
       { onConstructorAlias = \x y z -> Left (IncoherentDeclReason'ConstructorAlias x y z),
         onMissingConstructorName = \x -> Left (IncoherentDeclReason'MissingConstructorName x),
@@ -431,6 +428,91 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
         fullName name =
           Name.fromReverseSegments (name :| prefix)
 
+-- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns partial decl name lookup,
+-- which doesn't require a name for every constructor, and allows a constructor with a nameless decl.
+--
+-- This function exists merely to extract a best-effort name mapping for the LCA of a merge. We require Alice and Bob to
+-- have coherent decls, but their LCA is out of the user's control and may have incoherent decls, and whether or not it
+-- does, we still need to compute *some* syntactic hash for its decls.
+lenientCheckDeclCoherency2 ::
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
+  Map TypeReferenceId Int ->
+  PartialDeclNameLookup
+lenientCheckDeclCoherency2 nametree numConstructorsById =
+  nametree
+    & go []
+    & (`State.execState` LenientDeclCoherencyCheckState Map.empty (PartialDeclNameLookup Map.empty Map.empty))
+    & view #declNameLookup
+  where
+    go ::
+      [NameSegment] ->
+      (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
+      State LenientDeclCoherencyCheckState ()
+    go prefix (Nametree defns children) = do
+      for_ (Map.toList defns.terms) \case
+        (_, Referent.Ref _) -> pure ()
+        (_, Referent.Con (ConstructorReference (ReferenceBuiltin _) _) _) -> pure ()
+        (name, Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) _) -> do
+          #expectedConstructors %= Map.adjust (Map.map (lenientRecordConstructorName conId (fullName name))) typeRef
+
+      childrenWeWentInto <-
+        forMaybe (Map.toList defns.types) \case
+          (_, ReferenceBuiltin _) -> pure Nothing
+          (name, ReferenceDerived typeRef) -> do
+            state <- State.get
+            let whatHappened =
+                  let recordNewDecl :: WhatHappened (Map Name ConstructorNames)
+                      recordNewDecl =
+                        case expectNumConstructors typeRef numConstructorsById of
+                          0 -> UninhabitedDecl
+                          n -> InhabitedDecl (Map.singleton typeName (emptyConstructorNames n))
+                   in Map.upsertF (\_ -> recordNewDecl) typeRef state.expectedConstructors
+            case whatHappened of
+              UninhabitedDecl -> do
+                #declNameLookup . #declToConstructors %= Map.insert typeName []
+                pure Nothing
+              InhabitedDecl expectedConstructors1 -> do
+                let child = Map.findWithDefault (Nametree (Defns Map.empty Map.empty) Map.empty) name children
+                #expectedConstructors .= expectedConstructors1
+                go (name : prefix) child
+                state <- State.get
+                let (constructorNames0, expectedConstructors) =
+                      Map.alterF f typeRef state.expectedConstructors
+                      where
+                        f ::
+                          Maybe (Map Name ConstructorNames) ->
+                          (ConstructorNames, Maybe (Map Name ConstructorNames))
+                        f =
+                          -- fromJust is safe here because we upserted `typeRef` key above
+                          -- deleteLookupJust is safe here because we upserted `typeName` key above
+                          fromJust
+                            >>> Map.deleteLookupJust typeName
+                            >>> over _2 \m -> if Map.null m then Nothing else Just m
+
+                    constructorNames :: [Maybe Name]
+                    constructorNames =
+                      IntMap.elems constructorNames0
+
+                #expectedConstructors .= expectedConstructors
+                #declNameLookup . #constructorToDecl %= \constructorToDecl ->
+                  List.foldl'
+                    ( \acc -> \case
+                        Nothing -> acc
+                        Just constructorName -> Map.insert constructorName typeName acc
+                    )
+                    constructorToDecl
+                    constructorNames
+                #declNameLookup . #declToConstructors %= Map.insert typeName constructorNames
+                pure (Just name)
+            where
+              typeName = fullName name
+
+      let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
+      for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
+      where
+        fullName name =
+          Name.fromReverseSegments (name :| prefix)
+
 data DeclCoherencyCheckState = DeclCoherencyCheckState
   { expectedConstructors :: !(Map TypeReferenceId (Name, ConstructorNames)),
     declNameLookup :: !DeclNameLookup
@@ -478,3 +560,11 @@ data WhatHappened a
   = UninhabitedDecl
   | InhabitedDecl !a
   deriving stock (Functor, Show)
+
+expectNumConstructors :: (HasCallStack) => TypeReferenceId -> Map TypeReferenceId Int -> Int
+expectNumConstructors refId numConstructorsById =
+  case Map.lookup refId numConstructorsById of
+    Just numConstructors -> numConstructors
+    Nothing ->
+      error $
+        reportBug "E061715" ("type ref " ++ show refId ++ " not found in map " ++ show numConstructorsById)
