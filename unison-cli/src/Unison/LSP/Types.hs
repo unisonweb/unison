@@ -41,7 +41,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
-import Unison.Syntax.Lexer qualified as Lexer
+import Unison.Syntax.Lexer.Unison qualified as Lexer
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary (FileSummary (..))

@@ -54,7 +54,7 @@ import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
-import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)

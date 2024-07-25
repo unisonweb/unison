@@ -23,9 +23,11 @@ library
       Unison.Syntax.HashQualifiedPrime
       Unison.Syntax.Lexer
       Unison.Syntax.Lexer.Token
+      Unison.Syntax.Lexer.Unison
       Unison.Syntax.Name
       Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.Parser.Doc
       Unison.Syntax.Parser.Doc.Data
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash

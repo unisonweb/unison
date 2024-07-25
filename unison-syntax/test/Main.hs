@@ -10,7 +10,7 @@ import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
-import Unison.Syntax.Lexer
+import Unison.Syntax.Lexer.Unison
 
 main :: IO ()
 main =

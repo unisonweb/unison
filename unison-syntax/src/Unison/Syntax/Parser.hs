@@ -88,8 +88,9 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText)
+import Unison.Syntax.Parser.Doc qualified as Doc
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Term (MatchCase (..))
 import Unison.UnisonFile.Error qualified as UF
@@ -400,7 +401,7 @@ string = queryToken getString
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
 
-doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection L.DocTree))
+doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree [L.Token L.Lexeme])))
 doc = queryToken \case
   L.Doc d -> pure d
   _ -> Nothing
