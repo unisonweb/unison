@@ -653,7 +653,6 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
       let end =
             P.lookAhead $
               void docClose
-                <|> void docOpen
                 <|> void (P.satisfy isSpace)
                 <|> void closing
       word <- P.manyTill (P.satisfy (\ch -> not (isSpace ch))) end
@@ -768,7 +767,6 @@ docBody docClose' = DocUntitledSection <$> P.many (sectionElem <* CP.space)
           pure ex
 
     docClose = [] <$ docClose'
-    docOpen = [] <$ lit "{{"
 
     link =
       P.label "link (examples: {type List}, {Nat.+})" $
