@@ -82,6 +82,7 @@
 module Unison.Merge.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
     checkDeclCoherency,
+    checkDeclCoherency2,
     lenientCheckDeclCoherency,
 
     -- * Getting all failures rather than just the first
@@ -143,13 +144,34 @@ checkDeclCoherency loadDeclNumConstructors nametree =
     ( checkDeclCoherencyWith
         (lift . loadDeclNumConstructors)
         OnIncoherentDeclReasons
-          { onConstructorAlias = \x y z -> Except.throwError (IncoherentDeclReason'ConstructorAlias x y z), -- :: Name -> Name -> Name -> m (),
-            onMissingConstructorName = \x -> Except.throwError (IncoherentDeclReason'MissingConstructorName x), -- :: Name -> m (),
-            onNestedDeclAlias = \x y -> Except.throwError (IncoherentDeclReason'NestedDeclAlias x y), -- :: Name -> Name -> m (),
-            onStrayConstructor = \x -> Except.throwError (IncoherentDeclReason'StrayConstructor x) -- :: Name -> m ()
+          { onConstructorAlias = \x y z -> Except.throwError (IncoherentDeclReason'ConstructorAlias x y z),
+            onMissingConstructorName = \x -> Except.throwError (IncoherentDeclReason'MissingConstructorName x),
+            onNestedDeclAlias = \x y -> Except.throwError (IncoherentDeclReason'NestedDeclAlias x y),
+            onStrayConstructor = \x -> Except.throwError (IncoherentDeclReason'StrayConstructor x)
           }
         nametree
     )
+
+checkDeclCoherency2 ::
+  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
+  Map TypeReferenceId Int ->
+  Either IncoherentDeclReason DeclNameLookup
+checkDeclCoherency2 nametree numConstructorsById =
+  checkDeclCoherencyWith
+    ( \refId ->
+        case Map.lookup refId numConstructorsById of
+          Just numConstructors -> Right numConstructors
+          Nothing ->
+            error $
+              reportBug "E061715" ("type ref " ++ show refId ++ " not found in map " ++ show numConstructorsById)
+    )
+    OnIncoherentDeclReasons
+      { onConstructorAlias = \x y z -> Left (IncoherentDeclReason'ConstructorAlias x y z),
+        onMissingConstructorName = \x -> Left (IncoherentDeclReason'MissingConstructorName x),
+        onNestedDeclAlias = \x y -> Left (IncoherentDeclReason'NestedDeclAlias x y),
+        onStrayConstructor = \x -> Left (IncoherentDeclReason'StrayConstructor x)
+      }
+    nametree
 
 data IncoherentDeclReasons = IncoherentDeclReasons
   { constructorAliases :: ![(Name, Name, Name)],
