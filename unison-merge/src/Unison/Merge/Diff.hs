@@ -1,7 +1,6 @@
 module Unison.Merge.Diff
   ( nameBasedNamespaceDiff,
-    synhashLcaDefns2,
-    synhashDefns2,
+    nameBasedNamespaceDiff2,
   )
 where
 
@@ -70,6 +69,33 @@ nameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns = do
         `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob
         `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.lca
 
+-- | @nameBasedNamespaceDiff db declNameLookups defns@ returns Alice's and Bob's name-based namespace diffs, each in the
+-- form:
+--
+-- > terms :: Map Name (DiffOp (Synhashed Referent))
+-- > types :: Map Name (DiffOp (Synhashed TypeReference))
+--
+-- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
+-- branches. If the hash of a name did not change, it will not appear in the map.
+nameBasedNamespaceDiff2 ::
+  TwoWay DeclNameLookup ->
+  PartialDeclNameLookup ->
+  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference)
+nameBasedNamespaceDiff2 declNameLookups lcaDeclNameLookup defns hydratedDefns =
+  let lcaHashes = synhashLcaDefns2 ppe lcaDeclNameLookup defns.lca hydratedDefns
+      hashes = synhashDefns2 ppe hydratedDefns <$> declNameLookups <*> ThreeWay.forgetLca defns
+   in diffNamespaceDefns lcaHashes <$> hashes
+  where
+    ppe :: PrettyPrintEnv
+    ppe =
+      -- The order between Alice and Bob isn't important here for syntactic hashing; not sure right now if it matters
+      -- that the LCA is added last
+      deepNamespaceDefinitionsToPpe defns.alice
+        `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.bob
+        `Ppe.addFallback` deepNamespaceDefinitionsToPpe defns.lca
+
 synhashLcaDefns ::
   MergeDatabase ->
   PrettyPrintEnv ->
@@ -105,13 +131,12 @@ synhashLcaDefns db ppe declNameLookup =
 
 synhashLcaDefns2 ::
   PrettyPrintEnv ->
-  Map TermReferenceId (Term Symbol Ann) ->
-  Map TypeReferenceId (Decl Symbol Ann) ->
   PartialDeclNameLookup ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
   DefnsF2 (Map Name) Synhashed Referent TypeReference
-synhashLcaDefns2 ppe termsById declsById declNameLookup =
-  synhashDefnsWith2 hashReferent hashType
+synhashLcaDefns2 ppe declNameLookup defns hydratedDefns =
+  synhashDefnsWith2 hashReferent hashType defns
   where
     -- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,
     -- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).
@@ -125,7 +150,7 @@ synhashLcaDefns2 ppe termsById declsById declNameLookup =
         case Map.lookup name declNameLookup.constructorToDecl of
           Nothing -> Hash mempty -- see note above
           Just declName -> hashType declName ref
-      Referent.Ref ref -> hashTermReference ppe termsById ref
+      Referent.Ref ref -> hashTermReference ppe hydratedDefns.terms ref
 
     hashType :: Name -> TypeReference -> Hash
     hashType name = \case
@@ -133,16 +158,15 @@ synhashLcaDefns2 ppe termsById declsById declNameLookup =
       ReferenceDerived ref ->
         case sequence (declNameLookup.declToConstructors Map.! name) of
           Nothing -> Hash mempty -- see note above
-          Just names -> hashDerivedDecl ppe declsById names name ref
+          Just names -> hashDerivedDecl ppe hydratedDefns.types names name ref
 
 synhashDefns2 ::
   PrettyPrintEnv ->
-  Map TermReferenceId (Term Symbol Ann) ->
-  Map TypeReferenceId (Decl Symbol Ann) ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
   DeclNameLookup ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   DefnsF2 (Map Name) Synhashed Referent TypeReference
-synhashDefns2 ppe termsById declsById declNameLookup =
+synhashDefns2 ppe hydratedDefns declNameLookup =
   synhashDefnsWith2 hashReferent hashType
   where
     hashReferent :: Name -> Referent -> Hash
@@ -154,13 +178,13 @@ synhashDefns2 ppe termsById declsById declNameLookup =
       -- For example, if Alice updates `type Foo = Bar Nat` to `type Foo = Bar Nat Nat`, we want different synhashes on
       -- both the type (Foo) and the constructor (Foo.Bar).
       Referent.Con (ConstructorReference ref _) _ -> hashType (DeclNameLookup.expectDeclName declNameLookup name) ref
-      Referent.Ref ref -> hashTermReference ppe termsById ref
+      Referent.Ref ref -> hashTermReference ppe hydratedDefns.terms ref
 
     hashType :: Name -> TypeReference -> Hash
     hashType name = \case
       ReferenceBuiltin builtin -> synhashBuiltinDecl builtin
       ReferenceDerived ref ->
-        hashDerivedDecl ppe declsById (DeclNameLookup.expectConstructorNames declNameLookup name) name ref
+        hashDerivedDecl ppe hydratedDefns.types (DeclNameLookup.expectConstructorNames declNameLookup name) name ref
 
 hashDerivedDecl :: PrettyPrintEnv -> Map TypeReferenceId (Decl Symbol Ann) -> [Name] -> Name -> TypeReferenceId -> Hash
 hashDerivedDecl ppe declsById names name ref =
