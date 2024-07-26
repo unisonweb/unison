@@ -313,7 +313,7 @@ doc2 = do
           }
     )
     do
-      body <- Doc.untitledSection lexemes' . P.lookAhead $ () <$ lit "}}"
+      body <- Doc.untitledSection . Doc.sectionElem lexemes' . P.lookAhead $ () <$ lit "}}"
       closeStart <- posP
       lit "}}"
       closeEnd <- posP
