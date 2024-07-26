@@ -85,7 +85,7 @@ toText (Name pos (x0 :| xs)) =
       Relative -> ""
 
 -- | Parse a name from a var, by first rendering the var as a string.
-parseVar :: Var v => v -> Maybe Name
+parseVar :: (Var v) => v -> Maybe Name
 parseVar =
   parseText . Var.name
 
@@ -105,7 +105,7 @@ toVar =
 -- Name parsers
 
 -- | A name parser.
-nameP :: Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
+nameP :: (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m Name
 nameP =
   P.try do
     leadingDot <- isJust <$> P.optional (P.char '.')
@@ -113,7 +113,7 @@ nameP =
     pure (if leadingDot then Name.makeAbsolute name else name)
 
 -- | A relative name parser.
-relativeNameP :: forall m. Monad m => ParsecT (Token NameSegment.ParseErr) [Char] m Name
+relativeNameP :: forall m. (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m Name
 relativeNameP = do
   Name.fromSegments <$> Monad.sepBy1 NameSegment.segmentP separatorP
   where
@@ -123,7 +123,7 @@ relativeNameP = do
     -- This allows (for example) the "a." in "forall a. a -> a" to successfully parse as an identifier "a" followed by
     -- the reserved symbol ".", rathern than fail to parse as an identifier, because it looks like the prefix of some
     -- "a.b" that stops in the middle.
-    separatorP :: Ord e => ParsecT e [Char] m Char
+    separatorP :: (Ord e) => ParsecT e [Char] m Char
     separatorP =
       P.try do
         c <- P.char '.'

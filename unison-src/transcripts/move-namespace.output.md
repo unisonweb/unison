@@ -358,8 +358,8 @@ scratch/existing> move.namespace a b
   
   A branch existed at the destination: b so I over-wrote it.
   
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
   Done.
 

@@ -40,13 +40,13 @@ data DeclNameLookup = DeclNameLookup
   deriving stock (Generic)
   deriving (Semigroup) via (GenericSemigroupMonoid DeclNameLookup)
 
-expectDeclName :: HasCallStack => DeclNameLookup -> Name -> Name
+expectDeclName :: (HasCallStack) => DeclNameLookup -> Name -> Name
 expectDeclName DeclNameLookup {constructorToDecl} x =
   case Map.lookup x constructorToDecl of
     Nothing -> error (reportBug "E246726" ("Expected constructor name key " <> show x <> " in decl name lookup"))
     Just y -> y
 
-expectConstructorNames :: HasCallStack => DeclNameLookup -> Name -> [Name]
+expectConstructorNames :: (HasCallStack) => DeclNameLookup -> Name -> [Name]
 expectConstructorNames DeclNameLookup {declToConstructors} x =
   case Map.lookup x declToConstructors of
     Nothing -> error (reportBug "E077058" ("Expected decl name key " <> show x <> " in decl name lookup"))

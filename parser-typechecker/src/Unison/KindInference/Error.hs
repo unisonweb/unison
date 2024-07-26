@@ -28,7 +28,7 @@ data ConstraintConflict v loc = ConstraintConflict'
     conflictedConstraint :: Solved.Constraint (UVar v loc) v loc
   }
 
-lspLoc :: Semigroup loc => KindError v loc -> loc
+lspLoc :: (Semigroup loc) => KindError v loc -> loc
 lspLoc = \case
   CycleDetected loc _ _ -> loc
   UnexpectedArgument _ abs arg _ -> varLoc abs <> varLoc arg
@@ -45,30 +45,30 @@ data KindError v loc
     CycleDetected loc (UVar v loc) (ConstraintMap v loc)
   | -- | Something of kind * or Effect is applied to an argument
     UnexpectedArgument
+      -- | src span of abs
       loc
-      -- ^ src span of abs
+      -- | abs var
       (UVar v loc)
-      -- ^ abs var
+      -- | arg var
       (UVar v loc)
-      -- ^ arg var
-      (ConstraintMap v loc)
-      -- ^ context
+      -- | context
       -- | An arrow kind is applied to a type, but its kind doesn't match
       -- the expected argument kind
-  | ArgumentMismatch
-      (UVar v loc)
-      -- ^ abs var
-      (UVar v loc)
-      -- ^ expected var
-      (UVar v loc)
-      -- ^ given var
       (ConstraintMap v loc)
-      -- ^ context
+  | ArgumentMismatch
+      -- | abs var
+      (UVar v loc)
+      -- | expected var
+      (UVar v loc)
+      -- | given var
+      (UVar v loc)
+      -- | context
       -- | Same as @ArgumentMismatch@, but for applications to the builtin
       -- @Arrow@ type.
+      (ConstraintMap v loc)
   | ArgumentMismatchArrow
+      -- | (The applied arrow range, lhs, rhs)
       (loc, Type v loc, Type v loc)
-      -- ^ (The applied arrow range, lhs, rhs)
       (ConstraintConflict v loc)
       (ConstraintMap v loc)
   | -- | Something appeared in an effect list that isn't of kind Effect
@@ -77,22 +77,22 @@ data KindError v loc
       (ConstraintMap v loc)
   | -- | Generic constraint conflict
     ConstraintConflict
+      -- | Failed to add this constraint
       (GeneratedConstraint v loc)
-      -- ^ Failed to add this constraint
+      -- | Due to this conflict
       (ConstraintConflict v loc)
-      -- ^ Due to this conflict
+      -- | in this context
       (ConstraintMap v loc)
-      -- ^ in this context
 
 -- | Transform generic constraint conflicts into more specific error
 -- by examining its @ConstraintContext@.
-improveError :: Var v => KindError v loc -> Solve v loc (KindError v loc)
+improveError :: (Var v) => KindError v loc -> Solve v loc (KindError v loc)
 improveError = \case
   ConstraintConflict a b c -> improveError' a b c
   e -> pure e
 
 improveError' ::
-  Var v =>
+  (Var v) =>
   GeneratedConstraint v loc ->
   ConstraintConflict v loc ->
   ConstraintMap v loc ->

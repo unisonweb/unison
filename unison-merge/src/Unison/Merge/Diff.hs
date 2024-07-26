@@ -143,7 +143,7 @@ diffNamespaceDefns =
     f old new =
       Map.mapMaybe id (alignWith g old new)
 
-    g :: Eq x => These x x -> Maybe (DiffOp x)
+    g :: (Eq x) => These x x -> Maybe (DiffOp x)
     g = \case
       This old -> Just (DiffOp'Delete old)
       That new -> Just (DiffOp'Add new)
@@ -158,7 +158,7 @@ deepNamespaceDefinitionsToPpe :: Defns (BiMultimap Referent Name) (BiMultimap Ty
 deepNamespaceDefinitionsToPpe Defns {terms, types} =
   PrettyPrintEnv (arbitraryName terms) (arbitraryName types)
   where
-    arbitraryName :: Ord ref => BiMultimap ref Name -> ref -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
+    arbitraryName :: (Ord ref) => BiMultimap ref Name -> ref -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
     arbitraryName names ref =
       BiMultimap.lookupDom ref names
         & Set.lookupMin
@@ -168,7 +168,7 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
 -- Syntactic hashing helpers
 
 synhashDefnsWith ::
-  Monad m =>
+  (Monad m) =>
   (Name -> term -> m Hash) ->
   (Name -> typ -> m Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->

@@ -80,7 +80,7 @@ twoWay f TwoWay {alice, bob} =
   f alice bob
 
 -- | Unzip a @Map k (TwoWay v)@ into a @TwoWay (Map k v)@.
-unzipMap :: Ord k => Map k (TwoWay v) -> TwoWay (Map k v)
+unzipMap :: (Ord k) => Map k (TwoWay v) -> TwoWay (Map k v)
 unzipMap =
   fromPair . unzipWith (\TwoWay {alice, bob} -> (alice, bob))
 

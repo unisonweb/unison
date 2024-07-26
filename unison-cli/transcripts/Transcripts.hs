@@ -22,9 +22,10 @@ import System.FilePath
   )
 import System.IO.CodePage (withCP65001)
 import System.IO.Silently (silence)
+import Text.Megaparsec qualified as MP
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.TranscriptParser (TranscriptError (..), withTranscriptRunner)
+import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 import UnliftIO.STM qualified as STM
@@ -48,7 +49,7 @@ testBuilder ::
 testBuilder expectFailure recordFailure runtimePath dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
     let isTest = True
-    withTranscriptRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath Nothing \runTranscript -> do
+    Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath Nothing \runTranscript -> do
       for files \filePath -> do
         transcriptSrc <- readUtf8 filePath
         out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
@@ -57,12 +58,12 @@ testBuilder expectFailure recordFailure runtimePath dir prelude transcript = sco
     (filePath, Left err) -> do
       let outputFile = outputFileForTranscript filePath
       case err of
-        TranscriptParseError msg -> do
+        Transcript.ParseError errors -> do
           when (not expectFailure) $ do
-            let errMsg = "Error parsing " <> filePath <> ": " <> Text.unpack msg
+            let errMsg = "Error parsing " <> filePath <> ": " <> MP.errorBundlePretty errors
             io $ recordFailure (filePath, Text.pack errMsg)
             crash errMsg
-        TranscriptRunFailure errOutput -> do
+        Transcript.RunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
           when (not expectFailure) $ do
             io $ Text.putStrLn errOutput

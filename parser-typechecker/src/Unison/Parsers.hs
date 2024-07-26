@@ -81,5 +81,5 @@ unsafeParseFileBuiltinsOnly =
         names = Builtin.names
       }
 
-unsafeParseFile :: Monad m => String -> Parser.ParsingEnv m -> m (UnisonFile Symbol Ann)
+unsafeParseFile :: (Monad m) => String -> Parser.ParsingEnv m -> m (UnisonFile Symbol Ann)
 unsafeParseFile s pEnv = unsafeGetRightFrom s <$> parseFile "" s pEnv

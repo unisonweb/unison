@@ -64,7 +64,7 @@ makeInitialIdentifyConflictsState diff =
     }
 
 identifyConflicts ::
-  HasCallStack =>
+  (HasCallStack) =>
   TwoWay DeclNameLookup ->
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference ->

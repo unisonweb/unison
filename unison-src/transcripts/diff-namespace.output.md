@@ -268,8 +268,8 @@ scratch/ns2> delete.term.verbose fromJust'
     1. fromJust' ┐  2. fromJust' (removed)
     3. yoohoo    ┘  
   
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
 scratch/main> diff.namespace /ns3: /ns2:
 

@@ -9,7 +9,7 @@ import Unison.LSP.Types
 import Unison.Prelude
 
 -- | Handle configuration changes.
-updateConfig :: Applicative m => Config -> m ()
+updateConfig :: (Applicative m) => Config -> m ()
 updateConfig _newConfig = pure ()
 
 parseConfig :: Config -> Value -> Either Text Config

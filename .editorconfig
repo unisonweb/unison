@@ -9,3 +9,6 @@ indent_style = space
 insert_final_newline = true
 max_line_length = 120
 trim_trailing_whitespace = true
+
+[*.u]
+max_line_length = off

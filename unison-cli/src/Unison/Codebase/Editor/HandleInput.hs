@@ -262,17 +262,6 @@ loop e = do
               description <- inputDescription input
               _ <- Cli.updateAt description target (const newRoot)
               Cli.respond Success
-            ResetRootI src0 ->
-              Cli.time "reset-root" do
-                newRoot <-
-                  case src0 of
-                    BranchAtSCH hash -> Cli.resolveShortCausalHash hash
-                    BranchAtPath path' -> Cli.expectBranchAtPath' path'
-                    BranchAtProjectPath pp -> Cli.getBranchFromProjectPath pp
-                description <- inputDescription input
-                pb <- getCurrentProjectBranch
-                void $ Cli.updateProjectBranchRoot_ pb description (const newRoot)
-                Cli.respond Success
             ForkLocalBranchI src0 dest0 -> do
               (srcb, branchEmpty) <-
                 case src0 of
@@ -908,9 +897,6 @@ inputDescription input =
           let tgtText = into @Text tgt
           pure (" " <> tgtText)
       pure ("reset " <> hashTxt <> tgt)
-    ResetRootI src0 -> do
-      let src = into @Text src0
-      pure ("reset-root " <> src)
     AliasTermI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0

@@ -66,11 +66,11 @@ newtype Transaction a
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)
 
-instance Monoid a => Monoid (Transaction a) where
-  mempty :: Monoid a => Transaction a
+instance (Monoid a) => Monoid (Transaction a) where
+  mempty :: (Monoid a) => Transaction a
   mempty = pure mempty
 
-instance Semigroup a => Semigroup (Transaction a) where
+instance (Semigroup a) => Semigroup (Transaction a) where
   (<>) :: Transaction a -> Transaction a -> Transaction a
   (<>) = liftA2 (<>)
 
@@ -143,7 +143,7 @@ runReadOnlyTransaction conn f =
     runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
 {-# SPECIALIZE runReadOnlyTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
-runReadOnlyTransaction_ :: HasCallStack => Connection -> IO a -> IO a
+runReadOnlyTransaction_ :: (HasCallStack) => Connection -> IO a -> IO a
 runReadOnlyTransaction_ conn action = do
   bracketOnError_
     (Connection.begin conn)
@@ -170,7 +170,7 @@ runWriteTransaction conn f =
         (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
 {-# SPECIALIZE runWriteTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
 
-runWriteTransaction_ :: HasCallStack => (forall x. IO x -> IO x) -> Connection -> IO a -> IO a
+runWriteTransaction_ :: (HasCallStack) => (forall x. IO x -> IO x) -> Connection -> IO a -> IO a
 runWriteTransaction_ restore conn transaction = do
   keepTryingToBeginImmediate restore conn
   result <- restore transaction `onException` ignoringExceptions (Connection.rollback conn)
@@ -178,7 +178,7 @@ runWriteTransaction_ restore conn transaction = do
   pure result
 
 -- @BEGIN IMMEDIATE@ until success.
-keepTryingToBeginImmediate :: HasCallStack => (forall x. IO x -> IO x) -> Connection -> IO ()
+keepTryingToBeginImmediate :: (HasCallStack) => (forall x. IO x -> IO x) -> Connection -> IO ()
 keepTryingToBeginImmediate restore conn =
   let loop =
         try @_ @SqliteQueryException (Connection.beginImmediate conn) >>= \case
@@ -217,7 +217,7 @@ savepoint (Transaction action) = do
 -- transaction needs to retry.
 --
 -- /Warning/: attempting to run a transaction inside a transaction will cause an exception!
-unsafeIO :: HasCallStack => IO a -> Transaction a
+unsafeIO :: (HasCallStack) => IO a -> Transaction a
 unsafeIO action =
   Transaction \_ -> action
 
@@ -232,11 +232,11 @@ unsafeUnTransaction (Transaction action) =
 
 -- Without results
 
-execute :: HasCallStack => Sql -> Transaction ()
+execute :: (HasCallStack) => Sql -> Transaction ()
 execute s =
   Transaction \conn -> Connection.execute conn s
 
-executeStatements :: HasCallStack => Text -> Transaction ()
+executeStatements :: (HasCallStack) => Text -> Transaction ()
 executeStatements s =
   Transaction \conn -> Connection.executeStatements conn s
 

@@ -28,7 +28,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
-toNames :: Var v => UnisonFile v a -> Names
+toNames :: (Var v) => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf))
@@ -106,7 +106,7 @@ bindNames names (UnisonFileId d e ts ws) = do
 --
 -- It's used below in `environmentFor` and also during the term resolution
 -- process.
-variableCanonicalizer :: forall v. Var v => [v] -> Map v v
+variableCanonicalizer :: forall v. (Var v) => [v] -> Map v v
 variableCanonicalizer vs =
   done $ List.multimap do
     v <- vs

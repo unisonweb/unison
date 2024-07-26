@@ -1290,8 +1290,8 @@ notifyUser dir = \case
                         "to make an old namespace accessible again,"
                       ),
                       (mempty, mempty),
-                      ( IP.makeExample IP.resetRoot [prettySCH prevSCH],
-                        "to reset the root namespace and its history to that of the specified"
+                      ( IP.makeExample IP.reset [prettySCH prevSCH],
+                        "to reset the current namespace and its history to that of the specified"
                           <> "namespace."
                       )
                     ]

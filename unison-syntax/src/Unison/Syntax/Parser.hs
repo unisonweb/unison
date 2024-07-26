@@ -280,7 +280,7 @@ semi = label "newline or semicolon" $ queryToken go
 closeBlock :: (Ord v) => P v m (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
-wordyPatternName :: Var v => P v m (L.Token v)
+wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
   _ -> Nothing
@@ -304,27 +304,27 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
       _ -> Nothing
 
 -- Parse a wordy identifier e.g. Foo, discarding any hash
-wordyDefinitionName :: Var v => P v m (L.Token v)
+wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken $ \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
   L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing
 
 -- Parse a wordyId as a Name, rejecting any hash
-importWordyId :: Ord v => P v m (L.Token Name)
+importWordyId :: (Ord v) => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
   L.Blank s | not (null s) -> Just $ Name.unsafeParseText (Text.pack ("_" <> s))
   _ -> Nothing
 
 -- The `+` in: use Foo.bar + as a Name
-importSymbolyId :: Ord v => P v m (L.Token Name)
+importSymbolyId :: (Ord v) => P v m (L.Token Name)
 importSymbolyId = queryToken \case
   L.SymbolyId (HQ'.NameOnly n) -> Just n
   _ -> Nothing
 
 -- Parse a symboly ID like >>= or &&, discarding any hash
-symbolyDefinitionName :: Var v => P v m (L.Token v)
+symbolyDefinitionName :: (Var v) => P v m (L.Token v)
 symbolyDefinitionName = queryToken $ \case
   L.SymbolyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
@@ -345,7 +345,7 @@ hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
 hqInfixId = hqSymbolyId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
+hqWordyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
   L.WordyId n -> Just $ HQ'.toHQ n
   L.Hash h -> Just $ HQ.HashOnly h
@@ -353,7 +353,7 @@ hqWordyId_ = queryToken \case
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId_ :: Ord v => P v m (L.Token (HQ.HashQualified Name))
+hqSymbolyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqSymbolyId_ = queryToken \case
   L.SymbolyId n -> Just (HQ'.toHQ n)
   _ -> Nothing
@@ -409,7 +409,7 @@ string = queryToken getString
 --
 -- returns the result of combining elements with 'pair', alongside the annotation containing
 -- the full parenthesized expression.
-tupleOrParenthesized :: Ord v => P v m a -> (Ann -> a) -> (a -> a -> a) -> P v m (Ann {- spanAnn -}, a)
+tupleOrParenthesized :: (Ord v) => P v m a -> (Ann -> a) -> (a -> a -> a) -> P v m (Ann {- spanAnn -}, a)
 tupleOrParenthesized p unit pair = do
   seq' "(" go p
   where

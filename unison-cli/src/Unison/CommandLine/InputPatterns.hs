@@ -100,7 +100,6 @@ module Unison.CommandLine.InputPatterns
     renameTerm,
     renameType,
     reset,
-    resetRoot,
     runScheme,
     saveExecuteResult,
     sfind,
@@ -1661,11 +1660,14 @@ reset =
     [ ("namespace, hash, or branch to reset to", Required, namespaceOrProjectBranchArg config),
       ("namespace to be reset", Optional, namespaceOrProjectBranchArg config)
     ]
-    ( P.wrapColumn2
-        [ ("`reset #pvfd222s8n`", "reset the current namespace to the causal `#pvfd222s8n`"),
-          ("`reset foo`", "reset the current namespace to that of the `foo` namespace."),
-          ("`reset foo bar`", "reset the namespace `bar` to that of the `foo` namespace."),
-          ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+    ( P.lines
+        [ P.wrapColumn2
+            [ ("`reset #pvfd222s8n`", "reset the current namespace to the hash `#pvfd222s8n`"),
+              ("`reset foo`", "reset the current namespace to the state of the `foo` namespace."),
+              ("`reset #pvfd222s8n /topic`", "reset the branch `topic` of the current project to the causal `#pvfd222s8n`.")
+            ],
+          "",
+          P.wrap $ "If you make a mistake using reset, consult the " <> makeExample' branchReflog <> " command and use another " <> makeExample' reset <> " command to return to a previous state."
         ]
     )
     \case
@@ -1679,31 +1681,6 @@ reset =
           projectInclusion = AllProjects,
           branchInclusion = AllBranches
         }
-
--- asBranch = tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (Text.pack inputString)
-
-resetRoot :: InputPattern
-resetRoot =
-  InputPattern
-    "reset-root"
-    []
-    I.Hidden
-    [("namespace or hash to reset to", Required, namespaceArg)]
-    ( P.lines
-        [ "Deprecated because it's incompatible with projects. ⚠️ Warning, this command can cause codebase corruption.",
-          P.wrapColumn2
-            [ ( makeExample resetRoot [".foo"],
-                "Reset the root namespace (along with its history) to that of the `.foo` namespace. Deprecated"
-              ),
-              ( makeExample resetRoot ["#9dndk3kbsk13nbpeu"],
-                "Reset the root namespace (along with its history) to that of the namespace with hash `#9dndk3kbsk13nbpeu`."
-              )
-            ]
-        ]
-    )
-    $ \case
-      [src] -> Input.ResetRootI <$> handleBranchIdArg src
-      args -> wrongArgsLength "exactly one argument" args
 
 pull :: InputPattern
 pull =
@@ -2293,13 +2270,13 @@ deprecatedViewRootReflog =
 branchReflog :: InputPattern
 branchReflog =
   InputPattern
-    "branch.reflog"
-    ["reflog.branch", "reflog"]
+    "reflog"
+    ["reflog.branch", "branch.reflog"]
     I.Visible
     []
     ( P.lines
-        [ "`branch.reflog` lists all the changes that have affected the current branch.",
-          "`branch.reflog /mybranch` lists all the changes that have affected /mybranch."
+        [ "`reflog` lists all the changes that have affected the current branch.",
+          "`reflog /mybranch` lists all the changes that have affected /mybranch."
         ]
     )
     ( \case
@@ -3502,7 +3479,6 @@ validInputs =
       renameType,
       moveAll,
       reset,
-      resetRoot,
       runScheme,
       saveExecuteResult,
       test,
