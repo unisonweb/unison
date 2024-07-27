@@ -131,7 +131,7 @@ paragraph ::
   (m () -> m code) ->
   m () ->
   m (Top ident code (Tree ident code))
-paragraph ident code = fmap Paragraph . spaced . leafy ident code
+paragraph ident code docClose = fmap Paragraph . spaced docClose $ leafy ident code docClose
 
 word :: (Ord e, P.MonadParsec e String m) => m end -> m (Leaf ident code void)
 word closing = fmap Word . tokenP . P.try $ do
@@ -385,17 +385,17 @@ namedLink ::
 namedLink ident code docClose =
   P.label "hyperlink (example: [link name](https://destination.com))" do
     _ <- lit "["
-    p <- spaced . leafy ident code . void $ char ']'
+    p <- spaced docClose . leafy ident code . void $ char ']'
     _ <- lit "]"
     _ <- lit "("
     target <- group $ fmap pure (link ident) <|> some' (transclude code <|> word (docClose <|> void (char ')')))
     _ <- lit ")"
     pure $ NamedLink (wrap' $ Paragraph p) target
 
-sp :: (P.MonadParsec e String m) => m String
-sp = P.try $ do
+sp :: (P.MonadParsec e String m) => m () -> m String
+sp docClose = P.try $ do
   spaces <- P.takeWhile1P (Just "space") isSpace
-  close <- P.optional (P.lookAhead (lit "}}"))
+  close <- P.optional (P.lookAhead docClose)
   case close of
     Nothing -> guard $ ok spaces
     Just _ -> pure ()
@@ -403,8 +403,8 @@ sp = P.try $ do
   where
     ok s = length [() | '\n' <- s] < 2
 
-spaced :: (P.MonadParsec e String m) => m a -> m (NonEmpty a)
-spaced p = some' (p <* P.optional sp)
+spaced :: (P.MonadParsec e String m) => m () -> m a -> m (NonEmpty a)
+spaced docClose p = some' $ p <* P.optional (sp docClose)
 
 -- | Not an actual node, but this pattern is referenced in multiple places
 list ::
@@ -522,7 +522,7 @@ section ::
   S.StateT ParsingEnv m (Top ident code (Tree ident code))
 section ident code docClose = do
   ns <- S.gets parentSections
-  hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
+  hashes <- lift $ P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp docClose
   title <- lift $ paragraph ident code docClose <* CP.space
   let m = length hashes + head ns
   body <-
