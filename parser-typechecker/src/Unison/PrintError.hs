@@ -1861,6 +1861,14 @@ renderParseErrors s = \case
                     <> structuralVsUniqueDocsLink
               ]
        in (msg, rangeForToken <$> [void keyword, void name])
+    go (Parser.TypeNotAllowed tok) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap "I expected to see a term here, but instead it’s a type:",
+                "",
+                tokenAsErrorSite s $ HQ.toText <$> tok
+              ]
+       in (msg, [rangeForToken tok])
 
     unknownConstructor ::
       String -> L.Token (HashQualified Name) -> Pretty ColorText

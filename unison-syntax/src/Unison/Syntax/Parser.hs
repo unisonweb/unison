@@ -72,6 +72,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec (runParserT)
 import Text.Megaparsec qualified as P
+import U.Codebase.Reference (ReferenceType (..))
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (ConstructorReference)
@@ -170,6 +171,8 @@ data Error v
   | TypeDeclarationErrors [UF.Error v Ann]
   | -- | MissingTypeModifier (type|ability) name
     MissingTypeModifier (L.Token String) (L.Token v)
+  | -- | A type was found in a position that requires a term
+    TypeNotAllowed (L.Token (HQ.HashQualified Name))
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
@@ -401,7 +404,8 @@ string = queryToken getString
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
 
-doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree (HQ'.HashQualified Name) [L.Token L.Lexeme])))
+doc ::
+  (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme])))
 doc = queryToken \case
   L.Doc d -> pure d
   _ -> Nothing

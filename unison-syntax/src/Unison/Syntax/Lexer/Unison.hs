@@ -42,6 +42,7 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
 import Text.Megaparsec.Internal qualified as PI
+import U.Codebase.Reference (ReferenceType (..))
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -117,7 +118,7 @@ data Lexeme
   | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash -- hash literals
   | Err Err
-  | Doc (Doc.UntitledSection (Doc.Tree (HQ'.HashQualified Name) [Token Lexeme]))
+  | Doc (Doc.UntitledSection (Doc.Tree (ReferenceType, HQ'.HashQualified Name) [Token Lexeme]))
   deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
@@ -354,7 +355,7 @@ doc2 = do
   (docTok, closeTok) <- local
     (\env -> env {inLayout = False})
     do
-      body <- Doc.doc identifierP lexemes' . P.lookAhead $ () <$ lit "}}"
+      body <- Doc.doc typeOrTerm lexemes' . P.lookAhead $ () <$ lit "}}"
       closeStart <- posP
       lit "}}"
       closeEnd <- posP
@@ -382,12 +383,15 @@ doc2 = do
           isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
       _ -> docTok : endToks
   where
-    -- DUPLICATED
     wordyKw kw = separated wordySep (lit kw)
+    typeOrAbility' = typeOrAbilityAlt (wordyKw . Text.unpack)
+    typeOrTerm = do
+      mtype <- P.optional $ typeOrAbility' <* CP.space
+      ident <- identifierP <* CP.space
+      pure (maybe RtTerm (const RtType) mtype, ident)
     subsequentTypeName = P.lookAhead . P.optional $ do
       let lit' s = lit s <* sp
       let modifier = typeModifiersAlt (lit' . Text.unpack)
-      let typeOrAbility' = typeOrAbilityAlt (wordyKw . Text.unpack)
       _ <- optional modifier *> typeOrAbility' *> sp
       Token name start stop <- tokenP identifierP
       if Name.isSymboly (HQ'.toName name)

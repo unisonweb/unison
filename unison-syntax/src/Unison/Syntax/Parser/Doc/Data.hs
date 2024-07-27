@@ -87,9 +87,9 @@ instance Bifunctor (Leaf ident) where
     Word x -> Word x
     Group join -> Group $ bimap f g <$> join
 
-data EmbedLink ident
-  = EmbedTypeLink (Token ident)
-  | EmbedTermLink (Token ident)
+-- | This is a deviation from the Unison Doc data model – in Unison, Doc distinguishes between type and term links, but
+--   here Doc knows nothing about what namespaces may exist.
+data EmbedLink ident = EmbedLink (Token ident)
   deriving (Eq, Ord, Show)
 
 data SourceElement ident a = SourceElement (EmbedLink ident) [EmbedAnnotation ident a]
@@ -138,9 +138,7 @@ instance (Annotated code, Annotated a) => Annotated (Leaf ident code a) where
     Group (Join leaves) -> ann leaves
 
 instance Annotated (EmbedLink ident) where
-  ann = \case
-    EmbedTypeLink name -> ann name
-    EmbedTermLink name -> ann name
+  ann (EmbedLink name) = ann name
 
 instance (Annotated code) => Annotated (SourceElement ident code) where
   ann (SourceElement link target) = ann link <> ann target

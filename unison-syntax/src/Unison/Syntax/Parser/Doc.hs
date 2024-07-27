@@ -45,8 +45,7 @@ module Unison.Syntax.Parser.Doc
 
     -- * other components
     column',
-    embedTypeLink,
-    embedTermLink,
+    embedLink,
     embedSignatureLink,
     join,
   )
@@ -59,26 +58,13 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Text qualified as Text
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char (char)
 import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Unison.Parser.Ann (Ann, Annotated (..))
 import Unison.Prelude hiding (join)
-import Unison.Syntax.Lexer
-  ( column,
-    line,
-    lit,
-    local,
-    sepBy1',
-    separated,
-    some',
-    someTill',
-    typeOrAbilityAlt,
-    wordySep,
-    (<+>),
-  )
+import Unison.Syntax.Lexer (column, line, lit, local, sepBy1', some', someTill', (<+>))
 import Unison.Syntax.Lexer.Token (Token (Token), posP, tokenP)
 import Unison.Syntax.Parser.Doc.Data
 
@@ -108,9 +94,6 @@ doc ident code = flip S.evalStateT initialState . untitledSection . sectionElem 
 --   Unison wraps `Doc` literals in `}}`).
 untitledSection :: (P.MonadParsec e String m) => m a -> m (UntitledSection a)
 untitledSection a = UntitledSection <$> P.many (a <* CP.space)
-
-wordyKw :: (P.MonadParsec e String m) => String -> m String
-wordyKw kw = separated wordySep (lit kw)
 
 sectionElem ::
   (Ord e, P.MonadParsec e String m, Annotated code) =>
@@ -228,14 +211,9 @@ evalInline code = fmap EvalInline $ do
   s <- code inlineEvalClose
   pure s
 
-embedTypeLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
-embedTypeLink ident =
-  EmbedTypeLink <$> do
-    _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
-    tokenP ident <* CP.space
-
-embedTermLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
-embedTermLink ident = EmbedTermLink <$> tokenP ident <* CP.space
+-- | Not an actual node, but this pattern is referenced in multiple places
+embedLink :: (Ord e, P.MonadParsec e s m, P.TraversableStream s) => m ident -> m (EmbedLink ident)
+embedLink = fmap EmbedLink . tokenP
 
 embedSignatureLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedSignatureLink ident)
 embedSignatureLink ident = EmbedSignatureLink <$> tokenP ident <* CP.space
@@ -529,10 +507,6 @@ section ident code docClose = do
     local (\env -> env {parentSections = (m : (tail ns))}) $
       P.many (sectionElem ident code docClose <* CP.space)
   pure $ Section (wrap' title) body
-
--- | Not an actual node, but this pattern is referenced in multiple places
-embedLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
-embedLink ident = embedTypeLink ident <|> embedTermLink ident
 
 -- | FIXME: This should just take a @`P` code@ and @`P` a@.
 group :: (P.MonadParsec e s m) => m (NonEmpty (Leaf ident code a)) -> m (Leaf ident code a)

@@ -27,6 +27,7 @@ import Data.Text qualified as Text
 import Data.Tuple.Extra qualified as TupleE
 import Data.Void (absurd, vacuous)
 import Text.Megaparsec qualified as P
+import U.Codebase.Reference (ReferenceType (..))
 import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
@@ -530,7 +531,7 @@ doc2Block = do
     docUntitledSection ann (Doc.UntitledSection tops) =
       Term.app ann (f ann "UntitledSection") $ Term.list (gann tops) tops
 
-    docTop :: Doc.Top (HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docTop :: Doc.Top (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docTop d = case d of
       Doc.Section title body -> pure $ Term.apps' (f d "Section") [title, Term.list (gann body) body]
       Doc.Eval code ->
@@ -558,7 +559,7 @@ doc2Block = do
     docColumn d@(Doc.Column para sublist) =
       Term.app (gann d) (f d "Column") . Term.list (gann d) $ para : toList sublist
 
-    docLeaf :: Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docLeaf :: Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docLeaf d = case d of
       Doc.Link link -> Term.app (gann d) (f d "Link") <$> docEmbedLink link
       Doc.NamedLink para target -> Term.apps' (f d "NamedLink") . (para :) . pure <$> docLeaf (vacuous target)
@@ -590,35 +591,49 @@ doc2Block = do
         Term.app (gann d) (f d "Group") . Term.app (gann d) (f d "Join") . Term.list (ann leaves) . toList
           <$> traverse docLeaf leaves
 
-    docEmbedLink :: Doc.EmbedLink (HQ'.HashQualified Name) -> TermP v m
-    docEmbedLink d = case d of
-      Doc.EmbedTypeLink ident ->
+    docEmbedLink :: Doc.EmbedLink (ReferenceType, HQ'.HashQualified Name) -> TermP v m
+    docEmbedLink d@(Doc.EmbedLink (L.Token (level, ident) start end)) = case level of
+      RtType ->
         Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
-          <$> findUniqueType (HQ'.toHQ <$> ident)
-      Doc.EmbedTermLink ident ->
-        Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
+          <$> findUniqueType (L.Token (HQ'.toHQ ident) start end)
+      RtTerm ->
+        Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
 
     docSourceElement ::
-      Doc.SourceElement (HQ'.HashQualified Name) (Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      Doc.SourceElement
+        (ReferenceType, HQ'.HashQualified Name)
+        (Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
       TermP v m
     docSourceElement d@(Doc.SourceElement link anns) = do
       link' <- docEmbedLink link
       anns' <- traverse docEmbedAnnotation anns
       pure $ Term.apps' (f d "SourceElement") [link', Term.list (ann anns) anns']
 
-    docEmbedSignatureLink :: Doc.EmbedSignatureLink (HQ'.HashQualified Name) -> TermP v m
-    docEmbedSignatureLink d@(Doc.EmbedSignatureLink ident) =
-      Term.app (gann d) (f d "EmbedSignatureLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
+    docEmbedSignatureLink :: Doc.EmbedSignatureLink (ReferenceType, HQ'.HashQualified Name) -> TermP v m
+    docEmbedSignatureLink d@(Doc.EmbedSignatureLink (L.Token (level, ident) start end)) = case level of
+      RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+      RtTerm ->
+        Term.app (gann d) (f d "EmbedSignatureLink") . addDelay
+          <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
 
     docEmbedAnnotation ::
-      Doc.EmbedAnnotation (HQ'.HashQualified Name) (Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      Doc.EmbedAnnotation
+        (ReferenceType, HQ'.HashQualified Name)
+        (Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
       TermP v m
     docEmbedAnnotation d@(Doc.EmbedAnnotation a) =
       -- This is the only place I’m not sure we’re doing the right thing. In the lexer, this can be an identifier or a
       -- DocLeaf, but here it could be either /text/ or a Doc element. And I don’t think there’s any way the lexemes
       -- produced for an identifier and the lexemes consumed for text line up. So, I think this is a bugfix I can’t
       -- avoid.
-      Term.app (gann d) (f d "EmbedAnnotation") <$> either (resolveHashQualified . fmap HQ'.toHQ) (docLeaf . vacuous) a
+      Term.app (gann d) (f d "EmbedAnnotation")
+        <$> either
+          ( \(L.Token (level, ident) start end) -> case level of
+              RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+              RtTerm -> resolveHashQualified $ L.Token (HQ'.toHQ ident) start end
+          )
+          (docLeaf . vacuous)
+          a
 
 docBlock :: (Monad m, Var v) => TermP v m
 docBlock = do
