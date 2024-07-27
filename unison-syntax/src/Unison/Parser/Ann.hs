@@ -4,6 +4,7 @@
 
 module Unison.Parser.Ann where
 
+import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Void (absurd)
 import Unison.Lexer.Pos qualified as L
@@ -100,3 +101,6 @@ instance (Annotated a) => Annotated (Maybe a) where
 
 instance Annotated Void where
   ann = absurd
+
+instance (Annotated a) => Annotated (Cofree f a) where
+  ann (a :< _) = ann a

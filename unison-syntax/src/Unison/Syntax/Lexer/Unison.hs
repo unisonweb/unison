@@ -1,6 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Unison.Syntax.Lexer.Unison
   ( Token (..),
     Line,
@@ -44,9 +41,11 @@ import Text.Megaparsec.Char (char)
 import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Text.Megaparsec.Error qualified as EP
+import Text.Megaparsec.Internal qualified as PI
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -55,12 +54,50 @@ import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer
 import Unison.Syntax.Lexer.Token (posP, tokenP)
-import Unison.Syntax.Name qualified as Name (isSymboly, toText, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
 import Unison.Syntax.Parser.Doc qualified as Doc
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
+import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.Monoid (intercalateMap)
+
+type BlockName = String
+
+type Layout = [(BlockName, Column)]
+
+data ParsingEnv = ParsingEnv
+  { -- | layout stack
+    layout :: !Layout,
+    -- | `Just b` if a block of type `b` is being opened
+    opening :: Maybe BlockName,
+    -- | are we inside a construct that uses layout?
+    inLayout :: Bool
+  }
+  deriving (Show)
+
+type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
+
+data Err
+  = ReservedWordyId String
+  | InvalidSymbolyId String
+  | ReservedSymbolyId String
+  | InvalidShortHash String
+  | InvalidBytesLiteral String
+  | InvalidHexLiteral
+  | InvalidOctalLiteral
+  | Both Err Err
+  | MissingFractional String -- ex `1.` rather than `1.04`
+  | MissingExponent String -- ex `1e` rather than `1e3`
+  | UnknownLexeme
+  | TextLiteralMissingClosingQuote String
+  | InvalidEscapeCharacter Char
+  | LayoutError
+  | CloseWithoutMatchingOpen String String -- open, close
+  | UnexpectedDelimiter String
+  | UnexpectedTokens String -- Catch-all for all other lexer errors, representing some unexpected tokens.
+  deriving stock (Eq, Ord, Show) -- richer algebra
 
 -- Design principle:
 --   `[Lexeme]` should be sufficient information for parsing without
@@ -80,10 +117,19 @@ data Lexeme
   | Bytes Bytes.Bytes -- bytes literals
   | Hash ShortHash -- hash literals
   | Err Err
-  | Doc (Doc.UntitledSection (Doc.Tree [Token Lexeme]))
+  | Doc (Doc.UntitledSection (Doc.Tree (HQ'.HashQualified Name) [Token Lexeme]))
   deriving stock (Eq, Show, Ord)
 
 type IsVirtual = Bool -- is it a virtual semi or an actual semi?
+
+-- Committed failure
+err :: (P.TraversableStream s, P.MonadParsec (Token Err) s m) => Pos -> Err -> m x
+err start t = do
+  stop <- posP
+  -- This consumes a character and therefore produces committed failure,
+  -- so `err s t <|> p2` won't try `p2`
+  _ <- void P.anySingle <|> P.eof
+  P.customFailure (Token t start stop)
 
 token :: P Lexeme -> P [Token Lexeme]
 token = token' (\a start end -> [Token a start end])
@@ -230,7 +276,7 @@ lexer scope rem =
       (P.EndOfInput) -> "end of input"
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
     toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-    env0 = ParsingEnv [] (Just scope) True [0] 0
+    env0 = ParsingEnv [] (Just scope) True
 
 -- | hacky postprocessing pass to do some cleanup of stuff that's annoying to
 -- fix without adding more state to the lexer:
@@ -306,14 +352,9 @@ doc2 = do
   env0 <- S.get
   -- Disable layout while parsing the doc block and reset the section number
   (docTok, closeTok) <- local
-    ( \env ->
-        env
-          { inLayout = False,
-            parentSections = 0 : (parentSections env0)
-          }
-    )
+    (\env -> env {inLayout = False})
     do
-      body <- Doc.untitledSection . Doc.sectionElem lexemes' . P.lookAhead $ () <$ lit "}}"
+      body <- Doc.doc identifierP lexemes' . P.lookAhead $ () <$ lit "}}"
       closeStart <- posP
       lit "}}"
       closeEnd <- posP
@@ -682,6 +723,27 @@ tok p = do
 --   foo
 --   .foo.++.doc
 --   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
+identifierP :: (Monad m) => P.ParsecT (Token Err) String m (HQ'.HashQualified Name)
+identifierP = do
+  P.label "identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)" do
+    name <- PI.withParsecT (fmap nameSegmentParseErrToErr) Name.nameP
+    P.optional shortHashP <&> \case
+      Nothing -> HQ'.fromName name
+      Just shorthash -> HQ'.HashQualified name shorthash
+  where
+    nameSegmentParseErrToErr :: NameSegment.ParseErr -> Err
+    nameSegmentParseErrToErr = \case
+      NameSegment.ReservedOperator s -> ReservedSymbolyId (Text.unpack s)
+      NameSegment.ReservedWord s -> ReservedWordyId (Text.unpack s)
+
+-- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
+-- symboly (comprised of only symbols) or wordy (comprised of only alphanums).
+--
+-- Examples:
+--
+--   foo
+--   .foo.++.doc
+--   `.`.`..`     (This is a two-segment identifier without a leading dot: "." then "..")
 identifierLexemeP :: P Lexeme
 identifierLexemeP = identifierLexeme <$> identifierP
 
@@ -690,6 +752,14 @@ identifierLexeme name =
   if Name.isSymboly (HQ'.toName name)
     then SymbolyId name
     else WordyId name
+
+wordyIdSegP :: P.ParsecT (Token Err) String m NameSegment
+wordyIdSegP =
+  PI.withParsecT (fmap (ReservedWordyId . Text.unpack)) NameSegment.wordyP
+
+shortHashP :: P.ParsecT (Token Err) String m ShortHash
+shortHashP =
+  PI.withParsecT (fmap (InvalidShortHash . Text.unpack)) ShortHash.shortHashP
 
 blockDelimiter :: [String] -> P String -> P [Token Lexeme]
 blockDelimiter open closeP = do
@@ -738,6 +808,11 @@ notLayout t = case payload t of
 top :: Layout -> Column
 top [] = 1
 top ((_, h) : _) = h
+
+-- todo: make Layout a NonEmpty
+topBlockName :: Layout -> Maybe BlockName
+topBlockName [] = Nothing
+topBlockName ((name, _) : _) = Just name
 
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
@@ -855,6 +930,10 @@ showEscapeChar :: Char -> Maybe Char
 showEscapeChar c =
   Map.lookup c (Map.fromList [(x, y) | (y, x) <- escapeChars])
 
+typeModifiersAlt :: (Alternative f) => (Text -> f a) -> f a
+typeModifiersAlt f =
+  asum $ map f (toList typeModifiers)
+
 debugFilePreParse :: FilePath -> IO ()
 debugFilePreParse file = putStrLn . debugPreParse . preParse . lexer file . Text.unpack =<< readUtf8 file
 
@@ -876,6 +955,18 @@ debugPreParse ts = show $ payload <$> ts
 
 debugPreParse' :: String -> String
 debugPreParse' = debugPreParse . preParse . lexer "debugPreParse"
+
+instance EP.ShowErrorComponent (Token Err) where
+  showErrorComponent (Token err _ _) = go err
+    where
+      go = \case
+        UnexpectedTokens msg -> msg
+        CloseWithoutMatchingOpen open close -> "I found a closing " <> close <> " but no matching " <> open <> "."
+        Both e1 e2 -> go e1 <> "\n" <> go e2
+        LayoutError -> "Indentation error"
+        TextLiteralMissingClosingQuote s -> "This text literal missing a closing quote: " <> excerpt s
+        e -> show e
+      excerpt s = if length s < 15 then s else take 15 s <> "..."
 
 instance P.VisualStream [Token Lexeme] where
   showTokens _ xs =

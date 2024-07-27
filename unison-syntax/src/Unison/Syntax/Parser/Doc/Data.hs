@@ -1,6 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Haskell parallel to @unison/base.Doc@.
+--
+--   These types have two significant parameters: @ident@ and @code@ that are expected to be parameterized by some
+--   representation of identifiers and source code of the host language.
 --
 --   This is much more restricted than @unison/base.Doc@, but it covers everything we can parse from Haskell. The
 --   mismatch with Unison is a problem, as someone can create a Unison Doc with explicit constructors or function calls,
@@ -13,8 +17,6 @@ import Data.Eq.Deriving (deriveEq1, deriveEq2)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Ord.Deriving (deriveOrd1, deriveOrd2)
 import Text.Show.Deriving (deriveShow1, deriveShow2)
-import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Name (Name)
 import Unison.Parser.Ann (Annotated (..))
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..))
@@ -22,7 +24,7 @@ import Unison.Syntax.Lexer.Token (Token (..))
 newtype UntitledSection a = UntitledSection [a]
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-data Top code a
+data Top ident code a
   = -- | The first argument is always a `Paragraph`
     Section a [a]
   | Eval code
@@ -30,7 +32,7 @@ data Top code a
   | CodeBlock (Token String) (Token String)
   | BulletedList (NonEmpty (Column a))
   | NumberedList (NonEmpty (Token Word64, Column a))
-  | Paragraph (NonEmpty (Leaf code a))
+  | Paragraph (NonEmpty (Leaf ident code a))
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
 data Column a
@@ -38,11 +40,11 @@ data Column a
     Column a (Maybe a)
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-data Leaf code a
-  = Link EmbedLink
+data Leaf ident code a
+  = Link (EmbedLink ident)
   | -- | first is a Paragraph, second is always a Group (which contains either a single Term/Type link or list of
     --   `Transclude`s & `Word`s)
-    NamedLink a (Leaf code Void)
+    NamedLink a (Leaf ident code Void)
   | Example code
   | Transclude code
   | -- | Always a Paragraph
@@ -52,21 +54,21 @@ data Leaf code a
   | -- | Always a Paragraph
     Strikethrough a
   | -- | Always a Word
-    Verbatim (Leaf Void Void)
+    Verbatim (Leaf ident Void Void)
   | -- | Always a Word
-    Code (Leaf Void Void)
+    Code (Leaf ident Void Void)
   | -- | Always a Transclude
-    Source (NonEmpty (SourceElement (Leaf code Void)))
+    Source (NonEmpty (SourceElement ident (Leaf ident code Void)))
   | -- | Always a Transclude
-    FoldedSource (NonEmpty (SourceElement (Leaf code Void)))
+    FoldedSource (NonEmpty (SourceElement ident (Leaf ident code Void)))
   | EvalInline code
-  | Signature (NonEmpty EmbedSignatureLink)
-  | SignatureInline EmbedSignatureLink
+  | Signature (NonEmpty (EmbedSignatureLink ident))
+  | SignatureInline (EmbedSignatureLink ident)
   | Word (Token String)
-  | Group (Join (Leaf code a))
+  | Group (Join (Leaf ident code a))
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-instance Bifunctor Leaf where
+instance Bifunctor (Leaf ident) where
   bimap f g = \case
     Link x -> Link x
     NamedLink a leaf -> NamedLink (g a) $ first f leaf
@@ -85,25 +87,25 @@ instance Bifunctor Leaf where
     Word x -> Word x
     Group join -> Group $ bimap f g <$> join
 
-data EmbedLink
-  = EmbedTypeLink (Token (HQ'.HashQualified Name))
-  | EmbedTermLink (Token (HQ'.HashQualified Name))
+data EmbedLink ident
+  = EmbedTypeLink (Token ident)
+  | EmbedTermLink (Token ident)
   deriving (Eq, Ord, Show)
 
-data SourceElement a = SourceElement EmbedLink [EmbedAnnotation a]
+data SourceElement ident a = SourceElement (EmbedLink ident) [EmbedAnnotation ident a]
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-newtype EmbedSignatureLink = EmbedSignatureLink (Token (HQ'.HashQualified Name))
+newtype EmbedSignatureLink ident = EmbedSignatureLink (Token ident)
   deriving (Eq, Ord, Show)
 
 newtype Join a = Join (NonEmpty a)
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-newtype EmbedAnnotation a
-  = EmbedAnnotation (Either (Token (HQ'.HashQualified Name)) a)
+newtype EmbedAnnotation ident a
+  = EmbedAnnotation (Either (Token ident) a)
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
-instance (Annotated code, Annotated a) => Annotated (Top code a) where
+instance (Annotated code, Annotated a) => Annotated (Top ident code a) where
   ann = \case
     Section title body -> ann title <> ann body
     Eval code -> ann code
@@ -116,7 +118,7 @@ instance (Annotated code, Annotated a) => Annotated (Top code a) where
 instance (Annotated a) => Annotated (Column a) where
   ann (Column para list) = ann para <> ann list
 
-instance (Annotated code, Annotated a) => Annotated (Leaf code a) where
+instance (Annotated code, Annotated a) => Annotated (Leaf ident code a) where
   ann = \case
     Link link -> ann link
     NamedLink label target -> ann label <> ann target
@@ -135,31 +137,45 @@ instance (Annotated code, Annotated a) => Annotated (Leaf code a) where
     Word text -> ann text
     Group (Join leaves) -> ann leaves
 
-instance Annotated EmbedLink where
+instance Annotated (EmbedLink ident) where
   ann = \case
     EmbedTypeLink name -> ann name
     EmbedTermLink name -> ann name
 
-instance (Annotated code) => Annotated (SourceElement code) where
+instance (Annotated code) => Annotated (SourceElement ident code) where
   ann (SourceElement link target) = ann link <> ann target
 
-instance Annotated EmbedSignatureLink where
+instance Annotated (EmbedSignatureLink ident) where
   ann (EmbedSignatureLink name) = ann name
 
-instance (Annotated code) => Annotated (EmbedAnnotation code) where
+instance (Annotated code) => Annotated (EmbedAnnotation ident code) where
   ann (EmbedAnnotation a) = either ann ann a
 
 $(deriveEq1 ''Column)
 $(deriveOrd1 ''Column)
 $(deriveShow1 ''Column)
 
+$(deriveEq1 ''Token)
+$(deriveOrd1 ''Token)
+$(deriveShow1 ''Token)
+
 $(deriveEq1 ''EmbedAnnotation)
 $(deriveOrd1 ''EmbedAnnotation)
 $(deriveShow1 ''EmbedAnnotation)
+$(deriveEq2 ''EmbedAnnotation)
+$(deriveOrd2 ''EmbedAnnotation)
+$(deriveShow2 ''EmbedAnnotation)
+
+$(deriveEq1 ''EmbedLink)
+$(deriveOrd1 ''EmbedLink)
+$(deriveShow1 ''EmbedLink)
 
 $(deriveEq1 ''SourceElement)
 $(deriveOrd1 ''SourceElement)
 $(deriveShow1 ''SourceElement)
+$(deriveEq2 ''SourceElement)
+$(deriveOrd2 ''SourceElement)
+$(deriveShow2 ''SourceElement)
 
 $(deriveEq1 ''Join)
 $(deriveOrd1 ''Join)

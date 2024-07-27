@@ -1,5 +1,17 @@
+-- | The parser for Unison’s @Doc@ syntax.
+--
+--   This is completely independent of the Unison language, and requires a couple parsers to be passed in to then
+--   provide a parser for @Doc@ applied to any host language.
+--
+-- - an identifer parser
+-- - a code parser (that accepts a termination parser)
+-- - a termination parser (only used for lookahead), for this parser to know when to give up
+--
+-- Each of those parsers is expected to satisfy @(`Ord` e, `P.MonadParsec` e `String` m)@.
 module Unison.Syntax.Parser.Doc
   ( Tree,
+    initialState,
+    doc,
     untitledSection,
     sectionElem,
     leaf,
@@ -55,10 +67,7 @@ import Text.Megaparsec.Char.Lexer qualified as LP
 import Unison.Parser.Ann (Ann, Annotated (..))
 import Unison.Prelude hiding (join)
 import Unison.Syntax.Lexer
-  ( P,
-    ParsingEnv (..),
-    column,
-    identifierP,
+  ( column,
     line,
     lit,
     local,
@@ -73,28 +82,58 @@ import Unison.Syntax.Lexer
 import Unison.Syntax.Lexer.Token (Token (Token), posP, tokenP)
 import Unison.Syntax.Parser.Doc.Data
 
-type Tree code = Cofree (Top code) Ann
+type Tree ident code = Cofree (Top ident code) Ann
+
+data ParsingEnv = ParsingEnv
+  { -- | Use a stack to remember the parent section and allow docSections within docSections.
+    -- - 1 means we are inside a # Heading 1
+    parentSections :: [Int],
+    -- | 4 means we are inside a list starting at the fourth column
+    parentListColumn :: Int
+  }
+  deriving (Show)
+
+initialState :: ParsingEnv
+initialState = ParsingEnv [0] 0
+
+doc ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (UntitledSection (Tree ident code))
+doc ident code = flip S.evalStateT initialState . untitledSection . sectionElem ident code
 
 -- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
 --   Unison wraps `Doc` literals in `}}`).
-untitledSection :: P a -> P (UntitledSection a)
+untitledSection :: (P.MonadParsec e String m) => m a -> m (UntitledSection a)
 untitledSection a = UntitledSection <$> P.many (a <* CP.space)
 
-wordyKw :: String -> P String
+wordyKw :: (P.MonadParsec e String m) => String -> m String
 wordyKw kw = separated wordySep (lit kw)
 
-sectionElem :: (Annotated code) => (P () -> P code) -> P () -> P (Tree code)
-sectionElem code docClose =
+sectionElem ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  S.StateT ParsingEnv m (Tree ident code)
+sectionElem ident code docClose =
   fmap wrap' $
-    section code docClose
-      <|> P.label "block eval (syntax: a fenced code block)" (eval code <|> exampleBlock code <|> codeBlock)
-      <|> list code docClose
-      <|> paragraph code docClose
+    section ident code docClose
+      <|> lift (P.label "block eval (syntax: a fenced code block)" (eval code <|> exampleBlock code <|> codeBlock))
+      <|> list ident code docClose
+      <|> lift (paragraph ident code docClose)
 
-paragraph :: (Annotated code) => (P () -> P code) -> P () -> P (Top code (Tree code))
-paragraph code = fmap Paragraph . spaced . leafy code
+paragraph ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Top ident code (Tree ident code))
+paragraph ident code = fmap Paragraph . spaced . leafy ident code
 
-word :: P end -> P (Leaf code void)
+word :: (Ord e, P.MonadParsec e String m) => m end -> m (Leaf ident code void)
 word closing = fmap Word . tokenP . P.try $ do
   let end = P.lookAhead $ void (P.satisfy isSpace) <|> void closing
   word <- P.manyTill (P.satisfy (\ch -> not (isSpace ch))) end
@@ -103,43 +142,56 @@ word closing = fmap Word . tokenP . P.try $ do
   where
     reserved word = List.isPrefixOf "}}" word || all (== '#') word
 
-leaf :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-leaf code closing =
-  do
-    link
-      <|> namedLink code closing
-      <|> example code
-      <|> transclude code
-    <|> bold code closing
-    <|> italic code closing
-    <|> strikethrough code closing
+leaf ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+leaf ident code closing =
+  link ident
+    <|> namedLink ident code closing
+    <|> example code
+    <|> transclude code
+    <|> bold ident code closing
+    <|> italic ident code closing
+    <|> strikethrough ident code closing
     <|> verbatim
-    <|> source code
-    <|> foldedSource code
+    <|> source ident code
+    <|> foldedSource ident code
     <|> evalInline code
-    <|> signatures
-    <|> signatureInline
+    <|> signatures ident
+    <|> signatureInline ident
     <|> word closing
 
-leafy :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-leafy code closing = do
-  p <- leaf code closing
-  after <- P.optional . P.try $ leafy code closing
+leafy ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+leafy ident code closing = do
+  p <- leaf ident code closing
+  after <- P.optional . P.try $ leafy ident code closing
   case after of
     Nothing -> pure p
     Just after -> group . pure $ p :| pure after
 
-comma :: P String
+comma :: (P.MonadParsec e String m) => m String
 comma = lit "," <* CP.space
 
-source :: (P () -> P code) -> P (Leaf code a)
-source = fmap Source . (lit "@source" *>) . sourceElements
+source :: (Ord e, P.MonadParsec e String m) => m ident -> (m () -> m code) -> m (Leaf ident code a)
+source ident = fmap Source . (lit "@source" *>) . sourceElements ident
 
-foldedSource :: (P () -> P code) -> P (Leaf code a)
-foldedSource = fmap FoldedSource . (lit "@foldedSource" *>) . sourceElements
+foldedSource :: (Ord e, P.MonadParsec e String m) => m ident -> (m () -> m code) -> m (Leaf ident code a)
+foldedSource ident = fmap FoldedSource . (lit "@foldedSource" *>) . sourceElements ident
 
-sourceElements :: (P () -> P code) -> P (NonEmpty (SourceElement (Leaf code Void)))
-sourceElements code = do
+sourceElements ::
+  (Ord e, P.MonadParsec e String m) =>
+  m ident ->
+  (m () -> m code) ->
+  m (NonEmpty (SourceElement ident (Leaf ident code Void)))
+sourceElements ident code = do
   _ <- (lit " {" <|> lit "{") *> CP.space
   s <- sepBy1' srcElem comma
   _ <- lit "}"
@@ -147,49 +199,48 @@ sourceElements code = do
   where
     srcElem =
       SourceElement
-        <$> embedLink
+        <$> embedLink ident
         <*> ( fmap (fromMaybe []) . P.optional $
                 (lit "@") *> (CP.space *> annotations)
             )
       where
-        annotation = fmap Left (tokenP identifierP) <|> fmap Right (transclude code) <* CP.space
-        annotations =
-          P.some (EmbedAnnotation <$> annotation)
+        annotation = fmap Left (tokenP ident) <|> fmap Right (transclude code) <* CP.space
+        annotations = P.some (EmbedAnnotation <$> annotation)
 
-signatures :: P (Leaf code a)
-signatures = fmap Signature $ do
+signatures :: (Ord e, P.MonadParsec e String m) => m ident -> m (Leaf ident code a)
+signatures ident = fmap Signature $ do
   _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
-  s <- sepBy1' embedSignatureLink comma
+  s <- sepBy1' (embedSignatureLink ident) comma
   _ <- lit "}"
   pure s
 
-signatureInline :: P (Leaf code a)
-signatureInline = fmap SignatureInline $ do
+signatureInline :: (Ord e, P.MonadParsec e String m) => m ident -> m (Leaf ident code a)
+signatureInline ident = fmap SignatureInline $ do
   _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
-  s <- embedSignatureLink
+  s <- embedSignatureLink ident
   _ <- lit "}"
   pure s
 
-evalInline :: (P () -> P a1) -> P (Leaf a1 a2)
+evalInline :: (P.MonadParsec e String m) => (m () -> m code) -> m (Leaf ident code a)
 evalInline code = fmap EvalInline $ do
   _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
   let inlineEvalClose = void $ lit "}"
   s <- code inlineEvalClose
   pure s
 
-embedTypeLink :: P EmbedLink
-embedTypeLink =
+embedTypeLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
+embedTypeLink ident =
   EmbedTypeLink <$> do
     _ <- typeOrAbilityAlt (wordyKw . Text.unpack) <* CP.space
-    tokenP identifierP <* CP.space
+    tokenP ident <* CP.space
 
-embedTermLink :: P EmbedLink
-embedTermLink = EmbedTermLink <$> tokenP identifierP <* CP.space
+embedTermLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
+embedTermLink ident = EmbedTermLink <$> tokenP ident <* CP.space
 
-embedSignatureLink :: P EmbedSignatureLink
-embedSignatureLink = EmbedSignatureLink <$> tokenP identifierP <* CP.space
+embedSignatureLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedSignatureLink ident)
+embedSignatureLink ident = EmbedSignatureLink <$> tokenP ident <* CP.space
 
-verbatim :: P (Leaf code a)
+verbatim :: (Ord e, P.MonadParsec e String m) => m (Leaf ident code a)
 verbatim =
   P.label "code (examples: ''**unformatted**'', `words` or '''_words_''')" $ do
     Token originalText start stop <- tokenP do
@@ -199,21 +250,17 @@ verbatim =
       quotes <- tick <|> (lit "''" <+> P.takeWhileP Nothing (== '\''))
       P.someTill P.anySingle (lit quotes)
     let isMultiLine = line start /= line stop
-    if isMultiLine
-      then do
-        let trimmed = (trimAroundDelimiters originalText)
-        let txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
-        -- If it's a multi-line verbatim block we trim any whitespace representing
-        -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
-        pure . Verbatim $
-          Word $
-            Token txt start stop
-      else
-        pure . Code $
-          Word $
-            Token originalText start stop
+    pure
+      if isMultiLine
+        then
+          let trimmed = (trimAroundDelimiters originalText)
+              txt = trimIndentFromVerbatimBlock (column start - 1) trimmed
+           in -- If it's a multi-line verbatim block we trim any whitespace representing
+              -- indentation from the pretty-printer. See 'trimIndentFromVerbatimBlock'
+              Verbatim . Word $ Token txt start stop
+        else Code . Word $ Token originalText start stop
 
-example :: (P () -> P code) -> P (Leaf code void)
+example :: (P.MonadParsec e String m) => (m () -> m code) -> m (Leaf ident code void)
 example code =
   P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
     fmap Example $ do
@@ -223,20 +270,20 @@ example code =
       let end = void . lit $ replicate (n + 1) '`'
       CP.space *> code end
 
-link :: P (Leaf a b)
-link = P.label "link (examples: {type List}, {Nat.+})" $ Link <$> P.try (lit "{" *> embedLink <* lit "}")
+link :: (Ord e, P.MonadParsec e String m) => m ident -> m (Leaf ident code a)
+link ident = P.label "link (examples: {type List}, {Nat.+})" $ Link <$> P.try (lit "{" *> embedLink ident <* lit "}")
 
-transclude :: (P () -> P code) -> P (Leaf code x)
+transclude :: (P.MonadParsec e String m) => (m () -> m code) -> m (Leaf ident code a)
 transclude code =
   fmap Transclude . P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
     lit "{{" *> code (void $ lit "}}")
 
-nonNewlineSpaces :: P String
+nonNewlineSpaces :: (P.MonadParsec e String m) => m String
 nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
   where
     nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
 
-eval :: (Annotated code) => (P () -> P code) -> P (Top code (Tree code))
+eval :: (P.MonadParsec e String m, Annotated code) => (m () -> m code) -> m (Top ident code (Tree ident code))
 eval code =
   Eval <$> do
     -- commit after seeing that ``` is on its own line
@@ -246,7 +293,7 @@ eval code =
       fence <$ guard b
     CP.space *> code (void $ lit fence)
 
-exampleBlock :: (Annotated code) => (P () -> P code) -> P (Top code (Tree code))
+exampleBlock :: (P.MonadParsec e String m, Annotated code) => (m () -> m code) -> m (Top ident code (Tree ident code))
 exampleBlock code =
   ExampleBlock
     <$> do
@@ -254,7 +301,7 @@ exampleBlock code =
       fence <- lit "```" <+> P.takeWhileP Nothing (== '`')
       code . void $ lit fence
 
-codeBlock :: P (Top code (Tree code))
+codeBlock :: (Ord e, P.MonadParsec e String m) => m (Top ident code (Tree ident code))
 codeBlock = do
   column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
   let tabWidth = toInteger . P.unPos $ P.defaultTabWidth
@@ -280,8 +327,14 @@ codeBlock = do
           skip _ s = s
        in List.intercalate "\n" $ skip column <$> lines s
 
-emphasis :: (Annotated code) => Char -> (P () -> P code) -> P () -> P (Tree code)
-emphasis delimiter code closing = do
+emphasis ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  Char ->
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Tree ident code)
+emphasis delimiter ident code closing = do
   let start = some (P.satisfy (== delimiter))
   end <- P.try $ do
     end <- start
@@ -289,38 +342,57 @@ emphasis delimiter code closing = do
     pure end
   wrap' . Paragraph
     <$> someTill'
-      (leafy code (closing <|> (void $ lit end)) <* void whitespaceWithoutParagraphBreak)
+      (leafy ident code (closing <|> (void $ lit end)) <* void whitespaceWithoutParagraphBreak)
       (lit end)
   where
-    -- Allows whitespace or a newline, but not more than two newlines in a row.
-    whitespaceWithoutParagraphBreak :: P ()
+    -- Allows whitespace including up to one newline
     whitespaceWithoutParagraphBreak = void do
       void nonNewlineSpaces
       optional newline >>= \case
         Just _ -> void nonNewlineSpaces
         Nothing -> pure ()
 
-bold :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-bold code = fmap Bold . emphasis '*' code
+bold ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+bold ident code = fmap Bold . emphasis '*' ident code
 
-italic :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-italic code = fmap Italic . emphasis '_' code
+italic ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+italic ident code = fmap Italic . emphasis '_' ident code
 
-strikethrough :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-strikethrough code = fmap Strikethrough . emphasis '~' code
+strikethrough ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+strikethrough ident code = fmap Strikethrough . emphasis '~' ident code
 
-namedLink :: (Annotated code) => (P () -> P code) -> P () -> P (Leaf code (Tree code))
-namedLink code docClose =
+namedLink ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  m (Leaf ident code (Tree ident code))
+namedLink ident code docClose =
   P.label "hyperlink (example: [link name](https://destination.com))" do
     _ <- lit "["
-    p <- spaced . leafy code . void $ char ']'
+    p <- spaced . leafy ident code . void $ char ']'
     _ <- lit "]"
     _ <- lit "("
-    target <- group $ fmap pure link <|> some' (transclude code <|> word (docClose <|> void (char ')')))
+    target <- group $ fmap pure (link ident) <|> some' (transclude code <|> word (docClose <|> void (char ')')))
     _ <- lit ")"
     pure $ NamedLink (wrap' $ Paragraph p) target
 
-sp :: P String
+sp :: (P.MonadParsec e String m) => m String
 sp = P.try $ do
   spaces <- P.takeWhile1P (Just "space") isSpace
   close <- P.optional (P.lookAhead (lit "}}"))
@@ -331,17 +403,22 @@ sp = P.try $ do
   where
     ok s = length [() | '\n' <- s] < 2
 
-spaced :: P a -> P (NonEmpty a)
+spaced :: (P.MonadParsec e String m) => m a -> m (NonEmpty a)
 spaced p = some' (p <* P.optional sp)
 
 -- | Not an actual node, but this pattern is referenced in multiple places
-list :: (Annotated code) => (P () -> P code) -> P () -> P (Top code (Tree code))
-list code docClose = bulletedList code docClose <|> numberedList code docClose
+list ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+list ident code docClose = bulletedList ident code docClose <|> numberedList ident code docClose
 
-listSep :: P ()
+listSep :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m ()
 listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (void bulletedStart <|> void numberedStart)
 
-bulletedStart :: P (Int, [a])
+bulletedStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m (Int, [a])
 bulletedStart = P.try $ do
   r <- listItemStart $ [] <$ P.satisfy bulletChar
   P.lookAhead (P.satisfy isSpace)
@@ -349,43 +426,59 @@ bulletedStart = P.try $ do
   where
     bulletChar ch = ch == '*' || ch == '-' || ch == '+'
 
-listItemStart :: P a -> P (Int, a)
-listItemStart gutter = P.try $ do
+listItemStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m a -> m (Int, a)
+listItemStart gutter = P.try do
   nonNewlineSpaces
   col <- column <$> posP
   parentCol <- S.gets parentListColumn
   guard (col > parentCol)
   (col,) <$> gutter
 
-numberedStart :: P (Int, Token Word64)
+numberedStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m (Int, Token Word64)
 numberedStart = listItemStart $ P.try (tokenP $ LP.decimal <* lit ".")
 
 -- | FIXME: This should take a @`P` a@
-numberedList :: (Annotated code) => (P () -> P code) -> P () -> P (Top code (Tree code))
-numberedList code docClose = NumberedList <$> sepBy1' numberedItem listSep
+numberedList ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+numberedList ident code docClose = NumberedList <$> sepBy1' numberedItem listSep
   where
     numberedItem = P.label "numbered list (examples: 1. item1, 8. start numbering at '8')" do
       (col, s) <- numberedStart
-      (s,) <$> column' code docClose col
+      (s,) <$> column' ident code docClose col
 
 -- | FIXME: This should take a @`P` a@
-bulletedList :: (Annotated code) => (P () -> P code) -> P () -> P (Top code (Tree code))
-bulletedList code docClose = BulletedList <$> sepBy1' bullet listSep
+bulletedList ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+bulletedList ident code docClose = BulletedList <$> sepBy1' bullet listSep
   where
     bullet = P.label "bullet (examples: * item1, - item2)" do
       (col, _) <- bulletedStart
-      column' code docClose col
+      column' ident code docClose col
 
-column' :: (Annotated code) => (P () -> P code) -> P () -> Int -> P (Column (Tree code))
-column' code docClose col =
+column' ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  Int ->
+  S.StateT ParsingEnv m (Column (Tree ident code))
+column' ident code docClose col =
   Column . wrap'
     <$> (nonNewlineSpaces *> listItemParagraph)
-    <*> local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> fmap wrap' (list code docClose))
+    <*> local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> fmap wrap' (list ident code docClose))
   where
     listItemParagraph =
       Paragraph <$> do
         col <- column <$> posP
-        some' (leafy code docClose <* sep col)
+        some' (lift (leafy ident code docClose) <* sep col)
       where
         -- Trickiness here to support hard line breaks inside of
         -- a bulleted list, so for instance this parses as expected:
@@ -406,7 +499,7 @@ column' code docClose col =
                   (P.notFollowedBy $ void numberedStart <|> void bulletedStart)
           pure ()
 
-newline :: P String
+newline :: (P.MonadParsec e String m) => m String
 newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
 
 -- |
@@ -421,32 +514,37 @@ newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
 -- > A paragraph under this subsection.
 -- >
 -- > # A section title (not a subsection)
-section :: (Annotated code) => (P () -> P code) -> P () -> P (Top code (Tree code))
-section code docClose = do
+section ::
+  (Ord e, P.MonadParsec e String m, Annotated code) =>
+  m ident ->
+  (m () -> m code) ->
+  m () ->
+  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+section ident code docClose = do
   ns <- S.gets parentSections
   hashes <- P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp
-  title <- paragraph code docClose <* CP.space
+  title <- lift $ paragraph ident code docClose <* CP.space
   let m = length hashes + head ns
   body <-
     local (\env -> env {parentSections = (m : (tail ns))}) $
-      P.many (sectionElem code docClose <* CP.space)
+      P.many (sectionElem ident code docClose <* CP.space)
   pure $ Section (wrap' title) body
 
 -- | Not an actual node, but this pattern is referenced in multiple places
-embedLink :: P EmbedLink
-embedLink = embedTypeLink <|> embedTermLink
+embedLink :: (Ord e, P.MonadParsec e String m) => m ident -> m (EmbedLink ident)
+embedLink ident = embedTypeLink ident <|> embedTermLink ident
 
 -- | FIXME: This should just take a @`P` code@ and @`P` a@.
-group :: P (NonEmpty (Leaf code a)) -> P (Leaf code a)
+group :: (P.MonadParsec e s m) => m (NonEmpty (Leaf ident code a)) -> m (Leaf ident code a)
 group = fmap Group . join
 
 -- | FIXME: This should just take a @`P` a@
-join :: P (NonEmpty a) -> P (Join a)
+join :: (P.MonadParsec e s m) => m (NonEmpty a) -> m (Join a)
 join = fmap Join
 
 -- * utility functions
 
-wrap' :: (Annotated code) => Top code (Tree code) -> Tree code
+wrap' :: (Annotated code) => Top ident code (Tree ident code) -> Tree ident code
 wrap' doc = ann doc :< doc
 
 -- | If it's a multi-line verbatim block we trim any whitespace representing

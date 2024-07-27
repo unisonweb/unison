@@ -530,7 +530,7 @@ doc2Block = do
     docUntitledSection ann (Doc.UntitledSection tops) =
       Term.app ann (f ann "UntitledSection") $ Term.list (gann tops) tops
 
-    docTop :: Doc.Top [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docTop :: Doc.Top (HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docTop d = case d of
       Doc.Section title body -> pure $ Term.apps' (f d "Section") [title, Term.list (gann body) body]
       Doc.Eval code ->
@@ -558,7 +558,7 @@ doc2Block = do
     docColumn d@(Doc.Column para sublist) =
       Term.app (gann d) (f d "Column") . Term.list (gann d) $ para : toList sublist
 
-    docLeaf :: Doc.Leaf [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docLeaf :: Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
     docLeaf d = case d of
       Doc.Link link -> Term.app (gann d) (f d "Link") <$> docEmbedLink link
       Doc.NamedLink para target -> Term.apps' (f d "NamedLink") . (para :) . pure <$> docLeaf (vacuous target)
@@ -590,7 +590,7 @@ doc2Block = do
         Term.app (gann d) (f d "Group") . Term.app (gann d) (f d "Join") . Term.list (ann leaves) . toList
           <$> traverse docLeaf leaves
 
-    docEmbedLink :: Doc.EmbedLink -> TermP v m
+    docEmbedLink :: Doc.EmbedLink (HQ'.HashQualified Name) -> TermP v m
     docEmbedLink d = case d of
       Doc.EmbedTypeLink ident ->
         Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
@@ -598,17 +598,21 @@ doc2Block = do
       Doc.EmbedTermLink ident ->
         Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docSourceElement :: Doc.SourceElement (Doc.Leaf [L.Token L.Lexeme] Void) -> TermP v m
+    docSourceElement ::
+      Doc.SourceElement (HQ'.HashQualified Name) (Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      TermP v m
     docSourceElement d@(Doc.SourceElement link anns) = do
       link' <- docEmbedLink link
       anns' <- traverse docEmbedAnnotation anns
       pure $ Term.apps' (f d "SourceElement") [link', Term.list (ann anns) anns']
 
-    docEmbedSignatureLink :: Doc.EmbedSignatureLink -> TermP v m
+    docEmbedSignatureLink :: Doc.EmbedSignatureLink (HQ'.HashQualified Name) -> TermP v m
     docEmbedSignatureLink d@(Doc.EmbedSignatureLink ident) =
       Term.app (gann d) (f d "EmbedSignatureLink") . addDelay <$> resolveHashQualified (HQ'.toHQ <$> ident)
 
-    docEmbedAnnotation :: Doc.EmbedAnnotation (Doc.Leaf [L.Token L.Lexeme] Void) -> TermP v m
+    docEmbedAnnotation ::
+      Doc.EmbedAnnotation (HQ'.HashQualified Name) (Doc.Leaf (HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      TermP v m
     docEmbedAnnotation d@(Doc.EmbedAnnotation a) =
       -- This is the only place I’m not sure we’re doing the right thing. In the lexer, this can be an identifier or a
       -- DocLeaf, but here it could be either /text/ or a Doc element. And I don’t think there’s any way the lexemes

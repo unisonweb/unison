@@ -401,7 +401,7 @@ string = queryToken getString
     getString (L.Textual s) = Just (Text.pack s)
     getString _ = Nothing
 
-doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree [L.Token L.Lexeme])))
+doc :: (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree (HQ'.HashQualified Name) [L.Token L.Lexeme])))
 doc = queryToken \case
   L.Doc d -> pure d
   _ -> Nothing
