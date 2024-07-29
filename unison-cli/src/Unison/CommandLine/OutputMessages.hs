@@ -85,7 +85,7 @@ import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency as LD
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -141,6 +141,8 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Conflicted (Conflicted (..))
+import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
@@ -1384,12 +1386,6 @@ notifyUser dir = \case
         <> P.newline
         <> P.newline
         <> P.wrap "and then try merging again."
-  MergeConflictedTermName name _refs ->
-    pure . P.wrap $
-      "The term name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
-  MergeConflictedTypeName name _refs ->
-    pure . P.wrap $
-      "The type name" <> prettyName name <> "is ambiguous. Please resolve the ambiguity before merging."
   MergeConflictInvolvingBuiltin name ->
     pure . P.lines $
       [ P.wrap "Sorry, I wasn't able to perform the merge:",
@@ -1406,22 +1402,6 @@ notifyUser dir = \case
               <> "the same on both branches, or making neither of them a builtin, and then try the merge again."
           )
       ]
-  -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
-  MergeConstructorAlias aliceOrBob typeName conName1 conName2 ->
-    pure . P.lines $
-      [ P.wrap "Sorry, I wasn't able to perform the merge:",
-        "",
-        P.wrap $
-          "On"
-            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-            <> "the type"
-            <> prettyName typeName
-            <> "has a constructor with multiple names, and I can't perform a merge in this situation:",
-        "",
-        P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
-        "",
-        P.wrap "Please delete all but one name for each constructor, and then try merging again."
-      ]
   -- Note [DefnsInLibMessage] If you change this, also change the other similar one
   MergeDefnsInLib aliceOrBob ->
     pure . P.lines $
@@ -1434,54 +1414,6 @@ notifyUser dir = \case
             <> "subnamespaces representing library dependencies.",
         "",
         P.wrap "Please move or remove it and then try merging again."
-      ]
-  -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
-  MergeMissingConstructorName aliceOrBob name ->
-    pure . P.lines $
-      [ P.wrap "Sorry, I wasn't able to perform the merge:",
-        "",
-        P.wrap $
-          "On"
-            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-            <> "the type"
-            <> prettyName name
-            <> "has some constructors with missing names, and I can't perform a merge in this situation.",
-        "",
-        P.wrap $
-          "You can use"
-            <> IP.makeExample IP.view [prettyName name]
-            <> "and"
-            <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
-            <> "to give names to each unnamed constructor, and then try the merge again."
-      ]
-  -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
-  MergeNestedDeclAlias aliceOrBob shorterName longerName ->
-    pure . P.wrap $
-      "On"
-        <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-        <> "the type"
-        <> prettyName longerName
-        <> "is an alias of"
-        <> P.group (prettyName shorterName <> ".")
-        <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
-        <> "delete one copy, and then try merging again."
-  -- Note [StrayConstructorMessage] If you change this, also change the other similar one
-  MergeStrayConstructor aliceOrBob name ->
-    pure . P.lines $
-      [ P.wrap $
-          "Sorry, I wasn't able to perform the merge, because I need all constructor names to be nested somewhere"
-            <> "beneath the corresponding type name.",
-        "",
-        P.wrap $
-          "On"
-            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-            <> "the constructor"
-            <> prettyName name
-            <> "is not nested beneath the corresponding type name. Please either use"
-            <> IP.makeExample' IP.moveAll
-            <> "to move it, or if it's an extra copy, you can simply"
-            <> IP.makeExample' IP.delete
-            <> "it. Then try the merge again."
       ]
   PreviewMergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
@@ -2161,6 +2093,139 @@ notifyUser dir = \case
         <> P.newline
         <> "Synhash tokens: "
         <> P.text filename
+  ConflictedDefn operation defn ->
+    pure . P.wrap $
+      ( case defn of
+          TermDefn (Conflicted name _refs) -> "The term name" <> prettyName name <> "is ambiguous."
+          TypeDefn (Conflicted name _refs) -> "The type name" <> prettyName name <> "is ambiguous."
+      )
+        <> "Please resolve the ambiguity, then try to"
+        <> P.text operation
+        <> "again."
+  IncoherentDeclDuringMerge aliceOrBob reason ->
+    case reason of
+      -- Note [ConstructorAliasMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+        pure . P.lines $
+          [ P.wrap "Sorry, I wasn't able to perform the merge:",
+            "",
+            P.wrap $
+              "On"
+                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+                <> "the type"
+                <> prettyName typeName
+                <> "has a constructor with multiple names, and I can't perform a merge in this situation:",
+            "",
+            P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
+            "",
+            P.wrap "Please delete all but one name for each constructor, and then try merging again."
+          ]
+      -- Note [MissingConstructorNameMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'MissingConstructorName name ->
+        pure . P.lines $
+          [ P.wrap "Sorry, I wasn't able to perform the merge:",
+            "",
+            P.wrap $
+              "On"
+                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+                <> "the type"
+                <> prettyName name
+                <> "has some constructors with missing names, and I can't perform a merge in this situation.",
+            "",
+            P.wrap $
+              "You can use"
+                <> IP.makeExample IP.view [prettyName name]
+                <> "and"
+                <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
+                <> "to give names to each unnamed constructor, and then try the merge again."
+          ]
+      -- Note [NestedDeclAliasMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+        pure . P.wrap $
+          "On"
+            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+            <> "the type"
+            <> prettyName longerName
+            <> "is an alias of"
+            <> P.group (prettyName shorterName <> ".")
+            <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
+            <> "delete one copy, and then try merging again."
+      -- Note [StrayConstructorMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'StrayConstructor _typeRef name ->
+        pure . P.lines $
+          [ P.wrap $
+              "Sorry, I wasn't able to perform the merge, because I need all constructor names to be nested somewhere"
+                <> "beneath the corresponding type name.",
+            "",
+            P.wrap $
+              "On"
+                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
+                <> "the constructor"
+                <> prettyName name
+                <> "is not nested beneath the corresponding type name. Please either use"
+                <> IP.makeExample' IP.moveAll
+                <> "to move it, or if it's an extra copy, you can simply"
+                <> IP.makeExample' IP.delete
+                <> "it. Then try the merge again."
+          ]
+  IncoherentDeclDuringUpdate reason ->
+    case reason of
+      -- Note [ConstructorAliasMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+        pure . P.lines $
+          [ P.wrap "Sorry, I wasn't able to perform the update:",
+            "",
+            P.wrap $
+              "The type"
+                <> prettyName typeName
+                <> "has a constructor with multiple names, and I can't perform an update in this situation:",
+            "",
+            P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
+            "",
+            P.wrap "Please delete all but one name for each constructor, and then try updating again."
+          ]
+      -- Note [MissingConstructorNameMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'MissingConstructorName name ->
+        pure . P.lines $
+          [ P.wrap "Sorry, I wasn't able to perform the update:",
+            "",
+            P.wrap $
+              "The type"
+                <> prettyName name
+                <> "has some constructors with missing names, and I can't perform an update in this situation.",
+            "",
+            P.wrap $
+              "You can use"
+                <> IP.makeExample IP.view [prettyName name]
+                <> "and"
+                <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
+                <> "to give names to each unnamed constructor, and then try the update again."
+          ]
+      -- Note [NestedDeclAliasMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+        pure . P.wrap $
+          "The type"
+            <> prettyName longerName
+            <> "is an alias of"
+            <> P.group (prettyName shorterName <> ".")
+            <> "I'm not able to perform an update when a type exists nested under an alias of itself. Please separate"
+            <> "them or delete one copy, and then try updating again."
+      -- Note [StrayConstructorMessage] If you change this, also change the other similar ones
+      IncoherentDeclReason'StrayConstructor _typeRef name ->
+        pure . P.lines $
+          [ P.wrap $
+              "Sorry, I wasn't able to perform the update, because I need all constructor names to be nested somewhere"
+                <> "beneath the corresponding type name.",
+            "",
+            P.wrap $
+              "The constructor"
+                <> prettyName name
+                <> "is not nested beneath the corresponding type name. Please either use"
+                <> IP.makeExample' IP.moveAll
+                <> "to move it, or if it's an extra copy, you can simply"
+                <> IP.makeExample' IP.delete
+                <> "it. Then try the update again."
+          ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2701,7 +2766,7 @@ handleTodoOutput todo
                   things
                     & map
                       ( \(typeName, prettyCon1, prettyCon2) ->
-                          -- Note [ConstructorAliasMessage] If you change this, also change the other similar one
+                          -- Note [ConstructorAliasMessage] If you change this, also change the other similar ones
                           P.wrap ("The type" <> prettyName typeName <> "has a constructor with multiple names.")
                             <> P.newline
                             <> P.newline
@@ -2720,7 +2785,7 @@ handleTodoOutput todo
               for types0 \typ -> do
                 n <- addNumberedArg (SA.Name typ)
                 pure (n, typ)
-            -- Note [MissingConstructorNameMessage] If you change this, also change the other similar one
+            -- Note [MissingConstructorNameMessage] If you change this, also change the other similar ones
             pure $
               P.wrap
                 "These types have some constructors with missing names."
@@ -2753,7 +2818,7 @@ handleTodoOutput todo
                 n1 <- addNumberedArg (SA.Name short)
                 n2 <- addNumberedArg (SA.Name long)
                 pure (formatNum n1 <> prettyName short, formatNum n2 <> prettyName long)
-            -- Note [NestedDeclAliasMessage] If you change this, also change the other similar one
+            -- Note [NestedDeclAliasMessage] If you change this, also change the other similar ones
             pure $
               aliases1
                 & map
@@ -2773,9 +2838,9 @@ handleTodoOutput todo
           [] -> pure mempty
           constructors -> do
             nums <-
-              for constructors \constructor -> do
+              for constructors \(_typeRef, constructor) -> do
                 addNumberedArg (SA.Name constructor)
-            -- Note [StrayConstructorMessage] If you change this, also change the other similar one
+            -- Note [StrayConstructorMessage] If you change this, also change the other similar ones
             pure $
               P.wrap "These constructors are not nested beneath their corresponding type names:"
                 <> P.newline
@@ -2784,7 +2849,7 @@ handleTodoOutput todo
                   2
                   ( P.lines
                       ( zipWith
-                          (\n constructor -> formatNum n <> prettyName constructor)
+                          (\n (_typeRef, constructor) -> formatNum n <> prettyName constructor)
                           nums
                           constructors
                       )

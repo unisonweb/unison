@@ -104,6 +104,11 @@ scratch/main> find.verbose
 
 ```
 ``` unison:added-by-ucm scratch.u
+type Foo = { bar : Nat }
+
+-- The definitions below are not compatible with the updated definitions above.
+-- Please fix the errors and run `update` again.
+
 Foo.baz : Foo -> Int
 Foo.baz = cases Foo _ baz -> baz
 
@@ -113,6 +118,5 @@ Foo.baz.modify f = cases Foo bar baz -> Foo bar (f baz)
 Foo.baz.set : Int -> Foo -> Foo
 Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
 
-type Foo = { bar : Nat }
 ```
 

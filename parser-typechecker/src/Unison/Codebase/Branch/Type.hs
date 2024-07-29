@@ -10,8 +10,8 @@ module Unison.Codebase.Branch.Type
     Branch (..),
     Branch0,
     branch0,
-    terms,
-    types,
+    Unison.Codebase.Branch.Type.terms,
+    Unison.Codebase.Branch.Type.types,
     children,
     nonEmptyChildren,
     history,
@@ -19,6 +19,7 @@ module Unison.Codebase.Branch.Type
     isEmpty0,
     deepTerms,
     deepTypes,
+    deepDefns,
     deepPaths,
     deepEdits,
     Star,
@@ -47,9 +48,11 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference, TypeReference)
 import Unison.Referent (Referent)
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
+import Unison.Util.Relation qualified as Relation
 import Unison.Util.Star2 qualified as Star2
 import Prelude hiding (head, read, subtract)
 
@@ -147,6 +150,13 @@ deepTerms = _deepTerms
 
 deepTypes :: Branch0 m -> Relation TypeReference Name
 deepTypes = _deepTypes
+
+deepDefns :: Branch0 m -> DefnsF (Relation Name) Referent TypeReference
+deepDefns branch =
+  Defns
+    { terms = Relation.swap (deepTerms branch),
+      types = Relation.swap (deepTypes branch)
+    }
 
 deepPaths :: Branch0 m -> Set Path
 deepPaths = _deepPaths

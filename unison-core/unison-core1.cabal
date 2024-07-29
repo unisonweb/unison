@@ -55,6 +55,8 @@ library
       Unison.Type
       Unison.Type.Names
       Unison.Util.Components
+      Unison.Util.Conflicted
+      Unison.Util.Defn
       Unison.Util.Defns
       Unison.Util.Nametree
       Unison.Var
@@ -83,6 +85,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       OverloadedRecordDot
       PatternSynonyms
@@ -152,6 +155,7 @@ test-suite tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedLabels
       OverloadedStrings
       OverloadedRecordDot
       PatternSynonyms

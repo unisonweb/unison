@@ -68,12 +68,16 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+foo : Int
+foo = +5
+
+-- The definitions below are not compatible with the updated definitions above.
+-- Please fix the errors and run `update` again.
+
 bar : Nat
 bar =
   use Nat +
   foo + 10
 
-foo : Int
-foo = +5
 ```
 
