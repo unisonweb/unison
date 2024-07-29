@@ -81,10 +81,10 @@
 -- machinery was invented.
 module Unison.Merge.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
+    oldCheckDeclCoherency,
     checkDeclCoherency,
-    checkDeclCoherency2,
+    oldLenientCheckDeclCoherency,
     lenientCheckDeclCoherency,
-    lenientCheckDeclCoherency2,
 
     -- * Getting all failures rather than just the first
     IncoherentDeclReasons (..),
@@ -137,12 +137,12 @@ data IncoherentDeclReason
   | IncoherentDeclReason'StrayConstructor !TypeReferenceId !Name
   deriving stock (Show)
 
-checkDeclCoherency ::
+oldCheckDeclCoherency ::
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m (Either IncoherentDeclReason DeclNameLookup)
-checkDeclCoherency loadDeclNumConstructors nametree =
+oldCheckDeclCoherency loadDeclNumConstructors nametree =
   Except.runExceptT $
     checkDeclCoherencyWith
       (lift . loadDeclNumConstructors)
@@ -154,12 +154,12 @@ checkDeclCoherency loadDeclNumConstructors nametree =
         }
       nametree
 
-checkDeclCoherency2 ::
+checkDeclCoherency ::
   (HasCallStack) =>
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Map TypeReferenceId Int ->
   Either IncoherentDeclReason DeclNameLookup
-checkDeclCoherency2 nametree numConstructorsById =
+checkDeclCoherency nametree numConstructorsById =
   checkDeclCoherencyWith
     (\refId -> Right (expectNumConstructors refId numConstructorsById))
     OnIncoherentDeclReasons
@@ -366,13 +366,13 @@ checkDeclCoherencyWith_DoTypes2 loadDeclNumConstructors callbacks go prefix chil
 -- This function exists merely to extract a best-effort name mapping for the LCA of a merge. We require Alice and Bob to
 -- have coherent decls, but their LCA is out of the user's control and may have incoherent decls, and whether or not it
 -- does, we still need to compute *some* syntactic hash for its decls.
-lenientCheckDeclCoherency ::
+oldLenientCheckDeclCoherency ::
   forall m.
   (Monad m) =>
   (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   m PartialDeclNameLookup
-lenientCheckDeclCoherency loadDeclNumConstructors =
+oldLenientCheckDeclCoherency loadDeclNumConstructors =
   fmap (view #declNameLookup)
     . (`State.execStateT` LenientDeclCoherencyCheckState Map.empty (PartialDeclNameLookup Map.empty Map.empty))
     . go []
@@ -452,11 +452,11 @@ lenientCheckDeclCoherency loadDeclNumConstructors =
 -- This function exists merely to extract a best-effort name mapping for the LCA of a merge. We require Alice and Bob to
 -- have coherent decls, but their LCA is out of the user's control and may have incoherent decls, and whether or not it
 -- does, we still need to compute *some* syntactic hash for its decls.
-lenientCheckDeclCoherency2 ::
+lenientCheckDeclCoherency ::
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
   Map TypeReferenceId Int ->
   PartialDeclNameLookup
-lenientCheckDeclCoherency2 nametree numConstructorsById =
+lenientCheckDeclCoherency nametree numConstructorsById =
   nametree
     & go []
     & (`State.execState` LenientDeclCoherencyCheckState Map.empty (PartialDeclNameLookup Map.empty Map.empty))

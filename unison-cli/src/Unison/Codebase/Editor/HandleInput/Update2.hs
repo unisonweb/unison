@@ -38,7 +38,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
-import Unison.Merge.DeclCoherencyCheck (checkDeclCoherency)
+import Unison.Merge.DeclCoherencyCheck (oldCheckDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -84,7 +84,7 @@ handleUpdate2 = do
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
-    Cli.runTransaction (checkDeclCoherency Operations.expectDeclNumConstructors defns)
+    Cli.runTransaction (oldCheckDeclCoherency Operations.expectDeclNumConstructors defns)
       & onLeftM (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   Cli.respond Output.UpdateLookingForDependents

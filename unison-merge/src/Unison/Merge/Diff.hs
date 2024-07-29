@@ -1,6 +1,6 @@
 module Unison.Merge.Diff
-  ( nameBasedNamespaceDiff,
-    nameBasedNamespaceDiff2,
+  ( oldNameBasedNamespaceDiff,
+    nameBasedNamespaceDiff,
   )
 where
 
@@ -50,13 +50,13 @@ import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
 --
 -- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
 -- branches. If the hash of a name did not change, it will not appear in the map.
-nameBasedNamespaceDiff ::
+oldNameBasedNamespaceDiff ::
   MergeDatabase ->
   TwoWay DeclNameLookup ->
   PartialDeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Transaction (TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference))
-nameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns = do
+oldNameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns = do
   lcaHashes <- synhashLcaDefns db ppe lcaDeclNameLookup defns.lca
   hashes <- sequence (synhashDefns db ppe <$> declNameLookups <*> ThreeWay.forgetLca defns)
   pure (diffNamespaceDefns lcaHashes <$> hashes)
@@ -77,13 +77,13 @@ nameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns = do
 --
 -- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
 -- branches. If the hash of a name did not change, it will not appear in the map.
-nameBasedNamespaceDiff2 ::
+nameBasedNamespaceDiff ::
   TwoWay DeclNameLookup ->
   PartialDeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
   TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference)
-nameBasedNamespaceDiff2 declNameLookups lcaDeclNameLookup defns hydratedDefns =
+nameBasedNamespaceDiff declNameLookups lcaDeclNameLookup defns hydratedDefns =
   let lcaHashes = synhashLcaDefns2 ppe lcaDeclNameLookup defns.lca hydratedDefns
       hashes = synhashDefns2 ppe hydratedDefns <$> declNameLookups <*> ThreeWay.forgetLca defns
    in diffNamespaceDefns lcaHashes <$> hashes
