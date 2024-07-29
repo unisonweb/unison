@@ -355,7 +355,7 @@ doc2 = do
   (docTok, closeTok) <- local
     (\env -> env {inLayout = False})
     do
-      body <- Doc.doc typeOrTerm lexemes' . P.lookAhead $ () <$ lit "}}"
+      body <- Doc.doc typeOrTerm lexemes' . P.lookAhead $ lit "}}"
       closeStart <- posP
       lit "}}"
       closeEnd <- posP

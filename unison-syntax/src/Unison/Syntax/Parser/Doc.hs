@@ -5,12 +5,12 @@
 --
 -- - an identifer parser
 -- - a code parser (that accepts a termination parser)
--- - a termination parser (only used for lookahead), for this parser to know when to give up
+-- - a termination parser, for this parser to know when to give up
 --
 -- Each of those parsers is expected to satisfy @(`Ord` e, `P.MonadParsec` e `String` m)@.
 module Unison.Syntax.Parser.Doc
   ( Tree,
-    initialState,
+    initialEnv,
     doc,
     untitledSection,
     sectionElem,
@@ -52,7 +52,7 @@ module Unison.Syntax.Parser.Doc
 where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Monad.State qualified as S
+import Control.Monad.Reader qualified as R
 import Data.Char (isControl, isSpace)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
@@ -64,7 +64,7 @@ import Text.Megaparsec.Char qualified as CP
 import Text.Megaparsec.Char.Lexer qualified as LP
 import Unison.Parser.Ann (Ann, Annotated (..))
 import Unison.Prelude hiding (join)
-import Unison.Syntax.Lexer (column, line, lit, local, sepBy1', some', someTill', (<+>))
+import Unison.Syntax.Lexer (column, line, lit, sepBy1', some', someTill', (<+>))
 import Unison.Syntax.Lexer.Token (Token (Token), posP, tokenP)
 import Unison.Syntax.Parser.Doc.Data
 
@@ -79,16 +79,16 @@ data ParsingEnv = ParsingEnv
   }
   deriving (Show)
 
-initialState :: ParsingEnv
-initialState = ParsingEnv [0] 0
+initialEnv :: ParsingEnv
+initialEnv = ParsingEnv [0] 0
 
 doc ::
   (Ord e, P.MonadParsec e String m, Annotated code) =>
   m ident ->
   (m () -> m code) ->
-  m () ->
+  m end ->
   m (UntitledSection (Tree ident code))
-doc ident code = flip S.evalStateT initialState . untitledSection . sectionElem ident code
+doc ident code = flip R.runReaderT initialEnv . untitledSection . sectionElem ident code . void
 
 -- | This is the actual `Doc` lexer. Unlike `doc2`, it doesn’t do any Unison-side lexing (i.e., it doesn’t know that
 --   Unison wraps `Doc` literals in `}}`).
@@ -100,7 +100,7 @@ sectionElem ::
   m ident ->
   (m () -> m code) ->
   m () ->
-  S.StateT ParsingEnv m (Tree ident code)
+  R.ReaderT ParsingEnv m (Tree ident code)
 sectionElem ident code docClose =
   fmap wrap' $
     section ident code docClose
@@ -390,13 +390,13 @@ list ::
   m ident ->
   (m () -> m code) ->
   m () ->
-  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+  R.ReaderT ParsingEnv m (Top ident code (Tree ident code))
 list ident code docClose = bulletedList ident code docClose <|> numberedList ident code docClose
 
-listSep :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m ()
+listSep :: (Ord e, R.MonadReader ParsingEnv m, P.MonadParsec e String m) => m ()
 listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (void bulletedStart <|> void numberedStart)
 
-bulletedStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m (Int, [a])
+bulletedStart :: (Ord e, R.MonadReader ParsingEnv m, P.MonadParsec e String m) => m (Int, [a])
 bulletedStart = P.try $ do
   r <- listItemStart $ [] <$ P.satisfy bulletChar
   P.lookAhead (P.satisfy isSpace)
@@ -404,15 +404,15 @@ bulletedStart = P.try $ do
   where
     bulletChar ch = ch == '*' || ch == '-' || ch == '+'
 
-listItemStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m a -> m (Int, a)
+listItemStart :: (Ord e, R.MonadReader ParsingEnv m, P.MonadParsec e String m) => m a -> m (Int, a)
 listItemStart gutter = P.try do
   nonNewlineSpaces
   col <- column <$> posP
-  parentCol <- S.gets parentListColumn
+  parentCol <- R.asks parentListColumn
   guard (col > parentCol)
   (col,) <$> gutter
 
-numberedStart :: (Ord e, S.MonadState ParsingEnv m, P.MonadParsec e String m) => m (Int, Token Word64)
+numberedStart :: (Ord e, R.MonadReader ParsingEnv m, P.MonadParsec e String m) => m (Int, Token Word64)
 numberedStart = listItemStart $ P.try (tokenP $ LP.decimal <* lit ".")
 
 -- | FIXME: This should take a @`P` a@
@@ -421,7 +421,7 @@ numberedList ::
   m ident ->
   (m () -> m code) ->
   m () ->
-  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+  R.ReaderT ParsingEnv m (Top ident code (Tree ident code))
 numberedList ident code docClose = NumberedList <$> sepBy1' numberedItem listSep
   where
     numberedItem = P.label "numbered list (examples: 1. item1, 8. start numbering at '8')" do
@@ -434,7 +434,7 @@ bulletedList ::
   m ident ->
   (m () -> m code) ->
   m () ->
-  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+  R.ReaderT ParsingEnv m (Top ident code (Tree ident code))
 bulletedList ident code docClose = BulletedList <$> sepBy1' bullet listSep
   where
     bullet = P.label "bullet (examples: * item1, - item2)" do
@@ -447,11 +447,11 @@ column' ::
   (m () -> m code) ->
   m () ->
   Int ->
-  S.StateT ParsingEnv m (Column (Tree ident code))
+  R.ReaderT ParsingEnv m (Column (Tree ident code))
 column' ident code docClose col =
   Column . wrap'
     <$> (nonNewlineSpaces *> listItemParagraph)
-    <*> local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> fmap wrap' (list ident code docClose))
+    <*> R.local (\e -> e {parentListColumn = col}) (P.optional $ listSep *> fmap wrap' (list ident code docClose))
   where
     listItemParagraph =
       Paragraph <$> do
@@ -497,14 +497,14 @@ section ::
   m ident ->
   (m () -> m code) ->
   m () ->
-  S.StateT ParsingEnv m (Top ident code (Tree ident code))
+  R.ReaderT ParsingEnv m (Top ident code (Tree ident code))
 section ident code docClose = do
-  ns <- S.gets parentSections
+  ns <- R.asks parentSections
   hashes <- lift $ P.try $ lit (replicate (head ns) '#') *> P.takeWhile1P Nothing (== '#') <* sp docClose
   title <- lift $ paragraph ident code docClose <* CP.space
   let m = length hashes + head ns
   body <-
-    local (\env -> env {parentSections = (m : (tail ns))}) $
+    R.local (\env -> env {parentSections = m : tail ns}) $
       P.many (sectionElem ident code docClose <* CP.space)
   pure $ Section (wrap' title) body
 
