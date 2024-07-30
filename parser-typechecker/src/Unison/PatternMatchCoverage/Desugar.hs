@@ -20,8 +20,6 @@ import Unison.Type qualified as Type
 desugarMatch ::
   forall loc vt v m.
   (Pmc vt v loc m) =>
-  -- | loc of match
-  loc ->
   -- | scrutinee type
   Type vt loc ->
   -- | scrutinee variable
@@ -29,7 +27,7 @@ desugarMatch ::
   -- | match cases
   NonEmpty (MatchCase loc (Term' vt v loc)) ->
   m (GrdTree (PmGrd vt v loc) loc)
-desugarMatch loc0 scrutineeType v0 cs0 = Fork <$> traverse desugarClause cs0
+desugarMatch scrutineeType v0 cs0 = Fork <$> traverse desugarClause cs0
   where
     desugarClause :: MatchCase loc (Term' vt v loc) -> m (GrdTree (PmGrd vt v loc) loc)
     desugarClause MatchCase {matchPattern, matchGuard} =

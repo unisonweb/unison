@@ -54,18 +54,16 @@ import Unison.Util.Pretty qualified as P
 checkMatch ::
   forall vt v loc m.
   (Pmc vt v loc m) =>
-  -- | the match location
-  loc ->
   -- | scrutinee type
   Type.Type vt loc ->
   -- | match cases
   [Term.MatchCase loc (Term.Term' vt v loc)] ->
   -- | (redundant locations, inaccessible locations, inhabitants of uncovered refinement type)
   m ([loc], [loc], [Pattern ()])
-checkMatch matchLocation scrutineeType cases = do
+checkMatch scrutineeType cases = do
   ppe <- getPrettyPrintEnv
   v0 <- fresh
-  mgrdtree0 <- traverse (desugarMatch matchLocation scrutineeType v0) (nonEmpty cases)
+  mgrdtree0 <- traverse (desugarMatch scrutineeType v0) (nonEmpty cases)
   doDebug (P.hang (title "desugared:") (prettyGrdTreeMaybe (prettyPmGrd ppe) (\_ -> "<loc>") mgrdtree0)) (pure ())
   let initialUncovered = Set.singleton (NC.markDirty v0 $ NC.declVar v0 scrutineeType id NC.emptyNormalizedConstraints)
   (uncovered, grdtree1) <- case mgrdtree0 of
