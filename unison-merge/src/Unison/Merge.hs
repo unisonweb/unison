@@ -24,7 +24,9 @@ module Unison.Merge
     partitionCombinedDiffs,
 
     -- * Merging libdeps
-    mergeLibdeps,
+    LibdepDiffOp (..),
+    diffLibdeps,
+    applyLibdepsDiff,
 
     -- * Utility types
     EitherWay (..),
@@ -53,7 +55,7 @@ import Unison.Merge.Diff (nameBasedNamespaceDiff, oldNameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
-import Unison.Merge.Libdeps (mergeLibdeps)
+import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Synhashed (Synhashed (..))

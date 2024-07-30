@@ -296,7 +296,7 @@ doMerge info = do
       mergedLibdeps <-
         Cli.runTransaction do
           libdeps <- loadLibdeps branches
-          libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
+          libdepsToBranch0 db (Merge.applyLibdepsDiff getTwoFreshNames libdeps (Merge.diffLibdeps libdeps))
 
       -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
       let mkPpes :: Merge.TwoWay Names -> Names -> Merge.TwoWay PrettyPrintEnvDecl
