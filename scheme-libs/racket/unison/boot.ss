@@ -272,7 +272,7 @@
              [force-pure? #t]
              [gen-link? #f]
              [no-link-decl? #f]
-             [trace? #t])
+             [trace? #f])
             ([h hs])
     (values
       (or internal? (eq? h 'internal))
