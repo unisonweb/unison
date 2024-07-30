@@ -48,12 +48,6 @@ module Unison.Sync.Types
     UploadEntitiesResponse (..),
     UploadEntitiesError (..),
 
-    -- ** Update path
-    UpdatePathRequest (..),
-    UpdatePathResponse (..),
-    UpdatePathError (..),
-    HashMismatch (..),
-
     -- * Common/shared error types
     HashMismatchForEntity (..),
     InvalidParentage (..),
@@ -755,89 +749,6 @@ instance ToJSON InvalidParentage where
 instance FromJSON InvalidParentage where
   parseJSON =
     Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
-
-------------------------------------------------------------------------------------------------------------------------
--- Update path
-
-data UpdatePathRequest = UpdatePathRequest
-  { path :: Path,
-    expectedHash :: Maybe Hash32, -- Nothing requires empty history at destination
-    newHash :: Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathRequest where
-  toJSON (UpdatePathRequest path expectedHash newHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "new_hash" .= newHash
-      ]
-
-instance FromJSON UpdatePathRequest where
-  parseJSON = Aeson.withObject "UpdatePathRequest" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    newHash <- obj .: "new_hash"
-    pure UpdatePathRequest {..}
-
-data UpdatePathResponse
-  = UpdatePathSuccess
-  | UpdatePathFailure UpdatePathError
-  deriving stock (Show, Eq, Ord)
-
-data UpdatePathError
-  = UpdatePathError'HashMismatch HashMismatch
-  | UpdatePathError'InvalidRepoInfo Text RepoInfo -- err msg, repo info
-  | UpdatePathError'MissingDependencies (NeedDependencies Hash32)
-  | UpdatePathError'NoWritePermission Path
-  | UpdatePathError'UserNotFound
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathResponse where
-  toJSON = \case
-    UpdatePathSuccess -> jsonUnion "success" (Object mempty)
-    UpdatePathFailure (UpdatePathError'HashMismatch hm) -> jsonUnion "hash_mismatch" hm
-    UpdatePathFailure (UpdatePathError'MissingDependencies md) -> jsonUnion "missing_dependencies" md
-    UpdatePathFailure (UpdatePathError'NoWritePermission path) -> jsonUnion "no_write_permission" path
-    UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo) -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
-    UpdatePathFailure UpdatePathError'UserNotFound -> jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON UpdatePathResponse where
-  parseJSON v =
-    v & Aeson.withObject "UpdatePathResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UpdatePathSuccess
-        "hash_mismatch" -> UpdatePathFailure . UpdatePathError'HashMismatch <$> obj .: "payload"
-        "missing_dependencies" -> UpdatePathFailure . UpdatePathError'MissingDependencies <$> obj .: "payload"
-        "no_write_permission" -> UpdatePathFailure . UpdatePathError'NoWritePermission <$> obj .: "payload"
-        "invalid_repo_info" -> do
-          (errMsg, repoInfo) <- obj .: "payload"
-          pure (UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo))
-        "user_not_found" -> pure (UpdatePathFailure UpdatePathError'UserNotFound)
-        t -> failText $ "Unexpected UpdatePathResponse type: " <> t
-
-data HashMismatch = HashMismatch
-  { path :: Path,
-    expectedHash :: Maybe Hash32,
-    actualHash :: Maybe Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON HashMismatch where
-  toJSON (HashMismatch path expectedHash actualHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "actual_hash" .= actualHash
-      ]
-
-instance FromJSON HashMismatch where
-  parseJSON = Aeson.withObject "HashMismatch" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    actualHash <- obj .: "actual_hash"
-    pure HashMismatch {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Common/shared error types

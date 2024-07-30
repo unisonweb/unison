@@ -5,6 +5,8 @@ module Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
 where
 
 import Control.Monad.Reader (ask)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -22,11 +24,9 @@ import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference qualified as Reference
+import Unison.Syntax.Name qualified as Name
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import qualified Unison.Syntax.Name as Name
 
 handleDebugSynhashTerm :: Name -> Cli ()
 handleDebugSynhashTerm name = do

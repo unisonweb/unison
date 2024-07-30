@@ -60,6 +60,7 @@ import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
+import Text.Megaparsec qualified as MP
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
@@ -73,7 +74,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.SqliteCodebase qualified as SC
-import Unison.Codebase.TranscriptParser qualified as TR
+import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine (watchConfig)
 import Unison.CommandLine.Helpers (plural')
@@ -424,49 +425,55 @@ runTranscripts' version progName mcodepath nativeRtp transcriptDir markdownFiles
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-  and <$> getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, codebasePath, theCodebase) -> do
-    let isTest = False
-    TR.withTranscriptRunner isTest Verbosity.Verbose (Version.gitDescribeWithDate version) nativeRtp (Just configFilePath) $ \runTranscript -> do
-      for markdownFiles $ \(MarkdownFile fileName) -> do
-        transcriptSrc <- readUtf8 fileName
-        result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
-        let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
-        (output, succeeded) <- case result of
-          Left err -> case err of
-            TR.TranscriptParseError err -> do
-              PT.putPrettyLn $
-                P.callout
-                  "❓"
-                  ( P.lines
-                      [ P.indentN 2 "An error occurred while parsing the following file: " <> P.string fileName,
-                        "",
-                        P.indentN 2 $ P.text err
-                      ]
+  and
+    <$> getCodebaseOrExit
+      (Just (DontCreateCodebaseWhenMissing transcriptDir))
+      (SC.MigrateAutomatically SC.Backup SC.Vacuum)
+      \(_, codebasePath, theCodebase) -> do
+        let isTest = False
+        Transcript.withRunner
+          isTest
+          Verbosity.Verbose
+          (Version.gitDescribeWithDate version)
+          nativeRtp
+          (Just configFilePath)
+          \runTranscript -> do
+            for markdownFiles $ \(MarkdownFile fileName) -> do
+              transcriptSrc <- readUtf8 fileName
+              result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
+              let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
+              output <-
+                either
+                  ( uncurry ($>) . first (PT.putPrettyLn . P.callout "❓" . P.lines) . \case
+                      Transcript.ParseError err ->
+                        let msg = MP.errorBundlePretty err
+                         in ( [ P.indentN 2 $
+                                  "An error occurred while parsing the following file: " <> P.string fileName,
+                                "",
+                                P.indentN 2 $ P.string msg
+                              ],
+                              Text.pack msg
+                            )
+                      Transcript.RunFailure msg ->
+                        ( [ P.indentN 2 $ "An error occurred while running the following file: " <> P.string fileName,
+                            "",
+                            P.indentN 2 (P.text msg),
+                            P.string $
+                              "Run `"
+                                <> progName
+                                <> " --codebase "
+                                <> codebasePath
+                                <> "` "
+                                <> "to do more work with it."
+                          ],
+                          msg
+                        )
                   )
-              pure (err, False)
-            TR.TranscriptRunFailure err -> do
-              PT.putPrettyLn $
-                P.callout
-                  "❓"
-                  ( P.lines
-                      [ P.indentN 2 "An error occurred while running the following file: " <> P.string fileName,
-                        "",
-                        P.indentN 2 $ P.text err,
-                        P.text $
-                          "Run `"
-                            <> Text.pack progName
-                            <> " --codebase "
-                            <> Text.pack codebasePath
-                            <> "` "
-                            <> "to do more work with it."
-                      ]
-                  )
-              pure (err, False)
-          Right mdOut -> do
-            pure (mdOut, True)
-        writeUtf8 outputFile output
-        putStrLn $ "💾  Wrote " <> outputFile
-        pure succeeded
+                  pure
+                  result
+              writeUtf8 outputFile output
+              putStrLn $ "💾  Wrote " <> outputFile
+              pure $ isRight result
 
 runTranscripts ::
   Version ->

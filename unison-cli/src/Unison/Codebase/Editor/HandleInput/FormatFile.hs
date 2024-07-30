@@ -39,7 +39,7 @@ import Unison.Var qualified as Var
 
 -- | Format a file, returning a list of Text replacements to apply to the file.
 formatFile ::
-  Monad m =>
+  (Monad m) =>
   (Maybe (UnisonFile Symbol Ann.Ann) -> Maybe (TypecheckedUnisonFile Symbol Ann.Ann) -> m PPED.PrettyPrintEnvDecl) ->
   Int ->
   Path.Absolute ->
@@ -197,7 +197,7 @@ annToInterval ann = annToRange ann <&> rangeToInterval
 
 -- | Returns 'True' if the given symbol is a term with a user provided type signature in the
 -- parsed file, false otherwise.
-hasUserTypeSignature :: Eq v => UnisonFile v a -> v -> Bool
+hasUserTypeSignature :: (Eq v) => UnisonFile v a -> v -> Bool
 hasUserTypeSignature parsedFile sym =
   Map.toList (UF.terms parsedFile)
     & any (\(v, (_, trm)) -> v == sym && isJust (Term.getTypeAnnotation trm))

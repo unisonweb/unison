@@ -34,9 +34,9 @@ foo = do
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       foo : '{Exception} ()
 
 ```
@@ -58,10 +58,10 @@ an exception.
 runtime-tests/selected> run.native testBug
 
   💔💥
-
+  
   I've encountered a call to builtin.bug with the following
   value:
-
+  
     "testing"
 
 ```

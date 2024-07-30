@@ -39,8 +39,8 @@ scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.ch
     14. List.tail          : [a] -> Optional [a]
     15. List.takeWhile     : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
   
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
 scratch/main> find-in mylib
 

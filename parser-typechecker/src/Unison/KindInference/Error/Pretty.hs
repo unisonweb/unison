@@ -17,7 +17,7 @@ import Unison.Var (Var)
 
 -- | Pretty print a user-facing @KindError@.
 prettyKindError ::
-  Var v =>
+  (Var v) =>
   -- | How to print types
   (Type v loc -> Pretty ColorText) ->
   -- | How to print source spans

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env sh
 set -ex
 
 # the first arg is the path to the unison executable
@@ -7,9 +7,6 @@ if [ -z "$1" ]; then
   echo "Example: $0 ./unison --runtime-path ./runtime/bin/unison-runtime"
   exit 1
 fi
-
-# call unison with all its args quoted
-ucm=("$@")
 
 runtime_tests_version="@unison/runtime-tests/main"
 echo $runtime_tests_version
@@ -27,4 +24,5 @@ runtime_tests_version="$runtime_tests_version" \
     < unison-src/builtin-tests/jit-tests.tpl.md \
     > unison-src/builtin-tests/jit-tests.md
 
-time "${ucm[@]}" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/jit-tests.md
+# call unison with all its args quoted
+time "$@" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/jit-tests.md

@@ -249,7 +249,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 
     guard x a = if x then Just a else Nothing
 
-    suggestedVar :: Var v => v -> Text -> v
+    suggestedVar :: (Var v) => v -> Text -> v
     suggestedVar v name =
       case Var.typeOf v of
         Var.MissingResult -> v

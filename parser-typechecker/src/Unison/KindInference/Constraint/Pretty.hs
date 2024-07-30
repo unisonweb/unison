@@ -43,7 +43,7 @@ prettyArrow prec lhs rhs =
    in wrap (lhs <> " -> " <> rhs)
 
 prettyCyclicSolvedConstraint ::
-  Var v =>
+  (Var v) =>
   Solved.Constraint (UVar v loc) v loc ->
   Int ->
   Map (UVar v loc) (P.Pretty P.ColorText) ->
@@ -62,7 +62,7 @@ prettyCyclicSolvedConstraint constraint prec nameMap visitingSet = case constrai
     pure (prettyArrow prec pa pb, cyclicLhs <> cyclicRhs)
 
 prettyCyclicUVarKindWorker ::
-  Var v =>
+  (Var v) =>
   Int ->
   UVar v loc ->
   Map (UVar v loc) (P.Pretty P.ColorText) ->
@@ -78,11 +78,11 @@ prettyCyclicUVarKindWorker prec u nameMap visitingSet =
 -- | Pretty print the kind constraint on the given @UVar@.
 --
 -- __Precondition:__ The @ConstraintMap@ is acyclic.
-prettyUVarKind :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
+prettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
 prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
   prettyUVarKind' arrPrec uvar
 
-prettyUVarKind' :: Var v => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
+prettyUVarKind' :: (Var v) => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
 prettyUVarKind' prec u =
   find u >>= \case
     Nothing -> pure (prettyUnknown prec)
@@ -92,7 +92,7 @@ prettyUVarKind' prec u =
 --
 -- __Precondition:__ The @ConstraintMap@ is acyclic.
 prettySolvedConstraint ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   ConstraintMap v loc ->
   Solved.Constraint (UVar v loc) v loc ->
@@ -100,7 +100,7 @@ prettySolvedConstraint ::
 prettySolvedConstraint ppe constraints c =
   ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
 
-prettySolvedConstraint' :: Var v => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
+prettySolvedConstraint' :: (Var v) => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
 prettySolvedConstraint' prec = \case
   Solved.IsAbility _ -> pure (prettyAbility prec)
   Solved.IsType _ -> pure (prettyType prec)
@@ -113,7 +113,7 @@ prettySolvedConstraint' prec = \case
 -- constraint map, but no constraints are added. This runner just
 -- allows running pretty printers outside of the @Solve@ monad by
 -- discarding the resulting state.
-ppRunner :: Var v => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
+ppRunner :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
 ppRunner ppe constraints =
   let st =
         SolveState
@@ -130,7 +130,7 @@ ppRunner ppe constraints =
 --
 -- __Precondition:__ The @UVar@ has a cyclic constraint.
 prettyCyclicUVarKind ::
-  Var v =>
+  (Var v) =>
   PrettyPrintEnv ->
   ConstraintMap v loc ->
   UVar v loc ->

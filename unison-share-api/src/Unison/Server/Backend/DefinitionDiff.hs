@@ -16,7 +16,7 @@ import Unison.Server.Types (DisplayObjectDiff (..), SemanticSyntaxDiff (..))
 import Unison.Util.AnnotatedText (AnnotatedText (..))
 import Unison.Util.AnnotatedText qualified as AT
 
-diffDisplayObjects :: HasCallStack => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
+diffDisplayObjects :: (HasCallStack) => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
 diffDisplayObjects from to = case (from, to) of
   (BuiltinObject fromST, BuiltinObject toST) -> DisplayObjectDiff (BuiltinObject (diffSyntaxText fromST toST))
   (MissingObject fromSH, MissingObject toSH)

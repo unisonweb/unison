@@ -489,7 +489,7 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Merge precondition violation checks
 
-hasDefnsInLib :: Applicative m => V2.Branch m -> m Bool
+hasDefnsInLib :: (Applicative m) => V2.Branch m -> m Bool
 hasDefnsInLib branch = do
   libdeps <-
     case Map.lookup NameSegment.libSegment branch.children of

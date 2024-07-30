@@ -258,7 +258,6 @@ findSmallestEnclosingNode pos term
       _ -> Nothing
     ann = getTermSpanAnn term
 
-
 -- | Most nodes have the property that their annotation spans all their children, but there are some exceptions.
 getTermSpanAnn :: Term Symbol Ann -> Ann
 getTermSpanAnn tm = case ABT.out tm of

@@ -82,12 +82,12 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
           q = \case
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
               if
-                  | ref == DD.testResultRef ->
-                      if
-                          | cid == DD.okConstructorId -> Just (Right msg)
-                          | cid == DD.failConstructorId -> Just (Left msg)
-                          | otherwise -> Nothing
-                  | otherwise -> Nothing
+                | ref == DD.testResultRef ->
+                    if
+                      | cid == DD.okConstructorId -> Just (Right msg)
+                      | cid == DD.failConstructorId -> Just (Left msg)
+                      | otherwise -> Nothing
+                | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <- Cli.currentNames
@@ -225,9 +225,9 @@ partitionTestResults tm = fold $ do
     Term.App' (Term.Constructor' (ConstructorReference conRef cid)) (Term.Text' msg) -> do
       guard (conRef == DD.testResultRef)
       if
-          | cid == DD.okConstructorId -> pure (mempty, [msg])
-          | cid == DD.failConstructorId -> pure ([msg], mempty)
-          | otherwise -> empty
+        | cid == DD.okConstructorId -> pure (mempty, [msg])
+        | cid == DD.failConstructorId -> pure ([msg], mempty)
+        | otherwise -> empty
     _ -> empty
 
 isTestOk :: Term v Ann -> Bool

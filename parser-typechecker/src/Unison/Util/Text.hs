@@ -140,8 +140,8 @@ indexOf needle haystack =
 ordinal :: (IsString s) => Int -> s
 ordinal n = do
   let s = show n
-  fromString $ s ++
-    case L.drop (L.length s - 2) s of
+  fromString $
+    s ++ case L.drop (L.length s - 2) s of
       ['1', '1'] -> "th"
       ['1', '2'] -> "th"
       ['1', '3'] -> "th"

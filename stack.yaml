@@ -1,3 +1,8 @@
+## We intentionally disable Nix integration when running in a Nix shell.
+notify-if-nix-on-path: false
+## We pin a specific Stack version when possible. We shouldn’t then tell contributors to upgrade from there.
+recommend-stack-upgrade: false
+
 flags:
   haskeline:
     terminfo: false
