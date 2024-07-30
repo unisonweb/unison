@@ -1525,7 +1525,7 @@ ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
             constructorCache = mempty
           }
   (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
-    checkMatch matchLoc scrutineeType cases
+    checkMatch scrutineeType cases
   let checkUncovered = case Nel.nonEmpty uncovered of
         Nothing -> pure ()
         Just xs -> failWith (UncoveredPatterns matchLoc xs)
