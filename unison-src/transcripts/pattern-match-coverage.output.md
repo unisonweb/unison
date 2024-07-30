@@ -1,5 +1,49 @@
 # Basics
 
+## uninhabited types
+
+``` unison
+structural type Void =
+
+test : Void -> a
+test x = match x with
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type Void
+      test : Void -> a
+
+```
+This one is broken but shouldn't be:
+
+``` unison
+structural type Void =
+
+test : Void -> a
+test = cases
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  Pattern match doesn't cover all possible cases:
+        4 | test = cases
+    
+  
+  Patterns not matched:
+   * ()
+
+```
 ## non-exhaustive patterns
 
 ``` unison
@@ -1335,6 +1379,6 @@ result f =
     
       ability GiveA a
       ability GiveB a
-      result : '{e, GiveA V, GiveB V} r ->{e} r
+      result : '{e, GiveB V, GiveA V} r ->{e} r
 
 ```
