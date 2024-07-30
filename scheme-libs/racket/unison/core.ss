@@ -195,17 +195,14 @@
      (string-append "{Code " (describe-value v) "}")]
     [(unison-cont-reflected fs) "{Continuation}"]
     [(unison-cont-wrapped _) "{Continuation}"]
-    [(unison-closure _ code env)
+    [(unison-closure code env)
      (define dc
        (termlink->string (lookup-function-link code) #t))
      (define (f v)
        (string-append " " (describe-value v)))
 
      (string-append* dc (map f env))]
-    [(? procedure?)
-     (string-append
-       "ref"
-       (termlink->string (lookup-function-link x) #t))]
+    [(? procedure?) (describe-value (build-closure x))]
     [(? chunked-list?)
      (describe-list-sq (vector->list (chunked-list->vector x)))]
     [(? chunked-string?)
@@ -310,8 +307,8 @@
 
 (define (value->category v)
   (cond
-    [(procedure? v) 0]
     [(unison-closure? v) 0]
+    [(procedure? v) 0]
     [(number? v) 1]
     [(char? v) 1]
     [(boolean? v) 1]
@@ -350,11 +347,11 @@
 
 (define (compare-proc l r cmp-ty)
   (define (unpack v)
-    (if (procedure? v)
-      (values (lookup-function-link v) '())
-      (values
-        (lookup-function-link (unison-closure-code v))
-        (unison-closure-env v))))
+    (define clo (build-closure v))
+
+    (values
+      (lookup-function-link (unison-closure-code clo))
+      (unison-closure-env clo)))
 
   (define-values (lnl envl) (unpack l))
 

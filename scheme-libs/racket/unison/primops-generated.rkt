@@ -511,7 +511,7 @@
               (map typelink->reference refs)
               (reflect-handlers hs))
             (append args vs))]))]
-    [(unison-closure arity f as)
+    [(unison-closure f as)
      (ref-value-partial
        (function->groupref f)
        (list->chunked-list (map reflect-value as)))]
@@ -532,7 +532,7 @@
     [(? chunked-list?)
      (for/fold ([acc '()]) ([e (in-chunked-list v)])
        (append (sandbox-value ok e) acc))]
-    [(unison-closure arity f as)
+    [(unison-closure f as)
      (for/fold ([acc (sandbox-proc ok f)]) ([a (in-list as)])
        (append (sandbox-scheme-value ok a) acc))]
     [(? procedure?) (sandbox-proc ok v)]

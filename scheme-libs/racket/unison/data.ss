@@ -33,6 +33,8 @@
   (struct-out unison-quote)
   (struct-out unison-timespec)
 
+  build-closure
+
   call-with-handler
   call-with-marks
 
@@ -302,7 +304,7 @@
   (write-string ")" port))
 
 (struct unison-closure
-  (arity code env)
+  (code env)
   #:transparent
   #:methods gen:custom-write
   [(define (write-proc clo port mode)
@@ -324,24 +326,38 @@
   ; This means that there is never a bare unison function being passed
   ; as a value. So, we can define the slow path here once and for all.
   #:property prop:procedure
-  (lambda (clo #:pure [pure? #f] #:by-name [by-name? #f] . rest)
-    (define arity (unison-closure-arity clo))
-    (define old-env (unison-closure-env clo))
+  (lambda (clo . rest)
     (define code (unison-closure-code clo))
+    (define arity (procedure-arity code))
+    (define old-env (unison-closure-env clo))
 
     (define new-env (append old-env rest))
     (define k (length rest))
     (define l (length new-env))
     (cond
-      [(or by-name? (> arity l))
-       (struct-copy unison-closure clo [env new-env])]
       [(= arity l) ; saturated
-       (apply code #:pure pure? new-env)]
+       (apply code new-env)]
       [(= k 0) clo] ; special case, 0-applying undersaturated
       [(< arity l)
        ; TODO: pending arg annotation if no pure?
        (define-values (now pending) (split-at new-env arity))
-       (apply (apply code #:pure pure? now) #:pure pure? pending)])))
+       (apply (apply code now) pending)])))
+
+(define (reflect-procedure f)
+  (if (unison-closure? f)
+    f
+    (let-values ([(req opt) (procedure-keywords f)])
+      (if (member '#:reflect opt)
+        ; 0-arg case
+        (f #:reflect #t)
+        ; otherwise, by convention, applying enough to 0 args reflects
+        ((f))))))
+
+(define (build-closure f . args)
+  (define clo (reflect-procedure f))
+  (define env (unison-closure-env clo))
+
+  (struct-copy unison-closure clo [env (append env args)]))
 
 (struct unison-timespec (sec nsec)
   #:transparent

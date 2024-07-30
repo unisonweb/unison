@@ -130,6 +130,7 @@
   racket/performance-hint
   racket/trace
   unison/core
+  unison/curry
   unison/data
   unison/sandbox
   unison/data-info
@@ -204,7 +205,7 @@
                 [args arg:stx]
                 [body body:stx])
     (syntax/loc body:stx
-      (define (name:impl #:pure pure? . args) . body))))
+      (define (name:impl . args) . body))))
 
 (define frame-contents (gensym))
 
@@ -238,105 +239,12 @@
               (vector . args)
               (name:impl #:pure pure? . args))))))))
 
-; Slow path -- unnecessary
-; (define-for-syntax (make-slow-path loc name argstx)
-;   (with-syntax ([name:slow (adjust-symbol name "slow")]
-;                 [n (length (syntax->list argstx))])
-;     (syntax/loc loc
-;       (define (name:slow #:pure pure? . as)
-;         (define k (length as))
-;         (cond
-;           [(< k n) (unison-closure n name:slow as)]
-;           [(= k n) (apply name:fast #:pure pure? as)]
-;           [(> k n)
-;            (define-values (h t) (split-at as n))
-;            (apply
-;              (apply name:fast #:pure pure? h)
-;              #:pure pure?
-;              t)])))))
-
-; This definition builds a macro that defines the behavior of actual
-; occurences of the definition names. It has the following behavior:
-;
-; 1. Exactly saturated occurences directly call the fast path
-; 2. Undersaturated or unapplied occurrences become closure
-;    construction
-; 3. Oversaturated occurrences become an appropriate nested
-;    application
-;
-; Because of point 2, all function values end up represented as
-; unison-closure objects, so a slow path procedure is no longer
-; necessary; it is handled by the prop:procedure of the closure
-; structure. This should also make various universal operations easier
-; to handle, because we can just test for unison-closures, instead of
-; having to deal with raw procedures.
-(define-for-syntax
-  (make-callsite-macro
-    #:internal internal?
-    loc ; original location
-    name:stx name:fast:stx
-    arity:val)
+(define-for-syntax (make-main loc name:stx name:impl:stx n)
   (with-syntax ([name name:stx]
-                [name:fast name:fast:stx]
-                [arity arity:val])
-    (cond
-      [internal?
-        (syntax/loc loc
-          (define-syntax (name stx)
-            (syntax-case stx ()
-              [(_ #:by-name _ . bs)
-               (syntax/loc stx
-                 (unison-closure arity name:fast (list . bs)))]
-              [(_ . bs)
-               (let ([k (length (syntax->list #'bs))])
-                 (cond
-                   [(= arity k) ; saturated
-                    (syntax/loc stx
-                      (name:fast #:pure #t . bs))]
-                   [(> arity k) ; undersaturated
-                    (syntax/loc stx
-                      (unison-closure arity name:fast (list . bs)))]
-                   [(< arity k) ; oversaturated
-                    (define-values (h t)
-                      (split-at (syntax->list #'bs) arity))
-
-                    (quasisyntax/loc stx
-                      ((name:fast #:pure #t #,@h) #,@t))]))]
-              [_ (syntax/loc stx
-                   (unison-closure arity name:fast (list)))])))]
-      [else
-        (syntax/loc loc
-          (define-syntax (name stx)
-            (syntax-case stx ()
-              [(_ #:by-name _ . bs)
-               (syntax/loc stx
-                 (unison-closure arity name:fast (list . bs)))]
-              [(_ . bs)
-               (let ([k (length (syntax->list #'bs))])
-
-                 ; todo: purity
-
-                 ; capture local pure?
-                 (with-syntax ([pure? (format-id stx "pure?")])
-                   (cond
-                     [(= arity k) ; saturated
-                      (syntax/loc stx
-                        (name:fast #:pure pure? . bs))]
-                     [(> arity k)
-                      (syntax/loc stx
-                        (unison-closure n name:fast (list . bs)))]
-                     [(< arity k) ; oversaturated
-                      (define-values (h t)
-                        (split-at (syntax->list #'bs) arity))
-
-                      ; TODO: pending argument frame
-                      (quasisyntax/loc stx
-                        ((name:fast #:pure pure? #,@h)
-                         #:pure pure?
-                         #,@t))])))]
-              ; non-applied occurrence; partial ap immediately
-              [_ (syntax/loc stx
-                   (unison-closure arity name:fast (list)))])))])))
+                [name:impl name:impl:stx]
+                [n (datum->syntax loc n)])
+    (syntax/loc loc
+      (define name (unison-curry n name:impl)))))
 
 (define-for-syntax
   (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)
@@ -410,18 +318,16 @@
     (with-syntax
       ([(link ...) (make-link-def gen-link? loc name:stx name:link:stx)]
        [fast (make-fast-path
-               #:force-pure force-pure?
+               #:force-pure #t ; force-pure?
                loc name:fast:stx name:impl:stx arg:stx)]
        [impl (make-impl name:impl:stx arg:stx expr:stx)]
-       [call (make-callsite-macro
-               #:internal internal?
-               loc name:stx name:fast:stx arity)]
+       [main (make-main loc name:stx name:impl:stx arity)]
        [(decls ...)
         (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
        [(traces ...)
         (trace-decls trace? loc name:impl:stx)])
       (syntax/loc loc
-        (begin link ... impl traces ... fast call decls ...)))))
+        (begin link ... impl traces ... fast main decls ...)))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
@@ -455,7 +361,7 @@
   (syntax-case stx ()
     [(name ([v (f . args)] ...) body ...)
      (syntax/loc stx
-       (let ([v (f #:by-name #t . args)] ...) body ...))]))
+       (let ([v (build-closure f . args)] ...) body ...))]))
 
 ; Wrapper that more closely matches `handle` constructs
 (define-syntax handle
