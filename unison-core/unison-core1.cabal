@@ -34,7 +34,7 @@ library
       Unison.DataDeclaration.Records
       Unison.Hashable
       Unison.HashQualified
-      Unison.HashQualified'
+      Unison.HashQualifiedPrime
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
@@ -48,7 +48,7 @@ library
       Unison.Project
       Unison.Reference
       Unison.Referent
-      Unison.Referent'
+      Unison.ReferentPrime
       Unison.Settings
       Unison.Symbol
       Unison.Term

@@ -289,6 +289,7 @@ module U.Codebase.Sqlite.Queries
     -- * Types
     NamespaceText,
     TextPathSegments,
+    JsonParseFailure (..),
   )
 where
 

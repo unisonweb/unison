@@ -151,7 +151,7 @@ logQuery (Sql sql params) result =
 
 -- Without results
 
-execute :: HasCallStack => Connection -> Sql -> IO ()
+execute :: (HasCallStack) => Connection -> Sql -> IO ()
 execute conn@(Connection _ _ conn0) sql@(Sql s params) = do
   logQuery sql Nothing
   doExecute `catch` \(exception :: Sqlite.SQLError) ->
@@ -171,8 +171,8 @@ execute conn@(Connection _ _ conn0) sql@(Sql s params) = do
 -- | Execute one or more semicolon-delimited statements.
 --
 -- This function does not support parameters, and is mostly useful for executing DDL and migrations.
-executeStatements :: HasCallStack => Connection -> Text -> IO ()
-executeStatements conn@(Connection _ _ (Sqlite.Connection database)) sql = do
+executeStatements :: (HasCallStack) => Connection -> Text -> IO ()
+executeStatements conn@(Connection _ _ (Sqlite.Connection database _tempNameCounter)) sql = do
   logQuery (Sql sql []) Nothing
   Direct.Sqlite.exec database sql `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException

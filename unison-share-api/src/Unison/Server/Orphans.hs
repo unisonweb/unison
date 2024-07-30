@@ -26,7 +26,7 @@ import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Hash (Hash (..))
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -37,7 +37,7 @@ import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
-import Unison.Syntax.HashQualified' qualified as HQ' (parseText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty (Width (..))
@@ -154,6 +154,15 @@ instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
     BuiltinObject b -> object ["tag" Aeson..= String "BuiltinObject", "contents" Aeson..= b]
     MissingObject sh -> object ["tag" Aeson..= String "MissingObject", "contents" Aeson..= sh]
     UserObject a -> object ["tag" Aeson..= String "UserObject", "contents" Aeson..= a]
+
+instance (FromJSON a, FromJSON b) => FromJSON (DisplayObject b a) where
+  parseJSON = withObject "DisplayObject" \o -> do
+    tag <- o .: "tag"
+    case tag of
+      "BuiltinObject" -> BuiltinObject <$> o .: "contents"
+      "MissingObject" -> MissingObject <$> o .: "contents"
+      "UserObject" -> UserObject <$> o .: "contents"
+      _ -> fail $ "Invalid tag: " <> Text.unpack tag
 
 deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 

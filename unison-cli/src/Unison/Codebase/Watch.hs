@@ -44,8 +44,8 @@ watchDirectory' d = do
   mvar <- newEmptyMVar
   let handler :: Event -> IO ()
       handler e = case e of
-        Added fp t False -> doIt fp t
-        Modified fp t False -> doIt fp t
+        Added fp t FSNotify.IsFile -> doIt fp t
+        Modified fp t FSNotify.IsFile -> doIt fp t
         _ -> pure ()
         where
           doIt fp t = do
@@ -56,7 +56,7 @@ watchDirectory' d = do
   cleanupRef <- newEmptyMVar
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
-  let config = FSNotify.defaultConfig {FSNotify.confDebounce = FSNotify.NoDebounce}
+  let config = FSNotify.defaultConfig
   cancel <- liftIO $
     forkIO $
       FSNotify.withManagerConf config $ \mgr -> do

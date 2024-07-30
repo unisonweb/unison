@@ -27,6 +27,8 @@ jobs:
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 2.15.5
 
       - name: build with haddocks
         working-directory: unison

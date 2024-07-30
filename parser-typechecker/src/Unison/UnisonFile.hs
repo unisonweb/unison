@@ -78,7 +78,7 @@ emptyUnisonFile =
       watches = Map.empty
     }
 
-leftBiasedMerge :: forall v a. Ord v => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
+leftBiasedMerge :: forall v a. (Ord v) => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
 leftBiasedMerge lhs rhs =
   let mergedTerms = Map.foldlWithKey' (addNotIn lhsTermNames) (terms lhs) (terms rhs)
       mergedWatches = Map.foldlWithKey' addWatch (watches lhs) (watches rhs)
@@ -340,7 +340,7 @@ dependencies (UnisonFile ds es ts ws) =
     <> foldMap (Term.dependencies . snd) ts
     <> foldMap (foldMap (Term.dependencies . view _3)) ws
 
-discardTypes :: Ord v => TypecheckedUnisonFile v a -> UnisonFile v a
+discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
   let watches' = g . mconcat <$> List.multimap watches
       g tup3s = [(v, a, e) | (v, a, e, _t) <- tup3s]

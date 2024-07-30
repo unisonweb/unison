@@ -50,7 +50,7 @@ scratch/main> io.test test1
   
     Failure
       (typeLink IOFailure)
-      "Cannot decode byte '\\xee': Data.Text.Internal.Encoding.decodeUtf8: Invalid UTF-8 stream"
+      "Cannot decode byte '\\xee': Data.Text.Encoding: Invalid UTF-8 stream"
       (Any ())
   
   Stack trace:

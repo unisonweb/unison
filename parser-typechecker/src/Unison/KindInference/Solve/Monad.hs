@@ -88,7 +88,7 @@ genStateL f st =
         }
 
 -- | Interleave constraint generation into constraint solving
-runGen :: Var v => Gen v loc a -> Solve v loc a
+runGen :: (Var v) => Gen v loc a -> Solve v loc a
 runGen gena = do
   st <- M.get
   let gena' = do
@@ -104,7 +104,7 @@ runGen gena = do
 -- | Add a unification variable to the constarint mapping with no
 -- constraints. This is done on uvars created during constraint
 -- generation to initialize the new uvars (see 'runGen').
-addUnconstrainedVar :: Var v => UVar v loc -> Solve v loc ()
+addUnconstrainedVar :: (Var v) => UVar v loc -> Solve v loc ()
 addUnconstrainedVar uvar = do
   st@SolveState {constraints} <- M.get
   let constraints' = U.insert uvar Descriptor {descriptorConstraint = Nothing} constraints
@@ -125,7 +125,7 @@ emptyState =
     }
 
 -- | Lookup the constraints associated with a unification variable
-find :: Var v => UVar v loc -> Solve v loc (Maybe (Constraint (UVar v loc) v loc))
+find :: (Var v) => UVar v loc -> Solve v loc (Maybe (Constraint (UVar v loc) v loc))
 find k = do
   st@SolveState {constraints} <- M.get
   case U.lookupCanon k constraints of

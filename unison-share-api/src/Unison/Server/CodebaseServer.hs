@@ -10,13 +10,14 @@ import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
+import Crypto.Random qualified as Crypto
 import Data.Aeson ()
+import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString qualified as Strict
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.UTF8 qualified as BLU
-import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
@@ -83,7 +84,6 @@ import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
-import System.Random.MWC (createSystemRandom)
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (CausalHash)
@@ -400,11 +400,18 @@ app env rt codebase uiPath expectedToken allowCorsHost =
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
+--
+-- Generate a cryptographically secure random token.
+-- https://neilmadden.blog/2018/08/30/moving-away-from-uuids/
+--
+--  E.g.
+-- >>> genToken
+-- "uxf85C7Y0B6om47"
 genToken :: IO Strict.ByteString
 genToken = do
-  g <- createSystemRandom
-  n <- customNanoID defaultAlphabet 16 g
-  pure $ unNanoID n
+  BE.convertToBase @ByteString BE.Base64URLUnpadded <$> Crypto.getRandomBytes numRandomBytes
+  where
+    numRandomBytes = 10
 
 data Waiter a = Waiter
   { notify :: a -> IO (),

@@ -66,6 +66,24 @@ x = a.#abc
   
   
   I was surprised to find a '.' here.
+  I was expecting one of these instead:
+  
+  * and
+  * bang
+  * do
+  * false
+  * force
+  * handle
+  * if
+  * infixApp
+  * let
+  * newline or semicolon
+  * or
+  * quote
+  * termLink
+  * true
+  * tuple
+  * typeLink
 
 ```
 ``` unison
@@ -78,8 +96,7 @@ x = "hi
 
   I got confused here:
   
-      1 | x = "hi
-  
+      2 | 
   
   I was surprised to find an end of input here.
   I was expecting one of these instead:
@@ -99,8 +116,7 @@ y : a
 
   I got confused here:
   
-      1 | y : a 
-  
+      2 | 
   
   I was surprised to find an end of section here.
   I was expecting one of these instead:

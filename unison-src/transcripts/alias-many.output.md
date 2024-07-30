@@ -1,12 +1,14 @@
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
-    scratch/main> help alias.many
-    
-      alias.many (or copy)
-      `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
-      in the namespace `namespace`.
-      `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
+``` 
+scratch/main> help alias.many
+
+  alias.many (or copy)
+  `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
+  in the namespace `namespace`.
+  `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
+```
 
 Let's try it\!
 
@@ -37,8 +39,8 @@ scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.ch
     14. List.tail          : [a] -> Optional [a]
     15. List.takeWhile     : (a ->{𝕖} Boolean) -> [a] ->{𝕖} [a]
   
-  Tip: You can use `undo` or use a hash from `branch.reflog` to
-       undo this change.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
 scratch/main> find-in mylib
 

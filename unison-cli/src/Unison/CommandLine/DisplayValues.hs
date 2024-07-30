@@ -178,12 +178,12 @@ displayPretty pped terms typeOf eval types tm = go tm
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
         P.backticked <$> displayTerm pped terms typeOf eval types ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
         -- todo: maybe do something with `vs` to indicate the variables are free
         P.indentN 4 <$> displayTerm' True pped terms typeOf eval types ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
 
       -- Link (Either Link.Type Doc2.Term)
       DD.Doc2SpecialFormLink e ->

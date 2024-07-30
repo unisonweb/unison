@@ -34,7 +34,7 @@ import Unison.Sync.Types qualified as Share
 
 -- | Download a project/branch from Share.
 downloadProjectBranchFromShare ::
-  HasCallStack =>
+  (HasCallStack) =>
   Share.IncludeSquashedHead ->
   Share.RemoteProjectBranch ->
   Cli (Either Output.ShareError CausalHash)

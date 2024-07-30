@@ -10,32 +10,26 @@ import U.Core.ABT (ABT (..))
 import U.Core.ABT qualified as ABT
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics qualified as Diagnostic
-import Unison.Lexer.Pos qualified as Pos
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol (..))
 import Unison.Term (Term)
-import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Range qualified as Range
 import Unison.Var qualified as Var
 
-analyseTerm :: Lsp.Uri -> Ann -> Term Symbol Ann -> [Diagnostic]
-analyseTerm fileUri topLevelTermAnn tm =
+analyseTerm :: Lsp.Uri -> Term Symbol Ann -> [Diagnostic]
+analyseTerm fileUri tm =
   let (unusedVars, _) = ABT.cata alg tm
-      -- Unfortunately we don't capture the annotation of the actual binding when parsing :'(, for now the least
-      -- annoying thing to do is just highlight the top of the binding.
-      mayRange =
-        Cv.annToURange topLevelTermAnn
-          <&> (\(Range.Range start@(Pos.Pos line _col) _end) -> Range.Range start (Pos.Pos line 9999))
-          <&> Cv.uToLspRange
       vars =
-        Map.toList unusedVars & mapMaybe \(v, _ann) -> do
-          getRelevantVarName v
-   in case mayRange of
-        Nothing -> []
-        Just lspRange ->
-          let bindings = Text.intercalate ", " (tShow <$> vars)
-           in Monoid.whenM (not $ null vars) [Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning ("Unused binding(s) " <> bindings <> " inside this term.\nUse the binding(s), or prefix them with an _ to dismiss this warning.") []]
+        Map.toList unusedVars & mapMaybe \(v, ann) -> do
+          (,ann) <$> getRelevantVarName v
+      diagnostics =
+        vars & mapMaybe \(varName, ann) -> do
+          -- Limit the range to the first line of the binding to not be too annoying.
+          -- Maybe in the future we can get the actual annotation of the variable name.
+          lspRange <- Cv.uToLspRange . Range.startingLine <$> Cv.annToURange ann
+          pure $ Diagnostic.mkDiagnostic fileUri lspRange Diagnostic.DiagnosticSeverity_Warning [Lsp.DiagnosticTag_Unnecessary] ("Unused binding " <> tShow varName <> ". Use the binding, or prefix it with an _ to dismiss this warning.") []
+   in diagnostics
   where
     getRelevantVarName :: Symbol -> Maybe Text
     getRelevantVarName = \case

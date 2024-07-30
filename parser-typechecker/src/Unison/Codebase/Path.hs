@@ -94,7 +94,7 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)

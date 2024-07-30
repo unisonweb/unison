@@ -44,10 +44,6 @@ scratch/main> help
   branch.empty (or branch.create-empty, create.empty-branch)
   Create a new empty branch.
   
-  branch.reflog (or reflog.branch, reflog)
-  `branch.reflog` lists all the changes that have affected the current branch.
-  `branch.reflog /mybranch` lists all the changes that have affected /mybranch.
-  
   branch.rename (or rename.branch)
   `branch.rename foo`  renames the current branch to `foo`
   
@@ -181,7 +177,7 @@ scratch/main> help
                             PATH.
   
   deprecated.root-reflog
-  `deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of `branch.reflog` which shows the reflog for the current project.
+  `deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of `reflog` which shows the reflog for the current project.
   
   diff.namespace
   `diff.namespace before after` shows how the namespace `after`
@@ -675,6 +671,10 @@ scratch/main> help
   quit (or exit, :q)
   Exits the Unison command line interface.
   
+  reflog (or reflog.branch, branch.reflog)
+  `reflog` lists all the changes that have affected the current branch.
+  `reflog /mybranch` lists all the changes that have affected /mybranch.
+  
   reflog.global
   `reflog.global` lists all recent changes across all projects and branches.
   
@@ -683,14 +683,16 @@ scratch/main> help
   
   reset
   `reset #pvfd222s8n`         reset the current namespace to the
-                              causal `#pvfd222s8n`
-  `reset foo`                 reset the current namespace to
-                              that of the `foo` namespace.
-  `reset foo bar`             reset the namespace `bar` to that
-                              of the `foo` namespace.
+                              hash `#pvfd222s8n`
+  `reset foo`                 reset the current namespace to the
+                              state of the `foo` namespace.
   `reset #pvfd222s8n /topic`  reset the branch `topic` of the
                               current project to the causal
                               `#pvfd222s8n`.
+  
+  If you make a mistake using reset, consult the `reflog`
+  command and use another `reset` command to return to a
+  previous state.
   
   rewrite (or sfind.replace)
   `rewrite rule1` rewrites definitions in the latest scratch file.

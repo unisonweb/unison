@@ -225,7 +225,7 @@ transcriptCommand =
     transcriptHelp = "Execute transcript markdown files"
     transcriptFooter =
       Just . fold . List.intersperse P.line $
-        [ "For each <transcript>.md file provided this executes the transcript and creates" <+> bold "<transcript>.output.md" <+> "if successful.",
+        [ "For each <transcript>.md file provided this executes the transcript and creates" <+> P.annotate bold "<transcript>.output.md" <+> "if successful.",
           "Exits after completion, and deletes the temporary directory created, unless --save-codebase is provided",
           "Multiple transcript files may be provided; they are processed in sequence" <+> "starting from the same codebase."
         ]
@@ -237,7 +237,7 @@ transcriptForkCommand =
     transcriptHelp = "Execute transcript markdown files in a sandboxed codebase"
     transcriptFooter =
       Just . fold . List.intersperse P.line $
-        [ "For each <transcript>.md file provided this executes the transcript in a sandbox codebase and creates" <+> bold "<transcript>.output.md" <+> "if successful.",
+        [ "For each <transcript>.md file provided this executes the transcript in a sandbox codebase and creates" <+> P.annotate bold "<transcript>.output.md" <+> "if successful.",
           "Exits after completion, and deletes the temporary directory created, unless --save-codebase is provided",
           "Multiple transcript files may be provided; they are processed in sequence" <+> "starting from the same codebase."
         ]
@@ -521,15 +521,15 @@ transcriptForkParser = do
     )
 
 unisonHelp :: String -> String -> P.Doc
-unisonHelp (P.text -> executable) (P.text -> version) =
+unisonHelp (fromString -> executable) (fromString -> version) =
   fold . List.intersperse P.line $
-    [ P.empty,
+    [ mempty,
       "🌻",
-      P.empty,
-      P.bold "Usage instructions for the Unison Codebase Manager",
+      mempty,
+      P.annotate P.bold "Usage instructions for the Unison Codebase Manager",
       "You are running version:" <+> version,
-      P.empty,
-      "To get started just run" <+> P.bold executable,
-      P.empty,
-      "Use" <+> P.bold (executable <+> "[command] --help") <+> "to show help for a command."
+      mempty,
+      "To get started just run" <+> P.annotate P.bold executable,
+      mempty,
+      "Use" <+> P.annotate P.bold (executable <+> "[command] --help") <+> "to show help for a command."
     ]

@@ -47,7 +47,7 @@ data MergeDatabase = MergeDatabase
     loadV1TermComponent :: Hash -> Transaction [(V1.Term V1.Symbol V1.Ann, V1.Type V1.Symbol V1.Ann)]
   }
 
-makeMergeDatabase :: MonadIO m => Codebase IO V1.Symbol V1.Ann -> m MergeDatabase
+makeMergeDatabase :: (MonadIO m) => Codebase IO V1.Symbol V1.Ann -> m MergeDatabase
 makeMergeDatabase codebase = liftIO do
   -- Create a bunch of cached database lookup functions
   loadCausal <- do

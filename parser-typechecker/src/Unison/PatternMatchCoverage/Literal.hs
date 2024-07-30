@@ -43,21 +43,21 @@ data Literal vt v loc
     NegLit v PmLit
   | -- | Positive constraint on list element with position relative to head of list
     PosListHead
+      -- | list root
       v
-      -- ^ list root
+      -- | cons position (0 is head)
       Int
-      -- ^ cons position (0 is head)
+      -- | element variable
       v
-      -- ^ element variable
       (Type vt loc)
   | -- | Positive constraint on list element with position relative to end of list
     PosListTail
+      -- | list root
       v
-      -- ^ list root
+      -- | snoc position (0 is last)
       Int
-      -- ^ snoc position (0 is last)
+      -- | element variable
       v
-      -- ^ element variable
       (Type vt loc)
   | -- | Negative constraint on length of the list (/i.e./ the list
     -- may not be an element of the interval set)

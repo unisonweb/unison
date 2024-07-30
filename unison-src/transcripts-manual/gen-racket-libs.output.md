@@ -1,22 +1,21 @@
-
 When we start out, `./scheme-libs/racket` contains a bunch of library files that we'll need. They define the Unison builtins for Racket.
 
 Next, we'll download the jit project and generate a few Racket files from it.
 
-```ucm
+``` ucm
 jit-setup/main> lib.install @unison/internal/releases/0.0.18
 
-  Downloaded 14917 entities.
+  Downloaded 14949 entities.
 
   I installed @unison/internal/releases/0.0.18 as
   unison_internal_0_0_18.
 
 ```
-```unison
+``` unison
 go = generateSchemeBoot "scheme-libs/racket"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -29,7 +28,7 @@ go = generateSchemeBoot "scheme-libs/racket"
       go : '{IO, Exception} ()
 
 ```
-```ucm
+``` ucm
 jit-setup/main> run go
 
   ()
@@ -42,16 +41,23 @@ and @unison/internal version.
 To set up racket to use these files, we need to create a package with
 them. This is accomplished by running.
 
-    raco pkg install -t dir unison
+``` 
+raco pkg install -t dir unison
+```
 
-in the directory where the `unison directory is located. Then the
+in the directory where the `unison` directory is located. Then the
 runtime executable can be built with
 
-    raco exe scheme-libs/racket/unison-runtime.rkt
+``` 
+raco exe scheme-libs/racket/unison-runtime.rkt
+```
 
 and a distributable directory can be produced with:
 
-    raco distribute <output-dir> scheme-libs/racket/unison-runtime
+``` 
+raco distribute <output-dir> scheme-libs/racket/unison-runtime
+```
 
 At that point, <output-dir> should contain the executable and all
 dependencies necessary to run it.
+

@@ -44,7 +44,7 @@ data ProjectPathG proj branch = ProjectPath
     branch :: branch,
     absPath :: Path.Absolute
   }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Functor, Ord, Show, Generic)
 
 type ProjectPathIds = ProjectPathG ProjectId ProjectBranchId
 

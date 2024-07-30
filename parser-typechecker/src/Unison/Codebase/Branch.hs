@@ -318,7 +318,7 @@ cons = step . const
 -- | Construct a two-parent merge node.
 mergeNode ::
   forall m.
-  Applicative m =>
+  (Applicative m) =>
   Branch0 m ->
   (CausalHash, m (Branch m)) ->
   (CausalHash, m (Branch m)) ->

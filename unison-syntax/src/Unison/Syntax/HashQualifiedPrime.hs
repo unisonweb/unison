@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Syntax-related combinators for HashQualified' (to/from string types).
-module Unison.Syntax.HashQualified'
+module Unison.Syntax.HashQualifiedPrime
   ( -- * String conversions
     parseText,
     unsafeParseText,
@@ -16,7 +16,7 @@ import Data.Text qualified as Text
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude hiding (fromString)
 import Unison.Syntax.Lexer.Token (Token)
@@ -48,7 +48,7 @@ toText =
 
 -- | A hash-qualified parser.
 hashQualifiedP ::
-  Monad m =>
+  (Monad m) =>
   ParsecT (Token Text) [Char] m name ->
   ParsecT (Token Text) [Char] m (HQ'.HashQualified name)
 hashQualifiedP nameP =

@@ -102,7 +102,7 @@ import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromExce
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | Can be removed when we upgrade transformers to a more recent version.
-hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe :: (Applicative m) => Maybe a -> MaybeT m a
 hoistMaybe = MaybeT . pure
 
 -- | Like 'fold' but for Alternative.

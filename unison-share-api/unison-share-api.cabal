@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -41,7 +41,7 @@ library
       Unison.Server.Orphans
       Unison.Server.QueryResult
       Unison.Server.SearchResult
-      Unison.Server.SearchResult'
+      Unison.Server.SearchResultPrime
       Unison.Server.Syntax
       Unison.Server.Types
       Unison.Sync.API
@@ -84,7 +84,6 @@ library
   ghc-options: -Wall
   build-depends:
       Diff
-    , NanoID
     , aeson >=2.0.0.0
     , async
     , base
@@ -92,6 +91,7 @@ library
     , bytes
     , bytestring
     , containers
+    , cryptonite
     , directory
     , errors
     , extra

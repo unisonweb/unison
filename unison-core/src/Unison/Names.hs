@@ -62,7 +62,7 @@ import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
@@ -542,7 +542,7 @@ lenientToNametree names =
     (lenientRelationToNametree names.terms)
     (lenientRelationToNametree names.types)
   where
-    lenientRelationToNametree :: Ord a => Relation Name a -> Nametree (Map NameSegment a)
+    lenientRelationToNametree :: (Ord a) => Relation Name a -> Nametree (Map NameSegment a)
     lenientRelationToNametree =
       unflattenNametree . lenientRelationToLeftUniqueRelation
 

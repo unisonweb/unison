@@ -80,7 +80,7 @@ import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), checkDeclCoherency, lenientCheckDeclCoherency)
@@ -120,7 +120,7 @@ import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNa
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent'
+import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Syntax.DeclPrinter (AccessorName)
@@ -489,7 +489,7 @@ loadLibdeps branches = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Merge precondition violation checks
 
-hasDefnsInLib :: Applicative m => V2.Branch m -> m Bool
+hasDefnsInLib :: (Applicative m) => V2.Branch m -> m Bool
 hasDefnsInLib branch = do
   libdeps <-
     case Map.lookup NameSegment.libSegment branch.children of
