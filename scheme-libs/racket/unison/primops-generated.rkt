@@ -402,7 +402,7 @@
     [(unison-data _ t (list gr bs0))
      #:when (= t ref-value-partial:tag)
      (let ([bs (map reify-value (chunked-list->list bs0))]
-           [proc (resolve-proc gr)])
+           [proc (build-closure (resolve-proc gr))])
        (struct-copy unison-closure proc [env bs]))]
     [(unison-data _ t (list vl))
      #:when (= t ref-value-vlit:tag)
@@ -515,6 +515,7 @@
      (ref-value-partial
        (function->groupref f)
        (list->chunked-list (map reflect-value as)))]
+    [(? procedure?) (reflect-value (build-closure v))]
     [(unison-data rf t fs)
      (ref-value-data
        (reflect-typelink rf)
