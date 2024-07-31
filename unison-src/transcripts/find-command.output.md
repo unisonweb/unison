@@ -86,17 +86,14 @@ scratch/main> find baz
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
 
 ```
 ``` ucm
 scratch/main> find.global notHere
 
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
+⚠️
+I don't know how to find.global. Type `help` or `?` to get help.
 
 ```

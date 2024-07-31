@@ -60,8 +60,6 @@ scratch/main> names A
   Term
   Hash:   #uj8oalgadr#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 ``` unison
@@ -99,8 +97,6 @@ scratch/main> names A
   Term
   Hash:   #ufo5tuc7ho#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 ``` unison
@@ -140,7 +136,5 @@ scratch/main> names A
   Term
   Hash:   #uj8oalgadr#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```

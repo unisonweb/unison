@@ -25,7 +25,7 @@ scratch/main> find.verbose
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
 
 ```
@@ -42,7 +42,7 @@ scratch/main> find mynamespace
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
 
 ```

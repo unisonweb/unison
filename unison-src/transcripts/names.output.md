@@ -59,8 +59,6 @@ scratch/main> names x
   
   Hash:   #pi25gcdv0o
   Names:  some.otherplace.x
-  
-  Tip: Use `names.global` to see more results.
 
 -- We can search by hash, and see all aliases of that hash
 scratch/main> names #gjmq673r1v
@@ -68,8 +66,6 @@ scratch/main> names #gjmq673r1v
   Term
   Hash:   #gjmq673r1v
   Names:  some.otherplace.y some.place.x somewhere.z
-  
-  Tip: Use `names.global` to see more results.
 
 -- Works with absolute names too
 scratch/main> names .some.place.x
@@ -77,8 +73,6 @@ scratch/main> names .some.place.x
   Term
   Hash:   #gjmq673r1v
   Names:  some.otherplace.y some.place.x somewhere.z
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 `names.global` searches from the root, and absolutely qualifies results
