@@ -34,15 +34,10 @@ Finding within a namespace
 
 ```ucm
 scratch/main> find bar
--- Shows UUIDs
--- scratch/main> find.global bar
+scratch/other> debug.find.global bar
 scratch/main> find-in somewhere bar
 ```
 
 ```ucm:error
 scratch/main> find baz
-```
-
-```ucm:error
-scratch/main> find.global notHere
 ```
