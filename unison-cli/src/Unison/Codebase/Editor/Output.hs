@@ -264,6 +264,11 @@ data Output
       Int -- hq length to print References
       [(Reference, [HQ'.HashQualified Name])] -- type match, type names
       [(Referent, [HQ'.HashQualified Name])] -- term match, term names
+  | GlobalListNames
+      (ProjectAndBranch ProjectName ProjectBranchName)
+      Int -- hq length to print References
+      [(Reference, [HQ'.HashQualified Name])] -- type match, type names
+      [(Referent, [HQ'.HashQualified Name])] -- term match, term names
       -- list of all the definitions within this branch
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
@@ -543,7 +548,8 @@ isFailure o = case o of
   MoveRootBranchConfirmation -> False
   MovedOverExistingBranch {} -> False
   DeletedEverything -> False
-  ListNames _ _ tys tms -> null tms && null tys
+  ListNames _ tys tms -> null tms && null tys
+  GlobalListNames {} -> False
   ListOfDefinitions _ _ _ ds -> null ds
   GlobalFindBranchResults _ _ _ _ -> False
   ListStructuredFind tms -> null tms

@@ -498,23 +498,27 @@ loop e = do
                 fixupOutput = HQ'.toHQ . Path.nameFromHQSplit
             NamesI global query -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
-              (names, pped) <-
-                if global
-                  then do
-                    error "TODO: Implement names.global."
-                  else do
-                    names <- Cli.currentNames
+              let searchNames names = do
                     pped <- Cli.prettyPrintEnvDeclFromNames names
-                    pure (names, pped)
-
-              let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = Names.lookupHQTerm Names.IncludeSuffixes query names
-                  types = Names.lookupHQType Names.IncludeSuffixes query names
-                  terms' :: [(Referent, [HQ'.HashQualified Name])]
-                  terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
-                  types' :: [(Reference, [HQ'.HashQualified Name])]
-                  types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
-              Cli.respond $ ListNames global hqLength types' terms'
+                    let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+                        terms = Names.lookupHQTerm Names.IncludeSuffixes query names
+                        types = Names.lookupHQType Names.IncludeSuffixes query names
+                        terms' :: [(Referent, [HQ'.HashQualified Name])]
+                        terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
+                        types' :: [(Reference, [HQ'.HashQualified Name])]
+                        types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
+                    pure (terms', types')
+              if global
+                then do
+                  Global.forAllProjectBranches \(projBranchNames, _ids) branch -> do
+                    let names = Branch.toNames . Branch.head $ branch
+                    (terms, types) <- searchNames names
+                    when (not (null terms) || not (null types)) do
+                      Cli.respond $ GlobalListNames projBranchNames hqLength types terms
+                else do
+                  names <- Cli.currentNames
+                  (terms, types) <- searchNames names
+                  Cli.respond $ ListNames hqLength types terms
             DocsI srcs -> do
               for_ srcs docsI
             CreateAuthorI authorNameSegment authorFullName -> do

@@ -2611,12 +2611,15 @@ names isGlobal =
     []
     I.Visible
     [("name or hash", Required, definitionQueryArg)]
-    (P.wrap $ makeExample (names isGlobal) ["foo"] <> " shows the hash and all known names for `foo`.")
+    (P.wrap $ makeExample (names isGlobal) ["foo"] <> description)
     $ \case
       [thing] -> Input.NamesI isGlobal <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
   where
-    cmdName = if isGlobal then "names.global" else "names"
+    description
+      | isGlobal = "Iteratively search across all projects and branches for names matching `foo`. Note that this is expected to be quite slow and is primarily for debugging issues with your codebase."
+      | otherwise = "List all known names for `foo` in the current branch."
+    cmdName = if isGlobal then "debug.names.global" else "names"
 
 dependents, dependencies :: InputPattern
 dependents =
@@ -3456,7 +3459,7 @@ validInputs =
       mergeInputPattern,
       mergeCommitInputPattern,
       names False, -- names
-      names True, -- names.global
+      names True, -- debug.names.global
       namespaceDependencies,
       previewAdd,
       previewUpdate,
