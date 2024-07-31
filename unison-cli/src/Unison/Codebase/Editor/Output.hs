@@ -261,7 +261,6 @@ data Output
   | MovedOverExistingBranch Path'
   | DeletedEverything
   | ListNames
-      IsGlobal
       Int -- hq length to print References
       [(Reference, [HQ'.HashQualified Name])] -- type match, type names
       [(Referent, [HQ'.HashQualified Name])] -- term match, term names
@@ -269,6 +268,7 @@ data Output
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListStructuredFind [HQ.HashQualified Name]
+  | GlobalFindBranchResults (ProjectAndBranch ProjectName ProjectBranchName) PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | -- ListStructuredFind patternMatchingUsages termBodyUsages
     -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv SlurpResult
@@ -545,6 +545,7 @@ isFailure o = case o of
   DeletedEverything -> False
   ListNames _ _ tys tms -> null tms && null tys
   ListOfDefinitions _ _ _ ds -> null ds
+  GlobalFindBranchResults _ _ _ _ -> False
   ListStructuredFind tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True

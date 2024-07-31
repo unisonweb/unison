@@ -1149,7 +1149,7 @@ findAll :: InputPattern
 findAll = find' "find.all" (Input.FindLocalAndDeps Path.relativeEmpty')
 
 findGlobal :: InputPattern
-findGlobal = find' "find.global" Input.FindGlobal
+findGlobal = find' "debug.find.global" Input.FindGlobal
 
 findIn, findInAll :: InputPattern
 findIn = findIn' "find-in" Input.FindLocal
@@ -1197,8 +1197,8 @@ findHelp =
           "lists all definitions with a name similar to 'foo' or 'bar' in the "
             <> "specified subnamespace (including one level of its 'lib')."
         ),
-        ( "find.global foo",
-          "lists all definitions with a name similar to 'foo' in any namespace"
+        ( "debug.find.global foo",
+          "Iteratively searches all projects and branches and lists all definitions with a name similar to 'foo'. Note that this is a very slow operation."
         )
       ]
   )
