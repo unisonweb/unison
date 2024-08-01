@@ -26,6 +26,7 @@ library
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
       Unison.Merge.EitherWayI
+      Unison.Merge.FindConflictedAlias
       Unison.Merge.Libdeps
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs

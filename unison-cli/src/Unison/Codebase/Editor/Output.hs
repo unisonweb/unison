@@ -420,7 +420,7 @@ data Output
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
-  | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
+  | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
   | MergeConflictInvolvingBuiltin !Name
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment

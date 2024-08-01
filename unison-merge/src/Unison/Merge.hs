@@ -15,6 +15,9 @@ module Unison.Merge
     oldNameBasedNamespaceDiff,
     nameBasedNamespaceDiff,
 
+    -- * Finding conflicted aliases
+    findConflictedAlias,
+
     -- * Combining namespace diffs
     CombinedDiffOp (..),
     combineDiffs,
@@ -55,6 +58,7 @@ import Unison.Merge.Diff (nameBasedNamespaceDiff, oldNameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)

@@ -260,8 +260,8 @@ doMerge info = do
 
       -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
       for_ ((,) <$> Merge.TwoWay mergeTarget mergeSource <*> diffs) \(who, diff) ->
-        whenJust (findConflictedAlias defns3.lca diff) \(name1, name2) ->
-          done (Output.MergeConflictedAliases who name1 name2)
+        whenJust (Merge.findConflictedAlias defns3.lca diff) do
+          done . Output.MergeConflictedAliases who
 
       -- Combine the LCA->Alice and LCA->Bob diffs together
       let diff = Merge.combineDiffs diffs
@@ -750,55 +750,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
         <> Text.Builder.decimal y
         <> Text.Builder.char '.'
         <> Text.Builder.decimal z
-
--- @findConflictedAlias namespace diff@, given an old namespace and a diff to a new namespace, will return the first
--- "conflicted alias" encountered (if any), where a "conflicted alias" is a pair of names that referred to the same
--- thing in the old namespace, but different things in the new one.
---
--- For example, if the old namespace was
---
---   foo = #foo
---   bar = #foo
---
--- and the new namespace is
---
---   foo = #baz
---   bar = #qux
---
--- then (foo, bar) is a conflicted alias.
---
--- This function currently doesn't return whether the conflicted alias is a decl or a term, but it certainly could.
-findConflictedAlias ::
-  (Ord term, Ord typ) =>
-  Defns (BiMultimap term Name) (BiMultimap typ Name) ->
-  DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed term typ ->
-  Maybe (Name, Name)
-findConflictedAlias defns diff =
-  asum [go defns.terms diff.terms, go defns.types diff.types]
-  where
-    go :: forall ref. (Ord ref) => BiMultimap ref Name -> Map Name (Merge.DiffOp (Merge.Synhashed ref)) -> Maybe (Name, Name)
-    go namespace diff =
-      asum (map f (Map.toList diff))
-      where
-        f :: (Name, Merge.DiffOp (Merge.Synhashed ref)) -> Maybe (Name, Name)
-        f (name, op) =
-          case op of
-            Merge.DiffOp'Add _ -> Nothing
-            Merge.DiffOp'Delete _ -> Nothing
-            Merge.DiffOp'Update hashed1 ->
-              BiMultimap.lookupPreimage name namespace
-                & Set.delete name
-                & Set.toList
-                & map (g hashed1.new)
-                & asum
-          where
-            g :: Merge.Synhashed ref -> Name -> Maybe (Name, Name)
-            g hashed1 alias =
-              case Map.lookup alias diff of
-                Just (Merge.DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
-                -- If "foo" was updated but its alias "bar" was deleted, that's ok
-                Just (Merge.DiffOp'Delete _) -> Nothing
-                _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
 -- clash with any existing dependencies.

@@ -1345,17 +1345,24 @@ notifyUser dir = \case
         prettyProjectAndBranchName aliceAndBob.alice
           <> "was already up-to-date with"
           <> P.group (prettyMergeSource aliceAndBob.bob <> ".")
-  MergeConflictedAliases aliceOrBob name1 name2 ->
+  MergeConflictedAliases aliceOrBob defn ->
     pure $
       P.wrap "Sorry, I wasn't able to perform the merge:"
         <> P.newline
         <> P.newline
         <> P.wrap
           ( "On the merge ancestor,"
-              <> prettyName name1
-              <> "and"
-              <> prettyName name2
-              <> "were aliases for the same definition, but on"
+              <> ( let (isTerm, name1, name2) =
+                         case defn of
+                           TermDefn (n1, n2) -> (True, n1, n2)
+                           TypeDefn (n1, n2) -> (False, n1, n2)
+                    in prettyName name1
+                         <> "and"
+                         <> prettyName name2
+                         <> "were aliases for the same"
+                         <> P.group ((if isTerm then "term" else "type") <> ",")
+                 )
+              <> "but on"
               <> prettyMergeSourceOrTarget aliceOrBob
               <> "the names have different definitions currently. I'd need just a single new definition to use in their"
               <> "dependents when I merge."

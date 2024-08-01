@@ -1294,7 +1294,7 @@ project/alice> merge /bob
   Sorry, I wasn't able to perform the merge:
   
   On the merge ancestor, bar and foo were aliases for the same
-  definition, but on project/alice the names have different
+  term, but on project/alice the names have different
   definitions currently. I'd need just a single new definition
   to use in their dependents when I merge.
   
