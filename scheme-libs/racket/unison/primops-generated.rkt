@@ -651,13 +651,15 @@
     udefs))
 
 (define (add-module-associations links mname)
-  (for-each
-    (lambda (link)
-      (let ([bs (termlink-bytes link)])
-        (if (hash-has-key? runtime-module-map bs)
-          #f
-          (hash-set! runtime-module-map bs mname))))
-    links))
+  (for ([link links])
+    (define bs (termlink-bytes link))
+    (unless (hash-has-key? runtime-module-map bs)
+      (hash-set! runtime-module-map bs mname))))
+
+(define (module-association link)
+  (define bs (termlink-bytes link))
+
+  (hash-ref runtime-module-map bs))
 
 (define (need-dependency? l)
   (let ([ln (if (unison-data? l) (reference->termlink l) l)])
@@ -726,7 +728,13 @@
                     #:periodic-renderer (list 10.0 render))
                  `(,pname #f))))))
 
-(define (build-runtime-module mname tylinks tmlinks defs)
+(define (extra-requires refs)
+  (remove-duplicates
+    (for/list ([l (map reference->termlink refs)]
+               #:when (unison-termlink-derived? l))
+      (module-association l))))
+
+(define (build-runtime-module mname reqs tylinks tmlinks defs)
   (define (provided-tylink r)
     (string->symbol
       (chunked-string->string
@@ -741,7 +749,8 @@
               unison/primops-generated
               unison/builtin-generated
               unison/simple-wrappers
-              unison/compound-wrappers)
+              unison/compound-wrappers
+              ,@(map (lambda (s) `(quote ,s)) reqs))
 
      (provide
        ,@tynames
@@ -751,8 +760,8 @@
 
      ,@defs))
 
-(define (add-runtime-module mname tylinks tmlinks defs)
-  (eval (build-runtime-module mname tylinks tmlinks defs)
+(define (add-runtime-module mname reqs tylinks tmlinks defs)
+  (eval (build-runtime-module mname reqs tylinks tmlinks defs)
         runtime-namespace))
 
 (define (code-dependencies co)
@@ -764,32 +773,40 @@
   (define (map-links dss)
     (map (lambda (ds) (map reference->termlink ds)) dss))
 
-  (let ([udefs (chunked-list->list dfns0)])
-    (cond
-      [(not (null? udefs))
-       (let* ([tmlinks (map ufst udefs)]
-              [codes (map usnd udefs)]
-              [refs (map termlink->reference tmlinks)]
-              [depss (map code-dependencies codes)]
-              [tylinks (typelink-deps codes)]
-              [deps (flatten depss)]
-              [fdeps (filter need-dependency? deps)]
-              [rdeps (remove* refs fdeps)])
-         (cond
-           [(null? fdeps) empty-chunked-list]
-           [(null? rdeps)
-            (let ([ndefs (map gen-code udefs)]
-                  [sdefs (flatten (map gen-code udefs))]
-                  [mname (or mname0 (generate-module-name tmlinks))])
-              (expand-sandbox tmlinks (map-links depss))
-              (register-code udefs)
-              (add-module-associations tmlinks mname)
-              (add-runtime-module mname tylinks tmlinks sdefs)
-              empty-chunked-list)]
-           [else
-             (list->chunked-list
-               (map reference->termlink rdeps))]))]
-      [else empty-chunked-list])))
+  ; flatten and filter out unnecessary definitions
+  (define-values (udefs tmlinks codes)
+    (for/lists (boths fsts snds)
+               ([p (in-chunked-list dfns0)]
+                #:when (need-dependency? (ufst p)))
+      (values p (ufst p) (usnd p))))
+
+  (cond
+    [(null? udefs) empty-chunked-list]
+    [else
+     (define refs (map termlink->reference tmlinks))
+     (define tylinks (typelink-deps codes))
+     (define depss (map code-dependencies codes))
+     (define deps (flatten depss))
+     (define-values (fdeps hdeps) (partition need-dependency? deps))
+     (define rdeps (remove* refs fdeps))
+
+     (cond
+       [(not (null? rdeps))
+        ; need more dependencies
+        (list->chunked-list (map reference->termlink rdeps))]
+
+       [else
+        (define sdefs (flatten (map gen-code udefs)))
+        (define mname (or mname0 (generate-module-name tmlinks)))
+        (define reqs (extra-requires hdeps))
+
+        (expand-sandbox tmlinks (map-links depss))
+        (register-code udefs)
+        (add-module-associations tmlinks mname)
+        (add-runtime-module mname reqs tylinks tmlinks sdefs)
+
+        ; final result: no dependencies needed
+        empty-chunked-list])]))
 
 (define (unison-POp-CACH dfns0) (add-runtime-code #f dfns0))
 
@@ -800,9 +817,9 @@
          [fdeps (filter need-dependency? (chunked-list->list deps))])
     (if (null? fdeps)
       (sum 1 (reify-value val))
-        (sum 0
-             (list->chunked-list
-               (map reference->termlink fdeps))))))
+      (sum 0
+        (list->chunked-list
+          (map reference->termlink fdeps))))))
 
 (define (unison-POp-LKUP tl) (lookup-code tl))
 
