@@ -113,6 +113,50 @@ scratch/main> help
   debug.file
   View details about the most recent successfully typechecked file.
   
+  debug.find.global
+  `find`                           lists all definitions in the
+                                   current namespace.
+  `find foo`                       lists all definitions with a
+                                   name similar to 'foo' in the
+                                   current namespace (excluding
+                                   those under 'lib').
+  `find foo bar`                   lists all definitions with a
+                                   name similar to 'foo' or
+                                   'bar' in the current
+                                   namespace (excluding those
+                                   under 'lib').
+  `find-in namespace`              lists all definitions in the
+                                   specified subnamespace.
+  `find-in namespace foo bar`      lists all definitions with a
+                                   name similar to 'foo' or
+                                   'bar' in the specified
+                                   subnamespace.
+  find.all foo                     lists all definitions with a
+                                   name similar to 'foo' in the
+                                   current namespace (including
+                                   one level of 'lib').
+  `find-in.all namespace`          lists all definitions in the
+                                   specified subnamespace
+                                   (including one level of its
+                                   'lib').
+  `find-in.all namespace foo bar`  lists all definitions with a
+                                   name similar to 'foo' or
+                                   'bar' in the specified
+                                   subnamespace (including one
+                                   level of its 'lib').
+  debug.find.global foo            Iteratively searches all
+                                   projects and branches and
+                                   lists all definitions with a
+                                   name similar to 'foo'. Note
+                                   that this is a very slow
+                                   operation.
+  
+  debug.names.global
+  `debug.names.global foo` Iteratively search across all
+  projects and branches for names matching `foo`. Note that this
+  is expected to be quite slow and is primarily for debugging
+  issues with your codebase.
+  
   debug.numberedArgs
   Dump the contents of the numbered args state.
   
@@ -269,9 +313,12 @@ scratch/main> help
                                    'bar' in the specified
                                    subnamespace (including one
                                    level of its 'lib').
-  find.global foo                  lists all definitions with a
-                                   name similar to 'foo' in any
-                                   namespace
+  debug.find.global foo            Iteratively searches all
+                                   projects and branches and
+                                   lists all definitions with a
+                                   name similar to 'foo'. Note
+                                   that this is a very slow
+                                   operation.
   
   find-in
   `find`                           lists all definitions in the
@@ -304,9 +351,12 @@ scratch/main> help
                                    'bar' in the specified
                                    subnamespace (including one
                                    level of its 'lib').
-  find.global foo                  lists all definitions with a
-                                   name similar to 'foo' in any
-                                   namespace
+  debug.find.global foo            Iteratively searches all
+                                   projects and branches and
+                                   lists all definitions with a
+                                   name similar to 'foo'. Note
+                                   that this is a very slow
+                                   operation.
   
   find-in.all
   `find`                           lists all definitions in the
@@ -339,9 +389,12 @@ scratch/main> help
                                    'bar' in the specified
                                    subnamespace (including one
                                    level of its 'lib').
-  find.global foo                  lists all definitions with a
-                                   name similar to 'foo' in any
-                                   namespace
+  debug.find.global foo            Iteratively searches all
+                                   projects and branches and
+                                   lists all definitions with a
+                                   name similar to 'foo'. Note
+                                   that this is a very slow
+                                   operation.
   
   find.all
   `find`                           lists all definitions in the
@@ -374,47 +427,15 @@ scratch/main> help
                                    'bar' in the specified
                                    subnamespace (including one
                                    level of its 'lib').
-  find.global foo                  lists all definitions with a
-                                   name similar to 'foo' in any
-                                   namespace
+  debug.find.global foo            Iteratively searches all
+                                   projects and branches and
+                                   lists all definitions with a
+                                   name similar to 'foo'. Note
+                                   that this is a very slow
+                                   operation.
   
   find.all.verbose
   `find.all.verbose` searches for definitions like `find.all`, but includes hashes and aliases in the results.
-  
-  find.global
-  `find`                           lists all definitions in the
-                                   current namespace.
-  `find foo`                       lists all definitions with a
-                                   name similar to 'foo' in the
-                                   current namespace (excluding
-                                   those under 'lib').
-  `find foo bar`                   lists all definitions with a
-                                   name similar to 'foo' or
-                                   'bar' in the current
-                                   namespace (excluding those
-                                   under 'lib').
-  `find-in namespace`              lists all definitions in the
-                                   specified subnamespace.
-  `find-in namespace foo bar`      lists all definitions with a
-                                   name similar to 'foo' or
-                                   'bar' in the specified
-                                   subnamespace.
-  find.all foo                     lists all definitions with a
-                                   name similar to 'foo' in the
-                                   current namespace (including
-                                   one level of 'lib').
-  `find-in.all namespace`          lists all definitions in the
-                                   specified subnamespace
-                                   (including one level of its
-                                   'lib').
-  `find-in.all namespace foo bar`  lists all definitions with a
-                                   name similar to 'foo' or
-                                   'bar' in the specified
-                                   subnamespace (including one
-                                   level of its 'lib').
-  find.global foo                  lists all definitions with a
-                                   name similar to 'foo' in any
-                                   namespace
   
   find.verbose
   `find.verbose` searches for definitions like `find`, but includes hashes and aliases in the results.
@@ -526,11 +547,8 @@ scratch/main> help
   `move.type foo bar` renames `foo` to `bar`.
   
   names
-  `names foo` shows the hash and all known names for `foo`.
-  
-  names.global
-  `names.global foo` shows the hash and all known names for
-  `foo`.
+  `names foo` List all known names for `foo` in the current
+  branch.
   
   namespace.dependencies
   List the external dependencies of the specified namespace.

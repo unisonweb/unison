@@ -165,8 +165,6 @@ scratch/main> names distributed.lib.baz.qux
   Term
   Hash:   #nhup096n2s
   Names:  lib.distributed.lib.baz.qux
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 ## Corner cases
