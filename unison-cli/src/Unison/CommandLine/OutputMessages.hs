@@ -2095,11 +2095,12 @@ notifyUser dir = \case
         <> P.text filename
   ConflictedDefn operation defn ->
     pure . P.wrap $
-      ( case defn of
-          TermDefn (Conflicted name _refs) -> "The term name" <> prettyName name <> "is ambiguous."
-          TypeDefn (Conflicted name _refs) -> "The type name" <> prettyName name <> "is ambiguous."
+      ( "This branch has more than one" <> case defn of
+          TermDefn (Conflicted name _refs) -> "term with the name" <> P.group (P.backticked (prettyName name) <> ".")
+          TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
-        <> "Please resolve the ambiguity, then try to"
+        <> P.newline
+        <> "Please delete or rename all but one of them, then try the"
         <> P.text operation
         <> "again."
   IncoherentDeclDuringMerge aliceOrBob reason ->
@@ -2614,7 +2615,7 @@ renderNameConflicts hashLen conflictedNames = do
   prettyConflictedTerms <- showConflictedNames "term" conflictedTermNames
   pure $
     Monoid.unlessM (null allConflictedNames) $
-      P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
+      P.callout "❓" . P.linesSpaced . P.nonEmpty $
         [ prettyConflictedTypes,
           prettyConflictedTerms,
           tip $
@@ -2635,7 +2636,7 @@ renderNameConflicts hashLen conflictedNames = do
   where
     showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
     showConflictedNames thingKind conflictedNames =
-      P.lines <$> do
+      P.linesSpaced <$> do
         for (Map.toList conflictedNames) \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash

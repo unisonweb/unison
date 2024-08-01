@@ -59,7 +59,8 @@ x = 3
 ``` ucm
 scratch/main> update
 
-  The term name x is ambiguous. Please resolve the ambiguity,
-  then try to update again.
+  This branch has more than one term with the name `x`. Please
+  delete or rename all but one of them, then try the update
+  again.
 
 ```
