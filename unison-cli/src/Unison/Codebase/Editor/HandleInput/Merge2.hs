@@ -68,12 +68,12 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
+import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
-import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclNameLookup (expectConstructorNames)
 import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -187,7 +187,7 @@ doMerge info = do
   let mergeTarget = MergeSourceOrTarget'Target aliceBranchNames
   let mergeSourceAndTarget = MergeSourceAndTarget {alice = aliceBranchNames, bob = info.bob.source}
 
-  Cli.Env {codebase} <- ask
+  env <- ask
 
   finalOutput <-
     Cli.label \done -> do
@@ -197,22 +197,20 @@ doMerge info = do
 
       -- Otherwise, if LCA == alice (so alice is behind bob), then we could fast forward to bob, so we're done.
       when (info.lca.causalHash == Just info.alice.causalHash) do
-        bobBranch <- liftIO (Codebase.expectBranchForHash codebase info.bob.causalHash)
+        bobBranch <- liftIO (Codebase.expectBranchForHash env.codebase info.bob.causalHash)
         _ <- Cli.updateAt info.description (PP.projectBranchRoot info.alice.projectAndBranch) (\_aliceBranch -> bobBranch)
         done (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
-      -- Create a bunch of cached database lookup functions
-      db <- makeMergeDatabase codebase
-
       -- Load Alice/Bob/LCA causals
-      causals <- Cli.runTransaction do
-        traverse
-          Operations.expectCausalBranchByCausalHash
-          Merge.TwoOrThreeWay
-            { alice = info.alice.causalHash,
-              bob = info.bob.causalHash,
-              lca = info.lca.causalHash
-            }
+      causals <-
+        Cli.runTransaction do
+          traverse
+            Operations.expectCausalBranchByCausalHash
+            Merge.TwoOrThreeWay
+              { alice = info.alice.causalHash,
+                bob = info.bob.causalHash,
+                lca = info.lca.causalHash
+              }
 
       liftIO (debugFunctions.debugCausals causals)
 
@@ -234,16 +232,17 @@ doMerge info = do
       -- FIXME: Oops, if this fails due to a conflicted name, we don't actually say where the conflicted name came from.
       -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
       nametrees3 :: Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) <- do
+        let referent2to1 = Conversions.referent2to1 (Codebase.getDeclType env.codebase)
         let action ::
               (forall a. Defn (Conflicted Name Referent) (Conflicted Name TypeReference) -> Transaction a) ->
               Transaction (Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
             action rollback = do
-              alice <- loadNamespaceDefinitions (referent2to1 db) branches.alice & onLeftM rollback
-              bob <- loadNamespaceDefinitions (referent2to1 db) branches.bob & onLeftM rollback
+              alice <- loadNamespaceDefinitions referent2to1 branches.alice & onLeftM rollback
+              bob <- loadNamespaceDefinitions referent2to1 branches.bob & onLeftM rollback
               lca <-
                 case branches.lca of
                   Nothing -> pure Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
-                  Just lca -> loadNamespaceDefinitions (referent2to1 db) lca & onLeftM rollback
+                  Just lca -> loadNamespaceDefinitions referent2to1 lca & onLeftM rollback
               pure Merge.ThreeWay {alice, bob, lca}
         Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))
           & onLeftM (done . Output.ConflictedDefn "merge")
@@ -268,7 +267,7 @@ doMerge info = do
         Cli.runTransaction $
           traverse
             ( hydrateDefns
-                (Codebase.unsafeGetTermComponent codebase)
+                (Codebase.unsafeGetTermComponent env.codebase)
                 Operations.expectDeclComponent
             )
             ( let f = Map.mapMaybe Referent.toTermReferenceId . BiMultimap.range
@@ -366,7 +365,9 @@ doMerge info = do
       mergedLibdeps <-
         Cli.runTransaction do
           libdeps <- loadLibdeps branches
-          libdepsToBranch0 db (Merge.applyLibdepsDiff getTwoFreshNames libdeps (Merge.diffLibdeps libdeps))
+          libdepsToBranch0
+            (Codebase.getDeclType env.codebase)
+            (Merge.applyLibdepsDiff getTwoFreshNames libdeps (Merge.diffLibdeps libdeps))
 
       -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
       let mkPpes :: Merge.TwoWay Names -> Names -> Merge.TwoWay PrettyPrintEnvDecl
@@ -379,7 +380,7 @@ doMerge info = do
       hydratedThings <- do
         Cli.runTransaction do
           for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
-            let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent codebase) Operations.expectDeclComponent
+            let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent
              in (,) <$> hydrate conflicts1 <*> hydrate dependents1
 
       let (renderedConflicts, renderedDependents) =
@@ -410,7 +411,7 @@ doMerge info = do
               renderedConflicts
               renderedDependents
 
-      let stageOneBranch = defnsAndLibdepsToBranch0 codebase stageOne mergedLibdeps
+      let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase stageOne mergedLibdeps
 
       maybeTypecheckedUnisonFile <-
         let thisMergeHasConflicts =
@@ -424,7 +425,7 @@ doMerge info = do
                 parseAndTypecheck prettyUnisonFile parsingEnv
 
       let parents =
-            (\causal -> (causal.causalHash, Codebase.expectBranchForHash codebase causal.causalHash)) <$> causals
+            (\causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)) <$> causals
 
       case maybeTypecheckedUnisonFile of
         Nothing -> do
@@ -443,7 +444,7 @@ doMerge info = do
           liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
           pure (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
         Just tuf -> do
-          Cli.runTransaction (Codebase.addDefsToCodebase codebase tuf)
+          Cli.runTransaction (Codebase.addDefsToCodebase env.codebase tuf)
           let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
           Cli.updateProjectBranchRoot_
             info.alice.projectAndBranch.branch
@@ -904,8 +905,8 @@ getTwoFreshNames names name0 =
     mangled i =
       NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)
 
-libdepsToBranch0 :: MergeDatabase -> Map NameSegment (V2.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
-libdepsToBranch0 db libdeps = do
+libdepsToBranch0 :: (Reference -> Transaction ConstructorType) -> Map NameSegment (V2.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
+libdepsToBranch0 loadDeclType libdeps = do
   let branch :: V2.Branch Transaction
       branch =
         V2.Branch
@@ -919,7 +920,7 @@ libdepsToBranch0 db libdeps = do
   -- It would probably be better to reuse the codebase's branch cache.
   -- FIXME how slow/bad is this without that branch cache?
   branchCache <- Sqlite.unsafeIO newBranchCache
-  Conversions.branch2to1 branchCache db.loadDeclType branch
+  Conversions.branch2to1 branchCache loadDeclType branch
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do

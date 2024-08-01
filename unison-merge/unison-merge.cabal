@@ -19,7 +19,6 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge.CombineDiffs
-      Unison.Merge.Database
       Unison.Merge.DeclCoherencyCheck
       Unison.Merge.DeclNameLookup
       Unison.Merge.Diff
