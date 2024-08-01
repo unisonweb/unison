@@ -6,6 +6,7 @@ module Unison.Merge.Unconflicts
   )
 where
 
+import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
 import Unison.Merge.TwoWay (TwoWay)
 import Unison.Merge.TwoWayI (TwoWayI (..))
@@ -13,7 +14,6 @@ import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Name (Name)
 import Unison.Prelude hiding (empty)
 import Unison.Util.Defns (DefnsF)
-import Data.Bitraversable (bitraverse)
 
 data Unconflicts v = Unconflicts
   { adds :: !(TwoWayI (Map Name v)),
