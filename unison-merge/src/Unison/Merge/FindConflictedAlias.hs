@@ -6,7 +6,6 @@ where
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.Synhashed (Synhashed)
 import Unison.Merge.Updated qualified
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
@@ -30,19 +29,24 @@ import Unison.Util.Defns (Defns (..), DefnsF3)
 --
 -- then (foo, bar) is a conflicted alias.
 findConflictedAlias ::
-  forall name term typ.
-  (Ord name, Ord term, Ord typ) =>
+  forall name synhashed term typ.
+  (Ord name, forall ref. Eq (synhashed ref), Ord term, Ord typ) =>
   Defns (BiMultimap term name) (BiMultimap typ name) ->
-  DefnsF3 (Map name) DiffOp Synhashed term typ ->
+  DefnsF3 (Map name) DiffOp synhashed term typ ->
   Maybe (Defn (name, name) (name, name))
 findConflictedAlias defns diff =
   asum [TermDefn <$> go defns.terms diff.terms, TypeDefn <$> go defns.types diff.types]
   where
-    go :: forall ref. (Ord ref) => BiMultimap ref name -> Map name (DiffOp (Synhashed ref)) -> Maybe (name, name)
+    go ::
+      forall ref.
+      (Eq (synhashed ref), Ord ref) =>
+      BiMultimap ref name ->
+      Map name (DiffOp (synhashed ref)) ->
+      Maybe (name, name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
-        f :: (name, DiffOp (Synhashed ref)) -> Maybe (name, name)
+        f :: (name, DiffOp (synhashed ref)) -> Maybe (name, name)
         f (name, op) =
           case op of
             DiffOp'Add _ -> Nothing
@@ -54,7 +58,7 @@ findConflictedAlias defns diff =
                 & map (g hashed1.new)
                 & asum
           where
-            g :: Synhashed ref -> name -> Maybe (name, name)
+            g :: synhashed ref -> name -> Maybe (name, name)
             g hashed1 alias =
               case Map.lookup alias diff of
                 Just (DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing

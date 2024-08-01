@@ -69,6 +69,7 @@ library
       OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      QuantifiedConstraints
       RankNTypes
       ScopedTypeVariables
       TupleSections
