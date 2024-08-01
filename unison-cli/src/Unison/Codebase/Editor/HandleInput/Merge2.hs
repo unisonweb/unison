@@ -18,8 +18,6 @@ where
 import Control.Lens (mapped)
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
-import Data.Bitraversable (bitraverse)
-import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (align, unzip, zipWith)
@@ -346,7 +344,10 @@ doMerge info = do
 
       -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
       -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
-      dependents <- Cli.runTransaction (identifyDependents defns2 conflicts unconflicts)
+      let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes unconflicts
+      let coreDependencies = identifyCoreDependencies defns2 conflicts soloUpdatesAndDeletes
+      dependents0 <- Cli.runTransaction (for ((,) <$> defns2 <*> coreDependencies) (uncurry getNamespaceDependentsOf2))
+      let dependents = filterDependents conflicts soloUpdatesAndDeletes dependents0
 
       liftIO (debugFunctions.debugDependents dependents)
 
@@ -664,93 +665,77 @@ nametreeToBranch0 nametree =
     rel2star rel =
       Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
 
--- FIXME: let's come up with a better term for "dependencies" in the implementation of this function
-identifyDependents ::
+identifyCoreDependencies ::
   Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  DefnsF Merge.Unconflicts Referent TypeReference ->
-  Transaction (Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
-identifyDependents defns conflicts unconflicts = do
-  let -- The other person's (i.e. with "Alice" and "Bob" swapped) solo-deleted and solo-updated names
-      theirSoloUpdatesAndDeletes :: Merge.TwoWay (DefnsF Set Name Name)
-      theirSoloUpdatesAndDeletes =
-        TwoWay.swap (unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames)
-        where
-          unconflictedSoloDeletedNames :: Merge.TwoWay (DefnsF Set Name Name)
-          unconflictedSoloDeletedNames =
-            bitraverse Unconflicts.soloDeletedNames Unconflicts.soloDeletedNames unconflicts
+  Merge.TwoWay (DefnsF Set Name Name) ->
+  Merge.TwoWay (Set Reference)
+identifyCoreDependencies defns conflicts soloUpdatesAndDeletes = do
+  fold
+    [ -- One source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
+      --
+      -- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
+      -- anything), no matter what its hash is.
+      defnsReferences
+        <$> ( zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
+                <$> TwoWay.swap soloUpdatesAndDeletes
+                <*> defns
+            ),
+      -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
+      --
+      -- An example: suppose Alice has foo#alice and Bob has foo#bob, so foo is conflicted. Furthermore, suppose
+      -- Alice has bar#bar that depends on foo#alice.
+      --
+      -- We want Alice's #alice to be considered a dependency, so that when we go off and find dependents of these
+      -- dependencies to put in the scratch file for type checking and propagation, we find bar#bar.
+      --
+      -- Note that this is necessary even if bar#bar is unconflicted! We don't want bar#bar to be put directly
+      -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
+      -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
+      -- that when that conflict is resolved, it will propagate to bar.
+      let f :: Map Name Reference.Id -> Set Reference
+          f =
+            List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Map.elems
+       in bifoldMap f f <$> conflicts
+    ]
 
-          unconflictedSoloUpdatedNames :: Merge.TwoWay (DefnsF Set Name Name)
-          unconflictedSoloUpdatedNames =
-            bitraverse Unconflicts.soloUpdatedNames Unconflicts.soloUpdatedNames unconflicts
-
-  let dependencies :: Merge.TwoWay (Set Reference)
-      dependencies =
-        fold
-          [ -- One source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
-            --
-            -- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
-            -- anything), no matter what its hash is.
-            defnsReferences
-              <$> ( zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
-                      <$> theirSoloUpdatesAndDeletes
-                      <*> defns
-                  ),
-            -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
-            --
-            -- An example: suppose Alice has foo#alice and Bob has foo#bob, so foo is conflicted. Furthermore, suppose
-            -- Alice has bar#bar that depends on foo#alice.
-            --
-            -- We want Alice's #alice to be considered a dependency, so that when we go off and find dependents of these
-            -- dependencies to put in the scratch file for type checking and propagation, we find bar#bar.
-            --
-            -- Note that this is necessary even if bar#bar is unconflicted! We don't want bar#bar to be put directly
-            -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
-            -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
-            -- that when that conflict is resolved, it will propagate to bar.
-            let f :: (Foldable t) => t Reference.Id -> Set Reference
-                f =
-                  List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Foldable.toList
-             in bifoldMap f f <$> conflicts
-          ]
-
-  dependents0 <-
-    for ((,) <$> defns <*> dependencies) \(defns1, dependencies1) ->
-      getNamespaceDependentsOf2 defns1 dependencies1
-
+filterDependents ::
+  (Ord name) =>
+  Merge.TwoWay (DefnsF (Map name) term typ) ->
+  Merge.TwoWay (DefnsF Set name name) ->
+  Merge.TwoWay (DefnsF (Map name) term typ) ->
+  Merge.TwoWay (DefnsF (Map name) term typ)
+filterDependents conflicts soloUpdatesAndDeletes dependents0 =
   -- There is some subset of Alice's dependents (and ditto for Bob of course) that we don't ultimately want/need to put
   -- into the scratch file: those for which any of the following are true:
   --
   --   1. It is Alice-conflicted (since we only want to return *unconflicted* things).
   --   2. It was deleted by Bob.
   --   3. It was updated by Bob and not updated by Alice.
-  let dependents1 :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-      dependents1 =
+  let dependents1 =
         zipDefnsWith Map.withoutKeys Map.withoutKeys
           <$> dependents0
-          <*> ((bimap Map.keysSet Map.keysSet <$> conflicts) <> theirSoloUpdatesAndDeletes)
+          <*> ((bimap Map.keysSet Map.keysSet <$> conflicts) <> TwoWay.swap soloUpdatesAndDeletes)
 
-  -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
-  -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash)...
-  --
-  --   { alice = { terms = {"foo" => #alice} } }
-  --   { bob   = { terms = {"foo" => #alice} } }
-  --
-  -- ...or synhash-equal (i.e. the term or type received different auto-propagated updates)...
-  --
-  --   { alice = { terms = {"foo" => #alice} } }
-  --   { bob   = { terms = {"foo" => #bob}   } }
-  --
-  -- So, we can arbitrarily keep Alice's, because they will render the same.
-  --
-  --   { alice = { terms = {"foo" => #alice} } }
-  --   { bob   = { terms = {}                } }
-  let dependents2 :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+      -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
+      -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash)...
+      --
+      --   { alice = { terms = {"foo" => #alice} } }
+      --   { bob   = { terms = {"foo" => #alice} } }
+      --
+      -- ...or synhash-equal (i.e. the term or type received different auto-propagated updates)...
+      --
+      --   { alice = { terms = {"foo" => #alice} } }
+      --   { bob   = { terms = {"foo" => #bob}   } }
+      --
+      -- So, we can arbitrarily keep Alice's, because they will render the same.
+      --
+      --   { alice = { terms = {"foo" => #alice} } }
+      --   { bob   = { terms = {}                } }
       dependents2 =
         dependents1 & over #bob \bob ->
           zipDefnsWith Map.difference Map.difference bob dependents1.alice
-
-  pure dependents2
+   in dependents2
 
 makeStageOne ::
   Merge.TwoWay Merge.DeclNameLookup ->

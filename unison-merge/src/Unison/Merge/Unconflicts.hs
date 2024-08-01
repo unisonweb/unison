@@ -2,8 +2,7 @@ module Unison.Merge.Unconflicts
   ( Unconflicts (..),
     empty,
     apply,
-    soloDeletedNames,
-    soloUpdatedNames,
+    soloUpdatesAndDeletes,
   )
 where
 
@@ -13,6 +12,8 @@ import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Name (Name)
 import Unison.Prelude hiding (empty)
+import Unison.Util.Defns (DefnsF)
+import Data.Bitraversable (bitraverse)
 
 data Unconflicts v = Unconflicts
   { adds :: !(TwoWayI (Map Name v)),
@@ -43,6 +44,18 @@ apply unconflicts =
     applyDeletes :: Map Name v -> Map Name v
     applyDeletes =
       (`Map.withoutKeys` foldMap Map.keysSet unconflicts.deletes)
+
+soloUpdatesAndDeletes :: DefnsF Unconflicts term typ -> TwoWay (DefnsF Set Name Name)
+soloUpdatesAndDeletes unconflicts =
+  unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames
+  where
+    unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
+    unconflictedSoloDeletedNames =
+      bitraverse soloDeletedNames soloDeletedNames unconflicts
+
+    unconflictedSoloUpdatedNames :: TwoWay (DefnsF Set Name Name)
+    unconflictedSoloUpdatedNames =
+      bitraverse soloUpdatedNames soloUpdatedNames unconflicts
 
 soloDeletedNames :: Unconflicts v -> TwoWay (Set Name)
 soloDeletedNames =
