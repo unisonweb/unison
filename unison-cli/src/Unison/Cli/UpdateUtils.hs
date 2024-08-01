@@ -235,13 +235,13 @@ hydrateDefns ::
   (Hash -> m [term]) ->
   (Hash -> m [typ]) ->
   DefnsF (Map name) TermReferenceId TypeReferenceId ->
-  m (DefnsF (Map name) term (TypeReferenceId, typ))
+  m (DefnsF (Map name) (TermReferenceId, term) (TypeReferenceId, typ))
 hydrateDefns getTermComponent getTypeComponent = do
   bitraverse hydrateTerms hydrateTypes
   where
-    hydrateTerms :: Map name TermReferenceId -> m (Map name term)
+    hydrateTerms :: Map name TermReferenceId -> m (Map name (TermReferenceId, term))
     hydrateTerms terms =
-      hydrateDefns_ getTermComponent terms \_ _ -> id
+      hydrateDefns_ getTermComponent terms \_ -> (,)
 
     hydrateTypes :: Map name TypeReferenceId -> m (Map name (TypeReferenceId, typ))
     hydrateTypes types =

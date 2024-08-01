@@ -81,9 +81,7 @@
 -- machinery was invented.
 module Unison.Merge.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
-    oldCheckDeclCoherency,
     checkDeclCoherency,
-    oldLenientCheckDeclCoherency,
     lenientCheckDeclCoherency,
 
     -- * Getting all failures rather than just the first
@@ -93,7 +91,6 @@ module Unison.Merge.DeclCoherencyCheck
 where
 
 import Control.Lens ((%=), (.=), _2)
-import Control.Monad.Except qualified as Except
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.State.Strict (State)
@@ -136,23 +133,6 @@ data IncoherentDeclReason
     IncoherentDeclReason'NestedDeclAlias !Name !Name -- shorter name, longer name
   | IncoherentDeclReason'StrayConstructor !TypeReferenceId !Name
   deriving stock (Show)
-
-oldCheckDeclCoherency ::
-  (Monad m) =>
-  (TypeReferenceId -> m Int) ->
-  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  m (Either IncoherentDeclReason DeclNameLookup)
-oldCheckDeclCoherency loadDeclNumConstructors nametree =
-  Except.runExceptT $
-    checkDeclCoherencyWith
-      (lift . loadDeclNumConstructors)
-      OnIncoherentDeclReasons
-        { onConstructorAlias = \x y z -> Except.throwError (IncoherentDeclReason'ConstructorAlias x y z),
-          onMissingConstructorName = \x -> Except.throwError (IncoherentDeclReason'MissingConstructorName x),
-          onNestedDeclAlias = \x y -> Except.throwError (IncoherentDeclReason'NestedDeclAlias x y),
-          onStrayConstructor = \x y -> Except.throwError (IncoherentDeclReason'StrayConstructor x y)
-        }
-      nametree
 
 checkDeclCoherency ::
   (HasCallStack) =>
@@ -359,92 +339,6 @@ checkDeclCoherencyWith_DoTypes2 loadDeclNumConstructors callbacks go prefix chil
           lift (loadDeclNumConstructors typeRef) <&> \case
             0 -> UninhabitedDecl
             n -> InhabitedDecl (typeName, emptyConstructorNames n)
-
--- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns partial decl name lookup,
--- which doesn't require a name for every constructor, and allows a constructor with a nameless decl.
---
--- This function exists merely to extract a best-effort name mapping for the LCA of a merge. We require Alice and Bob to
--- have coherent decls, but their LCA is out of the user's control and may have incoherent decls, and whether or not it
--- does, we still need to compute *some* syntactic hash for its decls.
-oldLenientCheckDeclCoherency ::
-  forall m.
-  (Monad m) =>
-  (TypeReferenceId -> m Int) ->
-  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  m PartialDeclNameLookup
-oldLenientCheckDeclCoherency loadDeclNumConstructors =
-  fmap (view #declNameLookup)
-    . (`State.execStateT` LenientDeclCoherencyCheckState Map.empty (PartialDeclNameLookup Map.empty Map.empty))
-    . go []
-  where
-    go ::
-      [NameSegment] ->
-      (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
-      StateT LenientDeclCoherencyCheckState m ()
-    go prefix (Nametree defns children) = do
-      for_ (Map.toList defns.terms) \case
-        (_, Referent.Ref _) -> pure ()
-        (_, Referent.Con (ConstructorReference (ReferenceBuiltin _) _) _) -> pure ()
-        (name, Referent.Con (ConstructorReference (ReferenceDerived typeRef) conId) _) -> do
-          #expectedConstructors %= Map.adjust (Map.map (lenientRecordConstructorName conId (fullName name))) typeRef
-
-      childrenWeWentInto <-
-        forMaybe (Map.toList defns.types) \case
-          (_, ReferenceBuiltin _) -> pure Nothing
-          (name, ReferenceDerived typeRef) -> do
-            whatHappened <- do
-              let recordNewDecl :: m (WhatHappened (Map Name ConstructorNames))
-                  recordNewDecl =
-                    loadDeclNumConstructors typeRef <&> \case
-                      0 -> UninhabitedDecl
-                      n -> InhabitedDecl (Map.singleton typeName (emptyConstructorNames n))
-              state <- State.get
-              lift (getCompose (Map.upsertF (\_ -> Compose recordNewDecl) typeRef state.expectedConstructors))
-            case whatHappened of
-              UninhabitedDecl -> do
-                #declNameLookup . #declToConstructors %= Map.insert typeName []
-                pure Nothing
-              InhabitedDecl expectedConstructors1 -> do
-                let child = Map.findWithDefault (Nametree (Defns Map.empty Map.empty) Map.empty) name children
-                #expectedConstructors .= expectedConstructors1
-                go (name : prefix) child
-                state <- State.get
-                let (constructorNames0, expectedConstructors) =
-                      Map.alterF f typeRef state.expectedConstructors
-                      where
-                        f ::
-                          Maybe (Map Name ConstructorNames) ->
-                          (ConstructorNames, Maybe (Map Name ConstructorNames))
-                        f =
-                          -- fromJust is safe here because we upserted `typeRef` key above
-                          -- deleteLookupJust is safe here because we upserted `typeName` key above
-                          fromJust
-                            >>> Map.deleteLookupJust typeName
-                            >>> over _2 \m -> if Map.null m then Nothing else Just m
-
-                    constructorNames :: [Maybe Name]
-                    constructorNames =
-                      IntMap.elems constructorNames0
-
-                #expectedConstructors .= expectedConstructors
-                #declNameLookup . #constructorToDecl %= \constructorToDecl ->
-                  List.foldl'
-                    ( \acc -> \case
-                        Nothing -> acc
-                        Just constructorName -> Map.insert constructorName typeName acc
-                    )
-                    constructorToDecl
-                    constructorNames
-                #declNameLookup . #declToConstructors %= Map.insert typeName constructorNames
-                pure (Just name)
-            where
-              typeName = fullName name
-
-      let childrenWeHaventGoneInto = children `Map.withoutKeys` Set.fromList childrenWeWentInto
-      for_ (Map.toList childrenWeHaventGoneInto) \(name, child) -> go (name : prefix) child
-      where
-        fullName name =
-          Name.fromReverseSegments (name :| prefix)
 
 -- | A lenient variant of 'checkDeclCoherency' - so lenient it can't even fail! It returns partial decl name lookup,
 -- which doesn't require a name for every constructor, and allows a constructor with a nameless decl.

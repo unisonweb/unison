@@ -170,6 +170,7 @@ withoutRan ys m =
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
 
+-- | /O(1)/.
 range :: BiMultimap a b -> Map b a
 range = toMapR
 

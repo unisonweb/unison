@@ -3,16 +3,13 @@ module Unison.Merge
     DeclNameLookup (..),
     PartialDeclNameLookup (..),
     IncoherentDeclReason (..),
-    oldCheckDeclCoherency,
     checkDeclCoherency,
-    oldLenientCheckDeclCoherency,
     lenientCheckDeclCoherency,
     IncoherentDeclReasons (..),
     checkAllDeclCoherency,
 
     -- * 3-way namespace diff
     DiffOp (..),
-    oldNameBasedNamespaceDiff,
     nameBasedNamespaceDiff,
 
     -- * Combining namespace diffs
@@ -47,11 +44,9 @@ import Unison.Merge.DeclCoherencyCheck
     checkAllDeclCoherency,
     checkDeclCoherency,
     lenientCheckDeclCoherency,
-    oldCheckDeclCoherency,
-    oldLenientCheckDeclCoherency,
   )
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
-import Unison.Merge.Diff (nameBasedNamespaceDiff, oldNameBasedNamespaceDiff)
+import Unison.Merge.Diff (nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
