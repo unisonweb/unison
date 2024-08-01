@@ -7,13 +7,15 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Monad.RWS (ask)
+import Control.Lens (mapped)
+import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import U.Codebase.Reference (Reference, TermReferenceId)
+import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
@@ -38,8 +40,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
-import Unison.Merge.DeclCoherencyCheck (oldCheckDeclCoherency)
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
+import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
@@ -51,6 +52,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
@@ -58,6 +60,8 @@ import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Nametree (flattenNametrees)
@@ -78,14 +82,33 @@ handleUpdate2 = do
   let namesIncludingLibdeps = Branch.toNames currentBranch0
 
   -- Assert that the namespace doesn't have any conflicted names
-  defns <-
+  nametree <-
     narrowDefns (Branch.deepDefns currentBranch0ExcludingLibdeps)
       & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
 
+  let defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+      defns =
+        flattenNametrees nametree
+
+  -- Get the number of constructors for every type declaration
+  numConstructors <-
+    Cli.runTransaction do
+      defns.types
+        & BiMultimap.dom
+        & Set.toList
+        & Foldable.foldlM
+          ( \acc -> \case
+              ReferenceBuiltin _ -> pure acc
+              ReferenceDerived ref -> do
+                num <- Operations.expectDeclNumConstructors ref
+                pure $! Map.insert ref num acc
+          )
+          Map.empty
+
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
-    Cli.runTransaction (oldCheckDeclCoherency Operations.expectDeclNumConstructors defns)
-      & onLeftM (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
+    Merge.checkDeclCoherency nametree numConstructors
+      & onLeft (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   Cli.respond Output.UpdateLookingForDependents
 
@@ -94,7 +117,7 @@ handleUpdate2 = do
       -- Get all dependents of things being updated
       dependents0 <-
         getNamespaceDependentsOf2
-          (flattenNametrees defns)
+          (flattenNametrees nametree)
           (getExistingReferencesNamed termAndDeclNames (Branch.toNames currentBranch0ExcludingLibdeps))
 
       -- Throw away the dependents that are shadowed by the file itself
@@ -125,7 +148,7 @@ handleUpdate2 = do
               let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
                in makePrettyUnisonFile
                     (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
-                    (renderDefnsForUnisonFile declNameLookup ppe hydratedDependents)
+                    (renderDefnsForUnisonFile declNameLookup ppe (over (#terms . mapped) snd hydratedDependents))
 
         parsingEnv <- Cli.makeParsingEnv pp namesIncludingLibdeps
 
