@@ -25,6 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: mount Nix store on larger partition
+      # on the Linux runner `/` doesn't have enough space, but there's a `/mnt` which does.
       if: runner.os == 'Linux'
       run: |
         sudo mkdir /nix /mnt/nix
