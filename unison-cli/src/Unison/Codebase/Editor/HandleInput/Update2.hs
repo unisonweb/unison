@@ -156,9 +156,9 @@ makePrettyUnisonFile originalFile dependents =
   originalFile
     <> Pretty.newline
     <> Pretty.newline
-    <> "-- The definitions below are not compatible with the updated definitions above."
+    <> "-- The definitions below no longer typecheck with the changes above."
     <> Pretty.newline
-    <> "-- Please fix the errors and run `update` again."
+    <> "-- Please fix the errors and try `update` again."
     <> Pretty.newline
     <> Pretty.newline
     <> ( dependents
