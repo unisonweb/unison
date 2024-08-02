@@ -416,21 +416,24 @@ withTestCodebase action = do
 
 makeDiagnosticRangeTest :: (String, Text) -> Test ()
 makeDiagnosticRangeTest (testName, testSrc) = scope testName $ do
-  (ann, _block, cleanSrc) <- case extractDelimitedBlock ('«', '»') testSrc of
-    Nothing -> crash "expected exactly one delimited block"
-    Just r -> pure r
+  let (cleanSrc, mayExpectedDiagnostic) = case extractDelimitedBlock ('«', '»') testSrc of
+        Nothing -> (testSrc, Nothing)
+        Just (ann, block, clean) -> (clean, Just (ann, block))
   (pf, _mayTypecheckedFile) <- typecheckSrc testName cleanSrc
   UF.terms pf
     & Map.elems
     & \case
       [(_a, trm)] -> do
-        case UnusedBindings.analyseTerm (LSP.Uri "test") trm of
-          [diag] -> do
+        case (mayExpectedDiagnostic, UnusedBindings.analyseTerm (LSP.Uri "test") trm) of
+          (Just (ann, _block), [diag]) -> do
             let expectedRange = Cv.annToRange ann
             let actualRange = Just (diag ^. LSP.range)
             when (expectedRange /= actualRange) do
               crash $ "Expected diagnostic at range: " <> show expectedRange <> ", got: " <> show actualRange
-          _ -> crash "Expected exactly one diagnostic"
+          (Nothing, []) -> pure ()
+          (expected, actual) -> case expected of
+            Nothing -> crash $ "Expected no diagnostics, got: " <> show actual
+            Just _ -> crash $ "Expected exactly one diagnostic, but got " <> show actual
       _ -> crash "Expected exactly one term"
 
 unusedBindingLocations :: Test ()
@@ -446,5 +449,18 @@ unusedBindingLocations =
       ),
       ( "Unused argument",
         [here|term «unused» = 1|]
+      ),
+      ( "Unused binding in cases block",
+        [here|term = cases
+  -- Note: the diagnostic _should_ only wrap the unused bindings, but right now it just wraps the whole pattern.
+  («unused, used»)
+    | used > 0 -> true
+    | otherwise -> false
+    |]
+      ),
+      ( "Ignored unused binding in cases block shouldn't error",
+        [here|term = cases
+  (used, _ignored) -> used
+    |]
       )
     ]
