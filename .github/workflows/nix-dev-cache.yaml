@@ -27,8 +27,8 @@ jobs:
     - name: set up mount points on Linux
       if: runner.os == 'Linux'
       run: |
-        mkdir /nix /mnt/nix
-        mount -B /mnt/nix /nix
+        sudo mkdir /nix /mnt/nix
+        sudo mount -B /mnt/nix /nix
     - uses: cachix/install-nix-action@v27
       if: runner.os == 'Linux'
       with:
