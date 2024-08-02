@@ -24,7 +24,7 @@ jobs:
           - macOS-14
     steps:
     - uses: actions/checkout@v4
-    - name: set up nix mount points on Linux
+    - name: mount Nix store on larger partition
       if: runner.os == 'Linux'
       run: |
         sudo mkdir /nix /mnt/nix
