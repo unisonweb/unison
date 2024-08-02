@@ -24,6 +24,11 @@ jobs:
           - macOS-14
     steps:
     - uses: actions/checkout@v4
+    - name: set up mount points on Linux
+      if: runner.os == 'Linux'
+      run: |
+        mkdir /nix /mnt/nix
+        mount -B /mnt/nix /nix
     - uses: cachix/install-nix-action@v27
       if: runner.os == 'Linux'
       with:
