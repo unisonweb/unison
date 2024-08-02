@@ -294,12 +294,13 @@ parsePattern = label "pattern" root
               do _ <- anyToken; pure (Set.findMin s <$ tok)
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
+        isIgnored n = Text.take 1 (Name.toText n) == "_"
         die hq s = case L.payload hq of
           -- if token not hash qualified or uppercase,
           -- fail w/out consuming it to allow backtracking
           HQ.NameOnly n
             | Set.null s
-                && isLower n ->
+                && (isLower n || isIgnored n) ->
                 fail $ "not a constructor name: " <> show n
           -- it was hash qualified, and wasn't found in the env, that's a failure!
           _ -> failCommitted $ err hq s
