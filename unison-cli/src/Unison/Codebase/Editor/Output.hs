@@ -57,7 +57,7 @@ import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..))
+import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -84,6 +84,8 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Conflicted (Conflicted)
+import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
@@ -424,20 +426,17 @@ data Output
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
-  | MergeConflictedTermName !Name !(NESet Referent)
-  | MergeConflictedTypeName !Name !(NESet TypeReference)
   | MergeConflictInvolvingBuiltin !Name
-  | MergeConstructorAlias !MergeSourceOrTarget !Name !Name !Name
   | MergeDefnsInLib !MergeSourceOrTarget
-  | MergeMissingConstructorName !MergeSourceOrTarget !Name
-  | MergeNestedDeclAlias !MergeSourceOrTarget !Name !Name
-  | MergeStrayConstructor !MergeSourceOrTarget !Name
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
+  | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
+  | IncoherentDeclDuringUpdate !IncoherentDeclReason
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -665,20 +664,17 @@ isFailure o = case o of
   MergeSuccess {} -> False
   MergeSuccessFastForward {} -> False
   MergeConflictedAliases {} -> True
-  MergeConflictedTermName {} -> True
-  MergeConflictedTypeName {} -> True
   MergeConflictInvolvingBuiltin {} -> True
-  MergeConstructorAlias {} -> True
   MergeDefnsInLib {} -> True
-  MergeMissingConstructorName {} -> True
-  MergeNestedDeclAlias {} -> True
-  MergeStrayConstructor {} -> True
   InstalledLibdep {} -> False
   NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
   Output'DebugSynhashTerm {} -> False
+  ConflictedDefn {} -> True
+  IncoherentDeclDuringMerge {} -> True
+  IncoherentDeclDuringUpdate {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

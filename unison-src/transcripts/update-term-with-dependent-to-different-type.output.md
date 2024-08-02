@@ -68,12 +68,16 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+foo : Int
+foo = +5
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 bar : Nat
 bar =
   use Nat +
   foo + 10
 
-foo : Int
-foo = +5
 ```
 

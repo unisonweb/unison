@@ -65,11 +65,15 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+type Foo = Bar Nat
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 foo : Foo -> Nat
 foo = cases
   Bar n   -> n
   Baz n m -> n Nat.+ m
 
-type Foo = Bar Nat
 ```
 

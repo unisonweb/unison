@@ -6,7 +6,9 @@ module Unison.Util.Nametree
 
     -- ** Flattening and unflattening
     flattenNametree,
+    flattenNametrees,
     unflattenNametree,
+    unflattenNametrees,
   )
 where
 
@@ -21,6 +23,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Prelude hiding (zipWith)
 
 -- | A nametree has a value, and a collection of children nametrees keyed by name segment.
@@ -103,6 +106,17 @@ flattenNametree f =
         )
         (Map.toList children)
 
+-- | Like 'flattenNametree', but works on both the types and terms namespace at once.
+flattenNametrees ::
+  (Ord term, Ord typ) =>
+  Nametree (DefnsF (Map NameSegment) term typ) ->
+  Defns (BiMultimap term Name) (BiMultimap typ Name)
+flattenNametrees defns =
+  Defns
+    { terms = flattenNametree (view #terms) defns,
+      types = flattenNametree (view #types) defns
+    }
+
 -- | 'unflattenNametree' organizes an association between names and definitions like
 --
 -- > {
@@ -120,9 +134,9 @@ flattenNametree f =
 -- >     "baz" = #baz
 -- >   }
 -- > }
-unflattenNametree :: (Ord a) => BiMultimap a Name -> Nametree (Map NameSegment a)
+unflattenNametree :: (Ord a) => Map Name a -> Nametree (Map NameSegment a)
 unflattenNametree =
-  unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList . BiMultimap.range
+  unfoldNametree unflattenLevel . map (first Name.segments) . Map.toList
   where
     unflattenLevel :: [(NonEmpty NameSegment, a)] -> (Map NameSegment a, Map NameSegment [(NonEmpty NameSegment, a)])
     unflattenLevel =
@@ -131,6 +145,18 @@ unflattenNametree =
         phi (!accValue, !accChildren) = \case
           (NameHere n, v) -> (Map.insert n v accValue, accChildren)
           (NameThere n ns, v) -> (accValue, Map.insertWith (++) n [(ns, v)] accChildren)
+
+-- | Like 'unflattenNametree', but works on both the types and terms namespace at once.
+unflattenNametrees :: (Ord term, Ord typ) => DefnsF (Map Name) term typ -> Nametree (DefnsF (Map NameSegment) term typ)
+unflattenNametrees defns =
+  alignWith
+    ( \case
+        This terms -> Defns {terms, types = Map.empty}
+        That types -> Defns {terms = Map.empty, types}
+        These terms types -> Defns {terms, types}
+    )
+    (unflattenNametree defns.terms)
+    (unflattenNametree defns.types)
 
 -- Helper patterns for switching on "name here" (1 name segment) or "name there" (2+ name segments)
 

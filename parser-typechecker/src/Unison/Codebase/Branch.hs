@@ -86,6 +86,7 @@ module Unison.Codebase.Branch
     -- ** Term/type queries
     deepTerms,
     deepTypes,
+    deepDefns,
     deepEdits,
     deepPaths,
     deepReferents,
@@ -112,6 +113,7 @@ import Unison.Codebase.Branch.Type
     UnwrappedBranch,
     branch0,
     children,
+    deepDefns,
     deepEdits,
     deepPaths,
     deepTerms,

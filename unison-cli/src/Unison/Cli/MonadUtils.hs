@@ -79,6 +79,9 @@ module Unison.Cli.MonadUtils
     expectLatestParsedFile,
     getLatestTypecheckedFile,
     expectLatestTypecheckedFile,
+
+    -- * Parsing env
+    makeParsingEnv,
   )
 where
 
@@ -98,6 +101,7 @@ import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.UniqueTypeGuidLookup (loadUniqueTypeGuid)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -122,9 +126,11 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Syntax.Parser (ParsingEnv (..))
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UF
@@ -554,3 +560,15 @@ getNamesFromLatestFile = do
 expectLatestTypecheckedFile :: Cli (TypecheckedUnisonFile Symbol Ann)
 expectLatestTypecheckedFile =
   getLatestTypecheckedFile & onNothingM (Cli.returnEarly Output.NoUnisonFile)
+
+-- @makeParsingEnv path names@ makes a parsing environment with @names@ in scope, which are all relative to @path@.
+makeParsingEnv :: ProjectPath -> Names -> Cli (ParsingEnv Transaction)
+makeParsingEnv path names = do
+  Cli.Env {generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  pure do
+    ParsingEnv
+      { uniqueNames = uniqueName,
+        uniqueTypeGuid = loadUniqueTypeGuid path,
+        names
+      }

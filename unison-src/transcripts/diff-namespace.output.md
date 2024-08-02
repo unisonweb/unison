@@ -199,7 +199,15 @@ scratch/ns2> alias.type A A'
 
   Done.
 
+scratch/ns2> alias.term A.A A'.A
+
+  Done.
+
 scratch/ns2> alias.type X X'
+
+  Done.
+
+scratch/ns2> alias.term X.x X'.x
 
   Done.
 
@@ -238,14 +246,26 @@ scratch/main> diff.namespace /ns1: /ns2:
     
     16. X                      17. X' (added)
     
-    18. fromJust'           ┐  19. fromJust#gjmq673r1v (removed)
-    20. fromJust#gjmq673r1v ┘  
+    18. A.A                    19. A'.A (added)
+    
+    20. fromJust'           ┐  21. fromJust#gjmq673r1v (removed)
+    22. fromJust#gjmq673r1v ┘  
+    
+    23. X.x                    24. X'.x (added)
 
 scratch/ns1> alias.type X X2
 
   Done.
 
+scratch/ns1> alias.term X.x X2.x
+
+  Done.
+
 scratch/ns2> alias.type A' A''
+
+  Done.
+
+scratch/ns2> alias.term A'.A A''.A
 
   Done.
 

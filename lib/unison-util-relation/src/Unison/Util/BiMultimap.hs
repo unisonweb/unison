@@ -3,6 +3,9 @@ module Unison.Util.BiMultimap
   ( BiMultimap,
     Unison.Util.BiMultimap.empty,
 
+    -- ** Basic queries
+    isEmpty,
+
     -- ** Lookup
     memberDom,
     lookupDom,
@@ -32,6 +35,9 @@ module Unison.Util.BiMultimap
     dom,
     ran,
 
+    -- ** Relations
+    toRelation,
+
     -- ** Insert
     insert,
     unsafeInsert,
@@ -47,6 +53,8 @@ import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Prelude
 import Unison.Util.Map qualified as Map
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation qualified as Relation
 import Prelude hiding (filter)
 
 -- | A left-unique relation.
@@ -61,6 +69,11 @@ data BiMultimap a b = BiMultimap
 -- | An empty left-unique relation.
 empty :: (Ord a, Ord b) => BiMultimap a b
 empty = BiMultimap mempty mempty
+
+-- | Is a left-unique relation empty?
+isEmpty :: BiMultimap a b -> Bool
+isEmpty =
+  Map.null . domain
 
 memberDom :: (Ord a) => a -> BiMultimap a b -> Bool
 memberDom x =
@@ -199,6 +212,11 @@ dom =
 ran :: BiMultimap a b -> Set b
 ran =
   Map.keysSet . toMapR
+
+-- | Convert a left-unique relation to a relation (forgetting its left-uniqueness).
+toRelation :: (Ord a, Ord b) => BiMultimap a b -> Relation a b
+toRelation =
+  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . domain
 
 -- | Insert a pair into a left-unique relation, maintaining left-uniqueness, preferring the latest inserted element.
 --

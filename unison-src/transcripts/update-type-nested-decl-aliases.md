@@ -17,10 +17,6 @@ scratch/main> add
 unique type Foo = Bar Nat Nat
 ```
 
-Bug: we want this update to be rejected earlier, because it violates the "decl coherency" precondition that there's
-only one name for each constructor. We instead get too far in the update process, and are delivered a bogus scratch.u
-file to stare at.
-
 ```ucm:error
 scratch/main> update
 ```

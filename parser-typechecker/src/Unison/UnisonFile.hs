@@ -36,6 +36,8 @@ module Unison.UnisonFile
     typecheckedUnisonFile,
     Unison.UnisonFile.rewrite,
     prepareRewrite,
+    termNamespaceBindings,
+    typeNamespaceBindings,
   )
 where
 
@@ -49,6 +51,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
+import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
@@ -67,6 +70,7 @@ import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind (WatchKind, pattern TestWatch)
+import Unison.WatchKind qualified as WatchKind
 
 -- | An empty Unison file.
 emptyUnisonFile :: UnisonFile v a
@@ -390,3 +394,28 @@ constructorsForDecls types uf =
           & fmap (DD.toDataDecl . snd)
           & concatMap DD.constructorVars
    in Set.fromList (dataConstructors <> effectConstructors)
+
+-- | All bindings in the term namespace: terms, test watches (since those are the only watches that are actually stored
+-- in the codebase), data constructors, and effect constructors.
+termNamespaceBindings :: Ord v => TypecheckedUnisonFile v a -> Set v
+termNamespaceBindings uf =
+  terms <> tests <> datacons <> effcons
+  where
+    terms = foldMap (Set.fromList . map (view _1)) uf.topLevelComponents'
+    tests =
+      uf.watchComponents & foldMap \case
+        (WatchKind.TestWatch, watches) -> Set.fromList (map (view _1) watches)
+        _ -> Set.empty
+    datacons = foldMap (Set.fromList . DataDeclaration.constructorVars . view _2) uf.dataDeclarationsId'
+    effcons =
+      foldMap
+        (Set.fromList . DataDeclaration.constructorVars . DataDeclaration.toDataDecl . view _2)
+        uf.effectDeclarationsId'
+
+-- | All bindings in the term namespace: data declarations and effect declarations.
+typeNamespaceBindings :: Ord v => TypecheckedUnisonFile v a -> Set v
+typeNamespaceBindings uf =
+  datas <> effs
+  where
+    datas = Map.keysSet uf.dataDeclarationsId'
+    effs = Map.keysSet uf.effectDeclarationsId'

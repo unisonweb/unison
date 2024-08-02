@@ -45,27 +45,18 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-Bug: we leave `Foo.BarAlias` in the namespace with a nameless decl.
-
 ``` ucm
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-scratch/main> find.verbose
-
-  1. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g
-     type Foo
-     
-  2. -- #8fk6k0j208th1ia4vnjtoc5fomd6le540prec255svg71bcfga9dofrvoq1d7v6010d6b6em4q51p8st5c5juhrev72cnnel8ko3o1g#0
-     Foo.Bar : Nat -> Nat -> Foo
-     
-  3. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
-     Foo.BarAlias : Nat -> #b509v3eg4k
-     
+  Sorry, I wasn't able to perform the update:
   
+  The type Foo has a constructor with multiple names, and I
+  can't perform an update in this situation:
+  
+    * Foo.Bar
+    * Foo.BarAlias
+  
+  Please delete all but one name for each constructor, and then
+  try updating again.
 
 ```

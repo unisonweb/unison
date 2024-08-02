@@ -51,10 +51,14 @@ scratch/main> update
 
 ```
 ``` unison:added-by-ucm scratch.u
+foo n = "hello, world!"
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 test> mynamespace.foo.test =
   n = 2
   if foo n == 2 then [Ok "passed"] else [Fail "wat"]
 
-foo n = "hello, world!"
 ```
 
