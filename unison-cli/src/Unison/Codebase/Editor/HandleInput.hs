@@ -63,6 +63,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
+import Unison.Codebase.Editor.HandleInput.Global qualified as Global
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
@@ -496,23 +497,27 @@ loop e = do
                 fixupOutput = HQ'.toHQ . Path.nameFromHQSplit
             NamesI global query -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
-              (names, pped) <-
-                if global
-                  then do
-                    error "TODO: Implement names.global."
-                  else do
-                    names <- Cli.currentNames
+              let searchNames names = do
                     pped <- Cli.prettyPrintEnvDeclFromNames names
-                    pure (names, pped)
-
-              let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
-                  terms = Names.lookupHQTerm Names.IncludeSuffixes query names
-                  types = Names.lookupHQType Names.IncludeSuffixes query names
-                  terms' :: [(Referent, [HQ'.HashQualified Name])]
-                  terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
-                  types' :: [(Reference, [HQ'.HashQualified Name])]
-                  types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
-              Cli.respond $ ListNames global hqLength types' terms'
+                    let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+                        terms = Names.lookupHQTerm Names.IncludeSuffixes query names
+                        types = Names.lookupHQType Names.IncludeSuffixes query names
+                        terms' :: [(Referent, [HQ'.HashQualified Name])]
+                        terms' = map (\r -> (r, PPE.allTermNames unsuffixifiedPPE r)) (Set.toList terms)
+                        types' :: [(Reference, [HQ'.HashQualified Name])]
+                        types' = map (\r -> (r, PPE.allTypeNames unsuffixifiedPPE r)) (Set.toList types)
+                    pure (terms', types')
+              if global
+                then do
+                  Global.forAllProjectBranches \(projBranchNames, _ids) branch -> do
+                    let names = Branch.toNames . Branch.head $ branch
+                    (terms, types) <- searchNames names
+                    when (not (null terms) || not (null types)) do
+                      Cli.respond $ GlobalListNames projBranchNames hqLength types terms
+                else do
+                  names <- Cli.currentNames
+                  (terms, types) <- searchNames names
+                  Cli.respond $ ListNames hqLength types terms
             DocsI srcs -> do
               for_ srcs docsI
             CreateAuthorI authorNameSegment authorFullName -> do
@@ -1088,7 +1093,7 @@ handleFindI ::
   Cli ()
 handleFindI isVerbose fscope ws input = do
   Cli.Env {codebase} <- ask
-  (pped, names, searchRoot, branch0) <- case fscope of
+  case fscope of
     FindLocal p -> do
       searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0FromProjectPath searchRoot
@@ -1096,7 +1101,21 @@ handleFindI isVerbose fscope ws input = do
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names, Just p, branch0)
+      let suffixifiedPPE = PPED.suffixifiedPPE pped
+      results <- searchBranch0 codebase branch0 names
+      if (null results)
+        then do
+          Cli.respond FindNoLocalMatches
+          -- We've already searched everything else, so now we search JUST the
+          -- names in lib.
+          let mayOnlyLibBranch = branch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
+          case mayOnlyLibBranch of
+            Nothing -> respondResults codebase suffixifiedPPE (Just p) []
+            Just onlyLibBranch -> do
+              let onlyLibNames = Branch.toNames onlyLibBranch
+              results <- searchBranch0 codebase branch0 onlyLibNames
+              respondResults codebase suffixifiedPPE (Just p) results
+        else respondResults codebase suffixifiedPPE (Just p) results
     FindLocalAndDeps p -> do
       searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0FromProjectPath searchRoot
@@ -1104,64 +1123,57 @@ handleFindI isVerbose fscope ws input = do
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       pped <- Cli.currentPrettyPrintEnvDecl
-      pure (pped, names, Just p, branch0)
+      let suffixifiedPPE = PPED.suffixifiedPPE pped
+      results <- searchBranch0 codebase branch0 names
+      respondResults codebase suffixifiedPPE (Just p) results
     FindGlobal -> do
-      -- TODO: Rewrite to be properly global again
-      projectRootNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getCurrentProjectRoot0
-      pped <- Cli.prettyPrintEnvDeclFromNames projectRootNames
-      currentBranch0 <- Cli.getCurrentBranch0
-      pure (pped, projectRootNames, Nothing, currentBranch0)
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  let getResults :: Names -> Cli [SearchResult]
-      getResults names =
-        case ws of
-          [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
-          -- type query
-          ":" : ws -> do
-            typ <- parseSearchType (show input) (unwords ws)
-            let keepNamed = Set.intersection (Branch.deepReferents branch0)
-            (noExactTypeMatches, matches) <- do
-              Cli.runTransaction do
-                matches <- keepNamed <$> Codebase.termsOfType codebase typ
-                if null matches
-                  then (True,) . keepNamed <$> Codebase.termsMentioningType codebase typ
-                  else pure (False, matches)
-            when noExactTypeMatches (Cli.respond NoExactTypeMatches)
-            pure $
-              -- in verbose mode, aliases are shown, so we collapse all
-              -- aliases to a single search result; in non-verbose mode,
-              -- a separate result may be shown for each alias
-              (if isVerbose then uniqueBy SR.toReferent else id) $
-                searchResultsFor names (Set.toList matches) []
+      Global.forAllProjectBranches \(projAndBranchNames, _ids) branch -> do
+        let branch0 = Branch.head branch
+        let projectRootNames = Names.makeAbsolute . Branch.toNames $ branch0
+        pped <- Cli.prettyPrintEnvDeclFromNames projectRootNames
+        results <- searchBranch0 codebase branch0 projectRootNames
+        when (not $ null results) do
+          Cli.setNumberedArgs $ fmap (SA.SearchResult Nothing) results
+          results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
+          Cli.respond $ GlobalFindBranchResults projAndBranchNames (PPED.suffixifiedPPE pped) isVerbose results'
+  where
+    searchBranch0 :: Codebase.Codebase m Symbol Ann -> Branch0 IO -> Names -> Cli [SearchResult]
+    searchBranch0 codebase branch0 names =
+      case ws of
+        [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
+        -- type query
+        ":" : ws -> do
+          typ <- parseSearchType (show input) (unwords ws)
+          let keepNamed = Set.intersection (Branch.deepReferents branch0)
+          (noExactTypeMatches, matches) <- do
+            Cli.runTransaction do
+              matches <- keepNamed <$> Codebase.termsOfType codebase typ
+              if null matches
+                then (True,) . keepNamed <$> Codebase.termsMentioningType codebase typ
+                else pure (False, matches)
+          when noExactTypeMatches (Cli.respond NoExactTypeMatches)
+          pure $
+            -- in verbose mode, aliases are shown, so we collapse all
+            -- aliases to a single search result; in non-verbose mode,
+            -- a separate result may be shown for each alias
+            (if isVerbose then uniqueBy SR.toReferent else id) $
+              searchResultsFor names (Set.toList matches) []
 
-          -- name query
-          qs -> do
-            let anythingBeforeHash :: Megaparsec.Parsec (L.Token Text) [Char] Text
-                anythingBeforeHash = Text.pack <$> Megaparsec.takeWhileP Nothing (/= '#')
-            let srs =
-                  searchBranchScored
-                    names
-                    Find.simpleFuzzyScore
-                    (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
-            pure $ uniqueBy SR.toReferent srs
-  let respondResults results = do
-        Cli.setNumberedArgs $ fmap (SA.SearchResult searchRoot) results
-        results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
-        Cli.respond $ ListOfDefinitions fscope suffixifiedPPE isVerbose results'
-  results <- getResults names
-  case (results, fscope) of
-    ([], FindLocal {}) -> do
-      Cli.respond FindNoLocalMatches
-      -- We've already searched everything else, so now we search JUST the
-      -- names in lib.
-      let mayOnlyLibBranch = branch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
-      case mayOnlyLibBranch of
-        Nothing -> respondResults []
-        Just onlyLibBranch -> do
-          let onlyLibNames = Branch.toNames onlyLibBranch
-          results <- getResults onlyLibNames
-          respondResults results
-    _ -> respondResults results
+        -- name query
+        qs -> do
+          let anythingBeforeHash :: Megaparsec.Parsec (L.Token Text) [Char] Text
+              anythingBeforeHash = Text.pack <$> Megaparsec.takeWhileP Nothing (/= '#')
+          let srs =
+                searchBranchScored
+                  names
+                  Find.simpleFuzzyScore
+                  (mapMaybe (HQ.parseTextWith anythingBeforeHash . Text.pack) qs)
+          pure $ uniqueBy SR.toReferent srs
+    respondResults :: Codebase.Codebase m Symbol Ann -> PPE.PrettyPrintEnv -> Maybe Path' -> [SearchResult] -> Cli ()
+    respondResults codebase ppe searchRoot results = do
+      Cli.setNumberedArgs $ fmap (SA.SearchResult searchRoot) results
+      results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
+      Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
 
 handleDependencies :: HQ.HashQualified Name -> Cli ()
 handleDependencies hq = do

@@ -855,49 +855,24 @@ notifyUser dir = \case
       ]
   ListOfDefinitions fscope ppe detailed results ->
     listOfDefinitions fscope ppe detailed results
-  ListNames global len types terms ->
-    if null types && null terms
-      then
-        pure . P.callout "😶" $
-          P.sepNonEmpty "\n\n" $
-            [ P.wrap "I couldn't find anything by that name.",
-              globalTip
-            ]
-      else
-        pure . P.sepNonEmpty "\n\n" $
-          [ formatTypes types,
-            formatTerms terms,
-            globalTip
-          ]
-    where
-      globalTip =
-        if global
-          then mempty
-          else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
-      formatTerms tms =
-        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
-        where
-          go (ref, hqs) =
-            P.column2
-              [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
-                ( "Names: ",
-                  P.group $
-                    P.spaced $
-                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
-                )
-              ]
-      formatTypes types =
-        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
-        where
-          go (ref, hqs) =
-            P.column2
-              [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
-                ( "Names:",
-                  P.group $
-                    P.spaced $
-                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
-                )
-              ]
+  GlobalFindBranchResults projBranchName ppe detailed results -> do
+    output <- listOfDefinitions Input.FindGlobal ppe detailed results
+    pure $
+      P.lines
+        [ P.wrap $ "Found results in " <> P.text (into @Text projBranchName),
+          "",
+          output
+        ]
+  ListNames len types terms ->
+    listOfNames len types terms
+  GlobalListNames projectBranchName len types terms -> do
+    output <- listOfNames len types terms
+    pure $
+      P.lines
+        [ P.wrap $ "Found results in " <> P.text (into @Text projectBranchName),
+          "",
+          output
+        ]
   -- > names foo
   --   Terms:
   --     Hash: #asdflkjasdflkjasdf
@@ -2815,6 +2790,45 @@ listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
+
+listOfNames :: Int -> [(Reference, [HQ'.HashQualified Name])] -> [(Referent, [HQ'.HashQualified Name])] -> IO Pretty
+listOfNames len types terms = do
+  if null types && null terms
+    then
+      pure . P.callout "😶" $
+        P.sepNonEmpty "\n\n" $
+          [ P.wrap "I couldn't find anything by that name."
+          ]
+    else
+      pure . P.sepNonEmpty "\n\n" $
+        [ formatTypes types,
+          formatTerms terms
+        ]
+  where
+    formatTerms tms =
+      P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
+      where
+        go (ref, hqs) =
+          P.column2
+            [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
+              ( "Names: ",
+                P.group $
+                  P.spaced $
+                    P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+              )
+            ]
+    formatTypes types =
+      P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
+      where
+        go (ref, hqs) =
+          P.column2
+            [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
+              ( "Names:",
+                P.group $
+                  P.spaced $
+                    P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+              )
+            ]
 
 data ShowNumbers = ShowNumbers | HideNumbers
 
