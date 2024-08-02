@@ -24,6 +24,12 @@ jobs:
           - macOS-14
     steps:
     - uses: actions/checkout@v4
+    - name: mount Nix store on larger partition
+      # on the Linux runner `/` doesn't have enough space, but there's a `/mnt` which does.
+      if: runner.os == 'Linux'
+      run: |
+        sudo mkdir /nix /mnt/nix
+        sudo mount --bind /mnt/nix /nix
     - uses: cachix/install-nix-action@v27
       if: runner.os == 'Linux'
       with:
@@ -38,3 +44,5 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: build all packages and development shells
       run: nix -L build --accept-flake-config --no-link --keep-going '.#all'
+    - name: print disk free status
+      run: df -h
