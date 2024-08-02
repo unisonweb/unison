@@ -777,7 +777,8 @@
   (define-values (udefs tmlinks codes)
     (for/lists (boths fsts snds)
                ([p (in-chunked-list dfns0)]
-                #:when (need-dependency? (ufst p)))
+                #:when (need-dependency? (ufst p))
+                #:unless (member (ufst p) fsts))
       (values p (ufst p) (usnd p))))
 
   (cond
