@@ -191,13 +191,12 @@ foo = match 1 with
 
   Loading changes detected in scratch.u.
 
-    😶
-    
-    I expected some patterns after a match / with or cases but I
-    didn't find any.
-    
+  Pattern match doesn't cover all possible cases:
         2 | foo = match 1 with
     
+  
+  Patterns not matched:
+   * _
 
 ```
 ``` unison

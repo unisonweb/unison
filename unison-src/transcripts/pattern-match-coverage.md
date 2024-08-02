@@ -3,6 +3,23 @@ scratch/main> builtins.merge
 ```
 
 # Basics
+
+## uninhabited types
+```unison
+structural type Void =
+
+test : Void -> a
+test x = match x with
+```
+
+This one is broken but shouldn't be:
+```unison:error
+structural type Void =
+
+test : Void -> a
+test = cases
+```
+
 ## non-exhaustive patterns
 ```unison:error
 unique type T = A | B | C
