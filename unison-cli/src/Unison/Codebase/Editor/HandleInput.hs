@@ -152,8 +152,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
-import Unison.Syntax.Lexer qualified as L
-import Unison.Syntax.Lexer qualified as Lexer
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
@@ -1162,7 +1161,7 @@ handleFindI isVerbose fscope ws input = do
 
         -- name query
         qs -> do
-          let anythingBeforeHash :: Megaparsec.Parsec (Lexer.Token Text) [Char] Text
+          let anythingBeforeHash :: Megaparsec.Parsec (L.Token Text) [Char] Text
               anythingBeforeHash = Text.pack <$> Megaparsec.takeWhileP Nothing (/= '#')
           let srs =
                 searchBranchScored
