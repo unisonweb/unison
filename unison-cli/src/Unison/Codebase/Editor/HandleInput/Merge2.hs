@@ -374,36 +374,17 @@ doMerge info = do
             (Codebase.getDeclType env.codebase)
             (Merge.applyLibdepsDiff Merge.getTwoFreshLibdepNames libdeps (Merge.diffLibdeps libdeps))
 
-      let hydratedThings ::
-            Merge.TwoWay
-              ( DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann),
-                DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)
-              )
-          hydratedThings =
-            ( \as bs cs ->
-                ( zipDefnsWith Map.restrictKeys Map.restrictKeys as bs,
-                  zipDefnsWith Map.restrictKeys Map.restrictKeys as cs
-                )
-            )
-              <$> ThreeWay.forgetLca hydratedDefns3
-              <*> conflictsNames
-              <*> dependents
-
       let (renderedConflicts, renderedDependents) =
-            unzip $
-              ( \declNameLookup (conflicts, dependents) ppe ->
-                  let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
-                   in (render conflicts, render dependents)
-              )
-                <$> declNameLookups
-                <*> hydratedThings
-                <*> ( Merge.makePrettyPrintEnvs
-                        Merge.ThreeWay
-                          { alice = defnsToNames defns3.alice,
-                            bob = defnsToNames defns3.bob,
-                            lca = Branch.toNames mergedLibdeps
-                          }
-                    )
+            renderConflictsAndDependents
+              declNameLookups
+              (ThreeWay.forgetLca hydratedDefns3)
+              conflictsNames
+              dependents
+              Merge.ThreeWay
+                { alice = defnsToNames defns3.alice,
+                  bob = defnsToNames defns3.bob,
+                  lca = Branch.toNames mergedLibdeps
+                }
 
       let prettyUnisonFile =
             makePrettyUnisonFile
@@ -465,6 +446,40 @@ doMerge info = do
           pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
+
+renderConflictsAndDependents ::
+  Merge.TwoWay Merge.DeclNameLookup ->
+  Merge.TwoWay (DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)) ->
+  Merge.TwoWay (DefnsF Set Name Name) ->
+  Merge.TwoWay (DefnsF Set Name Name) ->
+  Merge.ThreeWay Names ->
+  ( Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
+    Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText))
+  )
+renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents names =
+  unzip $
+    ( \declNameLookup (conflicts, dependents) ppe ->
+        let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
+         in (render conflicts, render dependents)
+    )
+      <$> declNameLookups
+      <*> hydratedConflictsAndDependents
+      <*> Merge.makePrettyPrintEnvs names
+  where
+    hydratedConflictsAndDependents ::
+      Merge.TwoWay
+        ( DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann),
+          DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)
+        )
+    hydratedConflictsAndDependents =
+      ( \as bs cs ->
+          ( zipDefnsWith Map.restrictKeys Map.restrictKeys as bs,
+            zipDefnsWith Map.restrictKeys Map.restrictKeys as cs
+          )
+      )
+        <$> hydratedDefns
+        <*> conflicts
+        <*> dependents
 
 doMergeLocalBranch :: Merge.TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
 doMergeLocalBranch branches = do
