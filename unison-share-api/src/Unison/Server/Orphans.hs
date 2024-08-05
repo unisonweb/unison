@@ -1,8 +1,10 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Orphans where
 
+import Codec.CBOR.Decoding qualified as CBOR
 import Codec.CBOR.Encoding qualified as CBOR
 import Codec.Serialise (Serialise (..))
 import Codec.Serialise qualified as CBOR
@@ -16,6 +18,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.OpenApi
 import Data.Proxy
 import Data.Text qualified as Text
+import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
@@ -444,44 +447,99 @@ deriving via Text instance ToJSON ProjectBranchName
 
 deriving via Text instance Serialise Hash32
 
-termComponentTag, declComponentTag, patchTag, namespaceTag, causalTag :: CBOR.Encoding
-(termComponentTag, declComponentTag, patchTag, namespaceTag, causalTag) = over each CBOR.encodeWord (0, 1, 2, 3, 4)
+data SyncTag
+  = TermComponentTag
+  | DeclComponentTag
+  | PatchTag
+  | NamespaceTag
+  | CausalTag
+  deriving (Eq, Show)
+
+instance Serialise SyncTag where
+  encode = \case
+    TermComponentTag -> CBOR.encodeWord 0
+    DeclComponentTag -> CBOR.encodeWord 1
+    PatchTag -> CBOR.encodeWord 2
+    NamespaceTag -> CBOR.encodeWord 3
+    CausalTag -> CBOR.encodeWord 4
+
+  decode = do
+    tag <- CBOR.decodeWord
+    case tag of
+      0 -> pure TermComponentTag
+      1 -> pure DeclComponentTag
+      2 -> pure PatchTag
+      3 -> pure NamespaceTag
+      4 -> pure CausalTag
+      _ -> fail $ "Unknown tag: " <> show tag
+
+newtype ComponentBody t d = ComponentBody {unComponentBody :: (LocalIds.LocalIds' t d, ByteString)}
+
+instance (Serialise t, Serialise d) => Serialise (ComponentBody t d) where
+  encode (ComponentBody (LocalIds.LocalIds {textLookup, defnLookup}, bytes)) =
+    CBOR.encodeVector textLookup
+      <> CBOR.encodeVector defnLookup
+      <> CBOR.encodeBytes bytes
+
+  decode = do
+    textLookup <- CBOR.decodeVector
+    defnLookup <- CBOR.decodeVector
+    bytes <- CBOR.decodeBytes
+    pure $ ComponentBody (LocalIds.LocalIds {textLookup, defnLookup}, bytes)
 
 instance Serialise TempEntity where
   encode = \case
     Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent elements)) ->
-      termComponentTag
-        <> encodeVectorWith encodeElement elements
+      CBOR.encode TermComponentTag
+        <> CBOR.encodeVector (coerce @(Vector (LocalIds.LocalIds' Text Hash32, ByteString)) @(Vector (ComponentBody Text Hash32)) elements)
     Entity.DC (DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent elements)) ->
-      declComponentTag
-        <> encodeVectorWith encodeElement elements
+      CBOR.encode DeclComponentTag
+        <> CBOR.encodeVector (coerce @(Vector (LocalIds.LocalIds' Text Hash32, ByteString)) @(Vector (ComponentBody Text Hash32)) elements)
     Entity.P (PatchFormat.SyncDiff {}) -> error "Serializing Diffs are not supported"
     Entity.P (PatchFormat.SyncFull (PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup}) bytes) ->
-      patchTag
+      CBOR.encode PatchTag
         <> CBOR.encodeVector patchTextLookup
         <> CBOR.encodeVector patchHashLookup
         <> CBOR.encodeVector patchDefnLookup
         <> CBOR.encodeBytes bytes
     Entity.N (BranchFormat.SyncDiff {}) -> error "Serializing Diffs are not supported"
     Entity.N (BranchFormat.SyncFull (BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup}) (BranchFormat.LocalBranchBytes bytes)) ->
-      namespaceTag
+      CBOR.encode NamespaceTag
         <> CBOR.encodeVector branchTextLookup
         <> CBOR.encodeVector branchDefnLookup
         <> CBOR.encodeVector branchPatchLookup
         <> CBOR.encodeVector branchChildLookup
         <> CBOR.encodeBytes bytes
     Entity.C (SqliteCausal.SyncCausalFormat {valueHash, parents}) ->
-      causalTag
+      CBOR.encode CausalTag
         <> CBOR.encode valueHash
         <> CBOR.encodeVector parents
-    where
-      encodeElement :: (Serialise t, Serialise d) => (LocalIds.LocalIds' t d, ByteString) -> CBOR.Encoding
-      encodeElement (LocalIds.LocalIds {textLookup, defnLookup}, bytes) =
-        CBOR.encodeVector textLookup
-          <> CBOR.encodeVector defnLookup
-          <> CBOR.encodeBytes bytes
 
-  decode = error "Decoding Share.Entity not supported"
+  decode = do
+    CBOR.decode >>= \case
+      TermComponentTag -> do
+        elements <- coerce @(Vector (ComponentBody Text Hash32)) @(Vector (LocalIds.LocalIds' Text Hash32, ByteString)) <$> CBOR.decodeVector
+        pure $ Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent elements))
+      DeclComponentTag -> do
+        elements <- coerce @(Vector (ComponentBody Text Hash32)) @(Vector (LocalIds.LocalIds' Text Hash32, ByteString)) <$> CBOR.decodeVector
+        pure $ Entity.DC (DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent elements))
+      PatchTag -> do
+        patchTextLookup <- CBOR.decodeVector
+        patchHashLookup <- CBOR.decodeVector
+        patchDefnLookup <- CBOR.decodeVector
+        bytes <- CBOR.decodeBytes
+        pure $ Entity.P (PatchFormat.SyncFull (PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup}) bytes)
+      NamespaceTag -> do
+        branchTextLookup <- CBOR.decodeVector
+        branchDefnLookup <- CBOR.decodeVector
+        branchPatchLookup <- CBOR.decodeVector
+        branchChildLookup <- CBOR.decodeVector
+        bytes <- CBOR.decodeBytes
+        pure $ Entity.N (BranchFormat.SyncFull (BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup}) (BranchFormat.LocalBranchBytes bytes))
+      CausalTag -> do
+        valueHash <- CBOR.decode
+        parents <- CBOR.decodeVector
+        pure $ Entity.C (SqliteCausal.SyncCausalFormat {valueHash, parents})
 
 encodeVectorWith :: (a -> CBOR.Encoding) -> Vector.Vector a -> CBOR.Encoding
 encodeVectorWith f xs =
