@@ -255,8 +255,8 @@ doMerge info = do
             ThreeWay.forgetLca defns3
 
       -- Hydrate
-      hydratedDefns2 ::
-        Merge.TwoWay
+      hydratedDefns3 ::
+        Merge.ThreeWay
           ( DefnsF
               (Map Name)
               (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
@@ -270,15 +270,16 @@ doMerge info = do
             )
             ( let f = Map.mapMaybe Referent.toTermReferenceId . BiMultimap.range
                   g = Map.mapMaybe Reference.toId . BiMultimap.range
-               in bimap f g <$> ThreeWay.forgetLca defns3
+               in bimap f g <$> defns3
             )
 
-      -- Make one big constructor count lookup for Alice+Bob's type decls
+      -- Make one big constructor count lookup for all type decls
       let numConstructors :: Map TypeReferenceId Int
           numConstructors =
             Map.empty
-              & f (Map.elems hydratedDefns2.alice.types)
-              & f (Map.elems hydratedDefns2.bob.types)
+              & f (Map.elems hydratedDefns3.alice.types)
+              & f (Map.elems hydratedDefns3.bob.types)
+              & f (Map.elems hydratedDefns3.lca.types)
             where
               f :: [(TypeReferenceId, Decl Symbol Ann)] -> Map TypeReferenceId Int -> Map TypeReferenceId Int
               f types acc =
@@ -316,11 +317,11 @@ doMerge info = do
                 { terms =
                     foldMap
                       (List.foldl' (\acc (ref, (term, _)) -> Map.insert ref term acc) Map.empty . Map.elems . (.terms))
-                      hydratedDefns2,
+                      hydratedDefns3,
                   types =
                     foldMap
                       (List.foldl' (\acc (ref, typ) -> Map.insert ref typ acc) Map.empty . Map.elems . (.types))
-                      hydratedDefns2
+                      hydratedDefns3
                 }
 
       liftIO (debugFunctions.debugDiffs diffs)
@@ -349,8 +350,9 @@ doMerge info = do
       -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
       let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes unconflicts
       let coreDependencies = identifyCoreDependencies defns2 conflicts soloUpdatesAndDeletes
-      dependents0 <- Cli.runTransaction (for ((,) <$> defns2 <*> coreDependencies) (uncurry getNamespaceDependentsOf2))
-      let dependents = filterDependents conflicts soloUpdatesAndDeletes dependents0
+      dependents <- do
+        dependents0 <- Cli.runTransaction (for ((,) <$> defns2 <*> coreDependencies) (uncurry getNamespaceDependentsOf2))
+        pure (filterDependents conflicts soloUpdatesAndDeletes dependents0)
 
       liftIO (debugFunctions.debugDependents dependents)
 
@@ -381,11 +383,19 @@ doMerge info = do
               suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
       let ppes = mkPpes (defnsToNames <$> defns2) (Branch.toNames mergedLibdeps)
 
-      hydratedThings <- do
-        Cli.runTransaction do
-          for ((,) <$> conflicts <*> dependents) \(conflicts1, dependents1) ->
-            let hydrate = hydrateDefns (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent
-             in (,) <$> hydrate conflicts1 <*> hydrate dependents1
+      let hydratedThings ::
+            Merge.TwoWay
+              ( DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann),
+                DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)
+              )
+          hydratedThings =
+            ( \as bs cs ->
+                let f xs ys = xs `Map.restrictKeys` Map.keysSet ys
+                 in (zipDefnsWith f f as bs, zipDefnsWith f f as cs)
+            )
+              <$> ThreeWay.forgetLca hydratedDefns3
+              <*> conflicts
+              <*> dependents
 
       let (renderedConflicts, renderedDependents) =
             unzip $

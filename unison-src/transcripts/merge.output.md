@@ -1335,9 +1335,9 @@ project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
-  There's a merge conflict on MyNat, but it's a builtin on one
-  or both branches. I can't yet handle merge conflicts involving
-  builtins.
+  There's a merge conflict on type MyNat, but it's a builtin on
+  one or both branches. I can't yet handle merge conflicts
+  involving builtins.
   
   Please eliminate this conflict by updating one branch or the
   other, making MyNat the same on both branches, or making

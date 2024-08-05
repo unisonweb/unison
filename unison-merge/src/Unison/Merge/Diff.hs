@@ -47,6 +47,7 @@ import Unison.Util.Defns (Defns (..), DefnsF2, DefnsF3, zipDefnsWith)
 -- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's
 -- branches. If the hash of a name did not change, it will not appear in the map.
 nameBasedNamespaceDiff ::
+  HasCallStack =>
   TwoWay DeclNameLookup ->
   PartialDeclNameLookup ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -88,6 +89,7 @@ diffHashedNamespaceDefns =
 -- Syntactic hashing
 
 synhashLcaDefns ::
+  HasCallStack =>
   PrettyPrintEnv ->
   PartialDeclNameLookup ->
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
@@ -119,6 +121,7 @@ synhashLcaDefns ppe declNameLookup defns hydratedDefns =
           Just names -> synhashDerivedDecl ppe hydratedDefns.types names name ref
 
 synhashDefns ::
+  HasCallStack =>
   PrettyPrintEnv ->
   Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
   DeclNameLookup ->
@@ -145,6 +148,7 @@ synhashDefns ppe hydratedDefns declNameLookup =
         synhashDerivedDecl ppe hydratedDefns.types (DeclNameLookup.expectConstructorNames declNameLookup name) name ref
 
 synhashDerivedDecl ::
+  HasCallStack =>
   PrettyPrintEnv ->
   Map TypeReferenceId (Decl Symbol Ann) ->
   [Name] ->
@@ -157,12 +161,13 @@ synhashDerivedDecl ppe declsById names name ref =
     & DataDeclaration.setConstructorNames (map Name.toVar names)
     & Synhash.synhashDerivedDecl ppe name
 
-synhashTermReference :: PrettyPrintEnv -> Map TermReferenceId (Term Symbol Ann) -> TermReference -> Hash
+synhashTermReference :: HasCallStack => PrettyPrintEnv -> Map TermReferenceId (Term Symbol Ann) -> TermReference -> Hash
 synhashTermReference ppe termsById = \case
   ReferenceBuiltin builtin -> Synhash.synhashBuiltinTerm builtin
   ReferenceDerived ref -> Synhash.synhashDerivedTerm ppe (expectTerm ref termsById)
 
 synhashDefnsWith ::
+  HasCallStack =>
   (Name -> term -> Hash) ->
   (Name -> typ -> Hash) ->
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
@@ -194,13 +199,13 @@ deepNamespaceDefinitionsToPpe Defns {terms, types} =
 ------------------------------------------------------------------------------------------------------------------------
 -- Looking up terms and decls that we expect to be there
 
-expectTerm :: TermReferenceId -> Map TermReferenceId (Term Symbol Ann) -> Term Symbol Ann
+expectTerm :: HasCallStack => TermReferenceId -> Map TermReferenceId (Term Symbol Ann) -> Term Symbol Ann
 expectTerm ref termsById =
   case Map.lookup ref termsById of
     Nothing -> error (reportBug "E488229" ("term ref " ++ show ref ++ " not found in map " ++ show termsById))
     Just term -> term
 
-expectDecl :: TypeReferenceId -> Map TypeReferenceId (Decl Symbol Ann) -> Decl Symbol Ann
+expectDecl :: HasCallStack => TypeReferenceId -> Map TypeReferenceId (Decl Symbol Ann) -> Decl Symbol Ann
 expectDecl ref declsById =
   case Map.lookup ref declsById of
     Nothing -> error (reportBug "E663160" ("type ref " ++ show ref ++ " not found in map " ++ show declsById))
