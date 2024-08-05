@@ -3,6 +3,10 @@
 
 module Unison.Server.Orphans where
 
+import Codec.CBOR.Encoding qualified as CBOR
+import Codec.Serialise (Serialise (..))
+import Codec.Serialise qualified as CBOR
+import Codec.Serialise.Class qualified as CBOR
 import Control.Lens
 import Data.Aeson
 import Data.Aeson qualified as Aeson
@@ -12,9 +16,19 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.OpenApi
 import Data.Proxy
 import Data.Text qualified as Text
+import Data.Vector qualified as Vector
 import Servant
 import Servant.Docs (DocCapture (DocCapture), DocQueryParam (..), ParamKind (..), ToCapture (..), ToParam (..))
 import U.Codebase.HashTags
+import U.Codebase.Sqlite.Branch.Format qualified as BranchFormat
+import U.Codebase.Sqlite.Causal qualified as SqliteCausal
+import U.Codebase.Sqlite.Decl.Format qualified as DeclFormat
+import U.Codebase.Sqlite.Entity qualified as Entity
+import U.Codebase.Sqlite.LocalIds qualified as LocalIds
+import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
+import U.Codebase.Sqlite.TempEntity (TempEntity)
+import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Codebase.Editor.DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
@@ -25,6 +39,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Hash (Hash (..))
 import Unison.Hash qualified as Hash
+import Unison.Hash32 (Hash32 (..))
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -424,3 +439,51 @@ instance ToCapture (Capture "branch-name" ProjectBranchName) where
       "The name of a branch in a project. E.g. @handle/name"
 
 deriving via Text instance ToJSON ProjectBranchName
+
+-- CBOR encodings
+
+deriving via Text instance Serialise Hash32
+
+termComponentTag, declComponentTag, patchTag, namespaceTag, causalTag :: CBOR.Encoding
+(termComponentTag, declComponentTag, patchTag, namespaceTag, causalTag) = over each CBOR.encodeWord (0, 1, 2, 3, 4)
+
+instance Serialise TempEntity where
+  encode = \case
+    Entity.TC (TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent elements)) ->
+      termComponentTag
+        <> encodeVectorWith encodeElement elements
+    Entity.DC (DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent elements)) ->
+      declComponentTag
+        <> encodeVectorWith encodeElement elements
+    Entity.P (PatchFormat.SyncDiff {}) -> error "Serializing Diffs are not supported"
+    Entity.P (PatchFormat.SyncFull (PatchFormat.LocalIds {patchTextLookup, patchHashLookup, patchDefnLookup}) bytes) ->
+      patchTag
+        <> CBOR.encodeVector patchTextLookup
+        <> CBOR.encodeVector patchHashLookup
+        <> CBOR.encodeVector patchDefnLookup
+        <> CBOR.encodeBytes bytes
+    Entity.N (BranchFormat.SyncDiff {}) -> error "Serializing Diffs are not supported"
+    Entity.N (BranchFormat.SyncFull (BranchFormat.LocalIds {branchTextLookup, branchDefnLookup, branchPatchLookup, branchChildLookup}) (BranchFormat.LocalBranchBytes bytes)) ->
+      namespaceTag
+        <> CBOR.encodeVector branchTextLookup
+        <> CBOR.encodeVector branchDefnLookup
+        <> CBOR.encodeVector branchPatchLookup
+        <> CBOR.encodeVector branchChildLookup
+        <> CBOR.encodeBytes bytes
+    Entity.C (SqliteCausal.SyncCausalFormat {valueHash, parents}) ->
+      causalTag
+        <> CBOR.encode valueHash
+        <> CBOR.encodeVector parents
+    where
+      encodeElement :: (Serialise t, Serialise d) => (LocalIds.LocalIds' t d, ByteString) -> CBOR.Encoding
+      encodeElement (LocalIds.LocalIds {textLookup, defnLookup}, bytes) =
+        CBOR.encodeVector textLookup
+          <> CBOR.encodeVector defnLookup
+          <> CBOR.encodeBytes bytes
+
+  decode = error "Decoding Share.Entity not supported"
+
+encodeVectorWith :: (a -> CBOR.Encoding) -> Vector.Vector a -> CBOR.Encoding
+encodeVectorWith f xs =
+  CBOR.encodeListLen (fromIntegral $ Vector.length xs)
+    <> (foldr (\a b -> f a <> b) mempty xs)
