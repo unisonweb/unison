@@ -93,6 +93,7 @@ import Unison.Project
     Semver (..),
     classifyProjectBranchName,
   )
+import Unison.Reference (TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -241,10 +242,7 @@ doMerge info = do
         Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))
           & onLeftM (done . Output.ConflictedDefn "merge")
 
-      -- Flatten nametrees
-      let defns3 :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-          defns3 =
-            flattenNametrees <$> nametrees3
+      let blob0 = makeMergeblob0 nametrees3
 
       -- Hydrate
       hydratedDefns3 ::
@@ -262,109 +260,36 @@ doMerge info = do
             )
             ( let f = Map.mapMaybe Referent.toTermReferenceId . BiMultimap.range
                   g = Map.mapMaybe Reference.toId . BiMultimap.range
-               in bimap f g <$> defns3
+               in bimap f g <$> blob0.defns
             )
 
-      -- Make one big constructor count lookup for all type decls
-      let numConstructors :: Map TypeReferenceId Int
-          numConstructors =
-            Map.empty
-              & f (Map.elems hydratedDefns3.alice.types)
-              & f (Map.elems hydratedDefns3.bob.types)
-              & f (Map.elems hydratedDefns3.lca.types)
-            where
-              f :: [(TypeReferenceId, Decl Symbol Ann)] -> Map TypeReferenceId Int -> Map TypeReferenceId Int
-              f types acc =
-                List.foldl'
-                  ( \acc (ref, decl) ->
-                      Map.insert ref (DataDeclaration.constructorCount (DataDeclaration.asDataDecl decl)) acc
-                  )
-                  acc
-                  types
+      blob2 <-
+        makeMergeblob1 blob0 hydratedDefns3 & onLeft \case
+          Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
+          Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
-      -- Make Alice/Bob decl name lookups
-      declNameLookups <- do
-        alice <-
-          Merge.checkDeclCoherency nametrees3.alice numConstructors
-            & onLeft (done . Output.IncoherentDeclDuringMerge mergeTarget)
-        bob <-
-          Merge.checkDeclCoherency nametrees3.bob numConstructors
-            & onLeft (done . Output.IncoherentDeclDuringMerge mergeSource)
-        pure Merge.TwoWay {alice, bob}
+      liftIO (debugFunctions.debugDefns blob2.defns blob2.declNameLookups blob2.lcaDeclNameLookup)
 
-      -- Make LCA decl name lookup
-      let lcaDeclNameLookup =
-            Merge.lenientCheckDeclCoherency nametrees3.lca numConstructors
-
-      liftIO (debugFunctions.debugDefns defns3 declNameLookups lcaDeclNameLookup)
-
-      -- Diff LCA->Alice and LCA->Bob
-      let diffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference)
-          diffs =
-            Merge.nameBasedNamespaceDiff
-              declNameLookups
-              lcaDeclNameLookup
-              defns3
-              Defns
-                { terms =
-                    foldMap
-                      (List.foldl' (\acc (ref, (term, _)) -> Map.insert ref term acc) Map.empty . Map.elems . (.terms))
-                      hydratedDefns3,
-                  types =
-                    foldMap
-                      (List.foldl' (\acc (ref, typ) -> Map.insert ref typ acc) Map.empty . Map.elems . (.types))
-                      hydratedDefns3
-                }
-
-      liftIO (debugFunctions.debugDiffs diffs)
+      liftIO (debugFunctions.debugDiffs blob2.diffs)
 
       -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-      for_ ((,) <$> Merge.TwoWay mergeTarget mergeSource <*> diffs) \(who, diff) ->
-        whenJust (Merge.findConflictedAlias defns3.lca diff) do
+      --
+      -- FIXME work this into Mergeblob2
+      for_ ((,) <$> Merge.TwoWay mergeTarget mergeSource <*> blob2.diffs) \(who, diff) ->
+        whenJust (Merge.findConflictedAlias blob2.defns.lca diff) do
           done . Output.MergeConflictedAliases who
 
-      -- Combine the LCA->Alice and LCA->Bob diffs together
-      let diff = Merge.combineDiffs diffs
+      liftIO (debugFunctions.debugCombinedDiff blob2.diff)
 
-      liftIO (debugFunctions.debugCombinedDiff diff)
+      blob3 <- makeMergeblob3 blob2 & onLeft (done . Output.MergeConflictInvolvingBuiltin)
 
-      -- Partition the combined diff into the conflicted things and the unconflicted things
-      (conflicts, unconflicts) <- do
-        let (conflicts0, unconflicts) = Merge.partitionCombinedDiffs (ThreeWay.forgetLca defns3) declNameLookups diff
-        conflicts <-
-          Merge.narrowConflictsToNonBuiltins conflicts0 & onLeft \name ->
-            done (Output.MergeConflictInvolvingBuiltin name)
-        pure (conflicts, unconflicts)
+      liftIO (debugFunctions.debugPartitionedDiff blob3.conflicts blob3.unconflicts)
 
-      let conflictsNames = bimap Map.keysSet Map.keysSet <$> conflicts
-      let conflictsIds = bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts
-
-      liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
-
-      -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
-      -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
-      let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes unconflicts
-      let coreDependencies = identifyCoreDependencies (ThreeWay.forgetLca defns3) conflictsIds soloUpdatesAndDeletes
-      dependents <- do
-        dependents0 <-
-          Cli.runTransaction $
-            for
-              ((,) <$> ThreeWay.forgetLca defns3 <*> coreDependencies)
-              (uncurry getNamespaceDependentsOf2)
-        pure (filterDependents conflictsNames soloUpdatesAndDeletes (bimap Map.keysSet Map.keysSet <$> dependents0))
-
-      liftIO (debugFunctions.debugDependents dependents)
-
-      let stageOne :: DefnsF (Map Name) Referent TypeReference
-          stageOne =
-            makeStageOne
-              declNameLookups
-              conflictsNames
-              unconflicts
-              dependents
-              (bimap BiMultimap.range BiMultimap.range defns3.lca)
-
-      liftIO (debugFunctions.debugStageOne stageOne)
+      dependents0 <-
+        Cli.runTransaction $
+          for
+            ((,) <$> ThreeWay.forgetLca blob3.defns <*> blob3.coreDependencies)
+            (uncurry getNamespaceDependentsOf2)
 
       -- Load and merge Alice's and Bob's libdeps
       mergedLibdeps <-
@@ -374,17 +299,11 @@ doMerge info = do
             (Codebase.getDeclType env.codebase)
             (Merge.applyLibdepsDiff Merge.getTwoFreshLibdepNames libdeps (Merge.diffLibdeps libdeps))
 
-      let (renderedConflicts, renderedDependents) =
-            renderConflictsAndDependents
-              declNameLookups
-              (ThreeWay.forgetLca hydratedDefns3)
-              conflictsNames
-              dependents
-              Merge.ThreeWay
-                { alice = defnsToNames defns3.alice,
-                  bob = defnsToNames defns3.bob,
-                  lca = Branch.toNames mergedLibdeps
-                }
+      let blob4 = makeMergeblob4 blob3 (bimap Map.keysSet Map.keysSet <$> dependents0) (Branch.toNames mergedLibdeps)
+
+      liftIO (debugFunctions.debugDependents blob4.dependents)
+
+      liftIO (debugFunctions.debugStageOne blob4.stageOne)
 
       let prettyUnisonFile =
             makePrettyUnisonFile
@@ -401,15 +320,19 @@ doMerge info = do
                           Nothing -> "<root>"
                           Just name -> Name.toText name
                 }
-              renderedConflicts
-              renderedDependents
+              blob4.renderedConflicts
+              blob4.renderedDependents
 
-      let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase stageOne mergedLibdeps
+      let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase blob4.stageOne mergedLibdeps
 
       maybeTypecheckedUnisonFile <-
         let thisMergeHasConflicts =
-              -- Eh, they'd either both be null, or neither, but just check both maps anyway
-              not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob)
+              or
+                [ not (Map.null blob4.renderedConflicts.alice.terms),
+                  not (Map.null blob4.renderedConflicts.alice.types),
+                  not (Map.null blob4.renderedConflicts.bob.terms),
+                  not (Map.null blob4.renderedConflicts.bob.types)
+                ]
          in if thisMergeHasConflicts
               then pure Nothing
               else do
@@ -446,6 +369,191 @@ doMerge info = do
           pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
+
+data Mergeblob0 = Mergeblob0
+  { defns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+    nametrees :: Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
+  }
+
+makeMergeblob0 :: Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) -> Mergeblob0
+makeMergeblob0 nametrees =
+  Mergeblob0
+    { defns = flattenNametrees <$> nametrees,
+      nametrees
+    }
+
+data Mergeblob1 = Mergeblob1
+  { conflicts :: Merge.TwoWay (DefnsF (Map Name) TermReference TypeReference),
+    declNameLookups :: Merge.TwoWay Merge.DeclNameLookup,
+    defns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+    diff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference,
+    diffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference),
+    hydratedDefns ::
+      Merge.ThreeWay
+        ( DefnsF
+            (Map Name)
+            (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+            (TypeReferenceId, Decl Symbol Ann)
+        ),
+    lcaDeclNameLookup :: Merge.PartialDeclNameLookup,
+    nametrees :: Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)),
+    unconflicts :: DefnsF Merge.Unconflicts Referent TypeReference
+  }
+
+makeMergeblob1 ::
+  Mergeblob0 ->
+  Merge.ThreeWay
+    ( DefnsF
+        (Map Name)
+        (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+        (TypeReferenceId, Decl Symbol Ann)
+    ) ->
+  Either (Merge.EitherWay Merge.IncoherentDeclReason) Mergeblob1
+makeMergeblob1 blob hydratedDefns = do
+  -- Make one big constructor count lookup for all type decls
+  let numConstructors =
+        Map.empty
+          & f (Map.elems hydratedDefns.alice.types)
+          & f (Map.elems hydratedDefns.bob.types)
+          & f (Map.elems hydratedDefns.lca.types)
+        where
+          f :: [(TypeReferenceId, Decl Symbol Ann)] -> Map TypeReferenceId Int -> Map TypeReferenceId Int
+          f types acc =
+            List.foldl'
+              ( \acc (ref, decl) ->
+                  Map.insert ref (DataDeclaration.constructorCount (DataDeclaration.asDataDecl decl)) acc
+              )
+              acc
+              types
+
+  -- Make Alice/Bob decl name lookups, which can fail if either have an incoherent decl
+  declNameLookups <- do
+    alice <- Merge.checkDeclCoherency blob.nametrees.alice numConstructors & mapLeft Merge.Alice
+    bob <- Merge.checkDeclCoherency blob.nametrees.bob numConstructors & mapLeft Merge.Bob
+    pure Merge.TwoWay {alice, bob}
+
+  -- Make LCA decl name lookup
+  let lcaDeclNameLookup =
+        Merge.lenientCheckDeclCoherency blob.nametrees.lca numConstructors
+
+  -- Diff LCA->Alice and LCA->Bob
+  let diffs =
+        Merge.nameBasedNamespaceDiff
+          declNameLookups
+          lcaDeclNameLookup
+          blob.defns
+          Defns
+            { terms =
+                foldMap
+                  (List.foldl' (\acc (ref, (term, _)) -> Map.insert ref term acc) Map.empty . Map.elems . (.terms))
+                  hydratedDefns,
+              types =
+                foldMap
+                  (List.foldl' (\acc (ref, typ) -> Map.insert ref typ acc) Map.empty . Map.elems . (.types))
+                  hydratedDefns
+            }
+
+  -- Combine the LCA->Alice and LCA->Bob diffs together
+  let diff =
+        Merge.combineDiffs diffs
+
+  -- Partition the combined diff into the conflicted things and the unconflicted things
+  let (conflicts, unconflicts) =
+        Merge.partitionCombinedDiffs (ThreeWay.forgetLca blob.defns) declNameLookups diff
+
+  pure
+    Mergeblob1
+      { conflicts,
+        declNameLookups,
+        defns = blob.defns,
+        diff,
+        diffs,
+        hydratedDefns,
+        lcaDeclNameLookup,
+        nametrees = blob.nametrees,
+        unconflicts
+      }
+
+data Mergeblob3 = Mergeblob3
+  { conflicts :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
+    conflictsIds :: Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId),
+    conflictsNames :: Merge.TwoWay (DefnsF Set Name Name),
+    coreDependencies :: Merge.TwoWay (Set Reference),
+    declNameLookups :: Merge.TwoWay Merge.DeclNameLookup,
+    defns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+    hydratedDefns ::
+      Merge.TwoWay
+        ( DefnsF
+            (Map Name)
+            (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+            (TypeReferenceId, Decl Symbol Ann)
+        ),
+    lcaDeclNameLookup :: Merge.PartialDeclNameLookup,
+    soloUpdatesAndDeletes :: Merge.TwoWay (DefnsF Set Name Name),
+    unconflicts :: DefnsF Merge.Unconflicts Referent TypeReference
+  }
+
+makeMergeblob3 :: Mergeblob1 -> Either (Defn Name Name) Mergeblob3
+makeMergeblob3 blob = do
+  conflicts <- Merge.narrowConflictsToNonBuiltins blob.conflicts
+  let conflictsIds = bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts
+  let conflictsNames = bimap Map.keysSet Map.keysSet <$> conflicts
+
+  let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes blob.unconflicts
+  let coreDependencies = identifyCoreDependencies (ThreeWay.forgetLca blob.defns) conflictsIds soloUpdatesAndDeletes
+
+  pure
+    Mergeblob3
+      { conflicts,
+        conflictsIds,
+        conflictsNames,
+        coreDependencies,
+        declNameLookups = blob.declNameLookups,
+        defns = blob.defns,
+        hydratedDefns = ThreeWay.forgetLca blob.hydratedDefns,
+        lcaDeclNameLookup = blob.lcaDeclNameLookup,
+        soloUpdatesAndDeletes,
+        unconflicts = blob.unconflicts
+      }
+
+data Mergeblob4 = Mergeblob4
+  { dependents :: Merge.TwoWay (DefnsF Set Name Name),
+    renderedConflicts :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
+    renderedDependents :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
+    stageOne :: DefnsF (Map Name) Referent TypeReference
+  }
+
+makeMergeblob4 :: Mergeblob3 -> Merge.TwoWay (DefnsF Set Name Name) -> Names -> Mergeblob4
+makeMergeblob4 blob dependents0 lcaNames =
+  -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
+  -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+  let dependents = filterDependents blob.conflictsNames blob.soloUpdatesAndDeletes dependents0
+
+      stageOne =
+        makeStageOne
+          blob.declNameLookups
+          blob.conflictsNames
+          blob.unconflicts
+          dependents
+          (bimap BiMultimap.range BiMultimap.range blob.defns.lca)
+
+      (renderedConflicts, renderedDependents) =
+        renderConflictsAndDependents
+          blob.declNameLookups
+          blob.hydratedDefns
+          blob.conflictsNames
+          dependents
+          Merge.ThreeWay
+            { alice = defnsToNames blob.defns.alice,
+              bob = defnsToNames blob.defns.bob,
+              lca = lcaNames
+            }
+   in Mergeblob4
+        { dependents,
+          renderedConflicts,
+          renderedDependents,
+          stageOne
+        }
 
 renderConflictsAndDependents ::
   Merge.TwoWay Merge.DeclNameLookup ->
