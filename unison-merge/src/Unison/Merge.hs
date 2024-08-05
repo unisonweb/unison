@@ -28,6 +28,10 @@ module Unison.Merge
     LibdepDiffOp (..),
     diffLibdeps,
     applyLibdepsDiff,
+    getTwoFreshLibdepNames,
+
+    -- * Making a pretty-print environment
+    makePrettyPrintEnvs,
 
     -- * Utility types
     EitherWay (..),
@@ -55,9 +59,10 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
-import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps)
+import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins, partitionCombinedDiffs)
+import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnvs)
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))

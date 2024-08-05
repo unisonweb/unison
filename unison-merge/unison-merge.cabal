@@ -29,6 +29,7 @@ library
       Unison.Merge.Libdeps
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
+      Unison.Merge.PrettyPrintEnv
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay

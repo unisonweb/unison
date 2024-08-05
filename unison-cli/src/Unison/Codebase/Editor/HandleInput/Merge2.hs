@@ -79,16 +79,12 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
-import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
@@ -250,10 +246,6 @@ doMerge info = do
           defns3 =
             flattenNametrees <$> nametrees3
 
-      let defns2 :: Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-          defns2 =
-            ThreeWay.forgetLca defns3
-
       -- Hydrate
       hydratedDefns3 ::
         Merge.ThreeWay
@@ -344,15 +336,22 @@ doMerge info = do
             done (Output.MergeConflictInvolvingBuiltin name)
         pure (conflicts, unconflicts)
 
+      let conflictsNames = bimap Map.keysSet Map.keysSet <$> conflicts
+      let conflictsIds = bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts
+
       liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
 
-      -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if there
-      -- aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+      -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
+      -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
       let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes unconflicts
-      let coreDependencies = identifyCoreDependencies defns2 conflicts soloUpdatesAndDeletes
+      let coreDependencies = identifyCoreDependencies (ThreeWay.forgetLca defns3) conflictsIds soloUpdatesAndDeletes
       dependents <- do
-        dependents0 <- Cli.runTransaction (for ((,) <$> defns2 <*> coreDependencies) (uncurry getNamespaceDependentsOf2))
-        pure (filterDependents conflicts soloUpdatesAndDeletes dependents0)
+        dependents0 <-
+          Cli.runTransaction $
+            for
+              ((,) <$> ThreeWay.forgetLca defns3 <*> coreDependencies)
+              (uncurry getNamespaceDependentsOf2)
+        pure (filterDependents conflictsNames soloUpdatesAndDeletes (bimap Map.keysSet Map.keysSet <$> dependents0))
 
       liftIO (debugFunctions.debugDependents dependents)
 
@@ -360,7 +359,7 @@ doMerge info = do
           stageOne =
             makeStageOne
               declNameLookups
-              conflicts
+              conflictsNames
               unconflicts
               dependents
               (bimap BiMultimap.range BiMultimap.range defns3.lca)
@@ -373,15 +372,7 @@ doMerge info = do
           libdeps <- loadLibdeps branches
           libdepsToBranch0
             (Codebase.getDeclType env.codebase)
-            (Merge.applyLibdepsDiff getTwoFreshNames libdeps (Merge.diffLibdeps libdeps))
-
-      -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
-      let mkPpes :: Merge.TwoWay Names -> Names -> Merge.TwoWay PrettyPrintEnvDecl
-          mkPpes defnsNames libdepsNames =
-            defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
-            where
-              suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
-      let ppes = mkPpes (defnsToNames <$> defns2) (Branch.toNames mergedLibdeps)
+            (Merge.applyLibdepsDiff Merge.getTwoFreshLibdepNames libdeps (Merge.diffLibdeps libdeps))
 
       let hydratedThings ::
             Merge.TwoWay
@@ -390,11 +381,12 @@ doMerge info = do
               )
           hydratedThings =
             ( \as bs cs ->
-                let f xs ys = xs `Map.restrictKeys` Map.keysSet ys
-                 in (zipDefnsWith f f as bs, zipDefnsWith f f as cs)
+                ( zipDefnsWith Map.restrictKeys Map.restrictKeys as bs,
+                  zipDefnsWith Map.restrictKeys Map.restrictKeys as cs
+                )
             )
               <$> ThreeWay.forgetLca hydratedDefns3
-              <*> conflicts
+              <*> conflictsNames
               <*> dependents
 
       let (renderedConflicts, renderedDependents) =
@@ -405,7 +397,13 @@ doMerge info = do
               )
                 <$> declNameLookups
                 <*> hydratedThings
-                <*> ppes
+                <*> ( Merge.makePrettyPrintEnvs
+                        Merge.ThreeWay
+                          { alice = defnsToNames defns3.alice,
+                            bob = defnsToNames defns3.bob,
+                            lca = Branch.toNames mergedLibdeps
+                          }
+                    )
 
       let prettyUnisonFile =
             makePrettyUnisonFile
@@ -616,22 +614,20 @@ makePrettyUnisonFile authors conflicts dependents =
 --     terms = { "foo", "Maybe.Nothing", "Maybe.Just" }
 --     types = { "Maybe" }
 --   }
-refIdsToNames :: Merge.DeclNameLookup -> DefnsF (Map Name) term typ -> DefnsF Set Name Name
+refIdsToNames :: Merge.DeclNameLookup -> DefnsF Set Name Name -> DefnsF Set Name Name
 refIdsToNames declNameLookup =
   bifoldMap goTerms goTypes
   where
-    goTerms :: Map Name term -> DefnsF Set Name Name
+    goTerms :: Set Name -> DefnsF Set Name Name
     goTerms terms =
-      Defns {terms = Map.keysSet terms, types = Set.empty}
+      Defns {terms, types = Set.empty}
 
-    goTypes :: Map Name typ -> DefnsF Set Name Name
+    goTypes :: Set Name -> DefnsF Set Name Name
     goTypes types =
       Defns
-        { terms = foldMap (Set.fromList . expectConstructorNames declNameLookup) names,
-          types = names
+        { terms = foldMap (Set.fromList . expectConstructorNames declNameLookup) types,
+          types
         }
-      where
-        names = Map.keysSet types
 
 defnsAndLibdepsToBranch0 ::
   Codebase IO v a ->
@@ -680,7 +676,7 @@ nametreeToBranch0 nametree =
 
 identifyCoreDependencies ::
   Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
   Merge.TwoWay (DefnsF Set Name Name) ->
   Merge.TwoWay (Set Reference)
 identifyCoreDependencies defns conflicts soloUpdatesAndDeletes = do
@@ -706,18 +702,15 @@ identifyCoreDependencies defns conflicts soloUpdatesAndDeletes = do
       -- into the namespace / parsing context for the conflicted merge, because it has an unnamed reference on
       -- foo#alice. It rather ought to be in the scratchfile alongside the conflicted foo#alice and foo#bob, so
       -- that when that conflict is resolved, it will propagate to bar.
-      let f :: Map Name Reference.Id -> Set Reference
-          f =
-            List.foldl' (\acc ref -> Set.insert (Reference.DerivedId ref) acc) Set.empty . Map.elems
-       in bifoldMap f f <$> conflicts
+      bifoldMap (Set.map Reference.DerivedId) (Set.map Reference.DerivedId) <$> conflicts
     ]
 
 filterDependents ::
   (Ord name) =>
-  Merge.TwoWay (DefnsF (Map name) term typ) ->
   Merge.TwoWay (DefnsF Set name name) ->
-  Merge.TwoWay (DefnsF (Map name) term typ) ->
-  Merge.TwoWay (DefnsF (Map name) term typ)
+  Merge.TwoWay (DefnsF Set name name) ->
+  Merge.TwoWay (DefnsF Set name name) ->
+  Merge.TwoWay (DefnsF Set name name)
 filterDependents conflicts soloUpdatesAndDeletes dependents0 =
   -- There is some subset of Alice's dependents (and ditto for Bob of course) that we don't ultimately want/need to put
   -- into the scratch file: those for which any of the following are true:
@@ -726,9 +719,9 @@ filterDependents conflicts soloUpdatesAndDeletes dependents0 =
   --   2. It was deleted by Bob.
   --   3. It was updated by Bob and not updated by Alice.
   let dependents1 =
-        zipDefnsWith Map.withoutKeys Map.withoutKeys
+        zipDefnsWith Set.difference Set.difference
           <$> dependents0
-          <*> ((bimap Map.keysSet Map.keysSet <$> conflicts) <> TwoWay.swap soloUpdatesAndDeletes)
+          <*> (conflicts <> TwoWay.swap soloUpdatesAndDeletes)
 
       -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
       -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash)...
@@ -747,20 +740,20 @@ filterDependents conflicts soloUpdatesAndDeletes dependents0 =
       --   { bob   = { terms = {}                } }
       dependents2 =
         dependents1 & over #bob \bob ->
-          zipDefnsWith Map.difference Map.difference bob dependents1.alice
+          zipDefnsWith Set.difference Set.difference bob dependents1.alice
    in dependents2
 
 makeStageOne ::
   Merge.TwoWay Merge.DeclNameLookup ->
-  Merge.TwoWay (DefnsF (Map Name) termid typeid) ->
+  Merge.TwoWay (DefnsF Set Name Name) ->
   DefnsF Merge.Unconflicts term typ ->
-  Merge.TwoWay (DefnsF (Map Name) termid typeid) ->
+  Merge.TwoWay (DefnsF Set Name Name) ->
   DefnsF (Map Name) term typ ->
   DefnsF (Map Name) term typ
 makeStageOne declNameLookups conflicts unconflicts dependents =
   zipDefnsWith3 makeStageOneV makeStageOneV unconflicts (f conflicts <> f dependents)
   where
-    f :: Merge.TwoWay (DefnsF (Map Name) term typ) -> DefnsF Set Name Name
+    f :: Merge.TwoWay (DefnsF Set Name Name) -> DefnsF Set Name Name
     f defns =
       fold (refIdsToNames <$> declNameLookups <*> defns)
 
@@ -820,41 +813,10 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
         <> Text.Builder.char '.'
         <> Text.Builder.decimal z
 
--- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
--- clash with any existing dependencies.
-getTwoFreshNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
-getTwoFreshNames names name0 =
-  go2 0
-  where
-    -- if
-    --   name0 = "base"
-    --   names = {"base__5", "base__6"}
-    -- then
-    --   go2 4 = ("base__4", "base__7")
-    go2 :: Integer -> (NameSegment, NameSegment)
-    go2 !i
-      | Set.member name names = go2 (i + 1)
-      | otherwise = (name, go1 (i + 1))
-      where
-        name = mangled i
-
-    -- if
-    --   name0 = "base"
-    --   names = {"base__5", "base__6"}
-    -- then
-    --   go1 5 = "base__7"
-    go1 :: Integer -> NameSegment
-    go1 !i
-      | Set.member name names = go1 (i + 1)
-      | otherwise = name
-      where
-        name = mangled i
-
-    mangled :: Integer -> NameSegment
-    mangled i =
-      NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)
-
-libdepsToBranch0 :: (Reference -> Transaction ConstructorType) -> Map NameSegment (V2.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
+libdepsToBranch0 ::
+  (Reference -> Transaction ConstructorType) ->
+  Map NameSegment (V2.CausalBranch Transaction) ->
+  Transaction (Branch0 Transaction)
 libdepsToBranch0 loadDeclType libdeps = do
   let branch :: V2.Branch Transaction
       branch =
@@ -921,7 +883,7 @@ data DebugFunctions = DebugFunctions
       Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Merge.Unconflicts Referent TypeReference ->
       IO (),
-    debugDependents :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO (),
+    debugDependents :: Merge.TwoWay (DefnsF Set Name Name) -> IO (),
     debugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
   }
 
@@ -1132,7 +1094,7 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> " "
               <> renderRef ref
 
-realDebugDependents :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO ()
+realDebugDependents :: Merge.TwoWay (DefnsF Set Name Name) -> IO ()
 realDebugDependents dependents = do
   Text.putStrLn (Text.bold "\n=== Alice dependents of Bob deletes, Bob updates, and Alice conflicts ===")
   renderThings "termid" dependents.alice.terms
@@ -1141,15 +1103,13 @@ realDebugDependents dependents = do
   renderThings "termid" dependents.bob.terms
   renderThings "typeid" dependents.bob.types
   where
-    renderThings :: Text -> Map Name Reference.Id -> IO ()
+    renderThings :: Text -> Set Name -> IO ()
     renderThings label things =
-      for_ (Map.toList things) \(name, ref) ->
+      for_ (Set.toList things) \name ->
         Text.putStrLn $
           Text.italic label
             <> " "
             <> Name.toText name
-            <> " "
-            <> Reference.idToText ref
 
 realDebugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
 realDebugStageOne defns = do
