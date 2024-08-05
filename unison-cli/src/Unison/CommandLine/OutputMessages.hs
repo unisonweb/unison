@@ -857,49 +857,24 @@ notifyUser dir = \case
       ]
   ListOfDefinitions fscope ppe detailed results ->
     listOfDefinitions fscope ppe detailed results
-  ListNames global len types terms ->
-    if null types && null terms
-      then
-        pure . P.callout "😶" $
-          P.sepNonEmpty "\n\n" $
-            [ P.wrap "I couldn't find anything by that name.",
-              globalTip
-            ]
-      else
-        pure . P.sepNonEmpty "\n\n" $
-          [ formatTypes types,
-            formatTerms terms,
-            globalTip
-          ]
-    where
-      globalTip =
-        if global
-          then mempty
-          else (tip $ "Use " <> IP.makeExample (IP.names True) [] <> " to see more results.")
-      formatTerms tms =
-        P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
-        where
-          go (ref, hqs) =
-            P.column2
-              [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
-                ( "Names: ",
-                  P.group $
-                    P.spaced $
-                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
-                )
-              ]
-      formatTypes types =
-        P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
-        where
-          go (ref, hqs) =
-            P.column2
-              [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
-                ( "Names:",
-                  P.group $
-                    P.spaced $
-                      P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
-                )
-              ]
+  GlobalFindBranchResults projBranchName ppe detailed results -> do
+    output <- listOfDefinitions Input.FindGlobal ppe detailed results
+    pure $
+      P.lines
+        [ P.wrap $ "Found results in " <> P.text (into @Text projBranchName),
+          "",
+          output
+        ]
+  ListNames len types terms ->
+    listOfNames len types terms
+  GlobalListNames projectBranchName len types terms -> do
+    output <- listOfNames len types terms
+    pure $
+      P.lines
+        [ P.wrap $ "Found results in " <> P.text (into @Text projectBranchName),
+          "",
+          output
+        ]
   -- > names foo
   --   Terms:
   --     Hash: #asdflkjasdflkjasdf
@@ -2095,11 +2070,12 @@ notifyUser dir = \case
         <> P.text filename
   ConflictedDefn operation defn ->
     pure . P.wrap $
-      ( case defn of
-          TermDefn (Conflicted name _refs) -> "The term name" <> prettyName name <> "is ambiguous."
-          TypeDefn (Conflicted name _refs) -> "The type name" <> prettyName name <> "is ambiguous."
+      ( "This branch has more than one" <> case defn of
+          TermDefn (Conflicted name _refs) -> "term with the name" <> P.group (P.backticked (prettyName name) <> ".")
+          TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
-        <> "Please resolve the ambiguity, then try to"
+        <> P.newline
+        <> "Please delete or rename all but one of them, then try the"
         <> P.text operation
         <> "again."
   IncoherentDeclDuringMerge aliceOrBob reason ->
@@ -2614,7 +2590,7 @@ renderNameConflicts hashLen conflictedNames = do
   prettyConflictedTerms <- showConflictedNames "term" conflictedTermNames
   pure $
     Monoid.unlessM (null allConflictedNames) $
-      P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
+      P.callout "❓" . P.linesSpaced . P.nonEmpty $
         [ prettyConflictedTypes,
           prettyConflictedTerms,
           tip $
@@ -2635,7 +2611,7 @@ renderNameConflicts hashLen conflictedNames = do
   where
     showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
     showConflictedNames thingKind conflictedNames =
-      P.lines <$> do
+      P.linesSpaced <$> do
         for (Map.toList conflictedNames) \(name, hashes) -> do
           prettyConflicts <- for hashes \hash -> do
             n <- addNumberedArg $ SA.HashQualified hash
@@ -2880,6 +2856,45 @@ listOfDefinitions ::
   (Var v) => Input.FindScope -> PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
 listOfDefinitions fscope ppe detailed results =
   pure $ listOfDefinitions' fscope ppe detailed results
+
+listOfNames :: Int -> [(Reference, [HQ'.HashQualified Name])] -> [(Referent, [HQ'.HashQualified Name])] -> IO Pretty
+listOfNames len types terms = do
+  if null types && null terms
+    then
+      pure . P.callout "😶" $
+        P.sepNonEmpty "\n\n" $
+          [ P.wrap "I couldn't find anything by that name."
+          ]
+    else
+      pure . P.sepNonEmpty "\n\n" $
+        [ formatTypes types,
+          formatTerms terms
+        ]
+  where
+    formatTerms tms =
+      P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : List.intersperse "" (go <$> tms)
+      where
+        go (ref, hqs) =
+          P.column2
+            [ ("Hash:", P.syntaxToColor (prettyReferent len ref)),
+              ( "Names: ",
+                P.group $
+                  P.spaced $
+                    P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+              )
+            ]
+    formatTypes types =
+      P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : List.intersperse "" (go <$> types)
+      where
+        go (ref, hqs) =
+          P.column2
+            [ ("Hash:", P.syntaxToColor (prettyReference len ref)),
+              ( "Names:",
+                P.group $
+                  P.spaced $
+                    P.bold . P.syntaxToColor . prettyHashQualified' <$> List.sortBy Name.compareAlphabetical hqs
+              )
+            ]
 
 data ShowNumbers = ShowNumbers | HideNumbers
 

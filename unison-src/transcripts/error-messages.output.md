@@ -290,6 +290,7 @@ x = match Some a with
   I was surprised to find a -> here.
   I was expecting one of these instead:
   
+  * end of input
   * newline or semicolon
 
 ```
@@ -312,6 +313,7 @@ x = match Some a with
   I was surprised to find a '|' here.
   I was expecting one of these instead:
   
+  * end of input
   * newline or semicolon
 
 ```
