@@ -62,8 +62,8 @@ scratch/main> update
 ``` unison:added-by-ucm scratch.u
 type Foo = Bar Nat Nat
 
--- The definitions below are not compatible with the updated definitions above.
--- Please fix the errors and run `update` again.
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
 
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n Nat.+ 1)

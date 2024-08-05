@@ -48,16 +48,12 @@ scratch/app1> names a
   Term
   Hash:   #gjmq673r1v
   Names:  lib.text_v1.a lib.text_v2.a
-  
-  Tip: Use `names.global` to see more results.
 
 scratch/app1> names x
 
   Term
   Hash:   #nsmc4p1ra4
   Names:  lib.http_v3.x lib.http_v4.x
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 Our `app2` project includes the `http` library twice as direct dependencies, and once as an indirect dependency via `webutil`.
@@ -102,15 +98,11 @@ scratch/app2> names a
   Term
   Hash:   #gjmq673r1v
   Names:  lib.webutil.lib.text_v1.a
-  
-  Tip: Use `names.global` to see more results.
 
 scratch/app2> names x
 
   Term
   Hash:   #nsmc4p1ra4
   Names:  lib.http_v1.x lib.http_v2.x
-  
-  Tip: Use `names.global` to see more results.
 
 ```

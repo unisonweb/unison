@@ -12,6 +12,7 @@ module Unison.Syntax.TermParser
   )
 where
 
+import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Monad.Reader (asks, local)
 import Data.Char qualified as Char
 import Data.Foldable (foldrM)
@@ -24,7 +25,9 @@ import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Tuple.Extra qualified as TupleE
+import Data.Void (absurd, vacuous)
 import Text.Megaparsec qualified as P
+import U.Codebase.Reference (ReferenceType (..))
 import U.Core.ABT qualified as ABT
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
@@ -38,18 +41,19 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
-import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -101,7 +105,7 @@ rewriteBlock = do
     rewriteTermlike kw mk = do
       kw <- quasikeyword kw
       lhs <- term
-      (_spanAnn, rhs) <- block "==>"
+      (_spanAnn, rhs) <- layoutBlock "==>"
       pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
@@ -113,8 +117,10 @@ rewriteBlock = do
       pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
 
 typeLink' :: (Monad m, Var v) => P v m (L.Token Reference)
-typeLink' = do
-  id <- hqPrefixId
+typeLink' = findUniqueType =<< hqPrefixId
+
+findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token Reference)
+findUniqueType id = do
   ns <- asks names
   case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
     s
@@ -160,13 +166,13 @@ match :: (Monad m, Var v) => TermP v m
 match = do
   start <- openBlockWith "match"
   scrutinee <- term
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   _ <-
     P.try (openBlockWith "with") <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
   (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   pure $
     Term.match
       (ann start <> ann (NonEmpty.last cases))
@@ -208,10 +214,10 @@ matchCase = do
             [ Nothing <$ P.try (quasikeyword "otherwise"),
               Just <$> infixAppOrBooleanOp
             ]
-        (_spanAnn, t) <- block "->"
+        (_spanAnn, t) <- layoutBlock "->"
         pure (guard, t)
   let unguardedBlock = label "case match" do
-        (_spanAnn, t) <- block "->"
+        (_spanAnn, t) <- layoutBlock "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
@@ -294,12 +300,13 @@ parsePattern = label "pattern" root
               do _ <- anyToken; pure (Set.findMin s <$ tok)
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
+        isIgnored n = Text.take 1 (Name.toText n) == "_"
         die hq s = case L.payload hq of
           -- if token not hash qualified or uppercase,
           -- fail w/out consuming it to allow backtracking
           HQ.NameOnly n
             | Set.null s
-                && isLower n ->
+                && (isLower n || isIgnored n) ->
                 fail $ "not a constructor name: " <> show n
           -- it was hash qualified, and wasn't found in the env, that's a failure!
           _ -> failCommitted $ err hq s
@@ -353,10 +360,10 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
        in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
-letBlock = label "let" $ (snd <$> block "let")
+letBlock = label "let" $ (snd <$> layoutBlock "let")
 handle = label "handle" do
   (handleSpan, b) <- block "handle"
-  (_withSpan, handler) <- block "with"
+  (_withSpan, handler) <- layoutBlock "with"
   -- We don't use the annotation span from 'with' here because it will
   -- include a dedent if it's at the end of block.
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
@@ -373,7 +380,7 @@ lamCase = do
   start <- openBlockWith "cases"
   cases <- matchCases1 start
   (arity, cases) <- checkCasesArities cases
-  _ <- closeBlock
+  _ <- optionalCloseBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
   let vars =
         Var.named <$> [tweak v i | (v, i) <- lamvars `zip` [(1 :: Int) ..]]
@@ -392,7 +399,7 @@ ifthen = label "if" do
   start <- peekAny
   (_spanAnn, c) <- block "if"
   (_spanAnn, t) <- block "then"
-  (_spanAnn, f) <- block "else"
+  (_spanAnn, f) <- layoutBlock "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: (Var v) => TermP v m
@@ -434,7 +441,7 @@ resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of
     HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    _ -> case Names.lookupHQTerm Names.IncludeSuffixes (L.payload tok) names of
+    hqn -> case Names.lookupHQTerm Names.IncludeSuffixes hqn names of
       s
         | Set.null s -> failCommitted $ UnknownTerm tok s
         | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
@@ -461,160 +468,173 @@ termLeaf =
       doc2Block <&> \(spanAnn, trm) -> trm {ABT.annotation = ABT.annotation trm <> spanAnn}
     ]
 
--- Syntax for documentation v2 blocks, which are surrounded by {{ }}.
+-- | Gives a parser an explicit stream to parse, so that it consumes nothing from the original stream when it runs.
+--
+--   This is used inside the `Doc` -> `Term` conversion, where we have chunks of Unison code embedded that need to be
+--   parsed. It’s a consequence of parsing Doc in the midst of the Unison lexer.
+subParse :: (Ord v, Monad m) => P v m a -> [L.Token L.Lexeme] -> P v m a
+subParse p toks = do
+  orig <- P.getInput
+  P.setInput $ Input toks
+  result <- p <* P.eof
+  P.setInput orig
+  pure result
+
+-- | Syntax for documentation v2 blocks, which are surrounded by @{{@ @}}@.
 -- The lexer does most of the heavy lifting so there's not a lot for
 -- the parser to do. For instance, in
 --
---   {{
---   Hi there!
---
---   goodbye.
---   }}
+-- > {{
+-- > Hi there!
+-- >
+-- > goodbye.
+-- > }}
 --
 -- the lexer will produce:
 --
--- [Open "syntax.docUntitledSection",
---    Open "syntax.docParagraph",
---      Open "syntax.docWord", Textual "Hi", Close,
---      Open "syntax.docWord", Textual "there!", Close,
---    Close
---    Open "syntax.docParagraph",
---      Open "syntax.docWord", Textual "goodbye", Close,
---    Close
---  Close]
+-- > [ Doc
+-- >   ( DocUntitledSection
+-- >     (DocParagraph (DocWord "Hi" :| [DocWord "there!"]))
+-- >     (DocParagraph (DocWord "goodbye" :| []))
+-- >   )
+-- > ]
 --
 -- The parser will parse this into the Unison expression:
 --
---   syntax.docUntitledSection [
---     syntax.docParagraph [syntax.docWord "Hi", syntax.docWord "there!"],
---     syntax.docParagraph [syntax.docWord "goodbye"]
---   ]
+-- > syntax.docUntitledSection [
+-- >   syntax.docParagraph [syntax.docWord "Hi", syntax.docWord "there!"],
+-- >   syntax.docParagraph [syntax.docWord "goodbye"]
+-- > ]
 --
--- Where `syntax.doc{Paragraph, UntitledSection,...}` are all ordinary term
+-- Where @syntax.doc{Paragraph, UntitledSection,...}@ are all ordinary term
 -- variables that will be looked up in the environment like anything else. This
 -- means that the documentation syntax can have its meaning changed by
--- overriding what functions the names `syntax.doc*` correspond to.
+-- overriding what functions the names @syntax.doc*@ correspond to.
 doc2Block :: forall m v. (Monad m, Var v) => P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
 doc2Block = do
-  P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
+  L.Token docContents startDoc endDoc <- doc
+  let docAnn = Ann startDoc endDoc
+  (docAnn,) . docUntitledSection (gann docAnn) <$> traverse (cata $ docTop <=< sequenceA) docContents
   where
-    -- For terms which aren't blocks the spanning annotation is the same as the
-    -- term annotation.
-    selfAnnotated :: Term v Ann -> (Ann, Term v Ann)
-    selfAnnotated t = (ann t, t)
-    elem :: P v m (Ann {- Annotation for the whole spanning block -}, Term v Ann)
-    elem =
-      (selfAnnotated <$> text) <|> do
-        startTok <- openBlock
-        let -- here, `t` will be something like `Open "syntax.docWord"`
-            -- so `f` will be a term var with the name "syntax.docWord".
-            f = f' startTok
-            f' t = Term.var (ann t) (Var.nameds (L.payload t))
+    cata :: (Functor f) => (f a -> a) -> Cofree f x -> a
+    cata fn (_ :< fx) = fn $ cata fn <$> fx
 
-            -- follows are some common syntactic forms used for parsing child elements
+    gann :: (Annotated a) => a -> Ann
+    gann = Ann.GeneratedFrom . ann
 
-            -- regular is parsed into `f child1 child2 child3` for however many children
-            regular = do
-              cs <- P.many (snd <$> elem)
-              endTok <- closeBlock
-              let trm = Term.apps' f cs
-              pure (ann startTok <> ann endTok, trm)
+    addDelay :: Term v Ann -> Term v Ann
+    addDelay tm = Term.delay (ann tm) tm
 
-            -- variadic is parsed into: `f [child1, child2, ...]`
-            variadic = variadic' f
-            variadic' f = do
-              cs <- P.many (snd <$> elem)
-              endTok <- closeBlock
-              let trm = Term.apps' f [Term.list (ann cs) cs]
-              pure (ann startTok <> ann endTok, trm)
+    f :: (Annotated a) => a -> String -> Term v Ann
+    f a = Term.var (gann a) . Var.nameds . ("syntax.doc" <>)
 
-            -- sectionLike is parsed into: `f tm [child1, child2, ...]`
-            sectionLike = do
-              arg1 <- (snd <$> elem)
-              cs <- P.many (snd <$> elem)
-              endTok <- closeBlock
-              let trm = Term.apps' f [arg1, Term.list (ann cs) cs]
-              pure (ann startTok <> ann endTok, trm)
+    docUntitledSection :: Ann -> Doc.UntitledSection (Term v Ann) -> Term v Ann
+    docUntitledSection ann (Doc.UntitledSection tops) =
+      Term.app ann (f ann "UntitledSection") $ Term.list (gann tops) tops
 
-            evalLike wrap = do
-              tm <- term
-              endTok <- closeBlock
-              let trm = Term.apps' f [wrap tm]
-              pure (ann startTok <> ann endTok, trm)
+    docTop :: Doc.Top (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docTop d = case d of
+      Doc.Section title body -> pure $ Term.apps' (f d "Section") [title, Term.list (gann body) body]
+      Doc.Eval code ->
+        Term.app (gann d) (f d "Eval") . addDelay . snd
+          <$> subParse (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof) code
+      Doc.ExampleBlock code ->
+        Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
+          <$> subParse (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof) code
+      Doc.CodeBlock label body ->
+        pure $
+          Term.apps'
+            (f d "CodeBlock")
+            [Term.text (ann label) . Text.pack $ L.payload label, Term.text (ann body) . Text.pack $ L.payload body]
+      Doc.BulletedList items ->
+        pure $ Term.app (gann d) (f d "BulletedList") . Term.list (gann items) . toList $ docColumn <$> items
+      Doc.NumberedList items@((n, _) :| _) ->
+        pure $
+          Term.apps'
+            (f d "NumberedList")
+            [Term.nat (ann d) $ L.payload n, Term.list (gann $ snd <$> items) . toList $ docColumn . snd <$> items]
+      Doc.Paragraph leaves ->
+        Term.app (gann d) (f d "Paragraph") . Term.list (ann leaves) . toList <$> traverse docLeaf leaves
 
-            -- converts `tm` to `'tm`
-            --
-            -- Embedded examples like ``1 + 1`` are represented as terms,
-            -- but are wrapped in delays so they are left unevaluated for the
-            -- code which renders documents. (We want the doc display to get
-            -- the unevaluated expression `1 + 1` and not `2`)
-            addDelay tm = Term.delay (ann tm) tm
-        case L.payload startTok of
-          "syntax.docJoin" -> variadic
-          "syntax.docUntitledSection" -> variadic
-          "syntax.docColumn" -> variadic
-          "syntax.docParagraph" -> variadic
-          "syntax.docSignature" -> variadic
-          "syntax.docSource" -> variadic
-          "syntax.docFoldedSource" -> variadic
-          "syntax.docBulletedList" -> variadic
-          "syntax.docSourceAnnotations" -> variadic
-          "syntax.docSourceElement" -> do
-            link <- (snd <$> elem)
-            anns <- P.optional $ reserved "@" *> (snd <$> elem)
-            endTok <- closeBlock
-            let trm = Term.apps' f [link, fromMaybe (Term.list (ann link) mempty) anns]
-            pure (ann startTok <> ann endTok, trm)
-          "syntax.docNumberedList" -> do
-            nitems@((n, _) : _) <- P.some nitem
-            endTok <- closeBlock
-            let items = snd <$> nitems
-            let trm = Term.apps' f [n, Term.list (ann items) items]
-            pure (ann startTok <> ann endTok, trm)
-            where
-              nitem = do
-                n <- number
-                t <- openBlockWith "syntax.docColumn"
-                let f = f' ("syntax.docColumn" <$ t)
-                (_spanAnn, child) <- variadic' f
-                pure (n, child)
-          "syntax.docSection" -> sectionLike
-          -- @source{ type Blah, foo, type Bar }
-          "syntax.docEmbedTermLink" -> do
-            tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            endTok <- closeBlock
-            let trm = Term.apps' f [tm]
-            pure (ann startTok <> ann endTok, trm)
-          "syntax.docEmbedSignatureLink" -> do
-            tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
-            endTok <- closeBlock
-            let trm = Term.apps' f [tm]
-            pure (ann startTok <> ann endTok, trm)
-          "syntax.docEmbedTypeLink" -> do
-            r <- typeLink'
-            endTok <- closeBlock
-            let trm = Term.apps' f [Term.typeLink (ann r) (L.payload r)]
-            pure (ann startTok <> ann endTok, trm)
-          "syntax.docExample" -> do
-            trm <- term
-            endTok <- closeBlock
-            let spanAnn = ann startTok <> ann endTok
-            pure . (spanAnn,) $ case trm of
-              tm@(Term.Apps' _ xs) ->
-                let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
-                    n = Term.nat (ann tm) (fromIntegral (length fvs))
-                    lam = addDelay $ Term.lam' (ann tm) ((Ann.GeneratedFrom spanAnn,) <$> fvs) tm
-                 in Term.apps' f [n, lam]
-              tm -> Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
-          "syntax.docTransclude" -> evalLike id
-          "syntax.docEvalInline" -> evalLike addDelay
-          "syntax.docExampleBlock" -> do
-            (spanAnn, tm) <- block'' False True "syntax.docExampleBlock" (pure (void startTok)) closeBlock
-            pure $ (spanAnn, Term.apps' f [Term.nat (ann tm) 0, addDelay tm])
-          "syntax.docEval" -> do
-            (spanAnn, tm) <- block' False "syntax.docEval" (pure (void startTok)) closeBlock
-            pure $ (spanAnn, Term.apps' f [addDelay tm])
-          _ -> regular
+    docColumn :: Doc.Column (Term v Ann) -> Term v Ann
+    docColumn d@(Doc.Column para sublist) =
+      Term.app (gann d) (f d "Column") . Term.list (gann d) $ para : toList sublist
+
+    docLeaf :: Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] (Term v Ann) -> TermP v m
+    docLeaf d = case d of
+      Doc.Link link -> Term.app (gann d) (f d "Link") <$> docEmbedLink link
+      Doc.NamedLink para target -> Term.apps' (f d "NamedLink") . (para :) . pure <$> docLeaf (vacuous target)
+      Doc.Example code -> do
+        trm <- subParse term code
+        pure . Term.apps' (f d "Example") $ case trm of
+          tm@(Term.Apps' _ xs) ->
+            let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
+                n = Term.nat (ann tm) (fromIntegral (length fvs))
+                lam = addDelay $ Term.lam' (ann tm) ((mempty,) <$> fvs) tm
+             in [n, lam]
+          tm -> [Term.nat (ann tm) 0, addDelay tm]
+      Doc.Transclude code -> Term.app (gann d) (f d "Transclude") <$> subParse term code
+      Doc.Bold para -> pure $ Term.app (gann d) (f d "Bold") para
+      Doc.Italic para -> pure $ Term.app (gann d) (f d "Italic") para
+      Doc.Strikethrough para -> pure $ Term.app (gann d) (f d "Strikethrough") para
+      Doc.Verbatim leaf -> Term.app (gann d) (f d "Verbatim") <$> docLeaf (bimap absurd absurd leaf)
+      Doc.Code leaf -> Term.app (gann d) (f d "Code") <$> docLeaf (bimap absurd absurd leaf)
+      Doc.Source elems ->
+        Term.app (gann d) (f d "Source") . Term.list (ann elems) . toList <$> traverse docSourceElement elems
+      Doc.FoldedSource elems ->
+        Term.app (gann d) (f d "FoldedSource") . Term.list (ann elems) . toList <$> traverse docSourceElement elems
+      Doc.EvalInline code -> Term.app (gann d) (f d "EvalInline") . addDelay <$> subParse term code
+      Doc.Signature links ->
+        Term.app (gann d) (f d "Signature") . Term.list (ann links) . toList <$> traverse docEmbedSignatureLink links
+      Doc.SignatureInline link -> Term.app (gann d) (f d "SignatureInline") <$> docEmbedSignatureLink link
+      Doc.Word txt -> pure . Term.app (gann d) (f d "Word") . Term.text (ann txt) . Text.pack $ L.payload txt
+      Doc.Group (Doc.Join leaves) ->
+        Term.app (gann d) (f d "Group") . Term.app (gann d) (f d "Join") . Term.list (ann leaves) . toList
+          <$> traverse docLeaf leaves
+
+    docEmbedLink :: Doc.EmbedLink (ReferenceType, HQ'.HashQualified Name) -> TermP v m
+    docEmbedLink d@(Doc.EmbedLink (L.Token (level, ident) start end)) = case level of
+      RtType ->
+        Term.app (gann d) (f d "EmbedTypeLink") . Term.typeLink (ann d) . L.payload
+          <$> findUniqueType (L.Token (HQ'.toHQ ident) start end)
+      RtTerm ->
+        Term.app (gann d) (f d "EmbedTermLink") . addDelay <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
+
+    docSourceElement ::
+      Doc.SourceElement
+        (ReferenceType, HQ'.HashQualified Name)
+        (Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      TermP v m
+    docSourceElement d@(Doc.SourceElement link anns) = do
+      link' <- docEmbedLink link
+      anns' <- traverse docEmbedAnnotation anns
+      pure $ Term.apps' (f d "SourceElement") [link', Term.list (ann anns) anns']
+
+    docEmbedSignatureLink :: Doc.EmbedSignatureLink (ReferenceType, HQ'.HashQualified Name) -> TermP v m
+    docEmbedSignatureLink d@(Doc.EmbedSignatureLink (L.Token (level, ident) start end)) = case level of
+      RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+      RtTerm ->
+        Term.app (gann d) (f d "EmbedSignatureLink") . addDelay
+          <$> resolveHashQualified (L.Token (HQ'.toHQ ident) start end)
+
+    docEmbedAnnotation ::
+      Doc.EmbedAnnotation
+        (ReferenceType, HQ'.HashQualified Name)
+        (Doc.Leaf (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme] Void) ->
+      TermP v m
+    docEmbedAnnotation d@(Doc.EmbedAnnotation a) =
+      -- This is the only place I’m not sure we’re doing the right thing. In the lexer, this can be an identifier or a
+      -- DocLeaf, but here it could be either /text/ or a Doc element. And I don’t think there’s any way the lexemes
+      -- produced for an identifier and the lexemes consumed for text line up. So, I think this is a bugfix I can’t
+      -- avoid.
+      Term.app (gann d) (f d "EmbedAnnotation")
+        <$> either
+          ( \(L.Token (level, ident) start end) -> case level of
+              RtType -> P.customFailure . TypeNotAllowed $ L.Token (HQ'.toHQ ident) start end
+              RtTerm -> resolveHashQualified $ L.Token (HQ'.toHQ ident) start end
+          )
+          (docLeaf . vacuous)
+          a
 
 docBlock :: (Monad m, Var v) => TermP v m
 docBlock = do
@@ -988,7 +1008,7 @@ delayQuote = P.label "quote" do
 
 delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
-  (spanAnn, b) <- block "do"
+  (spanAnn, b) <- layoutBlock "do"
   let argSpan = (ann b {- would be nice to use the annotation for 'do' here, but it's not terribly important -})
   pure $ (spanAnn, DD.delayTerm (ann b) argSpan b)
 
@@ -1075,7 +1095,7 @@ destructuringBind = do
     let boundVars' = snd <$> boundVars
     _ <- P.lookAhead (openBlockWith "=")
     pure (p, boundVars')
-  (_spanAnn, scrute) <- block "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
@@ -1143,7 +1163,10 @@ customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
 
 block :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
-block s = block' False s (openBlockWith s) closeBlock
+block s = block' False False s (openBlockWith s) closeBlock
+
+layoutBlock :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+layoutBlock s = block' False False s (openBlockWith s) optionalCloseBlock
 
 -- example: use Foo.bar.Baz + ++ x
 -- + ++ and x are called the "suffixes" of the `use` statement, and
@@ -1213,24 +1236,16 @@ substImports ns imports =
       ]
 
 block' ::
-  (Monad m, Var v) =>
-  IsTop ->
-  String ->
-  P v m (L.Token ()) ->
-  P v m (L.Token ()) ->
-  P v m (Ann {- ann which spans the whole block -}, Term v Ann)
-block' isTop = block'' isTop False
-
-block'' ::
   forall m v end.
   (Monad m, Var v, Annotated end) =>
   IsTop ->
-  Bool -> -- `True` means insert `()` at end of block if it ends with a statement
+  -- | `True` means insert `()` at end of block if it ends with a statement
+  Bool ->
   String ->
   P v m (L.Token ()) ->
   P v m end ->
   P v m (Ann {- ann which spans the whole block -}, Term v Ann)
-block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
+block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi

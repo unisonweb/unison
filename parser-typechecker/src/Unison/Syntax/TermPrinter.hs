@@ -51,7 +51,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
-import Unison.Syntax.Lexer (showEscapeChar)
+import Unison.Syntax.Lexer.Unison (showEscapeChar)
 import Unison.Syntax.Name qualified as Name (isSymboly, parseText, parseTextEither, toText, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)

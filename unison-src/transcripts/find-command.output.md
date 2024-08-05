@@ -65,8 +65,15 @@ scratch/main> find bar
   1. somewhere.bar : Nat
   
 
--- Shows UUIDs
--- scratch/main> find.global bar
+scratch/other> debug.find.global bar
+
+  Found results in scratch/main
+  
+  1. .cat.lib.bar : Nat
+  2. .lib.bar : Nat
+  3. .somewhere.bar : Nat
+  
+
 scratch/main> find-in somewhere bar
 
   1. bar : Nat
@@ -86,17 +93,7 @@ scratch/main> find baz
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
-
-```
-``` ucm
-scratch/main> find.global notHere
-
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
 
 ```

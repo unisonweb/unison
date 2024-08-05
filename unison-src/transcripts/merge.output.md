@@ -1435,8 +1435,6 @@ project/alice> names A
   Type
   Hash:  #65mdg7015r
   Names: A A.inner.X
-  
-  Tip: Use `names.global` to see more results.
 
 ```
 Bob's branch:

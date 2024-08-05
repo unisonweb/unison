@@ -62,7 +62,5 @@ scratch/main> names foo
   Term
   Hash:   #9ntnotdp87
   Names:  foo
-  
-  Tip: Use `names.global` to see more results.
 
 ```
