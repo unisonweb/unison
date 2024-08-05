@@ -1,5 +1,6 @@
 module Unison.Merge.PartitionCombinedDiffs
   ( partitionCombinedDiffs,
+    narrowConflictsToNonBuiltins,
   )
 where
 
@@ -27,6 +28,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, defnsAreEmpty)
 import Unison.Util.Map qualified as Map
 
@@ -35,16 +37,12 @@ partitionCombinedDiffs ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay DeclNameLookup ->
   DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference ->
-  Either
-    Name
-    ( TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
-      DefnsF Unconflicts Referent TypeReference
-    )
-partitionCombinedDiffs defns declNameLookups diffs = do
-  let conflicts0 = identifyConflicts declNameLookups defns diffs
-  let unconflicts = identifyUnconflicts declNameLookups conflicts0 diffs
-  conflicts <- assertThereAreNoBuiltins conflicts0
-  Right (conflicts, unconflicts)
+  ( TwoWay (DefnsF (Map Name) TermReference TypeReference),
+    DefnsF Unconflicts Referent TypeReference
+  )
+partitionCombinedDiffs defns declNameLookups diffs =
+  let conflicts = identifyConflicts declNameLookups defns diffs
+   in (conflicts, identifyUnconflicts declNameLookups conflicts diffs)
 
 data S = S
   { me :: !(EitherWay ()),
@@ -247,21 +245,20 @@ justTheConflictedNames =
       CombinedDiffOp'Delete _ -> names
       CombinedDiffOp'Update _ -> names
 
-assertThereAreNoBuiltins ::
+narrowConflictsToNonBuiltins ::
   TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
-  Either Name (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
-assertThereAreNoBuiltins =
+  Either (Defn Name Name) (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
+narrowConflictsToNonBuiltins =
   traverse (bitraverse (Map.traverseWithKey assertTermIsntBuiltin) (Map.traverseWithKey assertTypeIsntBuiltin))
   where
-    assertTermIsntBuiltin :: Name -> TermReference -> Either Name TermReferenceId
+    assertTermIsntBuiltin :: Name -> TermReference -> Either (Defn Name Name) TermReferenceId
     assertTermIsntBuiltin name ref =
       case Reference.toId ref of
-        Nothing -> Left name
+        Nothing -> Left (TermDefn name)
         Just refId -> Right refId
 
-    -- Same body as above, but could be different some day (e.g. return value tells you what namespace)
-    assertTypeIsntBuiltin :: Name -> TypeReference -> Either Name TypeReferenceId
+    assertTypeIsntBuiltin :: Name -> TypeReference -> Either (Defn Name Name) TypeReferenceId
     assertTypeIsntBuiltin name ref =
       case Reference.toId ref of
-        Nothing -> Left name
+        Nothing -> Left (TypeDefn name)
         Just refId -> Right refId

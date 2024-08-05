@@ -426,7 +426,7 @@ data Output
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
-  | MergeConflictInvolvingBuiltin !Name
+  | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress

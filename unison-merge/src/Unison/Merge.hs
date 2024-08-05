@@ -22,6 +22,7 @@ module Unison.Merge
     -- * Partitioning combined namespace diffs
     Unconflicts (..),
     partitionCombinedDiffs,
+    narrowConflictsToNonBuiltins,
 
     -- * Merging libdeps
     LibdepDiffOp (..),
@@ -56,7 +57,7 @@ import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
-import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
+import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins, partitionCombinedDiffs)
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))

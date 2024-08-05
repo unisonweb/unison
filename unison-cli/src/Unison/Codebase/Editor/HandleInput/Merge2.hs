@@ -336,9 +336,12 @@ doMerge info = do
       liftIO (debugFunctions.debugCombinedDiff diff)
 
       -- Partition the combined diff into the conflicted things and the unconflicted things
-      (conflicts, unconflicts) <-
-        Merge.partitionCombinedDiffs (ThreeWay.forgetLca defns3) declNameLookups diff & onLeft \name ->
-          done (Output.MergeConflictInvolvingBuiltin name)
+      (conflicts, unconflicts) <- do
+        let (conflicts0, unconflicts) = Merge.partitionCombinedDiffs (ThreeWay.forgetLca defns3) declNameLookups diff
+        conflicts <-
+          Merge.narrowConflictsToNonBuiltins conflicts0 & onLeft \name ->
+            done (Output.MergeConflictInvolvingBuiltin name)
+        pure (conflicts, unconflicts)
 
       liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
 
