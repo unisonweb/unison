@@ -1,6 +1,8 @@
 -- | An API for merging together two collections of library dependencies.
 module Unison.Merge.Libdeps
-  ( mergeLibdeps,
+  ( LibdepDiffOp (..),
+    diffLibdeps,
+    applyLibdepsDiff,
   )
 where
 
@@ -20,33 +22,29 @@ import Unison.Prelude hiding (catMaybes)
 import Unison.Util.Map qualified as Map
 import Witherable (catMaybes)
 
--- | Perform a three-way merge on two collections of library dependencies.
-mergeLibdeps ::
-  forall k v.
+------------------------------------------------------------------------------------------------------------------------
+-- Diffing libdeps
+
+data LibdepDiffOp a
+  = AddLibdep !a
+  | AddBothLibdeps !a !a
+  | DeleteLibdep
+
+-- | Perform a three-way diff on two collections of library dependencies.
+diffLibdeps ::
   (Ord k, Eq v) =>
-  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
-  (Set k -> k -> (k, k)) ->
   -- | Library dependencies.
   ThreeWay (Map k v) ->
-  -- | Merged library dependencies.
-  Map k v
-mergeLibdeps freshen libdeps =
-  mergeDiffs (diff libdeps.lca libdeps.alice) (diff libdeps.lca libdeps.bob)
-    & applyDiff (freshen usedNames) libdeps.lca
-  where
-    usedNames :: Set k
-    usedNames =
-      Set.unions
-        [ Map.keysSet libdeps.lca,
-          Map.keysSet libdeps.alice,
-          Map.keysSet libdeps.bob
-        ]
+  -- | Library dependencies diff.
+  Map k (LibdepDiffOp v)
+diffLibdeps libdeps =
+  mergeDiffs (twoWayDiff libdeps.lca libdeps.alice) (twoWayDiff libdeps.lca libdeps.bob)
 
--- `diff old new` computes a diff between old thing `old` and new thing `new`.
+-- `twoWayDiff old new` computes a diff between old thing `old` and new thing `new`.
 --
 -- Values present in `old` but not `new` are tagged as "deleted"; similar for "added" and "updated".
-diff :: (Ord k, Eq v) => Map k v -> Map k v -> Map k (DiffOp v)
-diff =
+twoWayDiff :: (Ord k, Eq v) => Map k v -> Map k v -> Map k (DiffOp v)
+twoWayDiff =
   Map.merge
     (Map.mapMissing \_ -> DiffOp'Delete)
     (Map.mapMissing \_ -> DiffOp'Add)
@@ -97,20 +95,23 @@ combineDiffOps1 = \case
     | alice == bob -> Just (AddLibdep alice)
     | otherwise -> Just (AddBothLibdeps alice bob)
 
+------------------------------------------------------------------------------------------------------------------------
+-- Applying libdeps diff
+
 -- Apply a library dependencies diff to the LCA.
-applyDiff ::
+applyLibdepsDiff ::
   forall k v.
   (Ord k) =>
-  -- Freshen a name, e.g. "base" -> ("base__4", "base__5")
-  (k -> (k, k)) ->
-  -- The LCA library dependencies.
-  Map k v ->
-  -- LCA->Alice+Bob library dependencies diff.
+  -- | Freshen a name, e.g. "base" -> ("base__4", "base__5").
+  (Set k -> k -> (k, k)) ->
+  -- | Library dependencies.
+  ThreeWay (Map k v) ->
+  -- | Library dependencies diff.
   Map k (LibdepDiffOp v) ->
-  -- The merged library dependencies.
+  -- | Merged library dependencies.
   Map k v
-applyDiff freshen =
-  Map.mergeMap Map.singleton f (\name _ -> f name)
+applyLibdepsDiff freshen0 libdeps =
+  Map.mergeMap Map.singleton f (\name _ -> f name) libdeps.lca
   where
     f :: k -> LibdepDiffOp v -> Map k v
     f k = \case
@@ -120,7 +121,11 @@ applyDiff freshen =
          in Map.fromList [(k1, v1), (k2, v2)]
       DeleteLibdep -> Map.empty
 
-data LibdepDiffOp a
-  = AddLibdep !a
-  | AddBothLibdeps !a !a
-  | DeleteLibdep
+    freshen :: k -> (k, k)
+    freshen =
+      freshen0 $
+        Set.unions
+          [ Map.keysSet libdeps.lca,
+            Map.keysSet libdeps.alice,
+            Map.keysSet libdeps.bob
+          ]

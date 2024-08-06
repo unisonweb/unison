@@ -71,29 +71,14 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
-import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
+import Unison.Merge qualified as Merge
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
-import Unison.Merge.DeclCoherencyCheck (checkDeclCoherency, lenientCheckDeclCoherency)
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
-import Unison.Merge.Diff qualified as Merge
-import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.EitherWay (EitherWay (..))
-import Unison.Merge.EitherWayI (EitherWayI (..))
+import Unison.Merge.DeclNameLookup (expectConstructorNames)
 import Unison.Merge.EitherWayI qualified as EitherWayI
-import Unison.Merge.Libdeps qualified as Merge
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
-import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
-import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.Synhashed qualified as Synhashed
-import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
-import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
-import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.TwoWayI qualified as TwoWayI
-import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
-import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -158,7 +143,7 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
   let bobProjectAndBranch = ProjectAndBranch bobProject bobProjectBranch
 
   doMergeLocalBranch
-    TwoWay
+    Merge.TwoWay
       { alice = aliceProjectAndBranch,
         bob = bobProjectAndBranch
       }
@@ -218,7 +203,7 @@ doMerge info = do
       causals <- Cli.runTransaction do
         traverse
           Operations.expectCausalBranchByCausalHash
-          TwoOrThreeWay
+          Merge.TwoOrThreeWay
             { alice = info.alice.causalHash,
               bob = info.bob.causalHash,
               lca = info.lca.causalHash
@@ -232,7 +217,7 @@ doMerge info = do
           alice <- causals.alice.value
           bob <- causals.bob.value
           lca <- for causals.lca \causal -> causal.value
-          pure TwoOrThreeWay {lca, alice, bob}
+          pure Merge.TwoOrThreeWay {lca, alice, bob}
 
       -- Assert that neither Alice nor Bob have defns in lib
       for_ [(mergeTarget, branches.alice), (mergeSource, branches.bob)] \(who, branch) -> do
@@ -246,21 +231,21 @@ doMerge info = do
               Cli.runTransaction (loadNamespaceDefinitions (referent2to1 db) branch)
                 & onLeftM (done . Output.ConflictedDefn "merge")
         let load = \case
-              Nothing -> pure (emptyNametree, DeclNameLookup Map.empty Map.empty)
+              Nothing -> pure (emptyNametree, Merge.DeclNameLookup Map.empty Map.empty)
               Just (who, branch) -> do
                 defns <- loadDefns branch
                 declNameLookup <-
-                  Cli.runTransaction (checkDeclCoherency db.loadDeclNumConstructors defns)
+                  Cli.runTransaction (Merge.oldCheckDeclCoherency db.loadDeclNumConstructors defns)
                     & onLeftM (done . Output.IncoherentDeclDuringMerge who)
                 pure (defns, declNameLookup)
 
         (aliceDefns0, aliceDeclNameLookup) <- load (Just (mergeTarget, branches.alice))
         (bobDefns0, bobDeclNameLookup) <- load (Just (mergeSource, branches.bob))
         lcaDefns0 <- maybe (pure emptyNametree) loadDefns branches.lca
-        lcaDeclNameLookup <- Cli.runTransaction (lenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
+        lcaDeclNameLookup <- Cli.runTransaction (Merge.oldLenientCheckDeclCoherency db.loadDeclNumConstructors lcaDefns0)
 
-        let defns3 = flattenNametrees <$> ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
-        let declNameLookups = TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup}
+        let defns3 = flattenNametrees <$> Merge.ThreeWay {alice = aliceDefns0, bob = bobDefns0, lca = lcaDefns0}
+        let declNameLookups = Merge.TwoWay {alice = aliceDeclNameLookup, bob = bobDeclNameLookup}
 
         pure (defns3, declNameLookups, lcaDeclNameLookup)
 
@@ -269,23 +254,23 @@ doMerge info = do
       liftIO (debugFunctions.debugDefns defns3 declNameLookups lcaDeclNameLookup)
 
       -- Diff LCA->Alice and LCA->Bob
-      diffs <- Cli.runTransaction (Merge.nameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns3)
+      diffs <- Cli.runTransaction (Merge.oldNameBasedNamespaceDiff db declNameLookups lcaDeclNameLookup defns3)
 
       liftIO (debugFunctions.debugDiffs diffs)
 
       -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-      for_ ((,) <$> TwoWay mergeTarget mergeSource <*> diffs) \(who, diff) ->
+      for_ ((,) <$> Merge.TwoWay mergeTarget mergeSource <*> diffs) \(who, diff) ->
         whenJust (findConflictedAlias defns3.lca diff) \(name1, name2) ->
           done (Output.MergeConflictedAliases who name1 name2)
 
       -- Combine the LCA->Alice and LCA->Bob diffs together
-      let diff = combineDiffs diffs
+      let diff = Merge.combineDiffs diffs
 
       liftIO (debugFunctions.debugCombinedDiff diff)
 
       -- Partition the combined diff into the conflicted things and the unconflicted things
       (conflicts, unconflicts) <-
-        partitionCombinedDiffs defns declNameLookups diff & onLeft \name ->
+        Merge.partitionCombinedDiffs defns declNameLookups diff & onLeft \name ->
           done (Output.MergeConflictInvolvingBuiltin name)
 
       liftIO (debugFunctions.debugPartitionedDiff conflicts unconflicts)
@@ -311,10 +296,10 @@ doMerge info = do
       mergedLibdeps <-
         Cli.runTransaction do
           libdeps <- loadLibdeps branches
-          libdepsToBranch0 db (Merge.mergeLibdeps getTwoFreshNames libdeps)
+          libdepsToBranch0 db (Merge.applyLibdepsDiff getTwoFreshNames libdeps (Merge.diffLibdeps libdeps))
 
       -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
-      let mkPpes :: TwoWay Names -> Names -> TwoWay PrettyPrintEnvDecl
+      let mkPpes :: Merge.TwoWay Names -> Names -> Merge.TwoWay PrettyPrintEnvDecl
           mkPpes defnsNames libdepsNames =
             defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
             where
@@ -339,7 +324,7 @@ doMerge info = do
 
       let prettyUnisonFile =
             makePrettyUnisonFile
-              TwoWay
+              Merge.TwoWay
                 { alice = into @Text aliceBranchNames,
                   bob =
                     case info.bob.source of
@@ -398,7 +383,7 @@ doMerge info = do
 
   Cli.respond finalOutput
 
-doMergeLocalBranch :: TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
+doMergeLocalBranch :: Merge.TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
 doMergeLocalBranch branches = do
   (aliceCausalHash, bobCausalHash, lcaCausalHash) <-
     Cli.runTransaction do
@@ -432,8 +417,8 @@ doMergeLocalBranch branches = do
 -- Loading basic info out of the database
 
 loadLibdeps ::
-  TwoOrThreeWay (V2.Branch Transaction) ->
-  Transaction (ThreeWay (Map NameSegment (V2.CausalBranch Transaction)))
+  Merge.TwoOrThreeWay (V2.Branch Transaction) ->
+  Transaction (Merge.ThreeWay (Map NameSegment (V2.CausalBranch Transaction)))
 loadLibdeps branches = do
   lca <-
     case branches.lca of
@@ -441,7 +426,7 @@ loadLibdeps branches = do
       Just lcaBranch -> load lcaBranch
   alice <- load branches.alice
   bob <- load branches.bob
-  pure ThreeWay {lca, alice, bob}
+  pure Merge.ThreeWay {lca, alice, bob}
   where
     load :: V2.Branch Transaction -> Transaction (Map NameSegment (V2.CausalBranch Transaction))
     load branch =
@@ -466,9 +451,9 @@ hasDefnsInLib branch = do
 -- Creating Unison files
 
 makePrettyUnisonFile ::
-  TwoWay Text ->
-  TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
-  TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
+  Merge.TwoWay Text ->
+  Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
+  Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
   Pretty ColorText
 makePrettyUnisonFile authors conflicts dependents =
   fold
@@ -546,7 +531,7 @@ makePrettyUnisonFile authors conflicts dependents =
 --     terms = { "foo", "Maybe.Nothing", "Maybe.Just" }
 --     types = { "Maybe" }
 --   }
-refIdsToNames :: DeclNameLookup -> DefnsF (Map Name) term typ -> DefnsF Set Name Name
+refIdsToNames :: Merge.DeclNameLookup -> DefnsF (Map Name) term typ -> DefnsF Set Name Name
 refIdsToNames declNameLookup =
   bifoldMap goTerms goTypes
   where
@@ -610,25 +595,25 @@ nametreeToBranch0 nametree =
 
 -- FIXME: let's come up with a better term for "dependencies" in the implementation of this function
 identifyDependents ::
-  TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  DefnsF Unconflicts Referent TypeReference ->
-  Transaction (TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
+  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DefnsF Merge.Unconflicts Referent TypeReference ->
+  Transaction (Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId))
 identifyDependents defns conflicts unconflicts = do
   let -- The other person's (i.e. with "Alice" and "Bob" swapped) solo-deleted and solo-updated names
-      theirSoloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name)
+      theirSoloUpdatesAndDeletes :: Merge.TwoWay (DefnsF Set Name Name)
       theirSoloUpdatesAndDeletes =
         TwoWay.swap (unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames)
         where
-          unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
+          unconflictedSoloDeletedNames :: Merge.TwoWay (DefnsF Set Name Name)
           unconflictedSoloDeletedNames =
             bitraverse Unconflicts.soloDeletedNames Unconflicts.soloDeletedNames unconflicts
 
-          unconflictedSoloUpdatedNames :: TwoWay (DefnsF Set Name Name)
+          unconflictedSoloUpdatedNames :: Merge.TwoWay (DefnsF Set Name Name)
           unconflictedSoloUpdatedNames =
             bitraverse Unconflicts.soloUpdatedNames Unconflicts.soloUpdatedNames unconflicts
 
-  let dependencies :: TwoWay (Set Reference)
+  let dependencies :: Merge.TwoWay (Set Reference)
       dependencies =
         fold
           [ -- One source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
@@ -668,7 +653,7 @@ identifyDependents defns conflicts unconflicts = do
   --   1. It is Alice-conflicted (since we only want to return *unconflicted* things).
   --   2. It was deleted by Bob.
   --   3. It was updated by Bob and not updated by Alice.
-  let dependents1 :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+  let dependents1 :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
       dependents1 =
         zipDefnsWith Map.withoutKeys Map.withoutKeys
           <$> dependents0
@@ -689,7 +674,7 @@ identifyDependents defns conflicts unconflicts = do
   --
   --   { alice = { terms = {"foo" => #alice} } }
   --   { bob   = { terms = {}                } }
-  let dependents2 :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
+  let dependents2 :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId)
       dependents2 =
         dependents1 & over #bob \bob ->
           zipDefnsWith Map.difference Map.difference bob dependents1.alice
@@ -697,20 +682,20 @@ identifyDependents defns conflicts unconflicts = do
   pure dependents2
 
 makeStageOne ::
-  TwoWay DeclNameLookup ->
-  TwoWay (DefnsF (Map Name) termid typeid) ->
-  DefnsF Unconflicts term typ ->
-  TwoWay (DefnsF (Map Name) termid typeid) ->
+  Merge.TwoWay Merge.DeclNameLookup ->
+  Merge.TwoWay (DefnsF (Map Name) termid typeid) ->
+  DefnsF Merge.Unconflicts term typ ->
+  Merge.TwoWay (DefnsF (Map Name) termid typeid) ->
   DefnsF (Map Name) term typ ->
   DefnsF (Map Name) term typ
 makeStageOne declNameLookups conflicts unconflicts dependents =
   zipDefnsWith3 makeStageOneV makeStageOneV unconflicts (f conflicts <> f dependents)
   where
-    f :: TwoWay (DefnsF (Map Name) term typ) -> DefnsF Set Name Name
+    f :: Merge.TwoWay (DefnsF (Map Name) term typ) -> DefnsF Set Name Name
     f defns =
       fold (refIdsToNames <$> declNameLookups <*> defns)
 
-makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
+makeStageOneV :: Merge.Unconflicts v -> Set Name -> Map Name v -> Map Name v
 makeStageOneV unconflicts namesToDelete =
   (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
 
@@ -786,33 +771,33 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
 findConflictedAlias ::
   (Ord term, Ord typ) =>
   Defns (BiMultimap term Name) (BiMultimap typ Name) ->
-  DefnsF3 (Map Name) DiffOp Synhashed term typ ->
+  DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed term typ ->
   Maybe (Name, Name)
 findConflictedAlias defns diff =
   asum [go defns.terms diff.terms, go defns.types diff.types]
   where
-    go :: forall ref. (Ord ref) => BiMultimap ref Name -> Map Name (DiffOp (Synhashed ref)) -> Maybe (Name, Name)
+    go :: forall ref. (Ord ref) => BiMultimap ref Name -> Map Name (Merge.DiffOp (Merge.Synhashed ref)) -> Maybe (Name, Name)
     go namespace diff =
       asum (map f (Map.toList diff))
       where
-        f :: (Name, DiffOp (Synhashed ref)) -> Maybe (Name, Name)
+        f :: (Name, Merge.DiffOp (Merge.Synhashed ref)) -> Maybe (Name, Name)
         f (name, op) =
           case op of
-            DiffOp'Add _ -> Nothing
-            DiffOp'Delete _ -> Nothing
-            DiffOp'Update hashed1 ->
+            Merge.DiffOp'Add _ -> Nothing
+            Merge.DiffOp'Delete _ -> Nothing
+            Merge.DiffOp'Update hashed1 ->
               BiMultimap.lookupPreimage name namespace
                 & Set.delete name
                 & Set.toList
                 & map (g hashed1.new)
                 & asum
           where
-            g :: Synhashed ref -> Name -> Maybe (Name, Name)
+            g :: Merge.Synhashed ref -> Name -> Maybe (Name, Name)
             g hashed1 alias =
               case Map.lookup alias diff of
-                Just (DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
+                Just (Merge.DiffOp'Update hashed2) | hashed1 == hashed2.new -> Nothing
                 -- If "foo" was updated but its alias "bar" was deleted, that's ok
-                Just (DiffOp'Delete _) -> Nothing
+                Just (Merge.DiffOp'Delete _) -> Nothing
                 _ -> Just (name, alias)
 
 -- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
@@ -904,19 +889,19 @@ typecheckedUnisonFileToBranchAdds tuf = do
 -- Debugging by printing a bunch of stuff out
 
 data DebugFunctions = DebugFunctions
-  { debugCausals :: TwoOrThreeWay (V2.CausalBranch Transaction) -> IO (),
+  { debugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO (),
     debugDefns ::
-      ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-      TwoWay DeclNameLookup ->
-      PartialDeclNameLookup ->
+      Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      Merge.TwoWay Merge.DeclNameLookup ->
+      Merge.PartialDeclNameLookup ->
       IO (),
-    debugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO (),
-    debugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO (),
+    debugDiffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference) -> IO (),
+    debugCombinedDiff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference -> IO (),
     debugPartitionedDiff ::
-      TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-      DefnsF Unconflicts Referent TypeReference ->
+      Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+      DefnsF Merge.Unconflicts Referent TypeReference ->
       IO (),
-    debugDependents :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO (),
+    debugDependents :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO (),
     debugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
   }
 
@@ -936,7 +921,7 @@ fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
   DebugFunctions mempty mempty mempty mempty mempty mempty mempty
 
-realDebugCausals :: TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
+realDebugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
 realDebugCausals causals = do
   Text.putStrLn (Text.bold "\n=== Alice causal hash ===")
   Text.putStrLn (Hash.toBase32HexText (unCausalHash causals.alice.causalHash))
@@ -948,9 +933,9 @@ realDebugCausals causals = do
     Just causal -> "Just " <> Hash.toBase32HexText (unCausalHash causal.causalHash)
 
 realDebugDefns ::
-  ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
-  TwoWay DeclNameLookup ->
-  PartialDeclNameLookup ->
+  Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay Merge.DeclNameLookup ->
+  Merge.PartialDeclNameLookup ->
   IO ()
 realDebugDefns defns declNameLookups _lcaDeclNameLookup = do
   Text.putStrLn (Text.bold "\n=== Alice definitions ===")
@@ -965,19 +950,19 @@ realDebugDefns defns declNameLookups _lcaDeclNameLookup = do
   Text.putStrLn (Text.bold "\n=== Bob constructor names ===")
   debugConstructorNames declNameLookups.bob.declToConstructors
 
-realDebugDiffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> IO ()
+realDebugDiffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference) -> IO ()
 realDebugDiffs diffs = do
   Text.putStrLn (Text.bold "\n=== LCA→Alice diff ===")
   renderDiff diffs.alice
   Text.putStrLn (Text.bold "\n=== LCA→Bob diff ===")
   renderDiff diffs.bob
   where
-    renderDiff :: DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference -> IO ()
+    renderDiff :: DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference -> IO ()
     renderDiff diff = do
       renderThings referentLabel diff.terms
       renderThings (const "type") diff.types
 
-    renderThings :: (ref -> Text) -> Map Name (DiffOp (Synhashed ref)) -> IO ()
+    renderThings :: (ref -> Text) -> Map Name (Merge.DiffOp (Merge.Synhashed ref)) -> IO ()
     renderThings label things =
       for_ (Map.toList things) \(name, op) ->
         let go color action x =
@@ -990,21 +975,21 @@ realDebugDiffs diffs = do
                   <> " #"
                   <> Hash.toBase32HexText (Synhashed.hash x)
          in Text.putStrLn case op of
-              DiffOp'Add x -> go Text.green "+" x
-              DiffOp'Delete x -> go Text.red "-" x
-              DiffOp'Update x -> go Text.yellow "%" x.new
+              Merge.DiffOp'Add x -> go Text.green "+" x
+              Merge.DiffOp'Delete x -> go Text.red "-" x
+              Merge.DiffOp'Update x -> go Text.yellow "%" x.new
 
-realDebugCombinedDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> IO ()
+realDebugCombinedDiff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference -> IO ()
 realDebugCombinedDiff diff = do
   Text.putStrLn (Text.bold "\n=== Combined diff ===")
   renderThings referentLabel Referent.toText diff.terms
   renderThings (const "type") Reference.toText diff.types
   where
-    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name (CombinedDiffOp ref) -> IO ()
+    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name (Merge.CombinedDiffOp ref) -> IO ()
     renderThings label renderRef things =
       for_ (Map.toList things) \(name, op) ->
         Text.putStrLn case op of
-          CombinedDiffOp'Add who ->
+          Merge.CombinedDiffOp'Add who ->
             Text.green $
               "+ "
                 <> Text.italic (label (EitherWayI.value who))
@@ -1015,7 +1000,7 @@ realDebugCombinedDiff diff = do
                 <> " ("
                 <> renderWho who
                 <> ")"
-          CombinedDiffOp'Delete who ->
+          Merge.CombinedDiffOp'Delete who ->
             Text.red $
               "- "
                 <> Text.italic (label (EitherWayI.value who))
@@ -1026,7 +1011,7 @@ realDebugCombinedDiff diff = do
                 <> " ("
                 <> renderWho who
                 <> ")"
-          CombinedDiffOp'Update who ->
+          Merge.CombinedDiffOp'Update who ->
             Text.yellow $
               "% "
                 <> Text.italic (label (EitherWayI.value who).new)
@@ -1037,7 +1022,7 @@ realDebugCombinedDiff diff = do
                 <> " ("
                 <> renderWho who
                 <> ")"
-          CombinedDiffOp'Conflict ref ->
+          Merge.CombinedDiffOp'Conflict ref ->
             Text.magenta $
               "! "
                 <> Text.italic (label ref.alice)
@@ -1050,24 +1035,24 @@ realDebugCombinedDiff diff = do
                 <> "/"
                 <> renderRef ref.bob
 
-    renderWho :: EitherWayI v -> Text
+    renderWho :: Merge.EitherWayI v -> Text
     renderWho = \case
-      OnlyAlice _ -> "Alice"
-      OnlyBob _ -> "Bob"
-      AliceAndBob _ -> "Alice and Bob"
+      Merge.OnlyAlice _ -> "Alice"
+      Merge.OnlyBob _ -> "Bob"
+      Merge.AliceAndBob _ -> "Alice and Bob"
 
 realDebugPartitionedDiff ::
-  TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
-  DefnsF Unconflicts Referent TypeReference ->
+  Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
+  DefnsF Merge.Unconflicts Referent TypeReference ->
   IO ()
 realDebugPartitionedDiff conflicts unconflicts = do
   Text.putStrLn (Text.bold "\n=== Alice conflicts ===")
-  renderConflicts "termid" conflicts.alice.terms (Alice ())
-  renderConflicts "typeid" conflicts.alice.types (Alice ())
+  renderConflicts "termid" conflicts.alice.terms (Merge.Alice ())
+  renderConflicts "typeid" conflicts.alice.types (Merge.Alice ())
 
   Text.putStrLn (Text.bold "\n=== Bob conflicts ===")
-  renderConflicts "termid" conflicts.bob.terms (Bob ())
-  renderConflicts "typeid" conflicts.bob.types (Bob ())
+  renderConflicts "termid" conflicts.bob.terms (Merge.Bob ())
+  renderConflicts "typeid" conflicts.bob.types (Merge.Bob ())
 
   Text.putStrLn (Text.bold "\n=== Alice unconflicts ===")
   renderUnconflicts Text.green "+" referentLabel Referent.toText unconflicts.terms.adds.alice
@@ -1093,7 +1078,7 @@ realDebugPartitionedDiff conflicts unconflicts = do
   renderUnconflicts Text.yellow "%" referentLabel Referent.toText unconflicts.terms.updates.both
   renderUnconflicts Text.yellow "%" (const "type") Reference.toText unconflicts.types.updates.both
   where
-    renderConflicts :: Text -> Map Name Reference.Id -> EitherWay () -> IO ()
+    renderConflicts :: Text -> Map Name Reference.Id -> Merge.EitherWay () -> IO ()
     renderConflicts label conflicts who =
       for_ (Map.toList conflicts) \(name, ref) ->
         Text.putStrLn $
@@ -1105,7 +1090,7 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> " "
               <> Reference.idToText ref
               <> " ("
-              <> (case who of Alice () -> "Alice"; Bob () -> "Bob")
+              <> (case who of Merge.Alice () -> "Alice"; Merge.Bob () -> "Bob")
               <> ")"
 
     renderUnconflicts ::
@@ -1127,7 +1112,7 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> " "
               <> renderRef ref
 
-realDebugDependents :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO ()
+realDebugDependents :: Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) -> IO ()
 realDebugDependents dependents = do
   Text.putStrLn (Text.bold "\n=== Alice dependents of Bob deletes, Bob updates, and Alice conflicts ===")
   renderThings "termid" dependents.alice.terms

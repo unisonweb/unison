@@ -28,6 +28,8 @@
 module Unison.Merge.Synhash
   ( synhashType,
     synhashTerm,
+    synhashBuiltinTerm,
+    synhashDerivedTerm,
     synhashBuiltinDecl,
     synhashDerivedDecl,
 
@@ -56,7 +58,7 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference' (..), TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReferenceId)
 import Unison.Reference qualified as V1
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -84,8 +86,8 @@ synhashBuiltinDecl :: Text -> Hash
 synhashBuiltinDecl name =
   H.accumulate [isBuiltinTag, isDeclTag, H.Text name]
 
-hashBuiltinTerm :: Text -> Hash
-hashBuiltinTerm =
+synhashBuiltinTerm :: Text -> Hash
+synhashBuiltinTerm =
   H.accumulate . hashBuiltinTermTokens
 
 hashBuiltinTermTokens :: Text -> [Token]
@@ -116,8 +118,8 @@ hashConstructorNameToken declName conName =
             )
    in H.Text (Name.toText strippedConName)
 
-hashDerivedTerm :: (Var v) => PrettyPrintEnv -> Term v a -> Hash
-hashDerivedTerm ppe term =
+synhashDerivedTerm :: (Var v) => PrettyPrintEnv -> Term v a -> Hash
+synhashDerivedTerm ppe term =
   H.accumulate (hashDerivedTermTokens ppe term)
 
 hashDerivedTermTokens :: forall a v. (Var v) => PrettyPrintEnv -> Term v a -> [Token]
@@ -216,13 +218,13 @@ hashReferentToken ppe =
 synhashTerm ::
   forall m v a.
   (Monad m, Var v) =>
-  (TypeReferenceId -> m (Term v a)) ->
+  (TermReferenceId -> m (Term v a)) ->
   PrettyPrintEnv ->
   V1.TermReference ->
   m Hash
 synhashTerm loadTerm ppe = \case
-  ReferenceBuiltin builtin -> pure (hashBuiltinTerm builtin)
-  ReferenceDerived ref -> hashDerivedTerm ppe <$> loadTerm ref
+  ReferenceBuiltin builtin -> pure (synhashBuiltinTerm builtin)
+  ReferenceDerived ref -> synhashDerivedTerm ppe <$> loadTerm ref
 
 hashTermFTokens :: (Var v) => PrettyPrintEnv -> Term.F v a a () -> [Token]
 hashTermFTokens ppe = \case
