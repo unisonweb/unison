@@ -9,6 +9,7 @@ module Unison.Cli.UpdateUtils
     -- * Getting dependents in a namespace
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
+    getNamespaceDependentsOf3,
 
     -- * Narrowing definitions
     narrowDefns,
@@ -28,7 +29,7 @@ import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Control.Monad.Writer (Writer)
 import Control.Monad.Writer qualified as Writer
-import Data.Bifoldable (bifoldMap)
+import Data.Bifoldable (bifoldMap, bifold)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
@@ -58,11 +59,13 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.Reference (Reference, TypeReference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -90,8 +93,6 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Prelude hiding (unzip, zip, zipWith)
-import Unison.Names (Names)
-import qualified Unison.Names as Names
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Loading definitions
@@ -192,6 +193,18 @@ getNamespaceDependentsOf2 defns dependencies = do
     addTypes acc0 ref =
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
+
+-- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
+-- (transitive) dependents of the dependencies.
+getNamespaceDependentsOf3 ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  DefnsF Set TermReference TypeReference ->
+  Transaction (DefnsF Set TermReferenceId TypeReferenceId)
+getNamespaceDependentsOf3 defns dependencies = do
+  let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
+  let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
+  let scope = bifoldMap toTermScope toTypeScope defns
+  Operations.transitiveDependentsWithinScope scope (bifold dependencies)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Narrowing definitions

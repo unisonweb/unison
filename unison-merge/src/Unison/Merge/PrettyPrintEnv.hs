@@ -3,8 +3,6 @@ module Unison.Merge.PrettyPrintEnv
   )
 where
 
-import Unison.Merge.ThreeWay (ThreeWay)
-import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay)
 import Unison.Names (Names)
 import Unison.Prelude
@@ -13,8 +11,8 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 
 -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
-makePrettyPrintEnvs :: ThreeWay Names -> TwoWay PrettyPrintEnvDecl
-makePrettyPrintEnvs names3 =
-  ThreeWay.forgetLca names3 <&> \names -> PPED.makePPED (PPE.namer (names <> names3.lca)) suffixifier
+makePrettyPrintEnvs :: TwoWay Names -> Names -> TwoWay PrettyPrintEnvDecl
+makePrettyPrintEnvs names2 libdepsNames =
+  names2 <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
   where
-    suffixifier = PPE.suffixifyByName (fold names3)
+    suffixifier = PPE.suffixifyByName (fold names2 <> libdepsNames)
