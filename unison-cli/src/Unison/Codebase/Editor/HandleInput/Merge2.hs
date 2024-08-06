@@ -299,7 +299,7 @@ doMerge info = do
 
       let blob3 = makeMergeblob3 blob2 dependents0 (Branch.toNames mergedLibdeps)
 
-      liftIO (debugFunctions.debugDependents blob3.dependents)
+      liftIO (debugFunctions.debugDependents (bimap Map.keysSet Map.keysSet <$> blob3.dependents))
 
       liftIO (debugFunctions.debugStageOne blob3.stageOne)
 
@@ -318,19 +318,15 @@ doMerge info = do
                           Nothing -> "<root>"
                           Just name -> Name.toText name
                 }
-              blob3.renderedConflicts
-              blob3.renderedDependents
+              blob3.conflicts
+              blob3.dependents
 
       let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
 
       maybeTypecheckedUnisonFile <-
         let thisMergeHasConflicts =
-              or
-                [ not (Map.null blob3.renderedConflicts.alice.terms),
-                  not (Map.null blob3.renderedConflicts.alice.types),
-                  not (Map.null blob3.renderedConflicts.bob.terms),
-                  not (Map.null blob3.renderedConflicts.bob.types)
-                ]
+              -- Eh, they'd either both be null, or neither, but just check both maps anyway
+              not (defnsAreEmpty blob3.conflicts.alice) || not (defnsAreEmpty blob3.conflicts.bob)
          in if thisMergeHasConflicts
               then pure Nothing
               else do
@@ -547,9 +543,8 @@ makeMergeblob2 blob = do
       }
 
 data Mergeblob3 = Mergeblob3
-  { dependents :: Merge.TwoWay (DefnsF Set Name Name),
-    renderedConflicts :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
-    renderedDependents :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
+  { conflicts :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
+    dependents :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
     stageOne :: DefnsF (Map Name) Referent TypeReference
   }
 
@@ -601,9 +596,8 @@ makeMergeblob3 blob dependents0 libdeps =
           (defnsToNames <$> ThreeWay.forgetLca blob.defns)
           libdeps
    in Mergeblob3
-        { dependents,
-          renderedConflicts,
-          renderedDependents,
+        { conflicts = renderedConflicts,
+          dependents = renderedDependents,
           stageOne
         }
 
