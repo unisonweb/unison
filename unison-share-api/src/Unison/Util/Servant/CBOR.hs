@@ -5,7 +5,6 @@ module Unison.Util.Servant.CBOR (CBOR) where
 
 import Codec.CBOR.Read (DeserialiseFailure (..))
 import Codec.Serialise (Serialise, deserialiseOrFail, serialise)
-import Data.ByteString.Lazy qualified as BL
 import Data.List.NonEmpty qualified as NonEmpty
 import Network.HTTP.Media.MediaType qualified as MediaType
 import Servant
@@ -43,12 +42,3 @@ instance (Serialise a) => MimeUnrender CBOR a where
       mapLeft f = either (Left . f) Right
       prettyErr (DeserialiseFailure offset err) =
         "Codec.Serialise.deserialiseOrFail: " ++ err ++ " at byte-offset " ++ show offset
-
--- | Wrapper for CBOR data that has already been serialized
-newtype RawCBOR = RawCBOR BL.ByteString
-
-instance {-# OVERLAPPING #-} MimeRender CBOR RawCBOR where
-  mimeRender Proxy (RawCBOR bs) = bs
-
-instance {-# OVERLAPPING #-} MimeUnrender CBOR RawCBOR where
-  mimeUnrender Proxy bs = Right (RawCBOR bs)

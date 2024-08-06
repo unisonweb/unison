@@ -56,6 +56,10 @@ module Unison.Sync.Types
   )
 where
 
+import Codec.CBOR.Decoding qualified as CBOR
+import Codec.CBOR.Encoding qualified as CBOR
+import Codec.Serialise
+import Codec.Serialise qualified as CBOR
 import Control.Lens (both, traverseOf)
 import Data.Aeson
 import Data.Aeson qualified as Aeson
@@ -73,6 +77,7 @@ import U.Codebase.Sqlite.Branch.Format (LocalBranchBytes (..))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Server.Orphans ()
 import Unison.Share.API.Hash (HashJWT)
 import Unison.Util.Set qualified as Set
 
@@ -91,6 +96,7 @@ instance FromJSON Base64Bytes where
 
 newtype RepoInfo = RepoInfo {unRepoInfo :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+  deriving (Serialise) via Text
 
 data Path = Path
   { -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
@@ -482,6 +488,27 @@ data EntityType
   | CausalType
   deriving stock (Eq, Ord, Show)
 
+instance Serialise EntityType where
+  encode = \case
+    TermComponentType -> CBOR.encodeWord8 0
+    DeclComponentType -> CBOR.encodeWord8 1
+    PatchType -> CBOR.encodeWord8 2
+    PatchDiffType -> CBOR.encodeWord8 3
+    NamespaceType -> CBOR.encodeWord8 4
+    NamespaceDiffType -> CBOR.encodeWord8 5
+    CausalType -> CBOR.encodeWord8 6
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure TermComponentType
+      1 -> pure DeclComponentType
+      2 -> pure PatchType
+      3 -> pure PatchDiffType
+      4 -> pure NamespaceType
+      5 -> pure NamespaceDiffType
+      6 -> pure CausalType
+      _ -> fail "invalid tag"
+
 instance ToJSON EntityType where
   toJSON =
     String . \case
@@ -590,6 +617,48 @@ data DownloadEntitiesError
   | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
 
+data DownloadEntitiesErrorTag
+  = NoReadPermissionTag
+  | InvalidRepoInfoTag
+  | UserNotFoundTag
+  | ProjectNotFoundTag
+  | EntityValidationFailureTag
+  deriving stock (Eq, Show)
+
+instance Serialise DownloadEntitiesErrorTag where
+  encode = \case
+    NoReadPermissionTag -> CBOR.encodeWord8 0
+    InvalidRepoInfoTag -> CBOR.encodeWord8 1
+    UserNotFoundTag -> CBOR.encodeWord8 2
+    ProjectNotFoundTag -> CBOR.encodeWord8 3
+    EntityValidationFailureTag -> CBOR.encodeWord8 4
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure NoReadPermissionTag
+      1 -> pure InvalidRepoInfoTag
+      2 -> pure UserNotFoundTag
+      3 -> pure ProjectNotFoundTag
+      4 -> pure EntityValidationFailureTag
+      _ -> fail "invalid tag"
+
+instance Serialise DownloadEntitiesError where
+  encode = \case
+    DownloadEntitiesNoReadPermission repoInfo -> CBOR.encode NoReadPermissionTag <> CBOR.encode repoInfo
+    DownloadEntitiesInvalidRepoInfo msg repoInfo -> CBOR.encode InvalidRepoInfoTag <> CBOR.encode (msg, repoInfo)
+    DownloadEntitiesUserNotFound userHandle -> CBOR.encode UserNotFoundTag <> CBOR.encode userHandle
+    DownloadEntitiesProjectNotFound projectShorthand -> CBOR.encode ProjectNotFoundTag <> CBOR.encode projectShorthand
+    DownloadEntitiesEntityValidationFailure err -> CBOR.encode EntityValidationFailureTag <> CBOR.encode err
+
+  decode = do
+    tag <- CBOR.decode
+    case tag of
+      NoReadPermissionTag -> DownloadEntitiesNoReadPermission <$> CBOR.decode
+      InvalidRepoInfoTag -> uncurry DownloadEntitiesInvalidRepoInfo <$> CBOR.decode
+      UserNotFoundTag -> DownloadEntitiesUserNotFound <$> CBOR.decode
+      ProjectNotFoundTag -> DownloadEntitiesProjectNotFound <$> CBOR.decode
+      EntityValidationFailureTag -> DownloadEntitiesEntityValidationFailure <$> CBOR.decode
+
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
     DownloadEntitiesSuccess entities -> jsonUnion "success" entities
@@ -617,6 +686,43 @@ data EntityValidationError
   | HashResolutionFailure Hash32
   deriving stock (Show, Eq, Ord)
   deriving anyclass (Exception)
+
+data EntityValidationErrorTag
+  = HashMismatchTag
+  | UnsupportedTypeTag
+  | InvalidByteEncodingTag
+  | HashResolutionFailureTag
+  deriving stock (Eq, Show)
+
+instance Serialise EntityValidationErrorTag where
+  encode = \case
+    HashMismatchTag -> CBOR.encodeWord8 0
+    UnsupportedTypeTag -> CBOR.encodeWord8 1
+    InvalidByteEncodingTag -> CBOR.encodeWord8 2
+    HashResolutionFailureTag -> CBOR.encodeWord8 3
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure HashMismatchTag
+      1 -> pure UnsupportedTypeTag
+      2 -> pure InvalidByteEncodingTag
+      3 -> pure HashResolutionFailureTag
+      _ -> fail "invalid tag"
+
+instance Serialise EntityValidationError where
+  encode = \case
+    EntityHashMismatch typ mismatch -> CBOR.encode HashMismatchTag <> CBOR.encode typ <> CBOR.encode mismatch
+    UnsupportedEntityType hash typ -> CBOR.encode UnsupportedTypeTag <> CBOR.encode hash <> CBOR.encode typ
+    InvalidByteEncoding hash typ errMsg -> CBOR.encode InvalidByteEncodingTag <> CBOR.encode hash <> CBOR.encode typ <> CBOR.encode errMsg
+    HashResolutionFailure hash -> CBOR.encode HashResolutionFailureTag <> CBOR.encode hash
+
+  decode = do
+    tag <- CBOR.decode
+    case tag of
+      HashMismatchTag -> EntityHashMismatch <$> CBOR.decode <*> CBOR.decode
+      UnsupportedTypeTag -> UnsupportedEntityType <$> CBOR.decode <*> CBOR.decode
+      InvalidByteEncodingTag -> InvalidByteEncoding <$> CBOR.decode <*> CBOR.decode <*> CBOR.decode
+      HashResolutionFailureTag -> HashResolutionFailure <$> CBOR.decode
 
 instance ToJSON EntityValidationError where
   toJSON = \case
@@ -692,6 +798,10 @@ data HashMismatchForEntity = HashMismatchForEntity
     computed :: Hash32
   }
   deriving stock (Show, Eq, Ord)
+
+instance Serialise HashMismatchForEntity where
+  encode (HashMismatchForEntity supplied computed) = CBOR.encode supplied <> CBOR.encode computed
+  decode = HashMismatchForEntity <$> CBOR.decode <*> CBOR.decode
 
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case

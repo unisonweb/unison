@@ -22,7 +22,7 @@ type API = NamedRoutes Routes
 type DownloadEntitiesStream =
   -- | The causal hash the client needs. The server should provide it and all of its dependencies
   ReqBody '[CBOR] DownloadEntitiesRequest
-    :> StreamPost NoFraming OctetStream (SourceIO ByteString)
+    :> StreamPost NoFraming CBOR (SourceIO DownloadEntitiesChunk)
 
 type UploadEntitiesStream =
   ReqBody '[CBOR] UploadEntitiesRequest
