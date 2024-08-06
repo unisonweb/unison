@@ -32,12 +32,15 @@ import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
-import Servant.API qualified as Servant ((:<|>) (..), (:>))
+import Servant.API qualified as Servant ((:>))
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
+import Servant.Client.Streaming qualified as ServantStreaming
+import Servant.Types.SourceT qualified as Servant
 import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
+import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as Auth
@@ -51,32 +54,12 @@ import Unison.Share.API.Hash qualified as Share
 import Unison.Share.ExpectedHashMismatches (expectedCausalHashMismatches, expectedComponentHashMismatches)
 import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
-import Unison.Sync.API qualified as Share (API)
 import Unison.Sync.Common (entityToTempEntity, expectEntity, hash32ToCausalHash)
 import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
+import Unison.SyncV2.API qualified as SyncV2
+import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid (foldMapM)
-
-------------------------------------------------------------------------------------------------------------------------
--- Pile of constants
-
--- | The maximum number of downloader threads, during a pull.
-maxSimultaneousPullDownloaders :: Int
-maxSimultaneousPullDownloaders = unsafePerformIO $ do
-  lookupEnv "UNISON_PULL_WORKERS" <&> \case
-    Just n -> read n
-    Nothing -> 5
-{-# NOINLINE maxSimultaneousPullDownloaders #-}
-
--- | The maximum number of push workers at a time. Each push worker reads from the database and uploads entities.
--- Share currently parallelizes on it's own in the backend, and any more than one push worker
--- just results in serialization conflicts which slow things down.
-maxSimultaneousPushWorkers :: Int
-maxSimultaneousPushWorkers = unsafePerformIO $ do
-  lookupEnv "UNISON_PUSH_WORKERS" <&> \case
-    Just n -> read n
-    Nothing -> 1
-{-# NOINLINE maxSimultaneousPushWorkers #-}
 
 syncChunkSize :: Int
 syncChunkSize = unsafePerformIO $ do
@@ -169,6 +152,11 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
+
+-- | The caller is responsible for forking.
+streamCausalAndDependencies :: TBQueue (Hash32, TempEntity) -> IO ()
+streamCausalAndDependencies queue = do
+  _
 
 -- | Validates the provided entities if and only if the environment variable `UNISON_ENTITY_VALIDATION` is set to "true".
 validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
@@ -429,14 +417,14 @@ getCausalHashByPath ::
   Cli (Either (SyncError GetCausalHashByPathError) (Maybe Share.HashJWT))
 getCausalHashByPath unisonShareUrl repoPath = do
   Cli.Env {authHTTPClient} <- ask
-  liftIO (httpGetCausalHashByPath authHTTPClient unisonShareUrl (Share.GetCausalHashByPathRequest repoPath)) <&> \case
+  liftIO (httpGetCausalHash authHTTPClient unisonShareUrl (SyncV2.GetCausalHashByPathRequest repoPath)) <&> \case
     Left err -> Left (TransportError err)
-    Right (Share.GetCausalHashByPathSuccess maybeHashJwt) -> Right maybeHashJwt
-    Right (Share.GetCausalHashByPathNoReadPermission _) ->
+    Right (SyncV2.GetCausalHashByPathSuccess maybeHashJwt) -> Right maybeHashJwt
+    Right (SyncV2.GetCausalHashByPathNoReadPermission _) ->
       Left (SyncError (GetCausalHashByPathErrorNoReadPermission repoPath))
-    Right (Share.GetCausalHashByPathInvalidRepoInfo err repoInfo) ->
+    Right (SyncV2.GetCausalHashByPathInvalidRepoInfo err repoInfo) ->
       Left (SyncError (GetCausalHashByPathErrorInvalidRepoInfo err repoInfo))
-    Right Share.GetCausalHashByPathUserNotFound ->
+    Right SyncV2.GetCausalHashByPathUserNotFound ->
       Left (SyncError $ GetCausalHashByPathErrorUserNotFound (Share.pathRepoInfo repoPath))
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -665,41 +653,48 @@ upsertEntitySomewhere hash entity =
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
 
-httpGetCausalHashByPath ::
+-- syncV2Client :: SyncV2.Routes (Servant.AsClientT ServantStreaming.ClientM)
+-- syncV2Client = ServantStreaming.client SyncV2.api -- remember: api :: Proxy MovieCatalogAPI
+
+-- syncV2Client :: SyncV2.Routes (Servant.AsClientT ServantStreaming.ClientM)
+-- Routes {} = ServantStreaming.client SyncV2.api
+
+httpGetCausalHash ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
-  Share.GetCausalHashByPathRequest ->
-  IO (Either CodeserverTransportError Share.GetCausalHashByPathResponse)
+  SyncV2.GetCausalHashRequest ->
+  IO (Either CodeserverTransportError SyncV2.GetCausalHashResponse)
 httpDownloadEntities ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
-  Share.DownloadEntitiesRequest ->
-  IO (Either CodeserverTransportError Share.DownloadEntitiesResponse)
+  SyncV2.DownloadEntitiesRequest ->
+  (IO (Either CodeserverTransportError (Servant.SourceT IO ByteString)))
 httpUploadEntities ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
-  Share.UploadEntitiesRequest ->
-  IO (Either CodeserverTransportError Share.UploadEntitiesResponse)
-( httpGetCausalHashByPath,
+  SyncV2.UploadEntitiesRequest ->
+  IO (Either CodeserverTransportError (Servant.SourceT IO ByteString))
+( httpGetCausalHash,
   httpDownloadEntities,
   httpUploadEntities
   ) =
-    let ( httpGetCausalHashByPath
-            Servant.:<|> httpDownloadEntities
-            Servant.:<|> httpUploadEntities
-          ) =
-            let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> Share.API)
+    let SyncV2.Routes
+          { getCausalHash,
+            downloadEntitiesStream,
+            uploadEntitiesStream
+          } =
+            let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> SyncV2.API)
                 pp = Proxy
-             in Servant.hoistClient pp hoist (Servant.client pp)
-     in ( go httpGetCausalHashByPath,
-          go httpDownloadEntities,
-          go httpUploadEntities
+             in ServantStreaming.hoistClient pp hoist (ServantStreaming.client SyncV2.api)
+     in ( go getCausalHash,
+          go downloadEntitiesStream,
+          go uploadEntitiesStream
         )
     where
-      hoist :: Servant.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
+      hoist :: ServantStreaming.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
       hoist m = do
         clientEnv <- Reader.ask
-        liftIO (Servant.runClientM m clientEnv) >>= \case
+        liftIO (ServantStreaming.runClientM m clientEnv) >>= \case
           Right a -> pure a
           Left err -> do
             Debug.debugLogM Debug.Sync (show err)
@@ -737,6 +732,3 @@ httpUploadEntities ::
           }
           & runReaderT (f req)
           & runExceptT
-
-
-

@@ -52,6 +52,7 @@ import Unison.Prelude
 import Unison.Project
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Share.API.Hash (HashJWT (..))
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
@@ -446,6 +447,8 @@ deriving via Text instance ToJSON ProjectBranchName
 -- CBOR encodings
 
 deriving via Text instance Serialise Hash32
+
+deriving via Text instance Serialise HashJWT
 
 data SyncTag
   = TermComponentTag
