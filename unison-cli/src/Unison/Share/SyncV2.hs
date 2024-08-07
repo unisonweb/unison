@@ -13,12 +13,15 @@ module Unison.Share.SyncV2
   )
 where
 
+import Conduit (ConduitT)
 import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader (ask)
+import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.Trans.Reader qualified as Reader
+import Data.Conduit ((.|))
+import Data.Conduit.Combinators qualified as Conduit
 import Data.Map qualified as Map
 import Data.Map.NonEmpty (NEMap)
 import Data.Map.NonEmpty qualified as NEMap
@@ -32,7 +35,7 @@ import GHC.IO (unsafePerformIO)
 import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
-import Servant.API qualified as Servant ((:>))
+import Servant.API qualified as Servant
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
 import Servant.Client.Streaming qualified as ServantStreaming
@@ -54,7 +57,7 @@ import Unison.Share.API.Hash qualified as Share
 import Unison.Share.ExpectedHashMismatches (expectedCausalHashMismatches, expectedComponentHashMismatches)
 import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
-import Unison.Sync.Common (entityToTempEntity, expectEntity, hash32ToCausalHash)
+import Unison.Sync.Common (entityToTempEntity, hash32ToCausalHash)
 import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.API qualified as SyncV2
@@ -76,12 +79,13 @@ pull ::
   BaseUrl ->
   -- | The repo+path to pull from.
   Share.Path ->
+  SyncV2.BranchRef ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError PullError) CausalHash)
-pull unisonShareUrl repoPath downloadedCallback =
-  getCausalHashByPath unisonShareUrl repoPath >>= \case
-    Left err -> pure (Left (PullError'GetCausalHash <$> err))
+pull unisonShareUrl repoPath branchRef downloadedCallback =
+  getCausalHashByPath unisonShareUrl branchRef >>= \case
+    Left err -> pure (Left (SyncV2.PullError'GetCausalHash <$> err))
     -- There's nothing at the remote path, so there's no causal to pull.
     Right Nothing -> pure (Left (SyncError (PullError'NoHistoryAtPath repoPath)))
     Right (Just hashJwt) ->
@@ -99,10 +103,11 @@ downloadEntities ::
   Share.RepoInfo ->
   -- | The hash to download.
   Share.HashJWT ->
+  Set Hash32 ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError Share.DownloadEntitiesError) ())
-downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
+downloadEntities unisonShareUrl repoInfo hashJwt knownHashes downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
@@ -120,15 +125,15 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
                 httpDownloadEntities
                   authHTTPClient
                   unisonShareUrl
-                  Share.DownloadEntitiesRequest {repoInfo, hashes = NESet.singleton hashJwt}
+                  SyncV2.DownloadEntitiesRequest {repoInfo, causalHash = hashJwt, knownHashes}
           entities <-
             liftIO request >>= \case
               Left err -> failed (TransportError err)
-              Right (Share.DownloadEntitiesFailure err) -> failed (SyncError err)
-              Right (Share.DownloadEntitiesSuccess entities) -> pure entities
-          case validateEntities entities of
-            Left err -> failed . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
-            Right () -> pure ()
+              Right source -> do
+                conduit <- liftIO $ Servant.fromSourceIO source
+                let entityPipeline = conduit .| unpackEntities .| entityValidator .| entityInserter
+                _
+
           tempEntities <- Cli.runTransaction (insertEntities entities)
           liftIO (downloadedCallback 1)
           pure (NESet.nonEmptySet tempEntities)
@@ -153,32 +158,42 @@ downloadEntities unisonShareUrl repoInfo hashJwt downloadedCallback = do
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
 
--- | The caller is responsible for forking.
-streamCausalAndDependencies :: TBQueue (Hash32, TempEntity) -> IO ()
-streamCausalAndDependencies queue = do
-  _
+entityValidator :: (MonadError Share.EntityValidationError m) => ConduitT (Hash32, (Share.Entity Text Hash32 Hash32)) (Hash32, (Share.Entity Text Hash32 Hash32)) m ()
+entityValidator = Conduit.iterM $ \(hash, entity) ->
+  -- TODO: We can investigate batching or running this in parallel if it becomes a bottleneck.
+  case EV.validateEntity hash entity of
+    Nothing -> pure ()
+    Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
+      let expectedMismatches = case et of
+            Share.TermComponentType -> expectedComponentHashMismatches
+            Share.DeclComponentType -> expectedComponentHashMismatches
+            Share.CausalType -> expectedCausalHashMismatches
+            _ -> mempty
+       in case Map.lookup supplied expectedMismatches of
+            Just expected
+              | expected == computed -> pure ()
+            _ -> do
+              throwError err
+    Just err -> do
+      throwError err
 
--- | Validates the provided entities if and only if the environment variable `UNISON_ENTITY_VALIDATION` is set to "true".
-validateEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Either Share.EntityValidationError ()
-validateEntities entities =
-  when shouldValidateEntities $ do
-    ifor_ (NEMap.toMap entities) \hash entity -> do
-      let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
-      case EV.validateEntity hash entityWithHashes of
-        Nothing -> pure ()
-        Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
-          let expectedMismatches = case et of
-                Share.TermComponentType -> expectedComponentHashMismatches
-                Share.DeclComponentType -> expectedComponentHashMismatches
-                Share.CausalType -> expectedCausalHashMismatches
-                _ -> mempty
-           in case Map.lookup supplied expectedMismatches of
-                Just expected
-                  | expected == computed -> pure ()
-                _ -> do
-                  Left err
-        Just err -> do
-          Left err
+entityInserter :: (MonadIO m, MonadReader Cli.Env m) => ConduitT (Hash32, (Share.Entity Text Hash32 Hash32)) () m ()
+entityInserter = Conduit.mapM \(hash, entity) -> do
+  Cli.Env {codebase} <- ask
+  liftIO . Codebase.runTransaction codebase $ upsertEntitySomewhere hash entity
+  pure hash
+
+unpackEntities :: (MonadError e m) => ConduitT SyncV2.DownloadEntitiesChunk (Hash32, (Share.Entity Text Hash32 Hash32)) m ()
+unpackEntities = Conduit.mapM_ $ \case
+  SyncV2.EntityChunk {hash, entityCBOR = SyncV2.CBORBytes entityBytes} ->
+    case CBOR.deserialiseOrFail entityBytes of
+      Left err -> do
+        throwError err
+      Right (_, entity) -> do
+        pure (hash, entity)
+  SyncV2.ErrorChunk {err} -> do
+    Debug.debugLogM Debug.Sync (show err)
+    pure ()
 
 -- | Validate entities received from the server unless this flag is set to false.
 validationEnvKey :: String
@@ -413,191 +428,38 @@ insertEntities entities =
 getCausalHashByPath ::
   -- | The Unison Share URL.
   BaseUrl ->
-  Share.Path ->
-  Cli (Either (SyncError GetCausalHashByPathError) (Maybe Share.HashJWT))
-getCausalHashByPath unisonShareUrl repoPath = do
+  SyncV2.BranchRef ->
+  Cli (Either (SyncError SyncV2.GetCausalHashError) (Maybe Share.HashJWT))
+getCausalHashByPath unisonShareUrl branchRef = do
   Cli.Env {authHTTPClient} <- ask
-  liftIO (httpGetCausalHash authHTTPClient unisonShareUrl (SyncV2.GetCausalHashByPathRequest repoPath)) <&> \case
+  liftIO (httpGetCausalHash authHTTPClient unisonShareUrl (SyncV2.GetCausalHashRequest branchRef)) <&> \case
     Left err -> Left (TransportError err)
-    Right (SyncV2.GetCausalHashByPathSuccess maybeHashJwt) -> Right maybeHashJwt
-    Right (SyncV2.GetCausalHashByPathNoReadPermission _) ->
-      Left (SyncError (GetCausalHashByPathErrorNoReadPermission repoPath))
-    Right (SyncV2.GetCausalHashByPathInvalidRepoInfo err repoInfo) ->
-      Left (SyncError (GetCausalHashByPathErrorInvalidRepoInfo err repoInfo))
-    Right SyncV2.GetCausalHashByPathUserNotFound ->
-      Left (SyncError $ GetCausalHashByPathErrorUserNotFound (Share.pathRepoInfo repoPath))
+    Right (SyncV2.GetCausalHashSuccess hashJWT) -> Right hashJWT
+    Right (SyncV2.GetCausalHashError err) ->
+      case err of
+        SyncV2.GetCausalHashNoReadPermission repoInfo ->
+          Left (SyncError (SyncV2.GetCausalHashNoReadPermission repoInfo))
+        SyncV2.GetCausalHashInvalidRepoInfo err repoInfo ->
+          Left (SyncError (SyncV2.GetCausalHashInvalidRepoInfo err repoInfo))
+        SyncV2.GetCausalHashUserNotFound ->
+          Left (SyncError SyncV2.GetCausalHashUserNotFound)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Upload entities
-
-data UploadDispatcherJob
-  = UploadDispatcherReturnFailure (SyncError Share.UploadEntitiesError)
-  | UploadDispatcherForkWorkerWhenAvailable (NESet Hash32)
-  | UploadDispatcherForkWorker (NESet Hash32)
-  | UploadDispatcherDone
 
 -- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
 -- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
 -- anything.
 --
 -- Returns true on success, false on failure (because the user does not have write permission).
-uploadEntities ::
+_uploadEntities ::
   BaseUrl ->
   Share.RepoInfo ->
   NESet Hash32 ->
   (Int -> IO ()) ->
   Cli (Either (SyncError Share.UploadEntitiesError) ())
-uploadEntities unisonShareUrl repoInfo hashes0 uploadedCallback = do
-  Cli.Env {authHTTPClient, codebase} <- ask
-
-  liftIO do
-    hashesVar <- newTVarIO (NESet.toSet hashes0)
-    -- Semantically, this is the set of hashes we've uploaded so far, but we do delete from it when it's safe to, so it
-    -- doesn't grow unbounded. It's used to filter out hashes that would be duplicate uploads: the server, when
-    -- responding to any particular upload request, may declare that it still needs some hashes that we're in the
-    -- process of uploading from another thread.
-    dedupeVar <- newTVarIO Set.empty
-    nextWorkerIdVar <- newTVarIO 0
-    workersVar <- newTVarIO Set.empty
-    workerFailedVar <- newEmptyTMVarIO
-
-    Ki.scoped \scope ->
-      dispatcher
-        scope
-        authHTTPClient
-        (Codebase.runTransaction codebase)
-        hashesVar
-        dedupeVar
-        nextWorkerIdVar
-        workersVar
-        workerFailedVar
-  where
-    dispatcher ::
-      Ki.Scope ->
-      AuthenticatedHttpClient ->
-      (forall a. Sqlite.Transaction a -> IO a) ->
-      TVar (Set Hash32) ->
-      TVar (Set Hash32) ->
-      TVar Int ->
-      TVar (Set Int) ->
-      TMVar (SyncError Share.UploadEntitiesError) ->
-      IO (Either (SyncError Share.UploadEntitiesError) ())
-    dispatcher scope httpClient runTransaction hashesVar dedupeVar nextWorkerIdVar workersVar workerFailedVar = do
-      loop
-      where
-        loop :: IO (Either (SyncError Share.UploadEntitiesError) ())
-        loop =
-          doJob [checkForFailureMode, dispatchWorkMode, checkIfDoneMode]
-
-        doJob :: [STM UploadDispatcherJob] -> IO (Either (SyncError Share.UploadEntitiesError) ())
-        doJob jobs =
-          atomically (asum jobs) >>= \case
-            UploadDispatcherReturnFailure err -> pure (Left err)
-            UploadDispatcherForkWorkerWhenAvailable hashes -> doJob [forkWorkerMode hashes, checkForFailureMode]
-            UploadDispatcherForkWorker hashes -> do
-              workerId <-
-                atomically do
-                  workerId <- readTVar nextWorkerIdVar
-                  writeTVar nextWorkerIdVar $! workerId + 1
-                  modifyTVar' workersVar (Set.insert workerId)
-                  pure workerId
-              _ <-
-                Ki.fork @() scope do
-                  worker httpClient runTransaction hashesVar dedupeVar workersVar workerFailedVar workerId hashes
-              loop
-            UploadDispatcherDone -> pure (Right ())
-
-        checkForFailureMode :: STM UploadDispatcherJob
-        checkForFailureMode = do
-          err <- readTMVar workerFailedVar
-          pure (UploadDispatcherReturnFailure err)
-
-        dispatchWorkMode :: STM UploadDispatcherJob
-        dispatchWorkMode = do
-          hashes <- readTVar hashesVar
-          when (Set.null hashes) retry
-          let (hashes1, hashes2) = Set.splitAt syncChunkSize hashes
-          modifyTVar' dedupeVar (Set.union hashes1)
-          writeTVar hashesVar hashes2
-          pure (UploadDispatcherForkWorkerWhenAvailable (NESet.unsafeFromSet hashes1))
-
-        forkWorkerMode :: NESet Hash32 -> STM UploadDispatcherJob
-        forkWorkerMode hashes = do
-          workers <- readTVar workersVar
-          when (Set.size workers >= maxSimultaneousPushWorkers) retry
-          pure (UploadDispatcherForkWorker hashes)
-
-        checkIfDoneMode :: STM UploadDispatcherJob
-        checkIfDoneMode = do
-          workers <- readTVar workersVar
-          when (not (Set.null workers)) retry
-          pure UploadDispatcherDone
-
-    worker ::
-      AuthenticatedHttpClient ->
-      (forall a. Sqlite.Transaction a -> IO a) ->
-      TVar (Set Hash32) ->
-      TVar (Set Hash32) ->
-      TVar (Set Int) ->
-      TMVar (SyncError Share.UploadEntitiesError) ->
-      Int ->
-      NESet Hash32 ->
-      IO ()
-    worker httpClient runTransaction hashesVar dedupeVar workersVar workerFailedVar workerId hashes = do
-      entities <-
-        fmap NEMap.fromAscList do
-          runTransaction do
-            for (NESet.toAscList hashes) \hash -> do
-              entity <- expectEntity hash
-              pure (hash, entity)
-
-      result <-
-        httpUploadEntities httpClient unisonShareUrl Share.UploadEntitiesRequest {entities, repoInfo} <&> \case
-          Left err -> Left (TransportError err)
-          Right response ->
-            case response of
-              Share.UploadEntitiesSuccess -> Right Set.empty
-              Share.UploadEntitiesFailure err ->
-                case err of
-                  Share.UploadEntitiesError'NeedDependencies (Share.NeedDependencies moreHashes) ->
-                    Right (NESet.toSet moreHashes)
-                  err -> Left (SyncError err)
-
-      case result of
-        Left err -> void (atomically (tryPutTMVar workerFailedVar err))
-        Right moreHashes -> do
-          uploadedCallback (NESet.size hashes)
-          maybeYoungestWorkerThatWasAlive <-
-            atomically do
-              -- Record ourselves as "dead". The only work we have left to do is remove the hashes we just uploaded from
-              -- the `dedupe` set, but whether or not we are "alive" is relevant only to:
-              --
-              --   - The main dispatcher thread, which terminates when there are no more hashes to upload, and no alive
-              --     workers. It is not important for us to delete from the `dedupe` set in this case.
-              --
-              --   - Other worker threads, each of which independently decides when it is safe to delete the set of
-              --     hashes they just uploaded from the `dedupe` set (as we are doing now).
-              !workers <- Set.delete workerId <$> readTVar workersVar
-              writeTVar workersVar workers
-              -- Add more work (i.e. hashes to upload) to the work queue (really a work set), per the response we just
-              -- got from the server. Remember to only add hashes that aren't in the `dedupe` set (see the comment on
-              -- the dedupe set above for more info).
-              when (not (Set.null moreHashes)) do
-                dedupe <- readTVar dedupeVar
-                hashes0 <- readTVar hashesVar
-                writeTVar hashesVar $! Set.union (Set.difference moreHashes dedupe) hashes0
-              pure (Set.lookupMax workers)
-          -- Block until we are sure that the server does not have any uncommitted transactions that see a version of
-          -- the database that does not include the entities we just uploaded. After that point, it's fine to remove the
-          -- hashes of the entities we just uploaded from the `dedupe` set, because they will never be relevant for any
-          -- subsequent deduping operations. If we didn't delete from the `dedupe` set, this algorithm would still be
-          -- correct, it would just use an unbounded amount of memory to remember all the hashes we've uploaded so far.
-          whenJust maybeYoungestWorkerThatWasAlive \youngestWorkerThatWasAlive -> do
-            atomically do
-              workers <- readTVar workersVar
-              whenJust (Set.lookupMin workers) \oldestWorkerAlive ->
-                when (oldestWorkerAlive <= youngestWorkerThatWasAlive) retry
-          atomically (modifyTVar' dedupeVar (`Set.difference` (NESet.toSet hashes)))
+_uploadEntities _unisonShareUrl _repoInfo _hashes0 _uploadedCallback = do
+  error "syncv2 uploadEntities not implemented"
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
@@ -620,20 +482,19 @@ elaborateHashes hashes =
 --   3. In temp storage otherwise.
 upsertEntitySomewhere ::
   Hash32 ->
-  Share.Entity Text Hash32 Share.HashJWT ->
+  Share.Entity Text Hash32 Hash32 ->
   Sqlite.Transaction Q.EntityLocation
 upsertEntitySomewhere hash entity =
   Q.entityLocation hash >>= \case
     Just location -> pure location
     Nothing -> do
-      missingDependencies1 :: Map Hash32 Share.HashJWT <-
+      missingDependencies1 :: Set Hash32 <-
         Share.entityDependencies entity
           & foldMapM
-            ( \hashJwt -> do
-                let hash = Share.hashJWTHash hashJwt
-                Q.entityExists hash <&> \case
-                  True -> Map.empty
-                  False -> Map.singleton hash hashJwt
+            ( \depHash -> do
+                Q.entityExists depHash <&> \case
+                  True -> mempty
+                  False -> Set.singleton depHash
             )
       case NEMap.nonEmptyMap missingDependencies1 of
         Nothing -> do
@@ -668,15 +529,15 @@ httpDownloadEntities ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
   SyncV2.DownloadEntitiesRequest ->
-  (IO (Either CodeserverTransportError (Servant.SourceT IO ByteString)))
-httpUploadEntities ::
+  (IO (Either CodeserverTransportError (Servant.SourceT IO SyncV2.DownloadEntitiesChunk)))
+_httpUploadEntities ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
   SyncV2.UploadEntitiesRequest ->
   IO (Either CodeserverTransportError (Servant.SourceT IO ByteString))
 ( httpGetCausalHash,
   httpDownloadEntities,
-  httpUploadEntities
+  _httpUploadEntities
   ) =
     let SyncV2.Routes
           { getCausalHash,

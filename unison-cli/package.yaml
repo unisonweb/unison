@@ -23,6 +23,7 @@ dependencies:
   - co-log-core
   - code-page
   - concurrent-output
+  - conduit
   - configurator
   - containers >= 0.6.3
   - cryptonite
@@ -66,6 +67,7 @@ dependencies:
   - regex-tdfa
   - semialign
   - semigroups
+  - serialise
   - servant
   - servant-client
   - shellmet

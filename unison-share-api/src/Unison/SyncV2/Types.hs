@@ -1,11 +1,13 @@
 module Unison.SyncV2.Types
   ( GetCausalHashRequest (..),
     GetCausalHashResponse (..),
+    GetCausalHashError (..),
     DownloadEntitiesRequest (..),
     DownloadEntitiesChunk (..),
     CBORBytes (..),
     UploadEntitiesRequest (..),
     BranchRef (..),
+    PullError (..),
   )
 where
 
@@ -13,6 +15,7 @@ import Codec.CBOR.Encoding qualified as CBOR
 import Codec.Serialise (Serialise (..))
 import Codec.Serialise.Decoding qualified as CBOR
 import Data.ByteString.Lazy qualified as BL
+import Data.Set (Set)
 import Data.Text (Text)
 import Unison.Hash32 (Hash32)
 import Unison.Server.Orphans ()
@@ -31,24 +34,85 @@ instance Serialise GetCausalHashRequest where
     encode branchRef
   decode = GetCausalHashRequest <$> decode
 
-data GetCausalHashResponse = GetCausalHashResponse
-  { causalHash :: HashJWT
-  }
+data GetCausalHashResponse
+  = GetCausalHashSuccess (Maybe HashJWT)
+  | GetCausalHashError GetCausalHashError
+  deriving stock (Show, Eq, Ord)
 
 instance Serialise GetCausalHashResponse where
-  encode (GetCausalHashResponse {causalHash}) =
-    encode causalHash
-  decode = GetCausalHashResponse <$> decode
+  encode (GetCausalHashSuccess hash) =
+    encode GetCausalHashSuccessTag <> encode hash
+  encode (GetCausalHashError err) =
+    encode GetCausalHashErrorTag <> encode err
+  decode = do
+    tag <- decode
+    case tag of
+      GetCausalHashSuccessTag -> GetCausalHashSuccess <$> decode
+      GetCausalHashErrorTag -> GetCausalHashError <$> decode
+
+data GetCausalHashResponseTag
+  = GetCausalHashSuccessTag
+  | GetCausalHashErrorTag
+  deriving stock (Show, Eq, Ord)
+
+instance Serialise GetCausalHashResponseTag where
+  encode GetCausalHashSuccessTag = CBOR.encodeWord8 0
+  encode GetCausalHashErrorTag = CBOR.encodeWord8 1
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure GetCausalHashSuccessTag
+      1 -> pure GetCausalHashErrorTag
+      _ -> fail "invalid tag"
+
+data GetCausalHashError
+  = GetCausalHashNoReadPermission SyncV1.RepoInfo
+  | GetCausalHashUserNotFound
+  | GetCausalHashInvalidRepoInfo Text SyncV1.RepoInfo
+  deriving stock (Show, Eq, Ord)
+
+instance Serialise GetCausalHashError where
+  encode (GetCausalHashNoReadPermission repoInfo) =
+    encode GetCausalHashNoReadPermissionTag <> encode repoInfo
+  encode GetCausalHashUserNotFound =
+    encode GetCausalHashUserNotFoundTag
+  encode (GetCausalHashInvalidRepoInfo err repoInfo) =
+    encode GetCausalHashInvalidRepoInfoTag <> encode err <> encode repoInfo
+  decode = do
+    tag <- decode
+    case tag of
+      GetCausalHashNoReadPermissionTag -> GetCausalHashNoReadPermission <$> decode
+      GetCausalHashUserNotFoundTag -> pure GetCausalHashUserNotFound
+      GetCausalHashInvalidRepoInfoTag -> GetCausalHashInvalidRepoInfo <$> decode <*> decode
+
+data GetCausalHashErrorTag
+  = GetCausalHashNoReadPermissionTag
+  | GetCausalHashUserNotFoundTag
+  | GetCausalHashInvalidRepoInfoTag
+  deriving stock (Show, Eq, Ord)
+
+instance Serialise GetCausalHashErrorTag where
+  encode GetCausalHashNoReadPermissionTag = CBOR.encodeWord8 0
+  encode GetCausalHashUserNotFoundTag = CBOR.encodeWord8 1
+  encode GetCausalHashInvalidRepoInfoTag = CBOR.encodeWord8 2
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure GetCausalHashNoReadPermissionTag
+      1 -> pure GetCausalHashUserNotFoundTag
+      2 -> pure GetCausalHashInvalidRepoInfoTag
+      _ -> fail "invalid tag"
 
 data DownloadEntitiesRequest = DownloadEntitiesRequest
   { causalHash :: HashJWT,
-    knownHashes :: [Hash32]
+    repoInfo :: SyncV1.RepoInfo,
+    knownHashes :: Set Hash32
   }
 
 instance Serialise DownloadEntitiesRequest where
-  encode (DownloadEntitiesRequest {causalHash, knownHashes}) =
-    encode causalHash <> encode knownHashes
-  decode = DownloadEntitiesRequest <$> decode <*> decode
+  encode (DownloadEntitiesRequest {causalHash, repoInfo, knownHashes}) =
+    encode causalHash <> encode repoInfo <> encode knownHashes
+  decode = DownloadEntitiesRequest <$> decode <*> decode <*> decode
 
 -- | Wrapper for CBOR data that has already been serialized.
 -- In our case, we use this because we may load pre-serialized CBOR directly from the database,
@@ -86,3 +150,9 @@ instance Serialise DownloadEntitiesChunk where
 
 -- TODO
 data UploadEntitiesRequest = UploadEntitiesRequest
+
+-- | An error occurred while pulling code from Unison Share.
+data PullError
+  = PullError'DownloadEntities SyncV1.DownloadEntitiesError
+  | PullError'GetCausalHash GetCausalHashError
+  deriving stock (Show)

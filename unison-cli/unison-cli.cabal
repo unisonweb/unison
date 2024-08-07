@@ -206,6 +206,7 @@ library
     , co-log-core
     , code-page
     , concurrent-output
+    , conduit
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -249,6 +250,7 @@ library
     , regex-tdfa
     , semialign
     , semigroups
+    , serialise
     , servant
     , servant-client
     , shellmet
@@ -348,6 +350,7 @@ executable transcripts
     , co-log-core
     , code-page
     , concurrent-output
+    , conduit
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -392,6 +395,7 @@ executable transcripts
     , regex-tdfa
     , semialign
     , semigroups
+    , serialise
     , servant
     , servant-client
     , shellmet
@@ -497,6 +501,7 @@ test-suite cli-tests
     , co-log-core
     , code-page
     , concurrent-output
+    , conduit
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -542,6 +547,7 @@ test-suite cli-tests
     , regex-tdfa
     , semialign
     , semigroups
+    , serialise
     , servant
     , servant-client
     , shellmet
