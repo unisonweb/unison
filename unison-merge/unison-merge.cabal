@@ -27,6 +27,10 @@ library
       Unison.Merge.EitherWayI
       Unison.Merge.FindConflictedAlias
       Unison.Merge.Libdeps
+      Unison.Merge.Mergeblob0
+      Unison.Merge.Mergeblob1
+      Unison.Merge.Mergeblob2
+      Unison.Merge.Mergeblob3
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.PrettyPrintEnv
@@ -103,6 +107,7 @@ library
     , unison-hash
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
     , unison-util-cache
