@@ -789,10 +789,12 @@ unique type Foo = Baz Nat Nat | Qux Text
 
 Bob's renames `Qux` to `BobQux`:
 
-``` unison
-unique type Foo = Baz Nat | BobQux Text
-```
+``` ucm
+project/bob> move.term Foo.Qux Foo.BobQux
 
+  Done.
+
+```
 ``` ucm
 project/alice> merge /bob
 
@@ -818,7 +820,7 @@ project/alice> merge /bob
 type Foo = Baz Nat Nat | Qux Text
 
 -- project/bob
-type Foo = Baz Nat | BobQux Text
+type Foo = BobQux Text | Baz Nat
 
 ```
 
@@ -1022,7 +1024,7 @@ Bob, meanwhile, first deletes the term, then sort of deletes the type and re-add
 ``` ucm
 project/bob> view Foo.Bar
 
-  type Foo.Bar = Baz Nat | Hello Nat Nat
+  type Foo.Bar = Hello Nat Nat | Baz Nat
 
 ```
 At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
@@ -1059,7 +1061,7 @@ Foo.Bar.Hello : Nat
 Foo.Bar.Hello = 18
 
 -- project/bob
-type Foo.Bar = Baz Nat | Hello Nat Nat
+type Foo.Bar = Hello Nat Nat | Baz Nat
 
 ```
 

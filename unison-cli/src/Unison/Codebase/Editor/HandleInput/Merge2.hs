@@ -49,7 +49,6 @@ import Unison.Cli.UpdateUtils
   ( getNamespaceDependentsOf3,
     hydrateDefns,
     loadNamespaceDefinitions,
-    parseAndTypecheck,
     renderDefnsForUnisonFile,
   )
 import Unison.Codebase (Codebase)
@@ -73,6 +72,7 @@ import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
+import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
 import Unison.Merge.DeclNameLookup (expectConstructorNames)
@@ -84,9 +84,10 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
+import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -101,13 +102,18 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
+import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.Parser (ParsingEnv (..), UniqueName)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -297,14 +303,16 @@ doMerge info = do
       mergedLibdeps <-
         Cli.runTransaction (libdepsToBranch0 (Codebase.getDeclType env.codebase) blob2.libdeps)
 
-      let blob3 = makeMergeblob3 blob2 dependents0 (Branch.toNames mergedLibdeps)
+      uniqueName <- liftIO env.generateUniqueName
 
-      liftIO (debugFunctions.debugDependents (bimap Map.keysSet Map.keysSet <$> blob3.dependents))
+      let hasConflicts =
+            blob2.hasConflicts
 
-      liftIO (debugFunctions.debugStageOne blob3.stageOne)
-
-      let prettyUnisonFile =
-            makePrettyUnisonFile
+      let blob3 =
+            makeMergeblob3
+              blob2
+              dependents0
+              (Branch.toNames mergedLibdeps)
               Merge.TwoWay
                 { alice = into @Text aliceBranchNames,
                   bob =
@@ -318,27 +326,25 @@ doMerge info = do
                           Nothing -> "<root>"
                           Just name -> Name.toText name
                 }
-              blob3.conflicts
-              blob3.dependents
+
+      maybeBlob5 <-
+        if hasConflicts
+          then pure Nothing
+          else case makeMergeblob4 blob3 uniqueName of
+            Left _parseErr -> pure Nothing
+            Right blob4 -> do
+              typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies env.codebase blob4.dependencies)
+              pure case makeMergeblob5 blob4 typeLookup of
+                Left _typecheckErr -> Nothing
+                Right blob5 -> Just blob5
 
       let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
-
-      maybeTypecheckedUnisonFile <-
-        let thisMergeHasConflicts =
-              -- Eh, they'd either both be null, or neither, but just check both maps anyway
-              not (defnsAreEmpty blob3.conflicts.alice) || not (defnsAreEmpty blob3.conflicts.bob)
-         in if thisMergeHasConflicts
-              then pure Nothing
-              else do
-                currentPath <- Cli.getCurrentProjectPath
-                parsingEnv <- Cli.makeParsingEnv currentPath (Branch.toNames stageOneBranch)
-                parseAndTypecheck prettyUnisonFile parsingEnv
 
       let parents =
             causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
 
-      case maybeTypecheckedUnisonFile of
-        Nothing -> do
+      blob5 <-
+        maybeBlob5 & onNothing do
           Cli.Env {writeSource} <- ask
           (_temporaryBranchId, temporaryBranchName) <-
             HandleInput.Branch.createBranch
@@ -349,21 +355,20 @@ doMerge info = do
               )
               info.alice.projectAndBranch.project
               (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
-
           scratchFilePath <-
             Cli.getLatestFile <&> \case
               Nothing -> "scratch.u"
               Just (file, _) -> file
-          liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
-          pure (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
-        Just tuf -> do
-          Cli.runTransaction (Codebase.addDefsToCodebase env.codebase tuf)
-          let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds tuf) stageOneBranch
-          Cli.updateProjectBranchRoot_
-            info.alice.projectAndBranch.branch
-            info.description
-            (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
-          pure (Output.MergeSuccess mergeSourceAndTarget)
+          liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile)
+          done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
+
+      Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)
+      let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds blob5.file) stageOneBranch
+      Cli.updateProjectBranchRoot_
+        info.alice.projectAndBranch.branch
+        info.description
+        (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+      pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
 
@@ -496,6 +501,7 @@ data Mergeblob2 libdep = Mergeblob2
     coreDependencies :: Merge.TwoWay (DefnsF Set TermReference TypeReference),
     declNameLookups :: Merge.TwoWay Merge.DeclNameLookup,
     defns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+    hasConflicts :: Bool,
     hydratedDefns ::
       Merge.TwoWay
         ( DefnsF
@@ -535,6 +541,8 @@ makeMergeblob2 blob = do
         coreDependencies,
         declNameLookups = blob.declNameLookups,
         defns = blob.defns,
+        -- Eh, they'd either both be null, or neither, but just check both maps anyway
+        hasConflicts = not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob),
         hydratedDefns = ThreeWay.forgetLca blob.hydratedDefns,
         lcaDeclNameLookup = blob.lcaDeclNameLookup,
         libdeps = blob.libdeps,
@@ -543,17 +551,18 @@ makeMergeblob2 blob = do
       }
 
 data Mergeblob3 = Mergeblob3
-  { conflicts :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
-    dependents :: Merge.TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
-    stageOne :: DefnsF (Map Name) Referent TypeReference
+  { libdeps :: Names,
+    stageOne :: DefnsF (Map Name) Referent TypeReference,
+    unparsedFile :: Pretty ColorText
   }
 
 makeMergeblob3 ::
   Mergeblob2 libdep ->
   Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
   Names ->
+  Merge.TwoWay Text ->
   Mergeblob3
-makeMergeblob3 blob dependents0 libdeps =
+makeMergeblob3 blob dependents0 libdeps authors =
   -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
   -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
   let dependents =
@@ -579,14 +588,6 @@ makeMergeblob3 blob dependents0 libdeps =
                   <*> dependents0
           )
 
-      stageOne =
-        makeStageOne
-          blob.declNameLookups
-          blob.conflictsNames
-          blob.unconflicts
-          dependents
-          (bimap BiMultimap.range BiMultimap.range blob.defns.lca)
-
       (renderedConflicts, renderedDependents) =
         renderConflictsAndDependents
           blob.declNameLookups
@@ -596,10 +597,58 @@ makeMergeblob3 blob dependents0 libdeps =
           (defnsToNames <$> ThreeWay.forgetLca blob.defns)
           libdeps
    in Mergeblob3
-        { conflicts = renderedConflicts,
-          dependents = renderedDependents,
-          stageOne
+        { libdeps,
+          stageOne =
+            makeStageOne
+              blob.declNameLookups
+              blob.conflictsNames
+              blob.unconflicts
+              dependents
+              (bimap BiMultimap.range BiMultimap.range blob.defns.lca),
+          unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents
         }
+
+data Mergeblob4 = Mergeblob4
+  { dependencies :: Set Reference,
+    file :: UnisonFile Symbol Ann
+  }
+
+makeMergeblob4 :: Mergeblob3 -> UniqueName -> Either (Parser.Err Symbol) Mergeblob4
+makeMergeblob4 blob uniqueName = do
+  let stageOneNames =
+        Names (Relation.fromMap blob.stageOne.terms) (Relation.fromMap blob.stageOne.types) <> blob.libdeps
+
+      parsingEnv =
+        ParsingEnv
+          { uniqueNames = uniqueName,
+            -- The codebase names are disjoint from the file names, i.e. there aren't any things that
+            -- would be classified as an update upon parsing. So, there's no need to try to look up any
+            -- existing unique type GUIDs to reuse.
+            uniqueTypeGuid = \_ -> Identity Nothing,
+            names = stageOneNames
+          }
+  file <- runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 blob.unparsedFile) parsingEnv)
+  Right
+    Mergeblob4
+      { dependencies = UnisonFile.dependencies file,
+        file
+      }
+
+data Mergeblob5 = Mergeblob5
+  { file :: TypecheckedUnisonFile Symbol Ann
+  }
+
+makeMergeblob5 :: Mergeblob4 -> TypeLookup Symbol Ann -> Either (Seq (Result.Note Symbol Ann)) Mergeblob5
+makeMergeblob5 blob typeLookup =
+  let typecheckingEnv =
+        Typechecker.Env
+          { ambientAbilities = [],
+            termsByShortname = Map.empty,
+            typeLookup
+          }
+   in case runIdentity (Result.runResultT (FileParsers.synthesizeFile typecheckingEnv blob.file)) of
+        (Nothing, notes) -> Left notes
+        (Just file, _) -> Right Mergeblob5 {file}
 
 renderConflictsAndDependents ::
   Merge.TwoWay Merge.DeclNameLookup ->
@@ -1058,9 +1107,7 @@ data DebugFunctions = DebugFunctions
     debugPartitionedDiff ::
       Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Merge.Unconflicts Referent TypeReference ->
-      IO (),
-    debugDependents :: Merge.TwoWay (DefnsF Set Name Name) -> IO (),
-    debugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
+      IO ()
   }
 
 realDebugFunctions :: DebugFunctions
@@ -1069,14 +1116,12 @@ realDebugFunctions =
     { debugCausals = realDebugCausals,
       debugDiffs = realDebugDiffs,
       debugCombinedDiff = realDebugCombinedDiff,
-      debugPartitionedDiff = realDebugPartitionedDiff,
-      debugDependents = realDebugDependents,
-      debugStageOne = realDebugStageOne
+      debugPartitionedDiff = realDebugPartitionedDiff
     }
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty
 
 realDebugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
 realDebugCausals causals = do
@@ -1250,38 +1295,6 @@ realDebugPartitionedDiff conflicts unconflicts = do
               <> Name.toText name
               <> " "
               <> renderRef ref
-
-realDebugDependents :: Merge.TwoWay (DefnsF Set Name Name) -> IO ()
-realDebugDependents dependents = do
-  Text.putStrLn (Text.bold "\n=== Alice dependents of Bob deletes, Bob updates, and Alice conflicts ===")
-  renderThings "termid" dependents.alice.terms
-  renderThings "typeid" dependents.alice.types
-  Text.putStrLn (Text.bold "\n=== Bob dependents of Alice deletes, Alice updates, and Bob conflicts ===")
-  renderThings "termid" dependents.bob.terms
-  renderThings "typeid" dependents.bob.types
-  where
-    renderThings :: Text -> Set Name -> IO ()
-    renderThings label things =
-      for_ (Set.toList things) \name ->
-        Text.putStrLn $
-          Text.italic label
-            <> " "
-            <> Name.toText name
-
-realDebugStageOne :: DefnsF (Map Name) Referent TypeReference -> IO ()
-realDebugStageOne defns = do
-  Text.putStrLn (Text.bold "\n=== Stage 1 ===")
-  debugDefns1 defns
-
-debugDefns1 :: DefnsF (Map Name) Referent TypeReference -> IO ()
-debugDefns1 defns = do
-  renderThings referentLabel Referent.toText defns.terms
-  renderThings (const "type") Reference.toText defns.types
-  where
-    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name ref -> IO ()
-    renderThings label renderRef things =
-      for_ (Map.toList things) \(name, ref) ->
-        Text.putStrLn (Text.italic (label ref) <> " " <> Name.toText name <> " " <> renderRef ref)
 
 referentLabel :: Referent -> Text
 referentLabel ref
