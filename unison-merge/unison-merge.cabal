@@ -31,6 +31,8 @@ library
       Unison.Merge.Mergeblob1
       Unison.Merge.Mergeblob2
       Unison.Merge.Mergeblob3
+      Unison.Merge.Mergeblob4
+      Unison.Merge.Mergeblob5
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.PrettyPrintEnv

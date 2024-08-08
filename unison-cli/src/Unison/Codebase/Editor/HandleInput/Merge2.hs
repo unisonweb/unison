@@ -64,7 +64,6 @@ import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
-import Unison.FileParsers qualified as FileParsers
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
 import Unison.Merge.EitherWayI qualified as EitherWayI
@@ -73,9 +72,7 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -89,18 +86,13 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
-import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
-import Unison.Syntax.Parser (ParsingEnv (..), UniqueName)
-import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.TypeLookup (TypeLookup)
-import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
+import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted)
@@ -315,11 +307,11 @@ doMerge info = do
       maybeBlob5 <-
         if hasConflicts
           then pure Nothing
-          else case makeMergeblob4 blob3 uniqueName of
+          else case Merge.makeMergeblob4 blob3 uniqueName of
             Left _parseErr -> pure Nothing
             Right blob4 -> do
               typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies env.codebase blob4.dependencies)
-              pure case makeMergeblob5 blob4 typeLookup of
+              pure case Merge.makeMergeblob5 blob4 typeLookup of
                 Left _typecheckErr -> Nothing
                 Right blob5 -> Just blob5
 
@@ -356,48 +348,6 @@ doMerge info = do
       pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
-
-data Mergeblob4 = Mergeblob4
-  { dependencies :: Set Reference,
-    file :: UnisonFile Symbol Ann
-  }
-
-makeMergeblob4 :: Merge.Mergeblob3 -> UniqueName -> Either (Parser.Err Symbol) Mergeblob4
-makeMergeblob4 blob uniqueName = do
-  let stageOneNames =
-        Names (Relation.fromMap blob.stageOne.terms) (Relation.fromMap blob.stageOne.types) <> blob.libdeps
-
-      parsingEnv =
-        ParsingEnv
-          { uniqueNames = uniqueName,
-            -- The codebase names are disjoint from the file names, i.e. there aren't any things that
-            -- would be classified as an update upon parsing. So, there's no need to try to look up any
-            -- existing unique type GUIDs to reuse.
-            uniqueTypeGuid = \_ -> Identity Nothing,
-            names = stageOneNames
-          }
-  file <- runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 blob.unparsedFile) parsingEnv)
-  Right
-    Mergeblob4
-      { dependencies = UnisonFile.dependencies file,
-        file
-      }
-
-data Mergeblob5 = Mergeblob5
-  { file :: TypecheckedUnisonFile Symbol Ann
-  }
-
-makeMergeblob5 :: Mergeblob4 -> TypeLookup Symbol Ann -> Either (Seq (Result.Note Symbol Ann)) Mergeblob5
-makeMergeblob5 blob typeLookup =
-  let typecheckingEnv =
-        Typechecker.Env
-          { ambientAbilities = [],
-            termsByShortname = Map.empty,
-            typeLookup
-          }
-   in case runIdentity (Result.runResultT (FileParsers.synthesizeFile typecheckingEnv blob.file)) of
-        (Nothing, notes) -> Left notes
-        (Just file, _) -> Right Mergeblob5 {file}
 
 doMergeLocalBranch :: Merge.TwoWay (ProjectAndBranch Project ProjectBranch) -> Cli ()
 doMergeLocalBranch branches = do
