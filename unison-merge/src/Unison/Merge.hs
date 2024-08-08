@@ -10,7 +10,6 @@ module Unison.Merge
     makeMergeblob3,
 
     -- * Decl coherency checks
-
     DeclNameLookup (..),
     PartialDeclNameLookup (..),
     IncoherentDeclReason (..),
@@ -51,17 +50,17 @@ module Unison.Merge
     -- makePrettyPrintEnvs,
 
     -- * Types
-    CombinedDiffOp(..),
-    DiffOp(..),
+    CombinedDiffOp (..),
+    DiffOp (..),
     EitherWay (..),
     EitherWayI (..),
-    LibdepDiffOp(..),
+    LibdepDiffOp (..),
     Synhashed (..),
     ThreeWay (..),
     TwoOrThreeWay (..),
     TwoWay (..),
     TwoWayI (..),
-    Unconflicts(..),
+    Unconflicts (..),
     Updated (..),
   )
 where
