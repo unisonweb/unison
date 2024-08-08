@@ -14,7 +14,6 @@ module Unison.Merge
     makeMergeblob5,
 
     -- * Decl coherency checks
-    DeclNameLookup (..),
     PartialDeclNameLookup (..),
     IncoherentDeclReason (..),
     checkDeclCoherency,
@@ -46,7 +45,6 @@ import Unison.Merge.DeclCoherencyCheck
     checkDeclCoherency,
     lenientCheckDeclCoherency,
   )
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))

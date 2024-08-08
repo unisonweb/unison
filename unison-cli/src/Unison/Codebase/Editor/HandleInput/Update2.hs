@@ -21,13 +21,7 @@ import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
-import Unison.Cli.UpdateUtils
-  ( getNamespaceDependentsOf2,
-    hydrateDefns,
-    narrowDefns,
-    parseAndTypecheck,
-    renderDefnsForUnisonFile,
-  )
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf2, hydrateDefns, narrowDefns, parseAndTypecheck)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -40,6 +34,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -56,6 +51,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF

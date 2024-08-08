@@ -15,7 +15,7 @@ import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.These (These (..))
 import Data.Zip (unzip)
 import Unison.DataDeclaration (Decl)
-import Unison.Merge.DeclNameLookup (DeclNameLookup, expectConstructorNames)
+import Unison.DeclNameLookup (DeclNameLookup, expectConstructorNames)
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
 import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnvs)
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -41,6 +41,7 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Prelude hiding (unzip)
+import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 
 data Mergeblob3 = Mergeblob3
   { libdeps :: Names,
@@ -203,8 +204,7 @@ renderConflictsAndDependents ::
 renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents names libdepsNames =
   unzip $
     ( \declNameLookup (conflicts, dependents) ppe ->
-        let renderDefnsForUnisonFile = wundefined
-            render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
+         let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
          in (render conflicts, render dependents)
     )
       <$> declNameLookups

@@ -7,8 +7,8 @@ where
 import Control.Lens (Lens')
 import Data.Bitraversable (bitraverse)
 import Data.Map.Strict qualified as Map
+import Unison.DeclNameLookup (DeclNameLookup (..), expectConstructorNames, expectDeclName)
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames, expectDeclName)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.EitherWayI (EitherWayI (..))

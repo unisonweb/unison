@@ -10,7 +10,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
-import Unison.Merge.DeclNameLookup (DeclNameLookup)
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Mergeblob1 (Mergeblob1 (..))

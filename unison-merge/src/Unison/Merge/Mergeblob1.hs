@@ -8,9 +8,9 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
-import Unison.Merge.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.Diff (nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))

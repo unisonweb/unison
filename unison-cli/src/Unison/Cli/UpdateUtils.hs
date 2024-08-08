@@ -17,19 +17,13 @@ module Unison.Cli.UpdateUtils
     -- * Hydrating definitions
     hydrateDefns,
 
-    -- * Rendering definitions
-    renderDefnsForUnisonFile,
-
     -- * Parsing and typechecking
     parseAndTypecheck,
   )
 where
 
-import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
-import Control.Monad.Writer (Writer)
-import Control.Monad.Writer qualified as Writer
-import Data.Bifoldable (bifoldMap, bifold)
+import Data.Bifoldable (bifold, bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
@@ -43,18 +37,12 @@ import U.Codebase.Causal qualified
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Referent qualified as V2
 import U.Codebase.Sqlite.Operations qualified as Operations
-import Unison.Builtin.Decls qualified as Builtin.Decls
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.HashQualified qualified as HQ
-import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -64,7 +52,6 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -72,13 +59,7 @@ import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
-import Unison.Syntax.DeclPrinter (AccessorName)
-import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Parser qualified as Parser
-import Unison.Syntax.TermPrinter qualified as TermPrinter
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -86,12 +67,11 @@ import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametrees)
-import Unison.Util.Pretty (ColorText, Pretty)
+import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
-import Unison.Var (Var)
 import Prelude hiding (unzip, zip, zipWith)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -285,72 +265,6 @@ hydrateDefns_ getComponent defns modify =
     defns2 :: BiMultimap Reference.Id name
     defns2 =
       BiMultimap.fromRange defns
-
-------------------------------------------------------------------------------------------------------------------------
--- Rendering definitions
-
--- | Render definitions destined for a Unison file.
---
--- This first renders the types (discovering which record accessors will be generated upon parsing), then renders the
--- terms (being careful not to render any record accessors, since those would cause duplicate binding errors upon
--- parsing).
-renderDefnsForUnisonFile ::
-  forall a v.
-  (Var v, Monoid a) =>
-  DeclNameLookup ->
-  PrettyPrintEnvDecl ->
-  DefnsF (Map Name) (Term v a, Type v a) (TypeReferenceId, Decl v a) ->
-  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
-renderDefnsForUnisonFile declNameLookup ppe defns =
-  let (types, accessorNames) = Writer.runWriter (Map.traverseWithKey renderType defns.types)
-   in Defns
-        { terms = Map.mapMaybeWithKey (renderTerm accessorNames) defns.terms,
-          types
-        }
-  where
-    renderType :: Name -> (TypeReferenceId, Decl v a) -> Writer (Set AccessorName) (Pretty ColorText)
-    renderType name (ref, typ) =
-      fmap Pretty.syntaxToColor $
-        DeclPrinter.prettyDeclW
-          -- Sort of a hack; since the decl printer looks in the PPE for names of constructors,
-          -- we just delete all term names out and add back the constructors...
-          -- probably no need to wipe out the suffixified side but we do it anyway
-          (setPpedToConstructorNames declNameLookup name ref ppe)
-          (Reference.fromId ref)
-          (HQ.NameOnly name)
-          typ
-
-    renderTerm :: Set Name -> Name -> (Term v a, Type v a) -> Maybe (Pretty ColorText)
-    renderTerm accessorNames name (term, typ) = do
-      guard (not (Set.member name accessorNames))
-      let hqName = HQ.NameOnly name
-      let rendered
-            | Typechecker.isEqual (Builtin.Decls.testResultListType mempty) typ =
-                "test> " <> TermPrinter.prettyBindingWithoutTypeSignature ppe.suffixifiedPPE hqName term
-            | otherwise = TermPrinter.prettyBinding ppe.suffixifiedPPE hqName term
-      Just (Pretty.syntaxToColor rendered)
-
-setPpedToConstructorNames :: DeclNameLookup -> Name -> TypeReferenceId -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
-setPpedToConstructorNames declNameLookup name ref =
-  set (#unsuffixifiedPPE . #termNames) referentNames
-    . set (#suffixifiedPPE . #termNames) referentNames
-  where
-    constructorNameMap :: Map ConstructorReference Name
-    constructorNameMap =
-      Map.fromList
-        ( name
-            & expectConstructorNames declNameLookup
-            & List.zip [0 ..]
-            & over (mapped . _1) (ConstructorReference (Reference.fromId ref))
-        )
-
-    referentNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
-    referentNames = \case
-      Referent.Con conRef _ ->
-        case Map.lookup conRef constructorNameMap of
-          Nothing -> []
-          Just conName -> let hqConName = HQ'.NameOnly conName in [(hqConName, hqConName)]
-      Referent.Ref _ -> []
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Parsing and typechecking

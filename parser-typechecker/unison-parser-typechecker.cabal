@@ -158,6 +158,7 @@ library
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
+      Unison.Syntax.FilePrinter
       Unison.Syntax.NamePrinter
       Unison.Syntax.TermParser
       Unison.Syntax.TermPrinter

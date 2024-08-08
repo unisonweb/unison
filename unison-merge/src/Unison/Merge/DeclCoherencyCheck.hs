@@ -105,7 +105,7 @@ import Data.Set qualified as Set
 import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
+import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name

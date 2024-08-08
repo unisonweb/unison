@@ -1,4 +1,4 @@
-module Unison.Merge.DeclNameLookup
+module Unison.DeclNameLookup
   ( DeclNameLookup (..),
     expectDeclName,
     expectConstructorNames,

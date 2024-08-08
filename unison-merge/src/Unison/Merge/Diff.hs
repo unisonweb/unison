@@ -11,10 +11,10 @@ import U.Codebase.Reference (TypeReference)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DeclNameLookup (DeclNameLookup)
+import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Hash (Hash (Hash))
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Merge.DeclNameLookup (DeclNameLookup)
-import Unison.Merge.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.Synhash qualified as Synhash

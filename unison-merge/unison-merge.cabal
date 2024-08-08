@@ -20,7 +20,6 @@ library
       Unison.Merge
       Unison.Merge.CombineDiffs
       Unison.Merge.DeclCoherencyCheck
-      Unison.Merge.DeclNameLookup
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
