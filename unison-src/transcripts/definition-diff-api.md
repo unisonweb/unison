@@ -1,5 +1,7 @@
 ```ucm
-diffs/main> builtins.merge
+diffs/main> builtins.mergeio lib.builtins
+diffs/main> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
+diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
 ```
 
 ```unison
@@ -8,6 +10,20 @@ term =
   1 + 1
 
 type Type = Type Nat
+
+ability Stream a where
+  emit : a -> ()
+
+take n s =
+  use Nat > -
+  h n = cases
+    { emit a -> k } -> if n > 0
+                         then
+                           emit a
+                           handle k() with h (n - 1)
+                         else None
+    { r }  -> Some r
+  handle s() with h n
 ```
 
 ```ucm
@@ -21,6 +37,22 @@ term =
   1 + 2
 
 type Type a = Type a Text
+
+ability Stream a where
+  emit : a -> ()
+
+take n s =
+  use Nat > -
+  h n = cases
+    { emit a -> k } ->
+        emit a
+        if n > 0
+          then handle k() with h (n - 1)
+          else None
+    { r }  -> Some r
+  if n > 0
+    then handle s () with h (n - 1)
+    else None
 ```
 
 ```ucm
@@ -32,6 +64,13 @@ Diff terms
 ```api
 GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
 ```
+
+More complex diff
+
+```api
+GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
+```
+
 
 Diff types
 
