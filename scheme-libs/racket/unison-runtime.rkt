@@ -118,9 +118,9 @@
 (define ((eval-exn-handler port) rq)
   (request-case rq
     [pure (result) (encode-success result port)]
-    [ref-exception:typelink
+    [ref-exception
       [0 (fail)
-        (control ref-exception:typelink k
+        (control ref-exception k
           (encode-exception fail port))]]))
 
 ; Implements the evaluation mode of operation. First decodes the
@@ -134,7 +134,7 @@
       ([exn:bug? (lambda (e) (encode-error e out))])
 
       (parameterize ([current-command-line-arguments args])
-        (handle [ref-exception:typelink] (eval-exn-handler out)
+        (handle [ref-exception] (eval-exn-handler out)
                 ((termlink->proc main-ref)))))))
 
 ; Uses racket pretty printing machinery to instead generate a file

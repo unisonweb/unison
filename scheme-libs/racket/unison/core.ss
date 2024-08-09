@@ -195,9 +195,8 @@
      (string-append "{Code " (describe-value v) "}")]
     [(unison-cont-reflected fs) "{Continuation}"]
     [(unison-cont-wrapped _) "{Continuation}"]
-    [(unison-closure code env)
-     (define dc
-       (termlink->string (lookup-function-link code) #t))
+    [(unison-closure gr code env)
+     (define dc (groupref->string gr #t))
      (define (f v)
        (string-append " " (describe-value v)))
 

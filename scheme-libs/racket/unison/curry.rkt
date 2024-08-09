@@ -35,8 +35,8 @@
 (define-for-syntax (vsym #:pre [pre "x"] n)
   (string->symbol (string-append pre (number->string n))))
 
-(define-for-syntax (curry-cases loc n fun:stx us vs)
-  (define (sub us vs) (curry-expr loc n fun:stx us vs))
+(define-for-syntax (curry-cases loc n ref:stx fun:stx us vs)
+  (define (sub us vs) (curry-expr loc n ref:stx fun:stx us vs))
 
   (for/foldr ([cases (list)]) ([p (in-partitions vs)])
     (match p
@@ -60,14 +60,14 @@
 
 ; Build case-lambdas that are nested n-deep for partitions of
 ; variables us and vs.
-(define-for-syntax (curry-expr loc n fun:stx us vs)
+(define-for-syntax (curry-expr loc n ref:stx fun:stx us vs)
   (cond
     [(= 0 n)
-     (with-syntax ([(u ...) us] [f fun:stx])
+     (with-syntax ([(u ...) us] [gr ref:stx] [f fun:stx])
        (syntax/loc loc
-         (unison-closure f (list u ...))))]
+         (unison-closure gr f (list u ...))))]
     [else
-     (with-syntax ([(c ...) (curry-cases loc (sub1 n) fun:stx us vs)])
+     (with-syntax ([(c ...) (curry-cases loc (sub1 n) ref:stx fun:stx us vs)])
        (syntax/loc loc
          (case-lambda c ...)))]))
 
@@ -82,11 +82,12 @@
 
 (define-for-syntax (build-curry loc n)
   (define xs:stx (generate-temporaries (map (const 'x) (range n))))
+  (define ref:stx (syntax/loc loc gr))
   (define fun:stx (syntax/loc loc f))
 
-  (with-syntax ([body (curry-expr loc 2 fun:stx '() xs:stx)])
+  (with-syntax ([body (curry-expr loc 2 ref:stx fun:stx '() xs:stx)])
     (syntax/loc loc
-      (lambda (f) body))))
+      (lambda (gr f) body))))
 
 (define-syntax (make-curry stx)
   (syntax-case stx ()
@@ -94,12 +95,12 @@
      (build-curry stx (syntax->datum #'n))]))
 
 (begin-encourage-inline
-  (define ((unison-curry-0 f) #:reflect [ref? unsafe-undefined] . rest)
+  (define ((unison-curry-0 gr f) #:reflect [ref? unsafe-undefined] . rest)
     (if (eq? ref? unsafe-undefined)
       (if (= (length rest) 0)
         (f)
         (apply (f) rest))
-      (unison-closure f rest)))
+      (unison-closure gr f rest)))
 
   (define unison-curry-1 (make-curry 1))
   (define unison-curry-2 (make-curry 2))
@@ -124,12 +125,12 @@
 
 (define-syntax (unison-curry stx)
   (syntax-case stx ()
-    [(unison-curry n f)
+    [(unison-curry n gr f)
      (begin
        (define m (syntax->datum #'n))
        (define curry:stx (vsym #:pre "unison-curry-" m))
        (with-syntax ([u-curry curry:stx])
          (syntax/loc stx
-           (u-curry f))))]))
+           (u-curry gr f))))]))
 
 
