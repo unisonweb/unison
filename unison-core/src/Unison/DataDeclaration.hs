@@ -108,7 +108,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show, Functor, Foldable)
 
 constructorCount :: DataDeclaration v a -> Int
 constructorCount DataDeclaration {constructors'} = length constructors'
@@ -122,7 +122,7 @@ constructors_ = lens getter setter
 newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show, Functor, Foldable)
 
 declAsDataDecl_ :: Lens' (Decl v a) (DataDeclaration v a)
 declAsDataDecl_ = lens get set

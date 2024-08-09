@@ -14,7 +14,7 @@ rangeToInterval (Range start end) =
   Interval.ClosedInterval start end
 
 annToInterval :: Ann -> Maybe (Interval.Interval Position)
-annToInterval ann = annToRange ann <&> rangeToInterval
+annToInterval ann = annToLspRange ann <&> rangeToInterval
 
 -- | Convert a Unison file-position where the first char is 1 and line is 1, to an LSP `Position`
 -- where the first char is 0 and line is 0.
@@ -43,13 +43,12 @@ uToLspRange (Range.Range start end) = Range (uToLspPos start) (uToLspPos end)
 lspToURange :: Range -> Range.Range
 lspToURange (Range start end) = Range.Range (lspToUPos start) (lspToUPos end)
 
-annToRange :: Ann -> Maybe Range
-annToRange = \case
+annToLspRange :: Ann -> Maybe Range
+annToLspRange = \case
   Ann.Intrinsic -> Nothing
   Ann.External -> Nothing
-  Ann.GeneratedFrom a -> annToRange a
+  Ann.GeneratedFrom a -> annToLspRange a
   Ann.Ann start end -> Just $ Range (uToLspPos start) (uToLspPos end)
-
 annToURange :: Ann.Ann -> Maybe Range.Range
 annToURange = \case
   Ann.Intrinsic -> Nothing
