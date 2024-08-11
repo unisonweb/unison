@@ -70,12 +70,29 @@ import Prelude hiding (and, or, seq)
 {-
 Precedence of language constructs is identical to Haskell, except that all
 operators (like +, <*>, or any sequence of non-alphanumeric characters) are
-left-associative and equal precedence, and operators must have surrounding
-whitespace (a + b, not a+b) to distinguish from identifiers that may contain
-operator characters (like empty? or fold-left).
+left-associative and equal precedence (with a few exceptions), and operators
+must have surrounding whitespace (a + b, not a+b) to distinguish from
+identifiers that may contain operator characters (like empty? or fold-left).
 
 Sections / partial application of infix operators is not implemented.
 -}
+
+-- Precedence rules for infix operators.
+-- Lower number means higher precedence (tighter binding).
+precedenceRules :: Map Text Int
+precedenceRules =
+  Map.fromList $
+    zip
+      [ ["*", "/", "%"],
+        ["+", "-"],
+        ["<", ">", ">=", "<="],
+        ["==", "!==", "!=", "==="],
+        ["&&", "&"],
+        ["^", "^^"],
+        ["||", "|"]
+      ]
+      [0 ..]
+      >>= \(ops, prec) -> map (,prec) ops
 
 type TermP v m = P v m (Term v Ann)
 
@@ -1039,17 +1056,6 @@ term4 = f <$> some termLeaf
     f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
--- Operators in order of precedence, based on the first character of the operator:
--- 1. Any symbol character not in the list below
--- 2. * / %
--- 3. + -
--- 4. :
--- 5. < >
--- 6. = !
--- 7. &
--- 8. ^
--- 9. |
-
 data InfixParse v
   = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
   | InfixAnd (L.Token String) (InfixParse v) (InfixParse v)
@@ -1062,19 +1068,6 @@ infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
 infixAppOrBooleanOp =
   applyInfixOps <$> prelimParse
   where
-    precedenceRules =
-      Map.fromList $
-        zip
-          [ ["*", "/", "%"],
-            ["+", "-"],
-            ["<", ">", ">=", "<="],
-            ["==", "!==", "!=", "==="],
-            ["&&", "&"],
-            ["^", "^^"],
-            ["||", "|"]
-          ]
-          [0 ..]
-          >>= \(ops, prec) -> map (,prec) ops
     prelimParse :: P v m (InfixParse v)
     prelimParse =
       reassociate <$> chainl1 (InfixOperand <$> term4) genericInfixApp
@@ -1128,7 +1121,7 @@ infixAppOrBooleanOp =
         let lhs' = applyInfixOps lhs
             rhs' = applyInfixOps rhs
          in Term.or (ann lhs' <> ann op <> ann rhs') lhs' rhs'
-    unqualified t = Maybe.fromJust $ Text.unpack . NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
+    unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
 
 -- or = orf <$> label "or" (reserved "||")
 -- orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
