@@ -79,6 +79,8 @@ Sections / partial application of infix operators is not implemented.
 
 -- Precedence rules for infix operators.
 -- Lower number means higher precedence (tighter binding).
+-- Operators not in this list have no precedence and will simply be parsed
+-- left-to-right.
 precedenceRules :: Map Text Int
 precedenceRules =
   Map.fromList $
@@ -1068,6 +1070,9 @@ infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
 infixAppOrBooleanOp =
   applyInfixOps <$> prelimParse
   where
+    -- To handle a mix of infix operators with and without precedence rules,
+    -- we first parse the expression left-associated, then reassociate it
+    -- according to the precedence rules.
     prelimParse :: P v m (InfixParse v)
     prelimParse =
       reassociate <$> chainl1 (InfixOperand <$> term4) genericInfixApp
