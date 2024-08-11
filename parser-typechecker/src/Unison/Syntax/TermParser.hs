@@ -20,6 +20,7 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
@@ -418,9 +419,6 @@ list = Parser.seq Term.list
 
 hashQualifiedPrefixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
-
-hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
-hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
 quasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
@@ -1041,17 +1039,116 @@ term4 = f <$> some termLeaf
     f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
+-- Operators in order of precedence, based on the first character of the operator:
+-- 1. Any symbol character not in the list below
+-- 2. * / %
+-- 3. + -
+-- 4. :
+-- 5. < >
+-- 6. = !
+-- 7. &
+-- 8. ^
+-- 9. |
+
+data InfixParse v
+  = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
+  | InfixAnd (L.Token String) (InfixParse v) (InfixParse v)
+  | InfixOr (L.Token String) (InfixParse v) (InfixParse v)
+  | InfixOperand (Term v Ann)
+
 -- e.g. term4 + term4 - term4
 -- or term4 || term4 && term4
-infixAppOrBooleanOp :: (Monad m, Var v) => TermP v m
-infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
+infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
+infixAppOrBooleanOp =
+  applyInfixOps <$> prelimParse
   where
-    or = orf <$> label "or" (reserved "||")
-    orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
-    and = andf <$> label "and" (reserved "&&")
-    andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
-    infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
-    infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
+    precedenceRules =
+      Map.fromList $
+        zip
+          [ ["*", "/", "%"],
+            ["+", "-"],
+            ["<", ">", ">=", "<="],
+            ["==", "!==", "!=", "==="],
+            ["&&", "&"],
+            ["^", "^^"],
+            ["||", "|"]
+          ]
+          [0 ..]
+          >>= \(ops, prec) -> map (,prec) ops
+    prelimParse :: P v m (InfixParse v)
+    prelimParse =
+      reassociate <$> chainl1 (InfixOperand <$> term4) genericInfixApp
+    genericInfixApp =
+      (InfixAnd <$> (label "and" (reserved "&&")))
+        <|> (InfixOr <$> (label "or" (reserved "||")))
+        <|> (uncurry InfixOp <$> parseInfix)
+    parseInfix = label "infixApp" do
+      op <- hqInfixId <* optional semi
+      resolved <- resolveHashQualified op
+      pure (op, resolved)
+    reassociate x = fst $ go Nothing x
+      where
+        go parentPrec = \case
+          InfixOp op tm lhs rhs ->
+            let prec = Map.lookup (unqualified op) precedenceRules
+             in rotate prec (InfixOp op tm) lhs rhs
+          InfixOperand tm -> (InfixOperand tm, False)
+          InfixAnd op lhs rhs -> rotate (Just 4) (InfixAnd op) lhs rhs
+          InfixOr op lhs rhs -> rotate (Just 6) (InfixOr op) lhs rhs
+          where
+            rotate ::
+              Maybe Int ->
+              ( InfixParse v ->
+                InfixParse v ->
+                InfixParse v
+              ) ->
+              InfixParse v ->
+              InfixParse v ->
+              (InfixParse v, Bool)
+            rotate prec ctor lhs rhs =
+              let (lhs', shouldRotLeft) = go prec lhs
+                  shouldRotate = (((>) <$> prec <*> parentPrec) == (Just True))
+               in if shouldRotLeft
+                    then case lhs' of
+                      InfixOp lop ltm ll lr -> go prec (InfixOp lop ltm ll (ctor lr rhs))
+                      InfixAnd lop ll lr -> go prec (InfixAnd lop ll (ctor lr rhs))
+                      InfixOr lop ll lr -> go prec (InfixOr lop ll (ctor lr rhs))
+                      _ -> (ctor lhs' rhs, shouldRotate)
+                    else (ctor lhs' rhs, shouldRotate)
+    applyInfixOps :: InfixParse v -> Term v Ann
+    applyInfixOps t = case t of
+      InfixOp _ tm lhs rhs ->
+        Term.apps' tm [applyInfixOps lhs, applyInfixOps rhs]
+      InfixOperand tm -> tm
+      InfixAnd op lhs rhs ->
+        let lhs' = applyInfixOps lhs
+            rhs' = applyInfixOps rhs
+         in Term.and (ann lhs' <> ann op <> ann rhs') lhs' rhs'
+      InfixOr op lhs rhs ->
+        let lhs' = applyInfixOps lhs
+            rhs' = applyInfixOps rhs
+         in Term.or (ann lhs' <> ann op <> ann rhs') lhs' rhs'
+    unqualified t = Maybe.fromJust $ Text.unpack . NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
+
+-- or = orf <$> label "or" (reserved "||")
+-- orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
+-- and = andf <$> label "and" (reserved "&&")
+-- andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
+-- infixAppPrec c = infixAppNoPrec c <|> otherOp
+-- infixAppNoPrec c =
+--   infixAppf
+--     <$> label "infixApp" (hashQualifiedInfixTermStartingWith c <* optional semi)
+-- infixAppf :: Term v Ann -> Term v Ann -> Term v Ann -> Term v Ann
+-- infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
+
+-- chainl1 term4 (or <|> and <|> infixApp)
+-- where
+--   or = orf <$> label "or" (reserved "||")
+--   orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
+--   and = andf <$> label "and" (reserved "&&")
+--   andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
+--   infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
+--   infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
 
 typedecl :: (Monad m, Var v) => P v m (L.Token v, Type v Ann)
 typedecl =
