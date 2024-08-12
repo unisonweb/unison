@@ -41,19 +41,21 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
       --
       --   type Foo.Bar = ...
       --   type Baz.Qux = ...
-      --   type Whatever =
-      --          Whatever
-      --            Foo.Bar   -- this variable is *not* unresolved: it matches locally-bound `Foo.Bar` exactly
-      --            Qux       -- this variable *is* unresolved: it doesn't match any locally-bound type exactly
+      --   type Whatever = Whatever Foo.Bar Qux
+      --                            ^^^^^^^ ^^^
+      --                               |    this variable *is* unresolved: it doesn't match any locally-bound type exactly
+      --                               |
+      --                            this variable is *not* unresolved: it matches locally-bound `Foo.Bar` exactly
       unresolvedVars :: [(v, a)]
       unresolvedVars =
         ABT.freeVarOccurrences localVars ty
 
-      -- For each unresolved variable, look up what it might refer to in two places:
+      -- For each unresolved variable, look up what it might refer to:
       --
-      --   1. The names from the namespace, less all of the local names (because exact matches shadow the namespace)
-      --   2. The local names.
-      resolvedVars :: [(v, a, Set TypeReference, Set Name)]
+      --   1. An exact match in the namespace.
+      --   2. A suffix match in the namespace.
+      --   3. A suffix match in the local names..
+      resolvedVars :: [(v, a, (Set TypeReference, Set TypeReference), Set Name)]
       resolvedVars =
         map
           ( \(v, a) ->
@@ -62,13 +64,17 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
           )
           unresolvedVars
 
-      checkAmbiguity :: (v, a, Set TypeReference, Set Name) -> Either (Seq (Names.ResolutionFailure v a)) (v, ResolvesTo)
-      checkAmbiguity (v, a, namespaceMatches, localMatches) =
-        case (Set.size namespaceMatches, Set.size localMatches) of
-          (0, 0) -> bad Names.NotFound
-          (1, 0) -> good (ResolvesToNamespace (Set.findMin namespaceMatches))
-          (0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
-          _ -> bad (Names.Ambiguous namespaceNames namespaceMatches localMatches)
+      checkAmbiguity ::
+        (v, a, (Set TypeReference, Set TypeReference), Set Name) ->
+        Either (Seq (Names.ResolutionFailure v a)) (v, ResolvesTo)
+      checkAmbiguity (v, a, (exactNamespaceMatches, suffixNamespaceMatches), localMatches) =
+        case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
+          (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
+          (n, _, _) | n > 1 -> bad (Names.Ambiguous namespaceNames exactNamespaceMatches Set.empty)
+          (_, 0, 0) -> bad Names.NotFound
+          (_, 1, 0) -> good (ResolvesToNamespace (Set.findMin suffixNamespaceMatches))
+          (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
+          _ -> bad (Names.Ambiguous namespaceNames suffixNamespaceMatches localMatches)
         where
           bad = Left . Seq.singleton . Names.TypeResolutionFailure v a
           good = Right . (v,)
@@ -96,12 +102,14 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
     localNames =
       Set.map unsafeVarToName localVars
 
-    getNamespaceMatches :: Name -> Set TypeReference
+    getNamespaceMatches :: Name -> (Set TypeReference, Set TypeReference)
     getNamespaceMatches name =
-      Names.lookupHQType
-        Names.IncludeSuffixes
-        (HQ.NameOnly name)
-        (over #types (Relation.subtractDom localNames) namespaceNames)
+      ( Names.lookupHQType Names.ExactName (HQ.NameOnly name) namespaceNamesLessLocalNames,
+        Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly name) namespaceNamesLessLocalNames
+      )
+      where
+        namespaceNamesLessLocalNames =
+          over #types (Relation.subtractDom localNames) namespaceNames
 
     getLocalMatches :: Name -> Set Name
     getLocalMatches =
