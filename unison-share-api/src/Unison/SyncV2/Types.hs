@@ -1,12 +1,10 @@
 module Unison.SyncV2.Types
-  ( GetCausalHashRequest (..),
-    GetCausalHashResponse (..),
-    GetCausalHashError (..),
-    DownloadEntitiesRequest (..),
+  ( DownloadEntitiesRequest (..),
     DownloadEntitiesChunk (..),
     SyncError (..),
     DownloadEntitiesError (..),
     CBORBytes (..),
+    EntityKind (..),
     deserialiseOrFailCBORBytes,
     UploadEntitiesRequest (..),
     BranchRef (..),
@@ -28,96 +26,36 @@ import Unison.Server.Orphans ()
 import Unison.Share.API.Hash (HashJWT)
 import Unison.Sync.Types qualified as SyncV1
 
-newtype BranchRef = BranchRef Text
-  deriving (Serialise) via Text
-
-data GetCausalHashRequest = GetCausalHashRequest
-  { branchRef :: BranchRef
-  }
-
-instance Serialise GetCausalHashRequest where
-  encode (GetCausalHashRequest {branchRef}) =
-    encode branchRef
-  decode = GetCausalHashRequest <$> decode
-
-data GetCausalHashResponse
-  = GetCausalHashSuccess HashJWT
-  | GetCausalHashError GetCausalHashError
-  deriving stock (Show, Eq, Ord)
-
-instance Serialise GetCausalHashResponse where
-  encode (GetCausalHashSuccess hash) =
-    encode GetCausalHashSuccessTag <> encode hash
-  encode (GetCausalHashError err) =
-    encode GetCausalHashErrorTag <> encode err
-  decode = do
-    tag <- decode
-    case tag of
-      GetCausalHashSuccessTag -> GetCausalHashSuccess <$> decode
-      GetCausalHashErrorTag -> GetCausalHashError <$> decode
-
-data GetCausalHashResponseTag
-  = GetCausalHashSuccessTag
-  | GetCausalHashErrorTag
-  deriving stock (Show, Eq, Ord)
-
-instance Serialise GetCausalHashResponseTag where
-  encode GetCausalHashSuccessTag = CBOR.encodeWord8 0
-  encode GetCausalHashErrorTag = CBOR.encodeWord8 1
-  decode = do
-    tag <- CBOR.decodeWord8
-    case tag of
-      0 -> pure GetCausalHashSuccessTag
-      1 -> pure GetCausalHashErrorTag
-      _ -> fail "invalid tag"
-
-data GetCausalHashError
-  = GetCausalHashNoReadPermission SyncV1.RepoInfo
-  | GetCausalHashUserNotFound
-  | GetCausalHashInvalidRepoInfo Text SyncV1.RepoInfo
-  deriving stock (Show, Eq, Ord)
-
-instance Serialise GetCausalHashError where
-  encode (GetCausalHashNoReadPermission repoInfo) =
-    encode GetCausalHashNoReadPermissionTag <> encode repoInfo
-  encode GetCausalHashUserNotFound =
-    encode GetCausalHashUserNotFoundTag
-  encode (GetCausalHashInvalidRepoInfo err repoInfo) =
-    encode GetCausalHashInvalidRepoInfoTag <> encode err <> encode repoInfo
-  decode = do
-    tag <- decode
-    case tag of
-      GetCausalHashNoReadPermissionTag -> GetCausalHashNoReadPermission <$> decode
-      GetCausalHashUserNotFoundTag -> pure GetCausalHashUserNotFound
-      GetCausalHashInvalidRepoInfoTag -> GetCausalHashInvalidRepoInfo <$> decode <*> decode
+newtype BranchRef = BranchRef {unBranchRef :: Text}
+  deriving (Serialise, Eq, Show, Ord) via Text
 
 data GetCausalHashErrorTag
   = GetCausalHashNoReadPermissionTag
   | GetCausalHashUserNotFoundTag
-  | GetCausalHashInvalidRepoInfoTag
+  | GetCausalHashInvalidBranchRefTag
   deriving stock (Show, Eq, Ord)
 
 instance Serialise GetCausalHashErrorTag where
   encode GetCausalHashNoReadPermissionTag = CBOR.encodeWord8 0
   encode GetCausalHashUserNotFoundTag = CBOR.encodeWord8 1
-  encode GetCausalHashInvalidRepoInfoTag = CBOR.encodeWord8 2
+  encode GetCausalHashInvalidBranchRefTag = CBOR.encodeWord8 2
   decode = do
     tag <- CBOR.decodeWord8
     case tag of
       0 -> pure GetCausalHashNoReadPermissionTag
       1 -> pure GetCausalHashUserNotFoundTag
-      2 -> pure GetCausalHashInvalidRepoInfoTag
+      2 -> pure GetCausalHashInvalidBranchRefTag
       _ -> fail "invalid tag"
 
 data DownloadEntitiesRequest = DownloadEntitiesRequest
   { causalHash :: HashJWT,
-    repoInfo :: SyncV1.RepoInfo,
+    branchRef :: BranchRef,
     knownHashes :: Set Hash32
   }
 
 instance Serialise DownloadEntitiesRequest where
-  encode (DownloadEntitiesRequest {causalHash, repoInfo, knownHashes}) =
-    encode causalHash <> encode repoInfo <> encode knownHashes
+  encode (DownloadEntitiesRequest {causalHash, branchRef, knownHashes}) =
+    encode causalHash <> encode branchRef <> encode knownHashes
   decode = DownloadEntitiesRequest <$> decode <*> decode <*> decode
 
 -- | Wrapper for CBOR data that has already been serialized.
@@ -133,9 +71,9 @@ deserialiseOrFailCBORBytes :: (Serialise t) => CBORBytes t -> Either CBOR.Deseri
 deserialiseOrFailCBORBytes (CBORBytes bs) = CBOR.deserialiseOrFail bs
 
 data DownloadEntitiesError
-  = DownloadEntitiesNoReadPermission SyncV1.RepoInfo
-  | -- | msg, repoInfo
-    DownloadEntitiesInvalidRepoInfo Text SyncV1.RepoInfo
+  = DownloadEntitiesNoReadPermission BranchRef
+  | -- | msg, branchRef
+    DownloadEntitiesInvalidBranchRef Text BranchRef
   | -- | userHandle
     DownloadEntitiesUserNotFound Text
   | -- | project shorthand
@@ -145,7 +83,7 @@ data DownloadEntitiesError
 
 data DownloadEntitiesErrorTag
   = NoReadPermissionTag
-  | InvalidRepoInfoTag
+  | InvalidBranchRefTag
   | UserNotFoundTag
   | ProjectNotFoundTag
   | EntityValidationFailureTag
@@ -154,7 +92,7 @@ data DownloadEntitiesErrorTag
 instance Serialise DownloadEntitiesErrorTag where
   encode = \case
     NoReadPermissionTag -> CBOR.encodeWord8 0
-    InvalidRepoInfoTag -> CBOR.encodeWord8 1
+    InvalidBranchRefTag -> CBOR.encodeWord8 1
     UserNotFoundTag -> CBOR.encodeWord8 2
     ProjectNotFoundTag -> CBOR.encodeWord8 3
     EntityValidationFailureTag -> CBOR.encodeWord8 4
@@ -162,7 +100,7 @@ instance Serialise DownloadEntitiesErrorTag where
     tag <- CBOR.decodeWord8
     case tag of
       0 -> pure NoReadPermissionTag
-      1 -> pure InvalidRepoInfoTag
+      1 -> pure InvalidBranchRefTag
       2 -> pure UserNotFoundTag
       3 -> pure ProjectNotFoundTag
       4 -> pure EntityValidationFailureTag
@@ -170,8 +108,8 @@ instance Serialise DownloadEntitiesErrorTag where
 
 instance Serialise DownloadEntitiesError where
   encode = \case
-    DownloadEntitiesNoReadPermission repoInfo -> CBOR.encode NoReadPermissionTag <> CBOR.encode repoInfo
-    DownloadEntitiesInvalidRepoInfo msg repoInfo -> CBOR.encode InvalidRepoInfoTag <> CBOR.encode (msg, repoInfo)
+    DownloadEntitiesNoReadPermission branchRef -> CBOR.encode NoReadPermissionTag <> CBOR.encode branchRef
+    DownloadEntitiesInvalidBranchRef msg branchRef -> CBOR.encode InvalidBranchRefTag <> CBOR.encode (msg, branchRef)
     DownloadEntitiesUserNotFound userHandle -> CBOR.encode UserNotFoundTag <> CBOR.encode userHandle
     DownloadEntitiesProjectNotFound projectShorthand -> CBOR.encode ProjectNotFoundTag <> CBOR.encode projectShorthand
     DownloadEntitiesEntityValidationFailure err -> CBOR.encode EntityValidationFailureTag <> CBOR.encode err
@@ -180,7 +118,7 @@ instance Serialise DownloadEntitiesError where
     tag <- CBOR.decode
     case tag of
       NoReadPermissionTag -> DownloadEntitiesNoReadPermission <$> CBOR.decode
-      InvalidRepoInfoTag -> uncurry DownloadEntitiesInvalidRepoInfo <$> CBOR.decode
+      InvalidBranchRefTag -> uncurry DownloadEntitiesInvalidBranchRef <$> CBOR.decode
       UserNotFoundTag -> DownloadEntitiesUserNotFound <$> CBOR.decode
       ProjectNotFoundTag -> DownloadEntitiesProjectNotFound <$> CBOR.decode
       EntityValidationFailureTag -> DownloadEntitiesEntityValidationFailure <$> CBOR.decode
@@ -223,7 +161,6 @@ instance Serialise UploadEntitiesRequest where
 -- | An error occurred while pulling code from Unison Share.
 data PullError
   = PullError'DownloadEntities DownloadEntitiesError
-  | PullError'GetCausalHash GetCausalHashError
   | PullError'Sync SyncError
   deriving stock (Show)
 
@@ -231,3 +168,28 @@ data SyncError
   = SyncErrorExpectedResultNotInMain CausalHash
   | SyncErrorDeserializationFailure CBOR.DeserialiseFailure
   deriving stock (Show)
+
+data EntityKind
+  = CausalEntity
+  | NamespaceEntity
+  | TermEntity
+  | TypeEntity
+  | PatchEntity
+  deriving (Show, Eq, Ord)
+
+instance Serialise EntityKind where
+  encode = \case
+    CausalEntity -> CBOR.encodeWord8 0
+    NamespaceEntity -> CBOR.encodeWord8 1
+    TermEntity -> CBOR.encodeWord8 2
+    TypeEntity -> CBOR.encodeWord8 3
+    PatchEntity -> CBOR.encodeWord8 4
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure CausalEntity
+      1 -> pure NamespaceEntity
+      2 -> pure TermEntity
+      3 -> pure TypeEntity
+      4 -> pure PatchEntity
+      _ -> fail "invalid tag"

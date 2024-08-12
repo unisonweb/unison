@@ -2,14 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Unison.Share.SyncV2
-  ( -- ** Get causal hash by path
-    getCausalHash,
-    GetCausalHashByPathError (..),
-
-    -- ** Pull/Download
-    pull,
-    PullError (..),
-    downloadEntities,
+  ( downloadEntities,
   )
 where
 
@@ -25,7 +18,6 @@ import Data.Conduit.Combinators qualified as Conduit
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
-import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
@@ -37,7 +29,6 @@ import Servant.Client qualified as Servant
 import Servant.Client.Streaming qualified as ServantStreaming
 import Servant.Conduit ()
 import Servant.Types.SourceT qualified as Servant
-import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -61,43 +52,20 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid (foldMapM)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Pull
-
-pull ::
-  -- | The Unison Share URL.
-  BaseUrl ->
-  -- | The repo+path to pull from.
-  Share.Path ->
-  SyncV2.BranchRef ->
-  -- | Callback that's given a number of entities we just downloaded.
-  (Int -> IO ()) ->
-  Cli (Either (SyncError SyncV2.PullError) CausalHash)
-pull unisonShareUrl repoPath branchRef downloadedCallback =
-  getCausalHash unisonShareUrl branchRef >>= \case
-    Left err -> pure (Left (SyncV2.PullError'GetCausalHash <$> err))
-    -- There's nothing at the remote path, so there's no causal to pull.
-    Right hashJwt -> do
-      -- TODO: include known hashes
-      let knownHashes = Set.empty
-      downloadEntities unisonShareUrl (Share.pathRepoInfo repoPath) hashJwt knownHashes downloadedCallback <&> \case
-        Left err -> Left err
-        Right () -> Right (hash32ToCausalHash (Share.hashJWTHash hashJwt))
-
-------------------------------------------------------------------------------------------------------------------------
 -- Download entities
 
 downloadEntities ::
   -- | The Unison Share URL.
   BaseUrl ->
-  -- | The repo to download from.
-  Share.RepoInfo ->
+  -- | The branch to download from.
+  SyncV2.BranchRef ->
   -- | The hash to download.
   Share.HashJWT ->
   Set Hash32 ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError SyncV2.PullError) ())
-downloadEntities unisonShareUrl repoInfo hashJwt knownHashes downloadedCallback = do
+downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
@@ -114,7 +82,7 @@ downloadEntities unisonShareUrl repoInfo hashJwt knownHashes downloadedCallback 
               httpDownloadEntities
                 authHTTPClient
                 unisonShareUrl
-                SyncV2.DownloadEntitiesRequest {repoInfo, causalHash = hashJwt, knownHashes}
+                SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
         liftIO request >>= \case
           Left err -> failed (TransportError err)
           Right source -> do
@@ -176,46 +144,6 @@ unpackEntities downloadedCallback = Conduit.mapM $ \case
     throwError (SyncV2.PullError'DownloadEntities err)
 
 ------------------------------------------------------------------------------------------------------------------------
--- Get causal hash by path
-
--- | Get the causal hash of a path hosted on Unison Share.
-getCausalHash ::
-  -- | The Unison Share URL.
-  BaseUrl ->
-  SyncV2.BranchRef ->
-  Cli (Either (SyncError SyncV2.GetCausalHashError) Share.HashJWT)
-getCausalHash unisonShareUrl branchRef = do
-  Cli.Env {authHTTPClient} <- ask
-  liftIO (httpGetCausalHash authHTTPClient unisonShareUrl (SyncV2.GetCausalHashRequest branchRef)) <&> \case
-    Left err -> Left (TransportError err)
-    Right (SyncV2.GetCausalHashSuccess hashJWT) -> Right hashJWT
-    Right (SyncV2.GetCausalHashError err) ->
-      case err of
-        SyncV2.GetCausalHashNoReadPermission repoInfo ->
-          Left (SyncError (SyncV2.GetCausalHashNoReadPermission repoInfo))
-        SyncV2.GetCausalHashInvalidRepoInfo err repoInfo ->
-          Left (SyncError (SyncV2.GetCausalHashInvalidRepoInfo err repoInfo))
-        SyncV2.GetCausalHashUserNotFound ->
-          Left (SyncError SyncV2.GetCausalHashUserNotFound)
-
-------------------------------------------------------------------------------------------------------------------------
--- Upload entities
-
--- | Upload a set of entities to Unison Share. If the server responds that it cannot yet store any hash(es) due to
--- missing dependencies, send those dependencies too, and on and on, until the server stops responding that it's missing
--- anything.
---
--- Returns true on success, false on failure (because the user does not have write permission).
-_uploadEntities ::
-  BaseUrl ->
-  Share.RepoInfo ->
-  NESet Hash32 ->
-  (Int -> IO ()) ->
-  Cli (Either (SyncError Share.UploadEntitiesError) ())
-_uploadEntities _unisonShareUrl _repoInfo _hashes0 _uploadedCallback = do
-  error "syncv2 uploadEntities not implemented"
-
-------------------------------------------------------------------------------------------------------------------------
 -- Database operations
 
 -- | Upsert a downloaded entity "somewhere" -
@@ -253,82 +181,59 @@ upsertEntitySomewhere hash entity =
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
 
--- syncV2Client :: SyncV2.Routes (Servant.AsClientT ServantStreaming.ClientM)
--- syncV2Client = ServantStreaming.client SyncV2.api -- remember: api :: Proxy MovieCatalogAPI
-
--- syncV2Client :: SyncV2.Routes (Servant.AsClientT ServantStreaming.ClientM)
--- Routes {} = ServantStreaming.client SyncV2.api
-
-httpGetCausalHash ::
-  Auth.AuthenticatedHttpClient ->
-  BaseUrl ->
-  SyncV2.GetCausalHashRequest ->
-  IO (Either CodeserverTransportError SyncV2.GetCausalHashResponse)
 httpDownloadEntities ::
   Auth.AuthenticatedHttpClient ->
   BaseUrl ->
   SyncV2.DownloadEntitiesRequest ->
   (IO (Either CodeserverTransportError (Servant.SourceT IO SyncV2.DownloadEntitiesChunk)))
-_httpUploadEntities ::
-  Auth.AuthenticatedHttpClient ->
-  BaseUrl ->
-  SyncV2.UploadEntitiesRequest ->
-  IO (Either CodeserverTransportError (Servant.SourceT IO ByteString))
-( httpGetCausalHash,
-  httpDownloadEntities,
-  _httpUploadEntities
-  ) =
-    let SyncV2.Routes
-          { getCausalHash,
-            downloadEntitiesStream,
-            uploadEntitiesStream
-          } =
-            let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> SyncV2.API)
-                pp = Proxy
-             in ServantStreaming.hoistClient pp hoist (ServantStreaming.client SyncV2.api)
-     in ( go getCausalHash,
-          go downloadEntitiesStream,
-          go uploadEntitiesStream
-        )
-    where
-      hoist :: ServantStreaming.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
-      hoist m = do
-        clientEnv <- Reader.ask
-        (lift . lift $ ServantStreaming.withClientM m clientEnv pure) >>= \case
-          Right a -> pure a
-          Left err -> do
-            Debug.debugLogM Debug.Sync (show err)
-            throwError case err of
-              Servant.FailureResponse _req resp ->
-                case HTTP.statusCode $ Servant.responseStatusCode resp of
-                  401 -> Unauthenticated (Servant.baseUrl clientEnv)
-                  -- The server should provide semantically relevant permission-denied messages
-                  -- when possible, but this should catch any we miss.
-                  403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
-                  408 -> Timeout
-                  429 -> RateLimitExceeded
-                  504 -> Timeout
-                  _ -> UnexpectedResponse resp
-              Servant.DecodeFailure msg resp -> DecodeFailure msg resp
-              Servant.UnsupportedContentType _ct resp -> UnexpectedResponse resp
-              Servant.InvalidContentTypeHeader resp -> UnexpectedResponse resp
-              Servant.ConnectionError _ -> UnreachableCodeserver (Servant.baseUrl clientEnv)
+httpDownloadEntities =
+  let SyncV2.Routes
+        { downloadEntitiesStream
+        } =
+          let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> SyncV2.API)
+              pp = Proxy
+           in ServantStreaming.hoistClient pp hoist (ServantStreaming.client SyncV2.api)
+   in ( go downloadEntitiesStream
+      )
+  where
+    hoist :: ServantStreaming.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
+    hoist m = do
+      clientEnv <- Reader.ask
+      (lift . lift $ ServantStreaming.withClientM m clientEnv pure) >>= \case
+        Right a -> pure a
+        Left err -> do
+          Debug.debugLogM Debug.Sync (show err)
+          throwError case err of
+            Servant.FailureResponse _req resp ->
+              case HTTP.statusCode $ Servant.responseStatusCode resp of
+                401 -> Unauthenticated (Servant.baseUrl clientEnv)
+                -- The server should provide semantically relevant permission-denied messages
+                -- when possible, but this should catch any we miss.
+                403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
+                408 -> Timeout
+                429 -> RateLimitExceeded
+                504 -> Timeout
+                _ -> UnexpectedResponse resp
+            Servant.DecodeFailure msg resp -> DecodeFailure msg resp
+            Servant.UnsupportedContentType _ct resp -> UnexpectedResponse resp
+            Servant.InvalidContentTypeHeader resp -> UnexpectedResponse resp
+            Servant.ConnectionError _ -> UnreachableCodeserver (Servant.baseUrl clientEnv)
 
-      go ::
-        (req -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) resp) ->
-        Auth.AuthenticatedHttpClient ->
-        BaseUrl ->
-        req ->
-        IO (Either CodeserverTransportError resp)
-      go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
-        (Servant.mkClientEnv httpClient unisonShareUrl)
-          { Servant.makeClientRequest = \url request ->
-              -- Disable client-side timeouts
-              (Servant.defaultMakeClientRequest url request)
-                <&> \r ->
-                  r
-                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
-                    }
-          }
-          & runReaderT (f req)
-          & runExceptT
+    go ::
+      (req -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) resp) ->
+      Auth.AuthenticatedHttpClient ->
+      BaseUrl ->
+      req ->
+      IO (Either CodeserverTransportError resp)
+    go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
+      (Servant.mkClientEnv httpClient unisonShareUrl)
+        { Servant.makeClientRequest = \url request ->
+            -- Disable client-side timeouts
+            (Servant.defaultMakeClientRequest url request)
+              <&> \r ->
+                r
+                  { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                  }
+        }
+        & runReaderT (f req)
+        & runExceptT

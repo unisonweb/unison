@@ -7,7 +7,6 @@ module Unison.SyncV2.API
   )
 where
 
-import Data.ByteString (ByteString)
 import Data.Proxy
 import GHC.Generics (Generic)
 import Servant.API
@@ -24,17 +23,7 @@ type DownloadEntitiesStream =
   ReqBody '[CBOR] DownloadEntitiesRequest
     :> StreamPost NoFraming CBOR (SourceIO DownloadEntitiesChunk)
 
-type UploadEntitiesStream =
-  ReqBody '[CBOR] UploadEntitiesRequest
-    :> StreamPost NoFraming OctetStream (SourceIO ByteString)
-
-type GetCausalHashEndpoint =
-  ReqBody '[CBOR] GetCausalHashRequest
-    :> Post '[CBOR] GetCausalHashResponse
-
 data Routes mode = Routes
-  { getCausalHash :: mode :- "path" :> "get" :> GetCausalHashEndpoint,
-    downloadEntitiesStream :: mode :- "entities" :> "download" :> DownloadEntitiesStream,
-    uploadEntitiesStream :: mode :- "entities" :> "upload" :> UploadEntitiesStream
+  { downloadEntitiesStream :: mode :- "entities" :> "download" :> DownloadEntitiesStream
   }
   deriving stock (Generic)
