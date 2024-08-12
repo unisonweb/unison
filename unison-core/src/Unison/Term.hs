@@ -11,7 +11,6 @@ import Data.Generics.Sum (_Ctor)
 import Data.Map qualified as Map
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
-import Data.Set.NonEmpty qualified as NES
 import Data.Text qualified as Text
 import Text.Show
 import Unison.ABT qualified as ABT
@@ -165,15 +164,13 @@ bindNames unsafeVarToName keepFreeTerms ns e = do
         rs
           | Set.size rs == 1 ->
               pure (v, fromReferent a $ Set.findMin rs)
-          | otherwise -> case NES.nonEmptySet rs of
-              Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns refs)))
+          | Set.size rs == 0 -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
+          | otherwise -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns rs Set.empty)))
       okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-          | otherwise -> case NES.nonEmptySet rs of
-              Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns refs)))
+          | Set.size rs == 0 -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+          | otherwise -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns rs Set.empty)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e

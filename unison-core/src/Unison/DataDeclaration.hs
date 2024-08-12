@@ -108,7 +108,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show, Functor, Generic)
 
 constructorCount :: DataDeclaration v a -> Int
 constructorCount DataDeclaration {constructors'} = length constructors'

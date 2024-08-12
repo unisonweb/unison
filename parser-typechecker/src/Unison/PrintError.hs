@@ -1996,12 +1996,19 @@ prettyResolutionFailures s allFailures =
 
     toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
     toAmbiguityPair = \case
-      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTermRef ppe) refs)
-      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+         in ( v,
+              Just $
+                NES.unsafeFromSet
+                  (Set.map (showTermRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
+      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTypeRef ppe) refs)
+         in ( v,
+              Just $
+                NES.unsafeFromSet (Set.map (showTypeRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
       (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
