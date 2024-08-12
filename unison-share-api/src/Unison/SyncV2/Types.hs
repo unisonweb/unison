@@ -5,6 +5,7 @@ module Unison.SyncV2.Types
     DownloadEntitiesError (..),
     CBORBytes (..),
     EntityKind (..),
+    serialiseCBORBytes,
     deserialiseOrFailCBORBytes,
     UploadEntitiesRequest (..),
     BranchRef (..),
@@ -69,6 +70,9 @@ newtype CBORBytes t = CBORBytes BL.ByteString
 -- | Deserialize a 'CBORBytes' value into its tagged type, throwing an error if the deserialization fails.
 deserialiseOrFailCBORBytes :: (Serialise t) => CBORBytes t -> Either CBOR.DeserialiseFailure t
 deserialiseOrFailCBORBytes (CBORBytes bs) = CBOR.deserialiseOrFail bs
+
+serialiseCBORBytes :: (Serialise t) => t -> CBORBytes t
+serialiseCBORBytes = CBORBytes . CBOR.serialise
 
 data DownloadEntitiesError
   = DownloadEntitiesNoReadPermission BranchRef
