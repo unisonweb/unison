@@ -10,6 +10,7 @@ where
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Data.List.NonEmpty (pattern (:|))
+import Data.Set qualified as Set
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -28,9 +29,11 @@ import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types qualified as Share
+import Unison.Share.SyncV2 qualified as SyncV2
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sync.Common qualified as Sync.Common
 import Unison.Sync.Types qualified as Share
+import Unison.SyncV2.Types qualified as SyncV2
 
 -- | Download a project/branch from Share.
 downloadProjectBranchFromShare ::
@@ -41,7 +44,6 @@ downloadProjectBranchFromShare ::
 downloadProjectBranchFromShare useSquashed branch =
   Cli.labelE \done -> do
     let remoteProjectBranchName = branch.branchName
-    let repoInfo = Share.RepoInfo (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
     causalHashJwt <-
       case (useSquashed, branch.squashedBranchHead) of
         (Share.IncludeSquashedHead, Nothing) -> done Output.ShareExpectedSquashedHead
@@ -51,12 +53,18 @@ downloadProjectBranchFromShare useSquashed branch =
     when (not exists) do
       (result, numDownloaded) <-
         Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
-          result <- Share.downloadEntities Share.hardCodedBaseUrl repoInfo causalHashJwt downloadedCallback
+          let branchRef = SyncV2.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
+          -- TODO: Fill this in.
+          let knownHashes = Set.empty
+          result <- SyncV2.downloadEntities Share.hardCodedBaseUrl branchRef causalHashJwt knownHashes downloadedCallback
           numDownloaded <- liftIO getNumDownloaded
           pure (result, numDownloaded)
       result & onLeft \err0 -> do
         done case err0 of
-          Share.SyncError err -> Output.ShareErrorDownloadEntities err
+          Share.SyncError err ->
+            -- TODO: Fix this
+            error (show err)
+          -- Output.ShareErrorDownloadEntities err
           Share.TransportError err -> Output.ShareErrorTransport err
       Cli.respond (Output.DownloadedEntities numDownloaded)
     pure (Sync.Common.hash32ToCausalHash (Share.hashJWTHash causalHashJwt))

@@ -190,9 +190,9 @@ httpDownloadEntities =
   let SyncV2.Routes
         { downloadEntitiesStream
         } =
-          let pp :: Proxy ("ucm" Servant.:> "v1" Servant.:> "sync" Servant.:> SyncV2.API)
+          let pp :: Proxy ("ucm" Servant.:> "v2" Servant.:> "sync" Servant.:> SyncV2.API)
               pp = Proxy
-           in ServantStreaming.hoistClient pp hoist (ServantStreaming.client SyncV2.api)
+           in ServantStreaming.hoistClient pp hoist (ServantStreaming.client pp)
    in ( go downloadEntitiesStream
       )
   where
