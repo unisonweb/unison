@@ -3500,7 +3500,11 @@ getProjectReflog numEntries projectId =
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
       FROM project_branch_reflog
       WHERE project_id = :projectId
-      ORDER BY time DESC
+      ORDER BY
+        time DESC,
+        -- Strictly for breaking ties in transcripts with the same time,
+        -- this will break ties in the correct order, sorting later inserted rows first.
+        ROWID DESC
       LIMIT :numEntries
     |]
 
@@ -3512,7 +3516,11 @@ getProjectBranchReflog numEntries projectBranchId =
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
       FROM project_branch_reflog
       WHERE project_branch_id = :projectBranchId
-      ORDER BY time DESC
+      ORDER BY
+        time DESC,
+        -- Strictly for breaking ties in transcripts with the same time,
+        -- this will break ties in the correct order, sorting later inserted rows first.
+        ROWID DESC
       LIMIT :numEntries
     |]
 
@@ -3523,7 +3531,11 @@ getGlobalReflog numEntries =
     [sql|
       SELECT project_id, project_branch_id, time, from_root_causal_id, to_root_causal_id, reason
       FROM project_branch_reflog
-      ORDER BY time DESC
+      ORDER BY
+        time DESC,
+        -- Strictly for breaking ties in transcripts with the same time,
+        -- this will break ties in the correct order, sorting later inserted rows first.
+        ROWID DESC
       LIMIT :numEntries
     |]
 
