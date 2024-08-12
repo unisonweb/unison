@@ -210,6 +210,7 @@ library
     , configurator
     , containers >=0.6.3
     , cryptonite
+    , deepseq
     , directory
     , either
     , errors
@@ -253,6 +254,7 @@ library
     , serialise
     , servant
     , servant-client
+    , servant-conduit
     , shellmet
     , stm
     , template-haskell
@@ -354,6 +356,7 @@ executable transcripts
     , configurator
     , containers >=0.6.3
     , cryptonite
+    , deepseq
     , directory
     , easytest
     , either
@@ -398,6 +401,7 @@ executable transcripts
     , serialise
     , servant
     , servant-client
+    , servant-conduit
     , shellmet
     , silently
     , stm
@@ -505,6 +509,7 @@ test-suite cli-tests
     , configurator
     , containers >=0.6.3
     , cryptonite
+    , deepseq
     , directory
     , easytest
     , either
@@ -550,6 +555,7 @@ test-suite cli-tests
     , serialise
     , servant
     , servant-client
+    , servant-conduit
     , shellmet
     , stm
     , template-haskell

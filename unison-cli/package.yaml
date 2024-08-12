@@ -27,6 +27,7 @@ dependencies:
   - configurator
   - containers >= 0.6.3
   - cryptonite
+  - deepseq
   - directory
   - either
   - errors
@@ -70,6 +71,7 @@ dependencies:
   - serialise
   - servant
   - servant-client
+  - servant-conduit
   - shellmet
   - stm
   - template-haskell

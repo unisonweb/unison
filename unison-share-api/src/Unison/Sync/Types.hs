@@ -617,48 +617,6 @@ data DownloadEntitiesError
   | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
 
-data DownloadEntitiesErrorTag
-  = NoReadPermissionTag
-  | InvalidRepoInfoTag
-  | UserNotFoundTag
-  | ProjectNotFoundTag
-  | EntityValidationFailureTag
-  deriving stock (Eq, Show)
-
-instance Serialise DownloadEntitiesErrorTag where
-  encode = \case
-    NoReadPermissionTag -> CBOR.encodeWord8 0
-    InvalidRepoInfoTag -> CBOR.encodeWord8 1
-    UserNotFoundTag -> CBOR.encodeWord8 2
-    ProjectNotFoundTag -> CBOR.encodeWord8 3
-    EntityValidationFailureTag -> CBOR.encodeWord8 4
-  decode = do
-    tag <- CBOR.decodeWord8
-    case tag of
-      0 -> pure NoReadPermissionTag
-      1 -> pure InvalidRepoInfoTag
-      2 -> pure UserNotFoundTag
-      3 -> pure ProjectNotFoundTag
-      4 -> pure EntityValidationFailureTag
-      _ -> fail "invalid tag"
-
-instance Serialise DownloadEntitiesError where
-  encode = \case
-    DownloadEntitiesNoReadPermission repoInfo -> CBOR.encode NoReadPermissionTag <> CBOR.encode repoInfo
-    DownloadEntitiesInvalidRepoInfo msg repoInfo -> CBOR.encode InvalidRepoInfoTag <> CBOR.encode (msg, repoInfo)
-    DownloadEntitiesUserNotFound userHandle -> CBOR.encode UserNotFoundTag <> CBOR.encode userHandle
-    DownloadEntitiesProjectNotFound projectShorthand -> CBOR.encode ProjectNotFoundTag <> CBOR.encode projectShorthand
-    DownloadEntitiesEntityValidationFailure err -> CBOR.encode EntityValidationFailureTag <> CBOR.encode err
-
-  decode = do
-    tag <- CBOR.decode
-    case tag of
-      NoReadPermissionTag -> DownloadEntitiesNoReadPermission <$> CBOR.decode
-      InvalidRepoInfoTag -> uncurry DownloadEntitiesInvalidRepoInfo <$> CBOR.decode
-      UserNotFoundTag -> DownloadEntitiesUserNotFound <$> CBOR.decode
-      ProjectNotFoundTag -> DownloadEntitiesProjectNotFound <$> CBOR.decode
-      EntityValidationFailureTag -> DownloadEntitiesEntityValidationFailure <$> CBOR.decode
-
 instance ToJSON DownloadEntitiesResponse where
   toJSON = \case
     DownloadEntitiesSuccess entities -> jsonUnion "success" entities

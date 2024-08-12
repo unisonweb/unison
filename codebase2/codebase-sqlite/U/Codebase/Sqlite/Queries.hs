@@ -228,6 +228,7 @@ module U.Codebase.Sqlite.Queries
     expectEntity,
     syncToTempEntity,
     insertTempEntity,
+    insertTempEntityV2,
     saveTempEntityInMain,
     expectTempEntity,
     deleteTempEntity,
@@ -315,6 +316,7 @@ import Data.Map.NonEmpty qualified as NEMap
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
@@ -2970,6 +2972,35 @@ insertTempEntity entityHash entity missingDependencies = do
       [sql|
         INSERT INTO temp_entity_missing_dependency (dependent, dependency, dependencyJwt)
         VALUES (:entityHash, :depHash, :depHashJwt)
+      |]
+  where
+    entityBlob :: ByteString
+    entityBlob =
+      runPutS (Serialization.putTempEntity entity)
+
+    entityType :: TempEntityType
+    entityType =
+      Entity.entityType entity
+
+-- | Insert a new `temp_entity` row, and its associated 1+ `temp_entity_missing_dependency` rows.
+--
+-- Preconditions:
+--   1. The entity does not already exist in "main" storage (`object` / `causal`)
+--   2. The entity does not already exist in `temp_entity`.
+insertTempEntityV2 :: Hash32 -> TempEntity -> NESet Hash32 -> Transaction ()
+insertTempEntityV2 entityHash entity missingDependencies = do
+  execute
+    [sql|
+      INSERT INTO temp_entity (hash, blob, type_id)
+      VALUES (:entityHash, :entityBlob, :entityType)
+      ON CONFLICT DO NOTHING
+    |]
+
+  for_ missingDependencies \depHash ->
+    execute
+      [sql|
+        INSERT INTO temp_entity_missing_dependency (dependent, dependency)
+        VALUES (:entityHash, :depHash)
       |]
   where
     entityBlob :: ByteString

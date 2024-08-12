@@ -3,7 +3,7 @@
 
 module Unison.Share.SyncV2
   ( -- ** Get causal hash by path
-    getCausalHashByPath,
+    getCausalHash,
     GetCausalHashByPathError (..),
 
     -- ** Pull/Download
@@ -14,38 +14,33 @@ module Unison.Share.SyncV2
 where
 
 import Conduit (ConduitT)
-import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Control.Monad.Trans.Reader qualified as Reader
 import Data.Conduit ((.|))
+import Data.Conduit qualified as Conduit
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Map qualified as Map
-import Data.Map.NonEmpty (NEMap)
-import Data.Map.NonEmpty qualified as NEMap
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
-import GHC.IO (unsafePerformIO)
-import Ki qualified
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
 import Servant.API qualified as Servant
 import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
 import Servant.Client.Streaming qualified as ServantStreaming
+import Servant.Conduit ()
 import Servant.Types.SourceT qualified as Servant
-import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
-import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -57,19 +52,13 @@ import Unison.Share.API.Hash qualified as Share
 import Unison.Share.ExpectedHashMismatches (expectedCausalHashMismatches, expectedComponentHashMismatches)
 import Unison.Share.Sync.Types
 import Unison.Sqlite qualified as Sqlite
-import Unison.Sync.Common (entityToTempEntity, hash32ToCausalHash)
+import Unison.Sync.Common (hash32ToCausalHash, tempEntityToEntity)
 import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.API qualified as SyncV2
+import Unison.SyncV2.Types qualified as CBOR
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid (foldMapM)
-
-syncChunkSize :: Int
-syncChunkSize = unsafePerformIO $ do
-  lookupEnv "UNISON_SYNC_CHUNK_SIZE" <&> \case
-    Just n -> read n
-    Nothing -> 50
-{-# NOINLINE syncChunkSize #-}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Pull
@@ -82,15 +71,16 @@ pull ::
   SyncV2.BranchRef ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
-  Cli (Either (SyncError PullError) CausalHash)
+  Cli (Either (SyncError SyncV2.PullError) CausalHash)
 pull unisonShareUrl repoPath branchRef downloadedCallback =
-  getCausalHashByPath unisonShareUrl branchRef >>= \case
+  getCausalHash unisonShareUrl branchRef >>= \case
     Left err -> pure (Left (SyncV2.PullError'GetCausalHash <$> err))
     -- There's nothing at the remote path, so there's no causal to pull.
-    Right Nothing -> pure (Left (SyncError (PullError'NoHistoryAtPath repoPath)))
-    Right (Just hashJwt) ->
-      downloadEntities unisonShareUrl (Share.pathRepoInfo repoPath) hashJwt downloadedCallback <&> \case
-        Left err -> Left (PullError'DownloadEntities <$> err)
+    Right hashJwt -> do
+      -- TODO: include known hashes
+      let knownHashes = Set.empty
+      downloadEntities unisonShareUrl (Share.pathRepoInfo repoPath) hashJwt knownHashes downloadedCallback <&> \case
+        Left err -> Left err
         Right () -> Right (hash32ToCausalHash (Share.hashJWTHash hashJwt))
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -106,62 +96,52 @@ downloadEntities ::
   Set Hash32 ->
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
-  Cli (Either (SyncError Share.DownloadEntitiesError) ())
+  Cli (Either (SyncError SyncV2.PullError) ())
 downloadEntities unisonShareUrl repoInfo hashJwt knownHashes downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
-    let failed :: SyncError Share.DownloadEntitiesError -> Cli void
+    let failed :: SyncError SyncV2.PullError -> Cli void
         failed = done . Left
 
     let hash = Share.hashJWTHash hashJwt
 
-    maybeTempEntities <-
-      Cli.runTransaction (Q.entityLocation hash) >>= \case
-        Just Q.EntityInMainStorage -> pure Nothing
-        Just Q.EntityInTempStorage -> pure (Just (NESet.singleton hash))
-        Nothing -> do
-          let request =
-                httpDownloadEntities
-                  authHTTPClient
-                  unisonShareUrl
-                  SyncV2.DownloadEntitiesRequest {repoInfo, causalHash = hashJwt, knownHashes}
-          entities <-
-            liftIO request >>= \case
-              Left err -> failed (TransportError err)
-              Right source -> do
-                conduit <- liftIO $ Servant.fromSourceIO source
-                let entityPipeline = conduit .| unpackEntities .| entityValidator .| entityInserter
-                _
-
-          tempEntities <- Cli.runTransaction (insertEntities entities)
-          liftIO (downloadedCallback 1)
-          pure (NESet.nonEmptySet tempEntities)
-
-    whenJust maybeTempEntities \tempEntities -> do
-      let doCompleteTempEntities =
-            completeTempEntities
-              authHTTPClient
-              unisonShareUrl
-              ( \action ->
-                  Codebase.withConnection codebase \conn ->
-                    action (Sqlite.runTransaction conn)
-              )
-              repoInfo
-              downloadedCallback
-              tempEntities
-      liftIO doCompleteTempEntities & onLeftM \err ->
-        failed err
-    -- Since we may have just inserted and then deleted many temp entities, we attempt to recover some disk space by
-    -- vacuuming after each pull. If the vacuum fails due to another open transaction on this connection, that's ok,
+    Cli.runTransaction (Q.entityLocation hash) >>= \case
+      Just Q.EntityInMainStorage -> pure ()
+      -- Just Q.EntityInTempStorage -> error "TODO: implement temp storage handler"
+      _ -> do
+        let request =
+              httpDownloadEntities
+                authHTTPClient
+                unisonShareUrl
+                SyncV2.DownloadEntitiesRequest {repoInfo, causalHash = hashJwt, knownHashes}
+        liftIO request >>= \case
+          Left err -> failed (TransportError err)
+          Right source -> do
+            conduit <- liftIO $ Servant.fromSourceIO source
+            let entityPipeline :: ConduitT () c (ExceptT SyncV2.PullError Cli) ()
+                entityPipeline = conduit .| unpackEntities downloadedCallback .| entityValidator .| entityInserter
+            runExceptT (Conduit.runConduit entityPipeline) >>= \case
+              Left err -> failed (SyncError err)
+              Right () -> pure ()
+    didCausalSuccessfullyImport codebase hash >>= \case
+      False -> do
+        failed (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
+      True -> pure ()
     -- we'll try vacuuming again next pull.
     _success <- liftIO (Codebase.withConnection codebase Sqlite.vacuum)
     pure (Right ())
+  where
+    -- Verify that the expected hash made it into main storage.
+    didCausalSuccessfullyImport :: Codebase.Codebase IO v a -> Hash32 -> Cli Bool
+    didCausalSuccessfullyImport codebase hash = do
+      let expectedHash = hash32ToCausalHash hash
+      isJust <$> liftIO (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
 
-entityValidator :: (MonadError Share.EntityValidationError m) => ConduitT (Hash32, (Share.Entity Text Hash32 Hash32)) (Hash32, (Share.Entity Text Hash32 Hash32)) m ()
+entityValidator :: (MonadError SyncV2.PullError m) => ConduitT (Hash32, TempEntity) (Hash32, TempEntity) m ()
 entityValidator = Conduit.iterM $ \(hash, entity) ->
   -- TODO: We can investigate batching or running this in parallel if it becomes a bottleneck.
-  case EV.validateEntity hash entity of
+  case EV.validateTempEntity hash entity of
     Nothing -> pure ()
     Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
       let expectedMismatches = case et of
@@ -173,264 +153,38 @@ entityValidator = Conduit.iterM $ \(hash, entity) ->
             Just expected
               | expected == computed -> pure ()
             _ -> do
-              throwError err
+              throwError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
     Just err -> do
-      throwError err
+      throwError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
 
-entityInserter :: (MonadIO m, MonadReader Cli.Env m) => ConduitT (Hash32, (Share.Entity Text Hash32 Hash32)) () m ()
-entityInserter = Conduit.mapM \(hash, entity) -> do
+entityInserter :: (MonadIO m, MonadReader Cli.Env m) => ConduitT (Hash32, TempEntity) o m ()
+entityInserter = Conduit.mapM_ \(hash, entity) -> do
   Cli.Env {codebase} <- ask
   liftIO . Codebase.runTransaction codebase $ upsertEntitySomewhere hash entity
-  pure hash
+  pure ()
 
-unpackEntities :: (MonadError e m) => ConduitT SyncV2.DownloadEntitiesChunk (Hash32, (Share.Entity Text Hash32 Hash32)) m ()
-unpackEntities = Conduit.mapM_ $ \case
-  SyncV2.EntityChunk {hash, entityCBOR = SyncV2.CBORBytes entityBytes} ->
-    case CBOR.deserialiseOrFail entityBytes of
+unpackEntities :: (MonadError SyncV2.PullError m, MonadIO m) => (Int -> IO ()) -> ConduitT SyncV2.DownloadEntitiesChunk (Hash32, TempEntity) m ()
+unpackEntities downloadedCallback = Conduit.mapM $ \case
+  SyncV2.EntityChunk {hash, entityCBOR = entityBytes} ->
+    case CBOR.deserialiseOrFailCBORBytes entityBytes of
       Left err -> do
-        throwError err
-      Right (_, entity) -> do
+        throwError (SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err)
+      Right entity -> do
+        liftIO (downloadedCallback 1)
         pure (hash, entity)
   SyncV2.ErrorChunk {err} -> do
-    Debug.debugLogM Debug.Sync (show err)
-    pure ()
-
--- | Validate entities received from the server unless this flag is set to false.
-validationEnvKey :: String
-validationEnvKey = "UNISON_ENTITY_VALIDATION"
-
-shouldValidateEntities :: Bool
-shouldValidateEntities = unsafePerformIO $ do
-  lookupEnv validationEnvKey <&> \case
-    Just "false" -> False
-    _ -> True
-{-# NOINLINE shouldValidateEntities #-}
-
-type WorkerCount =
-  TVar Int
-
-newWorkerCount :: IO WorkerCount
-newWorkerCount =
-  newTVarIO 0
-
-recordWorking :: WorkerCount -> STM ()
-recordWorking sem =
-  modifyTVar' sem (+ 1)
-
-recordNotWorking :: WorkerCount -> STM ()
-recordNotWorking sem =
-  modifyTVar' sem \n -> n - 1
-
--- What the dispatcher is to do
-data DispatcherJob
-  = DispatcherForkWorker (NESet Share.HashJWT)
-  | DispatcherReturnEarlyBecauseDownloaderFailed (SyncError Share.DownloadEntitiesError)
-  | DispatcherDone
-
--- | Finish downloading entities from Unison Share (or return the first failure to download something).
---
--- Precondition: the entities were *already* downloaded at some point in the past, and are now sitting in the
--- `temp_entity` table, waiting for their dependencies to arrive so they can be flushed to main storage.
-completeTempEntities ::
-  AuthenticatedHttpClient ->
-  BaseUrl ->
-  (forall a. ((forall x. Sqlite.Transaction x -> IO x) -> IO a) -> IO a) ->
-  Share.RepoInfo ->
-  (Int -> IO ()) ->
-  NESet Hash32 ->
-  IO (Either (SyncError Share.DownloadEntitiesError) ())
-completeTempEntities httpClient unisonShareUrl connect repoInfo downloadedCallback initialNewTempEntities = do
-  -- The set of hashes we still need to download
-  hashesVar <- newTVarIO Set.empty
-
-  -- The set of hashes that we haven't inserted yet, but will soon, because we've committed to downloading them.
-  uninsertedHashesVar <- newTVarIO Set.empty
-
-  -- The entities payloads (along with the jwts that we used to download them) that we've downloaded
-  entitiesQueue <- newTQueueIO
-
-  -- The sets of new (at the time of inserting, anyway) temp entity rows, which we need to elaborate, then download.
-  newTempEntitiesQueue <- newTQueueIO
-
-  -- How many workers (downloader / inserter / elaborator) are currently doing stuff.
-  workerCount <- newWorkerCount
-
-  -- The first download error seen by a downloader, if any.
-  downloaderFailedVar <- newEmptyTMVarIO
-
-  -- Kick off the cycle of inserter->elaborator->dispatcher->downloader by giving the elaborator something to do
-  atomically (writeTQueue newTempEntitiesQueue (Set.empty, Just initialNewTempEntities))
-
-  Ki.scoped \scope -> do
-    Ki.fork_ scope (inserter entitiesQueue newTempEntitiesQueue workerCount)
-    Ki.fork_ scope (elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount)
-    dispatcher hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount downloaderFailedVar
-  where
-    -- Dispatcher thread: "dequeue" from `hashesVar`, fork one-shot downloaders.
-    --
-    -- We stop when either all of the following are true:
-    --
-    --   - There are no outstanding workers (downloaders, inserter, elaboraror)
-    --   - The inserter thread doesn't have any outstanding work enqueued (in `entitiesQueue`)
-    --   - The elaborator thread doesn't have any outstanding work enqueued (in `newTempEntitiesQueue`)
-    --
-    -- Or:
-    --
-    --   - Some downloader failed to download something
-    dispatcher ::
-      TVar (Set Share.HashJWT) ->
-      TVar (Set Share.HashJWT) ->
-      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
-      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
-      WorkerCount ->
-      TMVar (SyncError Share.DownloadEntitiesError) ->
-      IO (Either (SyncError Share.DownloadEntitiesError) ())
-    dispatcher hashesVar uninsertedHashesVar entitiesQueue newTempEntitiesQueue workerCount downloaderFailedVar =
-      Ki.scoped \scope ->
-        let loop :: IO (Either (SyncError Share.DownloadEntitiesError) ())
-            loop =
-              atomically (checkIfDownloaderFailedMode <|> dispatchWorkMode <|> checkIfDoneMode) >>= \case
-                DispatcherDone -> pure (Right ())
-                DispatcherReturnEarlyBecauseDownloaderFailed err -> pure (Left err)
-                DispatcherForkWorker hashes -> do
-                  atomically do
-                    -- Limit number of simultaneous downloaders (plus 2, for inserter and elaborator)
-                    workers <- readTVar workerCount
-                    check (workers < maxSimultaneousPullDownloaders + 2)
-                    -- we do need to record the downloader as working outside of the worker thread, not inside.
-                    -- otherwise, we might erroneously fall through the teardown logic below and conclude there's
-                    -- nothing more for the dispatcher to do, when in fact a downloader thread just hasn't made it as
-                    -- far as recording its own existence
-                    recordWorking workerCount
-                  _ <-
-                    Ki.fork @() scope do
-                      downloader entitiesQueue workerCount hashes & onLeftM \err ->
-                        void (atomically (tryPutTMVar downloaderFailedVar err))
-                  loop
-         in loop
-      where
-        checkIfDownloaderFailedMode :: STM DispatcherJob
-        checkIfDownloaderFailedMode =
-          DispatcherReturnEarlyBecauseDownloaderFailed <$> readTMVar downloaderFailedVar
-
-        dispatchWorkMode :: STM DispatcherJob
-        dispatchWorkMode = do
-          hashes <- readTVar hashesVar
-          check (not (Set.null hashes))
-          let (hashes1, hashes2) = Set.splitAt syncChunkSize hashes
-          modifyTVar' uninsertedHashesVar (Set.union hashes1)
-          writeTVar hashesVar hashes2
-          pure (DispatcherForkWorker (NESet.unsafeFromSet hashes1))
-
-        -- Check to see if there are no hashes left to download, no outstanding workers, and no work in either queue
-        checkIfDoneMode :: STM DispatcherJob
-        checkIfDoneMode = do
-          workers <- readTVar workerCount
-          check (workers == 0)
-          isEmptyTQueue entitiesQueue >>= check
-          isEmptyTQueue newTempEntitiesQueue >>= check
-          pure DispatcherDone
-
-    -- Downloader thread: download entities, (if successful) enqueue to `entitiesQueue`
-    downloader ::
-      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
-      WorkerCount ->
-      NESet Share.HashJWT ->
-      IO (Either (SyncError Share.DownloadEntitiesError) ())
-    downloader entitiesQueue workerCount hashes = do
-      httpDownloadEntities httpClient unisonShareUrl Share.DownloadEntitiesRequest {repoInfo, hashes} >>= \case
-        Left err -> do
-          atomically (recordNotWorking workerCount)
-          pure (Left (TransportError err))
-        Right (Share.DownloadEntitiesFailure err) -> do
-          atomically (recordNotWorking workerCount)
-          pure (Left (SyncError err))
-        Right (Share.DownloadEntitiesSuccess entities) -> do
-          downloadedCallback (NESet.size hashes)
-          case validateEntities entities of
-            Left err -> pure . Left . SyncError . Share.DownloadEntitiesEntityValidationFailure $ err
-            Right () -> do
-              atomically do
-                writeTQueue entitiesQueue (hashes, entities)
-                recordNotWorking workerCount
-              pure (Right ())
-
-    -- Inserter thread: dequeue from `entitiesQueue`, insert entities, enqueue to `newTempEntitiesQueue`
-    inserter ::
-      TQueue (NESet Share.HashJWT, NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT)) ->
-      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
-      WorkerCount ->
-      IO Void
-    inserter entitiesQueue newTempEntitiesQueue workerCount =
-      connect \runTransaction ->
-        forever do
-          (hashJwts, entities) <-
-            atomically do
-              entities <- readTQueue entitiesQueue
-              recordWorking workerCount
-              pure entities
-          newTempEntities0 <-
-            runTransaction do
-              NEMap.toList entities & foldMapM \(hash, entity) ->
-                upsertEntitySomewhere hash entity <&> \case
-                  Q.EntityInMainStorage -> Set.empty
-                  Q.EntityInTempStorage -> Set.singleton hash
-          atomically do
-            writeTQueue newTempEntitiesQueue (NESet.toSet hashJwts, NESet.nonEmptySet newTempEntities0)
-            recordNotWorking workerCount
-
-    -- Elaborator thread: dequeue from `newTempEntitiesQueue`, elaborate, "enqueue" to `hashesVar`
-    elaborator ::
-      TVar (Set Share.HashJWT) ->
-      TVar (Set Share.HashJWT) ->
-      TQueue (Set Share.HashJWT, Maybe (NESet Hash32)) ->
-      WorkerCount ->
-      IO Void
-    elaborator hashesVar uninsertedHashesVar newTempEntitiesQueue workerCount =
-      connect \runTransaction ->
-        forever do
-          maybeNewTempEntities <-
-            atomically do
-              (hashJwts, mayNewTempEntities) <- readTQueue newTempEntitiesQueue
-              -- Avoid unnecessary retaining of these hashes to keep memory usage more stable. This algorithm would
-              -- still be correct if we never delete from `uninsertedHashes`.
-              --
-              -- We remove the inserted hashes from uninsertedHashesVar at this point rather than right after insertion
-              -- in order to ensure that no running transaction of the elaborator is viewing a snapshot that precedes
-              -- the snapshot that inserted those hashes.
-              modifyTVar' uninsertedHashesVar \uninsertedHashes -> Set.difference uninsertedHashes hashJwts
-              case mayNewTempEntities of
-                Nothing -> pure Nothing
-                Just newTempEntities -> do
-                  recordWorking workerCount
-                  pure (Just newTempEntities)
-          whenJust maybeNewTempEntities \newTempEntities -> do
-            newElaboratedHashes <- runTransaction (elaborateHashes newTempEntities)
-            atomically do
-              uninsertedHashes <- readTVar uninsertedHashesVar
-              hashes0 <- readTVar hashesVar
-              writeTVar hashesVar $! Set.union (Set.difference newElaboratedHashes uninsertedHashes) hashes0
-              recordNotWorking workerCount
-
--- | Insert entities into the database, and return the subset that went into temp storage (`temp_entitiy`) rather than
--- of main storage (`object` / `causal`) due to missing dependencies.
-insertEntities :: NEMap Hash32 (Share.Entity Text Hash32 Share.HashJWT) -> Sqlite.Transaction (Set Hash32)
-insertEntities entities =
-  NEMap.toList entities & foldMapM \(hash, entity) ->
-    upsertEntitySomewhere hash entity <&> \case
-      Q.EntityInMainStorage -> Set.empty
-      Q.EntityInTempStorage -> Set.singleton hash
+    throwError (SyncV2.PullError'DownloadEntities err)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Get causal hash by path
 
 -- | Get the causal hash of a path hosted on Unison Share.
-getCausalHashByPath ::
+getCausalHash ::
   -- | The Unison Share URL.
   BaseUrl ->
   SyncV2.BranchRef ->
-  Cli (Either (SyncError SyncV2.GetCausalHashError) (Maybe Share.HashJWT))
-getCausalHashByPath unisonShareUrl branchRef = do
+  Cli (Either (SyncError SyncV2.GetCausalHashError) Share.HashJWT)
+getCausalHash unisonShareUrl branchRef = do
   Cli.Env {authHTTPClient} <- ask
   liftIO (httpGetCausalHash authHTTPClient unisonShareUrl (SyncV2.GetCausalHashRequest branchRef)) <&> \case
     Left err -> Left (TransportError err)
@@ -464,17 +218,6 @@ _uploadEntities _unisonShareUrl _repoInfo _hashes0 _uploadedCallback = do
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
 
--- | "Elaborate" a set of `temp_entity` hashes.
---
--- For each hash, then we ought to instead download its missing dependencies (which themselves are
---    elaborated by this same procedure, in case we have any of *them* already in temp storage, too.
--- 3. If it's in main storage, we should ignore it.
---
--- In the end, we return a set of hashes that correspond to entities we actually need to download.
-elaborateHashes :: NESet Hash32 -> Sqlite.Transaction (Set Share.HashJWT)
-elaborateHashes hashes =
-  Q.elaborateHashes (NESet.toList hashes) <&> Set.fromList . coerce @[Text] @[Share.HashJWT]
-
 -- | Upsert a downloaded entity "somewhere" -
 --
 --   1. Nowhere if we already had the entity (in main or temp storage).
@@ -482,33 +225,29 @@ elaborateHashes hashes =
 --   3. In temp storage otherwise.
 upsertEntitySomewhere ::
   Hash32 ->
-  Share.Entity Text Hash32 Hash32 ->
+  TempEntity ->
   Sqlite.Transaction Q.EntityLocation
 upsertEntitySomewhere hash entity =
   Q.entityLocation hash >>= \case
     Just location -> pure location
     Nothing -> do
       missingDependencies1 :: Set Hash32 <-
-        Share.entityDependencies entity
+        Share.entityDependencies (tempEntityToEntity entity)
           & foldMapM
             ( \depHash -> do
                 Q.entityExists depHash <&> \case
                   True -> mempty
                   False -> Set.singleton depHash
             )
-      case NEMap.nonEmptyMap missingDependencies1 of
+      case NESet.nonEmptySet missingDependencies1 of
         Nothing -> do
-          _id <- Q.saveTempEntityInMain v2HashHandle hash (entityToTempEntity Share.hashJWTHash entity)
+          _id <- Q.saveTempEntityInMain v2HashHandle hash entity
           pure Q.EntityInMainStorage
         Just missingDependencies -> do
-          Q.insertTempEntity
+          Q.insertTempEntityV2
             hash
-            (entityToTempEntity Share.hashJWTHash entity)
-            ( coerce
-                @(NEMap Hash32 Share.HashJWT)
-                @(NEMap Hash32 Text)
-                missingDependencies
-            )
+            entity
+            missingDependencies
           pure Q.EntityInTempStorage
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -555,7 +294,7 @@ _httpUploadEntities ::
       hoist :: ServantStreaming.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
       hoist m = do
         clientEnv <- Reader.ask
-        liftIO (ServantStreaming.runClientM m clientEnv) >>= \case
+        (lift . lift $ ServantStreaming.withClientM m clientEnv pure) >>= \case
           Right a -> pure a
           Left err -> do
             Debug.debugLogM Debug.Sync (show err)
