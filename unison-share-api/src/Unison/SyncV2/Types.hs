@@ -13,11 +13,12 @@ module Unison.SyncV2.Types
   )
 where
 
-import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Codec.CBOR.Encoding qualified as CBOR
 import Codec.Serialise (Serialise (..))
 import Codec.Serialise qualified as CBOR
 import Codec.Serialise.Decoding qualified as CBOR
+import Control.Exception (Exception)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.ByteString.Lazy qualified as BL
 import Data.Set (Set)
 import Data.Text (Text)
@@ -183,6 +184,7 @@ data PullError
   = PullError'DownloadEntities DownloadEntitiesError
   | PullError'Sync SyncError
   deriving stock (Show)
+  deriving anyclass (Exception)
 
 data SyncError
   = SyncErrorExpectedResultNotInMain CausalHash

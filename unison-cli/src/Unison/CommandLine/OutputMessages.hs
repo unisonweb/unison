@@ -2316,6 +2316,11 @@ prettyTransportError = \case
          in if Text.null body then Nothing else Just (P.newline <> "Response body: " <> P.text body),
         responseRequestId resp <&> \responseId -> P.newline <> "Request ID: " <> P.blue (P.text responseId)
       ]
+  StreamingError err ->
+    P.lines
+      [ ( "We encountered an error while streaming data from the code server: " <> P.text err),
+        P.red (P.text err)
+      ]
   where
     -- Dig the request id out of a response header.
     responseRequestId :: Servant.Response -> Maybe Text
