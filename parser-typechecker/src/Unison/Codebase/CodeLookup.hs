@@ -8,6 +8,7 @@ import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Term (Term)
 import Unison.Term qualified as Term
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 
@@ -56,7 +57,7 @@ transitiveDependencies code seen0 rid =
           getIds = Set.mapMaybe Reference.toId
        in getTerm code rid >>= \case
             Just t ->
-              foldM (transitiveDependencies code) seen (getIds $ Term.dependencies t)
+              foldM (transitiveDependencies code) seen (getIds $ let deps = Term.dependencies t in deps.terms <> deps.types)
             Nothing ->
               getTypeDeclaration code rid >>= \case
                 Nothing -> pure seen

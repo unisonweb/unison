@@ -10,18 +10,18 @@ import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser (ParsingEnv (..))
 import Unison.Syntax.Parser qualified as Parser
 import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 
 data Mergeblob4 = Mergeblob4
-  { dependencies :: Set Reference,
+  { dependencies :: DefnsF Set TermReference TypeReference,
     file :: UnisonFile Symbol Ann
   }
 
