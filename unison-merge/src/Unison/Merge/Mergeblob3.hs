@@ -31,6 +31,7 @@ import Unison.Reference (Reference' (..), TermReferenceId, TypeReference, TypeRe
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
+import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -41,7 +42,6 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Prelude hiding (unzip)
-import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 
 data Mergeblob3 = Mergeblob3
   { libdeps :: Names,
@@ -56,11 +56,15 @@ makeMergeblob3 ::
   TwoWay Text ->
   Mergeblob3
 makeMergeblob3 blob dependents0 libdeps authors =
-  -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
-  -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
-  let dependents =
+  let conflictsNames :: TwoWay (DefnsF Set Name Name)
+      conflictsNames =
+        bimap Map.keysSet Map.keysSet <$> blob.conflicts
+
+      -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
+      -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+      dependents =
         filterDependents
-          blob.conflictsNames
+          conflictsNames
           blob.soloUpdatesAndDeletes
           ( let f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
                 f deps defn0 names
@@ -85,7 +89,7 @@ makeMergeblob3 blob dependents0 libdeps authors =
         renderConflictsAndDependents
           blob.declNameLookups
           blob.hydratedDefns
-          blob.conflictsNames
+          conflictsNames
           dependents
           (defnsToNames <$> ThreeWay.forgetLca blob.defns)
           libdeps
@@ -94,7 +98,7 @@ makeMergeblob3 blob dependents0 libdeps authors =
           stageOne =
             makeStageOne
               blob.declNameLookups
-              blob.conflictsNames
+              conflictsNames
               blob.unconflicts
               dependents
               (bimap BiMultimap.range BiMultimap.range blob.defns.lca),
@@ -204,7 +208,7 @@ renderConflictsAndDependents ::
 renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents names libdepsNames =
   unzip $
     ( \declNameLookup (conflicts, dependents) ppe ->
-         let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
+        let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
          in (render conflicts, render dependents)
     )
       <$> declNameLookups
