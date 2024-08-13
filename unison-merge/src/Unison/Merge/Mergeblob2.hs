@@ -14,7 +14,6 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Mergeblob1 (Mergeblob1 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins)
 import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -53,7 +52,6 @@ data Mergeblob2 libdep = Mergeblob2
             (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
             (TypeReferenceId, Decl Symbol Ann)
         ),
-    lcaDeclNameLookup :: PartialDeclNameLookup,
     libdeps :: Map NameSegment libdep,
     soloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
@@ -88,7 +86,6 @@ makeMergeblob2 blob = do
         -- Eh, they'd either both be null, or neither, but just check both maps anyway
         hasConflicts = not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob),
         hydratedDefns = ThreeWay.forgetLca blob.hydratedDefns,
-        lcaDeclNameLookup = blob.lcaDeclNameLookup,
         libdeps = blob.libdeps,
         soloUpdatesAndDeletes,
         unconflicts = blob.unconflicts
