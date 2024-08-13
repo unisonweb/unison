@@ -15,6 +15,7 @@ import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.These (These (..))
 import Data.Zip (unzip)
 import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup, expectConstructorNames)
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
 import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnvs)
@@ -46,6 +47,7 @@ import Prelude hiding (unzip)
 data Mergeblob3 = Mergeblob3
   { libdeps :: Names,
     stageOne :: DefnsF (Map Name) Referent TypeReference,
+    uniqueTypeGuids :: Map Name Text,
     unparsedFile :: Pretty ColorText
   }
 
@@ -102,6 +104,7 @@ makeMergeblob3 blob dependents0 libdeps authors =
               blob.unconflicts
               dependents
               (bimap BiMultimap.range BiMultimap.range blob.defns.lca),
+          uniqueTypeGuids = makeUniqueTypeGuids blob.hydratedDefns,
           unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents
         }
 
@@ -295,3 +298,46 @@ makePrettyUnisonFile authors conflicts dependents =
       bimap f f
       where
         f = map snd . List.sortOn (Name.toText . fst) . Map.toList
+
+-- Given Alice's and Bob's hydrated defns, make a mapping from unique type name to unique type GUID, preferring Alice's
+-- GUID if they both have one.
+makeUniqueTypeGuids ::
+  TwoWay
+    ( DefnsF
+        (Map Name)
+        (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+        (TypeReferenceId, Decl Symbol Ann)
+    ) ->
+  Map Name Text
+makeUniqueTypeGuids hydratedDefns =
+  let -- Start off with just Alice's GUIDs
+      aliceGuids :: Map Name Text
+      aliceGuids =
+        Map.mapMaybe (declGuid . snd) hydratedDefns.alice.types
+
+      -- Define a helper that adds a Bob GUID only if it's not already in the map (so, preferring Alice)
+      addBobGuid :: Map Name Text -> (Name, (TypeReferenceId, Decl Symbol Ann)) -> Map Name Text
+      addBobGuid acc (name, (_, bobDecl)) =
+        Map.alter
+          ( \case
+              Nothing -> bobGuid
+              Just aliceGuid -> Just aliceGuid
+          )
+          name
+          acc
+        where
+          bobGuid :: Maybe Text
+          bobGuid =
+            declGuid bobDecl
+
+      -- Tumble in all of Bob's GUIDs with that helper
+      allTheGuids :: Map Name Text
+      allTheGuids =
+        List.foldl' addBobGuid aliceGuids (Map.toList hydratedDefns.bob.types)
+   in allTheGuids
+  where
+    declGuid :: Decl v a -> Maybe Text
+    declGuid decl =
+      case (DataDeclaration.asDataDecl decl).modifier of
+        DataDeclaration.Structural -> Nothing
+        DataDeclaration.Unique guid -> Just guid
