@@ -1072,10 +1072,8 @@ data InfixParse v
 -- 2. Starting at the leftmost operator subexpression, see if the next operator
 --   has higher precedence. If so, rotate the expression to the right.
 --   e.g. in `a + b * c`, we first parse `(a + b) * c` then rotate to `a + (b * c)`.
--- 3. Perform the algorithm on the right-hand side if necessary.
---   e.g. in `a + b + c * d`, we have `(a + (b + c)) * d` and `* d` is the next
---   operator to consider. We rotate to `(a + ((b + c) * d))` in step 2.
---   Step 3 is to rotate the subexpression `(b + c) * d` to be `b + (c * d)`.
+-- 3. Perform the algorithm on the right-hand side if necessary, as `b` might be
+--   an infix expression with lower precedence than `*`.
 -- 4. Proceed to the next operator to the right in the original expression and
 --    repeat steps 2-3 until we reach the end.
 infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
