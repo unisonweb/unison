@@ -40,21 +40,23 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
+import Unison.Namer qualified as Namer
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
 import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer.Unison qualified as L
@@ -434,12 +436,12 @@ ppedForFileHelper uf tf = do
   pure $ case (uf, tf) of
     (Nothing, Nothing) -> codebasePPED
     (_, Just tf) ->
-      let fileNames = UF.typecheckedToNames tf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
+      let fileNames = Names3.allLocals (UF.typecheckedToNames tf)
+          filePPED = PPED.makePPED (Namer.makeHqNamer hashLen fileNames) (Suffixifier.suffixifyByHash fileNames)
        in filePPED `PPED.addFallback` codebasePPED
     (Just uf, _) ->
-      let fileNames = UF.toNames uf
-          filePPED = PPED.makePPED (PPE.hqNamer hashLen fileNames) (PPE.suffixifyByHash fileNames)
+      let fileNames = Names3.allLocals (UF.toNames uf)
+          filePPED = PPED.makePPED (Namer.makeHqNamer hashLen fileNames) (Suffixifier.suffixifyByHash fileNames)
        in filePPED `PPED.addFallback` codebasePPED
 
 mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> Map Symbol TypeSignatureHint

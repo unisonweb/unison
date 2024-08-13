@@ -96,9 +96,10 @@ import Unison.Codebase.Runtime qualified as Rt
 import Unison.HashQualified
 import Unison.HashQualified qualified as HQ
 import Unison.Name as Name (Name, segments)
+import Unison.Namer qualified as Namer
+import Unison.Names3 (Names3 (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -122,6 +123,7 @@ import Unison.Server.NameSearch.FromNames qualified as Names
 import Unison.Server.Types (RequiredQueryParam, TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite qualified as Sqlite
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty qualified as Pretty
@@ -633,9 +635,12 @@ contextForProjectBranch codebase projectName branchName = do
   projectRootHash <- resolveProjectRootHash codebase (ProjectAndBranch projectName branchName)
   projectRootBranch <- liftIO $ Codebase.expectBranchForHash codebase projectRootHash
   hashLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-  let names = Branch.toNames (Branch.head projectRootBranch)
-  let pped = PPED.makePPED (PPE.hqNamer hashLength names) (PPE.suffixifyByHash names)
-  let nameSearch = Names.makeNameSearch hashLength names
+  let names = Branch.toNames3 (Branch.head projectRootBranch)
+  let pped = PPED.makePPED (Namer.makeHqNamer hashLength names) (Suffixifier.suffixifyByHash names)
+  -- Mitchell: I'm not sure if combining all Names3 into one Names is actually correct here, but it does preserve the
+  -- old interface of Names.makeNameSearch that just takes a single Names, so going with it for now. Someone please
+  -- investigate whether Names.makeNameSearch should actually take a Names3!
+  let nameSearch = Names.makeNameSearch hashLength (names.local <> names.directDeps <> names.indirectDeps)
   pure (pped, nameSearch)
 
 serveProjectDiffTypesEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TypeDiffResponse

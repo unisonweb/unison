@@ -17,7 +17,9 @@ import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
 import Unison.Name qualified as Name
+import Unison.Namer qualified as Namer
 import Unison.Names qualified as Names
+import Unison.Names3 (Names3 (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -26,6 +28,7 @@ import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
@@ -145,7 +148,17 @@ synthesizeFile env0 uf = do
   let term = UF.typecheckingTerm uf
       -- substitute Blanks for any remaining free vars in UF body
       tdnrTerm = Term.prepareTDNR term
-      unisonFilePPE = PPE.makePPE (PPE.hqNamer 10 (Names.shadowing (UF.toNames uf) Builtin.names)) PPE.dontSuffixify
+      unisonFilePPE =
+        PPE.makePPE
+          ( Namer.makeHqNamer
+              10
+              Names3
+                { local = Names.shadowing (UF.toNames uf) Builtin.names,
+                  directDeps = mempty,
+                  indirectDeps = mempty
+                }
+          )
+          Suffixifier.dontSuffixify
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve unisonFilePPE env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:

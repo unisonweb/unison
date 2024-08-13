@@ -41,11 +41,12 @@ import Unison.DataDeclaration qualified as Decl
 import Unison.Merge.DeclCoherencyCheck (oldCheckDeclCoherency)
 import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
 import Unison.Name (Name)
+import Unison.Namer qualified as Namer
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -53,6 +54,7 @@ import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
@@ -309,12 +311,12 @@ makePPE hashLen names initialFileNames dependents =
   PPED.addFallback
     (PPED.makeFilePPED (initialFileNames <> Names.fromUnconflictedReferenceIds dependents))
     ( PPED.makePPED
-        (PPE.hqNamer hashLen names)
+        (Namer.makeHqNamer hashLen (Names3.temporarilyAllLocals names))
         -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
         -- ambiguous in the context of namespace + file names.
         --
         -- So, we use `unionLeftName`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
-        (PPE.suffixifyByHash (Names.unionLeftName names initialFileNames))
+        (Suffixifier.suffixifyByHash (Names3.temporarilyAllLocals (Names.unionLeftName names initialFileNames)))
     )

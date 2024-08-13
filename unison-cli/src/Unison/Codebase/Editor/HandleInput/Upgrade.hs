@@ -50,8 +50,10 @@ import Unison.Name.Forward qualified as ForwardName
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.Namer qualified as Namer
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
@@ -66,6 +68,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
@@ -170,7 +173,7 @@ handleUpgrade oldName newName = do
             (Branch.toNames oldLocalNamespace)
             (Branch.toNames newLocalNamespace)
             `PPED.addFallback` PPED.makeFilePPED (Names.fromReferenceIds dependents)
-            `PPED.addFallback` PPED.makeCodebasePPED currentDeepNamesSansOld
+            `PPED.addFallback` PPED.makeCodebasePPED (Names3.temporarilyAllLocals currentDeepNamesSansOld)
         )
 
   pp@(PP.ProjectPath project projectBranch _path) <- Cli.getCurrentProjectPath
@@ -300,12 +303,12 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
                 overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
                   uf
                     & #effectDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
               Right dd ->
                 overwriteConstructorNames name dd <&> \dd' ->
                   uf
                     & #dataDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
@@ -345,7 +348,7 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
           termToNames ref
             | inNewNamespace = []
             | hasNewLocalTermsForOldLocalNames = PPE.makeTermNames fakeLocalNames suffixifier ref
-            | onlyInOldNamespace = PPE.makeTermNames fullOldDeepNames PPE.dontSuffixify ref
+            | onlyInOldNamespace = PPE.makeTermNames fullOldDeepNames Suffixifier.dontSuffixify ref
             | otherwise = []
             where
               inNewNamespace = Relation.memberRan ref (Names.terms newLocalNames)
@@ -359,7 +362,7 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
           typeToNames ref
             | inNewNamespace = []
             | hasNewLocalTypesForOldLocalNames = PPE.makeTypeNames fakeLocalNames suffixifier ref
-            | onlyInOldNamespace = PPE.makeTypeNames fullOldDeepNames PPE.dontSuffixify ref
+            | onlyInOldNamespace = PPE.makeTypeNames fullOldDeepNames Suffixifier.dontSuffixify ref
             | otherwise = []
             where
               inNewNamespace = Relation.memberRan ref (Names.types newLocalNames)
@@ -370,13 +373,21 @@ makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames
               inOldNamespace = Relation.memberRan ref (Names.types oldDeepNames)
               inCurrentNamespaceSansOld = Relation.memberRan ref (Names.types currentDeepNamesSansOld)
    in PrettyPrintEnvDecl
-        { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixifyByHash currentDeepNamesSansOld)
+        { unsuffixifiedPPE = makePPE Suffixifier.dontSuffixify,
+          suffixifiedPPE = makePPE (Suffixifier.suffixifyByHash (Names3.temporarilyAllLocals currentDeepNamesSansOld))
         }
   where
     -- "full" means "with lib.old.* prefix"
-    fullOldDeepNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldName :| [NameSegment.libSegment])) oldDeepNames)
-    fakeLocalNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newName :| [NameSegment.libSegment])) oldLocalNames)
+    fullOldDeepNames =
+      Namer.mapNamer HQ'.NameOnly $
+        Namer.makeNamer $
+          Names3.temporarilyAllLocals
+            (Names.prefix0 (Name.fromReverseSegments (oldName :| [NameSegment.libSegment])) oldDeepNames)
+    fakeLocalNames =
+      Namer.mapNamer HQ'.NameOnly $
+        Namer.makeNamer $
+          Names3.temporarilyAllLocals
+            (Names.prefix0 (Name.fromReverseSegments (newName :| [NameSegment.libSegment])) oldLocalNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".

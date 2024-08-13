@@ -40,8 +40,11 @@ import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.Namer qualified as Namer
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.Names3 (Names3 (..))
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
 import Unison.Prelude
@@ -52,6 +55,7 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Lexer.Unison qualified as L
@@ -2005,9 +2009,15 @@ prettyResolutionFailures s allFailures =
       (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
+    -- Unfortunately here we just have a 'Names' but we really want a 'Names3' (with the local, direct deps, and
+    -- indirect deps names separated). So, for now we just make a 'Names3' where every name is "local", preserving old
+    -- behavior, but this can be improved by getting a Names3 in scope here (so we can properly render names that shadow
+    -- indirect dependency names, for example).
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names =
-      PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
+      PPE.makePPE
+        (Namer.makeHqNamer PPE.todoHashLength (Names3.allLocals names))
+        Suffixifier.dontSuffixify
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

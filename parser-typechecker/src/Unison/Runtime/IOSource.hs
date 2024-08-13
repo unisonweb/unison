@@ -32,6 +32,9 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Var qualified as Var
+import Unison.Names3 (Names3(..))
+import qualified Unison.Namer as Namer
+import qualified Unison.Suffixifier as Suffixifier
 
 debug :: Bool
 debug = False
@@ -1039,4 +1042,7 @@ showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.makePPE (PPE.hqNamer 10 Builtin.names) PPE.dontSuffixify
+ppEnv =
+  PPE.makePPE
+    (Namer.makeHqNamer 10 Names3 {local = Builtin.names, directDeps = mempty, indirectDeps = mempty})
+    Suffixifier.dontSuffixify

@@ -11,15 +11,17 @@ import Unison.LSP.Types
 import Unison.LSP.Util.Signal (Signal)
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.LSP.VFS qualified as VFS
+import Unison.Namer qualified as Namer
 import Unison.Names (Names)
+import Unison.Names3 qualified as Names3
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Sqlite qualified as Sqlite
 import UnliftIO.STM
+import qualified Unison.Suffixifier as Suffixifier
 
 -- | Watches for state changes in UCM and updates cached LSP state accordingly
 ucmWorker ::
@@ -42,7 +44,10 @@ ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar changeSignal
           let newBranch0 = Branch.head newBranch
           let newNames = Branch.toNames newBranch0
           hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
-          let pped = PPED.makePPED (PPE.hqNamer hl newNames) (PPE.suffixifyByHash newNames)
+          let pped =
+                PPED.makePPED
+                  (Namer.makeHqNamer hl (Names3.temporarilyAllLocals newNames))
+                  (Suffixifier.suffixifyByHash (Names3.temporarilyAllLocals newNames))
           atomically $ do
             writeTMVar currentPathVar newPP
             writeTMVar currentNamesVar newNames

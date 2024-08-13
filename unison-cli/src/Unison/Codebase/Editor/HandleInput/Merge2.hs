@@ -71,6 +71,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
 import Unison.Hash qualified as Hash
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Merge qualified as Merge
 import Unison.Merge.Database (MergeDatabase (..), makeMergeDatabase, referent2to1)
 import Unison.Merge.DeclNameLookup (expectConstructorNames)
@@ -83,8 +84,11 @@ import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
+import Unison.Namer qualified as Namer
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names3 (Names3 (..))
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -104,6 +108,7 @@ import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile (TypecheckedUnisonFile)
@@ -301,9 +306,12 @@ doMerge info = do
       -- Make PPE for Alice that contains all of Alice's names, but suffixified against her names + Bob's names
       let mkPpes :: Merge.TwoWay Names -> Names -> Merge.TwoWay PrettyPrintEnvDecl
           mkPpes defnsNames libdepsNames =
-            defnsNames <&> \names -> PPED.makePPED (PPE.namer (names <> libdepsNames)) suffixifier
+            defnsNames <&> \names ->
+              PPED.makePPED
+                (Namer.mapNamer HQ'.NameOnly (Namer.makeNamer (Names3.temporarilyAllLocals (names <> libdepsNames))))
+                suffixifier
             where
-              suffixifier = PPE.suffixifyByName (fold defnsNames <> libdepsNames)
+              suffixifier = Suffixifier.suffixifyByName (Names3.temporarilyAllLocals (fold defnsNames <> libdepsNames))
       let ppes = mkPpes (defnsToNames <$> defns) (Branch.toNames mergedLibdeps)
 
       hydratedThings <- do

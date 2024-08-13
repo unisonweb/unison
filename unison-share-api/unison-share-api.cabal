@@ -71,6 +71,7 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       NumericUnderscores
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       RankNTypes

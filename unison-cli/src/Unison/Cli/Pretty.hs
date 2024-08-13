@@ -95,6 +95,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment.Internal qualified as NameSegment
+import Unison.Namer qualified as Namer
+import Unison.Names3 qualified as Names3
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -108,6 +110,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.ShortHash (ShortHash)
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.Syntax.DeclPrinter (AccessorName)
@@ -435,7 +438,10 @@ prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =
     sppe = PPED.suffixifiedPPE ppe'
     pb v tm = st $ TermPrinter.prettyBinding sppe v tm
     ppe' = PPED.PrettyPrintEnvDecl dppe dppe `PPED.addFallback` ppe
-    dppe = PPE.makePPE (PPE.namer (UF.toNames uf)) PPE.dontSuffixify
+    dppe =
+      PPE.makePPE
+        (Namer.mapNamer HQ'.NameOnly (Namer.makeNamer (Names3.allLocals (UF.toNames uf))))
+        Suffixifier.dontSuffixify
     rd = Reference.DerivedId
     hqv v = HQ.unsafeFromVar v
 

@@ -16,13 +16,15 @@ import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (foldMapM)
+import Unison.Names3 (Names3(..))
+import qualified Unison.Namer as Namer
+import qualified Unison.Suffixifier as Suffixifier
 
 -- | Given a set of references, return a PPE which contains names for only those references.
 -- Names are limited to those within the provided perspective
@@ -52,7 +54,8 @@ ppedForReferences namesPerspective refs = do
   let allTermNamesToConsider = termNames <> longestTermSuffixMatches
   let allTypeNamesToConsider = typeNames <> longestTypeSuffixMatches
   let names = Names.fromTermsAndTypes allTermNamesToConsider allTypeNamesToConsider
-  pure (PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names))
+  let names3 = Names3 {local = names, directDeps = mempty, indirectDeps = mempty}
+  pure (PPED.makePPED (Namer.makeHqNamer hashLen names3) (Suffixifier.suffixifyByHash names3))
   where
     namesForReference :: Ops.NamesPerspective -> LabeledDependency -> Sqlite.Transaction ([(Name, Referent)], [(Name, Reference)])
     namesForReference namesPerspective = \case

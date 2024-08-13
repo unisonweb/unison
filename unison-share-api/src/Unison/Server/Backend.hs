@@ -139,7 +139,6 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
@@ -188,6 +187,9 @@ import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import UnliftIO qualified
 import UnliftIO.Environment qualified as Env
+import Unison.Names3 (Names3(..))
+import qualified Unison.Namer as Namer
+import qualified Unison.Suffixifier as Suffixifier
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -994,7 +996,8 @@ namesAtPathFromRootBranchHash codebase cb path = do
         lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
       else do
         Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
-  let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
+  let names3 = Names3 { local = names, directDeps = mempty, indirectDeps = mempty}
+  let pped = PPED.makePPED (Namer.makeHqNamer hashLen names3) (Suffixifier.suffixifyByHash names3)
   pure (names, pped)
 
 resolveCausalHash ::

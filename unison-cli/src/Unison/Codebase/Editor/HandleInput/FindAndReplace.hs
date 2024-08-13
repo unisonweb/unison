@@ -24,19 +24,21 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
+import Unison.Namer qualified as Namer
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names3 qualified as Names3
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Suffixifier qualified as Suffixifier
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toVar)
 import Unison.Term (Term)
@@ -102,7 +104,10 @@ lookupRewrite onErr prepare rule = do
   hqLength <- Cli.runTransaction Codebase.hashLength
   fileNames <- Cli.getNamesFromLatestFile
   let currentNames = fileNames <> Branch.toNames currentBranch
-  let ppe = PPED.makePPED (PPE.hqNamer hqLength currentNames) (PPE.suffixifyByHash currentNames)
+  let ppe =
+        PPED.makePPED
+          (Namer.makeHqNamer hqLength (Names3.temporarilyAllLocals currentNames))
+          (Suffixifier.suffixifyByHash (Names3.temporarilyAllLocals currentNames))
   ot <- Cli.getTermFromLatestParsedFile rule
   ot <- case ot of
     Just _ -> pure ot

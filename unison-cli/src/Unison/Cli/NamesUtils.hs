@@ -12,11 +12,17 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Names (Names)
+import Unison.Names3 (Names3)
 
 -- | Produce a 'Names' object which contains names for the current branch.
 currentNames :: Cli Names
 currentNames = do
   Branch.toNames <$> Cli.getCurrentBranch0
+
+-- | Produce a 'Names' object which contains names for the current branch.
+currentNames3 :: Cli Names3
+currentNames3 = do
+  Branch.toNames3 <$> Cli.getCurrentBranch0
 
 currentProjectRootNames :: Cli Names
 currentProjectRootNames = do

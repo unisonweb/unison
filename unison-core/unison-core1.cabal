@@ -40,8 +40,10 @@ library
       Unison.Name
       Unison.Name.Forward
       Unison.Name.Internal
+      Unison.Namer
       Unison.Names
       Unison.Names.ResolutionResult
+      Unison.Names3
       Unison.NamesWithHistory
       Unison.Pattern
       Unison.Position
@@ -50,6 +52,7 @@ library
       Unison.Referent
       Unison.ReferentPrime
       Unison.Settings
+      Unison.Suffixifier
       Unison.Symbol
       Unison.Term
       Unison.Type
