@@ -699,11 +699,8 @@ project/main> branch bob
 ```
 
 Bob's renames `Qux` to `BobQux`:
-```unison:hide
-unique type Foo = Baz Nat | BobQux Text
-```
-```ucm:hide
-project/bob> update
+```ucm
+project/bob> move.term Foo.Qux Foo.BobQux
 ```
 ```ucm:error
 project/alice> merge /bob

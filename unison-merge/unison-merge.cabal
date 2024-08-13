@@ -19,16 +19,22 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge.CombineDiffs
-      Unison.Merge.Database
       Unison.Merge.DeclCoherencyCheck
-      Unison.Merge.DeclNameLookup
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
       Unison.Merge.EitherWayI
+      Unison.Merge.FindConflictedAlias
       Unison.Merge.Libdeps
+      Unison.Merge.Mergeblob0
+      Unison.Merge.Mergeblob1
+      Unison.Merge.Mergeblob2
+      Unison.Merge.Mergeblob3
+      Unison.Merge.Mergeblob4
+      Unison.Merge.Mergeblob5
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
+      Unison.Merge.PrettyPrintEnv
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
@@ -68,6 +74,7 @@ library
       OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      QuantifiedConstraints
       RankNTypes
       ScopedTypeVariables
       TupleSections
@@ -101,6 +108,7 @@ library
     , unison-hash
     , unison-parser-typechecker
     , unison-prelude
+    , unison-pretty-printer
     , unison-sqlite
     , unison-syntax
     , unison-util-cache
