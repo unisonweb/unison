@@ -9,9 +9,7 @@ where
 import Conduit (ConduitT)
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader (MonadReader, ask)
-import Control.Monad.Trans.Reader (ReaderT, runReaderT)
-import Control.Monad.Trans.Reader qualified as Reader
+import Control.Monad.Reader (ask)
 import Data.Conduit ((.|))
 import Data.Conduit qualified as Conduit
 import Data.Conduit.Combinators qualified as Conduit
@@ -24,9 +22,7 @@ import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import Network.HTTP.Client qualified as Http.Client
 import Network.HTTP.Types qualified as HTTP
 import Servant.API qualified as Servant
-import Servant.Client (BaseUrl)
-import Servant.Client qualified as Servant
-import Servant.Client.Streaming qualified as ServantStreaming
+import Servant.Client.Streaming qualified as Servant
 import Servant.Conduit ()
 import Servant.Types.SourceT qualified as Servant
 import U.Codebase.Sqlite.Queries qualified as Q
@@ -46,6 +42,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Common (hash32ToCausalHash, tempEntityToEntity)
 import Unison.Sync.EntityValidation qualified as EV
 import Unison.Sync.Types qualified as Share
+import Unison.SyncV2.API (Routes (downloadEntitiesStream))
 import Unison.SyncV2.API qualified as SyncV2
 import Unison.SyncV2.Types qualified as CBOR
 import Unison.SyncV2.Types qualified as SyncV2
@@ -56,7 +53,7 @@ import Unison.Util.Monoid (foldMapM)
 
 downloadEntities ::
   -- | The Unison Share URL.
-  BaseUrl ->
+  Servant.BaseUrl ->
   -- | The branch to download from.
   SyncV2.BranchRef ->
   -- | The hash to download.
@@ -78,20 +75,24 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
       Just Q.EntityInMainStorage -> pure ()
       -- Just Q.EntityInTempStorage -> error "TODO: implement temp storage handler"
       _ -> do
-        let request =
-              httpDownloadEntities
-                authHTTPClient
-                unisonShareUrl
-                SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
-        liftIO request >>= \case
+        result <- liftIO $
+          httpDownloadEntities
+            authHTTPClient
+            unisonShareUrl
+            SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
+            \conduit -> do
+              Debug.debugLogM Debug.Temp $ "Kicking off sync request"
+              let entityPipeline :: ConduitT () c (ExceptT SyncV2.PullError IO) ()
+                  entityPipeline = Conduit.transPipe liftIO conduit .| unpackEntities downloadedCallback .| entityValidator .| entityInserter codebase
+              Debug.debugLogM Debug.Temp $ "Running conduit"
+              runExceptT (Conduit.runConduit entityPipeline)
+        -- >>= \case
+        --   Left err -> failed (SyncError err)
+        --   Right () -> pure ()
+        case result of
           Left err -> failed (TransportError err)
-          Right source -> do
-            conduit <- liftIO $ Servant.fromSourceIO source
-            let entityPipeline :: ConduitT () c (ExceptT SyncV2.PullError Cli) ()
-                entityPipeline = conduit .| unpackEntities downloadedCallback .| entityValidator .| entityInserter
-            runExceptT (Conduit.runConduit entityPipeline) >>= \case
-              Left err -> failed (SyncError err)
-              Right () -> pure ()
+          Right (Left syncErr) -> failed (SyncError syncErr)
+          Right (Right ()) -> pure ()
     didCausalSuccessfullyImport codebase hash >>= \case
       False -> do
         failed (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
@@ -107,7 +108,9 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
       isJust <$> liftIO (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
 
 entityValidator :: (MonadError SyncV2.PullError m) => ConduitT (Hash32, TempEntity) (Hash32, TempEntity) m ()
-entityValidator = Conduit.iterM $ \(hash, entity) ->
+entityValidator = Conduit.iterM $ \(hash, entity) -> do
+  Debug.debugLogM Debug.Temp $ "Validating entity"
+
   -- TODO: We can investigate batching or running this in parallel if it becomes a bottleneck.
   case EV.validateTempEntity hash entity of
     Nothing -> pure ()
@@ -125,15 +128,16 @@ entityValidator = Conduit.iterM $ \(hash, entity) ->
     Just err -> do
       throwError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
 
-entityInserter :: (MonadIO m, MonadReader Cli.Env m) => ConduitT (Hash32, TempEntity) o m ()
-entityInserter = Conduit.mapM_ \(hash, entity) -> do
-  Cli.Env {codebase} <- ask
+entityInserter :: (MonadIO m) => Codebase.Codebase IO v a -> ConduitT (Hash32, TempEntity) o m ()
+entityInserter codebase = Conduit.mapM_ \(hash, entity) -> do
+  Debug.debugLogM Debug.Temp $ "Inserting entity"
   liftIO . Codebase.runTransaction codebase $ upsertEntitySomewhere hash entity
   pure ()
 
 unpackEntities :: (MonadError SyncV2.PullError m, MonadIO m) => (Int -> IO ()) -> ConduitT SyncV2.DownloadEntitiesChunk (Hash32, TempEntity) m ()
 unpackEntities downloadedCallback = Conduit.mapM $ \case
-  SyncV2.EntityChunk {hash, entityCBOR = entityBytes} ->
+  SyncV2.EntityChunk {hash, entityCBOR = entityBytes} -> do
+    Debug.debugLogM Debug.Temp $ "Got entity chunk"
     case CBOR.deserialiseOrFailCBORBytes entityBytes of
       Left err -> do
         throwError (SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err)
@@ -141,6 +145,7 @@ unpackEntities downloadedCallback = Conduit.mapM $ \case
         liftIO (downloadedCallback 1)
         pure (hash, entity)
   SyncV2.ErrorChunk {err} -> do
+    Debug.debugLogM Debug.Temp $ "Got error chunk"
     throwError (SyncV2.PullError'DownloadEntities err)
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -181,59 +186,62 @@ upsertEntitySomewhere hash entity =
 ------------------------------------------------------------------------------------------------------------------------
 -- HTTP calls
 
-httpDownloadEntities ::
-  Auth.AuthenticatedHttpClient ->
-  BaseUrl ->
-  SyncV2.DownloadEntitiesRequest ->
-  (IO (Either CodeserverTransportError (Servant.SourceT IO SyncV2.DownloadEntitiesChunk)))
-httpDownloadEntities =
-  let SyncV2.Routes
-        { downloadEntitiesStream
-        } =
-          let pp :: Proxy ("ucm" Servant.:> "v2" Servant.:> "sync" Servant.:> SyncV2.API)
-              pp = Proxy
-           in ServantStreaming.hoistClient pp hoist (ServantStreaming.client pp)
-   in ( go downloadEntitiesStream
-      )
-  where
-    hoist :: ServantStreaming.ClientM a -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) a
-    hoist m = do
-      clientEnv <- Reader.ask
-      (lift . lift $ ServantStreaming.withClientM m clientEnv pure) >>= \case
-        Right a -> pure a
-        Left err -> do
-          Debug.debugLogM Debug.Sync (show err)
-          throwError case err of
-            Servant.FailureResponse _req resp ->
-              case HTTP.statusCode $ Servant.responseStatusCode resp of
-                401 -> Unauthenticated (Servant.baseUrl clientEnv)
-                -- The server should provide semantically relevant permission-denied messages
-                -- when possible, but this should catch any we miss.
-                403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
-                408 -> Timeout
-                429 -> RateLimitExceeded
-                504 -> Timeout
-                _ -> UnexpectedResponse resp
-            Servant.DecodeFailure msg resp -> DecodeFailure msg resp
-            Servant.UnsupportedContentType _ct resp -> UnexpectedResponse resp
-            Servant.InvalidContentTypeHeader resp -> UnexpectedResponse resp
-            Servant.ConnectionError _ -> UnreachableCodeserver (Servant.baseUrl clientEnv)
+type SyncAPI = ("ucm" Servant.:> "v2" Servant.:> "sync" Servant.:> SyncV2.API)
 
-    go ::
-      (req -> ReaderT Servant.ClientEnv (ExceptT CodeserverTransportError IO) resp) ->
-      Auth.AuthenticatedHttpClient ->
-      BaseUrl ->
-      req ->
-      IO (Either CodeserverTransportError resp)
-    go f (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req =
-      (Servant.mkClientEnv httpClient unisonShareUrl)
-        { Servant.makeClientRequest = \url request ->
-            -- Disable client-side timeouts
-            (Servant.defaultMakeClientRequest url request)
-              <&> \r ->
-                r
-                  { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
-                  }
-        }
-        & runReaderT (f req)
-        & runExceptT
+syncAPI :: Proxy SyncAPI
+syncAPI = Proxy @SyncAPI
+
+downloadEntitiesStreamClientM :: SyncV2.DownloadEntitiesRequest -> Servant.ClientM (Servant.SourceT IO SyncV2.DownloadEntitiesChunk)
+SyncV2.Routes
+  { downloadEntitiesStream = downloadEntitiesStreamClientM
+  } = Servant.client syncAPI
+
+-- | Helper for running clientM that returns a stream of entities.
+-- You MUST consume the stream within the callback, it will be closed when the callback returns.
+handleStream :: (MonadIO m) => Servant.ClientEnv -> (ConduitT () o m () -> IO r) -> Servant.ClientM (Servant.SourceT IO o) -> IO (Either Servant.ClientError r)
+handleStream clientEnv consumeStream clientM = do
+  Servant.withClientM clientM clientEnv $ \case
+    Left err -> pure $ Left err
+    Right source -> do
+      conduit <- Servant.fromSourceIO source
+      Right <$> consumeStream conduit
+
+handleClientError :: Servant.ClientEnv -> Servant.ClientError -> CodeserverTransportError
+handleClientError clientEnv err =
+  case err of
+    Servant.FailureResponse _req resp ->
+      case HTTP.statusCode $ Servant.responseStatusCode resp of
+        401 -> Unauthenticated (Servant.baseUrl clientEnv)
+        -- The server should provide semantically relevant permission-denied messages
+        -- when possible, but this should catch any we miss.
+        403 -> PermissionDenied (Text.Lazy.toStrict . Text.Lazy.decodeUtf8 $ Servant.responseBody resp)
+        408 -> Timeout
+        429 -> RateLimitExceeded
+        504 -> Timeout
+        _ -> UnexpectedResponse resp
+    Servant.DecodeFailure msg resp -> DecodeFailure msg resp
+    Servant.UnsupportedContentType _ct resp -> UnexpectedResponse resp
+    Servant.InvalidContentTypeHeader resp -> UnexpectedResponse resp
+    Servant.ConnectionError _ -> UnreachableCodeserver (Servant.baseUrl clientEnv)
+
+httpDownloadEntities ::
+  (MonadIO m) =>
+  Auth.AuthenticatedHttpClient ->
+  Servant.BaseUrl ->
+  SyncV2.DownloadEntitiesRequest ->
+  ( ConduitT () SyncV2.DownloadEntitiesChunk m () ->
+    IO r
+  ) ->
+  (IO (Either CodeserverTransportError r))
+httpDownloadEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req f = do
+  let clientEnv =
+        (Servant.mkClientEnv httpClient unisonShareUrl)
+          { Servant.makeClientRequest = \url request ->
+              -- Disable client-side timeouts
+              (Servant.defaultMakeClientRequest url request)
+                <&> \r ->
+                  r
+                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                    }
+          }
+  mapLeft (handleClientError clientEnv) <$> handleStream clientEnv f (downloadEntitiesStreamClientM req)

@@ -13,6 +13,7 @@ module Unison.SyncV2.Types
   )
 where
 
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Codec.CBOR.Encoding qualified as CBOR
 import Codec.Serialise (Serialise (..))
 import Codec.Serialise qualified as CBOR
@@ -28,7 +29,7 @@ import Unison.Share.API.Hash (HashJWT)
 import Unison.Sync.Types qualified as SyncV1
 
 newtype BranchRef = BranchRef {unBranchRef :: Text}
-  deriving (Serialise, Eq, Show, Ord) via Text
+  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON) via Text
 
 data GetCausalHashErrorTag
   = GetCausalHashNoReadPermissionTag
@@ -58,6 +59,21 @@ instance Serialise DownloadEntitiesRequest where
   encode (DownloadEntitiesRequest {causalHash, branchRef, knownHashes}) =
     encode causalHash <> encode branchRef <> encode knownHashes
   decode = DownloadEntitiesRequest <$> decode <*> decode <*> decode
+
+instance FromJSON DownloadEntitiesRequest where
+  parseJSON = withObject "DownloadEntitiesRequest" $ \o -> do
+    causalHash <- o .: "causalHash"
+    branchRef <- o .: "branchRef"
+    knownHashes <- o .: "knownHashes"
+    pure DownloadEntitiesRequest {causalHash, branchRef, knownHashes}
+
+instance ToJSON DownloadEntitiesRequest where
+  toJSON (DownloadEntitiesRequest {causalHash, branchRef, knownHashes}) =
+    object
+      [ "causalHash" .= causalHash,
+        "branchRef" .= branchRef,
+        "knownHashes" .= knownHashes
+      ]
 
 -- | Wrapper for CBOR data that has already been serialized.
 -- In our case, we use this because we may load pre-serialized CBOR directly from the database,
