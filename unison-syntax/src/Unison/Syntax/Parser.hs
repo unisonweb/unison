@@ -9,7 +9,7 @@ module Unison.Syntax.Parser
     Input (..),
     P,
     ParsingEnv (..),
-    UniqueName(..),
+    UniqueName (..),
     anyToken,
     blank,
     bytesToken,
