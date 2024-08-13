@@ -15,6 +15,7 @@ module Unison.Syntax.Parser
     bytesToken,
     chainl1,
     chainr1,
+    chainl1Accum,
     character,
     closeBlock,
     optionalCloseBlock,
@@ -443,6 +444,27 @@ chainr1 p op = go1
 -- | Parse `p` 1+ times, combining with `op`
 chainl1 :: (Ord v) => P v m a -> P v m (a -> a -> a) -> P v m a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
+
+-- chainl1Accum is like chainl1, but it accumulates intermediate results
+-- instead of applying them immediately. It's used to implement infix
+-- operators that may or may not have precedence rules.
+chainl1Accum ::
+  (P.Stream u, Ord s) =>
+  P.ParsecT s u m a ->
+  P.ParsecT s u m (a -> a -> a) ->
+  P.ParsecT s u m (a, [a -> a])
+chainl1Accum p op = do
+  x <- p
+  fs <- rest []
+  pure (x, fs)
+  where
+    rest fs =
+      ( do
+          f <- op
+          y <- p
+          rest (fs ++ [flip f y])
+      )
+        <|> return fs
 
 -- | If `p` would succeed, this fails uncommitted.
 --   Otherwise, `failIfOk` used to produce the output

@@ -1063,56 +1063,59 @@ data InfixParse v
   | InfixAnd (L.Token String) (InfixParse v) (InfixParse v)
   | InfixOr (L.Token String) (InfixParse v) (InfixParse v)
   | InfixOperand (Term v Ann)
+  deriving (Show, Eq, Ord)
 
 -- e.g. term4 + term4 - term4
 -- or term4 || term4 && term4
 infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
-infixAppOrBooleanOp =
-  applyInfixOps <$> prelimParse
+infixAppOrBooleanOp = do
+  (p, ps) <- prelimParse
+  -- traceShowM ("orig" :: String, foldl' (flip ($)) p ps)
+  let p' = reassociate (p, ps)
+  -- traceShowM ("reassoc" :: String, p')
+  return (applyInfixOps p')
   where
     -- To handle a mix of infix operators with and without precedence rules,
     -- we first parse the expression left-associated, then reassociate it
     -- according to the precedence rules.
-    prelimParse :: P v m (InfixParse v)
     prelimParse =
-      reassociate <$> chainl1 (InfixOperand <$> term4) genericInfixApp
+      chainl1Accum (InfixOperand <$> term4) genericInfixApp
     genericInfixApp =
       (InfixAnd <$> (label "and" (reserved "&&")))
         <|> (InfixOr <$> (label "or" (reserved "||")))
         <|> (uncurry InfixOp <$> parseInfix)
+    shouldRotate child parent = case (child, parent) of
+      (Just p1, Just p2) -> p1 > p2
+      _ -> False
     parseInfix = label "infixApp" do
       op <- hqInfixId <* optional semi
       resolved <- resolveHashQualified op
       pure (op, resolved)
-    reassociate x = fst $ go Nothing x
-      where
-        go parentPrec = \case
-          InfixOp op tm lhs rhs ->
-            let prec = Map.lookup (unqualified op) precedenceRules
-             in rotate prec (InfixOp op tm) lhs rhs
-          InfixOperand tm -> (InfixOperand tm, False)
-          InfixAnd op lhs rhs -> rotate (Just 4) (InfixAnd op) lhs rhs
-          InfixOr op lhs rhs -> rotate (Just 6) (InfixOr op) lhs rhs
-          where
-            rotate ::
-              Maybe Int ->
-              ( InfixParse v ->
-                InfixParse v ->
-                InfixParse v
-              ) ->
-              InfixParse v ->
-              InfixParse v ->
-              (InfixParse v, Bool)
-            rotate prec ctor lhs rhs =
-              let (lhs', shouldRotLeft) = go prec lhs
-                  shouldRotate = (((>) <$> prec <*> parentPrec) == (Just True))
-               in if shouldRotLeft
-                    then case lhs' of
-                      InfixOp lop ltm ll lr -> go prec (InfixOp lop ltm ll (ctor lr rhs))
-                      InfixAnd lop ll lr -> go prec (InfixAnd lop ll (ctor lr rhs))
-                      InfixOr lop ll lr -> go prec (InfixOr lop ll (ctor lr rhs))
-                      _ -> (ctor lhs' rhs, shouldRotate)
-                    else (ctor lhs' rhs, shouldRotate)
+    reassociate (exp, ops) =
+      foldl' checkOp exp ops
+    checkOp exp op = fixUp (op exp)
+    fixUp = \case
+      InfixOp op tm lhs rhs ->
+        rotate (unqualified op) (InfixOp op tm) lhs rhs
+      InfixAnd op lhs rhs ->
+        rotate "&&" (InfixAnd op) lhs rhs
+      InfixOr op lhs rhs ->
+        rotate "||" (InfixOr op) lhs rhs
+      x -> x
+    rotate op ctor lhs rhs =
+      case lhs of
+        InfixOp lop ltm ll lr
+          | shouldRotate (precedence (unqualified lop)) (precedence op) ->
+              InfixOp lop ltm ll (fixUp (ctor lr rhs))
+        InfixAnd lop ll lr
+          | shouldRotate (precedence "&&") (precedence op) ->
+              InfixAnd lop ll (fixUp (ctor lr rhs))
+        InfixOr lop ll lr
+          | shouldRotate (precedence "||") (precedence op) ->
+              InfixOr lop ll (fixUp (ctor lr rhs))
+        _ -> ctor lhs rhs
+    precedence op = Map.lookup op precedenceRules
+    unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
     applyInfixOps :: InfixParse v -> Term v Ann
     applyInfixOps t = case t of
       InfixOp _ tm lhs rhs ->
@@ -1126,7 +1129,6 @@ infixAppOrBooleanOp =
         let lhs' = applyInfixOps lhs
             rhs' = applyInfixOps rhs
          in Term.or (ann lhs' <> ann op <> ann rhs') lhs' rhs'
-    unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
 
 -- or = orf <$> label "or" (reserved "||")
 -- orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
