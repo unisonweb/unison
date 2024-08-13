@@ -183,7 +183,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
         annMap
           & Map.toList
           & foldMap \(name, locs) ->
-            (mapMaybe Cv.annToRange . Set.toList $ locs)
+            (mapMaybe Cv.annToLspRange . Set.toList $ locs)
               <&> \range ->
                 let msg = "There are multiple definitions of `" <> Name.toText name <> "` in your namespace; updating this definition will replace them."
                     newRangeEnd =
@@ -318,7 +318,7 @@ analyseNotes fileUri ppe src notes = do
       pure (r, [])
 
     aToR :: Ann -> [Range]
-    aToR = maybeToList . annToRange
+    aToR = maybeToList . annToLspRange
     -- >>> withNeighbours [1, 2, 3, 4]
     -- [(1,[2,3,4]),(2,[1,3,4]),(3,[1,2,4]),(4,[1,2,3])]
     withNeighbours :: [a] -> [(a, [a])]
@@ -461,7 +461,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
           & imapMaybe
             ( \v (ann, (_ann, ref, _wk, _trm, typ)) -> do
                 name <- Name.parseText (Var.name v)
-                range <- annToRange ann
+                range <- annToLspRange ann
                 let newRangeEnd =
                       range ^. LSPTypes.start
                         & LSPTypes.character +~ fromIntegral (Text.length (Name.toText name))
