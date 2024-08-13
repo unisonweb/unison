@@ -1067,6 +1067,17 @@ data InfixParse v
 
 -- e.g. term4 + term4 - term4
 -- or term4 || term4 && term4
+-- The algorithm works as follows:
+-- 1. Parse the expression left-associated
+-- 2. Starting at the leftmost operator subexpression, see if the next operator
+--   has higher precedence. If so, rotate the expression to the right.
+--   e.g. in `a + b * c`, we first parse `(a + b) * c` then rotate to `a + (b * c)`.
+-- 3. Perform the algorithm on the right-hand side if necessary.
+--   e.g. in `a + b + c * d`, we have `(a + (b + c)) * d` and `* d` is the next
+--   operator to consider. We rotate to `(a + ((b + c) * d))` in step 2.
+--   Step 3 is to rotate the subexpression `(b + c) * d` to be `b + (c * d)`.
+-- 4. Proceed to the next operator to the right in the original expression and
+--    repeat steps 2-3 until we reach the end.
 infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
 infixAppOrBooleanOp = do
   (p, ps) <- prelimParse
@@ -1129,26 +1140,6 @@ infixAppOrBooleanOp = do
         let lhs' = applyInfixOps lhs
             rhs' = applyInfixOps rhs
          in Term.or (ann lhs' <> ann op <> ann rhs') lhs' rhs'
-
--- or = orf <$> label "or" (reserved "||")
--- orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
--- and = andf <$> label "and" (reserved "&&")
--- andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
--- infixAppPrec c = infixAppNoPrec c <|> otherOp
--- infixAppNoPrec c =
---   infixAppf
---     <$> label "infixApp" (hashQualifiedInfixTermStartingWith c <* optional semi)
--- infixAppf :: Term v Ann -> Term v Ann -> Term v Ann -> Term v Ann
--- infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
-
--- chainl1 term4 (or <|> and <|> infixApp)
--- where
---   or = orf <$> label "or" (reserved "||")
---   orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
---   and = andf <$> label "and" (reserved "&&")
---   andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
---   infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
---   infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
 
 typedecl :: (Monad m, Var v) => P v m (L.Token v, Type v Ann)
 typedecl =
