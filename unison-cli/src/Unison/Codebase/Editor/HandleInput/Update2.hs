@@ -7,7 +7,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (mapped)
+import Control.Lens (mapped, (.=))
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Foldable qualified as Foldable
@@ -167,6 +167,7 @@ handleUpdate2 = do
         (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
         secondTuf
   Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
+  #latestTypecheckedFile .= Nothing
 
   Cli.respond Output.Success
 
