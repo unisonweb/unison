@@ -2863,32 +2863,22 @@ before x y =
     selectAncestorsOfY = ancestorSql y
 
 lca :: CausalHashId -> CausalHashId -> Transaction (Maybe CausalHashId)
-lca x y =
-  queryStreamCol (ancestorSql x) \nextX ->
-    queryStreamCol (ancestorSql y) \nextY -> do
-      let getNext = (,) <$> nextX <*> nextY
-          loop2 seenX seenY =
-            getNext >>= \case
-              (Just px, Just py) ->
-                let seenX' = Set.insert px seenX
-                    seenY' = Set.insert py seenY
-                 in if Set.member px seenY'
-                      then pure (Just px)
-                      else
-                        if Set.member py seenX'
-                          then pure (Just py)
-                          else loop2 seenX' seenY'
-              (Nothing, Nothing) -> pure Nothing
-              (Just px, Nothing) -> loop1 nextX seenY px
-              (Nothing, Just py) -> loop1 nextY seenX py
-          loop1 getNext matches v =
-            if Set.member v matches
-              then pure (Just v)
-              else
-                getNext >>= \case
-                  Just v -> loop1 getNext matches v
-                  Nothing -> pure Nothing
-      loop2 (Set.singleton x) (Set.singleton y)
+lca x y = do
+  queryMaybeCol
+    [sql|
+    WITH x_ancestors(id) AS (
+      $selectAncestorsOfX
+    ), y_ancestors(id) AS (
+      $selectAncestorsOfY
+    ) SELECT id FROM (
+      SELECT id FROM x_ancestors
+      INTERSECT
+      SELECT id FROM y_ancestors
+    ) LIMIT 1
+    |]
+  where
+    selectAncestorsOfX = ancestorSql x
+    selectAncestorsOfY = ancestorSql y
 
 ancestorSql :: CausalHashId -> Sql
 ancestorSql h =
