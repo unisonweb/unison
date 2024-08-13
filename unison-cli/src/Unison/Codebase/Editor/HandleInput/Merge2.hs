@@ -280,8 +280,6 @@ doMerge info = do
       mergedLibdeps <-
         Cli.runTransaction (libdepsToBranch0 (Codebase.getDeclType env.codebase) blob2.libdeps)
 
-      uniqueName <- liftIO env.generateUniqueName
-
       let hasConflicts =
             blob2.hasConflicts
 
@@ -307,7 +305,7 @@ doMerge info = do
       maybeBlob5 <-
         if hasConflicts
           then pure Nothing
-          else case Merge.makeMergeblob4 blob3 uniqueName of
+          else case Merge.makeMergeblob4 blob3 of
             Left _parseErr -> pure Nothing
             Right blob4 -> do
               typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies env.codebase blob4.dependencies)

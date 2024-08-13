@@ -14,7 +14,6 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Mergeblob1 (Mergeblob1 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins)
 import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -40,8 +39,6 @@ import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
 
 data Mergeblob2 libdep = Mergeblob2
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
-    conflictsIds :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId),
-    conflictsNames :: TwoWay (DefnsF Set Name Name),
     coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference),
     declNameLookups :: TwoWay DeclNameLookup,
     defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
@@ -53,7 +50,6 @@ data Mergeblob2 libdep = Mergeblob2
             (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
             (TypeReferenceId, Decl Symbol Ann)
         ),
-    lcaDeclNameLookup :: PartialDeclNameLookup,
     libdeps :: Map NameSegment libdep,
     soloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
@@ -71,24 +67,27 @@ makeMergeblob2 blob = do
       Left . Mergeblob2Error'ConflictedAlias . who
 
   conflicts <- narrowConflictsToNonBuiltins blob.conflicts & mapLeft Mergeblob2Error'ConflictedBuiltin
-  let conflictsIds = bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts
-  let conflictsNames = bimap Map.keysSet Map.keysSet <$> conflicts
 
-  let soloUpdatesAndDeletes = Unconflicts.soloUpdatesAndDeletes blob.unconflicts
-  let coreDependencies = identifyCoreDependencies (ThreeWay.forgetLca blob.defns) conflictsIds soloUpdatesAndDeletes
+  let soloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name)
+      soloUpdatesAndDeletes =
+        Unconflicts.soloUpdatesAndDeletes blob.unconflicts
+
+  let coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference)
+      coreDependencies =
+        identifyCoreDependencies
+          (ThreeWay.forgetLca blob.defns)
+          (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
+          soloUpdatesAndDeletes
 
   pure
     Mergeblob2
       { conflicts,
-        conflictsIds,
-        conflictsNames,
         coreDependencies,
         declNameLookups = blob.declNameLookups,
         defns = blob.defns,
         -- Eh, they'd either both be null, or neither, but just check both maps anyway
         hasConflicts = not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob),
         hydratedDefns = ThreeWay.forgetLca blob.hydratedDefns,
-        lcaDeclNameLookup = blob.lcaDeclNameLookup,
         libdeps = blob.libdeps,
         soloUpdatesAndDeletes,
         unconflicts = blob.unconflicts
