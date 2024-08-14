@@ -886,7 +886,10 @@
         (list->chunked-list (map reference->termlink rdeps))]
 
        [else
-        (define sdefs (flatten (map gen-code udefs)))
+        (define-values
+          (lndefs lndecs codefs codecls dfns)
+          (gen-codes udefs))
+        (define sdefs (append lndefs (append* dfns) lndecs))
         (define mname (or mname0 (generate-module-name tmlinks)))
         (define reqs (extra-requires htylinks hdeps))
 
