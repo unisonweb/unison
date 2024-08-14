@@ -108,6 +108,7 @@
   referent->termlink
   typelink->reference
   termlink->referent
+  termlink->reference
 
   unison-tuple->list
   list->unison-tuple
@@ -693,6 +694,16 @@
          (ref-id-id rf i)))]
     [(unison-termlink-con tyl i)
      (ref-referent-con (typelink->reference tyl) i)]))
+
+(define (termlink->reference rn)
+  (match rn
+    [(unison-termlink-builtin name)
+     (ref-reference-builtin
+       (string->chunked-string name))]
+    [(unison-termlink-derived bs i)
+     (ref-reference-derived (ref-id-id bs i))]
+    [else (raise "termlink->reference: con case")]))
+
 
 (define (unison-seq . l)
   (vector->chunked-list (list->vector l)))

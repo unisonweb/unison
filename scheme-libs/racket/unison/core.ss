@@ -281,6 +281,22 @@
           (compare-num i j))]
        [(? unison-typelink-builtin?) '>])]))
 
+(define (compare-groupref lr rr)
+  (match lr
+    [(unison-groupref-builtin lname)
+     (match rr
+       [(unison-groupref-builtin rname)
+        (compare-string lname rname)]
+       [else '<])]
+    [(unison-groupref-derived lh li ll)
+     (match rr
+       [(unison-groupref-derived rh ri rl)
+        (comparisons
+          (compare-bytes lh rh)
+          (compare-num li ri)
+          (compare-num ll rl))]
+       [else '>])]))
+
 (define (compare-termlink ll rl)
   (match ll
     [(unison-termlink-builtin lnm)
@@ -349,15 +365,15 @@
     (define clo (build-closure v))
 
     (values
-      (lookup-function-link (unison-closure-code clo))
+      (unison-closure-ref clo)
       (unison-closure-env clo)))
 
-  (define-values (lnl envl) (unpack l))
+  (define-values (grl envl) (unpack l))
 
-  (define-values (lnr envr) (unpack r))
+  (define-values (grr envr) (unpack r))
 
   (comparisons
-    (compare-termlink lnl lnr)
+    (compare-groupref grl grr)
     (lexico-compare envl envr cmp-ty)))
 
 (define (compare-timespec l r)
@@ -382,7 +398,7 @@
      (chunked-bytes-compare/recur l r compare-byte)]
     [(and (unison-data? l) (unison-data? r)) (compare-data l r cmp-ty)]
     [(and (bytes? r) (bytes? r)) (compare-bytes l r)]
-    [(and (u-proc? l) (u-proc? r)) (compare-proc l r)]
+    [(and (u-proc? l) (u-proc? r)) (compare-proc l r cmp-ty)]
     [(and (unison-termlink? l) (unison-termlink? r))
      (compare-termlink l r)]
     [(and (unison-typelink? l) (unison-typelink? r))

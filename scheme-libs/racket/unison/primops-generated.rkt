@@ -123,6 +123,22 @@
       (raise
         (format "decode-binding: unimplemented case: ~a" bn))]))
 
+; This decodes the internal unison SchemeIntermed structure for
+; representing generated declarations of intermediate code. The
+; structure is just a pair of a name and a SchemeTerm representing
+; the code.
+(define (decode-intermediate im)
+  (match im
+    [(unison-data _ t (list name tm))
+     #:when (= t ref-schemeintermed-interdef:tag)
+     `(define ,(text->ident name #:suffix ":code")
+        ,(decode-term tm))]
+    [else
+     (raise-argument-error
+       'decode-intermediate
+       "scheme-intermediate"
+       im)]))
+
 (define (decode-hints hs)
   (define (hint->sym t)
     (cond
@@ -177,7 +193,7 @@
   (let* ([st (chunked-string->string tx)])
     (string->symbol (string-append st ":typelink"))))
 
-(define (text->ident tx)
+(define (text->ident tx #:suffix [suffix ""])
   (let* ([st (chunked-string->string tx)]
          [n (string->number st)]
          [c (string->char st)])
@@ -186,7 +202,7 @@
       [(equal? st "#t") #t]
       [c c]
       [n n]
-      [else (string->symbol st)])))
+      [else (string->symbol (string-append st suffix))])))
 
 (define (decode-ref rf)
   (match rf
@@ -260,15 +276,6 @@
     [(unison-termlink-con r i)
      (raise (string-append
               "termlink-bytes: called with constructor link"))]))
-
-(define (termlink->reference rn)
-  (match rn
-    [(unison-termlink-builtin name)
-     (ref-reference-builtin
-       (string->chunked-string name))]
-    [(unison-termlink-derived bs i)
-     (ref-reference-derived (ref-id-id bs i))]
-    [else (raise "termlink->reference: con case")]))
 
 (define (group-reference gr)
   (data-case gr
@@ -622,21 +629,43 @@
     (chunked-list->list
       (gen-typelink-defns links))))
 
+(define (gen-code-decl r)
+  (define linkstr (chunked-string->string (ref-typelink-name r)))
+  (define name:link
+    (string->symbol (string-replace linkstr "typelink" "termlink")))
+  (define name:code
+    (string->symbol (string-replace linkstr "typelink" "code")))
+
+  `(declare-code ,name:link (unison-code ,name:code)))
+
+; Given a termlink, code pair, generates associated definition
+; and declaration code. Returns multiple results.
 (define (gen-code args)
-  (let-values ([(tl co) (splat-upair args)])
-    (match tl
-      [(unison-termlink-con r t)
-       (raise "CACH: trying to add code for data constructor")]
-      [(unison-termlink-builtin name)
-       (raise "CACH: trying to add code for a builtin")]
-      [(unison-termlink-derived bs i)
-       (let* ([sg (unison-code-rep co)]
-              [r (reflect-derived bs i)]
-              [ds (cons
-                    (gen-link-def r)
-                    (chunked-list->list (gen-scheme r sg)))]
-              [dc (decode-term (gen-link-decl r))])
-         (append (map decode-syntax ds) (list dc)))])))
+  (define-values (tl co) (splat-upair args))
+
+  (match tl
+    [(unison-termlink-con r t)
+     (raise "CACH: trying to add code for data constructor")]
+    [(unison-termlink-builtin name)
+     (raise "CACH: trying to add code for a builtin")]
+    [(unison-termlink-derived bs i)
+     (let* ([sg (unison-code-rep co)]
+            [r (reflect-derived bs i)]
+            [ln (decode-syntax (gen-link-def r))]
+            [ds (chunked-list->list (gen-scheme r sg))]
+            [dc (decode-term (gen-link-decl r))]
+            [co (decode-intermediate (gen-code-value r sg))]
+            [cd (gen-code-decl r)])
+       (values ln dc co cd (map decode-syntax ds)))]))
+
+; Given a list of termlink, code pairs, returns multiple lists
+; of definitions and declarations. The lists are returned as
+; multiple results, each one containing a particular type of
+; definition.
+(define (gen-codes defs)
+  (for/lists (lndefs lndecs codefs codecls dfns)
+             ([p defs])
+      (gen-code p)))
 
 (define (flatten ls)
   (cond
@@ -735,31 +764,49 @@
 ; generates a scheme module that contains the corresponding
 ; definitions.
 (define (build-intermediate-module #:profile [profile? #f] primary dfns0)
-  (let* ([udefs (chunked-list->list dfns0)]
-         [pname (termlink->name primary)]
-         [tmlinks (map ufst udefs)]
-         [codes (map usnd udefs)]
-         [tylinks (typelink-deps codes)]
-         [sdefs (flatten (map gen-code udefs))])
-    `((require unison/boot
-               unison/data-info
-               unison/primops
-               unison/primops-generated
-               unison/builtin-generated
-               unison/simple-wrappers
-               unison/compound-wrappers
-               ,@(if profile? '(profile profile/render-text) '()))
+  (define udefs (chunked-list->list dfns0))
+  (define pname (termlink->name primary))
+  (define tmlinks (map ufst udefs))
+  (define codes (map usnd udefs))
+  (define tylinks (typelink-deps codes))
 
-      ,@(typelink-defns-code tylinks)
+  (define-values
+    (lndefs lndecs codefs codecls dfns)
+    (gen-codes udefs))
 
-      ,@sdefs
+  `((require unison/boot
+             unison/data
+             unison/data-info
+             unison/primops
+             unison/primops-generated
+             unison/builtin-generated
+             unison/simple-wrappers
+             unison/compound-wrappers
+             ,@(if profile? '(profile profile/render-text) '()))
 
-      ,(if profile?
-         `(profile
-            (handle [ref-exception] top-exn-handler (,pname #f))
-            #:threads #t
-            #:periodic-renderer (list 60.0 render))
-         `(handle [ref-exception] top-exn-handler (,pname #f))))))
+    ,@(typelink-defns-code tylinks)
+
+    ; termlink definitions
+    ,@lndefs
+
+    ; procedure definitions
+    ,@(flatten dfns)
+
+    ; code definitions
+    ,@codefs
+
+    ; code declarations
+    ,@codecls
+
+    ; termlink registrations
+    ,@lndecs
+
+    ,(if profile?
+       `(profile
+          (handle [ref-exception] top-exn-handler (,pname #f))
+          #:threads #t
+          #:periodic-renderer (list 60.0 render))
+       `(handle [ref-exception] top-exn-handler (,pname #f)))))
 
 (define (extra-requires tyrefs tmrefs)
   (define tmreqs
