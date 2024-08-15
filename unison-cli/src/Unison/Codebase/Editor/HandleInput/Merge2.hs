@@ -38,6 +38,7 @@ import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), Merge
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.UpdateUtils
   ( getNamespaceDependentsOf3,
@@ -72,8 +73,10 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
@@ -228,6 +231,16 @@ doMerge info = do
         Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))
           & onLeftM (done . Output.ConflictedDefn "merge")
 
+      names3 :: Merge.ThreeWay Names <- do
+        let causalHashes = Merge.TwoOrThreeWay {alice = info.alice.causalHash, bob = info.bob.causalHash, lca = info.lca.causalHash}
+        branches <- for causalHashes \ch -> do
+          liftIO (Codebase.getBranchForHash env.codebase ch) >>= \case
+            Nothing -> done (Output.CouldntLoadBranch ch)
+            Just b -> pure b
+        let names = fmap (Branch.toNames . Branch.head) branches
+        pure Merge.ThreeWay {alice = names.alice, bob = names.bob, lca = fromMaybe mempty names.lca}
+      ppeds3 :: Merge.ThreeWay PPED.PrettyPrintEnvDecl <- for names3 Cli.prettyPrintEnvDeclFromNames
+
       libdeps3 <- Cli.runTransaction (loadLibdeps branches)
 
       let blob0 = Merge.makeMergeblob0 nametrees3 libdeps3
@@ -252,7 +265,7 @@ doMerge info = do
             )
 
       blob1 <-
-        Merge.makeMergeblob1 blob0 hydratedDefns & onLeft \case
+        Merge.makeMergeblob1 blob0 ppeds3 hydratedDefns & onLeft \case
           Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
           Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
