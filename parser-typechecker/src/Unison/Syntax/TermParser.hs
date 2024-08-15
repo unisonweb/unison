@@ -20,7 +20,6 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
@@ -55,6 +54,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
+import Unison.Syntax.Precedence (precedence)
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -76,25 +76,6 @@ identifiers that may contain operator characters (like empty? or fold-left).
 
 Sections / partial application of infix operators is not implemented.
 -}
-
--- Precedence rules for infix operators.
--- Lower number means higher precedence (tighter binding).
--- Operators not in this list have no precedence and will simply be parsed
--- left-to-right.
-precedenceRules :: Map Text Int
-precedenceRules =
-  Map.fromList $
-    zip
-      [ ["*", "/", "%"],
-        ["+", "-"],
-        ["<", ">", ">=", "<="],
-        ["==", "!==", "!=", "==="],
-        ["&&", "&"],
-        ["^", "^^"],
-        ["||", "|"]
-      ]
-      [0 ..]
-      >>= \(ops, prec) -> map (,prec) ops
 
 type TermP v m = P v m (Term v Ann)
 
@@ -1123,7 +1104,6 @@ infixAppOrBooleanOp = do
           | shouldRotate (precedence "||") (precedence op) ->
               InfixOr lop ll (fixUp (ctor lr rhs))
         _ -> ctor lhs rhs
-    precedence op = Map.lookup op precedenceRules
     unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
     applyInfixOps :: InfixParse v -> Term v Ann
     applyInfixOps t = case t of

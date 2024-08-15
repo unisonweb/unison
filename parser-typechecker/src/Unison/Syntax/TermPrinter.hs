@@ -55,6 +55,7 @@ import Unison.Syntax.Lexer.Unison (showEscapeChar)
 import Unison.Syntax.Name qualified as Name (isSymboly, parseText, parseTextEither, toText, unsafeParseText)
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
+import Unison.Syntax.Precedence qualified as Precedence
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
@@ -416,6 +417,13 @@ pretty0
                   Ref' r -> isSymbolic $ PrettyPrintEnv.termName n (Referent.Ref r)
                   Var' v -> isSymbolic $ HQ.unsafeFromVar v
                   _ -> False
+                termPrecedence :: Term3 v PrintAnnotation -> Maybe Int
+                termPrecedence = \case
+                  Ref' r ->
+                    HQ.toName (PrettyPrintEnv.termName n (Referent.Ref r))
+                      >>= Precedence.precedence . NameSegment.toEscapedText . Name.lastSegment
+                  Var' v -> HQ.toName (HQ.unsafeFromVar v) >>= Precedence.precedence . NameSegment.toEscapedText . Name.lastSegment
+                  _ -> Nothing
             case (term, binaryOpsPred) of
               (DD.Doc, _)
                 | doc == MaybeDoc ->
@@ -460,10 +468,31 @@ pretty0
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
                 pure $ PP.group $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
-              BinaryAppsPred' apps lastArg -> do
-                prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
-                prettyApps <- binaryApps apps prettyLast
-                pure $ paren (p >= 3) prettyApps
+              BinaryAppPred' f a b -> do
+                let prec = fmap ((-) 9) $ termPrecedence f
+                prettyF <- pretty0 (AmbientContext 10 Normal Infix im doc False) f
+                prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
+                prettyB <- pretty0 (ac (fromMaybe (length Precedence.levels + 3) prec) Normal im doc) b
+                pure . paren (p > fromMaybe 3 prec) $
+                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+              (And' a b, _) -> do
+                let prec = fmap ((-) 9) $ Precedence.precedence "&&"
+                    prettyF = fmt S.ControlKeyword "&&"
+                prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
+                prettyB <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) b
+                pure . paren (maybe False (p >) prec) $
+                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+              (Or' a b, _) -> do
+                let prec = fmap ((-) 9) $ Precedence.precedence "||"
+                    prettyF = fmt S.ControlKeyword "||"
+                prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
+                prettyB <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) b
+                pure . paren (maybe False (p >) prec) $
+                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+              -- BinaryAppsPred' apps lastArg -> do
+              --   prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
+              --   prettyApps <- binaryApps apps prettyLast
+              --   pure $ paren (p >= 3) prettyApps
               -- Note that && and || are at the same precedence, which can cause
               -- confusion, so for clarity we do not want to elide the parentheses in a
               -- case like `(x || y) && z`.
@@ -499,14 +528,14 @@ pretty0
                     let softTab = PP.softbreak <> ("" `PP.orElse` "  ")
                     pure . paren (p >= 3) $
                       PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
-              (Ands' xs lastArg, _) ->
-                paren (p >= 10) <$> do
-                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
-                  booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
-              (Ors' xs lastArg, _) ->
-                paren (p >= 10) <$> do
-                  lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
-                  booleanOps (fmt S.ControlKeyword "||") xs lastArg'
+              -- (Ands' xs lastArg, _) ->
+              --   paren (p >= 10) <$> do
+              --     lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
+              --     booleanOps (fmt S.ControlKeyword "&&") xs lastArg'
+              -- (Ors' xs lastArg, _) ->
+              --   paren (p >= 10) <$> do
+              --     lastArg' <- pretty0 (ac 10 Normal im doc) lastArg
+              --     booleanOps (fmt S.ControlKeyword "||") xs lastArg'
               _other -> case (term, nonForcePred) of
                 OverappliedBinaryAppPred' f a b r
                   | binaryOpsPred f ->
@@ -600,30 +629,30 @@ pretty0
                 pretty0 (AmbientContext 10 Normal Infix im doc False) f
               ]
 
-      -- Render sequence of infix &&s or ||s, like [x2, x1],
-      -- meaning (x1 && x2) && (x3 rendered by the caller), producing
-      -- "x1 && x2 &&". The result is built from the right.
-      booleanOps ::
-        Pretty SyntaxText ->
-        [Term3 v PrintAnnotation] ->
-        Pretty SyntaxText ->
-        m (Pretty SyntaxText)
-      booleanOps op xs last = do
-        ps <- join <$> traverse r (reverse xs)
-        let unbroken = PP.spaced (ps <> [last])
-            broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
-        pure (unbroken `PP.orElse` broken)
-        where
-          psCols ps = case take 2 ps of
-            [x, y] -> (x, y) : psCols (drop 2 ps)
-            [x] -> [(x, "")]
-            [] -> []
-            _ -> undefined
-          r a =
-            sequence
-              [ pretty0 (ac (if isBlock a then 12 else 10) Normal im doc) a,
-                pure op
-              ]
+-- -- Render sequence of infix &&s or ||s, like [x2, x1],
+-- -- meaning (x1 && x2) && (x3 rendered by the caller), producing
+-- -- "x1 && x2 &&". The result is built from the right.
+-- booleanOps ::
+--   Pretty SyntaxText ->
+--   [Term3 v PrintAnnotation] ->
+--   Pretty SyntaxText ->
+--   m (Pretty SyntaxText)
+-- booleanOps op xs last = do
+--   ps <- join <$> traverse r (reverse xs)
+--   let unbroken = PP.spaced (ps <> [last])
+--       broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
+--   pure (unbroken `PP.orElse` broken)
+--   where
+--     psCols ps = case take 2 ps of
+--       [x, y] -> (x, y) : psCols (drop 2 ps)
+--       [x] -> [(x, "")]
+--       [] -> []
+--       _ -> undefined
+--     r a =
+--       sequence
+--         [ pretty0 (ac (if isBlock a then 12 else 10) Normal im doc) a,
+--           pure op
+--         ]
 
 prettyPattern ::
   forall v loc.
