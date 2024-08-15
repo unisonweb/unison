@@ -688,7 +688,7 @@ saveObject ::
   ObjectType ->
   ByteString ->
   Transaction ObjectId
-saveObject hh h t blob = do
+saveObject _hh h t blob = do
   execute
     [sql|
       INSERT INTO object (primary_hash_id, type_id, bytes)
@@ -699,9 +699,9 @@ saveObject hh h t blob = do
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   rowsModified >>= \case
     0 -> pure ()
-    _ -> do
-      hash <- expectHash32 h
-      tryMoveTempEntityDependents hh hash
+    _ -> pure ()
+      -- hash <- expectHash32 h
+      -- tryMoveTempEntityDependents hh hash
   pure oId
 
 expectObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
@@ -959,7 +959,7 @@ saveCausal ::
   BranchHashId ->
   [CausalHashId] ->
   Transaction ()
-saveCausal hh self value parents = do
+saveCausal _hh self value parents = do
   execute
     [sql|
       INSERT INTO causal (self_hash_id, value_hash_id)
@@ -975,15 +975,15 @@ saveCausal hh self value parents = do
             INSERT INTO causal_parent (causal_id, parent_id)
             VALUES (:self, :parent)
           |]
-      flushCausalDependents hh self
+      -- flushCausalDependents hh self
 
-flushCausalDependents ::
+_flushCausalDependents ::
   HashHandle ->
   CausalHashId ->
   Transaction ()
-flushCausalDependents hh chId = do
+_flushCausalDependents hh chId = do
   hash <- expectHash32 (unCausalHashId chId)
-  tryMoveTempEntityDependents hh hash
+  _tryMoveTempEntityDependents hh hash
 
 -- | `tryMoveTempEntityDependents #foo` does this:
 --    0. Precondition: We just inserted object #foo.
@@ -991,11 +991,11 @@ flushCausalDependents hh chId = do
 --    2. Delete #foo as dependency from temp_entity_missing_dependency. e.g. (#bar, #foo), (#baz, #foo)
 --    3. For each like #bar and #baz with no more rows in temp_entity_missing_dependency,
 --        insert_entity them.
-tryMoveTempEntityDependents ::
+_tryMoveTempEntityDependents ::
   HashHandle ->
   Hash32 ->
   Transaction ()
-tryMoveTempEntityDependents hh dependency = do
+_tryMoveTempEntityDependents hh dependency = do
   dependents <-
     queryListCol
       [sql|
