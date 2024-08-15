@@ -1,14 +1,17 @@
 module Unison.Merge.Mergeblob1
   ( Mergeblob1 (..),
+    hydratedDefnDependencies,
     makeMergeblob1,
   )
 where
 
+import Control.Lens
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup)
+import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
 import Unison.Merge.Diff (nameBasedNamespaceDiff)
@@ -27,11 +30,14 @@ import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
 
@@ -54,10 +60,25 @@ data Mergeblob1 libdep = Mergeblob1
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
+hydratedDefnDependencies ::
+  ThreeWay
+    ( DefnsF
+        (Map Name)
+        (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+        (TypeReferenceId, Decl Symbol Ann)
+    ) ->
+  ThreeWay (Set LD.LabeledDependency)
+hydratedDefnDependencies hydratedDefns =
+  hydratedDefns
+    <&> \Defns {terms, types} ->
+      (terms & foldOf (folded . _2 . beside (to Term.labeledDependencies) (to Type.labeledDependencies)))
+        <> (types & foldOf (folded . _2 . to DataDeclaration.labeledDeclTypeDependencies))
+
 makeMergeblob1 ::
   forall libdep.
   (Eq libdep) =>
   Mergeblob0 libdep ->
+  ThreeWay PPED.PrettyPrintEnvDecl {- Pretty print env containing names for everything in 'hydratedDefnDependencies' -} ->
   ThreeWay
     ( DefnsF
         (Map Name)
@@ -65,7 +86,7 @@ makeMergeblob1 ::
         (TypeReferenceId, Decl Symbol Ann)
     ) ->
   Either (EitherWay IncoherentDeclReason) (Mergeblob1 libdep)
-makeMergeblob1 blob hydratedDefns = do
+makeMergeblob1 blob ppeds hydratedDefns = do
   -- Make one big constructor count lookup for all type decls
   let numConstructors =
         Map.empty
@@ -97,6 +118,7 @@ makeMergeblob1 blob hydratedDefns = do
         nameBasedNamespaceDiff
           declNameLookups
           lcaDeclNameLookup
+          ppeds
           blob.defns
           Defns
             { terms =
