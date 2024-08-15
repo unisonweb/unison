@@ -74,6 +74,7 @@ dependencies:
   - servant-conduit
   - shellmet
   - stm
+  - stm-chans
   - template-haskell
   - temporary
   - text

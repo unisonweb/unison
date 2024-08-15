@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Unison.Share.SyncV2
   ( downloadEntities,
@@ -9,6 +10,7 @@ where
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
+import Data.Graph qualified as Graph
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
@@ -46,6 +48,7 @@ import Unison.SyncV2.Types (CBORBytes)
 import Unison.SyncV2.Types qualified as CBOR
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Timing qualified as Timing
 import UnliftIO qualified
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -76,17 +79,21 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
       -- Just Q.EntityInTempStorage -> error "TODO: implement temp storage handler"
       _ -> do
         Debug.debugLogM Debug.Temp $ "Kicking off sync request"
-        result <- liftIO . UnliftIO.handle @_ @SyncV2.PullError (pure . Left . SyncError) . fmap (mapLeft TransportError) $ do
-          httpDownloadEntities
-            authHTTPClient
-            unisonShareUrl
-            SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
-            \chunk -> do
-              liftIO (downloadedCallback 1)
-              throwExceptT $ handleChunk codebase downloadedCallback chunk
-        case result of
-          Left err -> failed err
-          Right () -> pure ()
+        results <- Timing.time "Entity Download" $ do
+          liftIO . UnliftIO.handle @_ @SyncV2.PullError (pure . Left . SyncError) . fmap (mapLeft TransportError) $ do
+            httpDownloadEntitiesAsList
+              authHTTPClient
+              unisonShareUrl
+              SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
+        allResults <- either failed pure results
+        liftIO $ downloadedCallback (length allResults)
+        allEntities <- Timing.time "Unpacking chunks" $ do (unpackChunks codebase (failed . SyncError) allResults)
+        sortedEntities <- Timing.time "Sorting Entities" $ UnliftIO.evaluate $ topSortEntities allEntities
+        Timing.time "Inserting entities" $ for_ sortedEntities \(hash, entity) -> do
+          r <- liftIO $ Codebase.runTransaction codebase $ Right <$> insertEntity hash entity
+          void $ either (failed . SyncError) pure r
+        pure ()
+
     didCausalSuccessfullyImport codebase hash >>= \case
       False -> do
         failed (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
@@ -100,28 +107,52 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
     didCausalSuccessfullyImport codebase hash = do
       let expectedHash = hash32ToCausalHash hash
       isJust <$> liftIO (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
+    unpackChunks :: Codebase.Codebase IO v a -> (forall x. SyncV2.PullError -> Cli x) -> [SyncV2.DownloadEntitiesChunk] -> Cli [(Hash32, TempEntity)]
+    unpackChunks codebase _handleErr xs = do
+      xs
+        & ( UnliftIO.pooledMapConcurrently \case
+              SyncV2.ErrorChunk {err} -> do
+                Debug.debugLogM Debug.Temp $ "Got error chunk"
+                error $ show err
+              SyncV2.EntityChunk {hash, entityCBOR = entityBytes} -> do
+                -- Only want entities we don't already have in main
+                (Codebase.runTransaction codebase (Q.entityLocation hash)) >>= \case
+                  Just Q.EntityInMainStorage -> pure Nothing
+                  _ -> do
+                    tempEntity <- case CBOR.deserialiseOrFailCBORBytes entityBytes of
+                      Left err -> error . show $ (SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err)
+                      Right entity -> pure entity
+                    pure $ Just (hash, tempEntity)
+          )
+        & liftIO
+        <&> catMaybes
 
-handleChunk :: forall m v a. (MonadError SyncV2.PullError m, MonadIO m) => Codebase.Codebase IO v a -> (Int -> IO ()) -> SyncV2.DownloadEntitiesChunk -> m ()
-handleChunk codebase downloadedCallback = \case
+topSortEntities :: [(Hash32, TempEntity)] -> [(Hash32, TempEntity)]
+topSortEntities entities = do
+  let adjList = entities <&> \(hash32, entity) -> ((hash32, entity), hash32, Set.toList $ Share.entityDependencies (tempEntityToEntity entity))
+      (graph, vertexInfo, _vertexForKey) = Graph.graphFromEdges adjList
+   in Graph.reverseTopSort graph <&> \v -> (view _1 $ vertexInfo v)
+
+handleChunk :: (forall x. SyncV2.PullError -> Sqlite.Transaction x) -> SyncV2.DownloadEntitiesChunk -> Sqlite.Transaction ()
+handleChunk rollback = \case
   SyncV2.ErrorChunk {err} -> do
     Debug.debugLogM Debug.Temp $ "Got error chunk"
-    throwError (SyncV2.PullError'DownloadEntities err)
+    rollback $ SyncV2.PullError'DownloadEntities err
   SyncV2.EntityChunk {hash, entityCBOR = entityBytes} -> do
-    liftIO (downloadedCallback 1)
     -- Only want entities we don't already have
-    liftIO (Codebase.runTransaction codebase (Q.entityLocation hash)) >>= \case
+    Q.entityLocation hash >>= \case
       Just {} -> pure ()
       Nothing -> do
         tempEntity <- unpackEntity entityBytes
         validateEntity hash tempEntity
         insertEntity hash tempEntity
   where
-    unpackEntity :: (CBORBytes TempEntity) -> m TempEntity
+    unpackEntity :: (CBORBytes TempEntity) -> Sqlite.Transaction TempEntity
     unpackEntity entityBytes = do
       case CBOR.deserialiseOrFailCBORBytes entityBytes of
-        Left err -> do throwError (SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err)
+        Left err -> do rollback (SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err)
         Right entity -> pure entity
-    validateEntity :: Hash32 -> TempEntity -> m ()
+    validateEntity :: Hash32 -> TempEntity -> Sqlite.Transaction ()
     validateEntity hash entity = do
       Debug.debugLogM Debug.Temp $ "Validating entity"
       -- TODO: We can investigate batching or running this in parallel if it becomes a bottleneck.
@@ -137,15 +168,15 @@ handleChunk codebase downloadedCallback = \case
                 Just expected
                   | expected == computed -> pure ()
                 _ -> do
-                  throwError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
+                  rollback . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
         Just err -> do
-          throwError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
+          rollback . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
 
-    insertEntity :: Hash32 -> TempEntity -> m ()
-    insertEntity hash entity = do
-      Debug.debugLogM Debug.Temp $ "Inserting entity"
-      liftIO . Codebase.runTransaction codebase $ upsertEntitySomewhere hash entity
-      pure ()
+insertEntity :: Hash32 -> TempEntity -> Sqlite.Transaction ()
+insertEntity hash entity = do
+  Debug.debugLogM Debug.Temp $ "Inserting entity"
+  upsertEntitySomewhere hash entity
+  pure ()
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Database operations
@@ -244,3 +275,33 @@ httpDownloadEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl re
                     }
           }
   handleStream clientEnv callback (downloadEntitiesStreamClientM req)
+
+httpDownloadEntitiesAsList ::
+  (MonadUnliftIO m) =>
+  Auth.AuthenticatedHttpClient ->
+  Servant.BaseUrl ->
+  SyncV2.DownloadEntitiesRequest ->
+  m (Either CodeserverTransportError [SyncV2.DownloadEntitiesChunk])
+httpDownloadEntitiesAsList (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req = do
+  let clientEnv =
+        (Servant.mkClientEnv httpClient unisonShareUrl)
+          { Servant.makeClientRequest = \url request ->
+              -- Disable client-side timeouts
+              (Servant.defaultMakeClientRequest url request)
+                <&> \r ->
+                  r
+                    { Http.Client.responseTimeout = Http.Client.responseTimeoutNone
+                    }
+          }
+  handleStreamAsList clientEnv (downloadEntitiesStreamClientM req)
+
+-- | Helper for running clientM that returns a stream of entities.
+-- You MUST consume the stream within the callback, it will be closed when the callback returns.
+handleStreamAsList :: forall m o. (MonadUnliftIO m) => Servant.ClientEnv -> Servant.ClientM (Servant.SourceIO o) -> m (Either CodeserverTransportError [o])
+handleStreamAsList clientEnv clientM = do
+  toIO <- UnliftIO.askRunInIO
+  liftIO $ Servant.withClientM clientM clientEnv $ \case
+    Left err -> pure (Left $ handleClientError clientEnv err)
+    Right sourceT -> do
+      sourceTM <- liftIO $ Servant.fromSourceIO @o @(SourceT.SourceT m o) sourceT
+      mapLeft (StreamingError . Text.pack) <$> toIO (runExceptT $ SourceT.runSourceT sourceTM)

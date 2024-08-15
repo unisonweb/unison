@@ -257,6 +257,7 @@ library
     , servant-conduit
     , shellmet
     , stm
+    , stm-chans
     , template-haskell
     , temporary
     , text
@@ -405,6 +406,7 @@ executable transcripts
     , shellmet
     , silently
     , stm
+    , stm-chans
     , template-haskell
     , temporary
     , text
@@ -558,6 +560,7 @@ test-suite cli-tests
     , servant-conduit
     , shellmet
     , stm
+    , stm-chans
     , template-haskell
     , temporary
     , text
