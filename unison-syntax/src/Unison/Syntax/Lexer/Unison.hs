@@ -884,13 +884,14 @@ stanzas =
 reorder :: [[BlockTree (Token Lexeme)]] -> [[BlockTree (Token Lexeme)]]
 reorder = foldr fixup [] . sortWith f
   where
-    f [] = 3 :: Int
+    f [] = 4 :: Int
     f (t0 : _) = case payload $ headToken t0 of
-      Open mod | Set.member (Text.pack mod) typeModifiers -> 2
-      Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 2
+      Open mod | Set.member (Text.pack mod) typeModifiers -> 3
+      Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 3
+      -- put `namespace` before `use` because the file parser only accepts a namespace directive at the top of the file
       Reserved "namespace" -> 1
-      Reserved "use" -> 1
-      _ -> 3 :: Int
+      Reserved "use" -> 2
+      _ -> 4 :: Int
     -- after reordering can end up with trailing semicolon at the end of
     -- a block, which we remove with this pass
     fixup stanza [] = case Lens.unsnoc stanza of
