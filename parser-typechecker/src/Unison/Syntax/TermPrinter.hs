@@ -417,6 +417,9 @@ pretty0
                   Ref' r -> isSymbolic $ PrettyPrintEnv.termName n (Referent.Ref r)
                   Var' v -> isSymbolic $ HQ.unsafeFromVar v
                   _ -> False
+                -- Gets the raw precedence of a term, if it has one.
+                -- A lower number here means tighter binding.
+                -- These precedences range from 0 to 6.
                 termPrecedence :: Term3 v PrintAnnotation -> Maybe Int
                 termPrecedence = \case
                   Ref' r ->
@@ -424,6 +427,73 @@ pretty0
                       >>= Precedence.precedence . NameSegment.toEscapedText . Name.lastSegment
                   Var' v -> HQ.toName (HQ.unsafeFromVar v) >>= Precedence.precedence . NameSegment.toEscapedText . Name.lastSegment
                   _ -> Nothing
+                -- Gets the pretty-printer precedence of a term, if it has one.
+                -- A higher number here means tighter binding.
+                -- Precedences 3 through 9 are used for infix operators.
+                -- We get this number by subtracting the raw precedence from 9.
+                infixPrecedence = fmap ((length Precedence.levels + 2) -) . termPrecedence
+                unBinaryAppsPred' ::
+                  ( Term3 v PrintAnnotation,
+                    Term3 v PrintAnnotation -> Bool
+                  ) ->
+                  Maybe
+                    ( [ ( Term3 v PrintAnnotation,
+                          Term3 v PrintAnnotation
+                        )
+                      ],
+                      Term3 v PrintAnnotation
+                    )
+                unBinaryAppsPred' (t, isInfix) =
+                  go t isInfix
+                  where
+                    go t pred =
+                      case unBinaryAppPred (t, pred) of
+                        Just (f, x, y) ->
+                          let precf = termPrecedence f
+                              -- We only chain together infix operators if they have
+                              -- higher precedence (lower raw precedence) than the
+                              -- current operator. If there is no precedence, we only
+                              -- chain if it's literally the same operator.
+                              inChain compare g = isInfix g && (fromMaybe (g == f) $ compare <$> termPrecedence g <*> precf)
+                              l = unBinaryAppsPred' (x, inChain (<=))
+                              r = unBinaryAppsPred' (y, inChain (<))
+                           in case (l, r) of
+                                (Just (as, xLast), Just (bs, yLast)) -> Just (bs ++ ((xLast, f) : as), yLast)
+                                (Just (as, xLast), Nothing) -> Just ((xLast, f) : as, y)
+                                (Nothing, Just (bs, yLast)) -> Just (bs ++ [(x, f)], yLast)
+                                (Nothing, Nothing) -> Just ([(x, f)], y)
+                        Nothing -> Nothing
+
+                -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
+                -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing
+                -- "a1 `f1` a2 `f2`".  Except the operators are all symbolic, so we won't
+                -- produce any backticks.  We build the result out from the right,
+                -- starting at `f2`.
+                binaryApps ::
+                  [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)] ->
+                  Pretty SyntaxText ->
+                  m (Pretty SyntaxText)
+                binaryApps xs last =
+                  do
+                    let xs' = reverse xs
+                    psh <- join <$> traverse (uncurry (r 3)) (take 1 xs')
+                    pst <- join <$> traverse (uncurry (r 10)) (drop 1 xs')
+                    let ps = psh <> pst
+                    let unbroken = PP.spaced (ps <> [last])
+                        broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
+                    pure (unbroken `PP.orElse` broken)
+                  where
+                    psCols ps = case take 2 ps of
+                      [x, y] -> (x, y) : psCols (drop 2 ps)
+                      [x] -> [(x, "")]
+                      [] -> []
+                      _ -> undefined
+                    r p a f =
+                      sequenceA
+                        [ pretty0 (ac (if isBlock a then 12 else (fromMaybe p (infixPrecedence f))) Normal im doc) a,
+                          pretty0 (AmbientContext 10 Normal Infix im doc False) f
+                        ]
+
             case (term, binaryOpsPred) of
               (DD.Doc, _)
                 | doc == MaybeDoc ->
@@ -468,27 +538,37 @@ pretty0
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
                 pure $ PP.group $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
-              BinaryAppPred' f a b -> do
-                let prec = fmap ((-) 9) $ termPrecedence f
-                prettyF <- pretty0 (AmbientContext 10 Normal Infix im doc False) f
-                prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
-                prettyB <- pretty0 (ac (fromMaybe (length Precedence.levels + 3) prec) Normal im doc) b
-                pure . paren (p > fromMaybe 3 prec) $
-                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+              app@(BinaryAppPred' f _ _) -> do
+                let prec = infixPrecedence f
+                case unBinaryAppsPred' app of
+                  Just (apps, lastArg) -> do
+                    prettyLast <- pretty0 (ac (fromMaybe (length Precedence.levels + 3) prec) Normal im doc) lastArg
+                    prettyApps <- binaryApps apps prettyLast
+                    pure $ paren (p > fromMaybe 3 prec) prettyApps
+                  Nothing -> error "crash"
+              -- let prec = fmap ((-) 9) $ termPrecedence f
+              -- prettyF <- pretty0 (AmbientContext 10 Normal Infix im doc False) f
+              -- prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
+              -- prettyB <- pretty0 (ac (fromMaybe (length Precedence.levels + 3) prec) Normal im doc) b
+              -- pure . parenNoGroup (p > fromMaybe 3 prec) $
+              --   (prettyA <> " " <> prettyF <> " " <> prettyB)
+              --     `PP.orElse` (prettyA `PP.hangUngrouped` prettyF <> " " <> prettyB)
               (And' a b, _) -> do
                 let prec = fmap ((-) 9) $ Precedence.precedence "&&"
                     prettyF = fmt S.ControlKeyword "&&"
                 prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
                 prettyB <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) b
-                pure . paren (maybe False (p >) prec) $
-                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+                pure . parenNoGroup (p > fromMaybe 3 prec) $
+                  (prettyA <> " " <> prettyF <> " " <> prettyB)
+                    `PP.orElse` (prettyA `PP.hangUngrouped` prettyF <> " " <> prettyB)
               (Or' a b, _) -> do
                 let prec = fmap ((-) 9) $ Precedence.precedence "||"
                     prettyF = fmt S.ControlKeyword "||"
                 prettyA <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) a
                 prettyB <- pretty0 (ac (fromMaybe 3 prec) Normal im doc) b
-                pure . paren (maybe False (p >) prec) $
-                  PP.group (prettyA <> PP.softbreak <> prettyF) `PP.hang` prettyB
+                pure . parenNoGroup (p > fromMaybe 3 prec) $
+                  (prettyA <> " " <> prettyF <> " " <> prettyB)
+                    `PP.orElse` (prettyA `PP.hangUngrouped` prettyF <> " " <> prettyB)
               -- BinaryAppsPred' apps lastArg -> do
               --   prettyLast <- pretty0 (ac 3 Normal im doc) lastArg
               --   prettyApps <- binaryApps apps prettyLast
@@ -601,33 +681,6 @@ pretty0
 
       nonUnitArgPred :: (Var v) => v -> Bool
       nonUnitArgPred v = Var.name v /= "()"
-
-      -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
-      -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing
-      -- "a1 `f1` a2 `f2`".  Except the operators are all symbolic, so we won't
-      -- produce any backticks.  We build the result out from the right,
-      -- starting at `f2`.
-      binaryApps ::
-        [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)] ->
-        Pretty SyntaxText ->
-        m (Pretty SyntaxText)
-      binaryApps xs last =
-        do
-          ps <- join <$> traverse (uncurry r) (reverse xs)
-          let unbroken = PP.spaced (ps <> [last])
-              broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
-          pure (unbroken `PP.orElse` broken)
-        where
-          psCols ps = case take 2 ps of
-            [x, y] -> (x, y) : psCols (drop 2 ps)
-            [x] -> [(x, "")]
-            [] -> []
-            _ -> undefined
-          r a f =
-            sequenceA
-              [ pretty0 (ac (if isBlock a then 12 else 3) Normal im doc) a,
-                pretty0 (AmbientContext 10 Normal Infix im doc False) f
-              ]
 
 -- -- Render sequence of infix &&s or ||s, like [x2, x1],
 -- -- meaning (x1 && x2) && (x3 rendered by the caller), producing
@@ -1091,8 +1144,11 @@ prettyDoc n im term =
     spaceUnlessBroken = PP.orElse " " ""
 
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
-paren True s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
-paren False s = PP.group s
+paren b s = PP.group $ parenNoGroup b s
+
+parenNoGroup :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
+parenNoGroup True s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
+parenNoGroup False s = s
 
 parenIfInfix ::
   HQ.HashQualified Name ->
