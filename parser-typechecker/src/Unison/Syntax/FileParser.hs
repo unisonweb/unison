@@ -62,10 +62,6 @@ file = do
   (namesStart, imports) <- TermParser.imports <* optional semi
   (dataDecls, effectDecls, parsedAccessors) <- declarations
 
-  let unNamespacedTypeNames :: Set v
-      unNamespacedTypeNames =
-        Set.union (Map.keysSet dataDecls) (Map.keysSet effectDecls)
-
   env <-
     let applyNamespaceToDecls :: forall decl. Iso' decl (DataDeclaration v Ann) -> Map v decl -> Map v decl
         applyNamespaceToDecls dataDeclL =
@@ -78,6 +74,11 @@ file = do
                   ( Var.namespaced2 namespace declName,
                     review dataDeclL (applyNamespaceToDataDecl namespace unNamespacedTypeNames (view dataDeclL decl))
                   )
+
+                unNamespacedTypeNames :: Set v
+                unNamespacedTypeNames =
+                  Set.union (Map.keysSet dataDecls) (Map.keysSet effectDecls)
+
         dataDecls1 = applyNamespaceToDecls id dataDecls
         effectDecls1 = applyNamespaceToDecls DataDeclaration.asDataDecl_ effectDecls
      in case UFN.environmentFor namesStart dataDecls1 effectDecls1 of
