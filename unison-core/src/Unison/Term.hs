@@ -83,14 +83,14 @@ data F typeVar typeAnn patternAnn a
   | -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
     -- variables as there are bindings
     LetRec IsTop [a {- <- bindings -}] a {- <- body -}
-  | -- Note: first parameter is the binding, second is the expression which may refer
-    -- to this let bound variable. Constructed as `Let b (abs v e)`
+    -- Note: first parameter is the binding, second is the expression which may refer
+  | -- to this let bound variable. Constructed as `Let b (abs v e)`
     Let IsTop a {- <- binding -} a {- <- body -}
     -- Pattern matching / eliminating data types, example:
     --  case x of
-    --    Just n -> rhs1
+  | --    Just n -> rhs1
     --    Nothing -> rhs2
-  | --
+    --
     -- translates to
     --
     --   Match x
