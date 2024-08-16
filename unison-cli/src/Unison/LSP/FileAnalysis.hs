@@ -216,7 +216,10 @@ analyseNotes fileUri ppe src notes = do
     Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
       let typeErr = TypeError.typeErrorFromNote errNote
           ranges = case typeErr of
-            TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+            TypeError.Mismatch {mismatchSite} -> do
+              let locs = ABT.annotation <$> expressionLeafNodes mismatchSite
+              (r, rs) <- withNeighbours (locs >>= aToR)
+              pure (r, ("mismatch",) <$> rs)
             TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
             TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
             TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
@@ -471,3 +474,38 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
             )
    in typeHints
+
+-- | Crawl a term and find the nodes which actually influence its return type. This is useful for narrowing down a giant
+-- "This let/do block has the wrong type" into "This specific line returns the wrong type"
+-- This is just a heuristic.
+expressionLeafNodes :: Term.Term2 vt at ap v a -> [Term.Term2 vt at ap v a]
+expressionLeafNodes abt =
+  case ABT.out abt of
+    ABT.Var {} -> [abt]
+    ABT.Cycle r -> expressionLeafNodes r
+    ABT.Abs _ r -> expressionLeafNodes r
+    ABT.Tm f -> case f of
+      Term.Int {} -> [abt]
+      Term.Nat {} -> [abt]
+      Term.Float {} -> [abt]
+      Term.Boolean {} -> [abt]
+      Term.Text {} -> [abt]
+      Term.Char {} -> [abt]
+      Term.Blank {} -> [abt]
+      Term.Ref {} -> [abt]
+      Term.Constructor {} -> [abt]
+      Term.Request {} -> [abt]
+      -- Not 100% sure whether the error should appear on the handler or action, maybe both?
+      Term.Handle handler _action -> expressionLeafNodes handler
+      Term.App _a _b -> [abt]
+      Term.Ann a _ -> expressionLeafNodes a
+      Term.List {} -> [abt]
+      Term.If _cond a b -> expressionLeafNodes a <> expressionLeafNodes b
+      Term.And {} -> [abt]
+      Term.Or {} -> [abt]
+      Term.Lam a -> expressionLeafNodes a
+      Term.LetRec _isTop _bindings body -> expressionLeafNodes body
+      Term.Let _isTop _bindings body -> expressionLeafNodes body
+      Term.Match _a cases -> cases & foldMap \(Term.MatchCase {matchBody}) -> expressionLeafNodes matchBody
+      Term.TermLink {} -> [abt]
+      Term.TypeLink {} -> [abt]
