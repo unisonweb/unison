@@ -224,7 +224,8 @@ fileAnalysisWorker = forever do
 analyseFile :: (Lspish m) => (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText pped notes = do
   let ppe = PPED.suffixifiedPPE pped
-  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
+  Env {codebase} <- ask
+  (noteDiags, noteActions) <- analyseNotes codebase fileUri ppe (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
@@ -272,8 +273,15 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: forall m f. (Lspish m, Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
-analyseNotes fileUri ppe src notes = do
+analyseNotes ::
+  (Foldable f, MonadIO m) =>
+  (Codebase.Codebase IO Symbol Ann) ->
+  Uri ->
+  PrettyPrintEnv ->
+  String ->
+  f (Note Symbol Ann) ->
+  m ([Diagnostic], [RangedCodeAction])
+analyseNotes codebase fileUri ppe src notes = do
   foldMapM go notes
   where
     go :: Note Symbol Ann -> m ([Diagnostic], [RangedCodeAction])
@@ -435,7 +443,6 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-          Env {codebase} <- ask
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
           refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
