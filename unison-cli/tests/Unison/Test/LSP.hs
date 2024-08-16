@@ -23,6 +23,7 @@ import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.FileParsers qualified as FileParsers
 import Unison.LSP.Conversions qualified as Cv
+import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.Lexer.Pos qualified as Lexer
@@ -31,6 +32,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
@@ -426,8 +428,8 @@ withTestCodebase action = do
     Codebase.Init.withCreatedCodebase SC.init "lsp-test" tmpDir SC.DontLock action
   either (crash . show) pure r
 
-makeDiagnosticRangeTest :: (String, Text) -> Test ()
-makeDiagnosticRangeTest (testName, testSrc) = scope testName $ do
+makeUnusedBindingRangeTest :: (String, Text) -> Test ()
+makeUnusedBindingRangeTest (testName, testSrc) = scope testName $ do
   (cleanSrc, ranges) <- case extractDelimitedBlocks ('«', '»') testSrc of
     Nothing -> pure (testSrc, [])
     Just (cleanSrc, ranges) -> pure (cleanSrc, ranges)
@@ -439,24 +441,38 @@ makeDiagnosticRangeTest (testName, testSrc) = scope testName $ do
         let diags = UnusedBindings.analyseTerm (LSP.Uri "test") trm
         matchDiagnostics ranges diags
       _ -> crash "Expected exactly one term"
-  where
-    matchDiagnostics :: [(Ann, Text)] -> [LSP.Diagnostic] -> Test ()
-    matchDiagnostics ranges diags = case (ranges, diags) of
-      ([], []) -> pure ()
-      ([], _ : _) -> crash $ "Got diagnostics that weren't matched: " <> show diags
-      (_ : _, []) -> crash $ "Expected diagnostics that weren't provided" <> show ranges
-      (range@(ann, _src) : rest, diags) ->
-        diags
-          & popFind
-            ( \diag ->
-                let expectedRange = Cv.annToRange ann
-                    actualRange = Just (diag ^. LSP.range)
-                 in (expectedRange /= actualRange)
-            )
-          & \case
-            Nothing -> crash $ "Expected diagnostic not found" <> show range <> ", remaining diagnostics: " <> show diags
-            Just (_, diags) -> matchDiagnostics rest diags
 
+makeTypecheckerDiagnosticRangeTest :: (String, Text) -> Test ()
+makeTypecheckerDiagnosticRangeTest (testName, testSrc) = scope testName $ do
+  (cleanSrc, ranges) <- case extractDelimitedBlocks ('«', '»') testSrc of
+    Nothing -> pure (testSrc, [])
+    Just (cleanSrc, ranges) -> pure (cleanSrc, ranges)
+  (_pf, tf) <- typecheckSrc testName cleanSrc
+  case tf of
+    Left notes -> do
+      let codebase = error "unexpected use of codebase"
+      let ppe = PPE.empty
+      (diags, _codeActions) <- FileAnalysis.analyseNotes codebase (LSP.Uri "test") ppe "test" notes
+      matchDiagnostics ranges diags
+    Right _ -> crash "Expected typechecking to fail"
+
+matchDiagnostics :: [(Ann, Text)] -> [LSP.Diagnostic] -> Test ()
+matchDiagnostics ranges diags = case (ranges, diags) of
+  ([], []) -> pure ()
+  ([], _ : _) -> crash $ "Got diagnostics that weren't matched: " <> show diags
+  (_ : _, []) -> crash $ "Expected diagnostics that weren't provided" <> show ranges
+  (range@(ann, _src) : rest, diags) ->
+    diags
+      & popFind
+        ( \diag ->
+            let expectedRange = Cv.annToRange ann
+                actualRange = Just (diag ^. LSP.range)
+             in (expectedRange /= actualRange)
+        )
+      & \case
+        Nothing -> crash $ "Expected diagnostic not found" <> show range <> ", remaining diagnostics: " <> show diags
+        Just (_, diags) -> matchDiagnostics rest diags
+  where
     popFind :: (a -> Bool) -> [a] -> Maybe (a, [a])
     popFind p = \case
       [] -> Nothing
@@ -464,7 +480,7 @@ makeDiagnosticRangeTest (testName, testSrc) = scope testName $ do
 
 unusedBindingLocations :: Test ()
 unusedBindingLocations =
-  scope "unused bindings" . tests . fmap makeDiagnosticRangeTest $
+  scope "unused bindings" . tests . fmap makeUnusedBindingRangeTest $
     [ ( "Unused binding in let block",
         [here|term =
   usedOne = true
@@ -493,10 +509,11 @@ unusedBindingLocations =
 
 typeMismatchLocations :: Test ()
 typeMismatchLocations =
-  scope "type mismatch locations" . tests . fmap makeDiagnosticRangeTest $
+  scope "type mismatch locations" . tests . fmap makeTypecheckerDiagnosticRangeTest $
     [ ( "Should highlight the actual incorrect terminal expression in a let block",
         [here|
-term : Nat
+type Foo = Foo
+term : Foo
 term =
   _blah = true
   _foo = true
@@ -506,7 +523,8 @@ term =
       ),
       ( "Should highlight the actual incorrect terminal expression in an if-block",
         [here|
-term : Nat
+type Foo = Foo
+term : Foo
 term = if true
   then «"wrong"»
   else «"also wrong"»
@@ -514,8 +532,10 @@ term = if true
       ),
       ( "Should highlight the handler of handle expressions",
         [here|
-term : Nat
+type Foo = Foo
+term : Foo
 term =
+  const a b = a
   handle "" with const «"wrong"»
 |]
       )
