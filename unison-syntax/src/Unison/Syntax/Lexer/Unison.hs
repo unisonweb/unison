@@ -25,11 +25,11 @@ module Unison.Syntax.Lexer.Unison
   )
 where
 
-import Data.Functor.Classes (Show1 (..))
 import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
+import Data.Functor.Classes (Show1 (..), showsPrec1)
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as Nel
@@ -834,17 +834,36 @@ headToken (Block a _ _) = a
 headToken (Leaf a) = a
 
 instance (Show a) => Show (BlockTree a) where
-  show (Leaf a) = show a
-  show (Block open mid close) =
-    show open
-      ++ "\n"
-      ++ indent "  " (intercalateMap "\n" (intercalateMap " " show) mid)
-      ++ "\n"
-      ++ maybe "" show close
+  showsPrec = showsPrec1
+
+-- | This instance should be compatible with `Read`, but inserts newlines and indentation to make it more
+--  /human/-readable.
+instance Show1 BlockTree where
+  liftShowsPrec spa sla = shows ""
     where
-      indent by s = by ++ (s >>= go by)
-      go by '\n' = '\n' : by
-      go _ c = [c]
+      shows by prec =
+        showParen (prec > appPrec) . \case
+          Leaf a -> showString "Leaf " . showsNext spa "" a
+          Block open mid close ->
+            showString "Block "
+              . showsNext spa "" open
+              . showString "\n"
+              . showIndentedList (showIndentedList (\b -> showsIndented (shows b 0) b)) ("  " <> by) mid
+              . showString "\n"
+              . showsNext (liftShowsPrec spa sla) ("  " <> by) close
+      appPrec = 10
+      showsNext :: (Int -> x -> ShowS) -> String -> x -> ShowS
+      showsNext fn = showsIndented (fn $ appPrec + 1)
+      showsIndented :: (x -> ShowS) -> String -> x -> ShowS
+      showsIndented fn by x = showString by . fn x
+      showIndentedList :: (String -> x -> ShowS) -> String -> [x] -> ShowS
+      showIndentedList fn by xs =
+        showString by
+          . showString "["
+          . foldr (\x acc -> showString "\n" . fn ("  " <> by) x . showString "," . acc) id xs
+          . showString "\n"
+          . showString by
+          . showString "]"
 
 reorderTree :: ([[BlockTree a]] -> [[BlockTree a]]) -> BlockTree a -> BlockTree a
 reorderTree f (Block open mid close) = Block open (f (fmap (reorderTree f) <$> mid)) close

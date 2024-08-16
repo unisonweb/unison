@@ -288,8 +288,8 @@ isBlank n = Name.isUnqualified n && Text.isPrefixOf "_" (INameSegment.toUnescape
 -- | A HQ Name is blank when its Name is blank and it has no hash.
 isBlank' :: HQ'.HashQualified Name -> Bool
 isBlank' = \case
-    HQ'.NameOnly n -> isBlank n
-    HQ'.HashQualified _ _ -> False
+  HQ'.NameOnly n -> isBlank n
+  HQ'.HashQualified _ _ -> False
 
 wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case
