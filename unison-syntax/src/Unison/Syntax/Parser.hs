@@ -81,6 +81,8 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
+import Unison.NameSegment (NameSegment)
+import Unison.NameSegment.Internal qualified as INameSegment
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..), Annotated (..))
@@ -90,7 +92,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Syntax.Lexer.Unison qualified as L
-import Unison.Syntax.Name qualified as Name (toVar, unsafeParseText)
+import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.Parser.Doc qualified as Doc
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Term (MatchCase (..))
@@ -279,9 +281,19 @@ closeBlock = void <$> matchToken L.Close
 optionalCloseBlock :: (Ord v) => P v m (L.Token ())
 optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
+-- | A `Name` is blank when it is unqualified and begins with a `_` (also implying that it is wordy)
+isBlank :: Name -> Bool
+isBlank n = Name.isUnqualified n && Text.isPrefixOf "_" (INameSegment.toUnescapedText $ Name.lastSegment n)
+
+-- | A HQ Name is blank when its Name is blank and it has no hash.
+isBlank' :: HQ'.HashQualified Name -> Bool
+isBlank' = \case
+    HQ'.NameOnly n -> isBlank n
+    HQ'.HashQualified _ _ -> False
+
 wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case
-  L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
+  L.WordyId (HQ'.NameOnly n) -> if isBlank n then Nothing else Just $ Name.toVar n
   _ -> Nothing
 
 -- | Parse a prefix identifier e.g. Foo or (+), discarding any hash
@@ -296,7 +308,6 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
   where
     wordyTermName = queryToken \case
       L.WordyId (HQ'.NameOnly n) -> Just $ Name.toVar n
-      L.Blank s -> Just $ Var.nameds ("_" <> s)
       _ -> Nothing
     symbolyTermName = queryToken \case
       L.SymbolyId (HQ'.NameOnly n) -> Just $ Name.toVar n
@@ -306,14 +317,12 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken $ \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
-  L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing
 
 -- | Parse a wordyId as a Name, rejecting any hash
 importWordyId :: (Ord v) => P v m (L.Token Name)
 importWordyId = queryToken \case
   L.WordyId (HQ'.NameOnly n) -> Just n
-  L.Blank s | not (null s) -> Just $ Name.unsafeParseText (Text.pack ("_" <> s))
   _ -> Nothing
 
 -- | The `+` in: use Foo.bar + as a Name
@@ -348,7 +357,6 @@ hqWordyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqWordyId_ = queryToken \case
   L.WordyId n -> Just $ HQ'.toHQ n
   L.Hash h -> Just $ HQ.HashOnly h
-  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.unsafeParseText (Text.pack ("_" <> s)))
   _ -> Nothing
 
 -- | Parse a hash-qualified symboly ID like >>=#foo or &&
@@ -365,10 +373,10 @@ reserved w = label w $ queryToken getReserved
     getReserved _ = Nothing
 
 -- | Parse a placeholder or typed hole
-blank :: (Ord v) => P v m (L.Token String)
+blank :: (Ord v) => P v m (L.Token NameSegment)
 blank = label "blank" $ queryToken getBlank
   where
-    getBlank (L.Blank s) = Just ('_' : s)
+    getBlank (L.WordyId n) = if isBlank' n then Just (Name.lastSegment $ HQ'.toName n) else Nothing
     getBlank _ = Nothing
 
 numeric :: (Ord v) => P v m (L.Token String)

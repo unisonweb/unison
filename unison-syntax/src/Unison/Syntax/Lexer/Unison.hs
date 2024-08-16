@@ -25,6 +25,7 @@ module Unison.Syntax.Lexer.Unison
   )
 where
 
+import Data.Functor.Classes (Show1 (..))
 import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isDigit, isSpace, ord, toLower)
@@ -46,9 +47,7 @@ import U.Codebase.Reference (ReferenceType (..))
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
-import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -56,7 +55,7 @@ import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer
 import Unison.Syntax.Lexer.Token (posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..))
 import Unison.Syntax.Parser.Doc qualified as Doc
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
@@ -105,18 +104,28 @@ data Err
 --   further knowledge of spacing or indentation levels
 --   any knowledge of comments
 data Lexeme
-  = Open String -- start of a block
-  | Semi IsVirtual -- separator between elements of a block
-  | Close -- end of a block
-  | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
-  | Textual String -- text literals, `"foo bar"`
-  | Character Char -- character literals, `?X`
-  | WordyId (HQ'.HashQualified Name) -- a (non-infix) identifier. invariant: last segment is wordy
-  | SymbolyId (HQ'.HashQualified Name) -- an infix identifier. invariant: last segment is symboly
-  | Blank String -- a typed hole or placeholder
-  | Numeric String -- numeric literals, left unparsed
-  | Bytes Bytes.Bytes -- bytes literals
-  | Hash ShortHash -- hash literals
+  = -- | start of a block
+    Open String
+  | -- | separator between elements of a block
+    Semi IsVirtual
+  | -- | end of a block
+    Close
+  | -- | reserved tokens such as `{`, `(`, `type`, `of`, etc
+    Reserved String
+  | -- | text literals, `"foo bar"`
+    Textual String
+  | -- | character literals, `?X`
+    Character Char
+  | -- | a (non-infix) identifier. invariant: last segment is wordy
+    WordyId (HQ'.HashQualified Name)
+  | -- | an infix identifier. invariant: last segment is symboly
+    SymbolyId (HQ'.HashQualified Name)
+  | -- | numeric literals, left unparsed
+    Numeric String
+  | -- | bytes literals
+    Bytes Bytes.Bytes
+  | -- | hash literals
+    Hash ShortHash
   | Err Err
   | Doc (Doc.UntitledSection (Doc.Tree (ReferenceType, HQ'.HashQualified Name) [Token Lexeme]))
   deriving stock (Eq, Show, Ord)
@@ -330,7 +339,6 @@ displayLexeme = \case
   Character c -> "?" <> [c]
   WordyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
   SymbolyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
-  Blank b -> b
   Numeric n -> n
   Bytes _b -> "bytes literal"
   Hash h -> Text.unpack (SH.toText h)
@@ -436,7 +444,6 @@ lexemes eof =
         <|> token numeric
         <|> token character
         <|> reserved
-        <|> token blank
         <|> token identifierLexemeP
         <|> (asum . map token) [semi, textual, hash]
 
@@ -468,12 +475,6 @@ lexemes eof =
               _ <- lit "]" *> CP.space
               t <- tok identifierLexemeP
               pure $ (fmap Reserved <$> typ) <> t
-
-    blank =
-      separated wordySep do
-        _ <- char '_'
-        seg <- P.optional wordyIdSegP
-        pure (Blank (maybe "" (Text.unpack . NameSegment.toUnescapedText) seg))
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -757,10 +758,6 @@ identifierLexeme name =
     then SymbolyId name
     else WordyId name
 
-wordyIdSegP :: P.ParsecT (Token Err) String m NameSegment
-wordyIdSegP =
-  PI.withParsecT (fmap (ReservedWordyId . Text.unpack)) NameSegment.wordyP
-
 shortHashP :: P.ParsecT (Token Err) String m ShortHash
 shortHashP =
   PI.withParsecT (fmap (InvalidShortHash . Text.unpack)) ShortHash.shortHashP
@@ -990,7 +987,6 @@ instance P.VisualStream [Token Lexeme] where
           Nothing -> '?' : [c]
       pretty (WordyId n) = Text.unpack (HQ'.toText n)
       pretty (SymbolyId n) = Text.unpack (HQ'.toText n)
-      pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh
       pretty (Err e) = show e
