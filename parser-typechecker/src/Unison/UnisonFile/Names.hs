@@ -131,11 +131,13 @@ environmentFor ::
   Names.ResolutionResult v a (Either [Error v a] (Env v a))
 environmentFor names dataDecls0 effectDecls0 = do
   let locallyBoundTypes = variableCanonicalizer (Map.keys dataDecls0 <> Map.keys effectDecls0)
-  -- data decls and hash decls may reference each other, and thus must be hashed together
+
+  -- data decls and effect decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration v a) <-
     traverse (DD.Names.bindNames Name.unsafeParseVar locallyBoundTypes names) dataDecls0
   effectDecls :: Map v (EffectDeclaration v a) <-
     traverse (DD.withEffectDeclM (DD.Names.bindNames Name.unsafeParseVar locallyBoundTypes names)) effectDecls0
+
   let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
   hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDataDecls allDecls0
