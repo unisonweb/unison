@@ -224,12 +224,9 @@ analyseNotes codebase fileUri ppe src notes = do
     Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
       let typeErr = TypeError.typeErrorFromNote errNote
           ranges = case typeErr of
-            TypeError.Mismatch {mismatchSite} -> do
-              let locs = ABT.annotation <$> expressionLeafNodes mismatchSite
-              (r, rs) <- withNeighbours (locs >>= aToR)
-              pure (r, ("mismatch",) <$> rs)
-            TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-            TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+            TypeError.Mismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
+            TypeError.BooleanMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
+            TypeError.ExistentialMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
             TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
             TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
             TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
@@ -323,6 +320,10 @@ analyseNotes codebase fileUri ppe src notes = do
               Context.OtherBug _s -> todoAnnotation
       pure (noteDiagnostic note ranges, [])
   where
+    leafNodeRanges label mismatchSite = do
+      let locs = ABT.annotation <$> expressionLeafNodes mismatchSite
+      (r, rs) <- withNeighbours (locs >>= aToR)
+      pure (r, (label,) <$> rs)
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
     singleRange :: Ann -> [(Range, [a])]
