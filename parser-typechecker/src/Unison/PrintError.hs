@@ -59,6 +59,7 @@ import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.Precedence qualified as Precedence
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -1132,7 +1133,7 @@ renderTerm env e =
         else fromString s
 
 renderPattern :: Env -> Pattern ann -> ColorText
-renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc 0 ([] :: [Symbol]) e
+renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol]) e
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s

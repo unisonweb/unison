@@ -7,21 +7,64 @@ import Unison.Prelude
 -- Lower number means higher precedence (tighter binding).
 -- Operators not in this list have no precedence and will simply be parsed
 -- left-to-right.
-precedenceRules :: Map Text Int
-precedenceRules =
-  Map.fromList $ zip levels [0 ..] >>= \(ops, prec) -> map (,prec) ops
+infixRules :: Map Text Precedence
+infixRules =
+  Map.fromList do
+    (ops, prec) <- zip infixLevels (map (InfixOp . Level) [0 ..])
+    map (,prec) ops
 
-levels :: [[Text]]
-levels =
-  [ ["*", "/", "%"],
-    ["+", "-"],
-    ["<", ">", ">=", "<="],
-    ["==", "!==", "!=", "==="],
+-- | Indicates this is the RHS of a top-level definition.
+isTopLevelPrecedence :: Precedence -> Bool
+isTopLevelPrecedence i = i == Basement
+
+increment :: Precedence -> Precedence
+increment = \case
+  Basement -> Bottom
+  Bottom -> Annotation
+  Annotation -> Statement
+  Statement -> Control
+  Control -> InfixOp Lowest
+  InfixOp Lowest -> InfixOp (Level 0)
+  InfixOp (Level n) -> InfixOp (Level (n + 1))
+  InfixOp Highest -> Application
+  Application -> Prefix
+  Prefix -> Top
+  Top -> Top
+
+data Precedence
+  = -- | The lowest precedence, used for top-level bindings
+    Basement
+  | -- | Used for terms that never need parentheses
+    Bottom
+  | -- | Type annotations
+    Annotation
+  | -- | A statement in a block
+    Statement
+  | -- | Control flow constructs like `if`, `match`, `case`
+    Control
+  | -- | Infix operators
+    InfixOp InfixPrecedence
+  | -- | Function application
+    Application
+  | -- | Prefix operators like `'`, `!`
+    Prefix
+  | -- | The highest precedence, used for let bindings and blocks
+    Top
+  deriving (Eq, Ord, Show)
+
+data InfixPrecedence = Lowest | Level Int | Highest
+  deriving (Eq, Ord, Show)
+
+infixLevels :: [[Text]]
+infixLevels =
+  [ ["||", "|"],
     ["&&", "&"],
-    ["^", "^^"],
-    ["||", "|"]
+    ["==", "!==", "!=", "==="],
+    ["<", ">", ">=", "<="],
+    ["+", "-"],
+    ["*", "/", "%"]
   ]
 
 -- | Returns the precedence of an infix operator, if it has one.
-precedence :: Text -> Maybe Int
-precedence op = Map.lookup op precedenceRules
+operatorPrecedence :: Text -> Maybe Precedence
+operatorPrecedence op = Map.lookup op infixRules

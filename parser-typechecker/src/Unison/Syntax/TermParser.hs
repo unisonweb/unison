@@ -54,7 +54,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
-import Unison.Syntax.Precedence (precedence)
+import Unison.Syntax.Precedence (operatorPrecedence)
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -1075,7 +1075,7 @@ infixAppOrBooleanOp = do
         <|> (InfixOr <$> (label "or" (reserved "||")))
         <|> (uncurry InfixOp <$> parseInfix)
     shouldRotate child parent = case (child, parent) of
-      (Just p1, Just p2) -> p1 > p2
+      (Just p1, Just p2) -> p1 < p2
       _ -> False
     parseInfix = label "infixApp" do
       op <- hqInfixId <* optional semi
@@ -1095,13 +1095,13 @@ infixAppOrBooleanOp = do
     rotate op ctor lhs rhs =
       case lhs of
         InfixOp lop ltm ll lr
-          | shouldRotate (precedence (unqualified lop)) (precedence op) ->
+          | shouldRotate (operatorPrecedence (unqualified lop)) (operatorPrecedence op) ->
               InfixOp lop ltm ll (fixUp (ctor lr rhs))
         InfixAnd lop ll lr
-          | shouldRotate (precedence "&&") (precedence op) ->
+          | shouldRotate (operatorPrecedence "&&") (operatorPrecedence op) ->
               InfixAnd lop ll (fixUp (ctor lr rhs))
         InfixOr lop ll lr
-          | shouldRotate (precedence "||") (precedence op) ->
+          | shouldRotate (operatorPrecedence "||") (operatorPrecedence op) ->
               InfixOr lop ll (fixUp (ctor lr rhs))
         _ -> ctor lhs rhs
     unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
