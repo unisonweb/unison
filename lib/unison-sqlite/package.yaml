@@ -28,6 +28,7 @@ tests:
 
 dependencies:
   - base
+  - containers
   - direct-sqlite
   - exceptions
   - generic-lens

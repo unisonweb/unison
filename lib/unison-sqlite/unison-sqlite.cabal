@@ -64,6 +64,7 @@ library
   ghc-options: -Wall
   build-depends:
       base
+    , containers
     , direct-sqlite
     , exceptions
     , generic-lens
@@ -126,6 +127,7 @@ test-suite tests
   build-depends:
       base
     , code-page
+    , containers
     , direct-sqlite
     , easytest
     , exceptions
