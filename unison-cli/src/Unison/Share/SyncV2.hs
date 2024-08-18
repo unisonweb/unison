@@ -87,7 +87,7 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
               SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
         allResults <- either failed pure results
         liftIO $ downloadedCallback (length allResults)
-        allEntities <- Timing.time "Unpacking chunks" $ do (unpackChunks codebase (failed . SyncError) allResults)
+        allEntities <- Timing.time "Unpacking chunks" $ liftIO $ Codebase.runTransaction codebase $ do (unpackChunks allResults)
         sortedEntities <- Timing.time "Sorting Entities" $ UnliftIO.evaluate $ topSortEntities allEntities
         liftIO $ Timing.time "Inserting entities" $ Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do
           insertEntity hash entity
@@ -106,16 +106,16 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
     didCausalSuccessfullyImport codebase hash = do
       let expectedHash = hash32ToCausalHash hash
       isJust <$> liftIO (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
-    unpackChunks :: Codebase.Codebase IO v a -> (forall x. SyncV2.PullError -> Cli x) -> [SyncV2.DownloadEntitiesChunk] -> Cli [(Hash32, TempEntity)]
-    unpackChunks codebase _handleErr xs = do
+    unpackChunks :: [SyncV2.DownloadEntitiesChunk] -> Sqlite.Transaction [(Hash32, TempEntity)]
+    unpackChunks xs = do
       xs
-        & ( UnliftIO.pooledMapConcurrently \case
+        & ( traverse \case
               SyncV2.ErrorChunk {err} -> do
                 Debug.debugLogM Debug.Temp $ "Got error chunk"
                 error $ show err
               SyncV2.EntityChunk {hash, entityCBOR = entityBytes} -> do
                 -- Only want entities we don't already have in main
-                (Codebase.runTransaction codebase (Q.entityLocation hash)) >>= \case
+                ((Q.entityLocation hash)) >>= \case
                   Just Q.EntityInMainStorage -> pure Nothing
                   _ -> do
                     tempEntity <- case CBOR.deserialiseOrFailCBORBytes entityBytes of
@@ -123,7 +123,6 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
                       Right entity -> pure entity
                     pure $ Just (hash, tempEntity)
           )
-        & liftIO
         <&> catMaybes
 
 topSortEntities :: [(Hash32, TempEntity)] -> [(Hash32, TempEntity)]
