@@ -304,7 +304,7 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
 
 -- | Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
-wordyDefinitionName = queryToken $ \case
+wordyDefinitionName = queryToken \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
   L.Blank s -> Just $ Var.nameds ("_" <> s)
   _ -> Nothing

@@ -573,6 +573,7 @@ lexemes eof =
             <|> symbolyKw "&&"
             <|> wordyKw "true"
             <|> wordyKw "false"
+            <|> wordyKw "namespace"
             <|> wordyKw "use"
             <|> wordyKw "forall"
             <|> wordyKw "∀"
@@ -878,17 +879,19 @@ stanzas =
       )
       ([] :| [])
 
--- Moves type and ability declarations to the front of the token stream
--- and move `use` statements to the front of each block
+-- Moves type and ability declarations to the front of the token stream (but not before the leading optional namespace
+-- directive) and move `use` statements to the front of each block
 reorder :: [[BlockTree (Token Lexeme)]] -> [[BlockTree (Token Lexeme)]]
 reorder = foldr fixup [] . sortWith f
   where
-    f [] = 3 :: Int
+    f [] = 4 :: Int
     f (t0 : _) = case payload $ headToken t0 of
-      Open mod | Set.member (Text.pack mod) typeModifiers -> 1
-      Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 1
-      Reserved "use" -> 0
-      _ -> 3 :: Int
+      Open mod | Set.member (Text.pack mod) typeModifiers -> 3
+      Open typOrA | Set.member (Text.pack typOrA) typeOrAbility -> 3
+      -- put `namespace` before `use` because the file parser only accepts a namespace directive at the top of the file
+      Reserved "namespace" -> 1
+      Reserved "use" -> 2
+      _ -> 4 :: Int
     -- after reordering can end up with trailing semicolon at the end of
     -- a block, which we remove with this pass
     fixup stanza [] = case Lens.unsnoc stanza of
