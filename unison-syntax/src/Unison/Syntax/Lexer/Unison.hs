@@ -29,6 +29,7 @@ import Control.Lens qualified as Lens
 import Control.Monad.State qualified as S
 import Data.Char (isAlphaNum, isDigit, isSpace, ord, toLower)
 import Data.Foldable qualified as Foldable
+import Data.Functor.Classes (Show1 (..), showsPrec1)
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as Nel
@@ -46,9 +47,7 @@ import U.Codebase.Reference (ReferenceType (..))
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment (docSegment)
-import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -56,7 +55,7 @@ import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
 import Unison.Syntax.Lexer
 import Unison.Syntax.Lexer.Token (posP, tokenP)
 import Unison.Syntax.Name qualified as Name (isSymboly, nameP, toText, unsafeParseText)
-import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..), wordyP)
+import Unison.Syntax.NameSegment qualified as NameSegment (ParseErr (..))
 import Unison.Syntax.Parser.Doc qualified as Doc
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.ReservedWords (delimiters, typeModifiers, typeOrAbility)
@@ -105,18 +104,28 @@ data Err
 --   further knowledge of spacing or indentation levels
 --   any knowledge of comments
 data Lexeme
-  = Open String -- start of a block
-  | Semi IsVirtual -- separator between elements of a block
-  | Close -- end of a block
-  | Reserved String -- reserved tokens such as `{`, `(`, `type`, `of`, etc
-  | Textual String -- text literals, `"foo bar"`
-  | Character Char -- character literals, `?X`
-  | WordyId (HQ'.HashQualified Name) -- a (non-infix) identifier. invariant: last segment is wordy
-  | SymbolyId (HQ'.HashQualified Name) -- an infix identifier. invariant: last segment is symboly
-  | Blank String -- a typed hole or placeholder
-  | Numeric String -- numeric literals, left unparsed
-  | Bytes Bytes.Bytes -- bytes literals
-  | Hash ShortHash -- hash literals
+  = -- | start of a block
+    Open String
+  | -- | separator between elements of a block
+    Semi IsVirtual
+  | -- | end of a block
+    Close
+  | -- | reserved tokens such as `{`, `(`, `type`, `of`, etc
+    Reserved String
+  | -- | text literals, `"foo bar"`
+    Textual String
+  | -- | character literals, `?X`
+    Character Char
+  | -- | a (non-infix) identifier. invariant: last segment is wordy
+    WordyId (HQ'.HashQualified Name)
+  | -- | an infix identifier. invariant: last segment is symboly
+    SymbolyId (HQ'.HashQualified Name)
+  | -- | numeric literals, left unparsed
+    Numeric String
+  | -- | bytes literals
+    Bytes Bytes.Bytes
+  | -- | hash literals
+    Hash ShortHash
   | Err Err
   | Doc (Doc.UntitledSection (Doc.Tree (ReferenceType, HQ'.HashQualified Name) [Token Lexeme]))
   deriving stock (Eq, Show, Ord)
@@ -330,7 +339,6 @@ displayLexeme = \case
   Character c -> "?" <> [c]
   WordyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
   SymbolyId hq -> Text.unpack (HQ'.toTextWith Name.toText hq)
-  Blank b -> b
   Numeric n -> n
   Bytes _b -> "bytes literal"
   Hash h -> Text.unpack (SH.toText h)
@@ -436,7 +444,6 @@ lexemes eof =
         <|> token numeric
         <|> token character
         <|> reserved
-        <|> token blank
         <|> token identifierLexemeP
         <|> (asum . map token) [semi, textual, hash]
 
@@ -468,12 +475,6 @@ lexemes eof =
               _ <- lit "]" *> CP.space
               t <- tok identifierLexemeP
               pure $ (fmap Reserved <$> typ) <> t
-
-    blank =
-      separated wordySep do
-        _ <- char '_'
-        seg <- P.optional wordyIdSegP
-        pure (Blank (maybe "" (Text.unpack . NameSegment.toUnescapedText) seg))
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -758,10 +759,6 @@ identifierLexeme name =
     then SymbolyId name
     else WordyId name
 
-wordyIdSegP :: P.ParsecT (Token Err) String m NameSegment
-wordyIdSegP =
-  PI.withParsecT (fmap (ReservedWordyId . Text.unpack)) NameSegment.wordyP
-
 shortHashP :: P.ParsecT (Token Err) String m ShortHash
 shortHashP =
   PI.withParsecT (fmap (InvalidShortHash . Text.unpack)) ShortHash.shortHashP
@@ -838,17 +835,36 @@ headToken (Block a _ _) = a
 headToken (Leaf a) = a
 
 instance (Show a) => Show (BlockTree a) where
-  show (Leaf a) = show a
-  show (Block open mid close) =
-    show open
-      ++ "\n"
-      ++ indent "  " (intercalateMap "\n" (intercalateMap " " show) mid)
-      ++ "\n"
-      ++ maybe "" show close
+  showsPrec = showsPrec1
+
+-- | This instance should be compatible with `Read`, but inserts newlines and indentation to make it more
+--  /human/-readable.
+instance Show1 BlockTree where
+  liftShowsPrec spa sla = shows ""
     where
-      indent by s = by ++ (s >>= go by)
-      go by '\n' = '\n' : by
-      go _ c = [c]
+      shows by prec =
+        showParen (prec > appPrec) . \case
+          Leaf a -> showString "Leaf " . showsNext spa "" a
+          Block open mid close ->
+            showString "Block "
+              . showsNext spa "" open
+              . showString "\n"
+              . showIndentedList (showIndentedList (\b -> showsIndented (shows b 0) b)) ("  " <> by) mid
+              . showString "\n"
+              . showsNext (liftShowsPrec spa sla) ("  " <> by) close
+      appPrec = 10
+      showsNext :: (Int -> x -> ShowS) -> String -> x -> ShowS
+      showsNext fn = showsIndented (fn $ appPrec + 1)
+      showsIndented :: (x -> ShowS) -> String -> x -> ShowS
+      showsIndented fn by x = showString by . fn x
+      showIndentedList :: (String -> x -> ShowS) -> String -> [x] -> ShowS
+      showIndentedList fn by xs =
+        showString by
+          . showString "["
+          . foldr (\x acc -> showString "\n" . fn ("  " <> by) x . showString "," . acc) id xs
+          . showString "\n"
+          . showString by
+          . showString "]"
 
 reorderTree :: ([[BlockTree a]] -> [[BlockTree a]]) -> BlockTree a -> BlockTree a
 reorderTree f (Block open mid close) = Block open (f (fmap (reorderTree f) <$> mid)) close
@@ -993,7 +1009,6 @@ instance P.VisualStream [Token Lexeme] where
           Nothing -> '?' : [c]
       pretty (WordyId n) = Text.unpack (HQ'.toText n)
       pretty (SymbolyId n) = Text.unpack (HQ'.toText n)
-      pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh
       pretty (Err e) = show e
