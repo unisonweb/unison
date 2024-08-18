@@ -106,6 +106,11 @@ openConnection name file = do
   let conn = Connection {conn = conn0, file, name}
   execute conn [Sql.sql| PRAGMA foreign_keys = ON |]
   execute conn [Sql.sql| PRAGMA busy_timeout = 60000 |]
+  execute conn [Sql.sql| PRAGMA synchronous = normal |]
+  execute conn [Sql.sql| PRAGMA journal_size_limit = 6144000 |]
+  execute conn [Sql.sql| PRAGMA cache_size = -64000 |]
+  execute conn [Sql.sql| PRAGMA temp_store = 2 |]
+
   pure conn
 
 -- Close a connection opened with 'openConnection'.
