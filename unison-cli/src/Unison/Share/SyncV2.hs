@@ -89,9 +89,8 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
         liftIO $ downloadedCallback (length allResults)
         allEntities <- Timing.time "Unpacking chunks" $ do (unpackChunks codebase (failed . SyncError) allResults)
         sortedEntities <- Timing.time "Sorting Entities" $ UnliftIO.evaluate $ topSortEntities allEntities
-        Timing.time "Inserting entities" $ for_ sortedEntities \(hash, entity) -> do
-          r <- liftIO $ Codebase.runTransaction codebase $ Right <$> insertEntity hash entity
-          void $ either (failed . SyncError) pure r
+        liftIO $ Timing.time "Inserting entities" $ Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do
+          insertEntity hash entity
         pure ()
 
     didCausalSuccessfullyImport codebase hash >>= \case
