@@ -65,7 +65,7 @@ downloadEntities ::
   -- | Callback that's given a number of entities we just downloaded.
   (Int -> IO ()) ->
   Cli (Either (SyncError SyncV2.PullError) ())
-downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback = do
+downloadEntities unisonShareUrl branchRef hashJwt knownHashes _downloadedCallback = do
   Cli.Env {authHTTPClient, codebase} <- ask
 
   Cli.label \done -> do
@@ -86,7 +86,7 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes downloadedCallback
               unisonShareUrl
               SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
         allResults <- either failed pure results
-        liftIO $ downloadedCallback (length allResults)
+        -- liftIO $ downloadedCallback (length allResults)
         allEntities <- Timing.time "Unpacking chunks" $ liftIO $ Codebase.runTransaction codebase $ do (unpackChunks allResults)
         sortedEntities <- Timing.time "Sorting Entities" $ UnliftIO.evaluate $ topSortEntities allEntities
         liftIO $ Timing.time "Inserting entities" $ Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do

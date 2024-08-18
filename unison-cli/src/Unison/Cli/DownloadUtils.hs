@@ -51,14 +51,16 @@ downloadProjectBranchFromShare useSquashed branch =
         (Share.NoSquashedHead, _) -> pure branch.branchHead
     exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
     when (not exists) do
-      (result, numDownloaded) <-
-        Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
-          let branchRef = SyncV2.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
-          -- TODO: Fill this in.
-          let knownHashes = Set.empty
-          result <- SyncV2.downloadEntities Share.hardCodedBaseUrl branchRef causalHashJwt knownHashes downloadedCallback
-          numDownloaded <- liftIO getNumDownloaded
-          pure (result, numDownloaded)
+      (result, numDownloaded) <- do
+        -- Cli.with withEntitiesDownloadedProgressCallback \(downloadedCallback, getNumDownloaded) -> do
+        let branchRef = SyncV2.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
+        -- TODO: Fill this in.
+        let knownHashes = Set.empty
+        let downloadedCallback = \_ -> pure ()
+        result <- SyncV2.downloadEntities Share.hardCodedBaseUrl branchRef causalHashJwt knownHashes downloadedCallback
+        -- numDownloaded <- liftIO getNumDownloaded
+        let numDownloaded = 0
+        pure (result, numDownloaded)
       result & onLeft \err0 -> do
         done case err0 of
           Share.SyncError err ->
