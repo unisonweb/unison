@@ -28,9 +28,12 @@ import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Unconflicts (Unconflicts)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
@@ -46,7 +49,7 @@ data Mergeblob1 libdep = Mergeblob1
     declNameLookups :: TwoWay DeclNameLookup,
     defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
-    diffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
     hydratedDefns ::
       ThreeWay
         ( DefnsF
@@ -78,7 +81,7 @@ makeMergeblob1 ::
   forall libdep.
   (Eq libdep) =>
   Mergeblob0 libdep ->
-  ThreeWay PPED.PrettyPrintEnvDecl {- Pretty print env containing names for everything in 'hydratedDefnDependencies' -} ->
+  ThreeWay Names {- Names for _at least_ every reference in 'hydratedDefnDependencies' -} ->
   ThreeWay
     ( DefnsF
         (Map Name)
@@ -86,7 +89,9 @@ makeMergeblob1 ::
         (TypeReferenceId, Decl Symbol Ann)
     ) ->
   Either (EitherWay IncoherentDeclReason) (Mergeblob1 libdep)
-makeMergeblob1 blob ppeds hydratedDefns = do
+makeMergeblob1 blob names3 hydratedDefns = do
+  let ppeds3 :: ThreeWay PPED.PrettyPrintEnvDecl
+      ppeds3 = names3 <&> \names -> (PPED.makePPED (PPE.namer names) (PPE.suffixifyByHash names))
   -- Make one big constructor count lookup for all type decls
   let numConstructors =
         Map.empty
@@ -114,11 +119,11 @@ makeMergeblob1 blob ppeds hydratedDefns = do
         lenientCheckDeclCoherency blob.nametrees.lca numConstructors
 
   -- Diff LCA->Alice and LCA->Bob
-  let diffs =
+  let (diffsFromLCA, propagatedUpdates) =
         nameBasedNamespaceDiff
           declNameLookups
           lcaDeclNameLookup
-          ppeds
+          ppeds3
           blob.defns
           Defns
             { terms =
@@ -132,8 +137,8 @@ makeMergeblob1 blob ppeds hydratedDefns = do
             }
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
-  let diff =
-        combineDiffs diffs
+  let diff = combineDiffs diffsFromLCA
+
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
@@ -154,7 +159,7 @@ makeMergeblob1 blob ppeds hydratedDefns = do
         declNameLookups,
         defns = blob.defns,
         diff,
-        diffs,
+        diffsFromLCA,
         hydratedDefns,
         lcaDeclNameLookup,
         libdeps,

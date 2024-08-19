@@ -38,7 +38,6 @@ import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), Merge
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.UpdateUtils
   ( getNamespaceDependentsOf3,
@@ -76,7 +75,6 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
@@ -239,7 +237,6 @@ doMerge info = do
             Just b -> pure b
         let names = fmap (Branch.toNames . Branch.head) branches
         pure Merge.ThreeWay {alice = names.alice, bob = names.bob, lca = fromMaybe mempty names.lca}
-      ppeds3 :: Merge.ThreeWay PPED.PrettyPrintEnvDecl <- for names3 Cli.prettyPrintEnvDeclFromNames
 
       libdeps3 <- Cli.runTransaction (loadLibdeps branches)
 
@@ -265,7 +262,7 @@ doMerge info = do
             )
 
       blob1 <-
-        Merge.makeMergeblob1 blob0 ppeds3 hydratedDefns & onLeft \case
+        Merge.makeMergeblob1 blob0 names3 hydratedDefns & onLeft \case
           Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
           Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 

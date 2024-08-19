@@ -3,9 +3,11 @@ module Unison.Merge.Diff
   )
 where
 
+import Data.Either.Combinators (mapRight)
 import Data.Map.Strict qualified as Map
-import Data.Semialign (alignWith)
+import Data.Semialign (Unalign (..), alignWith)
 import Data.These (These (..))
+import Data.Zip qualified as Zip
 import U.Codebase.Reference (TypeReference)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
@@ -14,16 +16,20 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Hash (Hash (Hash))
 import Unison.Merge.DiffOp (DiffOp (..))
+import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
+import Unison.Merge.Synhashed qualified as Synhashed
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (Updated (..))
 import Unison.Name (Name)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
+import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReferenceId)
 import Unison.Referent (Referent)
@@ -50,32 +56,50 @@ nameBasedNamespaceDiff ::
   ThreeWay PPED.PrettyPrintEnvDecl ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
-  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference)
+  ( -- Core diffs, i.e. adds, deletes, and updates which have different synhashes.
+    TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    -- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.
+    TwoWay (DefnsF2 (Map Name) Updated Referent TypeReference)
+  )
 nameBasedNamespaceDiff declNameLookups lcaDeclNameLookup ppeds defns hydratedDefns =
-  let ThreeWay {lca = lcaPPE, alice = alicePPE, bob = bobPPE} = PPED.unsuffixifiedPPE <$> ppeds
-      lcaHashes = synhashLcaDefns lcaPPE lcaDeclNameLookup defns.lca hydratedDefns
-      aliceHashes = synhashDefns alicePPE hydratedDefns declNameLookups.alice defns.alice
-      bobHashes = synhashDefns bobPPE hydratedDefns declNameLookups.bob defns.bob
-   in diffHashedNamespaceDefns lcaHashes <$> TwoWay {alice = aliceHashes, bob = bobHashes}
+  let lcaHashes = synhashLcaDefns synhashPPE lcaDeclNameLookup defns.lca hydratedDefns
+      aliceHashes = synhashDefns synhashPPE hydratedDefns declNameLookups.alice defns.alice
+      bobHashes = synhashDefns synhashPPE hydratedDefns declNameLookups.bob defns.bob
+   in (diffHashedNamespaceDefns lcaHashes <$> TwoWay {alice = aliceHashes, bob = bobHashes})
+        & Zip.unzip
+  where
+    synhashPPE :: PPE.PrettyPrintEnv
+    synhashPPE =
+      let ThreeWay {lca = lcaPPE, alice = alicePPE, bob = bobPPE} = PPED.unsuffixifiedPPE <$> ppeds
+       in alicePPE `PPE.addFallback` bobPPE `PPE.addFallback` lcaPPE
 
 diffHashedNamespaceDefns ::
   DefnsF2 (Map Name) Synhashed term typ ->
   DefnsF2 (Map Name) Synhashed term typ ->
-  DefnsF3 (Map Name) DiffOp Synhashed term typ
-diffHashedNamespaceDefns =
-  zipDefnsWith f f
+  ( -- Core diffs, i.e. adds, deletes, and updates which have different synhashes.
+    DefnsF3 (Map Name) DiffOp Synhashed term typ,
+    -- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.
+    DefnsF2 (Map Name) Updated term typ
+  )
+diffHashedNamespaceDefns d1 d2 =
+  zipDefnsWith f f d1 d2
+    & splitPropagated
   where
-    f :: Map Name (Synhashed ref) -> Map Name (Synhashed ref) -> Map Name (DiffOp (Synhashed ref))
-    f old new =
-      Map.mapMaybe id (alignWith g old new)
+    f :: Map Name (Synhashed ref) -> Map Name (Synhashed ref) -> (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+    f old new = unalign (eitherToThese . mapRight (fmap Synhashed.value) <$> alignWith g old new)
 
-    g :: (Eq x) => These x x -> Maybe (DiffOp x)
+    g :: (Eq x) => These x x -> Either (DiffOp x) (Updated x)
     g = \case
-      This old -> Just (DiffOp'Delete old)
-      That new -> Just (DiffOp'Add new)
+      This old -> Left (DiffOp'Delete old)
+      That new -> Left (DiffOp'Add new)
       These old new
-        | old == new -> Nothing
-        | otherwise -> Just (DiffOp'Update Updated {old, new})
+        | old == new -> Right (Updated {old, new})
+        | otherwise -> Left (DiffOp'Update Updated {old, new})
+    splitPropagated ::
+      Defns (Map Name (DiffOp (Synhashed term)), Map Name (Updated term)) (Map Name (DiffOp (Synhashed typ)), Map Name (Updated typ)) ->
+      (DefnsF3 (Map Name) DiffOp Synhashed term typ, DefnsF2 (Map Name) Updated term typ)
+    splitPropagated Defns {terms, types} =
+      (Defns {terms = fst terms, types = fst types}, Defns {terms = snd terms, types = snd types})
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Syntactic hashing
