@@ -1,6 +1,6 @@
 module Unison.Merge.Mergeblob1
   ( Mergeblob1 (..),
-    hydratedDefnDependencies,
+    hydratedDefnsLabeledDependencies,
     makeMergeblob1,
   )
 where
@@ -8,8 +8,10 @@ where
 import Control.Lens
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration.Dependencies qualified as Decl
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
@@ -36,6 +38,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -65,19 +68,18 @@ data Mergeblob1 libdep = Mergeblob1
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
-hydratedDefnDependencies ::
-  ThreeWay
-    ( DefnsF
-        (Map Name)
-        (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
-        (TypeReferenceId, Decl Symbol Ann)
-    ) ->
-  ThreeWay (Set LD.LabeledDependency)
-hydratedDefnDependencies hydratedDefns =
-  hydratedDefns
-    <&> \Defns {terms, types} ->
-      (terms & foldOf (folded . _2 . beside (to Term.labeledDependencies) (to Type.labeledDependencies)))
-        <> (types & foldOf (folded . _2 . to DataDeclaration.labeledDeclTypeDependencies))
+-- | Get  a names object for all the hydrated definitions AND their direct dependencies
+hydratedDefnsLabeledDependencies :: (DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)) -> Set LD.LabeledDependency
+hydratedDefnsLabeledDependencies (Defns {terms, types}) =
+  let termDeps :: Set LD.LabeledDependency
+      termDeps = foldOf (folded . beside (to Reference.DerivedId . to LD.TermReference . to Set.singleton) (beside (to Term.labeledDependencies) (to Type.labeledDependencies))) terms
+      typeDeps :: Set LD.LabeledDependency
+      typeDeps =
+        types
+          & foldMap \(typeRefId, typeDecl) ->
+            let typeRef = Reference.DerivedId typeRefId
+             in Decl.labeledDeclDependenciesIncludingSelfAndFieldAccessors typeRef typeDecl
+   in termDeps <> typeDeps
 
 makeMergeblob1 ::
   forall libdep.
