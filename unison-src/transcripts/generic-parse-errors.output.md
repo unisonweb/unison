@@ -30,12 +30,32 @@ namespace.blah = 1
 
   Loading changes detected in scratch.u.
 
-  The identifier `namespace` used here is a reserved keyword: 
+  I got confused here:
   
       1 | namespace.blah = 1
   
-  You can avoid this problem either by renaming the identifier
-  or wrapping it in backticks (like `namespace` ).
+  
+  I was surprised to find a = here.
+  I was expecting one of these instead:
+  
+  * ability
+  * bang
+  * binding
+  * do
+  * false
+  * force
+  * handle
+  * if
+  * lambda
+  * let
+  * newline or semicolon
+  * quote
+  * termLink
+  * true
+  * tuple
+  * type
+  * typeLink
+  * use
 
 ```
 ``` unison

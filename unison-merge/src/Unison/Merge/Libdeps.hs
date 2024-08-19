@@ -3,6 +3,7 @@ module Unison.Merge.Libdeps
   ( LibdepDiffOp (..),
     diffLibdeps,
     applyLibdepsDiff,
+    getTwoFreshLibdepNames,
   )
 where
 
@@ -18,6 +19,8 @@ import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
 import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (Updated (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
 import Unison.Util.Map qualified as Map
 import Witherable (catMaybes)
@@ -129,3 +132,40 @@ applyLibdepsDiff freshen0 libdeps =
             Map.keysSet libdeps.alice,
             Map.keysSet libdeps.bob
           ]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Getting fresh libdeps names
+
+-- Given a name like "base", try "base__1", then "base__2", etc, until we find a name that doesn't
+-- clash with any existing dependencies.
+getTwoFreshLibdepNames :: Set NameSegment -> NameSegment -> (NameSegment, NameSegment)
+getTwoFreshLibdepNames names name0 =
+  go2 0
+  where
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go2 4 = ("base__4", "base__7")
+    go2 :: Integer -> (NameSegment, NameSegment)
+    go2 !i
+      | Set.member name names = go2 (i + 1)
+      | otherwise = (name, go1 (i + 1))
+      where
+        name = mangled i
+
+    -- if
+    --   name0 = "base"
+    --   names = {"base__5", "base__6"}
+    -- then
+    --   go1 5 = "base__7"
+    go1 :: Integer -> NameSegment
+    go1 !i
+      | Set.member name names = go1 (i + 1)
+      | otherwise = name
+      where
+        name = mangled i
+
+    mangled :: Integer -> NameSegment
+    mangled i =
+      NameSegment (NameSegment.toUnescapedText name0 <> "__" <> tShow i)

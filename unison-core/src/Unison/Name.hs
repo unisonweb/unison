@@ -32,6 +32,7 @@ module Unison.Name
     parent,
     stripNamePrefix,
     unqualified,
+    isUnqualified,
 
     -- * To organize later
     commonPrefix,
@@ -503,6 +504,11 @@ suffixFrom (Name p0 ss0) (Name _ ss1) = do
 unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
+
+isUnqualified :: Name -> Bool
+isUnqualified = \case
+  Name Relative (_ :| []) -> True
+  Name _ (_ :| _) -> False
 
 -- Tries to shorten `fqn` to the smallest suffix that still unambiguously refers to the same name. Uses an efficient
 -- logarithmic lookup in the provided relation.

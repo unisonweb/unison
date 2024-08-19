@@ -1,5 +1,6 @@
 module Unison.NameSegment
   ( NameSegment,
+    toUnescapedText,
 
     -- * Sentinel name segments
     defaultPatchSegment,
@@ -23,7 +24,7 @@ module Unison.NameSegment
   )
 where
 
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal (NameSegment (NameSegment, toUnescapedText))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- special segment names

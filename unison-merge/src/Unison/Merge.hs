@@ -1,63 +1,61 @@
 module Unison.Merge
-  ( -- * Decl coherency checks
-    DeclNameLookup (..),
+  ( Mergeblob0 (..),
+    makeMergeblob0,
+    Mergeblob1 (..),
+    makeMergeblob1,
+    Mergeblob2 (..),
+    Mergeblob2Error (..),
+    makeMergeblob2,
+    Mergeblob3 (..),
+    makeMergeblob3,
+    Mergeblob4 (..),
+    makeMergeblob4,
+    Mergeblob5 (..),
+    makeMergeblob5,
+
+    -- * Decl coherency checks
     PartialDeclNameLookup (..),
     IncoherentDeclReason (..),
-    oldCheckDeclCoherency,
     checkDeclCoherency,
-    oldLenientCheckDeclCoherency,
     lenientCheckDeclCoherency,
     IncoherentDeclReasons (..),
     checkAllDeclCoherency,
 
-    -- * 3-way namespace diff
-    DiffOp (..),
-    oldNameBasedNamespaceDiff,
-    nameBasedNamespaceDiff,
-
-    -- * Combining namespace diffs
+    -- * Types
     CombinedDiffOp (..),
-    combineDiffs,
-
-    -- * Partitioning combined namespace diffs
-    Unconflicts (..),
-    partitionCombinedDiffs,
-
-    -- * Merging libdeps
-    LibdepDiffOp (..),
-    diffLibdeps,
-    applyLibdepsDiff,
-
-    -- * Utility types
+    DiffOp (..),
     EitherWay (..),
+    EitherWayI (..),
+    LibdepDiffOp (..),
+    Synhashed (..),
     ThreeWay (..),
     TwoOrThreeWay (..),
-    EitherWayI (..),
-    Synhashed (..),
     TwoWay (..),
     TwoWayI (..),
+    Unconflicts (..),
     Updated (..),
   )
 where
 
-import Unison.Merge.CombineDiffs (CombinedDiffOp (..), combineDiffs)
+import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
 import Unison.Merge.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
     IncoherentDeclReasons (..),
     checkAllDeclCoherency,
     checkDeclCoherency,
     lenientCheckDeclCoherency,
-    oldCheckDeclCoherency,
-    oldLenientCheckDeclCoherency,
   )
-import Unison.Merge.DeclNameLookup (DeclNameLookup (..))
-import Unison.Merge.Diff (nameBasedNamespaceDiff, oldNameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
-import Unison.Merge.Libdeps (LibdepDiffOp (..), applyLibdepsDiff, diffLibdeps)
+import Unison.Merge.Libdeps (LibdepDiffOp (..))
+import Unison.Merge.Mergeblob0 (Mergeblob0 (..), makeMergeblob0)
+import Unison.Merge.Mergeblob1 (Mergeblob1 (..), makeMergeblob1)
+import Unison.Merge.Mergeblob2 (Mergeblob2 (..), Mergeblob2Error (..), makeMergeblob2)
+import Unison.Merge.Mergeblob3 (Mergeblob3 (..), makeMergeblob3)
+import Unison.Merge.Mergeblob4 (Mergeblob4 (..), makeMergeblob4)
+import Unison.Merge.Mergeblob5 (Mergeblob5 (..), makeMergeblob5)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
-import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
