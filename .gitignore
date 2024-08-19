@@ -25,6 +25,7 @@ dist-newstyle
 *.hie
 *.prof
 *.prof.html
+*.profiterole.*
 /.direnv/
 /.envrc
 

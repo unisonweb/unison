@@ -534,23 +534,18 @@ countWatches = queryOneCol [sql| SELECT COUNT(*) FROM watch |]
 
 saveHash :: Hash32 -> Transaction HashId
 saveHash hash = do
-  execute
-    [sql|
-      INSERT INTO hash (base32) VALUES (:hash)
-      ON CONFLICT DO NOTHING
-    |]
-  expectHashId hash
+  loadHashId hash >>= \case
+    Just h -> pure h
+    Nothing -> do
+      queryOneCol
+        [sql|
+          INSERT INTO hash (base32) VALUES (:hash)
+          RETURNING id
+        |]
 
 saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
 saveHashes hashes = do
-  for_ hashes \hash ->
-    execute
-      [sql|
-        INSERT INTO hash (base32)
-        VALUES (:hash)
-        ON CONFLICT DO NOTHING
-      |]
-  traverse expectHashId hashes
+  for hashes saveHash
 
 saveHashHash :: Hash -> Transaction HashId
 saveHashHash = saveHash . Hash32.fromHash
@@ -625,13 +620,15 @@ expectBranchHashForCausalHash ch = do
 
 saveText :: Text -> Transaction TextId
 saveText t = do
-  execute
-    [sql|
-      INSERT INTO text (text)
-      VALUES (:t)
-      ON CONFLICT DO NOTHING
-    |]
-  expectTextId t
+  loadTextId t >>= \case
+    Just h -> pure h
+    Nothing -> do
+      queryOneCol
+        [sql|
+          INSERT INTO text (text)
+          VALUES (:t)
+          RETURNING id
+        |]
 
 saveTexts :: Traversable f => f Text -> Transaction (f TextId)
 saveTexts =
