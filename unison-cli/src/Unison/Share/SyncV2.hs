@@ -88,9 +88,9 @@ downloadEntities unisonShareUrl branchRef hashJwt knownHashes _downloadedCallbac
         allResults <- either failed pure results
         -- liftIO $ downloadedCallback (length allResults)
         allEntities <- Timing.time "Unpacking chunks" $ liftIO $ Codebase.runTransaction codebase $ do (unpackChunks allResults)
-        sortedEntities <- Timing.time "Sorting Entities" $ UnliftIO.evaluate $ topSortEntities allEntities
+        let sortedEntities = topSortEntities allEntities
         liftIO $ Timing.time "Inserting entities" $ Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do
-          insertEntity hash entity
+          Q.saveTempEntityInMain v2HashHandle hash entity
         pure ()
 
     didCausalSuccessfullyImport codebase hash >>= \case
