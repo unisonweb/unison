@@ -3,7 +3,6 @@ module Unison.Merge.HumanDiffOp
   )
 where
 
-import Data.Set (Set)
 import Data.Set.NonEmpty (NESet)
 import Unison.Merge.Updated (Updated)
 import Unison.Name (Name)

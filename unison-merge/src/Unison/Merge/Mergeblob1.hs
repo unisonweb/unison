@@ -14,7 +14,7 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
-import Unison.Merge.Diff (nameBasedNamespaceDiff)
+import Unison.Merge.Diff (humanizeDiffs, nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)

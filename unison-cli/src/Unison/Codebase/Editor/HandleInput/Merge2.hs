@@ -266,7 +266,7 @@ doMerge info = do
           Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
           Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
-      liftIO (debugFunctions.debugDiffs blob1.diffs)
+      liftIO (debugFunctions.debugDiffs blob1.diffsFromLCA)
 
       liftIO (debugFunctions.debugCombinedDiff blob1.diff)
 
