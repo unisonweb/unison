@@ -17,6 +17,7 @@ import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency
 import Unison.Merge.Diff (nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (LibdepDiffOp, applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames)
 import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
@@ -50,6 +51,7 @@ data Mergeblob1 libdep = Mergeblob1
     defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
     diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    humanDiffsFromLCA :: TwoWay (DefnsF2 (Map Name) HumanDiffOp Referent TypeReference),
     hydratedDefns ::
       ThreeWay
         ( DefnsF
@@ -139,6 +141,7 @@ makeMergeblob1 blob names3 hydratedDefns = do
   -- Combine the LCA->Alice and LCA->Bob diffs together
   let diff = combineDiffs diffsFromLCA
 
+  let humanDiffsFromLCA = humanizeDiffs names3 diffsFromLCA propagatedUpdates
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
@@ -160,6 +163,7 @@ makeMergeblob1 blob names3 hydratedDefns = do
         defns = blob.defns,
         diff,
         diffsFromLCA,
+        humanDiffsFromLCA,
         hydratedDefns,
         lcaDeclNameLookup,
         libdeps,

@@ -1,5 +1,6 @@
 module Unison.Merge.Diff
   ( nameBasedNamespaceDiff,
+    humanizeDiffs,
   )
 where
 
@@ -100,6 +101,15 @@ diffHashedNamespaceDefns d1 d2 =
       (DefnsF3 (Map Name) DiffOp Synhashed term typ, DefnsF2 (Map Name) Updated term typ)
     splitPropagated Defns {terms, types} =
       (Defns {terms = fst terms, types = fst types}, Defns {terms = snd terms, types = snd types})
+
+-- | Post-process a diff to identify relationships humans might care about,
+-- such as whether a given addition could be interpreted as an alias of an existing definition,
+-- or whether an add and deletion could be a rename.
+humanizeDiffs ::
+  ThreeWay Names ->
+  TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) ->
+  TwoWay (DefnsF2 (Map Name) HumanDiffOp Referent TypeReference)
+humanizeDiffs names3 diffs = _
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Syntactic hashing
