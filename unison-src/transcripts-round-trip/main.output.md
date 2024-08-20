@@ -590,8 +590,8 @@ softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
 
 softhang23 : 'Nat
 softhang23 = do
-  use Nat +
   catchAll do
+    use Nat +
     x = 1
     y = 2
     x + y

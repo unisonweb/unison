@@ -497,7 +497,7 @@ pretty0
                       _ -> undefined
                     r p a f =
                       sequenceA
-                        [ pretty0 (ac (if isBlock a then Top else (fromMaybe p (termPrecedence f))) Normal im doc) a,
+                        [ pretty0 (ac (if isBlock a then Top else fromMaybe p (termPrecedence f)) Normal im doc) a,
                           pretty0 (AmbientContext Application Normal Infix im doc False) f
                         ]
 
@@ -1670,13 +1670,14 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Unbound _ -> False
 isDestructuringBind _ _ = False
 
-isBlock :: (Ord v) => Term2 vt at ap v a -> Bool
+isBlock :: (Var v, Ord v) => Term2 vt at ap v a -> Bool
 isBlock tm =
   case tm of
     If' {} -> True
     Handle' _ _ -> True
     Match' _ _ -> True
     LetBlock _ _ -> True
+    DDelay' _ -> True
     _ -> False
 
 pattern LetBlock ::
