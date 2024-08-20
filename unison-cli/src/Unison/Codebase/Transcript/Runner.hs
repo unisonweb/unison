@@ -300,16 +300,21 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
             _ <- liftIO (writeIORef mStanza maybeStanza)
             case maybeStanza of
               Nothing -> do
-                liftIO (putStrLn "")
+                liftIO (putStrLn "\r✔️   Completed transcript.                   ")
                 pure $ Right QuitI
-              Just (s, idx) -> do
+              Just (s, midx) -> do
                 unless (Verbosity.isSilent verbosity) . liftIO $ do
                   putStr $
-                    "\r⚙️   Processing stanza "
-                      ++ show idx
-                      ++ " of "
-                      ++ show (length stanzas)
-                      ++ "."
+                    maybe
+                      "\r⏩   Skipping non-executable Markdown block."
+                      ( \idx ->
+                          "\r⚙️   Processing stanza "
+                            ++ show idx
+                            ++ " of "
+                            ++ show (length stanzas)
+                            ++ ".          "
+                      )
+                      midx
                   IO.hFlush IO.stdout
                 either
                   ( \node -> do
