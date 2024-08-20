@@ -62,7 +62,8 @@ infixLevels =
     ["==", "!==", "!=", "==="],
     ["<", ">", ">=", "<="],
     ["+", "-"],
-    ["*", "/", "%"]
+    ["*", "/", "%"],
+    ["^", "^^", "**"]
   ]
 
 -- | Returns the precedence of an infix operator, if it has one.
