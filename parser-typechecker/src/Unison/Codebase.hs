@@ -150,7 +150,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, ProjectName)
-import Unison.Reference (Reference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Runtime.IOSource qualified as IOSource
@@ -163,6 +163,7 @@ import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
@@ -364,35 +365,51 @@ lookupWatchCache codebase h = do
 -- and all of their type dependencies, including builtins.
 typeLookupForDependencies ::
   Codebase IO Symbol Ann ->
-  Set Reference ->
+  DefnsF Set TermReference TypeReference ->
   Sqlite.Transaction (TL.TypeLookup Symbol Ann)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
-  (<> Builtin.typeLookup) <$> depthFirstAccum mempty s
+  (<> Builtin.typeLookup) <$> depthFirstAccum s
   where
-    depthFirstAccum :: TL.TypeLookup Symbol Ann -> Set Reference -> Sqlite.Transaction (TL.TypeLookup Symbol Ann)
-    depthFirstAccum tl refs = foldM go tl (Set.filter (unseen tl) refs)
+    depthFirstAccum ::
+      DefnsF Set TermReference TypeReference ->
+      Sqlite.Transaction (TL.TypeLookup Symbol Ann)
+    depthFirstAccum refs = do
+      tl <- depthFirstAccumTypes mempty refs.types
+      foldM goTerm tl (Set.filter (unseen tl) refs.terms)
+
+    depthFirstAccumTypes ::
+      TL.TypeLookup Symbol Ann ->
+      Set TypeReference ->
+      Sqlite.Transaction (TL.TypeLookup Symbol Ann)
+    depthFirstAccumTypes tl refs =
+      foldM goType tl (Set.filter (unseen tl) refs)
 
     -- We need the transitive dependencies of data decls
     -- that are scrutinized in a match expression for
     -- pattern match coverage checking (specifically for
     -- the inhabitation check). We ensure these are found
     -- by collecting all transitive type dependencies.
-    go tl ref@(Reference.DerivedId id) =
+    goTerm :: TypeLookup Symbol Ann -> TermReference -> Sqlite.Transaction (TypeLookup Symbol Ann)
+    goTerm tl ref =
       getTypeOfTerm codebase ref >>= \case
         Just typ ->
           let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty
-           in depthFirstAccum z (Type.dependencies typ)
-        Nothing ->
-          getTypeDeclaration codebase id >>= \case
-            Just (Left ed) ->
-              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-               in depthFirstAccum z (DD.typeDependencies $ DD.toDataDecl ed)
-            Just (Right dd) ->
-              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-               in depthFirstAccum z (DD.typeDependencies dd)
-            Nothing -> pure tl
-    go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
+           in depthFirstAccumTypes z (Type.dependencies typ)
+        Nothing -> pure tl
+
+    goType :: TypeLookup Symbol Ann -> TypeReference -> Sqlite.Transaction (TypeLookup Symbol Ann)
+    goType tl ref@(Reference.DerivedId id) =
+      getTypeDeclaration codebase id >>= \case
+        Just (Left ed) ->
+          let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
+           in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
+        Just (Right dd) ->
+          let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
+           in depthFirstAccumTypes z (DD.typeDependencies dd)
+        Nothing -> pure tl
+    goType tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
+
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
       isNothing

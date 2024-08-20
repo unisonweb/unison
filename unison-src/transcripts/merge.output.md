@@ -789,10 +789,12 @@ unique type Foo = Baz Nat Nat | Qux Text
 
 Bob's renames `Qux` to `BobQux`:
 
-``` unison
-unique type Foo = Baz Nat | BobQux Text
-```
+``` ucm
+project/bob> move.term Foo.Qux Foo.BobQux
 
+  Done.
+
+```
 ``` ucm
 project/alice> merge /bob
 
@@ -818,7 +820,7 @@ project/alice> merge /bob
 type Foo = Baz Nat Nat | Qux Text
 
 -- project/bob
-type Foo = Baz Nat | BobQux Text
+type Foo = BobQux Text | Baz Nat
 
 ```
 
@@ -1294,7 +1296,7 @@ project/alice> merge /bob
   Sorry, I wasn't able to perform the merge:
   
   On the merge ancestor, bar and foo were aliases for the same
-  definition, but on project/alice the names have different
+  term, but on project/alice the names have different
   definitions currently. I'd need just a single new definition
   to use in their dependents when I merge.
   
@@ -1335,9 +1337,9 @@ project/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
-  There's a merge conflict on MyNat, but it's a builtin on one
-  or both branches. I can't yet handle merge conflicts involving
-  builtins.
+  There's a merge conflict on type MyNat, but it's a builtin on
+  one or both branches. I can't yet handle merge conflicts
+  involving builtins.
   
   Please eliminate this conflict by updating one branch or the
   other, making MyNat the same on both branches, or making

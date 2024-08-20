@@ -47,6 +47,7 @@ module Unison.Cli.Monad
     -- * Running transactions
     runTransaction,
     runTransactionWithRollback,
+    runTransactionWithRollback2,
 
     -- * Internal
     setMostRecentProjectPath,
@@ -444,3 +445,10 @@ runTransactionWithRollback action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
     & onLeftM returnEarly
+
+-- | Run a transaction that can abort early.
+-- todo: rename to runTransactionWithRollback
+runTransactionWithRollback2 :: ((forall void. a -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
+runTransactionWithRollback2 action = do
+  env <- ask
+  liftIO (Codebase.runTransactionWithRollback env.codebase action)

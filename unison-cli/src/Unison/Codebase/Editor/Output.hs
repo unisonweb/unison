@@ -425,8 +425,8 @@ data Output
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
-  | MergeConflictedAliases !MergeSourceOrTarget !Name !Name
-  | MergeConflictInvolvingBuiltin !Name
+  | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
+  | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
   | NoUpgradeInProgress

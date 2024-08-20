@@ -40,6 +40,7 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..))
 import Unison.Var qualified as Var
 
 handleRun :: Bool -> HQ.HashQualified Name -> [String] -> Cli ()
@@ -124,7 +125,9 @@ getTerm' mainName =
         Cli.Env {codebase, runtime} <- ask
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
           True -> do
-            typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies codebase (Type.dependencies ty))
+            typeLookup <-
+              Cli.runTransaction $
+                Codebase.typeLookupForDependencies codebase Defns {terms = Set.empty, types = Type.dependencies ty}
             f $! synthesizeForce typeLookup ty
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case

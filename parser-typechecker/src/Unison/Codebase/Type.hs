@@ -9,14 +9,13 @@ module Unison.Codebase.Type
 where
 
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Reference qualified as V2
 import Unison.Codebase.Branch (Branch)
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
-import Unison.Reference (Reference, TypeReference)
+import Unison.Reference (Reference, TypeReference, TermReferenceId, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -31,27 +30,27 @@ data Codebase m v a = Codebase
     --
     -- Note that it is possible to call 'putTerm', then 'getTerm', and receive @Nothing@, per the semantics of
     -- 'putTerm'.
-    getTerm :: Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
+    getTerm :: TermReferenceId -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the type of a user-defined term.
     --
     -- Note that it is possible to call 'putTerm', then 'getTypeOfTermImpl', and receive @Nothing@, per the semantics of
     -- 'putTerm'.
-    getTypeOfTermImpl :: Reference.Id -> Sqlite.Transaction (Maybe (Type v a)),
+    getTypeOfTermImpl :: TermReferenceId -> Sqlite.Transaction (Maybe (Type v a)),
     -- | Get a type declaration.
     --
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
-    getTypeDeclaration :: Reference.Id -> Sqlite.Transaction (Maybe (Decl v a)),
+    getTypeDeclaration :: TypeReferenceId -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
-    getDeclType :: V2.Reference -> Sqlite.Transaction CT.ConstructorType,
+    getDeclType :: TypeReference -> Sqlite.Transaction CT.ConstructorType,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
-    putTerm :: Reference.Id -> Term v a -> Type v a -> Sqlite.Transaction (),
+    putTerm :: TermReferenceId -> Term v a -> Type v a -> Sqlite.Transaction (),
     putTermComponent :: Hash -> [(Term v a, Type v a)] -> Sqlite.Transaction (),
     -- | Enqueue the put of a type declaration into the codebase, if it doesn't already exist. The implementation may
     -- choose to delay the put until all of the type declaration's references are stored as well.
-    putTypeDeclaration :: Reference.Id -> Decl v a -> Sqlite.Transaction (),
+    putTypeDeclaration :: TypeReferenceId -> Decl v a -> Sqlite.Transaction (),
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
@@ -66,7 +65,7 @@ data Codebase m v a = Codebase
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> Branch m -> m (),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
-    getWatch :: WK.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term v a)),
+    getWatch :: WK.WatchKind -> TermReferenceId -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.
     termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id),
     -- | Get the set of user-defined terms-or-constructors mention the given type anywhere in their signature.

@@ -8,6 +8,7 @@ import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
@@ -17,6 +18,7 @@ import Text.Show
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.HashQualified qualified as HQ
@@ -30,12 +32,13 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, TypeReference, pattern Builtin)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -1229,27 +1232,27 @@ unReqOrCtor (Request' r) = Just r
 unReqOrCtor _ = Nothing
 
 -- Dependencies including referenced data and effect decls
-dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
-dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
+dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> DefnsF Set TermReference TypeReference
+dependencies =
+  List.foldl' f (Defns Set.empty Set.empty) . Set.toList . labeledDependencies
+  where
+    f ::
+      DefnsF Set TermReference TypeReference ->
+      LabeledDependency ->
+      DefnsF Set TermReference TypeReference
+    f deps = \case
+      LD.TermReferent (Referent.Con ref _) -> deps & over #types (Set.insert (ref ^. ConstructorReference.reference_))
+      LD.TermReferent (Referent.Ref ref) -> deps & over #terms (Set.insert ref)
+      LD.TypeReference ref -> deps & over #types (Set.insert ref)
 
 termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set TermReference
 termDependencies =
-  Set.fromList
-    . mapMaybe
-      ( LD.fold
-          (\_typeRef -> Nothing)
-          ( Referent.fold
-              (\termRef -> Just termRef)
-              (\_typeConRef _i _ct -> Nothing)
-          )
-      )
-    . toList
-    . labeledDependencies
+  (.terms) . dependencies
 
 -- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
-  Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
+  (.types) . dependencies
 
 -- Gets the types to which this term contains references via patterns and
 -- data constructors.

@@ -57,7 +57,7 @@ import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Term (Term)
@@ -66,6 +66,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -84,7 +85,7 @@ emptyUnisonFile =
 
 leftBiasedMerge :: forall v a. (Ord v) => UnisonFile v a -> UnisonFile v a -> UnisonFile v a
 leftBiasedMerge lhs rhs =
-  let mergedTerms = Map.foldlWithKey' (addNotIn lhsTermNames) (terms lhs) (terms rhs)
+  let mergedTerms = Map.foldlWithKey' (addNotIn lhsTermNames) lhs.terms rhs.terms
       mergedWatches = Map.foldlWithKey' addWatch (watches lhs) (watches rhs)
       mergedDataDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (dataDeclarationsId lhs) (dataDeclarationsId rhs)
       mergedEffectDecls = Map.foldlWithKey' (addNotIn lhsTypeNames) (effectDeclarationsId lhs) (effectDeclarationsId rhs)
@@ -96,7 +97,7 @@ leftBiasedMerge lhs rhs =
         }
   where
     lhsTermNames =
-      Map.keysSet (terms lhs)
+      Map.keysSet lhs.terms
         <> foldMap (\x -> Set.fromList [v | (v, _, _) <- x]) (watches lhs)
 
     lhsTypeNames =
@@ -132,7 +133,7 @@ allWatches = join . Map.elems . watches
 -- | Get the location of a given definition in the file.
 definitionLocation :: (Var v) => v -> UnisonFile v a -> Maybe a
 definitionLocation v uf =
-  terms uf ^? ix v . _1
+  uf.terms ^? ix v . _1
     <|> watches uf ^? folded . folded . filteredBy (_1 . only v) . _2
     <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
     <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
@@ -152,7 +153,7 @@ typecheckingTerm uf =
 
 termBindings :: UnisonFile v a -> [(v, a, Term v a)]
 termBindings uf =
-  Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] (terms uf)
+  Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] uf.terms
 
 -- backwards compatibility with the old data type
 dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration v a)
@@ -337,12 +338,20 @@ termSignatureExternalLabeledDependencies
 
 -- Returns the dependencies of the `UnisonFile` input. Needed so we can
 -- load information about these dependencies before starting typechecking.
-dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
-dependencies (UnisonFile ds es ts ws) =
-  foldMap (DD.typeDependencies . snd) ds
-    <> foldMap (DD.typeDependencies . DD.toDataDecl . snd) es
-    <> foldMap (Term.dependencies . snd) ts
-    <> foldMap (foldMap (Term.dependencies . view _3)) ws
+dependencies :: (Monoid a, Var v) => UnisonFile v a -> DefnsF Set TermReference TypeReference
+dependencies file =
+  fold
+    [ Defns
+        { terms = Set.empty,
+          types =
+            Set.unions
+              [ foldMap (DD.typeDependencies . snd) file.dataDeclarationsId,
+                foldMap (DD.typeDependencies . DD.toDataDecl . snd) file.effectDeclarationsId
+              ]
+        },
+      foldMap (Term.dependencies . snd) file.terms,
+      foldMap (foldMap (Term.dependencies . view _3)) file.watches
+    ]
 
 discardTypes :: (Ord v) => TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFileId datas effects terms watches _) =
@@ -397,7 +406,7 @@ constructorsForDecls types uf =
 
 -- | All bindings in the term namespace: terms, test watches (since those are the only watches that are actually stored
 -- in the codebase), data constructors, and effect constructors.
-termNamespaceBindings :: Ord v => TypecheckedUnisonFile v a -> Set v
+termNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 termNamespaceBindings uf =
   terms <> tests <> datacons <> effcons
   where
@@ -413,7 +422,7 @@ termNamespaceBindings uf =
         uf.effectDeclarationsId'
 
 -- | All bindings in the term namespace: data declarations and effect declarations.
-typeNamespaceBindings :: Ord v => TypecheckedUnisonFile v a -> Set v
+typeNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 typeNamespaceBindings uf =
   datas <> effs
   where
