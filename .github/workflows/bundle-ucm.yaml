@@ -246,7 +246,7 @@ jobs:
           file: ucm.cmd
           content: |
             @echo off
-            SET UCM_WEB_UI="%~dp0ui"
+            SET UCM_WEB_UI=%~dp0ui
             "%~dp0unison\unison.exe" --runtime-path "%~dp0runtime\unison-runtime.exe" %*
       - name: package everything together
         run: |
