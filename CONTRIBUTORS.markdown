@@ -87,3 +87,4 @@ The format for this list: name, GitHub handle
 * Dan Doel (@dolio)
 * Eric Torreborre (@etorreborre)
 * Eduard Nicodei (@neduard)
+* Brian McKenna (@puffnfresh)
