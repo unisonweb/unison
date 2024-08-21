@@ -32,7 +32,7 @@ data Defns terms types = Defns
   { terms :: terms,
     types :: types
   }
-  deriving stock (Generic, Functor, Show)
+  deriving stock (Generic, Functor, Show, Eq, Ord)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 instance Bifoldable Defns where
