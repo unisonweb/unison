@@ -113,13 +113,8 @@ file = do
   let importNames = [(Name.unsafeParseVar v, Name.unsafeParseVar v2) | (v, v2) <- imports]
   let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations. The `push locals` here has the effect
-  -- of making suffix-based name resolution prefer type and constructor names coming
-  -- from the local file.
-  --
-  -- There's some more complicated logic below to have suffix-based name resolution
-  -- make use of _terms_ from the local file.
-  local (\e -> e {names = Names.push locals namesStart}) do
+  -- declarations.
+  local (\e -> e {names = Names.shadowing locals namesStart}) do
     names <- asks names
     stanzas <- do
       unNamespacedStanzas0 <- sepBy semi stanza
@@ -155,27 +150,12 @@ file = do
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
         fqLocalTerms = (stanzas >>= getVars) <> (view _1 <$> accessors)
-    -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
-    -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
-    let (curNames, resolveLocals) =
-          ( Names.shadowTerms locals names,
-            resolveLocals
-          )
-          where
-            -- Each unique suffix mapped to its fully qualified name
-            canonicalVars :: Map v v
-            canonicalVars = UFN.variableCanonicalizer fqLocalTerms
-
-            -- All unique local term name suffixes - these we want to
-            -- avoid resolving to a term that's in the codebase
-            locals :: [Name.Name]
-            locals = (Name.unsafeParseVar <$> Map.keys canonicalVars)
-
-            -- A function to replace unique local term suffixes with their
-            -- fully qualified name
-            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
-            resolveLocals = ABT.substsInheritAnnotation replacements
-    let bindNames = Term.bindSomeNames Name.unsafeParseVar (Set.fromList fqLocalTerms) curNames . resolveLocals
+    let bindNames =
+          Term.bindNames
+            Name.unsafeParseVar
+            Name.toVar
+            (Set.fromList fqLocalTerms)
+            (Names.shadowTerms (map Name.unsafeParseVar fqLocalTerms) names)
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms

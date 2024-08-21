@@ -10,6 +10,7 @@ import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -27,6 +28,7 @@ import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.Names.ResolvesTo (ResolvesTo (..), partitionResolutions)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
@@ -39,6 +41,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
@@ -149,67 +152,53 @@ bindNames ::
   forall v a.
   (Var v) =>
   (v -> Name.Name) ->
+  (Name.Name -> v) ->
   Set v ->
   Names ->
   Term v a ->
   Names.ResolutionResult v a (Term v a)
-bindNames unsafeVarToName keepFreeTerms ns e = do
-  let freeTmVars = [(v, a) | (v, a) <- ABT.freeVarOccurrences keepFreeTerms e]
-      -- !_ = trace "bindNames.free term vars: " ()
-      -- !_ = traceShow $ fst <$> freeTmVars
+bindNames unsafeVarToName nameToVar localVars ns term = do
+  let freeTmVars = ABT.freeVarOccurrences localVars term
       freeTyVars =
-        [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations e), a <- as
+        [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
         ]
-      -- !_ = trace "bindNames.free type vars: " ()
-      -- !_ = traceShow $ fst <$> freeTyVars
-      okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
-        rs
-          | Set.size rs == 1 ->
-              pure (v, fromReferent a $ Set.findMin rs)
-          | Set.size rs == 0 -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-          | otherwise -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns rs Set.empty)))
+      localNames = map unsafeVarToName (Set.toList localVars)
+
+      okTm :: (v, a) -> Names.ResolutionResult v a (Maybe (v, ResolvesTo Referent))
+      okTm (v, a) =
+        let name = unsafeVarToName v
+            exactNamespaceMatches = Names.lookupHQTerm Names.ExactName (HQ.NameOnly name) ns
+            suffixNamespaceMatches = Name.searchByRankedSuffix name (Names.terms ns)
+            localMatches =
+              Name.searchBySuffix name (Relation.fromList (map (\name -> (name, name)) localNames))
+         in case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
+              (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
+              (n, _, _) | n > 1 -> ambiguousSoLeaveFreeForTDNR
+              (_, 0, 0) -> bad Names.NotFound
+              (_, 1, 0) -> good (ResolvesToNamespace (Set.findMin suffixNamespaceMatches))
+              (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
+              _ -> ambiguousSoLeaveFreeForTDNR
+        where
+          good = Right . Just . (v,)
+          bad = Left . Seq.singleton . Names.TermResolutionFailure v a
+          ambiguousSoLeaveFreeForTDNR = Right Nothing
+
+      okTy :: (v, a) -> Names.ResolutionResult v a (v, Type v a)
       okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
           | Set.size rs == 0 -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
           | otherwise -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns rs Set.empty)))
-  termSubsts <- validate okTm freeTmVars
+  (namespaceTermResolutions, localTermResolutions) <-
+    partitionResolutions . catMaybes <$> validate okTm freeTmVars
+  let termSubsts =
+        [(v, fromReferent () ref) | (v, ref) <- namespaceTermResolutions]
+          ++ [(v, var () (nameToVar name)) | (v, name) <- localTermResolutions]
   typeSubsts <- validate okTy freeTyVars
-  pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
-
--- This function replaces free term and type variables with
--- hashes found in the provided `Names`, using suffix-based
--- lookup. Any terms not found in the `Names` are kept free.
-bindSomeNames ::
-  forall v a.
-  (Var v) =>
-  (v -> Name.Name) ->
-  Set v ->
-  Names ->
-  Term v a ->
-  Names.ResolutionResult v a (Term v a)
--- bindSomeNames ns e | trace "Term.bindSome" False
---                   || trace "Names =" False
---                   || traceShow ns False
---                   || trace "Free type vars:" False
---                   || traceShow (freeTypeVars e) False
---                   || trace "Free term vars:" False
---                   || traceShow (freeVars e) False
---                   || traceShow e False
---                   = undefined
-bindSomeNames unsafeVarToName avoid ns e = bindNames unsafeVarToName (avoid <> varsToTDNR) ns e
-  where
-    -- `Term.bindNames` takes a set of variables that are not substituted.
-    -- These should be the variables that will be subject to TDNR, which
-    -- we compute as the set of variables whose names cannot be found in `ns`.
-    --
-    -- This allows TDNR to disambiguate those names (if multiple definitions
-    -- share the same suffix) or to report the type expected for that name
-    -- (if a free variable is being used as a typed hole).
-    varsToTDNR = Set.filter notFound (freeVars e)
-    notFound var =
-      Set.size (Name.searchByRankedSuffix (unsafeVarToName var) (Names.terms ns)) /= 1
+  pure $
+    term
+      & ABT.substsInheritAnnotation termSubsts
+      & substTypeVars typeSubsts
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR

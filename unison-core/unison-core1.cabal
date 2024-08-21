@@ -43,6 +43,7 @@ library
       Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult
+      Unison.Names.ResolvesTo
       Unison.NamesWithHistory
       Unison.Pattern
       Unison.Position
