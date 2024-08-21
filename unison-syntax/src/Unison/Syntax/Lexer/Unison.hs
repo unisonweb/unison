@@ -87,6 +87,7 @@ data Err
   | InvalidBytesLiteral String
   | InvalidHexLiteral
   | InvalidOctalLiteral
+  | InvalidBinaryLiteral
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | MissingExponent String -- ex `1e` rather than `1e3`
@@ -533,7 +534,7 @@ lexemes eof =
           case Bytes.fromBase16 $ Bytes.fromWord8s (fromIntegral . ord <$> s) of
             Left _ -> err start (InvalidBytesLiteral $ "0xs" <> s)
             Right bs -> pure (Bytes bs)
-        otherbase = octal <|> hex
+        otherbase = octal <|> hex <|> binary
         octal = do
           start <- posP
           commitAfter2 sign (lit "0o") $ \sign _ ->
@@ -542,6 +543,10 @@ lexemes eof =
           start <- posP
           commitAfter2 sign (lit "0x") $ \sign _ ->
             fmap (num sign) LP.hexadecimal <|> err start InvalidHexLiteral
+        binary = do
+          start <- posP
+          commitAfter2 sign (lit "0b") $ \sign _ ->
+            fmap (num sign) LP.binary <|> err start InvalidBinaryLiteral
 
         num :: Maybe String -> Integer -> Lexeme
         num sign n = Numeric (fromMaybe "" sign <> show n)

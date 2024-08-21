@@ -105,6 +105,22 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 
 ```
 ``` unison
+x = 0b3201 -- 3 and 2 are not valid binary chars
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  This number isn't valid syntax: 
+  
+      1 | x = 0b3201 -- 3 and 2 are not valid binary chars
+  
+  I was expecting only binary characters (one of 01) after the
+  0b.
+
+```
+``` unison
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
@@ -245,7 +261,7 @@ foo = cases
 ``` unison
 -- Missing a '->'
 x = match Some a with
-      None -> 
+      None ->
         1
       Some _
         2

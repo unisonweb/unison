@@ -38,6 +38,10 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
 ```unison:error
+x = 0b3201 -- 3 and 2 are not valid binary chars
+```
+
+```unison:error
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
@@ -81,7 +85,7 @@ foo = cases
 ```unison:error
 -- Missing a '->'
 x = match Some a with
-      None -> 
+      None ->
         1
       Some _
         2

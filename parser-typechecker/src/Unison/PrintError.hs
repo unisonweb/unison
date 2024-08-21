@@ -1427,6 +1427,18 @@ renderParseErrors s = \case
                   <> "after the"
                   <> Pr.group (style ErrorSite "0o" <> ".")
             ]
+        L.InvalidBinaryLiteral ->
+          Pr.lines
+            [ "This number isn't valid syntax: ",
+              "",
+              excerpt,
+              Pr.wrap $
+                "I was expecting only binary characters"
+                  <> "(one of"
+                  <> Pr.group (style Code "01" <> ")")
+                  <> "after the"
+                  <> Pr.group (style ErrorSite "0b" <> ".")
+            ]
         L.InvalidShortHash h ->
           Pr.lines
             [ "Invalid hash: " <> style ErrorSite (fromString h),
