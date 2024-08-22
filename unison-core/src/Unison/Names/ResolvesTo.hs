@@ -10,6 +10,7 @@ import Unison.Prelude
 data ResolvesTo ref
   = ResolvesToNamespace ref
   | ResolvesToLocal Name
+  deriving stock (Eq, Ord, Show)
 
 partitionResolutions :: [(v, ResolvesTo ref)] -> ([(v, ref)], [(v, Name)])
 partitionResolutions =

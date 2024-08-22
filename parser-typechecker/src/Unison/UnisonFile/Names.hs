@@ -1,6 +1,5 @@
 module Unison.UnisonFile.Names
   ( addNamesFromTypeCheckedUnisonFile,
-    addNamesFromUnisonFile,
     environmentFor,
     toNames,
     typecheckedToNames,
@@ -34,9 +33,6 @@ toNames uf = datas <> effects
   where
     datas = foldMap (DD.Names.dataDeclToNames' Name.unsafeParseVar) (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap (DD.Names.effectDeclToNames' Name.unsafeParseVar) (Map.toList (UF.effectDeclarationsId uf))
-
-addNamesFromUnisonFile :: (Var v) => UnisonFile v a -> Names -> Names
-addNamesFromUnisonFile unisonFile names = Names.shadowing (toNames unisonFile) names
 
 typecheckedToNames :: (Var v) => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types

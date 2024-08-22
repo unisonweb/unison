@@ -93,16 +93,16 @@ scratch/main> project.delete scratch
 
 # Example 4
 
-We have a namespace term `Woot.state : Nat` and a file term `Something.state : Text -> Something`. A reference to the
-term `state : Text` resolves to `Something.state`, which shadows `Woot.state`. (This behavior will change).
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
+but resolves to `ns.foo` via TDNR.
 
 ```ucm
 scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
-Woot.state : Nat
-Woot.state = 42
+ns.foo : Nat
+ns.foo = 42
 ```
 
 ```ucm
@@ -110,11 +110,84 @@ scratch/main> add
 ```
 
 ```unison
-type Something = { state : Text }
+file.foo : Text
+file.foo = "foo"
 
-ex = do
-  s = Something "hello"
-  state s ++ " world!"
+bar : Text
+bar = foo ++ "bar"
+```
+
+```ucm
+scratch/main> project.delete scratch
+```
+
+# Example 4
+
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
+but resolves to `file.foo` via TDNR.
+
+```ucm
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+ns.foo : Nat
+ns.foo = 42
+```
+
+```ucm
+scratch/main> add
+```
+
+```unison
+file.foo : Text
+file.foo = "foo"
+
+bar : Nat
+bar = foo + 42
+```
+
+```ucm
+scratch/main> project.delete scratch
+```
+
+# Example 4
+
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Nat`. A reference to the term `foo` is ambiguous.
+A reference to `ns.foo` or `file.foo` work fine.
+
+```ucm
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+ns.foo : Nat
+ns.foo = 42
+```
+
+```ucm
+scratch/main> add
+```
+
+```unison:error
+file.foo : Nat
+file.foo = 43
+
+bar : Nat
+bar = foo + 10
+```
+
+```unison
+file.foo : Nat
+file.foo = 43
+
+bar : Nat
+bar = file.foo + ns.foo
+```
+
+```ucm
+scratch/main> add
+scratch/main> view bar
 ```
 
 ```ucm
