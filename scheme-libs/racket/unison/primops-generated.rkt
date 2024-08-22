@@ -567,7 +567,7 @@
     [else '()]))
 
 (define (check-known l acc)
-  (if (need-dependency? l) (cons l acc) acc))
+  (if (need-code? l) (cons l acc) acc))
 
 ; check sandboxing information for an internal.runtime.Value
 (define (sandbox-value ok v)
@@ -691,6 +691,9 @@
         (declare-code ln co)))
     udefs))
 
+(define (runtime-code-loaded? link)
+  (hash-has-key? runtime-module-term-map (termlink-bytes link)))
+
 (define (add-module-term-associations links mname)
   (for ([link links])
     (define bs (termlink-bytes link))
@@ -719,9 +722,13 @@
                                  [default (assoc-raise 'module-type-association link)])
   (hash-ref runtime-module-type-map link default))
 
-(define (need-dependency? l)
-  (let ([ln (if (unison-data? l) (reference->termlink l) l)])
-    (and (unison-termlink-derived? ln) (not (have-code? ln)))))
+(define (need-code? l)
+  (define ln (if (unison-data? l) (reference->termlink l) l))
+  (and (unison-termlink-derived? ln) (not (have-code? ln))))
+
+(define (need-code-loaded? l)
+  (define ln (if (unison-data? l) (reference->termlink l) l))
+  (and (unison-termlink-derived? ln) (not (runtime-code-loaded? ln))))
 
 (define (need-typelink? l)
   (let ([ln (if (unison-data? l) (reference->typelink l) l)])
@@ -861,11 +868,17 @@
   (define (map-links dss)
     (map (lambda (ds) (map reference->termlink ds)) dss))
 
+  ; TODO: there is some code that we initially have, but it is not
+  ; loaded into the runtime namespace, because of oddities of the
+  ; way racket handles things. We don't actually need to request this
+  ; from the client, because we have the code, and just need to add it
+  ; to what we have. But I haven't done that here yet.
+
   ; flatten and filter out unnecessary definitions
   (define-values (udefs tmlinks codes)
     (for/lists (boths fsts snds)
                ([p (in-chunked-list dfns0)]
-                #:when (need-dependency? (ufst p))
+                #:when (need-code-loaded? (ufst p))
                 #:unless (member (ufst p) fsts))
       (values p (ufst p) (usnd p))))
 
@@ -877,7 +890,7 @@
      (define-values (ntylinks htylinks) (partition need-typelink? tylinks))
      (define depss (map code-dependencies codes))
      (define deps (flatten depss))
-     (define-values (fdeps hdeps) (partition need-dependency? deps))
+     (define-values (fdeps hdeps) (partition need-code-loaded? deps))
      (define rdeps (remove* refs fdeps))
 
      (cond
@@ -905,10 +918,12 @@
 (define (unison-POp-CACH dfns0) (add-runtime-code #f dfns0))
 
 (define (unison-POp-LOAD v0)
+  ; TODO: see the note in add-runtime-code about loading code we already
+  ; have into the runtime namespace.
   (let* ([val (unison-quote-val v0)]
          [deps (value-term-dependencies val)]
          [fldeps (chunked-list->list deps)]
-         [fdeps (filter need-dependency? (chunked-list->list deps))])
+         [fdeps (filter need-code-loaded? (chunked-list->list deps))])
     (if (null? fdeps)
       (sum 1 (reify-value val))
       (sum 0
