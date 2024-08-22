@@ -250,6 +250,8 @@
   (let rec ([cls ls] [crs rs])
     (cond
       [(and (null? cls) (null? crs)) '=]
+      [(null? cls) '<]
+      [(null? crs) '>]
       [else
         (comparisons
           (universal-compare (car cls) (car crs) cmp-ty)
