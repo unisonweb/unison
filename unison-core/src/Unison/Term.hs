@@ -173,15 +173,16 @@ bindNames unsafeVarToName nameToVar localVars ns term = do
               Name.searchBySuffix name (Relation.fromList (map (\name -> (name, name)) localNames))
          in case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
               (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
-              (n, _, _) | n > 1 -> ambiguousSoLeaveFreeForTDNR
-              (_, 0, 0) -> bad Names.NotFound
+              (n, _, _) | n > 1 -> leaveFreeForTdnr
+              (_, 0, 0) -> if Name.isBlank name then leaveFreeForHoleSuggestions else bad Names.NotFound
               (_, 1, 0) -> good (ResolvesToNamespace (Set.findMin suffixNamespaceMatches))
               (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
-              _ -> ambiguousSoLeaveFreeForTDNR
+              _ -> leaveFreeForTdnr
         where
           good = Right . Just . (v,)
           bad = Left . Seq.singleton . Names.TermResolutionFailure v a
-          ambiguousSoLeaveFreeForTDNR = Right Nothing
+          leaveFreeForHoleSuggestions = Right Nothing
+          leaveFreeForTdnr = Right Nothing
 
       okTy :: (v, a) -> Names.ResolutionResult v a (v, Type v a)
       okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of

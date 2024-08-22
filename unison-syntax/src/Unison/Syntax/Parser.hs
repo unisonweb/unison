@@ -281,19 +281,15 @@ closeBlock = void <$> matchToken L.Close
 optionalCloseBlock :: (Ord v) => P v m (L.Token ())
 optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
--- | A `Name` is blank when it is unqualified and begins with a `_` (also implying that it is wordy)
-isBlank :: Name -> Bool
-isBlank n = Name.isUnqualified n && Text.isPrefixOf "_" (INameSegment.toUnescapedText $ Name.lastSegment n)
-
 -- | A HQ Name is blank when its Name is blank and it has no hash.
 isBlank' :: HQ'.HashQualified Name -> Bool
 isBlank' = \case
-  HQ'.NameOnly n -> isBlank n
+  HQ'.NameOnly n -> Name.isBlank n
   HQ'.HashQualified _ _ -> False
 
 wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case
-  L.WordyId (HQ'.NameOnly n) -> if isBlank n then Nothing else Just $ Name.toVar n
+  L.WordyId (HQ'.NameOnly n) -> if Name.isBlank n then Nothing else Just $ Name.toVar n
   _ -> Nothing
 
 -- | Parse a prefix identifier e.g. Foo or (+), discarding any hash
