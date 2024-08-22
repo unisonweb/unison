@@ -70,7 +70,7 @@ x = 1E+ -- missing an exponent
   `1e+37`.
 
 ```
-### Hex, octal, and bytes literals
+### Hex, octal, binary, and bytes literals
 
 ``` unison
 x = 0xoogabooga -- invalid hex chars

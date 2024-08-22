@@ -27,7 +27,7 @@ x = 1e- -- missing an exponent
 x = 1E+ -- missing an exponent
 ```
 
-### Hex, octal, and bytes literals
+### Hex, octal, binary, and bytes literals
 
 ```unison:error
 x = 0xoogabooga -- invalid hex chars
