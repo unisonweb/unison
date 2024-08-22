@@ -48,7 +48,7 @@ syn match   uSpecialCharError	contained "\\&\|'''\+"
 syn region  uString		start=+"+  skip=+\\\\\|\\"+  end=+"+  contains=uSpecialChar
 syn match   uCharacter		"[^a-zA-Z0-9_']'\([^\\]\|\\[^']\+\|\\'\)'"lc=1 contains=uSpecialChar,uSpecialCharError
 syn match   uCharacter		"^'\([^\\]\|\\[^']\+\|\\'\)'" contains=uSpecialChar,uSpecialCharError
-syn match   uNumber		"\<[0-9]\+\>\|\<0[xX][0-9a-fA-F]\+\>\|\<0[oO][0-7]\+\>|\<0b[01]\+\>"
+syn match   uNumber		"\<[0-9]\+\>\|\<0[xX][0-9a-fA-F]\+\>\|\<0[oO][0-7]\+\>\|\<0b[01]\+\>"
 syn match   uFloat		"\<[0-9]\+\.[0-9]\+\([eE][-+]\=[0-9]\+\)\=\>"
 
 " Keyword definitions. These must be patterns instead of keywords
