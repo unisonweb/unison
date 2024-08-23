@@ -25,6 +25,7 @@ increment = \case
   Statement -> Control
   Control -> InfixOp Lowest
   InfixOp Lowest -> InfixOp (Level 0)
+  InfixOp (Level n) | n == maxBound -> InfixOp Highest
   InfixOp (Level n) -> InfixOp (Level (n + 1))
   InfixOp Highest -> Application
   Application -> Prefix
@@ -52,6 +53,9 @@ data Precedence
     Top
   deriving (Eq, Ord, Show)
 
+-- | The precedence of an infix operator.
+-- | Lowest and Highest are used for overriding the precedence of an operator
+-- | to be lower or higher than all other operators in the term printer.
 data InfixPrecedence = Lowest | Level Int | Highest
   deriving (Eq, Ord, Show)
 
@@ -67,5 +71,5 @@ infixLevels =
   ]
 
 -- | Returns the precedence of an infix operator, if it has one.
-operatorPrecedence :: Text -> Maybe Precedence
-operatorPrecedence op = Map.lookup op infixRules
+operatorPrecedence :: Text -> Precedence
+operatorPrecedence op = fromMaybe (InfixOp Lowest) $ Map.lookup op infixRules

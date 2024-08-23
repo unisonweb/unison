@@ -1074,9 +1074,6 @@ infixAppOrBooleanOp = do
       (InfixAnd <$> (label "and" (reserved "&&")))
         <|> (InfixOr <$> (label "or" (reserved "||")))
         <|> (uncurry InfixOp <$> parseInfix)
-    shouldRotate child parent = case (child, parent) of
-      (Just p1, Just p2) -> p1 < p2
-      _ -> False
     parseInfix = label "infixApp" do
       op <- hqInfixId <* optional semi
       resolved <- resolveHashQualified op
@@ -1095,13 +1092,13 @@ infixAppOrBooleanOp = do
     rotate op ctor lhs rhs =
       case lhs of
         InfixOp lop ltm ll lr
-          | shouldRotate (operatorPrecedence (unqualified lop)) (operatorPrecedence op) ->
+          | operatorPrecedence (unqualified lop) < operatorPrecedence op ->
               InfixOp lop ltm ll (fixUp (ctor lr rhs))
         InfixAnd lop ll lr
-          | shouldRotate (operatorPrecedence "&&") (operatorPrecedence op) ->
+          | operatorPrecedence "&&" < operatorPrecedence op ->
               InfixAnd lop ll (fixUp (ctor lr rhs))
         InfixOr lop ll lr
-          | shouldRotate (operatorPrecedence "||") (operatorPrecedence op) ->
+          | operatorPrecedence "||" < operatorPrecedence op ->
               InfixOr lop ll (fixUp (ctor lr rhs))
         _ -> ctor lhs rhs
     unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
