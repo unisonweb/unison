@@ -171,22 +171,13 @@ match = do
     P.try (openBlockWith "with") <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
-  (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
+  (_arities, cases) <- unzip <$> matchCases
   _ <- optionalCloseBlock
-  pure $
-    Term.match
-      (ann start <> ann (NonEmpty.last cases))
-      scrutinee
-      (toList cases)
+  let anns = foldr ((<>) . ann) (ann start) $ lastMay cases
+  pure $ Term.match anns scrutinee cases
 
-matchCases1 :: (Monad m, Var v) => L.Token () -> P v m (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
-matchCases1 start = do
-  cases <-
-    (sepBy semi matchCase)
-      <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
-  case cases of
-    [] -> P.customFailure (EmptyMatch start)
-    (c : cs) -> pure (c NonEmpty.:| cs)
+matchCases :: (Monad m, Var v) => P v m [(Int, Term.MatchCase Ann (Term v Ann))]
+matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c <- cs]
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -369,16 +360,17 @@ handle = label "handle" do
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
   pure $ Term.handle (handleSpan <> ann handler) handler b
 
-checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v m (Int, NonEmpty a)
-checkCasesArities cases@((i, _) NonEmpty.:| rest) =
-  case List.find (\(j, _) -> j /= i) rest of
+checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v m (Int, [a])
+checkCasesArities = \case
+  [] -> pure (1, [])
+  cases@((i, _) : rest) -> case List.find (\(j, _) -> j /= i) rest of
     Nothing -> pure (i, snd <$> cases)
     Just (j, a) -> P.customFailure $ PatternArityMismatch i j (ann a)
 
 lamCase :: (Monad m, Var v) => TermP v m
 lamCase = do
   start <- openBlockWith "cases"
-  cases <- matchCases1 start
+  cases <- matchCases
   (arity, cases) <- checkCasesArities cases
   _ <- optionalCloseBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
@@ -390,8 +382,8 @@ lamCase = do
       lamvarTerm = case lamvarTerms of
         [e] -> e
         es -> DD.tupleTerm es
-      anns = ann start <> ann (NonEmpty.last cases)
-      matchTerm = Term.match anns lamvarTerm (toList cases)
+      anns = foldr ((<>) . ann) (ann start) $ lastMay cases
+      matchTerm = Term.match anns lamvarTerm cases
   let annotatedVars = (Ann.GeneratedFrom $ ann start,) <$> vars
   pure $ Term.lam' anns annotatedVars matchTerm
 

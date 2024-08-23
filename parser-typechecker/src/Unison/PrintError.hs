@@ -1774,21 +1774,6 @@ renderParseErrors s = \case
                 tokenAsErrorSite s tok
               ]
        in (msg, [rangeForToken tok])
-    go (Parser.EmptyMatch tok) =
-      let msg =
-            Pr.indentN 2 . Pr.callout "😶" $
-              Pr.lines
-                [ Pr.wrap
-                    ( "I expected some patterns after a "
-                        <> style ErrorSite "match"
-                        <> "/"
-                        <> style ErrorSite "with"
-                        <> " or cases but I didn't find any."
-                    ),
-                  "",
-                  tokenAsErrorSite s tok
-                ]
-       in (msg, [rangeForToken tok])
     go (Parser.EmptyWatch tok) =
       let msg =
             Pr.lines
