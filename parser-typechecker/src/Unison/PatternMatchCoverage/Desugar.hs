@@ -3,7 +3,6 @@ module Unison.PatternMatchCoverage.Desugar
   )
 where
 
-import Data.List.NonEmpty (NonEmpty (..))
 import U.Core.ABT qualified as ABT
 import Unison.Pattern
 import Unison.Pattern qualified as Pattern
@@ -25,7 +24,7 @@ desugarMatch ::
   -- | scrutinee variable
   v ->
   -- | match cases
-  NonEmpty (MatchCase loc (Term' vt v loc)) ->
+  [MatchCase loc (Term' vt v loc)] ->
   m (GrdTree (PmGrd vt v loc) loc)
 desugarMatch scrutineeType v0 cs0 = Fork <$> traverse desugarClause cs0
   where
