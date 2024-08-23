@@ -73,7 +73,7 @@ environmentFor ::
   Names ->
   Map v (DataDeclaration v a) ->
   Map v (EffectDeclaration v a) ->
-  Names.ResolutionResult v a (Either [Error v a] (Env v a))
+  Names.ResolutionResult a (Either [Error v a] (Env v a))
 environmentFor names dataDecls0 effectDecls0 = do
   let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
 

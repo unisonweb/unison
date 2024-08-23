@@ -44,7 +44,7 @@ import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
 
-resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v m x
+resolutionFailures :: (Ord v) => [Names.ResolutionFailure Ann] -> P v m x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
 
 file :: forall m v. (Monad m, Var v) => P v m (UnisonFile v Ann)

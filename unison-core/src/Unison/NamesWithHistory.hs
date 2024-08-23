@@ -236,10 +236,6 @@ termName length r names =
     hq n = HQ'.take length (HQ'.fromNamedReferent n r)
     isConflicted n = R.manyDom n (Names.terms names)
 
--- Set HashQualified -> Branch m -> Action' m v Names
--- Set HashQualified -> Branch m -> Free (Command m i v) Names
--- Set HashQualified -> Branch m -> Command m i v Names
--- populate historical names
 lookupHQPattern ::
   SearchType ->
   HQ.HashQualified Name ->

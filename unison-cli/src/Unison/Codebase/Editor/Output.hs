@@ -218,7 +218,7 @@ data Output
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
   | TypeParseError String (Parser.Err Symbol)
-  | ParseResolutionFailures String [Names.ResolutionFailure Symbol Ann]
+  | ParseResolutionFailures String [Names.ResolutionFailure Ann]
   | TypeHasFreeVars (Type Symbol Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)

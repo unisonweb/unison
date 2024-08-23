@@ -29,7 +29,7 @@ bindNames ::
   Set v ->
   Names ->
   Type v a ->
-  Names.ResolutionResult v a (Type v a)
+  Names.ResolutionResult a (Type v a)
 bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
   let -- Identify the unresolved variables in the type: those whose names aren't an *exact* match for some locally-bound
       -- type.
@@ -63,7 +63,7 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
 
       checkAmbiguity ::
         (v, a, (Set TypeReference, Set TypeReference), Set Name) ->
-        Either (Seq (Names.ResolutionFailure v a)) (v, ResolvesTo TypeReference)
+        Either (Seq (Names.ResolutionFailure a)) (v, ResolvesTo TypeReference)
       checkAmbiguity (v, a, (exactNamespaceMatches, suffixNamespaceMatches), localMatches) =
         case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
           (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
@@ -73,7 +73,7 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
           (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
           _ -> bad (Names.Ambiguous namespaceNames suffixNamespaceMatches localMatches)
         where
-          bad = Left . Seq.singleton . Names.TypeResolutionFailure v a
+          bad = Left . Seq.singleton . Names.TypeResolutionFailure (HQ.NameOnly (unsafeVarToName v)) a
           good = Right . (v,)
    in List.validate checkAmbiguity resolvedVars <&> \resolutions ->
         let (namespaceResolutions, localResolutions) = partitionResolutions resolutions

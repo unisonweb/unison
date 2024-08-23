@@ -156,7 +156,7 @@ bindNames ::
   Set v ->
   Names ->
   Term v a ->
-  Names.ResolutionResult v a (Term v a)
+  Names.ResolutionResult a (Term v a)
 bindNames unsafeVarToName nameToVar localVars ns term = do
   let freeTmVars = ABT.freeVarOccurrences localVars term
       freeTyVars =
@@ -164,10 +164,9 @@ bindNames unsafeVarToName nameToVar localVars ns term = do
         ]
       localNames = map unsafeVarToName (Set.toList localVars)
 
-      okTm :: (v, a) -> Names.ResolutionResult v a (Maybe (v, ResolvesTo Referent))
+      okTm :: (v, a) -> Names.ResolutionResult a (Maybe (v, ResolvesTo Referent))
       okTm (v, a) =
-        let name = unsafeVarToName v
-            exactNamespaceMatches = Names.lookupHQTerm Names.ExactName (HQ.NameOnly name) ns
+        let exactNamespaceMatches = Names.lookupHQTerm Names.ExactName (HQ.NameOnly name) ns
             suffixNamespaceMatches = Name.searchByRankedSuffix name (Names.terms ns)
             localMatches =
               Name.searchBySuffix name (Relation.fromList (map (\name -> (name, name)) localNames))
@@ -179,17 +178,20 @@ bindNames unsafeVarToName nameToVar localVars ns term = do
               (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
               _ -> leaveFreeForTdnr
         where
+          name = unsafeVarToName v
           good = Right . Just . (v,)
-          bad = Left . Seq.singleton . Names.TermResolutionFailure v a
+          bad = Left . Seq.singleton . Names.TermResolutionFailure (HQ.NameOnly name) a
           leaveFreeForHoleSuggestions = Right Nothing
           leaveFreeForTdnr = Right Nothing
 
-      okTy :: (v, a) -> Names.ResolutionResult v a (v, Type v a)
-      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (HQ.NameOnly $ unsafeVarToName v) ns of
+      okTy :: (v, a) -> Names.ResolutionResult a (v, Type v a)
+      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes hqName ns of
         rs
           | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-          | Set.size rs == 0 -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-          | otherwise -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns rs Set.empty)))
+          | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
+          | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous ns rs Set.empty)))
+        where
+          hqName = HQ.NameOnly (unsafeVarToName v)
   (namespaceTermResolutions, localTermResolutions) <-
     partitionResolutions . catMaybes <$> validate okTm freeTmVars
   let termSubsts =

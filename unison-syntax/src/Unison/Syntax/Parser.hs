@@ -82,7 +82,6 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal qualified as INameSegment
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..), Annotated (..))
@@ -175,7 +174,7 @@ data Error v
     MissingTypeModifier (L.Token String) (L.Token v)
   | -- | A type was found in a position that requires a term
     TypeNotAllowed (L.Token (HQ.HashQualified Name))
-  | ResolutionFailures [Names.ResolutionFailure v Ann]
+  | ResolutionFailures [Names.ResolutionFailure Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | -- | PatternArityMismatch expectedArity actualArity location

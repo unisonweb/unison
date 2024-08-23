@@ -40,6 +40,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult (ResolutionError (..), ResolutionFailure (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
@@ -48,6 +49,7 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
@@ -285,7 +287,10 @@ parsePattern = label "pattern" root
         else pure (Pattern.Var (ann v), [tokenToPair v])
     unbound :: P v m (Pattern Ann, [(Ann, v)])
     unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) -> P v m (L.Token ConstructorReference)
+    ctor ::
+      CT.ConstructorType ->
+      (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) ->
+      P v m (L.Token ConstructorReference)
     ctor ct err = do
       -- this might be a var, so we avoid consuming it at first
       tok <- P.try (P.lookAhead hqPrefixId)
@@ -294,23 +299,34 @@ parsePattern = label "pattern" root
       -- starts with a lowercase
       case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
         s
-          | Set.null s -> die tok s
-          | Set.size s > 1 -> die tok s
-          | otherwise -> -- matched ctor name, consume the token
-              do _ <- anyToken; pure (Set.findMin s <$ tok)
+          | Set.null s -> die names tok s
+          | Set.size s > 1 -> die names tok s
+          | otherwise -> do
+              -- matched ctor name, consume the token
+              _ <- anyToken
+              pure (Set.findMin s <$ tok)
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
         isIgnored n = Text.take 1 (Name.toText n) == "_"
-        die hq s = case L.payload hq of
-          -- if token not hash qualified or uppercase,
+        die :: Names -> L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> P v m a
+        die names hq s = case L.payload hq of
+          -- if token not hash qualified and not uppercase,
           -- fail w/out consuming it to allow backtracking
           HQ.NameOnly n
             | Set.null s
                 && (isLower n || isIgnored n) ->
                 fail $ "not a constructor name: " <> show n
-          -- it was hash qualified, and wasn't found in the env, that's a failure!
-          _ -> failCommitted $ err hq s
-
+          -- it was hash qualified and/or uppercase, and wasn't found in the env, that's a failure!
+          _ ->
+            failCommitted $
+              ResolutionFailures
+                [ TermResolutionFailure
+                    (L.payload hq)
+                    (ann hq)
+                    if Set.null s
+                      then NotFound
+                      else Ambiguous names (Set.map (\ref -> Referent.Con ref ct) s) Set.empty
+                ]
     unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
     effectBind0 = do
