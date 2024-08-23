@@ -32,7 +32,6 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.HashQualified (HashQualified)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Kind (Kind)
@@ -1798,8 +1797,6 @@ renderParseErrors s = \case
                 annotatedAsErrorSite s tok
               ]
        in (msg, maybeToList $ rangeForAnnotated tok)
-    go (Parser.UnknownAbilityConstructor tok _referents) = (unknownConstructor "ability" tok, [rangeForToken tok])
-    go (Parser.UnknownDataConstructor tok _referents) = (unknownConstructor "data" tok, [rangeForToken tok])
     go (Parser.UnknownId tok referents references) =
       let msg =
             Pr.lines
@@ -1870,24 +1867,6 @@ renderParseErrors s = \case
                 tokenAsErrorSite s $ HQ.toText <$> tok
               ]
        in (msg, [rangeForToken tok])
-
-    unknownConstructor ::
-      String -> L.Token (HashQualified Name) -> Pretty ColorText
-    unknownConstructor ctorType tok =
-      Pr.lines
-        [ (Pr.wrap . mconcat)
-            [ "I don't know about any ",
-              fromString ctorType,
-              " constructor named ",
-              Pr.group
-                ( stylePretty ErrorSite (prettyHashQualified0 (L.payload tok))
-                    <> "."
-                ),
-              "Maybe make sure it's correctly spelled and that you've imported it:"
-            ],
-          "",
-          tokenAsErrorSite s tok
-        ]
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText

@@ -287,11 +287,8 @@ parsePattern = label "pattern" root
         else pure (Pattern.Var (ann v), [tokenToPair v])
     unbound :: P v m (Pattern Ann, [(Ann, v)])
     unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor ::
-      CT.ConstructorType ->
-      (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) ->
-      P v m (L.Token ConstructorReference)
-    ctor ct err = do
+    ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
+    ctor ct = do
       -- this might be a var, so we avoid consuming it at first
       tok <- P.try (P.lookAhead hqPrefixId)
       names <- asks names
@@ -330,7 +327,7 @@ parsePattern = label "pattern" root
     unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
     effectBind0 = do
-      tok <- ctor CT.Effect UnknownAbilityConstructor
+      tok <- ctor CT.Effect
       leaves <- many leaf
       _ <- reserved "->"
       pure (tok, leaves)
@@ -354,11 +351,11 @@ parsePattern = label "pattern" root
 
     -- ex: unique type Day = Mon | Tue | ...
     nullaryCtor = P.try do
-      tok <- ctor CT.Data UnknownDataConstructor
+      tok <- ctor CT.Data
       pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
 
     constructor = do
-      tok <- ctor CT.Data UnknownDataConstructor
+      tok <- ctor CT.Data
       let f patterns vs =
             let loc = foldl (<>) (ann tok) $ map ann patterns
              in (Pattern.Constructor loc (L.payload tok) patterns, vs)
