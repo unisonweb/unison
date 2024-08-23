@@ -723,7 +723,7 @@
           (display (describe-value x))])]
     [ref-exception
       [0 (f)
-       (control 'ref-exception k
+       (control ref-exception k
          (let ([disp (describe-value f)])
            (raise
              (make-exn:bug
