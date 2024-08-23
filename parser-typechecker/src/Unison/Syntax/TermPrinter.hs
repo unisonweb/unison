@@ -312,7 +312,7 @@ pretty0
         | Match' _ _ <- x -> do
             px <- pretty0 (ac Annotation Block im doc) x
             let hang = if isSoftHangable x then PP.softHang else PP.hang
-            pure . paren (p >= Application) $
+            pure . paren (p > Control) $
               fmt S.ControlKeyword "do" `hang` px
         | otherwise -> do
             let (im0', uses0) = calcImports im x
@@ -325,7 +325,7 @@ pretty0
             -- this makes sure we get proper indentation if `px` spills onto
             -- multiple lines, since `do` introduces layout block
             let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
-            pure . paren (p >= Application) $
+            pure . paren (p > Control) $
               fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
       List' xs -> do
         let listLink p = fmt (S.TypeReference Type.listRef) p
@@ -487,21 +487,21 @@ pretty0
                 let prec = termPrecedence f
                 prettyF <- pretty0 (AmbientContext Application Normal Infix im doc False) f
                 prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
-                prettyB <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) b
+                prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
                 pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
                   (prettyA <> " " <> prettyF <> " " <> prettyB) `PP.orElse` (prettyA `PP.hangUngrouped` (PP.column2 [(prettyF, prettyB)]))
               (And' a b, _) -> do
                 let prec = operatorPrecedence "&&"
                     prettyF = fmt S.ControlKeyword "&&"
                 prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
-                prettyB <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) b
+                prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
                 pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
                   (prettyA <> " " <> prettyF <> " " <> prettyB) `PP.orElse` (prettyA `PP.hangUngrouped` (PP.column2 [(prettyF, prettyB)]))
               (Or' a b, _) -> do
                 let prec = operatorPrecedence "||"
                     prettyF = fmt S.ControlKeyword "||"
                 prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
-                prettyB <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) b
+                prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
                 pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
                   PP.group (prettyA <> " " <> prettyF <> " " <> prettyB)
                     `PP.orElse` (prettyA `PP.hangUngrouped` prettyF <> " " <> prettyB)
@@ -538,14 +538,6 @@ pretty0
                     pure . paren (p >= (InfixOp Lowest)) $
                       PP.group (PP.group (PP.group (PP.sep softTab (fun : args') <> softTab)) <> lastArg')
               _other -> case (term, nonForcePred) of
-                -- OverappliedBinaryAppPred' f a b r
-                --   | binaryOpsPred f ->
-                --       -- Special case for overapplied binary op
-                --       do
-                --         prettyB <- pretty0 (ac (InfixOp Lowest) Normal im doc) b
-                --         prettyR <- PP.spacedTraverse (pretty0 (ac Application Normal im doc)) r
-                --         prettyA <- binaryApps [(f, a)] prettyB
-                --         pure $ paren True $ PP.hang prettyA prettyR
                 AppsPred' f args ->
                   paren (p >= Application) <$> do
                     f' <- pretty0 (ac Application Normal im doc) f
@@ -1567,6 +1559,7 @@ isBlock tm =
     Match' _ _ -> True
     LetBlock _ _ -> True
     DDelay' _ -> True
+    Delay' _ -> True
     _ -> False
 
 pattern LetBlock ::
