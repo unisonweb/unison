@@ -54,6 +54,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
+import Unison.Syntax.Precedence (operatorPrecedence)
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
 import Unison.Term qualified as Term
@@ -69,9 +70,9 @@ import Prelude hiding (and, or, seq)
 {-
 Precedence of language constructs is identical to Haskell, except that all
 operators (like +, <*>, or any sequence of non-alphanumeric characters) are
-left-associative and equal precedence, and operators must have surrounding
-whitespace (a + b, not a+b) to distinguish from identifiers that may contain
-operator characters (like empty? or fold-left).
+left-associative and equal precedence (with a few exceptions), and operators
+must have surrounding whitespace (a + b, not a+b) to distinguish from
+identifiers that may contain operator characters (like empty? or fold-left).
 
 Sections / partial application of infix operators is not implemented.
 -}
@@ -410,9 +411,6 @@ list = Parser.seq Term.list
 
 hashQualifiedPrefixTerm :: (Monad m, Var v) => TermP v m
 hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
-
-hashQualifiedInfixTerm :: (Monad m, Var v) => TermP v m
-hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 
 quasikeyword :: (Ord v) => Text -> P v m (L.Token ())
 quasikeyword kw = queryToken \case
@@ -1033,17 +1031,85 @@ term4 = f <$> some termLeaf
     f (func : args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
+data InfixParse v
+  = InfixOp (L.Token (HQ.HashQualified Name)) (Term v Ann) (InfixParse v) (InfixParse v)
+  | InfixAnd (L.Token String) (InfixParse v) (InfixParse v)
+  | InfixOr (L.Token String) (InfixParse v) (InfixParse v)
+  | InfixOperand (Term v Ann)
+  deriving (Show, Eq, Ord)
+
 -- e.g. term4 + term4 - term4
 -- or term4 || term4 && term4
-infixAppOrBooleanOp :: (Monad m, Var v) => TermP v m
-infixAppOrBooleanOp = chainl1 term4 (or <|> and <|> infixApp)
+-- The algorithm works as follows:
+-- 1. Parse the expression left-associated
+-- 2. Starting at the leftmost operator subexpression, see if the next operator
+--   has higher precedence. If so, rotate the expression to the right.
+--   e.g. in `a + b * c`, we first parse `(a + b) * c` then rotate to `a + (b * c)`.
+-- 3. Perform the algorithm on the right-hand side if necessary, as `b` might be
+--   an infix expression with lower precedence than `*`.
+-- 4. Proceed to the next operator to the right in the original expression and
+--    repeat steps 2-3 until we reach the end.
+infixAppOrBooleanOp :: forall m v. (Monad m, Var v) => TermP v m
+infixAppOrBooleanOp = do
+  (p, ps) <- prelimParse
+  -- traceShowM ("orig" :: String, foldl' (flip ($)) p ps)
+  let p' = reassociate (p, ps)
+  -- traceShowM ("reassoc" :: String, p')
+  return (applyInfixOps p')
   where
-    or = orf <$> label "or" (reserved "||")
-    orf op lhs rhs = Term.or (ann lhs <> ann op <> ann rhs) lhs rhs
-    and = andf <$> label "and" (reserved "&&")
-    andf op lhs rhs = Term.and (ann lhs <> ann op <> ann rhs) lhs rhs
-    infixApp = infixAppf <$> label "infixApp" (hashQualifiedInfixTerm <* optional semi)
-    infixAppf op lhs rhs = Term.apps' op [lhs, rhs]
+    -- To handle a mix of infix operators with and without precedence rules,
+    -- we first parse the expression left-associated, then reassociate it
+    -- according to the precedence rules.
+    prelimParse =
+      chainl1Accum (InfixOperand <$> term4) genericInfixApp
+    genericInfixApp =
+      (InfixAnd <$> (label "and" (reserved "&&")))
+        <|> (InfixOr <$> (label "or" (reserved "||")))
+        <|> (uncurry InfixOp <$> parseInfix)
+    shouldRotate child parent = case (child, parent) of
+      (Just p1, Just p2) -> p1 < p2
+      _ -> False
+    parseInfix = label "infixApp" do
+      op <- hqInfixId <* optional semi
+      resolved <- resolveHashQualified op
+      pure (op, resolved)
+    reassociate (exp, ops) =
+      foldl' checkOp exp ops
+    checkOp exp op = fixUp (op exp)
+    fixUp = \case
+      InfixOp op tm lhs rhs ->
+        rotate (unqualified op) (InfixOp op tm) lhs rhs
+      InfixAnd op lhs rhs ->
+        rotate "&&" (InfixAnd op) lhs rhs
+      InfixOr op lhs rhs ->
+        rotate "||" (InfixOr op) lhs rhs
+      x -> x
+    rotate op ctor lhs rhs =
+      case lhs of
+        InfixOp lop ltm ll lr
+          | shouldRotate (operatorPrecedence (unqualified lop)) (operatorPrecedence op) ->
+              InfixOp lop ltm ll (fixUp (ctor lr rhs))
+        InfixAnd lop ll lr
+          | shouldRotate (operatorPrecedence "&&") (operatorPrecedence op) ->
+              InfixAnd lop ll (fixUp (ctor lr rhs))
+        InfixOr lop ll lr
+          | shouldRotate (operatorPrecedence "||") (operatorPrecedence op) ->
+              InfixOr lop ll (fixUp (ctor lr rhs))
+        _ -> ctor lhs rhs
+    unqualified t = Maybe.fromJust $ NameSegment.toEscapedText . Name.lastSegment <$> (HQ.toName $ L.payload t)
+    applyInfixOps :: InfixParse v -> Term v Ann
+    applyInfixOps t = case t of
+      InfixOp _ tm lhs rhs ->
+        Term.apps' tm [applyInfixOps lhs, applyInfixOps rhs]
+      InfixOperand tm -> tm
+      InfixAnd op lhs rhs ->
+        let lhs' = applyInfixOps lhs
+            rhs' = applyInfixOps rhs
+         in Term.and (ann lhs' <> ann op <> ann rhs') lhs' rhs'
+      InfixOr op lhs rhs ->
+        let lhs' = applyInfixOps lhs
+            rhs' = applyInfixOps rhs
+         in Term.or (ann lhs' <> ann op <> ann rhs') lhs' rhs'
 
 typedecl :: (Monad m, Var v) => P v m (L.Token v, Type v Ann)
 typedecl =

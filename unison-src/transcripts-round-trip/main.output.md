@@ -24,7 +24,7 @@ scratch/a1> edit 1-1000
 
   ☝️
   
-  I added 110 definitions to the top of scratch.u
+  I added 111 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -122,11 +122,48 @@ ex3a =
   a = do qux3 + qux3
   ()
 
+fixity : '('())
+fixity =
+  do
+    use Nat * +
+    (===) = (==)
+    f <| x = f x
+    (<<) f g x = f (g x)
+    (>>) f g x = g (f x)
+    id x = x
+    (do
+      (%) = Nat.mod
+      ($) = (+)
+      c = 1 * (2 + 3) * 4
+      d = true && (false || true)
+      z = true || false && true
+      e = 1 + 2 >= 3 + 4
+      f = 9 % 2 === 0
+      g = 0 == 9 % 2
+      h = 2 * (10 $ 20)
+      i1 = 1 * 2 $ (3 * 4) $ 5
+      i2 = (1 * 2 $ 3) * 4 $ 5
+      oo = (2 * 10 $ 20) * 30 $ 40
+      ffffffffffffffffffff x = x + 1
+      gg x = x * 2
+      j = 10 |> ffffffffffffffffffff |> gg |> gg |> gg |> gg |> gg
+      k = ffffffffffffffffffff << gg << ffffffffffffffffffff <| 10
+      l = 10 |> (ffffffffffffffffffff >> gg >> ffffffffffffffffffff)
+      zzz = 1 + 2 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12
+      zz =
+        (1 * 2 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12)
+          === (1 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12)
+      zzzz =
+        1 * 2 + 3 * 3 < 4 + 5 * 6
+          && 7 + 8 * 9 > 10 + 11 * 12 === 1 + 3 * 3 < 4 + 5 * 6
+          && 7 + 8 * 9 > 10 + 11 * 12
+      ())
+      |> id
+
 fix_1035 : Text
 fix_1035 =
   use Text ++
-  "aaaaaaaaaaaaaaaaaaaaaa"
-    ++ "bbbbbbbbbbbbbbbbbbbbbb"
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb"
     ++ "cccccccccccccccccccccc"
     ++ "dddddddddddddddddddddd"
 
@@ -590,8 +627,8 @@ softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
 
 softhang23 : 'Nat
 softhang23 = do
-  use Nat +
   catchAll do
+    use Nat +
     x = 1
     y = 2
     x + y
@@ -627,15 +664,7 @@ softhang28 =
     n ->
       forkAt
         0
-        (n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
-          Nat.+ n
+        (n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n
           Nat.+ n
           Nat.+ n)
 
@@ -655,18 +684,7 @@ softhang_b x =
     a = 1
     b = 2
     softhang
-      (100
-      + 200
-      + 300
-      + 400
-      + 500
-      + 600
-      + 700
-      + 800
-      + 900
-      + 1000
-      + 1100
-      + 1200
+      (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200
       + 1300
       + 1400
       + 1500)
