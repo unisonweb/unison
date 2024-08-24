@@ -37,7 +37,6 @@ dependencies:
   - cereal
   - clock
   - concurrent-output
-  - configurator
   - containers >= 0.6.3
   - cryptonite
   - data-default

@@ -67,7 +67,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
   let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
       isTest = True
-  Transcript.withRunner isTest Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" rtp configFile $
+  Transcript.withRunner isTest Verbosity.Silent "Unison.Test.Ucm.runTranscript Invalid Version String" rtp $
     \runner -> do
       result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
@@ -77,7 +77,6 @@ runTranscript (Codebase codebasePath fmt) transcript = do
         pure output
       either (fail . P.toANSI 80 . P.shown) pure result
   where
-    configFile = Nothing
     -- Note: this needs to be properly configured if these tests ever
     -- need to do native compiles. But I suspect they won't.
     rtp = "native-compiler/bin"

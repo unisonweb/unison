@@ -23,7 +23,6 @@ dependencies:
   - co-log-core
   - code-page
   - concurrent-output
-  - configurator
   - containers >= 0.6.3
   - cryptonite
   - directory

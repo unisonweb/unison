@@ -13,8 +13,6 @@ import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Lazy.Char8 qualified as BL
-import Data.Configurator qualified as Configurator
-import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List (isSubsequenceOf)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -24,9 +22,7 @@ import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
 import System.Environment (lookupEnv)
-import System.Exit (die)
 import System.IO qualified as IO
-import System.IO.Error (catchIOError)
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Project (Project (..))
@@ -96,16 +92,15 @@ withRunner ::
   Verbosity ->
   UCMVersion ->
   FilePath ->
-  Maybe FilePath ->
   (Runner -> m r) ->
   m r
-withRunner isTest verbosity ucmVersion nrtp configFile action = do
-  withRuntimes nrtp \runtime sbRuntime nRuntime -> withConfig \config -> do
+withRunner isTest verbosity ucmVersion nrtp action = do
+  withRuntimes nrtp \runtime sbRuntime nRuntime -> do
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) Server.defaultCodebaseServerOpts runtime codebase \baseUrl -> do
         let parsed = Transcript.stanzas transcriptName transcriptSrc
         result <- for parsed \stanzas -> do
-          liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime config ucmVersion (tShow baseUrl)
+          liftIO $ run isTest verbosity codebaseDir stanzas codebase runtime sbRuntime nRuntime ucmVersion (tShow baseUrl)
         pure . join $ first ParseError result
   where
     withRuntimes ::
@@ -115,19 +110,6 @@ withRunner isTest verbosity ucmVersion nrtp configFile action = do
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime -> do
           action runtime sbRuntime
             =<< liftIO (RTI.startNativeRuntime ucmVersion nrtp)
-    withConfig :: forall a. ((Maybe Config -> m a) -> m a)
-    withConfig action = do
-      case configFile of
-        Nothing -> action Nothing
-        Just configFilePath -> do
-          let loadConfig = liftIO do
-                catchIOError
-                  (watchConfig configFilePath)
-                  \_ -> die "Your .unisonConfig could not be loaded. Check that it's correct!"
-          UnliftIO.bracket
-            loadConfig
-            (\(_config, cancelConfig) -> liftIO cancelConfig)
-            (\(config, _cancelConfig) -> action (Just config))
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
@@ -139,11 +121,10 @@ run ::
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
-  Maybe Config ->
   UCMVersion ->
   Text ->
   IO (Either Error Text)
-run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmVersion baseURL = UnliftIO.try do
+run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion baseURL = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <- Codebase.runTransaction codebase do
     (_, emptyCausalHashId) <- Codebase.emptyCausalHash
@@ -427,7 +408,6 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
         Cli.Env
           { authHTTPClient = authenticatedHTTPClient,
             codebase,
-            config = fromMaybe Configurator.empty config,
             credentialManager = credMan,
             generateUniqueName = do
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
