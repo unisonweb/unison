@@ -779,7 +779,9 @@
 ; generates a scheme module that contains the corresponding
 ; definitions.
 (define (build-intermediate-module #:profile [profile? #f] primary dfns0)
-  (define udefs (chunked-list->list dfns0))
+  (define udefs (remove-duplicates
+                  (chunked-list->list dfns0)
+                  #:key ufst))
   (define pname (termlink->name primary))
   (define tmlinks (map ufst udefs))
   (define codes (map usnd udefs))
