@@ -367,7 +367,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { B } -> ()
        { abort -> _ } -> bug "aborted"
 ```
@@ -421,7 +421,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { abort -> _ } -> bug "aborted"
 ```
 

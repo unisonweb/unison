@@ -115,7 +115,37 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
-    names :: Names
+    names :: Names,
+    -- The namespace block we are currently parsing under.
+    --
+    -- Mostly, this ought to have no affect on parsing: "applying" a namespace should be a pre-processing pass. All
+    -- bindings are prefixed with the namespace (easy), and all free variables that match a binding are prefixed (also easy).
+    --
+    -- ... but our "parser" is also doing parse-time name resolution for hash-qualified names, type references,
+    -- constructors in patterns, and term/type links.
+    --
+    -- So, when parsing a pattern `Bar` like
+    --
+    --   (in `namespace foo`)
+    --   match whatever with
+    --     Bar -> ...
+    --
+    -- we need to first prefix `Bar`, giving `foo.Bar`, before looking up in the name in the environment.
+    --
+    -- You might think we could simply parse a term under a pre-namespaced environment, avoiding the need to plumb the
+    -- namespace through via the parsing environment. That too could work in theory, but would be rather difficult to
+    -- implement with the current file parsing mechanism that fully parses and resolves all types in the file before
+    -- moving on to terms.
+    --
+    -- As an example, we don't want this to fail with a `foo.Bar not in scope` error:
+    --
+    --   namespace foo
+    --   type Bar = ...
+    --   type Foo = ... foo.Bar ...
+    --
+    -- That is easiest to implement with the current solution – first pre-process the types as above, then run them
+    -- through the "make type environment" logic (which is fed into the term parser).
+    maybeNamespace :: Maybe Name
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)

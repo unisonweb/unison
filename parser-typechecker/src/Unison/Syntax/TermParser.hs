@@ -122,7 +122,8 @@ typeLink' :: (Monad m, Var v) => P v m (L.Token Reference)
 typeLink' = findUniqueType =<< hqPrefixId
 
 findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token Reference)
-findUniqueType id = do
+findUniqueType id0 = do
+  id <- applyNamespaceToToken id0
   ns <- asks names
   case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
     s
@@ -131,7 +132,7 @@ findUniqueType id = do
 
 termLink' :: (Monad m, Var v) => P v m (L.Token Referent)
 termLink' = do
-  id <- hqPrefixId
+  id <- applyNamespaceToToken =<< hqPrefixId
   ns <- asks names
   case Names.lookupHQTerm Names.IncludeSuffixes (L.payload id) ns of
     s
@@ -140,7 +141,7 @@ termLink' = do
 
 link' :: (Monad m, Var v) => P v m (Either (L.Token Reference) (L.Token Referent))
 link' = do
-  id <- hqPrefixId
+  id <- applyNamespaceToToken =<< hqPrefixId
   ns <- asks names
   case (Names.lookupHQTerm Names.IncludeSuffixes (L.payload id) ns, Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
@@ -290,7 +291,7 @@ parsePattern = label "pattern" root
     ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
     ctor ct = do
       -- this might be a var, so we avoid consuming it at first
-      tok <- P.try (P.lookAhead hqPrefixId)
+      tok <- applyNamespaceToToken =<< P.try (P.lookAhead hqPrefixId)
       names <- asks names
       -- probably should avoid looking up in `names` if `L.payload tok`
       -- starts with a lowercase
@@ -450,15 +451,23 @@ nameIsKeyword name keyword =
 -- has a short hash, we resolve that short hash immediately and fail
 -- committed if that short hash can't be found in the current environment
 resolveHashQualified :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> TermP v m
-resolveHashQualified tok = do
+resolveHashQualified tok0 = do
   names <- asks names
-  case L.payload tok of
-    HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    hqn -> case Names.lookupHQTerm Names.IncludeSuffixes hqn names of
-      s
-        | Set.null s -> failCommitted $ UnknownTerm tok s
-        | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
-        | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
+  case L.payload tok0 of
+    HQ.NameOnly n -> pure $ Term.var (ann tok0) (Name.toVar n)
+    _ -> do
+      tok <- applyNamespaceToToken tok0
+      case Names.lookupHQTerm Names.IncludeSuffixes (L.payload tok) names of
+        s
+          | Set.null s -> failCommitted $ UnknownTerm tok s
+          | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
+          | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
+
+applyNamespaceToToken :: (Monad m) => L.Token (HQ.HashQualified Name) -> P v m (L.Token (HQ.HashQualified Name))
+applyNamespaceToToken tok =
+  asks maybeNamespace <&> \case
+    Nothing -> tok
+    Just namespace -> fmap (fmap (Name.joinDot namespace)) tok
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
@@ -1262,14 +1271,14 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
-  statements <- local (\e -> e {names = names}) $ sepBy semi statement
+  statements <- local (\e -> e {names}) $ sepBy semi statement
   end <- closeBlock
   body <- substImports names imports <$> go open statements
   pure (ann open <> ann end, body)
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
-    go open bs =
+    go open =
       let finish :: Term.Term v Ann -> TermP v m
           finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
@@ -1309,7 +1318,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
               if implicitUnitAtEnd
                 then (toList bs, DD.unitTerm a)
                 else (toList bs, Term.var a (positionalVar a Var.missingResult))
-       in toTm bs
+       in toTm
 
 number :: (Var v) => TermP v m
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)

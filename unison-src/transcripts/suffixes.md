@@ -73,35 +73,3 @@ Note that we can always still view indirect dependencies by using more name segm
 scratch/main> view distributed.abra.cadabra
 scratch/main> names distributed.lib.baz.qux
 ```
-
-## Corner cases
-
-If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:
-
-```unison:hide
-unique type A = Thing1 Nat | thing2 Nat
-
-foo.a = 23
-bar = 100
-```
-
-```ucm
-scratch/main> add
-```
-
-```unison
-unique type B = Thing1 Text | thing2 Text | Thing3 Text
-
-zoink.a = "hi"
-
--- verifying that the `a` here references `zoink.a`
-foo.baz.qux.bar : Text
-foo.baz.qux.bar = a
-
--- verifying that the `bar` is resolving to `foo.baz.qux.bar`
--- and that `Thing1` references `B.Thing1` from the current file
-fn = cases
-  Thing1 msg -> msg Text.++ bar
-  thing2 msg -> msg Text.++ bar
-  _ -> todo "hmm"
-```

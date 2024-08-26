@@ -52,10 +52,11 @@ file = do
   _ <- openBlock
 
   -- Parse an optional directive like "namespace foo.bar"
-  maybeNamespace :: Maybe v <-
+  maybeNamespace :: Maybe Name.Name <-
     optional (reserved "namespace") >>= \case
       Nothing -> pure Nothing
-      Just _ -> Just . Name.toVar . L.payload <$> (importWordyId <|> importSymbolyId)
+      Just _ -> Just . L.payload <$> (importWordyId <|> importSymbolyId)
+  let maybeNamespaceVar = Name.toVar <$> maybeNamespace
 
   -- The file may optionally contain top-level imports,
   -- which are parsed and applied to the type decls and term stanzas
@@ -65,7 +66,7 @@ file = do
   env <-
     let applyNamespaceToDecls :: forall decl. Iso' decl (DataDeclaration v Ann) -> Map v decl -> Map v decl
         applyNamespaceToDecls dataDeclL =
-          case maybeNamespace of
+          case maybeNamespaceVar of
             Nothing -> id
             Just namespace -> Map.fromList . map f . Map.toList
               where
@@ -90,7 +91,7 @@ file = do
         (typ, fields) <- parsedAccessors
         -- The parsed accessor has an un-namespaced type, so apply the namespace directive (if necessary) before
         -- looking up in the environment computed by `environmentFor`.
-        let typ1 = maybe id Var.namespaced2 maybeNamespace (L.payload typ)
+        let typ1 = maybe id Var.namespaced2 maybeNamespaceVar (L.payload typ)
         Just (r, _) <- [Map.lookup typ1 (UF.datas env)]
         -- Generate the record accessors with *un-namespaced* names (passing `typ` rather than `typ1`) below, because we
         -- need to know these names in order to perform rewriting. As an example,
@@ -107,21 +108,19 @@ file = do
   let accessors :: [(v, Ann, Term v Ann)]
       accessors =
         unNamespacedAccessors
-          & case maybeNamespace of
+          & case maybeNamespaceVar of
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
-  let importNames = [(Name.unsafeParseVar v, Name.unsafeParseVar v2) | (v, v2) <- imports]
-  let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations.
-  local (\e -> e {names = Names.shadowing locals namesStart}) do
+  local (\e -> e {names = Names.shadowing (UF.names env) namesStart, maybeNamespace}) do
     names <- asks names
     stanzas <- do
       unNamespacedStanzas0 <- sepBy semi stanza
       let unNamespacedStanzas = fmap (TermParser.substImports names imports) <$> unNamespacedStanzas0
       pure $
         unNamespacedStanzas
-          & case maybeNamespace of
+          & case maybeNamespaceVar of
             Nothing -> id
             Just namespace ->
               let unNamespacedTermNamespaceNames :: Set v

@@ -27,7 +27,7 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
-import Unison.Names qualified as Names
+import Unison.NamesWithHistory qualified as Names (shadowing)
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -100,7 +100,8 @@ loadUnisonFile sourceName text = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
-                names
+                names,
+                maybeNamespace = Nothing
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
@@ -117,7 +118,7 @@ loadUnisonFile sourceName text = do
                     names
                       -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
                       -- don't have term `Names`)
-                      & Names.unionLeft (UF.toNames unisonFile)
+                      & Names.shadowing (UF.toNames unisonFile)
                in PPED.makePPED
                     (PPE.hqNamer 10 ns)
                     ( PPE.suffixifyByHashWithUnhashedTermsInScope

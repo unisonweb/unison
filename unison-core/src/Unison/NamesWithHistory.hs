@@ -108,7 +108,7 @@ push n0 ns = unionLeft0 n1 ns
 -- This can be used to shadow names in the codebase with names in a unison file for instance:
 -- e.g. @shadowing scratchFileNames codebaseNames@
 shadowing :: Names -> Names -> Names
-shadowing = Names.unionLeft
+shadowing = Names.unionLeftName
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
