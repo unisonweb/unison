@@ -91,10 +91,7 @@ suffixifyByHash names =
 suffixifyByHashWithUnhashedTermsInScope :: Set Name -> Names -> Suffixifier
 suffixifyByHashWithUnhashedTermsInScope localTermNames namespaceNames =
   Suffixifier
-    { suffixifyTerm = \name ->
-        Name.suffixifyByHash
-          name
-          terms, -- (Relation.mapRanMonotonic ResolvesToNamespace (Names.terms names)),
+    { suffixifyTerm = \name -> Name.suffixifyByHash name terms,
       suffixifyType = \name -> Name.suffixifyByHash name (Names.types namespaceNames)
     }
   where
