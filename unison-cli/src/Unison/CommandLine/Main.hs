@@ -9,7 +9,6 @@ import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
-import Data.Configurator.Types (Config)
 import Data.IORef
 import Data.List.NonEmpty qualified as NEL
 import Data.List.NonEmpty qualified as NonEmpty
@@ -124,7 +123,6 @@ main ::
   FilePath ->
   Welcome.Welcome ->
   PP.ProjectPathIds ->
-  Config ->
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
@@ -135,7 +133,7 @@ main ::
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = Ki.scoped \scope -> do
+main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = Ki.scoped \scope -> do
   _ <- Ki.fork scope do
     -- Pre-load the project root in the background so it'll be ready when a command needs it.
     projectRoot <- Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch
@@ -221,7 +219,6 @@ main dir welcome ppIds config initialInputs runtime sbRuntime nRuntime codebase 
         Cli.Env
           { authHTTPClient,
             codebase,
-            config,
             credentialManager,
             loadSource = loadSourceFile,
             writeSource = writeSourceFile,
