@@ -16,6 +16,17 @@ packages:
   original:
     url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
 - completed:
+    commit: 747297319f0dd0c8e8f72b7de4fbf52aad73d5b0
+    git: https://github.com/solidsnack/wcwidth.git
+    name: wcwidth
+    pantry-tree:
+      sha256: dc6939beb9b35fcebebfe22eef013d9438ff2dd885b517fb7ea352dee4d580a7
+      size: 815
+    version: 0.0.2
+  original:
+    commit: 747297319f0dd0c8e8f72b7de4fbf52aad73d5b0
+    git: https://github.com/solidsnack/wcwidth.git
+- completed:
     hackage: fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
     pantry-tree:
       sha256: 5bb9d39dbc4a619cf9b65409dde0d58dd488c7abab030f71ac83ba849595ee05
@@ -57,6 +68,13 @@ packages:
       size: 284
   original:
     hackage: network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
+- completed:
+    hackage: diagnose-2.5.1@sha256:853fd268d7fe0191b79d73187104bf7b4bc5ce3bc3483cb088dc10b09f18abc8,5977
+    pantry-tree:
+      sha256: 99b2b3c2b2d3769ef45b030b0578ac7b3ce8b1b68ae7dd511857e7690ad19f52
+      size: 1401
+  original:
+    hackage: diagnose-2.5.1@sha256:853fd268d7fe0191b79d73187104bf7b4bc5ce3bc3483cb088dc10b09f18abc8,5977
 snapshots:
 - completed:
     sha256: 8e7996960d864443a66eb4105338bbdd6830377b9f6f99cd5527ef73c10c01e7

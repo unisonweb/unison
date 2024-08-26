@@ -207,6 +207,7 @@ library
     , bytestring
     , concurrent-output
     , containers >=0.6.3
+    , diagnose
     , errors
     , extra
     , filelock
@@ -223,6 +224,7 @@ library
     , network-uri
     , nonempty-containers
     , pretty-simple
+    , prettyprinter
     , regex-tdfa
     , semialign
     , semigroups

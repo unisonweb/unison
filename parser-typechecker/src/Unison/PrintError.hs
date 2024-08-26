@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.PrintError
   ( Env,
@@ -28,6 +29,9 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NES
 import Data.Text qualified as Text
+import Error.Diagnose qualified as Diagnose
+import Prettyprinter qualified as PrettyPrinter
+import Prettyprinter.Render.Text qualified as PrettyPrinter
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
@@ -1231,6 +1235,16 @@ _posToEnglish (L.Pos l c) =
 rangeForToken :: L.Token a -> Range
 rangeForToken t = Range (L.start t) (L.end t)
 
+positionForToken :: FilePath -> L.Token a -> Diagnose.Position
+positionForToken filepath t =
+  Diagnose.Position
+    { begin = posTuple (L.start t),
+      end = posTuple (L.end t),
+      file = filepath
+    }
+  where
+    posTuple (L.Pos {line, column}) = (line, column)
+
 rangeToEnglish :: (IsString s) => Range -> s
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   fromString $
@@ -1271,8 +1285,8 @@ rangeForAnnotated a = case ann a of
   GeneratedFrom a -> rangeForAnnotated a
   Ann start end -> Just $ Range start end
 
-showLexerOutput :: Bool
-showLexerOutput = False
+_showLexerOutput :: Bool
+_showLexerOutput = False
 
 renderNoteAsANSI ::
   (Var v, Annotated a, Show a, Ord a) =>
@@ -1332,13 +1346,584 @@ prettyParseError ::
   Parser.Err v ->
   Pretty ColorText
 prettyParseError s e =
-  mconcat (fst <$> renderParseErrors s e) <> lexerOutput
+  mconcat (renderPrettyReport s . fst <$> parseErrorToReport s e) -- <> lexerOutput
   where
-    lexerOutput :: Pretty (AnnotatedText a)
-    lexerOutput =
-      if showLexerOutput
-        then "\nLexer output:\n" <> fromString (L.debugPreParse' s)
-        else mempty
+
+renderPrettyReport :: String -> Diagnose.Report (Pretty ColorText) -> Pretty ColorText
+renderPrettyReport src report =
+  Diagnose.prettyDiagnostic Diagnose.WithUnicode (Diagnose.TabSize 2) (Diagnose.addFile (Diagnose.addReport mempty report) "source" src)
+    & PrettyPrinter.layoutPretty PrettyPrinter.defaultLayoutOptions
+    & PrettyPrinter.renderStrict
+    & Pr.text
+
+instance PrettyPrinter.Pretty (Pretty ColorText) where
+  pretty = PrettyPrinter.pretty . Pr.toPlain defaultWidth
+
+-- lexerOutput :: Pretty (AnnotatedText a)
+-- lexerOutput =
+--   if showLexerOutput
+--     then "\nLexer output:\n" <> fromString (L.debugPreParse' s)
+--     else mempty
+
+parseErrorToReport ::
+  (Var v) =>
+  String ->
+  Parser.Err v ->
+  [(Diagnose.Report (Pretty ColorText), [Range])]
+parseErrorToReport _srcCode = \case
+  P.TrivialError _ (LexerError ts e) _ -> [(go e, ranges)]
+    where
+      ranges = rangeForToken <$> ts
+      positionsWithMarker ::
+        Diagnose.Marker (Pretty ColorText) ->
+        [(Diagnose.Position, Diagnose.Marker (Pretty ColorText))]
+      positionsWithMarker marker =
+        ts <&> \t -> (positionForToken "source" t, marker)
+      go :: L.Err -> Diagnose.Report (Pretty ColorText)
+      go = \case
+        L.UnexpectedDelimiter s ->
+          Diagnose.Err
+            Nothing
+            ("I found a " <> Pr.string s <> "  in an unexpected place.")
+            (positionsWithMarker $ Diagnose.This "here's where I got confused")
+            []
+        L.MissingFractional _n ->
+          Diagnose.Err
+            Nothing
+            ("I found an unfinished number")
+            (positionsWithMarker $ Diagnose.This "I was expecting some digits after the . here")
+            [Diagnose.Note "Valid numbers might look like: 0 or 1e37 or 3.14"]
+        -- Pr.lines
+        --   [ "This number isn't valid syntax: ",
+        --     "",
+        --     excerpt,
+        --     Pr.wrap $
+        --       "I was expecting some digits after the "
+        --         <> quoteCode "."
+        --         <> ", for example: "
+        --         <> quoteCode (n <> "0")
+        --         <> "or"
+        --         <> Pr.group (quoteCode (n <> "1e37") <> ".")
+        --   ]
+        _ -> mempty
+  _ -> []
+
+-- L.CloseWithoutMatchingOpen open close ->
+--   "I found a closing "
+--     <> style ErrorSite (fromString close)
+--     <> " here without a matching "
+--     <> style ErrorSite (fromString open)
+--     <> ".\n\n"
+--     <> excerpt
+-- L.ReservedWordyId id ->
+--   Pr.lines
+--     [ "The identifier " <> quoteCode id <> " used here is a reserved keyword: ",
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "You can avoid this problem either by renaming the identifier or wrapping it in backticks (like "
+--           <> style Code ("`" <> id <> "`")
+--           <> ")."
+--     ]
+-- L.InvalidSymbolyId id ->
+--   Pr.lines
+--     [ "The infix identifier " <> quoteCode id <> " isn’t valid syntax: ",
+--       "",
+--       excerpt,
+--       "Here are a few valid examples: "
+--         <> quoteCode "++"
+--         <> ", "
+--         <> quoteCode "Float./"
+--         <> ", and "
+--         <> quoteCode "List.map"
+--     ]
+-- L.ReservedSymbolyId id ->
+--   Pr.lines
+--     [ "The identifier " <> quoteCode id <> " is reserved by Unison and can't be used as an operator: ",
+--       "",
+--       excerpt
+--     ]
+-- L.InvalidBytesLiteral bs ->
+--   Pr.lines
+--     [ "This bytes literal isn't valid syntax: " <> style ErrorSite (fromString bs),
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "I was expecting an even number of hexidecimal characters"
+--           <> "(one of"
+--           <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+--           <> "after the"
+--           <> Pr.group (style ErrorSite "0xs" <> ".")
+--     ]
+-- L.InvalidHexLiteral ->
+--   Pr.lines
+--     [ "This number isn't valid syntax: ",
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "I was expecting only hexidecimal characters"
+--           <> "(one of"
+--           <> Pr.group (style Code "0123456789abcdefABCDEF" <> ")")
+--           <> "after the"
+--           <> Pr.group (style ErrorSite "0x" <> ".")
+--     ]
+-- L.InvalidOctalLiteral ->
+--   Pr.lines
+--     [ "This number isn't valid syntax: ",
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "I was expecting only octal characters"
+--           <> "(one of"
+--           <> Pr.group (style Code "01234567" <> ")")
+--           <> "after the"
+--           <> Pr.group (style ErrorSite "0o" <> ".")
+--     ]
+-- L.InvalidShortHash h ->
+--   Pr.lines
+--     [ "Invalid hash: " <> style ErrorSite (fromString h),
+--       "",
+--       excerpt
+--     ]
+-- L.Both e1 e2 -> Pr.lines [go e1, "", go e2]
+-- L.UnknownLexeme -> Pr.lines ["I couldn't parse this.", "", excerpt]
+-- L.MissingFractional n ->
+--   Pr.lines
+--     [ "This number isn't valid syntax: ",
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "I was expecting some digits after the "
+--           <> quoteCode "."
+--           <> ", for example: "
+--           <> quoteCode (n <> "0")
+--           <> "or"
+--           <> Pr.group (quoteCode (n <> "1e37") <> ".")
+--     ]
+-- L.MissingExponent n ->
+--   Pr.lines
+--     [ "This number isn't valid syntax: ",
+--       "",
+--       excerpt,
+--       Pr.wrap $
+--         "I was expecting some digits for the exponent,"
+--           <> "for example: "
+--           <> Pr.group (quoteCode (n <> "37") <> ".")
+--     ]
+-- L.TextLiteralMissingClosingQuote _txt ->
+--   Pr.lines
+--     [ "This text is missing a closing quote:",
+--       "",
+--       excerpt
+--     ]
+-- L.InvalidEscapeCharacter c ->
+--   Pr.lines
+--     [ "This isn't a valid escape character: " <> style ErrorSite [c],
+--       "",
+--       excerpt,
+--       "",
+--       "I only know about the following escape characters:",
+--       "",
+--       let s ch = quoteCode (fromString $ "\\" <> [ch])
+--        in Pr.indentN 2 $ intercalateMap "," s (fst <$> L.escapeChars)
+--     ]
+-- L.LayoutError ->
+--   Pr.lines
+--     [ "I found an indentation error somewhere in here:",
+--       "",
+--       excerpt
+--     ]
+-- L.UnexpectedTokens msg ->
+--   Pr.lines
+--     [ "I got confused here:",
+--       "",
+--       excerpt,
+--       "",
+--       style ErrorSite msg
+--     ]
+-- P.TrivialError _errOffset unexpected expected ->
+-- let unexpectedTokens :: Maybe (Nel.NonEmpty (L.Token L.Lexeme))
+-- unexpectedTokenStrs :: Set String
+-- (unexpectedTokens, unexpectedTokenStrs) = case unexpected of
+--   Just (P.Tokens ts) ->
+--     Foldable.toList ts
+--       & fmap (L.displayLexeme . L.payload)
+--       & Set.fromList
+--       & (Just ts,)
+--   Just (P.Label ts) -> (mempty, Set.singleton $ Foldable.toList ts)
+--   Just (P.EndOfInput) -> (mempty, Set.singleton "end of input")
+--   Nothing -> (mempty, mempty)
+-- expectedTokenStrs :: Set String
+-- expectedTokenStrs =
+--   expected & foldMap \case
+--     (P.Tokens ts) ->
+--       Foldable.toList ts
+--         & fmap (L.displayLexeme . L.payload)
+--         & Set.fromList
+--     (P.Label ts) -> Set.singleton $ Foldable.toList ts
+--     (P.EndOfInput) -> Set.singleton "end of input"
+-- ranges = case unexpectedTokens of
+--   Nothing -> []
+--   Just ts -> rangeForToken <$> Foldable.toList ts
+-- excerpt = showSource s ((\r -> (r, ErrorSite)) <$> ranges)
+-- msg = L.formatTrivialError unexpectedTokenStrs expectedTokenStrs
+-- in [ ( Pr.lines
+--       [ "I got confused here:",
+--         "",
+--         excerpt,
+--         "",
+--         style ErrorSite msg
+--       ],
+--     ranges
+--   )
+-- ]
+-- P.FancyError _sp fancyErrors ->
+-- (go' <$> Set.toList fancyErrors)
+-- where
+-- go' :: P.ErrorFancy (Parser.Error v) -> (Pretty ColorText, [Range])
+-- go' (P.ErrorFail s) =
+-- ("The parser failed with this message:\n" <> fromString s, [])
+-- go' (P.ErrorIndentation ordering indent1 indent2) =
+-- let ranges = [] -- TODO: determine the source location from the offset position, which is the token offset maybe?
+-- in ( mconcat
+--       [ "The parser was confused by the indentation.\n",
+--         "It was expecting the reference level (",
+--         fromString (show indent1),
+--         ")\nto be ",
+--         fromString (show ordering),
+--         " than/to the actual level (",
+--         fromString (show indent2),
+--         ").\n"
+--       ],
+--     ranges
+--   )
+-- go' (P.ErrorCustom e) = go e
+-- errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
+-- go :: Parser.Error v -> (Pretty ColorText, [Range])
+-- -- UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+-- go (Parser.PatternArityMismatch expected actual loc) = (msg, ranges)
+-- where
+-- ranges = maybeToList $ rangeForAnnotated loc
+-- msg =
+--   Pr.indentN 2 . Pr.callout "😶" $
+--     Pr.lines
+--       [ Pr.wrap $
+--           "Not all the branches of this pattern matching have"
+--             <> "the same number of arguments. I was assuming they'd all have "
+--             <> Pr.hiBlue (Pr.shown expected)
+--             <> "arguments (based on the previous patterns)"
+--             <> "but this one has "
+--             <> Pr.hiRed (Pr.shown actual)
+--             <> "arguments:",
+--         annotatedAsErrorSite s loc
+--       ]
+-- go (Parser.FloatPattern loc) = (msg, ranges)
+-- where
+-- ranges = maybeToList $ rangeForAnnotated loc
+-- msg =
+--   Pr.indentN 2 . Pr.callout "😶" $
+--     Pr.lines
+--       [ Pr.wrap $
+--           "Floating point pattern matching is disallowed. Instead,"
+--             <> "it is recommended to test that a value is within"
+--             <> "an acceptable error bound of the expected value.",
+--         annotatedAsErrorSite s loc
+--       ]
+-- go (Parser.UseEmpty tok) = (msg, ranges)
+-- where
+-- ranges = [rangeForToken tok]
+-- msg =
+--   Pr.indentN 2 . Pr.callout "😶" $
+--     Pr.lines
+--       [ Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword",
+--         "",
+--         tokenAsErrorSite s tok,
+--         useExamples
+--       ]
+-- go (Parser.UseInvalidPrefixSuffix prefix suffix) = (msg', ranges)
+-- where
+-- msg' :: Pretty ColorText
+-- msg' = Pr.indentN 2 . Pr.blockedCallout . Pr.lines $ msg
+-- (msg, ranges) = case (prefix, suffix) of
+--   (Left tok, Just _) ->
+--     ( [ Pr.wrap "The first argument of a `use` statement can't be an operator name:",
+--         "",
+--         tokenAsErrorSite s tok,
+--         useExamples
+--       ],
+--       [rangeForToken tok]
+--     )
+--   (tok0, Nothing) ->
+--     let tok = either id id tok0
+--         ranges = [rangeForToken tok]
+--         txts =
+--           [ Pr.wrap $ "I was expecting something after " <> Pr.hiRed "here:",
+--             "",
+--             tokenAsErrorSite s tok,
+--             case Name.parent (L.payload tok) of
+--               Nothing -> useExamples
+--               Just parent ->
+--                 Pr.wrap $
+--                   "You can write"
+--                     <> Pr.group
+--                       ( Pr.blue $
+--                           "use "
+--                             <> Pr.text (Name.toText (Name.makeRelative parent))
+--                             <> " "
+--                             <> Pr.text (Name.toText (Name.unqualified (L.payload tok)))
+--                       )
+--                     <> "to introduce "
+--                     <> Pr.backticked (Pr.text (Name.toText (Name.unqualified (L.payload tok))))
+--                     <> "as a local alias for "
+--                     <> Pr.backticked (Pr.text (Name.toText (L.payload tok)))
+--           ]
+--      in (txts, ranges)
+--   (Right tok, _) ->
+--     ( [ -- this is unpossible but rather than bomb, nice msg
+--         "You found a Unison bug 🐞  here:",
+--         "",
+--         tokenAsErrorSite s tok,
+--         Pr.wrap $
+--           "This looks like a valid `use` statement,"
+--             <> "but the parser didn't recognize it. This is a Unison bug."
+--       ],
+--       [rangeForToken tok]
+--     )
+-- go (Parser.DisallowedAbsoluteName t) = (msg, ranges)
+-- where
+-- ranges = [rangeForToken t]
+-- msg :: Pretty ColorText
+-- msg =
+--   Pr.indentN 2 $
+--     Pr.fatalCallout $
+--       Pr.lines
+--         [ Pr.wrap $
+--             "I don't currently support creating definitions that start with"
+--               <> Pr.group (Pr.blue "'.'" <> ":"),
+--           "",
+--           tokenAsErrorSite s t,
+--           Pr.wrap $ "Use " <> Pr.blue "help messages.disallowedAbsolute" <> "to learn more.",
+--           ""
+--         ]
+-- go (Parser.DuplicateTypeNames ts) = (intercalateMap "\n\n" showDup ts, ranges)
+-- where
+-- ranges = ts >>= snd >>= toList . rangeForAnnotated
+-- showDup (v, locs) =
+--   "I found multiple types with the name "
+--     <> errorVar v
+--     <> ":\n\n"
+--     <> annotatedsStartingLineAsStyle ErrorSite s locs
+-- go (Parser.DuplicateTermNames ts) =
+-- (Pr.fatalCallout $ intercalateMap "\n\n" showDup ts, ranges)
+-- where
+-- ranges = ts >>= snd >>= toList . rangeForAnnotated
+-- showDup (v, locs) =
+--   Pr.lines
+--     [ Pr.wrap $
+--         "I found multiple bindings with the name " <> Pr.group (errorVar v <> ":"),
+--       annotatedsStartingLineAsStyle ErrorSite s locs
+--     ]
+-- go (Parser.TypeDeclarationErrors es) =
+-- let unknownTypes = [(v, a) | UF.UnknownType v a <- es]
+--   dupDataAndAbilities = [(v, a, a2) | UF.DupDataAndAbility v a a2 <- es]
+--   allAnns = (snd <$> unknownTypes) <> (foldMap (\(_, a1, a2) -> [a1, a2]) dupDataAndAbilities)
+--   allRanges = allAnns >>= maybeToList . rangeForAnnotated
+--   unknownTypesMsg =
+--     mconcat
+--       [ "I don't know about the type(s) ",
+--         intercalateMap ", " errorVar (nubOrd $ fst <$> unknownTypes),
+--         ":\n\n",
+--         annotatedsAsStyle ErrorSite s (snd <$> unknownTypes)
+--       ]
+--   dupDataAndAbilitiesMsg = intercalateMap "\n\n" dupMsg dupDataAndAbilities
+--   dupMsg (v, a, a2) =
+--     mconcat
+--       [ "I found two types called " <> errorVar v <> ":",
+--         "\n\n",
+--         annotatedsStartingLineAsStyle ErrorSite s [a, a2]
+--       ]
+--   msgs =
+--     if null unknownTypes
+--       then dupDataAndAbilitiesMsg
+--       else
+--         if null dupDataAndAbilities
+--           then unknownTypesMsg
+--           else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
+-- in (msgs, allRanges)
+-- go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
+-- \| name == Name.fromSegment (NameSegment "::") =
+--   let msg =
+--         mconcat
+--           [ "This looks like the start of an expression here but I was expecting a binding.",
+--             "\nDid you mean to use a single " <> quoteCode ":",
+--             " here for a type signature?",
+--             "\n\n",
+--             tokenAsErrorSite s t
+--           ]
+--    in (msg, [rangeForToken t])
+-- go (Parser.DidntExpectExpression tok _nextTok) =
+-- let msg =
+--     mconcat
+--       [ "This looks like the start of an expression here \n\n",
+--         tokenAsErrorSite s tok,
+--         "\nbut at the file top-level, I expect one of the following:",
+--         "\n",
+--         "\n  - A binding, like " <> t <> style Code " = 42" <> " OR",
+--         "\n                    " <> t <> style Code " : Nat",
+--         "\n                    " <> t <> style Code " = 42",
+--         "\n  - A watch expression, like "
+--           <> style Code "> "
+--           <> t
+--           <> style
+--             Code
+--             " + 1",
+--         "\n  - An `ability` declaration, like "
+--           <> style Code "unique ability Foo where ...",
+--         "\n  - A `type` declaration, like "
+--           <> style Code "structural type Optional a = None | Some a",
+--         "\n"
+--       ]
+-- in (msg, [rangeForToken tok])
+-- where
+-- t = style Code (fromString (P.showTokens (Proxy @[L.Token L.Lexeme]) (pure tok)))
+-- go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) =
+-- let msg =
+--     mconcat
+--       [ "I was expecting an indented block following the "
+--           <> "`"
+--           <> fromString blockName
+--           <> "` keyword\n",
+--         "but instead found an outdent:\n\n",
+--         tokenAsErrorSite s tok -- todo: @aryairani why is this displaying weirdly?
+--       ]
+-- in (msg, [rangeForToken tok])
+-- go (Parser.ExpectedBlockOpen blockName tok) =
+-- let msg =
+--     mconcat
+--       [ "I was expecting an indented block following the "
+--           <> "`"
+--           <> fromString blockName
+--           <> "` keyword\n",
+--         "but instead found this token:\n",
+--         tokenAsErrorSite s tok
+--       ]
+-- in (msg, [rangeForToken tok])
+-- go (Parser.SignatureNeedsAccompanyingBody tok) =
+-- let msg =
+--     mconcat
+--       [ "You provided a type signature, but I didn't find an accompanying\n",
+--         "binding after it.  Could it be a spelling mismatch?\n",
+--         tokenAsErrorSite s tok
+--       ]
+-- in (msg, [rangeForToken tok])
+-- go (Parser.EmptyBlock tok) =
+-- let msg =
+--     mconcat
+--       [ "I expected a block after this (",
+--         describeStyle ErrorSite,
+--         "), ",
+--         "but there wasn't one.  Maybe check your indentation:\n",
+--         tokenAsErrorSite s tok
+--       ]
+-- in (msg, [rangeForToken tok])
+-- go (Parser.EmptyWatch tok) =
+-- let msg =
+--     Pr.lines
+--       [ "I expected a non-empty watch expression and not just \">\"",
+--         "",
+--         annotatedAsErrorSite s tok
+--       ]
+-- in (msg, maybeToList $ rangeForAnnotated tok)
+-- go (Parser.UnknownAbilityConstructor tok _referents) = (unknownConstructor "ability" tok, [rangeForToken tok])
+-- go (Parser.UnknownDataConstructor tok _referents) = (unknownConstructor "data" tok, [rangeForToken tok])
+-- go (Parser.UnknownId tok referents references) =
+-- let msg =
+--     Pr.lines
+--       [ if missing
+--           then "I couldn't resolve the reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+--           else "The reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
+--         "",
+--         tokenAsErrorSite s $ HQ.toText <$> tok,
+--         if missing
+--           then "Make sure it's spelled correctly."
+--           else "Try hash-qualifying the term you meant to reference."
+--       ]
+-- in (msg, [rangeForToken tok])
+-- where
+-- missing = Set.null referents && Set.null references
+-- go (Parser.UnknownTerm tok referents) =
+-- let msg =
+--     Pr.lines
+--       [ if Set.null referents
+--           then "I couldn't find a term for " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+--           else "The term reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
+--         "",
+--         tokenAsErrorSite s $ HQ.toText <$> tok,
+--         if missing
+--           then "Make sure it's spelled correctly."
+--           else "Try hash-qualifying the term you meant to reference."
+--       ]
+-- in (msg, [rangeForToken tok])
+-- where
+-- missing = Set.null referents
+-- go (Parser.UnknownType tok referents) =
+-- let msg =
+--     Pr.lines
+--       [ if Set.null referents
+--           then "I couldn't find a type for " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> "."
+--           else "The type reference " <> style ErrorSite (Text.unpack (HQ.toText (L.payload tok))) <> " was ambiguous.",
+--         "",
+--         tokenAsErrorSite s $ HQ.toText <$> tok,
+--         if missing
+--           then "Make sure it's spelled correctly."
+--           else "Try hash-qualifying the type you meant to reference."
+--       ]
+-- in (msg, [rangeForToken tok])
+-- where
+-- missing = Set.null referents
+-- go (Parser.ResolutionFailures failures) =
+-- -- TODO: We should likely output separate error messages, one for each resolution
+-- -- failure. This would involve adding a separate codepath for LSP error messages.
+-- let ranges = catMaybes (rangeForAnnotated . Names.getAnnotation <$> failures)
+-- in (Pr.border 2 . prettyResolutionFailures s $ failures, ranges)
+-- go (Parser.MissingTypeModifier keyword name) =
+-- let msg =
+--     Pr.lines
+--       [ Pr.wrap $
+--           "I expected to see `structural` or `unique` at the start of this line:",
+--         "",
+--         tokensAsErrorSite s [void keyword, void name],
+--         Pr.wrap $
+--           "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
+--             <> structuralVsUniqueDocsLink
+--       ]
+-- in (msg, rangeForToken <$> [void keyword, void name])
+-- go (Parser.TypeNotAllowed tok) =
+-- let msg =
+--     Pr.lines
+--       [ Pr.wrap "I expected to see a term here, but instead it’s a type:",
+--         "",
+--         tokenAsErrorSite s $ HQ.toText <$> tok
+--       ]
+-- in (msg, [rangeForToken tok])
+
+-- unknownConstructor ::
+--   String -> L.Token (HashQualified Name) -> Pretty ColorText
+-- unknownConstructor ctorType tok =
+--   Pr.lines
+--     [ (Pr.wrap . mconcat)
+--         [ "I don't know about any ",
+--           fromString ctorType,
+--           " constructor named ",
+--           Pr.group
+--             ( stylePretty ErrorSite (prettyHashQualified0 (L.payload tok))
+--                 <> "."
+--             ),
+--           "Maybe make sure it's correctly spelled and that you've imported it:"
+--         ],
+--       "",
+--       tokenAsErrorSite s tok
+--     ]
 
 renderParseErrors ::
   forall v.

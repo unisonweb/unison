@@ -59,6 +59,11 @@ extra-deps:
   - github: unisonweb/haskeline
     commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 
+  # Fix for issue with wcwidth on Windows
+  # https://github.com/Mesabloo/diagnose/issues/12
+  - git: https://github.com/solidsnack/wcwidth.git
+    commit: 747297319f0dd0c8e8f72b7de4fbf52aad73d5b0
+
   # not in stackage
   - fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
   - lock-file-0.7.0.0@sha256:3ad84b5e454145e1d928063b56abb96db24a99a21b493989520e58fa0ab37b00,4484
@@ -66,10 +71,12 @@ extra-deps:
   - recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
+  - diagnose-2.5.1@sha256:853fd268d7fe0191b79d73187104bf7b4bc5ce3bc3483cb088dc10b09f18abc8,5977
 
 allow-newer: true
 allow-newer-deps:
   - numerals
+  - diagnose
 
 ghc-options:
   # All packages
