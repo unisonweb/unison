@@ -853,7 +853,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { B } -> ()
        { abort -> _ } -> bug "aborted"
 ```
@@ -970,7 +970,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { abort -> _ } -> bug "aborted"
 ```
 
@@ -980,7 +980,7 @@ result f = handle !f with cases
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
-        8 |        { A } -> ()
+        8 |        { T.A } -> ()
         9 |        { abort -> _ } -> bug "aborted"
     
   
@@ -1004,14 +1004,19 @@ result f = handle !f with cases
 
   Loading changes detected in scratch.u.
 
-  Pattern match doesn't cover all possible cases:
-        7 | result f = handle !f with cases
-        8 |        { x } -> x
-        9 |        { give A -> resume } -> result resume
-    
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
-  Patterns not matched:
-   * { give B -> _ }
+    ⍟ These new definitions are ok to `add`:
+    
+      ability Give a
+      result : '{e, Give T} r ->{e} r
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      type T
 
 ```
 ``` unison

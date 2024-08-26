@@ -62,7 +62,7 @@ type Baz = { qux : Nat }
 type RefersToFoo = RefersToFoo Foo
 
 refersToBar = cases
-  Bar -> 17
+  Foo.Bar -> 17
 
 refersToQux baz =
   Baz.qux baz + Baz.qux baz

@@ -3,7 +3,6 @@ module Unison.Names.ResolutionResult
     ResolutionFailure (..),
     ResolutionResult,
     getAnnotation,
-    getVar,
   )
 where
 
@@ -12,6 +11,7 @@ import Unison.Names (Names)
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import Unison.HashQualified (HashQualified)
 
 data ResolutionError ref
   = NotFound
@@ -25,20 +25,15 @@ data ResolutionError ref
     Ambiguous Names (Set ref) (Set Name)
   deriving (Eq, Ord, Show)
 
--- | ResolutionFailure represents the failure to resolve a given variable.
-data ResolutionFailure var annotation
-  = TypeResolutionFailure var annotation (ResolutionError TypeReference)
-  | TermResolutionFailure var annotation (ResolutionError Referent)
+-- | ResolutionFailure represents the failure to resolve a given name.
+data ResolutionFailure annotation
+  = TypeResolutionFailure (HashQualified Name) annotation (ResolutionError TypeReference)
+  | TermResolutionFailure (HashQualified Name) annotation (ResolutionError Referent)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-getAnnotation :: ResolutionFailure v a -> a
+getAnnotation :: ResolutionFailure a -> a
 getAnnotation = \case
   TypeResolutionFailure _ a _ -> a
   TermResolutionFailure _ a _ -> a
 
-getVar :: ResolutionFailure v a -> v
-getVar = \case
-  TypeResolutionFailure v _ _ -> v
-  TermResolutionFailure v _ _ -> v
-
-type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
+type ResolutionResult a r = Either (Seq (ResolutionFailure a)) r

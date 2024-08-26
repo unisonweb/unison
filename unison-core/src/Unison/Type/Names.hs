@@ -11,6 +11,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.Names.ResolvesTo (ResolvesTo (..), partitionResolutions)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -20,10 +21,6 @@ import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 
-data ResolvesTo
-  = ResolvesToNamespace TypeReference
-  | ResolvesToLocal Name
-
 bindNames ::
   forall a v.
   (Var v) =>
@@ -32,7 +29,7 @@ bindNames ::
   Set v ->
   Names ->
   Type v a ->
-  Names.ResolutionResult v a (Type v a)
+  Names.ResolutionResult a (Type v a)
 bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
   let -- Identify the unresolved variables in the type: those whose names aren't an *exact* match for some locally-bound
       -- type.
@@ -54,7 +51,7 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
       --
       --   1. An exact match in the namespace.
       --   2. A suffix match in the namespace.
-      --   3. A suffix match in the local names..
+      --   3. A suffix match in the local names.
       resolvedVars :: [(v, a, (Set TypeReference, Set TypeReference), Set Name)]
       resolvedVars =
         map
@@ -66,7 +63,7 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
 
       checkAmbiguity ::
         (v, a, (Set TypeReference, Set TypeReference), Set Name) ->
-        Either (Seq (Names.ResolutionFailure v a)) (v, ResolvesTo)
+        Either (Seq (Names.ResolutionFailure a)) (v, ResolvesTo TypeReference)
       checkAmbiguity (v, a, (exactNamespaceMatches, suffixNamespaceMatches), localMatches) =
         case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
           (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
@@ -76,22 +73,10 @@ bindNames unsafeVarToName nameToVar localVars namespaceNames ty =
           (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
           _ -> bad (Names.Ambiguous namespaceNames suffixNamespaceMatches localMatches)
         where
-          bad = Left . Seq.singleton . Names.TypeResolutionFailure v a
+          bad = Left . Seq.singleton . Names.TypeResolutionFailure (HQ.NameOnly (unsafeVarToName v)) a
           good = Right . (v,)
    in List.validate checkAmbiguity resolvedVars <&> \resolutions ->
-        let -- Partition the resolutions into external/local
-            namespaceResolutions :: [(v, TypeReference)]
-            localResolutions :: [(v, Name)]
-            (namespaceResolutions, localResolutions) =
-              resolutions
-                -- Cast our nice informative ResolvesTo type to an Either, just to use `partitionEithers`
-                -- Is there a `partitonWith :: (a -> Either b c) -> [a] -> ([b], [c])` somewhere?
-                & map
-                  ( \case
-                      (v, ResolvesToNamespace ref) -> Left (v, ref)
-                      (v, ResolvesToLocal name) -> Right (v, name)
-                  )
-                & partitionEithers
+        let (namespaceResolutions, localResolutions) = partitionResolutions resolutions
          in ty
               -- Apply namespace resolutions (replacing "Foo" with #Foo where "Foo" refers to namespace)
               & bindExternal namespaceResolutions

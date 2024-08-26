@@ -36,6 +36,7 @@ module Unison.Name
 
     -- * To organize later
     commonPrefix,
+    isBlank,
     preferShallowLibDepth,
     searchByRankedSuffix,
     searchBySuffix,
@@ -72,6 +73,7 @@ import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
+import qualified Data.Text as Text
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
@@ -544,6 +546,10 @@ suffixifyByHash fqn rel =
         refs :: Set r
         refs =
           R.searchDom (compareSuffix suffix) rel
+
+-- | A `Name` is blank when it is unqualified and begins with a `_` (also implying that it is wordy)
+isBlank :: Name -> Bool
+isBlank n = isUnqualified n && Text.isPrefixOf "_" (NameSegment.toUnescapedText $ lastSegment n)
 
 -- | Returns the common prefix of two names as segments
 --

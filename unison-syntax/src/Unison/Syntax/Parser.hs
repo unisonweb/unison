@@ -76,14 +76,12 @@ import Text.Megaparsec qualified as P
 import U.Codebase.Reference (ReferenceType (..))
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (ConstructorReference)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal qualified as INameSegment
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..), Annotated (..))
@@ -118,7 +116,37 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
-    names :: Names
+    names :: Names,
+    -- The namespace block we are currently parsing under.
+    --
+    -- Mostly, this ought to have no affect on parsing: "applying" a namespace should be a pre-processing pass. All
+    -- bindings are prefixed with the namespace (easy), and all free variables that match a binding are prefixed (also easy).
+    --
+    -- ... but our "parser" is also doing parse-time name resolution for hash-qualified names, type references,
+    -- constructors in patterns, and term/type links.
+    --
+    -- So, when parsing a pattern `Bar` like
+    --
+    --   (in `namespace foo`)
+    --   match whatever with
+    --     Bar -> ...
+    --
+    -- we need to first prefix `Bar`, giving `foo.Bar`, before looking up in the name in the environment.
+    --
+    -- You might think we could simply parse a term under a pre-namespaced environment, avoiding the need to plumb the
+    -- namespace through via the parsing environment. That too could work in theory, but would be rather difficult to
+    -- implement with the current file parsing mechanism that fully parses and resolves all types in the file before
+    -- moving on to terms.
+    --
+    -- As an example, we don't want this to fail with a `foo.Bar not in scope` error:
+    --
+    --   namespace foo
+    --   type Bar = ...
+    --   type Foo = ... foo.Bar ...
+    --
+    -- That is easiest to implement with the current solution – first pre-process the types as above, then run them
+    -- through the "make type environment" logic (which is fed into the term parser).
+    maybeNamespace :: Maybe Name
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
@@ -159,8 +187,6 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
-  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
   | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
@@ -174,7 +200,7 @@ data Error v
     MissingTypeModifier (L.Token String) (L.Token v)
   | -- | A type was found in a position that requires a term
     TypeNotAllowed (L.Token (HQ.HashQualified Name))
-  | ResolutionFailures [Names.ResolutionFailure v Ann]
+  | ResolutionFailures [Names.ResolutionFailure Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | -- | PatternArityMismatch expectedArity actualArity location
@@ -280,19 +306,15 @@ closeBlock = void <$> matchToken L.Close
 optionalCloseBlock :: (Ord v) => P v m (L.Token ())
 optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
--- | A `Name` is blank when it is unqualified and begins with a `_` (also implying that it is wordy)
-isBlank :: Name -> Bool
-isBlank n = Name.isUnqualified n && Text.isPrefixOf "_" (INameSegment.toUnescapedText $ Name.lastSegment n)
-
 -- | A HQ Name is blank when its Name is blank and it has no hash.
 isBlank' :: HQ'.HashQualified Name -> Bool
 isBlank' = \case
-  HQ'.NameOnly n -> isBlank n
+  HQ'.NameOnly n -> Name.isBlank n
   HQ'.HashQualified _ _ -> False
 
 wordyPatternName :: (Var v) => P v m (L.Token v)
 wordyPatternName = queryToken \case
-  L.WordyId (HQ'.NameOnly n) -> if isBlank n then Nothing else Just $ Name.toVar n
+  L.WordyId (HQ'.NameOnly n) -> if Name.isBlank n then Nothing else Just $ Name.toVar n
   _ -> Nothing
 
 -- | Parse a prefix identifier e.g. Foo or (+), discarding any hash

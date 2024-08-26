@@ -227,8 +227,8 @@ scratch/main> project.delete scratch
 ```
 # Example 4
 
-We have a namespace term `Woot.state : Nat` and a file term `Something.state : Text -> Something`. A reference to the
-term `state : Text` resolves to `Something.state`, which shadows `Woot.state`. (This behavior will change).
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
+but resolves to `ns.foo` via TDNR.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
@@ -237,8 +237,8 @@ scratch/main> builtins.mergeio lib.builtins
 
 ```
 ``` unison
-Woot.state : Nat
-Woot.state = 42
+ns.foo : Nat
+ns.foo = 42
 ```
 
 ``` ucm
@@ -251,7 +251,7 @@ Woot.state = 42
   
     ⍟ These new definitions are ok to `add`:
     
-      Woot.state : Nat
+      ns.foo : Nat
 
 ```
 ``` ucm
@@ -259,15 +259,15 @@ scratch/main> add
 
   ⍟ I've added these definitions:
   
-    Woot.state : Nat
+    ns.foo : Nat
 
 ```
 ``` unison
-type Something = { state : Text }
+file.foo : Text
+file.foo = "foo"
 
-ex = do
-  s = Something "hello"
-  state s ++ " world!"
+bar : Text
+bar = foo ++ "bar"
 ```
 
 ``` ucm
@@ -280,13 +280,175 @@ ex = do
   
     ⍟ These new definitions are ok to `add`:
     
-      type Something
-      Something.state        : Something -> Text
-      Something.state.modify : (Text ->{g} Text)
-                               -> Something
-                               ->{g} Something
-      Something.state.set    : Text -> Something -> Something
-      ex                     : 'Text
+      bar      : Text
+      file.foo : Text
+
+```
+``` ucm
+scratch/main> project.delete scratch
+
+```
+# Example 4
+
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
+but resolves to `file.foo` via TDNR.
+
+``` ucm
+scratch/main> builtins.mergeio lib.builtins
+
+  Done.
+
+```
+``` unison
+ns.foo : Nat
+ns.foo = 42
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ns.foo : Nat
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    ns.foo : Nat
+
+```
+``` unison
+file.foo : Text
+file.foo = "foo"
+
+bar : Nat
+bar = foo + 42
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar      : Nat
+      file.foo : Text
+
+```
+``` ucm
+scratch/main> project.delete scratch
+
+```
+# Example 4
+
+We have a namespace term `ns.foo : Nat` and a file term `file.foo : Nat`. A reference to the term `foo` is ambiguous.
+A reference to `ns.foo` or `file.foo` work fine.
+
+``` ucm
+scratch/main> builtins.mergeio lib.builtins
+
+  Done.
+
+```
+``` unison
+ns.foo : Nat
+ns.foo = 42
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      ns.foo : Nat
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    ns.foo : Nat
+
+```
+``` unison
+file.foo : Nat
+file.foo = 43
+
+bar : Nat
+bar = foo + 10
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I couldn't figure out what foo refers to here:
+  
+      5 | bar = foo + 10
+  
+  The name foo is ambiguous. Its type should be: Nat
+  
+  I found some terms in scope that have matching names and
+  types. Maybe you meant one of these:
+  
+  file.foo : Nat
+  ns.foo : Nat
+
+```
+``` unison
+file.foo : Nat
+file.foo = 43
+
+bar : Nat
+bar = file.foo + ns.foo
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar      : Nat
+      file.foo : Nat
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar      : Nat
+    file.foo : Nat
+
+scratch/main> view bar
+
+  bar : Nat
+  bar =
+    use Nat +
+    file.foo + ns.foo
 
 ```
 ``` ucm

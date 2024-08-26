@@ -53,6 +53,6 @@ bindNames ::
   Set v ->
   Names ->
   DataDeclaration v a ->
-  Names.ResolutionResult v a (DataDeclaration v a)
+  Names.ResolutionResult a (DataDeclaration v a)
 bindNames unsafeVarToName nameToVar localNames namespaceNames =
   traverseOf (#constructors' . traverse . _3) (Type.Names.bindNames unsafeVarToName nameToVar localNames namespaceNames)
