@@ -86,20 +86,20 @@ ex4 =
 
   Loading changes detected in scratch.u.
 
+  I couldn't figure out what a refers to here:
   
-    ❓
-    
-    I couldn't resolve any of these symbols:
-    
-        2 |   (a,b) = (a Nat.+ b, 19)
-    
-    
-    Symbol   Suggestions
-             
-    a        No matches
-             
-    b        No matches
+      2 |   (a,b) = (a Nat.+ b, 19)
   
+  I think its type should be:
+  
+      Nat
+  
+  Some common causes of this error include:
+    * Your current namespace is too deep to contain the
+      definition in its subtree
+    * The definition is part of a library which hasn't been
+      added to this project
+    * You have a typo in the name
 
 ```
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
