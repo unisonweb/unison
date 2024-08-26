@@ -5,17 +5,6 @@
 
 packages:
 - completed:
-    name: configurator
-    pantry-tree:
-      sha256: 90547cd983fd15ebdc803e057d3ef8735fe93a75e29a00f8a74eadc13ee0f6e9
-      size: 955
-    sha256: d4fd87fb7bfc5d8e9fbc3e4ee7302c6b1500cdc00fdb9b659d0f4849b6ebe2d5
-    size: 15989
-    url: https://github.com/unisonweb/configurator/archive/e47e9e9fe1f576f8c835183b9def52d73c01327a.tar.gz
-    version: 0.3.0.0
-  original:
-    url: https://github.com/unisonweb/configurator/archive/e47e9e9fe1f576f8c835183b9def52d73c01327a.tar.gz
-- completed:
     name: haskeline
     pantry-tree:
       sha256: c14fd8b9ad5e9fcf629e50affe26e655d6c4d18c3f77169995b857b5fd32ca44

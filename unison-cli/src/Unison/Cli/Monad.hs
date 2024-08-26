@@ -62,7 +62,6 @@ import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
 import Control.Monad.State.Strict qualified as State
-import Data.Configurator.Types qualified as Configurator
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NonEmpty
@@ -160,7 +159,6 @@ type SourceName = Text
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO Symbol Ann,
-    config :: Configurator.Config,
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
