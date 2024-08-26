@@ -205,7 +205,6 @@ library
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
@@ -347,7 +346,6 @@ executable transcripts
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
@@ -496,7 +494,6 @@ test-suite cli-tests
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory

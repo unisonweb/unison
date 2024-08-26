@@ -157,17 +157,17 @@ test> Nat.tests.conversions =
 ``` unison
 test> Boolean.tests.orTable =
       checks [
-        true || true == true,
-        true || false == true,
-        false || true == true,
-        false || false == false
+        (true || true) == true,
+        (true || false) == true,
+        (false || true) == true,
+        (false || false) == false
       ]
 test> Boolean.tests.andTable =
       checks [
-        true && true == true,
-        false && true == false,
-        true && false == false,
-        false && false == false
+        (true && true) == true,
+        (false && true) == false,
+        (true && false) == false,
+        (false && false) == false
       ]
 test> Boolean.tests.notTable =
       checks [

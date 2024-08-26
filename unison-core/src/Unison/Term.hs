@@ -594,6 +594,13 @@ pattern BinaryAppsPred' ::
   (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 
+pattern BinaryAppPred' ::
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
+pattern BinaryAppPred' f arg1 arg2 <- (unBinaryAppPred -> Just (f, arg1, arg2))
+
 pattern OverappliedBinaryAppPred' ::
   Term2 vt at ap v a ->
   Term2 vt at ap v a ->
@@ -1160,10 +1167,21 @@ unBinaryAppsPred ::
       ],
       Term2 vt at ap v a
     )
-unBinaryAppsPred (t, pred) = case unBinaryApp t of
-  Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
+unBinaryAppsPred (t, pred) = case unBinaryAppPred (t, pred) of
+  Just (f, x, y) -> case unBinaryAppsPred (x, pred) of
     Just (as, xLast) -> Just ((xLast, f) : as, y)
     Nothing -> Just ([(x, f)], y)
+  _ -> Nothing
+
+unBinaryAppPred ::
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool) ->
+  Maybe
+    ( Term2 vt at ap v a,
+      Term2 vt at ap v a,
+      Term2 vt at ap v a
+    )
+unBinaryAppPred (t, pred) = case unBinaryApp t of
+  Just (f, x, y) | pred f -> Just (f, x, y)
   _ -> Nothing
 
 unLams' ::

@@ -242,7 +242,6 @@ library
     , cereal
     , clock
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , crypton-x509
     , crypton-x509-store
@@ -437,7 +436,6 @@ test-suite parser-typechecker-tests
     , clock
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , crypton-x509
     , crypton-x509-store
