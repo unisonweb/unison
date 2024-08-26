@@ -708,18 +708,26 @@
 (define ((assoc-raise name l))
   (raise-argument-error name "declared link" l))
 
-(define (module-term-association link
-                                 [default (assoc-raise 'module-term-association link)])
-  (define bs (termlink-bytes link))
+(define (termlink->module link
+                          [default (assoc-raise
+                                     'termlink->module
+                                     (describe-value link))])
+  (termbytes->module (termlink-bytes link) default))
 
+(define (termbytes->module bs
+                           [default (assoc-raise
+                                      'termbytes->module
+                                      (describe-hash bs))])
   (hash-ref runtime-module-term-map bs default))
 
 ; Resolves the module in which a typelink is declared. Using a
 ; canonical typelink is important for abilities, because the
 ; continuation mechanism uses eq? to compare them. This should
 ; only be a concern for code, though.
-(define (module-type-association link
-                                 [default (assoc-raise 'module-type-association link)])
+(define (typelink->module link
+                          [default (assoc-raise
+                                     'module-type-association
+                                     (describe-value link))])
   (hash-ref runtime-module-type-map link default))
 
 (define (need-code? l)
@@ -762,7 +770,7 @@
          (string->symbol (string-append "builtin-" tx))))]
     [1 (bs i)
      (let ([sym (group-ref-sym gr)]
-           [mname (hash-ref runtime-module-term-map bs)])
+           [mname (termbytes->module bs)])
        (parameterize ([current-namespace runtime-namespace])
          (dynamic-require `(quote ,mname) sym)))]))
 
@@ -819,12 +827,12 @@
   (define tmreqs
     (for/list ([l (map reference->termlink tmrefs)]
                #:when (unison-termlink-derived? l))
-      (module-term-association l)))
+      (termlink->module l)))
 
   (define tyreqs
     (for/list ([l (map reference->typelink tyrefs)]
                #:when (unison-typelink-derived? l))
-      (module-type-association l #f)))
+      (typelink->module l #f)))
 
   (remove #f (remove-duplicates (append tmreqs tyreqs))))
 

@@ -100,6 +100,7 @@
 
   describe-value
   decode-value
+  describe-hash
 
   top-exn-handler
 

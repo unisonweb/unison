@@ -42,6 +42,7 @@
 
   decode-value
   describe-value
+  describe-hash
 
   bytevector->string/utf-8
   string->bytevector/utf-8)
