@@ -101,7 +101,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         restConstraints <- typeConstraintTree resultVar b
         pure $ Node [effConstraints, restConstraints]
       Type.Effects effs -> do
-        Node <$> for effs \eff -> do
+        ParentConstraint (IsAbility resultVar (Provenance EffectsList annotation)) . Node <$> for effs \eff -> do
           effKind <- freshVar eff
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
