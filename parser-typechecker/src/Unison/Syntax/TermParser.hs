@@ -123,12 +123,15 @@ typeLink' :: (Monad m, Var v) => P v m (L.Token TypeReference)
 typeLink' = findUniqueType =<< hqPrefixId
 
 findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token TypeReference)
-findUniqueType id = do
-  ns <- asks names
-  case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
-    s
-      | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
-      | otherwise -> customFailure $ UnknownType id s
+findUniqueType id =
+  resolveToLocalNamespacedType id >>= \case
+    Nothing -> do
+      ns <- asks names
+      case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
+        s
+          | Set.size s == 1 -> pure (Set.findMin s <$ id)
+          | otherwise -> customFailure $ UnknownType id s
+    Just ref -> pure (ref <$ id)
 
 termLink' :: (Monad m, Var v) => P v m (L.Token Referent)
 termLink' = do
@@ -159,6 +162,23 @@ link = termLink <|> typeLink
       _ <- P.try (reserved "termLink")
       tok <- termLink'
       pure $ Term.termLink (ann tok) (L.payload tok)
+
+resolveToLocalNamespacedType :: (Monad m, Ord v) => L.Token (HQ.HashQualified Name) -> P v m (Maybe TypeReference)
+resolveToLocalNamespacedType tok =
+  case L.payload tok of
+    HQ.NameOnly name ->
+      asks maybeNamespace >>= \case
+        Nothing -> pure Nothing
+        Just namespace -> do
+          localNames <- asks localNamespacePrefixedTypesAndConstructors
+          pure case Names.lookupHQType Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) localNames of
+            refs
+              | Set.null refs -> Nothing
+              -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+              -- with the same name would have been a parse error. So, just take the minimum element from the set,
+              -- which we know is a singleton.
+              | otherwise -> Just (Set.findMin refs)
+    _ -> pure Nothing
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators

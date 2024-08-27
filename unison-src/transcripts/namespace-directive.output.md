@@ -84,8 +84,8 @@ reference to the name `factorial` within the body of `factorial` is a recursive 
 namespace directive, exact-name-match-wins semantics) or an ambiguous reference (bad, as would be the case if the
 bindings were expanded to `foo.factorial` and `foo.longer.evil.factorial`, but the variables left alone).
 
-Here are a few more examples demonstrating that type names, constructor names, and generated record accessor names are
-all properly handled.
+Here are a few more examples demonstrating that type names, constructor names, generated record accessor names, and
+type links are all properly handled.
 
 ``` unison
 type longer.foo.Foo = Bar
@@ -136,6 +136,9 @@ refersToBar = cases
 
 refersToQux baz =
   Baz.qux baz + Baz.qux baz
+
+hasTypeLink =
+  {{ {type Foo} }}
 ```
 
 ``` ucm
@@ -156,6 +159,7 @@ refersToQux baz =
                            -> foo.Baz
                            ->{g} foo.Baz
       foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
+      foo.hasTypeLink    : Doc2
       foo.refersToBar    : foo.Foo -> Nat
       foo.refersToQux    : foo.Baz -> Nat
 
@@ -173,12 +177,16 @@ scratch/main> add
                          -> foo.Baz
                          ->{g} foo.Baz
     foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
+    foo.hasTypeLink    : Doc2
     foo.refersToBar    : foo.Foo -> Nat
     foo.refersToQux    : foo.Baz -> Nat
 
-scratch/main> view RefersToFoo refersToBar refersToQux
+scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
 
   type foo.RefersToFoo = RefersToFoo foo.Foo
+  
+  foo.hasTypeLink : Doc2
+  foo.hasTypeLink = {{ {type foo.Foo} }}
   
   foo.refersToBar : foo.Foo -> Nat
   foo.refersToBar = cases foo.Foo.Bar -> 17
