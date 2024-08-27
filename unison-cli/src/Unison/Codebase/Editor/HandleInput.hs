@@ -1673,7 +1673,8 @@ parseType input src = do
           { uniqueNames = mempty,
             uniqueTypeGuid = \_ -> pure Nothing,
             names,
-            maybeNamespace = Nothing
+            maybeNamespace = Nothing,
+            localNamespacePrefixedTypesAndConstructors = mempty
           }
   typ <-
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->

@@ -42,7 +42,8 @@ parsingEnv =
     { uniqueNames = mempty,
       uniqueTypeGuid = \_ -> pure Nothing,
       names = Builtin.names,
-      maybeNamespace = Nothing
+      maybeNamespace = Nothing,
+      localNamespacePrefixedTypesAndConstructors = mempty
     }
 
 typecheckingEnv :: Typechecker.Env Symbol Ann

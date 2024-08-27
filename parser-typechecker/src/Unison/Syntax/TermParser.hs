@@ -47,7 +47,7 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Lexer.Unison qualified as L
@@ -119,12 +119,11 @@ rewriteBlock = do
       rhs <- openBlockWith "==>" *> TypeParser.computationType <* closeBlock
       pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
 
-typeLink' :: (Monad m, Var v) => P v m (L.Token Reference)
+typeLink' :: (Monad m, Var v) => P v m (L.Token TypeReference)
 typeLink' = findUniqueType =<< hqPrefixId
 
-findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token Reference)
-findUniqueType id0 = do
-  id <- applyNamespaceToToken id0
+findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token TypeReference)
+findUniqueType id = do
   ns <- asks names
   case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
     s
@@ -133,16 +132,16 @@ findUniqueType id0 = do
 
 termLink' :: (Monad m, Var v) => P v m (L.Token Referent)
 termLink' = do
-  id <- applyNamespaceToToken =<< hqPrefixId
+  id <- hqPrefixId
   ns <- asks names
   case Names.lookupHQTerm Names.IncludeSuffixes (L.payload id) ns of
     s
       | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise -> customFailure $ UnknownTerm id s
 
-link' :: (Monad m, Var v) => P v m (Either (L.Token Reference) (L.Token Referent))
+link' :: (Monad m, Var v) => P v m (Either (L.Token TypeReference) (L.Token Referent))
 link' = do
-  id <- applyNamespaceToToken =<< hqPrefixId
+  id <- hqPrefixId
   ns <- asks names
   case (Names.lookupHQTerm Names.IncludeSuffixes (L.payload id) ns, Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
@@ -283,18 +282,54 @@ parsePattern = label "pattern" root
     ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
     ctor ct = do
       -- this might be a var, so we avoid consuming it at first
-      tok <- applyNamespaceToToken =<< P.try (P.lookAhead hqPrefixId)
-      names <- asks names
-      -- probably should avoid looking up in `names` if `L.payload tok`
-      -- starts with a lowercase
-      case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
-        s
-          | Set.null s -> die names tok s
-          | Set.size s > 1 -> die names tok s
-          | otherwise -> do
-              -- matched ctor name, consume the token
-              _ <- anyToken
-              pure (Set.findMin s <$ tok)
+      tok <- P.try (P.lookAhead hqPrefixId)
+
+      -- First, if:
+      --
+      --   * The token isn't hash-qualified (e.g. "Foo.Bar")
+      --   * We're under a namespace directive (e.g. "baz")
+      --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
+      --
+      -- Then:
+      --
+      --   * Use that constructor reference (duh)
+      --
+      -- Else:
+      --
+      --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
+      --     the locally-bound constructors).
+
+      maybeLocalCtor <-
+        case L.payload tok of
+          HQ.NameOnly name ->
+            asks maybeNamespace >>= \case
+              Nothing -> pure Nothing
+              Just namespace -> do
+                localNames <- asks localNamespacePrefixedTypesAndConstructors
+                case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
+                  refs
+                    | Set.null refs -> pure Nothing
+                    -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+                    -- with the same name would have been a parse error. So, just take the minimum element from the set,
+                    -- which we know is a singleton.
+                    | otherwise -> do
+                        -- matched ctor name, consume the token
+                        _ <- anyToken
+                        pure (Just (Set.findMin refs))
+          _ -> pure Nothing
+
+      case maybeLocalCtor of
+        Just localCtor -> pure (localCtor <$ tok)
+        Nothing -> do
+          names <- asks names
+          case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
+            s
+              | Set.null s -> die names tok s
+              | Set.size s > 1 -> die names tok s
+              | otherwise -> do
+                  -- matched ctor name, consume the token
+                  _ <- anyToken
+                  pure (Set.findMin s <$ tok)
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
         isIgnored n = Text.take 1 (Name.toText n) == "_"
@@ -315,7 +350,15 @@ parsePattern = label "pattern" root
                     (ann hq)
                     if Set.null s
                       then NotFound
-                      else Ambiguous names (Set.map (\ref -> Referent.Con ref ct) s) Set.empty
+                      else
+                        Ambiguous
+                          names
+                          (Set.map (\ref -> Referent.Con ref ct) s)
+                          -- Eh, here we're saying there are no "local" constructors – they're all from "the namespace".
+                          -- That's not necessarily true, but it doesn't (currently) affect the error message any, and
+                          -- we have already parsed and hashed local constructors (so they aren't really different from
+                          -- namespace constructors).
+                          Set.empty
                 ]
     unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
@@ -441,23 +484,16 @@ nameIsKeyword name keyword =
 -- has a short hash, we resolve that short hash immediately and fail
 -- committed if that short hash can't be found in the current environment
 resolveHashQualified :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> TermP v m
-resolveHashQualified tok0 = do
-  names <- asks names
-  case L.payload tok0 of
-    HQ.NameOnly n -> pure $ Term.var (ann tok0) (Name.toVar n)
+resolveHashQualified tok = do
+  case L.payload tok of
+    HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
     _ -> do
-      tok <- applyNamespaceToToken tok0
+      names <- asks names
       case Names.lookupHQTerm Names.IncludeSuffixes (L.payload tok) names of
         s
           | Set.null s -> failCommitted $ UnknownTerm tok s
           | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
           | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
-
-applyNamespaceToToken :: (Monad m) => L.Token (HQ.HashQualified Name) -> P v m (L.Token (HQ.HashQualified Name))
-applyNamespaceToToken tok =
-  asks maybeNamespace <&> \case
-    Nothing -> tok
-    Just namespace -> fmap (fmap (Name.joinDot namespace)) tok
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =

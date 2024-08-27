@@ -113,7 +113,7 @@ shadowing = Names.unionLeftName
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
 -- returning types with absolute names.
-lookupRelativeHQType :: SearchType -> HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType :: SearchType -> HashQualified Name -> Names -> Set TypeReference
 lookupRelativeHQType searchType hq ns =
   let rs = lookupHQType searchType hq ns
       keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types ns))
@@ -122,17 +122,17 @@ lookupRelativeHQType searchType hq ns =
           | Set.null rs' -> rs
           | otherwise -> rs'
 
-lookupRelativeHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set TypeReference
 lookupRelativeHQType' searchType =
   lookupRelativeHQType searchType . HQ'.toHQ
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified'.
-lookupHQType :: SearchType -> HashQualified Name -> Names -> Set Reference
+lookupHQType :: SearchType -> HashQualified Name -> Names -> Set TypeReference
 lookupHQType searchType =
   lookupHQRef searchType Names.types Reference.isPrefixOf
 
 -- | Find all types whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQType'.
-lookupHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Reference
+lookupHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set TypeReference
 lookupHQType' searchType =
   lookupHQType searchType . HQ'.toHQ
 

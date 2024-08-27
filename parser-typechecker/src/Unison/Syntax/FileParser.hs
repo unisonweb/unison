@@ -113,7 +113,13 @@ file = do
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations.
-  local (\e -> e {names = Names.shadowing (UF.names env) namesStart, maybeNamespace}) do
+  let updateEnvForTermParsing e =
+        e
+          { names = Names.shadowing (UF.names env) namesStart,
+            maybeNamespace,
+            localNamespacePrefixedTypesAndConstructors = UF.names env
+          }
+  local updateEnvForTermParsing do
     names <- asks names
     stanzas <- do
       unNamespacedStanzas0 <- sepBy semi stanza

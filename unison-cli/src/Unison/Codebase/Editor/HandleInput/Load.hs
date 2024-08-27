@@ -101,7 +101,8 @@ loadUnisonFile sourceName text = do
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
                 names,
-                maybeNamespace = Nothing
+                maybeNamespace = Nothing,
+                localNamespacePrefixedTypesAndConstructors = mempty
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)

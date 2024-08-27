@@ -117,36 +117,32 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
     names :: Names,
-    -- The namespace block we are currently parsing under.
+    -- The namespace block we are currently parsing under, and the file-bound namespace-prefixed type and constructor
+    -- names in scope (we've already parsed all type declarations by the time we need this, in the term parser).
     --
-    -- Mostly, this ought to have no affect on parsing: "applying" a namespace should be a pre-processing pass. All
-    -- bindings are prefixed with the namespace (easy), and all free variables that match a binding are prefixed (also easy).
+    -- Ideally these ought to have no affect on parsing: "applying" a namespace should be a pre-processing pass. All
+    -- bindings are prefixed with the namespace (easy), and all free variables that match a binding are prefixed (also
+    -- easy).
     --
     -- ... but our "parser" is also doing parse-time name resolution for hash-qualified names, type references,
     -- constructors in patterns, and term/type links.
     --
-    -- So, when parsing a pattern `Bar` like
+    -- For constructors in patterns, when parsing a pattern `Foo.Bar` in a namespace `baz`, if `baz.Foo.Bar` is among
+    -- the file-bound namespace-prefixed constructor names in scope, then resolve to that constructor. Otherwise,
+    -- proceed as normal to look for `Foo.Bar` in the names environment.
     --
-    --   (in `namespace foo`)
-    --   match whatever with
-    --     Bar -> ...
-    --
-    -- we need to first prefix `Bar`, giving `foo.Bar`, before looking up in the name in the environment.
-    --
-    -- You might think we could simply parse a term under a pre-namespaced environment, avoiding the need to plumb the
-    -- namespace through via the parsing environment. That too could work in theory, but would be rather difficult to
-    -- implement with the current file parsing mechanism that fully parses and resolves all types in the file before
-    -- moving on to terms.
-    --
-    -- As an example, we don't want this to fail with a `foo.Bar not in scope` error:
+    -- For type links, similar deal: we (only because we parse and hash all types before terms) could conceivably
+    -- properly handle code like
     --
     --   namespace foo
     --   type Bar = ...
-    --   type Foo = ... foo.Bar ...
+    --   baz = ... typeLink Bar ...
     --
-    -- That is easiest to implement with the current solution – first pre-process the types as above, then run them
-    -- through the "make type environment" logic (which is fed into the term parser).
-    maybeNamespace :: Maybe Name
+    -- And for term links we are certainly out of luck: we can't look up a resolved file-bound term by hash *during
+    -- parsing*. That's an issue with term links in general, unrelated to namespaces, but perhaps complicated by
+    -- namespaces nonetheless.
+    maybeNamespace :: Maybe Name,
+    localNamespacePrefixedTypesAndConstructors :: Names
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
