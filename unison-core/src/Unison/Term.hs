@@ -173,17 +173,13 @@ bindNames unsafeVarToName nameToVar localVars ns term = do
          in case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
               (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
               (n, _, _) | n > 1 -> leaveFreeForTdnr
-              (_, 0, 0) ->
-                if Name.isBlank name
-                  then leaveFreeForHoleSuggestions
-                  else leaveFreeForTellingUserAboutExpectedType
+              (_, 0, 0) -> leaveFreeForTellingUserAboutExpectedType
               (_, 1, 0) -> good (ResolvesToNamespace (Set.findMin suffixNamespaceMatches))
               (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
               _ -> leaveFreeForTdnr
         where
           name = unsafeVarToName v
           good = Right . Just . (v,)
-          leaveFreeForHoleSuggestions = Right Nothing
           leaveFreeForTdnr = Right Nothing
           leaveFreeForTellingUserAboutExpectedType = Right Nothing
 

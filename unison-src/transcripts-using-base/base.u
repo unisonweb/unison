@@ -87,7 +87,7 @@ List.filter: (a -> Boolean) -> [a] -> [a]
 List.filter f all =
   go acc = cases
     [] -> acc
-    a +: as -> if (f a) then go (a +: acc) as else go acc as
+    a +: as -> if (f a) then go (cons a acc) as else go acc as
   go [] all
 
 List.forEach : [a] -> (a ->{e} ()) ->{e} ()
