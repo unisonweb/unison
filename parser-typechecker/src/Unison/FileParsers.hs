@@ -20,7 +20,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
