@@ -997,26 +997,21 @@ unique type T = A | B
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ``` ucm
 
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  Pattern match doesn't cover all possible cases:
+        7 | result f = handle !f with cases
+        8 |        { x } -> x
+        9 |        { give T.A -> resume } -> result resume
+    
   
-    ⍟ These new definitions are ok to `add`:
-    
-      ability Give a
-      result : '{e, Give T} r ->{e} r
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type T
+  Patterns not matched:
+   * { give B -> _ }
 
 ```
 ``` unison

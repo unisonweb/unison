@@ -27,7 +27,7 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
-import Unison.NamesWithHistory qualified as Names (shadowing)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers

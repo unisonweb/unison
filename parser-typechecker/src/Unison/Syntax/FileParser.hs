@@ -19,7 +19,6 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude

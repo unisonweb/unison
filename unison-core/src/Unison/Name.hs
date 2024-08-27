@@ -72,7 +72,6 @@ import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
-import qualified Data.Text as Text
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).

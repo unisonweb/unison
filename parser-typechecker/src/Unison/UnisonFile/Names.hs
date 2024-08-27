@@ -14,8 +14,8 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.Names qualified as DD.Names
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Names (Names (..))
+import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent

@@ -344,12 +344,11 @@ parsePattern = label "pattern" root
           names <- asks names
           case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
             s
-              | Set.null s -> die names tok s
-              | Set.size s > 1 -> die names tok s
-              | otherwise -> do
+              | Set.size s == 1 -> do
                   -- matched ctor name, consume the token
                   _ <- anyToken
                   pure (Set.findMin s <$ tok)
+              | otherwise -> die names tok s
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
         isIgnored n = Text.take 1 (Name.toText n) == "_"

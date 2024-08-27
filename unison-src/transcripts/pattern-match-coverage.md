@@ -434,7 +434,7 @@ unique type T = A | B
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ```unison:error
