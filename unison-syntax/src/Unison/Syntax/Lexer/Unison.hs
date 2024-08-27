@@ -204,7 +204,9 @@ token'' tok p = do
             else
               if column p < top l
                 then S.put (env {layout = pop l}) >> ((Token Close p p :) <$> pops p)
-                else error "impossible"
+                else -- we hit this branch exactly when `token''` is given the state
+                -- `{layout = [], opening = Nothing, inLayout = True}`
+                  fail "internal error: token''"
 
     -- don't emit virtual semis in (, {, or [ blocks
     topContainsVirtualSemis :: Layout -> Bool

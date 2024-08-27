@@ -38,11 +38,6 @@ packages:
 
 source-repository-package
   type: git
-  location: https://github.com/unisonweb/configurator.git
-  tag: e47e9e9fe1f576f8c835183b9def52d73c01327a
-
-source-repository-package
-  type: git
   location: https://github.com/unisonweb/haskeline.git
   tag: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
 

@@ -31,7 +31,7 @@ scratch/main> view hangExample
 
   hangExample : Boolean
   hangExample =
-    ("a long piece of text to hang the line" == "")
-      && ("a long piece of text to hang the line" == "")
+    "a long piece of text to hang the line" == ""
+      && "a long piece of text to hang the line" == ""
 
 ```
