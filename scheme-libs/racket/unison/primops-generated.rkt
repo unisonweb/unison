@@ -874,7 +874,31 @@
     (group-term-dependencies
       (unison-code-rep co))))
 
+; This adds a synchronization barrier around code loading. It uses
+; a lock associated with the namespace, so this it will also be safe
+; with regard to concurrent instantiations of any modules that get
+; defined.
+;
+; It's possible that this could be made more fine grained. We were
+; running into two issues in practice:
+;
+;   1. It was possible for a module to think it needs to declare
+;      some combinators that actually occur in modules that are
+;      depended upon, resulting in duplicate definiton errors.
+;
+;   2. It was possible for module-n to depend on module-m, but for
+;      module-n to be defined an instantiated before module-m was
+;      actually added to the namespace.
+;
+; This is due to how we keep track of which runtime definitions are
+; in which module. There is a separate map storing those associations,
+; and they are not inherently synchronized with the module registry.
+; Any other synchronization scheme needs to account for these issues.
 (define (add-runtime-code mname0 dfns0)
+  (namespace-call-with-registry-lock runtime-namespace
+    (lambda () (add-runtime-code-raw mname0 dfns0))))
+
+(define (add-runtime-code-raw mname0 dfns0)
   (define (map-links dss)
     (map (lambda (ds) (map reference->termlink ds)) dss))
 
