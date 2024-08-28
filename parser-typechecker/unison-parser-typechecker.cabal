@@ -160,6 +160,7 @@ library
       Unison.Syntax.FileParser
       Unison.Syntax.FilePrinter
       Unison.Syntax.NamePrinter
+      Unison.Syntax.Precedence
       Unison.Syntax.TermParser
       Unison.Syntax.TermPrinter
       Unison.Syntax.TypeParser

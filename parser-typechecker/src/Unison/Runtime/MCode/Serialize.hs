@@ -15,7 +15,7 @@ import Data.Bytes.VarInt
 import Data.Primitive.PrimArray
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
-import Unison.Runtime.MCode hiding (MatchT)
+import Unison.Runtime.MCode
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 
@@ -95,7 +95,7 @@ putSection (RMatch i pu bs) =
   putTag RMatchT
     *> pInt i
     *> putSection pu
-    *> putEnumMap pWord putBranch bs
+    *> putSmallEnumMap pWord putBranch bs
 
 getSection :: (MonadGet m) => m Section
 getSection =
@@ -112,7 +112,7 @@ getSection =
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
     NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
     RMatchT ->
-      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
+      RMatch <$> gInt <*> getSection <*> getSmallEnumMap gWord getBranch
 
 data InstrT
   = UPrim1T
@@ -381,48 +381,26 @@ getLit =
     MMT -> MM <$> getReferent
     MYT -> MY <$> getReference
 
-data BranchT = Test1T | Test2T | TestWT | TestTT
+data BranchT = BT | TBT
 
 instance Tag BranchT where
-  tag2word Test1T = 0
-  tag2word Test2T = 1
-  tag2word TestWT = 2
-  tag2word TestTT = 3
+  tag2word BT = 0
+  tag2word TBT = 1
 
-  word2tag 0 = pure Test1T
-  word2tag 1 = pure Test2T
-  word2tag 2 = pure TestWT
-  word2tag 3 = pure TestTT
+  word2tag 0 = pure BT
+  word2tag 1 = pure TBT
   word2tag n = unknownTag "BranchT" n
 
 putBranch :: (MonadPut m) => Branch -> m ()
-putBranch (Test1 w s d) =
-  putTag Test1T *> pWord w *> putSection s *> putSection d
-putBranch (Test2 a sa b sb d) =
-  putTag Test2T
-    *> pWord a
-    *> putSection sa
-    *> pWord b
-    *> putSection sb
-    *> putSection d
-putBranch (TestW d m) =
-  putTag TestWT *> putSection d *> putEnumMap pWord putSection m
-putBranch (TestT d m) =
-  putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
+putBranch (Branch m d) = putTag BT *> putSmallEnumMap pWord putSection m *> putSection d
+putBranch (TextBranch m d) =
+  putTag TBT *> putMap (putText . Util.Text.toText) putSection m *> putSection d
 
 getBranch :: (MonadGet m) => m Branch
 getBranch =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
-    Test2T ->
-      Test2
-        <$> gWord
-        <*> getSection
-        <*> gWord
-        <*> getSection
-        <*> getSection
-    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
-    TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
+    BT -> Branch <$> getSmallEnumMap gWord getSection <*> getSection
+    TBT -> TextBranch <$> getMap (Util.Text.fromText <$> getText) getSection <*> getSection
 
 gInt :: (MonadGet m) => m Int
 gInt = unVarInt <$> deserialize
