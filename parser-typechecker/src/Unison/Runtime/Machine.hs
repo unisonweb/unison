@@ -609,7 +609,7 @@ eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
     then eval env denv activeThreads ustk bstk k r pu
     else case ANF.unpackTags t of
       (ANF.rawTag -> e, ANF.rawTag -> t)
-        | Just ebs <- EC.smallEnumMapLookup e br ->
+        | Just ebs <- EC.lookup e br ->
             eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
         | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)

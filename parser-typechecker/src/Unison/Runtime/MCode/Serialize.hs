@@ -95,7 +95,7 @@ putSection (RMatch i pu bs) =
   putTag RMatchT
     *> pInt i
     *> putSection pu
-    *> putSmallEnumMap pWord putBranch bs
+    *> putEnumMap pWord putBranch bs
 
 getSection :: (MonadGet m) => m Section
 getSection =
@@ -112,7 +112,7 @@ getSection =
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
     NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
     RMatchT ->
-      RMatch <$> gInt <*> getSection <*> getSmallEnumMap gWord getBranch
+      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
 
 data InstrT
   = UPrim1T

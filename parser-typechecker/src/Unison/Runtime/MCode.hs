@@ -559,7 +559,7 @@ data Section
     RMatch
       !Int -- index of request item on the boxed stack
       !Section -- pure case
-      !(SmallEnumMap Word64 Branch) -- effect cases
+      !(EnumMap Word64 Branch) -- effect cases
   deriving (Show, Eq, Ord)
 
 data CombIx
@@ -602,19 +602,19 @@ data Ref
   deriving (Show, Eq, Ord)
 
 data Branch
-  = Branch {-# UNPACK #-} !(EnumMap Word64 Section) !(Section {- default -})
-  | TextBranch {-# UNPACK #-} !(M.Map Text Section) !(Section {- default -})
+  = Branch !(EnumMap Word64 Section) !(Section {- default -})
+  | TextBranch !(M.Map Text Section) !(Section {- default -})
   deriving (Show, Eq, Ord)
 
-matchW :: Int -> Section -> EnumMap Word64 Section -> Section
-matchW i d cs = Match i (Branch cs d)
+pattern MatchW :: Int -> Section -> EnumMap Word64 Section -> Section
+pattern MatchW i d cs = Match i (Branch cs d)
 
-matchT :: Int -> Section -> M.Map Text Section -> Section
-matchT i d cs = Match i (TextBranch cs d)
+pattern MatchT :: Int -> Section -> M.Map Text Section -> Section
+pattern MatchT i d cs = Match i (TextBranch cs d)
 
-nMatchW ::
+pattern NMatchW ::
   Maybe Reference -> Int -> Section -> EnumMap Word64 Section -> Section
-nMatchW r i d cs = NMatch r i (Branch cs d)
+pattern NMatchW r i d cs = NMatch r i (Branch cs d)
 
 -- Representation of the variable context available in the current
 -- frame. This tracks tags that have been dumped to the stack for
@@ -858,7 +858,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, UN) <- ctxResolve ctx v,
     MatchIntegral cs df <- bs =
       emitLitMatching
-        matchW
+        MatchW
         "missing integral case"
         rns
         grpr
@@ -871,7 +871,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchNumeric r cs df <- bs =
       emitLitMatching
-        (nMatchW (Just r))
+        (NMatchW (Just r))
         "missing integral case"
         rns
         grpr
@@ -884,7 +884,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchText cs df <- bs =
       emitLitMatching
-        matchT
+        MatchT
         "missing text case"
         rns
         grpr
@@ -1280,7 +1280,7 @@ emitSumMatching ::
   EnumMap Word64 ([Mem], ANormal v) ->
   Emit Section
 emitSumMatching rns grpr grpn rec ctx v i cs =
-  matchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
+  MatchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
   where
     edf = Die "uncovered unboxed sum case"
 
@@ -1294,13 +1294,13 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
-  Emit (Section, SmallEnumMap Word64 Branch)
+  Emit (Section, EnumMap Word64 Branch)
 emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
     pur :: Emit Section
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
-    tops :: Emit (SmallEnumMap Word64 Branch)
-    tops = EC.mapToSmallEnumMap <$> traverse f (coerce hs)
+    tops :: Emit (EnumMap Word64 Branch)
+    tops = traverse f (coerce hs)
     f :: EnumMap Word64 ([Mem], ANormal v) -> Emit Branch
     f cs = Branch <$> (traverse (emitCase rns grpr grpn rec ctx) cs) <*> pure edf
     edf = Die "unhandled ability"
@@ -1533,7 +1533,7 @@ prettySection ind sec =
         . shows i
         . showString "\nPUR ->\n"
         . prettySection (ind + 1) pu
-        . foldr (\p r -> rqc p . r) id (EC.smallEnumMapToList bs)
+        . foldr (\p r -> rqc p . r) id (EC.mapToList bs)
       where
         rqc (i, e) =
           showString "\n"
