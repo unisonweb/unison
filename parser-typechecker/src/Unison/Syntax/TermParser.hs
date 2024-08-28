@@ -150,11 +150,11 @@ link :: (Monad m, Var v) => TermP v m
 link = termLink <|> typeLink
   where
     typeLink = do
-      _ <- P.try (reserved "typeLink") -- type opens a block, gotta use something else
+      _ <- reserved "typeLink" -- type opens a block, gotta use something else
       tok <- typeLink'
       pure $ Term.typeLink (ann tok) (L.payload tok)
     termLink = do
-      _ <- P.try (reserved "termLink")
+      _ <- reserved "termLink"
       tok <- termLink'
       pure $ Term.termLink (ann tok) (L.payload tok)
 
@@ -169,7 +169,7 @@ match = do
   scrutinee <- term
   _ <- optionalCloseBlock
   _ <-
-    P.try (openBlockWith "with") <|> do
+    openBlockWith "with" <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
   (_arities, cases) <- unzip <$> matchCases
@@ -203,7 +203,7 @@ matchCase = do
         _ <- reserved "|"
         guard <-
           asum
-            [ Nothing <$ P.try (quasikeyword "otherwise"),
+            [ Nothing <$ quasikeyword "otherwise",
               Just <$> infixAppOrBooleanOp
             ]
         (_spanAnn, t) <- layoutBlock "->"
@@ -280,7 +280,7 @@ parsePattern = label "pattern" root
     ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) -> P v m (L.Token ConstructorReference)
     ctor ct err = do
       -- this might be a var, so we avoid consuming it at first
-      tok <- P.try (P.lookAhead hqPrefixId)
+      tok <- P.lookAhead hqPrefixId
       names <- asks names
       -- probably should avoid looking up in `names` if `L.payload tok`
       -- starts with a lowercase
@@ -329,7 +329,7 @@ parsePattern = label "pattern" root
       pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
     -- ex: unique type Day = Mon | Tue | ...
-    nullaryCtor = P.try do
+    nullaryCtor = do
       tok <- ctor CT.Data UnknownDataConstructor
       pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
 
