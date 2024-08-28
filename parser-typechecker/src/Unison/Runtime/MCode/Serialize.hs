@@ -392,14 +392,14 @@ instance Tag BranchT where
   word2tag n = unknownTag "BranchT" n
 
 putBranch :: (MonadPut m) => Branch -> m ()
-putBranch (Branch m d) = putTag BT *> putSmallEnumMap pWord putSection m *> putSection d
+putBranch (Branch m d) = putTag BT *> putEnumMap pWord putSection m *> putSection d
 putBranch (TextBranch m d) =
   putTag TBT *> putMap (putText . Util.Text.toText) putSection m *> putSection d
 
 getBranch :: (MonadGet m) => m Branch
 getBranch =
   getTag >>= \case
-    BT -> Branch <$> getSmallEnumMap gWord getSection <*> getSection
+    BT -> Branch <$> getEnumMap gWord getSection <*> getSection
     TBT -> TextBranch <$> getMap (Util.Text.fromText <$> getText) getSection <*> getSection
 
 gInt :: (MonadGet m) => m Int

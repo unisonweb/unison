@@ -39,7 +39,6 @@ where
 import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
-import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
@@ -603,19 +602,19 @@ data Ref
   deriving (Show, Eq, Ord)
 
 data Branch
-  = Branch {-# UNPACK #-} !(SmallEnumMap Word64 Section) !(Section {- default -})
+  = Branch {-# UNPACK #-} !(EnumMap Word64 Section) !(Section {- default -})
   | TextBranch {-# UNPACK #-} !(M.Map Text Section) !(Section {- default -})
   deriving (Show, Eq, Ord)
 
 matchW :: Int -> Section -> EnumMap Word64 Section -> Section
-matchW i d cs = Match i (Branch (EC.mapToSmallEnumMap cs) d)
+matchW i d cs = Match i (Branch cs d)
 
 matchT :: Int -> Section -> M.Map Text Section -> Section
 matchT i d cs = Match i (TextBranch cs d)
 
 nMatchW ::
   Maybe Reference -> Int -> Section -> EnumMap Word64 Section -> Section
-nMatchW r i d cs = NMatch r i (Branch (EC.mapToSmallEnumMap cs) d)
+nMatchW r i d cs = NMatch r i (Branch cs d)
 
 -- Representation of the variable context available in the current
 -- frame. This tracks tags that have been dumped to the stack for
@@ -1257,7 +1256,6 @@ emitDataMatching r rns grpr grpn rec ctx cs df =
   where
     eCases =
       traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
-        <&> EC.mapToSmallEnumMap
     -- Note: this is not really accurate. A default data case needs
     -- stack space corresponding to the actual data that shows up there.
     -- However, we currently don't use default cases for data.
@@ -1304,7 +1302,7 @@ emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
     tops :: Emit (SmallEnumMap Word64 Branch)
     tops = EC.mapToSmallEnumMap <$> traverse f (coerce hs)
     f :: EnumMap Word64 ([Mem], ANormal v) -> Emit Branch
-    f cs = Branch <$> fmap EC.mapToSmallEnumMap (traverse (emitCase rns grpr grpn rec ctx) cs) <*> pure edf
+    f cs = Branch <$> (traverse (emitCase rns grpr grpn rec ctx) cs) <*> pure edf
     edf = Die "unhandled ability"
 
 emitLitMatching ::
@@ -1554,7 +1552,7 @@ prettyIx (CIx _ c s) =
 prettyBranches :: Int -> Branch -> ShowS
 prettyBranches ind bs =
   case bs of
-    Branch m df -> pdf df . foldr (\(i, e) r -> picase i e . r) id (EC.smallEnumMapToList m)
+    Branch m df -> pdf df . foldr (\(i, e) r -> picase i e . r) id (EC.mapToList m)
     TextBranch m df -> pdf df . foldr (\(i, e) r -> ptcase i e . r) id (M.toList m)
   where
     pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind + 1) e

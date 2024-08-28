@@ -1843,7 +1843,7 @@ selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
 selectBranch :: Tag -> Branch -> Section
-selectBranch t (Branch m df) = fromMaybe df $! EC.smallEnumMapLookup t m
+selectBranch t (Branch m df) = fromMaybe df $! EC.lookup t m
 selectBranch _t (TextBranch {}) = error "impossible"
 {-# INLINE selectBranch #-}
 
