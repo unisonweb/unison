@@ -12,7 +12,7 @@ module Unison.Runtime.MCode
     RefNums (..),
     MLit (..),
     Instr (..),
-    Section (.., MatchT, MatchW),
+    Section (..),
     Comb (..),
     Combs,
     CombIx (..),
@@ -39,6 +39,7 @@ where
 import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
+import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
@@ -559,7 +560,7 @@ data Section
     RMatch
       !Int -- index of request item on the boxed stack
       !Section -- pure case
-      !(EnumMap Word64 Branch) -- effect cases
+      !(SmallEnumMap Word64 Branch) -- effect cases
   deriving (Show, Eq, Ord)
 
 data CombIx
@@ -602,35 +603,19 @@ data Ref
   deriving (Show, Eq, Ord)
 
 data Branch
-  = -- if tag == n then t else f
-    Test1
-      !Word64
-      !Section
-      !Section
-  | Test2
-      !Word64
-      !Section -- if tag == m then ...
-      !Word64
-      !Section -- else if tag == n then ...
-      !Section -- else ...
-  | TestW
-      !Section
-      !(EnumMap Word64 Section)
-  | TestT
-      !Section
-      !(M.Map Text Section)
+  = Branch {-# UNPACK #-} !(SmallEnumMap Word64 Section) !(Section {- default -})
+  | TextBranch {-# UNPACK #-} !(M.Map Text Section) !(Section {- default -})
   deriving (Show, Eq, Ord)
 
--- Convenience patterns for matches used in the algorithms below.
-pattern MatchW :: Int -> Section -> EnumMap Word64 Section -> Section
-pattern MatchW i d cs = Match i (TestW d cs)
+matchW :: Int -> Section -> EnumMap Word64 Section -> Section
+matchW i d cs = Match i (Branch (EC.mapToSmallEnumMap cs) d)
 
-pattern MatchT :: Int -> Section -> M.Map Text Section -> Section
-pattern MatchT i d cs = Match i (TestT d cs)
+matchT :: Int -> Section -> M.Map Text Section -> Section
+matchT i d cs = Match i (TextBranch cs d)
 
-pattern NMatchW ::
+nMatchW ::
   Maybe Reference -> Int -> Section -> EnumMap Word64 Section -> Section
-pattern NMatchW r i d cs = NMatch r i (TestW d cs)
+nMatchW r i d cs = NMatch r i (Branch (EC.mapToSmallEnumMap cs) d)
 
 -- Representation of the variable context available in the current
 -- frame. This tracks tags that have been dumped to the stack for
@@ -874,7 +859,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, UN) <- ctxResolve ctx v,
     MatchIntegral cs df <- bs =
       emitLitMatching
-        MatchW
+        matchW
         "missing integral case"
         rns
         grpr
@@ -887,7 +872,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchNumeric r cs df <- bs =
       emitLitMatching
-        (NMatchW (Just r))
+        (nMatchW (Just r))
         "missing integral case"
         rns
         grpr
@@ -900,7 +885,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchText cs df <- bs =
       emitLitMatching
-        MatchT
+        matchT
         "missing text case"
         rns
         grpr
@@ -1268,8 +1253,11 @@ emitDataMatching ::
   Maybe (ANormal v) ->
   Emit Branch
 emitDataMatching r rns grpr grpn rec ctx cs df =
-  TestW <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
+  Branch <$> eCases <*> edf
   where
+    eCases =
+      traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
+        <&> EC.mapToSmallEnumMap
     -- Note: this is not really accurate. A default data case needs
     -- stack space corresponding to the actual data that shows up there.
     -- However, we currently don't use default cases for data.
@@ -1294,11 +1282,12 @@ emitSumMatching ::
   EnumMap Word64 ([Mem], ANormal v) ->
   Emit Section
 emitSumMatching rns grpr grpn rec ctx v i cs =
-  MatchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
+  matchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
   where
     edf = Die "uncovered unboxed sum case"
 
 emitRequestMatching ::
+  forall v.
   (Var v) =>
   RefNums ->
   Reference ->
@@ -1307,12 +1296,15 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
-  Emit (Section, EnumMap Word64 Branch)
+  Emit (Section, SmallEnumMap Word64 Branch)
 emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
+    pur :: Emit Section
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
-    tops = traverse f (coerce hs)
-    f cs = TestW edf <$> traverse (emitCase rns grpr grpn rec ctx) cs
+    tops :: Emit (SmallEnumMap Word64 Branch)
+    tops = EC.mapToSmallEnumMap <$> traverse f (coerce hs)
+    f :: EnumMap Word64 ([Mem], ANormal v) -> Emit Branch
+    f cs = Branch <$> fmap EC.mapToSmallEnumMap (traverse (emitCase rns grpr grpn rec ctx) cs) <*> pure edf
     edf = Die "unhandled ability"
 
 emitLitMatching ::
@@ -1471,22 +1463,12 @@ instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
 branchDeps :: Branch -> [Word64]
-branchDeps (Test1 _ s1 d) = sectionDeps s1 ++ sectionDeps d
-branchDeps (Test2 _ s1 _ s2 d) =
-  sectionDeps s1 ++ sectionDeps s2 ++ sectionDeps d
-branchDeps (TestW d m) =
-  sectionDeps d ++ foldMap sectionDeps m
-branchDeps (TestT d m) =
-  sectionDeps d ++ foldMap sectionDeps m
+branchDeps (Branch m d) = foldMap sectionDeps m <> sectionDeps d
+branchDeps (TextBranch m d) = foldMap sectionDeps m <> sectionDeps d
 
 branchTypes :: Branch -> [Word64]
-branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
-branchTypes (Test2 _ s1 _ s2 d) =
-  sectionTypes s1 ++ sectionTypes s2 ++ sectionTypes d
-branchTypes (TestW d m) =
-  sectionTypes d ++ foldMap sectionTypes m
-branchTypes (TestT d m) =
-  sectionTypes d ++ foldMap sectionTypes m
+branchTypes (Branch m d) = foldMap sectionTypes m ++ sectionTypes d
+branchTypes (TextBranch m d) = foldMap sectionTypes m ++ sectionTypes d
 
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind * 2) ' ')
@@ -1553,7 +1535,7 @@ prettySection ind sec =
         . shows i
         . showString "\nPUR ->\n"
         . prettySection (ind + 1) pu
-        . foldr (\p r -> rqc p . r) id (mapToList bs)
+        . foldr (\p r -> rqc p . r) id (EC.smallEnumMapToList bs)
       where
         rqc (i, e) =
           showString "\n"
@@ -1572,12 +1554,8 @@ prettyIx (CIx _ c s) =
 prettyBranches :: Int -> Branch -> ShowS
 prettyBranches ind bs =
   case bs of
-    Test1 i e df -> pdf df . picase i e
-    Test2 i ei j ej df -> pdf df . picase i ei . picase j ej
-    TestW df m ->
-      pdf df . foldr (\(i, e) r -> picase i e . r) id (mapToList m)
-    TestT df m ->
-      pdf df . foldr (\(i, e) r -> ptcase i e . r) id (M.toList m)
+    Branch m df -> pdf df . foldr (\(i, e) r -> picase i e . r) id (EC.smallEnumMapToList m)
+    TextBranch m df -> pdf df . foldr (\(i, e) r -> ptcase i e . r) id (M.toList m)
   where
     pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind + 1) e
     ptcase t e =

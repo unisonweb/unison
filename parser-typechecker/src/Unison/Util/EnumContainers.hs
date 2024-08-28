@@ -2,6 +2,7 @@ module Unison.Util.EnumContainers
   ( EnumMap,
     EnumSet,
     EnumKey (..),
+    SmallEnumMap (..),
     mapFromList,
     setFromList,
     setToList,
@@ -27,12 +28,19 @@ module Unison.Util.EnumContainers
     traverseSet_,
     traverseWithKey,
     setSize,
+    smallEnumMapFromList,
+    mapToSmallEnumMap,
+    smallEnumMapElems,
+    smallEnumMapToList,
+    smallEnumMapLookup,
   )
 where
 
 import Data.Bifunctor
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet qualified as IS
+import Data.Vector qualified as Vector
+import Data.Vector.Unboxed qualified as VUnboxed
 import Data.Word (Word16, Word64)
 import Prelude hiding (lookup)
 
@@ -169,3 +177,36 @@ traverseWithKey f (EM m) = EM <$> IM.traverseWithKey (f . intToKey) m
 
 setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s
+
+-- | A type optimized for lookups by enum for small numbers of key-value pairs.
+--
+-- It aims to minimize pointer-chasing and pack memory tightly so it fits in cache-lines for the CPU
+data SmallEnumMap k v
+  = SmallEnumMap
+      {-# UNPACK #-} !(VUnboxed.Vector Int) -- keys
+      {-# UNPACK #-} !(Vector.Vector v) -- values
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+mapToSmallEnumMap :: (EnumKey k) => EnumMap k v -> SmallEnumMap k v
+mapToSmallEnumMap !(EM m) =
+  let (keys, values) = unzip $ IM.toList m
+   in SmallEnumMap (VUnboxed.fromList keys) (Vector.fromList values)
+
+smallEnumMapFromList :: (EnumKey k) => [(k, v)] -> SmallEnumMap k v
+smallEnumMapFromList kvs =
+  let (keys, values) = unzip kvs
+   in SmallEnumMap (VUnboxed.fromList $ fmap keyToInt keys) (Vector.fromList values)
+
+smallEnumMapElems :: SmallEnumMap k v -> Vector.Vector v
+smallEnumMapElems !(SmallEnumMap _ v) = v
+
+smallEnumMapToList :: (EnumKey k) => SmallEnumMap k v -> [(k, v)]
+smallEnumMapToList !(SmallEnumMap keys values) =
+  zip (fmap intToKey . VUnboxed.toList $ keys) (Vector.toList values)
+
+smallEnumMapLookup :: (EnumKey k) => k -> SmallEnumMap k v -> Maybe v
+smallEnumMapLookup !k !(SmallEnumMap keys values) =
+  let intKey = keyToInt k
+   in case VUnboxed.elemIndex intKey keys of
+        Just j -> Just $! (values Vector.! j)
+        Nothing -> Nothing

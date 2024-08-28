@@ -590,7 +590,7 @@ eval ::
   Reference ->
   Section ->
   IO ()
-eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TextBranch cs df)) = do
   t <- peekOffBi bstk i
   eval env denv activeThreads ustk bstk k r $ selectTextBranch t df cs
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i br) = do
@@ -609,7 +609,7 @@ eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
     then eval env denv activeThreads ustk bstk k r pu
     else case ANF.unpackTags t of
       (ANF.rawTag -> e, ANF.rawTag -> t)
-        | Just ebs <- EC.lookup e br ->
+        | Just ebs <- EC.smallEnumMapLookup e br ->
             eval env denv activeThreads ustk bstk k r $ selectBranch t ebs
         | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
@@ -1843,15 +1843,8 @@ selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
 selectBranch :: Tag -> Branch -> Section
-selectBranch t (Test1 u y n)
-  | t == u = y
-  | otherwise = n
-selectBranch t (Test2 u cu v cv e)
-  | t == u = cu
-  | t == v = cv
-  | otherwise = e
-selectBranch t (TestW df cs) = lookupWithDefault df t cs
-selectBranch _ (TestT {}) = error "impossible"
+selectBranch t (Branch m df) = fromMaybe df $! EC.smallEnumMapLookup t m
+selectBranch _t (TextBranch {}) = error "impossible"
 {-# INLINE selectBranch #-}
 
 -- Splits off a portion of the continuation up to a given prompt.

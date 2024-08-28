@@ -166,6 +166,21 @@ putEnumMap pk pv m = putFoldable (putPair pk pv) (mapToList m)
 getEnumMap :: (MonadGet m) => (EnumKey k) => m k -> m v -> m (EnumMap k v)
 getEnumMap gk gv = mapFromList <$> getList (getPair gk gv)
 
+putSmallEnumMap ::
+  (MonadPut m, EnumKey k) =>
+  (k -> m ()) ->
+  (v -> m ()) ->
+  SmallEnumMap k v ->
+  m ()
+putSmallEnumMap pk pv m = putFoldable (putPair pk pv) (EC.smallEnumMapToList m)
+
+getSmallEnumMap ::
+  (MonadGet m, EnumKey k) =>
+  m k ->
+  m v ->
+  m (SmallEnumMap k v)
+getSmallEnumMap gk gv = EC.smallEnumMapFromList <$> getList (getPair gk gv)
+
 putEnumSet :: (MonadPut m) => (EnumKey k) => (k -> m ()) -> EnumSet k -> m ()
 putEnumSet pk s = putLength (setSize s) *> traverseSet_ pk s
 
