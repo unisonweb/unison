@@ -29,12 +29,7 @@ tests:
 dependencies:
   - base
   - direct-sqlite
-  - exceptions
-  - generic-lens
-  - lens
   - megaparsec
-  - mtl
-  - neat-interpolation
   - pretty-simple
   - random
   - recover-rtti
@@ -46,7 +41,6 @@ dependencies:
   - unison-prelude
   - unison-util-cache
   - unliftio
-  - unliftio-core
 
 ghc-options:
   -Wall

@@ -51,7 +51,6 @@ library:
     - ListLike
     - ansi-terminal
     - text
-    - mtl
     - unliftio
     - pretty-simple
     - process
@@ -67,7 +66,6 @@ executables:
     main: Main.hs
     dependencies:
       - base
-      - safe
       - text
       - unison-pretty-printer
 

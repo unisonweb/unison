@@ -24,7 +24,6 @@ executables:
       - directory
       - easytest
       - process
-      - shellmet
       - time
     build-tools:
       - unison-cli-main:unison
