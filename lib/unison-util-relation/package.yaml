@@ -44,6 +44,7 @@ benchmarks:
       - random
       - tasty-bench
       - unison-util-relation
+      - unison-prelude
 
 ghc-options:
   -Wall
