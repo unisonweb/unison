@@ -127,6 +127,8 @@ test-suite syntax-tests
       base
     , code-page
     , easytest
+    , text
     , unison-core
+    , unison-prelude
     , unison-syntax
   default-language: Haskell2010

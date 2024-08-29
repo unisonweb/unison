@@ -1,33 +1,47 @@
-name: unison-util-cache
+name: unison-syntax
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
 
 ghc-options: -Wall
 
-dependencies:
-  - base
-
 library:
   source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_util_cache
+      other-modules: Paths_unison_syntax
 
   dependencies:
+    - base
+    - bytes
     - containers
-    - unliftio
+    - cryptonite
+    - deriving-compat
+    - extra
+    - free
+    - lens
+    - megaparsec
+    - mtl
+    - parser-combinators
+    - text
+    - unison-core
+    - unison-core1
+    - unison-hash
+    - unison-prelude
+    - unison-util-base32hex
+    - unison-util-bytes
 
 tests:
-  util-cache-tests:
+  syntax-tests:
     when:
       - condition: false
-        other-modules: Paths_unison_util_cache
+        other-modules: Paths_unison_syntax
     dependencies:
-      - async
+      - base
       - code-page
       - easytest
-      - stm
-      - unison-util-cache
+      - unison-syntax
+      - unison-core
+      - unison-prelude
     main: Main.hs
     source-dirs: test
 

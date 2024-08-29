@@ -320,51 +320,15 @@ test-suite parser-typechecker-tests
       ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      ListLike
-    , aeson
-    , ansi-terminal
-    , async
-    , atomic-primops
-    , base
-    , bytes
-    , bytestring
+      base
     , code-page
-    , concurrent-output
-    , containers >=0.6.3
+    , containers
     , easytest
-    , errors
-    , extra
-    , filelock
-    , filemanip
-    , filepath
-    , free
-    , generic-lens
-    , hashable
-    , hashtables
-    , hex-text
-    , lens
     , megaparsec
-    , mmorph
     , mtl
-    , mutable-containers
-    , network-uri
-    , nonempty-containers
-    , pretty-simple
-    , regex-tdfa
-    , semialign
-    , semigroups
-    , servant-client
-    , split
-    , stm
+    , raw-strings-qq
+    , temporary
     , text
-    , these
-    , time
-    , transformers
-    , unicode-show
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
-    , unison-codebase-sync
     , unison-core
     , unison-core1
     , unison-hash
@@ -372,18 +336,9 @@ test-suite parser-typechecker-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
-    , unison-sqlite
     , unison-syntax
-    , unison-util-base32hex
-    , unison-util-bytes
-    , unison-util-cache
     , unison-util-relation
     , unison-util-rope
-    , unison-util-serialization
-    , unliftio
-    , uuid
-    , vector
-    , witherable
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

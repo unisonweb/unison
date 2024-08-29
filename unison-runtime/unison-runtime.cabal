@@ -184,63 +184,26 @@ test-suite runtime-tests
       ViewPatterns
   ghc-options: -Wall -O0 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      asn1-encoding
-    , asn1-types
-    , atomic-primops
-    , base
-    , binary
-    , bytes
-    , bytestring
-    , cereal
-    , clock
+      base
     , code-page
-    , containers >=0.6.3
-    , crypton-x509
-    , crypton-x509-store
-    , crypton-x509-system
+    , containers
     , cryptonite
-    , data-default
-    , data-memocombinators
-    , deepseq
     , directory
     , easytest
-    , exceptions
     , filemanip
     , filepath
     , hex-text
-    , iproute
     , lens
-    , memory
-    , mmorph
+    , megaparsec
     , mtl
-    , murmur-hash
-    , network
-    , network-simple
-    , network-udp
-    , pem
-    , primitive
-    , process
-    , raw-strings-qq
-    , safe-exceptions
-    , split
     , stm
-    , tagged
-    , temporary
     , text
-    , time
-    , tls
-    , unison-codebase-sqlite
-    , unison-core
     , unison-core1
-    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-runtime
     , unison-syntax
-    , unison-util-bytes
-    , unliftio
-    , vector
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

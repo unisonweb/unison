@@ -18,58 +18,6 @@ when:
   - condition: flag(arraychecks)
     cpp-options: -DARRAY_CHECK
 
-dependencies:
-  - asn1-encoding
-  - asn1-types
-  - atomic-primops
-  - base
-  - binary
-  - bytes
-  - bytestring
-  - cereal
-  - clock
-  - containers >= 0.6.3
-  - cryptonite
-  - data-default
-  - data-memocombinators
-  - deepseq
-  - directory
-  - exceptions
-  - filepath
-  - iproute
-  - lens
-  - memory
-  - mmorph
-  - mtl
-  - murmur-hash
-  - network
-  - network-simple
-  - network-udp
-  - pem
-  - primitive
-  - process
-  - raw-strings-qq
-  - safe-exceptions
-  - stm
-  - tagged
-  - temporary
-  - text
-  - time
-  - tls
-  - unison-codebase-sqlite
-  - unison-core
-  - unison-core1
-  - unison-hash
-  - unison-parser-typechecker
-  - unison-prelude
-  - unison-pretty-printer
-  - unison-syntax
-  - unison-util-bytes
-  - unliftio
-  - vector
-  - crypton-x509
-  - crypton-x509-store
-  - crypton-x509-system
 
 library:
   source-dirs: src
@@ -77,21 +25,88 @@ library:
     - condition: false
       other-modules: Paths_unison_runtime
 
+  dependencies:
+    - asn1-encoding
+    - asn1-types
+    - atomic-primops
+    - base
+    - binary
+    - bytes
+    - bytestring
+    - cereal
+    - clock
+    - containers >= 0.6.3
+    - cryptonite
+    - data-default
+    - data-memocombinators
+    - deepseq
+    - directory
+    - exceptions
+    - filepath
+    - iproute
+    - lens
+    - memory
+    - mmorph
+    - mtl
+    - murmur-hash
+    - network
+    - network-simple
+    - network-udp
+    - pem
+    - primitive
+    - process
+    - raw-strings-qq
+    - safe-exceptions
+    - stm
+    - tagged
+    - temporary
+    - text
+    - time
+    - tls
+    - unison-codebase-sqlite
+    - unison-core
+    - unison-core1
+    - unison-hash
+    - unison-parser-typechecker
+    - unison-prelude
+    - unison-pretty-printer
+    - unison-syntax
+    - unison-util-bytes
+    - unliftio
+    - vector
+    - crypton-x509
+    - crypton-x509-store
+    - crypton-x509-system
+
 tests:
   runtime-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
-    dependencies:
-      - code-page
-      - easytest
-      - filemanip
-      - split
-      - hex-text
-      - unison-runtime
     when:
       - condition: false
         other-modules: Paths_unison_parser_typechecker
+    dependencies:
+      - base
+      - code-page
+      - containers
+      - cryptonite
+      - directory
+      - easytest
+      - filemanip
+      - filepath
+      - hex-text
+      - lens
+      - megaparsec
+      - mtl
+      - stm
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-prelude
+      - unison-pretty-printer
+      - unison-runtime
+      - unison-syntax
 
 default-extensions:
   - ApplicativeDo

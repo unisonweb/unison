@@ -13,10 +13,8 @@ dependencies:
   - base
   - text
   - unison-parser-typechecker
-  - filepath
   - unison-prelude
   - megaparsec
-  - unliftio
   - directory
 
 library:
@@ -46,6 +44,7 @@ library:
     - either
     - errors
     - extra
+    - filepath
     - free
     - friendly-time
     - fsnotify
@@ -82,6 +81,7 @@ library:
     - these
     - time
     - transformers
+    - unliftio
     - unison-codebase
     - unison-codebase-sqlite
     - unison-codebase-sqlite-hashing-v2
@@ -112,11 +112,21 @@ tests:
         other-modules: Paths_unison_cli
     dependencies:
       - code-page
+      - containers
+      - cryptonite
       - easytest
+      - extra
       - here
-      - shellmet
+      - lens
+      - lsp-types
       - temporary
+      - these
       - unison-cli
+      - unison-core
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-pretty-printer
+      - unison-syntax
     main: Main.hs
     source-dirs: tests
 
@@ -131,8 +141,10 @@ executables:
     dependencies:
       - code-page
       - easytest
-      - unison-cli
+      - filepath
       - silently
+      - unison-cli
+      - unliftio
 
 when:
   - condition: flag(optimized)
