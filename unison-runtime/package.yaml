@@ -1,159 +1,170 @@
-name: unison-cli
+name: unison-runtime
 github: unisonweb/unison
-copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+copyright: Copyright (C) 2013-2024 Unison Computing, PBC and contributors
+
+ghc-options: -Wall -O0
 
 flags:
   optimized:
     manual: true
+    default: true
+  arraychecks:
+    manual: true
     default: false
 
-ghc-options: -Wall
+when:
+  - condition: flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+  - condition: flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 dependencies:
-  - IntervalMap
   - ListLike
-  - aeson >= 2.0.0.0
-  - aeson-pretty
+  - aeson
   - ansi-terminal
+  - asn1-encoding
+  - asn1-types
   - async
+  - atomic-primops
   - base
+  - base16 >= 0.2.1.0
+  - base64-bytestring
+  - basement
+  - binary
   - bytes
   - bytestring
-  - cmark
-  - co-log-core
-  - code-page
+  - bytestring-to-vector
+  - cereal
+  - clock
   - concurrent-output
   - containers >= 0.6.3
   - cryptonite
+  - data-default
+  - data-memocombinators
+  - deepseq
   - directory
   - either
   - errors
   - exceptions
   - extra
+  - filelock
   - filepath
-  - free
-  - friendly-time
-  - fsnotify
+  - fingertree
   - fuzzyfind
+  - free
   - generic-lens
+  - hashable
+  - hashtables
   - haskeline
-  - http-client >= 0.7.6
-  - http-client-tls
+  - http-client
+  - http-media
   - http-types
-  - jwt
-  - ki
+  - IntervalMap
+  - iproute
   - lens
-  - lock-file
-  - lsp >= 2.2.0.0
-  - lsp-types >= 2.0.2.0
+  - lucid
   - megaparsec
   - memory
+  - mmorph
+  - monad-validate
   - mtl
+  - mutable-containers
+  - murmur-hash
+  - mwc-random
+  - natural-transformation
   - network
   - network-simple
   - network-udp
   - network-uri
   - nonempty-containers
-  - numerals
   - open-browser
-  - optparse-applicative >= 0.16.1.0
+  - openapi3
+  - optparse-applicative
+  - pem
   - pretty-simple
+  - primitive
   - process
   - random >= 1.2.0
-  - random-shuffle
+  - raw-strings-qq
   - recover-rtti
+  - regex-base
   - regex-tdfa
+  - safe
+  - safe-exceptions
   - semialign
   - semigroups
   - servant
   - servant-client
+  - servant-docs
+  - servant-openapi3
+  - servant-server
   - shellmet
   - stm
-  - template-haskell
+  - tagged
   - temporary
+  - terminal-size >= 0.3.3
   - text
-  - text-ansi
-  - text-builder
-  - text-rope
+  - text-short
   - these
-  - these-lens
   - time
+  - tls
   - transformers
+  - unicode-show
   - unison-codebase
   - unison-codebase-sqlite
   - unison-codebase-sqlite-hashing-v2
+  - unison-codebase-sync
   - unison-core
   - unison-core1
   - unison-hash
-  - unison-merge
+  - unison-hashing-v2
   - unison-parser-typechecker
   - unison-prelude
   - unison-pretty-printer
-  - unison-runtime
-  - unison-share-api
-  - unison-share-projects-api
   - unison-sqlite
   - unison-syntax
   - unison-util-base32hex
+  - unison-util-bytes
+  - unison-util-cache
   - unison-util-relation
+  - unison-util-rope
+  - unison-util-serialization
   - unliftio
-  - unordered-containers
-  - uri-encode
   - uuid
+  - uri-encode
+  - utf8-string
   - vector
   - wai
   - warp
   - witch
   - witherable
+  - crypton-x509
+  - crypton-x509-store
+  - crypton-x509-system
+  - yaml
+  - zlib
 
 library:
   source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_cli
-    - condition: "!os(windows)"
-      dependencies: unix
-  dependencies:
-    - code-page
-    - optparse-applicative >= 0.16.1.0
-    - shellmet
-    - template-haskell
-    - temporary
+      other-modules: Paths_unison_runtime
 
 tests:
-  cli-tests:
-    when:
-      - condition: false
-        other-modules: Paths_unison_cli
-    dependencies:
-      - code-page
-      - easytest
-      - here
-      - shellmet
-      - temporary
-      - unison-cli
-    main: Main.hs
+  runtime-tests:
     source-dirs: tests
-
-executables:
-  transcripts:
-    when:
-      - condition: false
-        other-modules: Paths_unison_cli
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
       - code-page
       - easytest
-      - process
-      - shellmet
-      - unison-cli
-      - silently
-
-when:
-  - condition: flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields
+      - filemanip
+      - split
+      - hex-text
+      - unison-runtime
+    when:
+      - condition: false
+        other-modules: Paths_unison_parser_typechecker
 
 default-extensions:
   - ApplicativeDo
@@ -161,31 +172,27 @@ default-extensions:
   - BlockArguments
   - DeriveAnyClass
   - DeriveFunctor
-  - DeriveFoldable
-  - DeriveTraversable
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
-  - GADTs
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
-  - InstanceSigs
-  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
-  - MultiWayIf
   - NamedFieldPuns
-  - NumericUnderscores
   - OverloadedLabels
   - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

@@ -4,11 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           unison-parser-typechecker
+name:           unison-runtime
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
-copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+copyright:      Copyright (C) 2013-2024 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
@@ -17,153 +17,38 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
+flag arraychecks
+  manual: True
+  default: False
+
 flag optimized
   manual: True
   default: True
 
 library
   exposed-modules:
-      U.Codebase.Branch.Diff
-      U.Codebase.Projects
-      Unison.Builtin
-      Unison.Builtin.Decls
-      Unison.Builtin.Terms
-      Unison.Codebase
-      Unison.Codebase.Branch
-      Unison.Codebase.Branch.BranchDiff
-      Unison.Codebase.Branch.Merge
-      Unison.Codebase.Branch.Names
-      Unison.Codebase.Branch.Raw
-      Unison.Codebase.Branch.Type
-      Unison.Codebase.BranchDiff
-      Unison.Codebase.BranchUtil
-      Unison.Codebase.BuiltinAnnotation
-      Unison.Codebase.Causal
-      Unison.Codebase.Causal.Type
-      Unison.Codebase.CodeLookup
-      Unison.Codebase.CodeLookup.Util
-      Unison.Codebase.Editor.DisplayObject
-      Unison.Codebase.Editor.RemoteRepo
-      Unison.Codebase.FileCodebase
-      Unison.Codebase.Init
-      Unison.Codebase.Init.CreateCodebaseError
-      Unison.Codebase.Init.OpenCodebaseError
-      Unison.Codebase.Init.Type
-      Unison.Codebase.IntegrityCheck
-      Unison.Codebase.MainTerm
-      Unison.Codebase.Metadata
-      Unison.Codebase.Patch
-      Unison.Codebase.Path
-      Unison.Codebase.Path.Parse
-      Unison.Codebase.ProjectPath
-      Unison.Codebase.PushBehavior
-      Unison.Codebase.Runtime
-      Unison.Codebase.Serialization
-      Unison.Codebase.ShortCausalHash
-      Unison.Codebase.SqliteCodebase
-      Unison.Codebase.SqliteCodebase.Branch.Cache
-      Unison.Codebase.SqliteCodebase.Branch.Dependencies
-      Unison.Codebase.SqliteCodebase.Conversions
-      Unison.Codebase.SqliteCodebase.Migrations
-      Unison.Codebase.SqliteCodebase.Migrations.Helpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema3To4
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
-      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
-      Unison.Codebase.SqliteCodebase.Operations
-      Unison.Codebase.SqliteCodebase.Paths
-      Unison.Codebase.SqliteCodebase.SyncEphemeral
-      Unison.Codebase.TermEdit
-      Unison.Codebase.TermEdit.Typing
-      Unison.Codebase.Type
-      Unison.Codebase.TypeEdit
-      Unison.Codebase.UniqueTypeGuidLookup
-      Unison.Codebase.Verbosity
-      Unison.CodebasePath
-      Unison.DataDeclaration.Dependencies
-      Unison.FileParsers
-      Unison.Hashing.V2.Convert
-      Unison.KindInference
-      Unison.KindInference.Constraint.Context
-      Unison.KindInference.Constraint.Pretty
-      Unison.KindInference.Constraint.Provenance
-      Unison.KindInference.Constraint.Solved
-      Unison.KindInference.Constraint.TypeProvenance
-      Unison.KindInference.Constraint.Unsolved
-      Unison.KindInference.Error
-      Unison.KindInference.Error.Pretty
-      Unison.KindInference.Generate
-      Unison.KindInference.Generate.Monad
-      Unison.KindInference.Solve
-      Unison.KindInference.Solve.Monad
-      Unison.KindInference.UVar
-      Unison.Parsers
-      Unison.PatternMatchCoverage
-      Unison.PatternMatchCoverage.Class
-      Unison.PatternMatchCoverage.Constraint
-      Unison.PatternMatchCoverage.Desugar
-      Unison.PatternMatchCoverage.EffectHandler
-      Unison.PatternMatchCoverage.Fix
-      Unison.PatternMatchCoverage.GrdTree
-      Unison.PatternMatchCoverage.IntervalSet
-      Unison.PatternMatchCoverage.ListPat
-      Unison.PatternMatchCoverage.Literal
-      Unison.PatternMatchCoverage.NormalizedConstraints
-      Unison.PatternMatchCoverage.PmGrd
-      Unison.PatternMatchCoverage.PmLit
-      Unison.PatternMatchCoverage.Pretty
-      Unison.PatternMatchCoverage.Solve
-      Unison.PatternMatchCoverage.UFMap
-      Unison.PrettyPrintEnv
-      Unison.PrettyPrintEnv.FQN
-      Unison.PrettyPrintEnv.MonadPretty
-      Unison.PrettyPrintEnv.Names
-      Unison.PrettyPrintEnv.Util
-      Unison.PrettyPrintEnvDecl
-      Unison.PrettyPrintEnvDecl.Names
-      Unison.PrettyPrintEnvDecl.Sqlite
-      Unison.PrintError
-      Unison.Result
-      Unison.Share.Types
-      Unison.Syntax.DeclParser
-      Unison.Syntax.DeclPrinter
-      Unison.Syntax.FileParser
-      Unison.Syntax.FilePrinter
-      Unison.Syntax.NamePrinter
-      Unison.Syntax.Precedence
-      Unison.Syntax.TermParser
-      Unison.Syntax.TermPrinter
-      Unison.Syntax.TypeParser
-      Unison.Syntax.TypePrinter
-      Unison.Typechecker
-      Unison.Typechecker.Components
-      Unison.Typechecker.Context
-      Unison.Typechecker.Extractor
-      Unison.Typechecker.TypeError
-      Unison.Typechecker.TypeLookup
-      Unison.Typechecker.TypeVar
-      Unison.UnisonFile
-      Unison.UnisonFile.Env
-      Unison.UnisonFile.Names
-      Unison.UnisonFile.Summary
-      Unison.UnisonFile.Type
-      Unison.Util.CycleTable
-      Unison.Util.CyclicEq
-      Unison.Util.CyclicOrd
-      Unison.Util.EnumContainers
-      Unison.Util.Exception
-      Unison.Util.Logger
-      Unison.Util.Pretty.MegaParsec
-      Unison.Util.RefPromise
-      Unison.Util.Star2
-      Unison.Util.Text
-      Unison.Util.Text.Pattern
-      Unison.Util.TQueue
-      Unison.Util.TransitiveClosure
+      Unison.Codebase.Execute
+      Unison.Runtime.ANF
+      Unison.Runtime.ANF.Rehash
+      Unison.Runtime.ANF.Serialize
+      Unison.Runtime.Array
+      Unison.Runtime.Builtin
+      Unison.Runtime.Crypto.Rsa
+      Unison.Runtime.Debug
+      Unison.Runtime.Decompile
+      Unison.Runtime.Exception
+      Unison.Runtime.Foreign
+      Unison.Runtime.Foreign.Function
+      Unison.Runtime.Interface
+      Unison.Runtime.IOSource
+      Unison.Runtime.Machine
+      Unison.Runtime.MCode
+      Unison.Runtime.MCode.Serialize
+      Unison.Runtime.Pattern
+      Unison.Runtime.Serialize
+      Unison.Runtime.SparseVector
+      Unison.Runtime.Stack
+      Unison.Runtime.Vector
   hs-source-dirs:
       src
   default-extensions:
@@ -196,7 +81,7 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O0
   build-depends:
       IntervalMap
     , ListLike
@@ -300,6 +185,7 @@ library
     , unison-core1
     , unison-hash
     , unison-hashing-v2
+    , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
     , unison-sqlite
@@ -324,33 +210,19 @@ library
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
-test-suite parser-typechecker-tests
+test-suite runtime-tests
   type: exitcode-stdio-1.0
   main-is: Suite.hs
   other-modules:
-      Unison.Core.Test.Name
-      Unison.Test.ABT
-      Unison.Test.Codebase.Branch
-      Unison.Test.Codebase.Causal
-      Unison.Test.Codebase.Path
-      Unison.Test.CodebaseInit
       Unison.Test.Common
-      Unison.Test.DataDeclaration
-      Unison.Test.Referent
-      Unison.Test.Syntax.FileParser
-      Unison.Test.Syntax.TermParser
-      Unison.Test.Syntax.TypePrinter
-      Unison.Test.Term
-      Unison.Test.Type
-      Unison.Test.Typechecker
-      Unison.Test.Typechecker.Components
-      Unison.Test.Typechecker.Context
-      Unison.Test.Typechecker.TypeError
-      Unison.Test.Util.Pretty
-      Unison.Test.Util.Relation
-      Unison.Test.Util.Text
-      Unison.Test.Var
+      Unison.Test.Runtime.ANF
+      Unison.Test.Runtime.Crypto.Rsa
+      Unison.Test.Runtime.MCode
+      Unison.Test.UnisonSources
+      Paths_unison_runtime
   hs-source-dirs:
       tests
   default-extensions:
@@ -383,7 +255,7 @@ test-suite parser-typechecker-tests
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  ghc-options: -Wall -O0 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       IntervalMap
     , ListLike
@@ -495,6 +367,7 @@ test-suite parser-typechecker-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
@@ -517,3 +390,5 @@ test-suite parser-typechecker-tests
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK

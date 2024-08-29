@@ -43,6 +43,7 @@ packages:
   - unison-core
   - unison-hashing-v2
   - unison-merge
+  - unison-runtime
   - unison-share-api
   - unison-share-projects-api
   - unison-syntax

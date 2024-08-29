@@ -3,16 +3,22 @@
 --
 -- This allows one to run standalone applications implemented in the Unison
 -- language.
-module Unison.Codebase.Execute where
+module Unison.Codebase.Execute
+  ( execute,
+    codebaseToCodeLookup,
+  )
+where
 
 import Control.Exception (finally)
 import Control.Monad.Except
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Builtin qualified as Builtin
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.MainTerm (getMainTerm)
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Path qualified as Path
@@ -20,10 +26,13 @@ import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Type (Codebase (..))
 import Unison.HashQualified qualified as HQ
 import Unison.Parser.Ann (Ann)
+import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Util.Pretty qualified as P
@@ -51,8 +60,14 @@ execute codebase runtime mainPath =
       MainTerm.NotFound s -> throwError ("Not found: " <> P.text (HQ.toText s))
       MainTerm.BadType s _ -> throwError (P.text (HQ.toText s) <> " is not of type '{IO} ()")
       MainTerm.Success _ tm _ -> do
-        let codeLookup = Codebase.toCodeLookup codebase
+        let codeLookup = codebaseToCodeLookup codebase
             ppe = PPE.empty
         (liftIO $ Runtime.evaluateTerm codeLookup ppe runtime tm) >>= \case
           Left err -> throwError err
           Right _ -> pure ()
+
+codebaseToCodeLookup :: (MonadIO m) => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
+codebaseToCodeLookup c =
+  CL.CodeLookup (Codebase.runTransaction c . getTerm c) (Codebase.runTransaction c . getTypeDeclaration c)
+    <> Builtin.codeLookup
+    <> IOSource.codeLookupM

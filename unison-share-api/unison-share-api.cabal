@@ -127,6 +127,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-share-projects-api
     , unison-sqlite
     , unison-syntax

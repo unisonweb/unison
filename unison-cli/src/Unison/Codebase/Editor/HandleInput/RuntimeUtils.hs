@@ -13,6 +13,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output
+import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann (..))
@@ -55,7 +56,7 @@ evalUnisonTermE sandbox ppe useCache tm = do
         pure (Term.amap (\(_ :: Ann) -> ()) <$> maybeTerm)
 
   let cache = if useCache then watchCache else Runtime.noCache
-  r <- liftIO (Runtime.evaluateTerm' (Codebase.toCodeLookup codebase) cache ppe theRuntime tm)
+  r <- liftIO (Runtime.evaluateTerm' (Codebase.codebaseToCodeLookup codebase) cache ppe theRuntime tm)
   when useCache do
     case r of
       Right (errs, tmr)

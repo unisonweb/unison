@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Unison.Test.MCode where
+module Unison.Test.Runtime.MCode where
 
 import Control.Concurrent.STM
 import Data.Map.Strict qualified as Map

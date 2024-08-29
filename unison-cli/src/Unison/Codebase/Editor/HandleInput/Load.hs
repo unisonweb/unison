@@ -24,6 +24,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
+import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
@@ -192,7 +193,7 @@ evalUnisonFile mode ppe unisonFile args = do
 
   Cli.with_ (withArgs args) do
     (nts, errs, map) <-
-      Cli.ioE (Runtime.evaluateWatches (Codebase.toCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
+      Cli.ioE (Runtime.evaluateWatches (Codebase.codebaseToCodeLookup codebase) ppe watchCache theRuntime unisonFile) \err -> do
         Cli.returnEarly (Output.EvaluationFailure err)
     when (not $ null errs) (RuntimeUtils.displayDecompileErrors errs)
     for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do

@@ -271,6 +271,7 @@ library
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-share-api
     , unison-share-projects-api
     , unison-sqlite
@@ -415,6 +416,7 @@ executable transcripts
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-share-api
     , unison-share-projects-api
     , unison-sqlite
@@ -563,6 +565,7 @@ test-suite cli-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-share-api
     , unison-share-projects-api
     , unison-sqlite
