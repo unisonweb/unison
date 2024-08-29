@@ -334,7 +334,7 @@ makePPE hashLen names initialFileNames dependents =
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
         -- ambiguous in the context of namespace + file names.
         --
-        -- So, we use `unionLeftName`, which starts with the LHS names (the namespace), and adds to it names from the
+        -- So, we use `shadowing`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
-        (PPE.suffixifyByHash (Names.unionLeftName names initialFileNames))
+        (PPE.suffixifyByHash (Names.shadowing names initialFileNames))
     )

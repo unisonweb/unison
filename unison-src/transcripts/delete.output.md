@@ -346,7 +346,7 @@ structural type Foo = Foo Nat
 
 incrementFoo : Foo -> Nat
 incrementFoo = cases
-  (Foo n) -> n + 1
+  (Foo.Foo n) -> n + 1
 ```
 
 ``` ucm

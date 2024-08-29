@@ -40,14 +40,16 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.Names.ResolutionResult (ResolutionError (..), ResolutionFailure (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
@@ -117,16 +119,19 @@ rewriteBlock = do
       rhs <- openBlockWith "==>" *> TypeParser.computationType <* closeBlock
       pure (DD.rewriteType (ann kw <> ann rhs) (L.payload <$> vs) lhs rhs)
 
-typeLink' :: (Monad m, Var v) => P v m (L.Token Reference)
+typeLink' :: (Monad m, Var v) => P v m (L.Token TypeReference)
 typeLink' = findUniqueType =<< hqPrefixId
 
-findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token Reference)
-findUniqueType id = do
-  ns <- asks names
-  case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
-    s
-      | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
-      | otherwise -> customFailure $ UnknownType id s
+findUniqueType :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> P v m (L.Token TypeReference)
+findUniqueType id =
+  resolveToLocalNamespacedType id >>= \case
+    Nothing -> do
+      ns <- asks names
+      case Names.lookupHQType Names.IncludeSuffixes (L.payload id) ns of
+        s
+          | Set.size s == 1 -> pure (Set.findMin s <$ id)
+          | otherwise -> customFailure $ UnknownType id s
+    Just ref -> pure (ref <$ id)
 
 termLink' :: (Monad m, Var v) => P v m (L.Token Referent)
 termLink' = do
@@ -137,7 +142,7 @@ termLink' = do
       | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise -> customFailure $ UnknownTerm id s
 
-link' :: (Monad m, Var v) => P v m (Either (L.Token Reference) (L.Token Referent))
+link' :: (Monad m, Var v) => P v m (Either (L.Token TypeReference) (L.Token Referent))
 link' = do
   id <- hqPrefixId
   ns <- asks names
@@ -157,6 +162,23 @@ link = termLink <|> typeLink
       _ <- P.try (reserved "termLink")
       tok <- termLink'
       pure $ Term.termLink (ann tok) (L.payload tok)
+
+resolveToLocalNamespacedType :: (Monad m, Ord v) => L.Token (HQ.HashQualified Name) -> P v m (Maybe TypeReference)
+resolveToLocalNamespacedType tok =
+  case L.payload tok of
+    HQ.NameOnly name ->
+      asks maybeNamespace >>= \case
+        Nothing -> pure Nothing
+        Just namespace -> do
+          localNames <- asks localNamespacePrefixedTypesAndConstructors
+          pure case Names.lookupHQType Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) localNames of
+            refs
+              | Set.null refs -> Nothing
+              -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+              -- with the same name would have been a parse error. So, just take the minimum element from the set,
+              -- which we know is a singleton.
+              | otherwise -> Just (Set.findMin refs)
+    _ -> pure Nothing
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
@@ -277,36 +299,90 @@ parsePattern = label "pattern" root
         else pure (Pattern.Var (ann v), [tokenToPair v])
     unbound :: P v m (Pattern Ann, [(Ann, v)])
     unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor :: CT.ConstructorType -> (L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> Error v) -> P v m (L.Token ConstructorReference)
-    ctor ct err = do
+    ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
+    ctor ct = do
       -- this might be a var, so we avoid consuming it at first
       tok <- P.try (P.lookAhead hqPrefixId)
-      names <- asks names
-      -- probably should avoid looking up in `names` if `L.payload tok`
-      -- starts with a lowercase
-      case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
-        s
-          | Set.null s -> die tok s
-          | Set.size s > 1 -> die tok s
-          | otherwise -> -- matched ctor name, consume the token
-              do _ <- anyToken; pure (Set.findMin s <$ tok)
+
+      -- First, if:
+      --
+      --   * The token isn't hash-qualified (e.g. "Foo.Bar")
+      --   * We're under a namespace directive (e.g. "baz")
+      --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
+      --
+      -- Then:
+      --
+      --   * Use that constructor reference (duh)
+      --
+      -- Else:
+      --
+      --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
+      --     the locally-bound constructors).
+
+      maybeLocalCtor <-
+        case L.payload tok of
+          HQ.NameOnly name ->
+            asks maybeNamespace >>= \case
+              Nothing -> pure Nothing
+              Just namespace -> do
+                localNames <- asks localNamespacePrefixedTypesAndConstructors
+                case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
+                  refs
+                    | Set.null refs -> pure Nothing
+                    -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+                    -- with the same name would have been a parse error. So, just take the minimum element from the set,
+                    -- which we know is a singleton.
+                    | otherwise -> do
+                        -- matched ctor name, consume the token
+                        _ <- anyToken
+                        pure (Just (Set.findMin refs))
+          _ -> pure Nothing
+
+      case maybeLocalCtor of
+        Just localCtor -> pure (localCtor <$ tok)
+        Nothing -> do
+          names <- asks names
+          case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
+            s
+              | Set.size s == 1 -> do
+                  -- matched ctor name, consume the token
+                  _ <- anyToken
+                  pure (Set.findMin s <$ tok)
+              | otherwise -> die names tok s
       where
         isLower = Text.all Char.isLower . Text.take 1 . Name.toText
         isIgnored n = Text.take 1 (Name.toText n) == "_"
-        die hq s = case L.payload hq of
-          -- if token not hash qualified or uppercase,
+        die :: Names -> L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> P v m a
+        die names hq s = case L.payload hq of
+          -- if token not hash qualified and not uppercase,
           -- fail w/out consuming it to allow backtracking
           HQ.NameOnly n
             | Set.null s
                 && (isLower n || isIgnored n) ->
                 fail $ "not a constructor name: " <> show n
-          -- it was hash qualified, and wasn't found in the env, that's a failure!
-          _ -> failCommitted $ err hq s
-
+          -- it was hash qualified and/or uppercase, and wasn't found in the env, that's a failure!
+          _ ->
+            failCommitted $
+              ResolutionFailures
+                [ TermResolutionFailure
+                    (L.payload hq)
+                    (ann hq)
+                    if Set.null s
+                      then NotFound
+                      else
+                        Ambiguous
+                          names
+                          (Set.map (\ref -> Referent.Con ref ct) s)
+                          -- Eh, here we're saying there are no "local" constructors – they're all from "the namespace".
+                          -- That's not necessarily true, but it doesn't (currently) affect the error message any, and
+                          -- we have already parsed and hashed local constructors (so they aren't really different from
+                          -- namespace constructors).
+                          Set.empty
+                ]
     unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
     effectBind0 = do
-      tok <- ctor CT.Effect UnknownAbilityConstructor
+      tok <- ctor CT.Effect
       leaves <- many leaf
       _ <- reserved "->"
       pure (tok, leaves)
@@ -330,11 +406,11 @@ parsePattern = label "pattern" root
 
     -- ex: unique type Day = Mon | Tue | ...
     nullaryCtor = P.try do
-      tok <- ctor CT.Data UnknownDataConstructor
+      tok <- ctor CT.Data
       pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
 
     constructor = do
-      tok <- ctor CT.Data UnknownDataConstructor
+      tok <- ctor CT.Data
       let f patterns vs =
             let loc = foldl (<>) (ann tok) $ map ann patterns
              in (Pattern.Constructor loc (L.payload tok) patterns, vs)
@@ -428,14 +504,15 @@ nameIsKeyword name keyword =
 -- committed if that short hash can't be found in the current environment
 resolveHashQualified :: (Monad m, Var v) => L.Token (HQ.HashQualified Name) -> TermP v m
 resolveHashQualified tok = do
-  names <- asks names
   case L.payload tok of
     HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    hqn -> case Names.lookupHQTerm Names.IncludeSuffixes hqn names of
-      s
-        | Set.null s -> failCommitted $ UnknownTerm tok s
-        | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
-        | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
+    _ -> do
+      names <- asks names
+      case Names.lookupHQTerm Names.IncludeSuffixes (L.payload tok) names of
+        s
+          | Set.null s -> failCommitted $ UnknownTerm tok s
+          | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
+          | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf =
@@ -1307,14 +1384,14 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
   _ <- optional semi
-  statements <- local (\e -> e {names = names}) $ sepBy semi statement
+  statements <- local (\e -> e {names}) $ sepBy semi statement
   end <- closeBlock
   body <- substImports names imports <$> go open statements
   pure (ann open <> ann end, body)
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
-    go open bs =
+    go open =
       let finish :: Term.Term v Ann -> TermP v m
           finish tm = case Components.minimize' tm of
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
@@ -1354,7 +1431,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
               if implicitUnitAtEnd
                 then (toList bs, DD.unitTerm a)
                 else (toList bs, Term.var a (positionalVar a Var.missingResult))
-       in toTm bs
+       in toTm
 
 number :: (Var v) => TermP v m
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)

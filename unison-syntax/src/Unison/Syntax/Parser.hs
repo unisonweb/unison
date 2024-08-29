@@ -76,14 +76,13 @@ import Text.Megaparsec qualified as P
 import U.Codebase.Reference (ReferenceType (..))
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (ConstructorReference)
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashable qualified as Hashable
 import Unison.Name as Name
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal qualified as INameSegment
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..), Annotated (..))
@@ -118,7 +117,33 @@ data ParsingEnv (m :: Type -> Type) = ParsingEnv
     -- The name (e.g. `Foo` in `unique type Foo`) is passed in, and if the function returns a Just, that GUID is used;
     -- otherwise, a random one is generated from `uniqueNames`.
     uniqueTypeGuid :: Name -> m (Maybe Text),
-    names :: Names
+    names :: Names,
+    -- The namespace block we are currently parsing under, and the file-bound namespace-prefixed type and constructor
+    -- names in scope (we've already parsed all type declarations by the time we need this, in the term parser).
+    --
+    -- Ideally these ought to have no affect on parsing: "applying" a namespace should be a pre-processing pass. All
+    -- bindings are prefixed with the namespace (easy), and all free variables that match a binding are prefixed (also
+    -- easy).
+    --
+    -- ... but our "parser" is also doing parse-time name resolution for hash-qualified names, type references,
+    -- constructors in patterns, and term/type links.
+    --
+    -- For constructors in patterns, when parsing a pattern `Foo.Bar` in a namespace `baz`, if `baz.Foo.Bar` is among
+    -- the file-bound namespace-prefixed constructor names in scope, then resolve to that constructor. Otherwise,
+    -- proceed as normal to look for `Foo.Bar` in the names environment.
+    --
+    -- For type links, similar deal: we (only because we parse and hash all types before terms) could conceivably
+    -- properly handle code like
+    --
+    --   namespace foo
+    --   type Bar = ...
+    --   baz = ... typeLink Bar ...
+    --
+    -- And for term links we are certainly out of luck: we can't look up a resolved file-bound term by hash *during
+    -- parsing*. That's an issue with term links in general, unrelated to namespaces, but perhaps complicated by
+    -- namespaces nonetheless.
+    maybeNamespace :: Maybe Name,
+    localNamespacePrefixedTypesAndConstructors :: Names
   }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
@@ -159,8 +184,6 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
-  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
   | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
@@ -174,7 +197,7 @@ data Error v
     MissingTypeModifier (L.Token String) (L.Token v)
   | -- | A type was found in a position that requires a term
     TypeNotAllowed (L.Token (HQ.HashQualified Name))
-  | ResolutionFailures [Names.ResolutionFailure v Ann]
+  | ResolutionFailures [Names.ResolutionFailure Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | -- | PatternArityMismatch expectedArity actualArity location
@@ -282,7 +305,7 @@ optionalCloseBlock = closeBlock <|> (\() -> L.Token () mempty mempty) <$> P.eof
 
 -- | A `Name` is blank when it is unqualified and begins with a `_` (also implying that it is wordy)
 isBlank :: Name -> Bool
-isBlank n = Name.isUnqualified n && Text.isPrefixOf "_" (INameSegment.toUnescapedText $ Name.lastSegment n)
+isBlank n = isUnqualified n && Text.isPrefixOf "_" (NameSegment.toUnescapedText $ lastSegment n)
 
 -- | A HQ Name is blank when its Name is blank and it has no hash.
 isBlank' :: HQ'.HashQualified Name -> Bool
