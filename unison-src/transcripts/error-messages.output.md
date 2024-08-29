@@ -70,7 +70,7 @@ x = 1E+ -- missing an exponent
   `1e+37`.
 
 ```
-### Hex, octal, and bytes literals
+### Hex, octal, binary, and bytes literals
 
 ``` unison
 x = 0xoogabooga -- invalid hex chars
@@ -102,6 +102,22 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
   
   I was expecting only octal characters (one of 01234567) after
   the 0o.
+
+```
+``` unison
+x = 0b3201 -- 3 and 2 are not valid binary chars
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  This number isn't valid syntax: 
+  
+      1 | x = 0b3201 -- 3 and 2 are not valid binary chars
+  
+  I was expecting only binary characters (one of 01) after the
+  0b.
 
 ```
 ``` unison
@@ -244,7 +260,7 @@ foo = cases
 ``` unison
 -- Missing a '->'
 x = match Some a with
-      None -> 
+      None ->
         1
       Some _
         2
