@@ -384,7 +384,9 @@ typecheckSrc name src = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = \_ -> pure Nothing,
-                names = parseNames
+                names = parseNames,
+                maybeNamespace = Nothing,
+                localNamespacePrefixedTypesAndConstructors = mempty
               }
       Codebase.runTransaction codebase do
         Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case

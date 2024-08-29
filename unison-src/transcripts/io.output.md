@@ -566,24 +566,24 @@ testGetArgs.runMeWithNoArgs = 'let
   args = reraise !getArgs.impl
   match args with
     [] -> printLine "called with no args"
-    _ -> raise (fail "called with args")
+    _ -> raise (testGetArgs.fail "called with args")
 
 testGetArgs.runMeWithOneArg : '{io2.IO, Exception} ()
 testGetArgs.runMeWithOneArg = 'let
   args = reraise !getArgs.impl
   match args with
-    [] -> raise (fail "called with no args")
+    [] -> raise (testGetArgs.fail "called with no args")
     [_] -> printLine "called with one arg"
-    _ -> raise (fail "called with too many args")
+    _ -> raise (testGetArgs.fail "called with too many args")
 
 testGetArgs.runMeWithTwoArgs : '{io2.IO, Exception} ()
 testGetArgs.runMeWithTwoArgs = 'let
   args = reraise !getArgs.impl
   match args with
-    [] -> raise (fail "called with no args")
-    [_] -> raise (fail "called with one arg")
+    [] -> raise (testGetArgs.fail "called with no args")
+    [_] -> raise (testGetArgs.fail "called with one arg")
     [_, _] -> printLine "called with two args"
-    _ -> raise (fail "called with too many args")
+    _ -> raise (testGetArgs.fail "called with too many args")
 ```
 
 Test that they can be run with the right number of args.

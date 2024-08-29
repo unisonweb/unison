@@ -32,7 +32,7 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.HashQualified (HashQualified)
+import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
@@ -1428,6 +1428,18 @@ renderParseErrors s = \case
                   <> "after the"
                   <> Pr.group (style ErrorSite "0o" <> ".")
             ]
+        L.InvalidBinaryLiteral ->
+          Pr.lines
+            [ "This number isn't valid syntax: ",
+              "",
+              excerpt,
+              Pr.wrap $
+                "I was expecting only binary characters"
+                  <> "(one of"
+                  <> Pr.group (style Code "01" <> ")")
+                  <> "after the"
+                  <> Pr.group (style ErrorSite "0b" <> ".")
+            ]
         L.InvalidShortHash h ->
           Pr.lines
             [ "Invalid hash: " <> style ErrorSite (fromString h),
@@ -1783,8 +1795,6 @@ renderParseErrors s = \case
                 annotatedAsErrorSite s tok
               ]
        in (msg, maybeToList $ rangeForAnnotated tok)
-    go (Parser.UnknownAbilityConstructor tok _referents) = (unknownConstructor "ability" tok, [rangeForToken tok])
-    go (Parser.UnknownDataConstructor tok _referents) = (unknownConstructor "data" tok, [rangeForToken tok])
     go (Parser.UnknownId tok referents references) =
       let msg =
             Pr.lines
@@ -1855,24 +1865,6 @@ renderParseErrors s = \case
                 tokenAsErrorSite s $ HQ.toText <$> tok
               ]
        in (msg, [rangeForToken tok])
-
-    unknownConstructor ::
-      String -> L.Token (HashQualified Name) -> Pretty ColorText
-    unknownConstructor ctorType tok =
-      Pr.lines
-        [ (Pr.wrap . mconcat)
-            [ "I don't know about any ",
-              fromString ctorType,
-              " constructor named ",
-              Pr.group
-                ( stylePretty ErrorSite (prettyHashQualified0 (L.payload tok))
-                    <> "."
-                ),
-              "Maybe make sure it's correctly spelled and that you've imported it:"
-            ],
-          "",
-          tokenAsErrorSite s tok
-        ]
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText
@@ -1954,11 +1946,11 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
 -- suggestions.
 prettyResolutionFailures ::
-  forall v a.
-  (Annotated a, Var v, Ord a) =>
+  forall a.
+  (Annotated a, Ord a) =>
   -- | src
   String ->
-  [Names.ResolutionFailure v a] ->
+  [Names.ResolutionFailure a] ->
   Pretty ColorText
 prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
@@ -1973,32 +1965,39 @@ prettyResolutionFailures s allFailures =
   where
     -- Collapses identical failures which may have multiple annotations into a single failure.
     -- uniqueFailures
-    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable :: [Names.ResolutionFailure a] -> Pretty ColorText
     ambiguitiesToTable failures =
-      let pairs :: ([(v, Maybe (NESet String))])
+      let pairs :: ([(HQ.HashQualified Name, Maybe (NESet String))])
           pairs = nubOrd . fmap toAmbiguityPair $ failures
           spacerRow = ("", "")
        in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
 
-    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
+    toAmbiguityPair :: Names.ResolutionFailure annotation -> (HQ.HashQualified Name, Maybe (NESet String))
     toAmbiguityPair = \case
-      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+      (Names.TermResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTermRef ppe) refs)
-      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+         in ( name,
+              Just $
+                NES.unsafeFromSet
+                  (Set.map (showTermRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
+      (Names.TypeResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTypeRef ppe) refs)
-      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
-      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+         in ( name,
+              Just $
+                NES.unsafeFromSet (Set.map (showTypeRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
+      (Names.TermResolutionFailure name _ Names.NotFound) -> (name, Nothing)
+      (Names.TypeResolutionFailure name _ Names.NotFound) -> (name, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names =
       PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
-    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
-    prettyRow (v, mSet) = case mSet of
-      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
-      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
+    prettyRow :: (HQ.HashQualified Name, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
+    prettyRow (name, mSet) = case mSet of
+      Nothing -> [(prettyHashQualified0 name, Pr.hiBlack "No matches")]
+      Just suggestions -> zip ([prettyHashQualified0 name] ++ repeat "") (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples =

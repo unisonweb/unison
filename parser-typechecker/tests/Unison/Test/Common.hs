@@ -87,5 +87,7 @@ parsingEnv =
   Parser.ParsingEnv
     { uniqueNames = mempty,
       uniqueTypeGuid = \_ -> pure Nothing,
-      names = B.names
+      names = B.names,
+      maybeNamespace = Nothing,
+      localNamespacePrefixedTypesAndConstructors = mempty
     }

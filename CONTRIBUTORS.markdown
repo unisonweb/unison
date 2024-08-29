@@ -88,3 +88,4 @@ The format for this list: name, GitHub handle
 * Eric Torreborre (@etorreborre)
 * Eduard Nicodei (@neduard)
 * Brian McKenna (@puffnfresh)
+* Ruslan Simchuk (@SimaDovakin)

@@ -41,8 +41,8 @@ reference to the name `factorial` within the body of `factorial` is a recursive 
 namespace directive, exact-name-match-wins semantics) or an ambiguous reference (bad, as would be the case if the
 bindings were expanded to `foo.factorial` and `foo.longer.evil.factorial`, but the variables left alone).
 
-Here are a few more examples demonstrating that type names, constructor names, and generated record accessor names are
-all properly handled.
+Here are a few more examples demonstrating that type names, constructor names, generated record accessor names, and
+type links are all properly handled.
 
 ```unison
 type longer.foo.Foo = Bar
@@ -62,14 +62,17 @@ type Baz = { qux : Nat }
 type RefersToFoo = RefersToFoo Foo
 
 refersToBar = cases
-  Bar -> 17
+  Foo.Bar -> 17
 
 refersToQux baz =
   Baz.qux baz + Baz.qux baz
+
+hasTypeLink =
+  {{ {type Foo} }}
 ```
 
 ```ucm
 scratch/main> add
-scratch/main> view RefersToFoo refersToBar refersToQux
+scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
 scratch/main> todo
 ```

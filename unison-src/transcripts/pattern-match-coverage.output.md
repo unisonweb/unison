@@ -853,7 +853,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { B } -> ()
        { abort -> _ } -> bug "aborted"
 ```
@@ -970,7 +970,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { abort -> _ } -> bug "aborted"
 ```
 
@@ -980,7 +980,7 @@ result f = handle !f with cases
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
-        8 |        { A } -> ()
+        8 |        { T.A } -> ()
         9 |        { abort -> _ } -> bug "aborted"
     
   
@@ -997,7 +997,7 @@ unique type T = A | B
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ``` ucm
@@ -1007,7 +1007,7 @@ result f = handle !f with cases
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { x } -> x
-        9 |        { give A -> resume } -> result resume
+        9 |        { give T.A -> resume } -> result resume
     
   
   Patterns not matched:
@@ -1063,9 +1063,19 @@ result f = handle !f with cases
 
   Loading changes detected in scratch.u.
 
-  This case would be ignored because it's already covered by the preceding case(s):
+  
+    ❓
+    
+    I couldn't resolve any of these symbols:
+    
        10 |        { give A -> resume } -> result resume
     
+    
+    Symbol   Suggestions
+             
+    A        SomeType.A
+             T.A
+  
 
 ```
 ## Exhaustive ability reinterpretations are accepted

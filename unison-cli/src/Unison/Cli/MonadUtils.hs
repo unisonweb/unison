@@ -556,5 +556,7 @@ makeParsingEnv path names = do
     ParsingEnv
       { uniqueNames = uniqueName,
         uniqueTypeGuid = loadUniqueTypeGuid path,
-        names
+        names,
+        maybeNamespace = Nothing,
+        localNamespacePrefixedTypesAndConstructors = mempty
       }

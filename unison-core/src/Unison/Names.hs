@@ -38,9 +38,7 @@ module Unison.Names
     typeReferences,
     termsNamed,
     typesNamed,
-    unionLeft,
-    unionLeftName,
-    unionLeftRef,
+    shadowing,
     namesForReference,
     namesForReferent,
     shadowTerms,
@@ -93,7 +91,7 @@ data Names = Names
   { terms :: Relation Name Referent,
     types :: Relation Name TypeReference
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =
@@ -205,79 +203,15 @@ restrictReferences refs Names {..} = Names terms' types'
     terms' = R.filterRan ((`Set.member` refs) . Referent.toReference) terms
     types' = R.filterRan (`Set.member` refs) types
 
--- | Guide to unionLeft*
--- Is it ok to create new aliases for parsing?
---    Sure.
---
--- Is it ok to create name conflicts for parsing?
---    It's okay but not great. The user will have to hash-qualify to disambiguate.
---
--- Is it ok to create new aliases for pretty-printing?
---    Not helpful, we need to choose a name to show.
---    We'll just have to choose one at random if there are aliases.
--- Is it ok to create name conflicts for pretty-printing?
---    Still okay but not great.  The pretty-printer will have to hash-qualify
---    to disambiguate.
---
--- Thus, for parsing:
---       unionLeftName is good if the name `n` on the left is the only `n` the
---           user will want to reference.  It allows the rhs to add aliases.
---       unionLeftRef allows new conflicts but no new aliases.  Lame?
---       (<>) is ok for parsing if we expect to add some conflicted names,
---           e.g. from history
---
--- For pretty-printing:
---       Probably don't want to add new aliases, unless we don't know which
---       `Names` is higher priority.  So if we do have a preferred `Names`,
---       don't use `unionLeftName` or (<>).
---       You don't want to create new conflicts either if you have a preferred
---       `Names`.  So in this case, don't use `unionLeftRef` either.
---       I guess that leaves `unionLeft`.
---
--- Not sure if the above is helpful or correct!
-
--- unionLeft two Names, including new aliases, but excluding new name conflicts.
--- e.g. unionLeftName [foo -> #a, bar -> #a, cat -> #c]
---                    [foo -> #b, baz -> #c]
---                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
--- Btw, it's ok to create name conflicts for parsing environments, if you don't
--- mind disambiguating.
-unionLeftName :: Names -> Names -> Names
-unionLeftName = unionLeft' $ const . R.memberDom
-
--- unionLeft two Names, including new name conflicts, but excluding new aliases.
--- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
---                   [foo -> #b, baz -> #c]
---                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
-unionLeftRef :: Names -> Names -> Names
-unionLeftRef (Names priorityTerms priorityTypes) (Names fallbackTerms fallbackTypes) =
-  Names (restricter priorityTerms fallbackTerms) (restricter priorityTypes fallbackTypes)
+-- | Prefer names in the first argument, falling back to names in the second.
+-- This can be used to shadow names in the codebase with names in a unison file for instance:
+-- e.g. @shadowing scratchFileNames codebaseNames@
+shadowing :: Names -> Names -> Names
+shadowing a b =
+  Names (shadowing a.terms b.terms) (shadowing a.types b.types)
   where
-    restricter priorityRel fallbackRel =
-      let refsExclusiveToFallback = (Relation.ran fallbackRel) `Set.difference` (Relation.ran priorityRel)
-       in priorityRel <> Relation.restrictRan fallbackRel refsExclusiveToFallback
-
--- unionLeft two Names, but don't create new aliases or new name conflicts.
--- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
---                [foo -> #b, baz -> #c]
---              = [foo -> #a, bar -> #a, cat -> #c]
-unionLeft :: Names -> Names -> Names
-unionLeft = unionLeft' go
-  where
-    go n r acc = R.memberDom n acc || R.memberRan r acc
-
--- implementation detail of the above
-unionLeft' ::
-  (forall a b. (Ord a, Ord b) => a -> b -> Relation a b -> Bool) ->
-  Names ->
-  Names ->
-  Names
-unionLeft' shouldOmit a b = Names terms' types'
-  where
-    terms' = foldl' go a.terms (R.toList b.terms)
-    types' = foldl' go a.types (R.toList b.types)
-    go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-    go acc (n, r) = if shouldOmit n r acc then acc else R.insert n r acc
+    shadowing xs ys =
+      Relation.fromMultimap (Map.unionWith (\x _ -> x) (Relation.domain xs) (Relation.domain ys))
 
 -- | TODO: get this from database. For now it's a constant.
 numHashChars :: Int

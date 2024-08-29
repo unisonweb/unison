@@ -19,7 +19,6 @@ import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
@@ -44,7 +43,7 @@ import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as UF
 import Prelude hiding (readFile)
 
-resolutionFailures :: (Ord v) => [Names.ResolutionFailure v Ann] -> P v m x
+resolutionFailures :: (Ord v) => [Names.ResolutionFailure Ann] -> P v m x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
 
 file :: forall m v. (Monad m, Var v) => P v m (UnisonFile v Ann)
@@ -52,10 +51,11 @@ file = do
   _ <- openBlock
 
   -- Parse an optional directive like "namespace foo.bar"
-  maybeNamespace :: Maybe v <-
+  maybeNamespace :: Maybe Name.Name <-
     optional (reserved "namespace") >>= \case
       Nothing -> pure Nothing
-      Just _ -> Just . Name.toVar . L.payload <$> (importWordyId <|> importSymbolyId)
+      Just _ -> Just . L.payload <$> (importWordyId <|> importSymbolyId)
+  let maybeNamespaceVar = Name.toVar <$> maybeNamespace
 
   -- The file may optionally contain top-level imports,
   -- which are parsed and applied to the type decls and term stanzas
@@ -65,7 +65,7 @@ file = do
   env <-
     let applyNamespaceToDecls :: forall decl. Iso' decl (DataDeclaration v Ann) -> Map v decl -> Map v decl
         applyNamespaceToDecls dataDeclL =
-          case maybeNamespace of
+          case maybeNamespaceVar of
             Nothing -> id
             Just namespace -> Map.fromList . map f . Map.toList
               where
@@ -90,7 +90,7 @@ file = do
         (typ, fields) <- parsedAccessors
         -- The parsed accessor has an un-namespaced type, so apply the namespace directive (if necessary) before
         -- looking up in the environment computed by `environmentFor`.
-        let typ1 = maybe id Var.namespaced2 maybeNamespace (L.payload typ)
+        let typ1 = maybe id Var.namespaced2 maybeNamespaceVar (L.payload typ)
         Just (r, _) <- [Map.lookup typ1 (UF.datas env)]
         -- Generate the record accessors with *un-namespaced* names (passing `typ` rather than `typ1`) below, because we
         -- need to know these names in order to perform rewriting. As an example,
@@ -107,26 +107,25 @@ file = do
   let accessors :: [(v, Ann, Term v Ann)]
       accessors =
         unNamespacedAccessors
-          & case maybeNamespace of
+          & case maybeNamespaceVar of
             Nothing -> id
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
-  let importNames = [(Name.unsafeParseVar v, Name.unsafeParseVar v2) | (v, v2) <- imports]
-  let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations. The `push locals` here has the effect
-  -- of making suffix-based name resolution prefer type and constructor names coming
-  -- from the local file.
-  --
-  -- There's some more complicated logic below to have suffix-based name resolution
-  -- make use of _terms_ from the local file.
-  local (\e -> e {names = Names.push locals namesStart}) do
+  -- declarations.
+  let updateEnvForTermParsing e =
+        e
+          { names = Names.shadowing (UF.names env) namesStart,
+            maybeNamespace,
+            localNamespacePrefixedTypesAndConstructors = UF.names env
+          }
+  local updateEnvForTermParsing do
     names <- asks names
     stanzas <- do
       unNamespacedStanzas0 <- sepBy semi stanza
       let unNamespacedStanzas = fmap (TermParser.substImports names imports) <$> unNamespacedStanzas0
       pure $
         unNamespacedStanzas
-          & case maybeNamespace of
+          & case maybeNamespaceVar of
             Nothing -> id
             Just namespace ->
               let unNamespacedTermNamespaceNames :: Set v
@@ -155,27 +154,12 @@ file = do
         --   [foo.alice, bar.alice, zonk.bob]
         fqLocalTerms :: [v]
         fqLocalTerms = (stanzas >>= getVars) <> (view _1 <$> accessors)
-    -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
-    -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
-    let (curNames, resolveLocals) =
-          ( Names.shadowTerms locals names,
-            resolveLocals
-          )
-          where
-            -- Each unique suffix mapped to its fully qualified name
-            canonicalVars :: Map v v
-            canonicalVars = UFN.variableCanonicalizer fqLocalTerms
-
-            -- All unique local term name suffixes - these we want to
-            -- avoid resolving to a term that's in the codebase
-            locals :: [Name.Name]
-            locals = (Name.unsafeParseVar <$> Map.keys canonicalVars)
-
-            -- A function to replace unique local term suffixes with their
-            -- fully qualified name
-            replacements = [(v, Term.var () v2) | (v, v2) <- Map.toList canonicalVars, v /= v2]
-            resolveLocals = ABT.substsInheritAnnotation replacements
-    let bindNames = Term.bindSomeNames Name.unsafeParseVar (Set.fromList fqLocalTerms) curNames . resolveLocals
+    let bindNames =
+          Term.bindNames
+            Name.unsafeParseVar
+            Name.toVar
+            (Set.fromList fqLocalTerms)
+            (Names.shadowTerms (map Name.unsafeParseVar fqLocalTerms) names)
     terms <- case List.validate (traverseOf _3 bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms

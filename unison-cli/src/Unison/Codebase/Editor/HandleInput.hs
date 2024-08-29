@@ -1672,13 +1672,15 @@ parseType input src = do
         Parser.ParsingEnv
           { uniqueNames = mempty,
             uniqueTypeGuid = \_ -> pure Nothing,
-            names
+            names,
+            maybeNamespace = Nothing,
+            localNamespacePrefixedTypesAndConstructors = mempty
           }
   typ <-
     Parsers.parseType (Text.unpack (fst lexed)) parsingEnv & onLeftM \err ->
       Cli.returnEarly (TypeParseError src err)
 
-  Type.bindNames Name.unsafeParseVar mempty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
+  Type.bindNames Name.unsafeParseVar Name.toVar Set.empty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
 
 -- Adds a watch expression of the given name to the file, if
