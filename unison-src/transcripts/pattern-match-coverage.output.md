@@ -1056,26 +1056,16 @@ result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
        { give _ -> resume } -> result resume
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ``` ucm
 
   Loading changes detected in scratch.u.
 
-  
-    ❓
+  This case would be ignored because it's already covered by the preceding case(s):
+       10 |        { give T.A -> resume } -> result resume
     
-    I couldn't resolve any of these symbols:
-    
-       10 |        { give A -> resume } -> result resume
-    
-    
-    Symbol   Suggestions
-             
-    A        SomeType.A
-             T.A
-  
 
 ```
 ## Exhaustive ability reinterpretations are accepted

@@ -465,7 +465,7 @@ result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
        { give _ -> resume } -> result resume
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ## Exhaustive ability reinterpretations are accepted
