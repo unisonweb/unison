@@ -66,6 +66,7 @@ import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.TypeError
 import Unison.Typechecker.TypeVar qualified as TypeVar
@@ -535,6 +536,7 @@ renderTypeError e env src = case e of
           src
           [styleAnnotated Type1 foundLeaf]
           [styleAnnotated Type2 expectedLeaf],
+        missingDelayHint,
         unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
@@ -555,6 +557,20 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
     where
+      missingDelayHint = case Typechecker.isMismatchMissingDelay foundType expectedType of
+        Nothing -> ""
+        Just (Left _) ->
+          Pr.lines
+            [ "I expected the expression to be delayed, but it was not.",
+              "Are you missing a `do`?"
+            ]
+        Just (Right _) ->
+          Pr.lines
+            [ "",
+              "I didn't expect this expression to be delayed, but it was.",
+              "Are you using a `do` where you don't need one,",
+              "or are you missing a `()` to force an expression?"
+            ]
       unitHintMsg =
         "\nHint: Actions within a block must have type "
           <> style Type2 (renderType' env expectedLeaf)
