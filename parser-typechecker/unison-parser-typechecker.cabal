@@ -200,7 +200,6 @@ library
   build-depends:
       ListLike
     , aeson
-    , ansi-terminal
     , async
     , atomic-primops
     , base

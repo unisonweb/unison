@@ -13,7 +13,6 @@ when:
   - condition: flag(optimized)
     ghc-options: -funbox-strict-fields -O2
 
-
 library:
   source-dirs: src
   when:
@@ -23,7 +22,6 @@ library:
   dependencies:
     - ListLike
     - aeson
-    - ansi-terminal
     - async
     - atomic-primops
     - base
