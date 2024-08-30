@@ -1056,7 +1056,7 @@ result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
        { give _ -> resume } -> result resume
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ``` ucm
@@ -1064,7 +1064,7 @@ result f = handle !f with cases
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
-       10 |        { give A -> resume } -> result resume
+       10 |        { give T.A -> resume } -> result resume
     
 
 ```

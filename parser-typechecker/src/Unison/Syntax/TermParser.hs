@@ -155,11 +155,11 @@ link :: (Monad m, Var v) => TermP v m
 link = termLink <|> typeLink
   where
     typeLink = do
-      _ <- P.try (reserved "typeLink") -- type opens a block, gotta use something else
+      _ <- reserved "typeLink" -- type opens a block, gotta use something else
       tok <- typeLink'
       pure $ Term.typeLink (ann tok) (L.payload tok)
     termLink = do
-      _ <- P.try (reserved "termLink")
+      _ <- reserved "termLink"
       tok <- termLink'
       pure $ Term.termLink (ann tok) (L.payload tok)
 
@@ -191,7 +191,7 @@ match = do
   scrutinee <- term
   _ <- optionalCloseBlock
   _ <-
-    P.try (openBlockWith "with") <|> do
+    openBlockWith "with" <|> do
       t <- anyToken
       P.customFailure (ExpectedBlockOpen "with" t)
   (_arities, cases) <- unzip <$> matchCases
@@ -225,7 +225,7 @@ matchCase = do
         _ <- reserved "|"
         guard <-
           asum
-            [ Nothing <$ P.try (quasikeyword "otherwise"),
+            [ Nothing <$ quasikeyword "otherwise",
               Just <$> infixAppOrBooleanOp
             ]
         (_spanAnn, t) <- layoutBlock "->"
@@ -302,7 +302,7 @@ parsePattern = label "pattern" root
     ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
     ctor ct = do
       -- this might be a var, so we avoid consuming it at first
-      tok <- P.try (P.lookAhead hqPrefixId)
+      tok <- P.lookAhead hqPrefixId
 
       -- First, if:
       --
@@ -360,7 +360,7 @@ parsePattern = label "pattern" root
             | Set.null s
                 && (isLower n || isIgnored n) ->
                 fail $ "not a constructor name: " <> show n
-          -- it was hash qualified and/or uppercase, and wasn't found in the env, that's a failure!
+          -- it was hash qualified and/or uppercase, and was either not found or ambiguous, that's a failure!
           _ ->
             failCommitted $
               ResolutionFailures
@@ -381,14 +381,10 @@ parsePattern = label "pattern" root
                 ]
     unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
-    effectBind0 = do
+    effectBind = do
       tok <- ctor CT.Effect
       leaves <- many leaf
       _ <- reserved "->"
-      pure (tok, leaves)
-
-    effectBind = do
-      (tok, leaves) <- P.try effectBind0
       (cont, vsp) <- parsePattern
       pure $
         let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) (L.payload tok) patterns cont, vs ++ vsp)
@@ -400,12 +396,37 @@ parsePattern = label "pattern" root
 
     effect = do
       start <- openBlockWith "{"
-      (inner, vs) <- effectBind <|> effectPure
-      end <- closeBlock
+
+      -- After the opening curly brace, we are expecting either an EffectBind or an EffectPure:
+      --
+      --   EffectBind            EffectPure
+      --
+      --   { foo bar -> baz }    { qux }
+      --     ^^^^^^^^^^^^^^        ^^^
+      --
+      -- We accomplish that as follows:
+      --
+      --   * First try EffectPure + "}"
+      --     * If that fails, back the parser up and try EffectBind + "}" instaed
+      --
+      -- This won't always result in the best possible error messages, but it's not exactly trivial to do better,
+      -- requiring more sophisticated look-ahead logic. So, this is how it works for now.
+      (inner, vs, end) <-
+        asum
+          [ P.try do
+              (inner, vs) <- effectPure
+              end <- closeBlock
+              pure (inner, vs, end),
+            do
+              (inner, vs) <- effectBind
+              end <- closeBlock
+              pure (inner, vs, end)
+          ]
+
       pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
     -- ex: unique type Day = Mon | Tue | ...
-    nullaryCtor = P.try do
+    nullaryCtor = do
       tok <- ctor CT.Data
       pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
 
