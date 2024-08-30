@@ -1,14 +1,14 @@
 This transcript demonstrates that unique types no longer always get a fresh GUID: they share GUIDs with already-saved
 unique types of the same name.
 
-```unison
+``` unison
 unique type A = A
 
 unique type B = B C
 unique type C = C B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -23,8 +23,8 @@ unique type C = C B
       type C
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -33,14 +33,14 @@ unique type C = C B
     type C
 
 ```
-```unison
+``` unison
 unique type A = A
 
 unique type B = B C
 unique type C = C B
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -50,8 +50,8 @@ unique type C = C B
 ```
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
 
-```ucm
-.> names A
+``` ucm
+scratch/main> names A
 
   Type
   Hash:  #uj8oalgadr
@@ -60,15 +60,13 @@ If the name stays the same, the churn is even prevented if the type is updated a
   Term
   Hash:   #uj8oalgadr#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```
-```unison
+``` unison
 unique type A = A ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -82,15 +80,15 @@ unique type A = A ()
       type A
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names A
+scratch/main> names A
 
   Type
   Hash:  #ufo5tuc7ho
@@ -99,15 +97,13 @@ unique type A = A ()
   Term
   Hash:   #ufo5tuc7ho#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```
-```unison
+``` unison
 unique type A = A
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -123,15 +119,15 @@ unique type A = A
 ```
 Note that `A` is back to its original hash.
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names A
+scratch/main> names A
 
   Type
   Hash:  #uj8oalgadr
@@ -140,7 +136,5 @@ Note that `A` is back to its original hash.
   Term
   Hash:   #uj8oalgadr#0
   Names:  A.A
-  
-  Tip: Use `names.global` to see more results.
 
 ```

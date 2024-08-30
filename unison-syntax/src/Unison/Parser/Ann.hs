@@ -4,7 +4,11 @@
 
 module Unison.Parser.Ann where
 
+import Control.Comonad.Cofree (Cofree ((:<)))
+import Data.List.NonEmpty (NonEmpty)
+import Data.Void (absurd)
 import Unison.Lexer.Pos qualified as L
+import Unison.Prelude
 
 data Ann
   = -- Used for things like Builtins which don't have a source position.
@@ -25,6 +29,7 @@ startingLine _ = Nothing
 instance Monoid Ann where
   mempty = External
 
+-- | This instance is commutative.
 instance Semigroup Ann where
   Ann s1 e1 <> Ann s2 e2 = Ann (min s1 s2) (max e1 e2)
   -- If we have a concrete location from a file, use it
@@ -79,3 +84,24 @@ encompasses (GeneratedFrom ann) other = encompasses ann other
 encompasses ann (GeneratedFrom other) = encompasses ann other
 encompasses (Ann start1 end1) (Ann start2 end2) =
   Just $ start1 <= start2 && end1 >= end2
+
+class Annotated a where
+  ann :: a -> Ann
+
+instance Annotated Ann where
+  ann = id
+
+instance (Annotated a) => Annotated [a] where
+  ann = foldMap ann
+
+instance (Annotated a) => Annotated (NonEmpty a) where
+  ann = foldMap ann
+
+instance (Annotated a) => Annotated (Maybe a) where
+  ann = foldMap ann
+
+instance Annotated Void where
+  ann = absurd
+
+instance (Annotated a) => Annotated (Cofree f a) where
+  ann (a :< _) = ann a

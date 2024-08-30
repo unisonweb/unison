@@ -22,6 +22,8 @@ jobs:
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 2.15.5
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -36,6 +38,9 @@ jobs:
           stack exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: transcripts
         run: stack exec transcripts
+      - name: docs.to-html
+        run: |
+          stack exec unison transcript unison-src/transcripts-manual/docs.to-html.md
       - name: save transcript changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:

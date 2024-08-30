@@ -63,7 +63,7 @@ type Id = Id' Hash Hash
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Functor, Ord, Show)
 
 instance Bifunctor Referent' where
   bimap f g = \case

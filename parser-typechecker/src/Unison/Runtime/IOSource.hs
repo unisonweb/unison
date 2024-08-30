@@ -3,7 +3,7 @@
 
 module Unison.Runtime.IOSource where
 
-import Control.Lens (view, _2)
+import Control.Lens (_2)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import Data.Map qualified as Map
@@ -41,7 +41,9 @@ parsingEnv =
   Parser.ParsingEnv
     { uniqueNames = mempty,
       uniqueTypeGuid = \_ -> pure Nothing,
-      names = Builtin.names
+      names = Builtin.names,
+      maybeNamespace = Nothing,
+      localNamespacePrefixedTypesAndConstructors = mempty
     }
 
 typecheckingEnv :: Typechecker.Env Symbol Ann

@@ -1,11 +1,10 @@
 module Unison.Builtin.Decls where
 
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Data.List (elemIndex, find)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
-import Data.Sequence (Seq)
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -14,6 +13,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls, typeToReference)
 import Unison.Pattern qualified as Pattern
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -174,13 +174,13 @@ rewriteCaseRef = lookupDeclRef "RewriteCase"
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
 
-rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteCase :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
     r = ConstructorReference rewriteCaseRef 0
 
-rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteTerm :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
@@ -596,7 +596,7 @@ builtinEffectDecls =
         Structural
         ()
         []
-        [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+        [ ((), v "Exception.raise", Type.forAll () (v "x") (failureType () `arr` self (var "x")))
         ]
 
 pattern UnitRef :: Reference
@@ -776,8 +776,8 @@ tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: (Var v) => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.typed Var.Delay
+delayTerm :: (Var v) => a -> a -> Term v a -> Term v a
+delayTerm spanAnn argAnn = Term.lam spanAnn (argAnn, Var.typed Var.Delay)
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->

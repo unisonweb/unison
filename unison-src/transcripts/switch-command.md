@@ -1,8 +1,6 @@
 The `switch` command switches to an existing project or branch.
 
 ```ucm:hide
-.> project.create-empty foo
-.> project.create-empty bar
 foo/main> builtins.merge
 bar/main> builtins.merge
 ```
@@ -24,8 +22,8 @@ the current project can be preceded by a forward slash (which makes it unambiguo
 forward slash (which makes it unambiguous).
 
 ```ucm
-.> switch foo
-.> switch foo/topic
+scratch/main> switch foo
+scratch/main> switch foo/topic
 foo/main> switch topic
 foo/main> switch /topic
 foo/main> switch bar/
@@ -40,11 +38,11 @@ foo/main> switch bar
 It's an error to try to switch to something that doesn't exist, of course.
 
 ```ucm:error
-.> switch foo/no-such-branch
+scratch/main> switch foo/no-such-branch
 ```
 
 ```ucm:error
-.> switch no-such-project
+scratch/main> switch no-such-project
 ```
 
 ```ucm:error

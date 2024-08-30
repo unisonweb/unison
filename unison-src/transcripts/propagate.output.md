@@ -2,14 +2,14 @@
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
-```unison
+``` unison
 unique type Foo = Foo
 
 fooToInt : Foo -> Int
 fooToInt _ = +42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -25,15 +25,15 @@ fooToInt _ = +42
 ```
 And then we add it.
 
-```ucm
-.subpath> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
     fooToInt : Foo -> Int
 
-.subpath> find.verbose
+scratch/main> find.verbose
 
   1. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo
      type Foo
@@ -46,7 +46,7 @@ And then we add it.
      
   
 
-.subpath> view fooToInt
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -54,11 +54,11 @@ And then we add it.
 ```
 Then if we change the type `Foo`...
 
-```unison
+``` unison
 unique type Foo = Foo | Bar
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -74,8 +74,8 @@ unique type Foo = Foo | Bar
 ```
 and update the codebase to use the new type `Foo`...
 
-```ucm
-.subpath> update.old
+``` ucm
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -84,8 +84,8 @@ and update the codebase to use the new type `Foo`...
 ```
 ... it should automatically propagate the type to `fooToInt`.
 
-```ucm
-.subpath> view fooToInt
+``` ucm
+scratch/main> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -96,7 +96,7 @@ and update the codebase to use the new type `Foo`...
 We make a term that has a dependency on another term and also a non-redundant
 user-provided type signature.
 
-```unison
+``` unison
 preserve.someTerm : Optional foo -> Optional foo
 preserve.someTerm x = x
 
@@ -104,7 +104,7 @@ preserve.otherTerm : Optional baz -> Optional baz
 preserve.otherTerm y = someTerm y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -120,8 +120,8 @@ preserve.otherTerm y = someTerm y
 ```
 Add that to the codebase:
 
-```ucm
-.subpath> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -131,12 +131,12 @@ Add that to the codebase:
 ```
 Let's now edit the dependency:
 
-```unison
+``` unison
 preserve.someTerm : Optional x -> Optional x
 preserve.someTerm _ = None
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -152,8 +152,8 @@ preserve.someTerm _ = None
 ```
 Update...
 
-```ucm
-.subpath> update.old
+``` ucm
+scratch/main> update.old
 
   ⍟ I've updated these names to your new definition:
   
@@ -163,109 +163,15 @@ Update...
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
-```ucm
-.subpath> view preserve.someTerm
+``` ucm
+scratch/main> view preserve.someTerm
 
   preserve.someTerm : Optional x -> Optional x
   preserve.someTerm _ = None
 
-.subpath> view preserve.otherTerm
+scratch/main> view preserve.otherTerm
 
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y
-
-```
-### Propagation only applies to the local branch
-
-Cleaning up a bit...
-
-```ucm
-.> delete.namespace subpath
-
-  Done.
-
-  ☝️  The namespace .subpath.lib is empty.
-
-.subpath.lib> builtins.merge
-
-  Done.
-
-```
-Now, we make two terms, where one depends on the other.
-
-```unison
-one.someTerm : Optional foo -> Optional foo
-one.someTerm x = x
-
-one.otherTerm : Optional baz -> Optional baz
-one.otherTerm y = someTerm y
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      one.otherTerm : Optional baz -> Optional baz
-      one.someTerm  : Optional foo -> Optional foo
-
-```
-We'll make two copies of this namespace.
-
-```ucm
-.subpath> add
-
-  ⍟ I've added these definitions:
-  
-    one.otherTerm : Optional baz -> Optional baz
-    one.someTerm  : Optional foo -> Optional foo
-
-.subpath> fork one two
-
-  Done.
-
-```
-Now let's edit one of the terms...
-
-```unison
-someTerm : Optional x -> Optional x
-someTerm _ = None
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      someTerm : Optional x -> Optional x
-
-```
-... in one of the namespaces...
-
-```ucm
-.subpath.one> update.old
-
-  ⍟ I've updated these names to your new definition:
-  
-    someTerm : #nirp5os0q6 x -> #nirp5os0q6 x
-
-```
-The other namespace should be left alone.
-
-```ucm
-.subpath> view two.someTerm
-
-  two.someTerm : Optional foo -> Optional foo
-  two.someTerm x = x
 
 ```

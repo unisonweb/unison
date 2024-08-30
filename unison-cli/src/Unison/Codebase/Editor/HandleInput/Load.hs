@@ -6,10 +6,11 @@ module Unison.Codebase.Editor.HandleInput.Load
   )
 where
 
-import Control.Lens ((.=), (.~))
+import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import System.Environment (withArgs)
 import Unison.Cli.Monad (Cli)
@@ -26,21 +27,28 @@ import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Timing qualified as Timing
+import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 
 handleLoad :: Maybe FilePath -> Cli ()
@@ -65,11 +73,14 @@ loadUnisonFile sourceName text = do
   pped <- Cli.prettyPrintEnvDeclFromNames names
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
-  (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
-  let e' = Map.map go e
-      go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-  when (not (null e')) do
-    Cli.respond $ Output.Evaluated text ppe bindings e'
+
+  when (not . null $ UF.watchComponents unisonFile) do
+    Timing.time "evaluating watches" do
+      (bindings, e) <- evalUnisonFile Permissive ppe unisonFile []
+      let e' = Map.map go e
+          go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+      when (not (null e')) do
+        Cli.respond $ Output.Evaluated text ppe bindings e'
   #latestTypecheckedFile .= Just (Right unisonFile)
   where
     withFile ::
@@ -78,18 +89,20 @@ loadUnisonFile sourceName text = do
       Text ->
       Cli (TypecheckedUnisonFile Symbol Ann)
     withFile names sourceName text = do
-      currentPath <- Cli.getCurrentPath
+      pp <- Cli.getCurrentProjectPath
       State.modify' \loopState ->
         loopState
-          & #latestFile .~ Just (Text.unpack sourceName, False)
-          & #latestTypecheckedFile .~ Nothing
+          & (#latestFile .~ Just (Text.unpack sourceName, False))
+          & (#latestTypecheckedFile .~ Nothing)
       Cli.Env {codebase, generateUniqueName} <- ask
       uniqueName <- liftIO generateUniqueName
       let parsingEnv =
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-                names
+                uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
+                names,
+                maybeNamespace = Nothing,
+                localNamespacePrefixedTypesAndConstructors = mempty
               }
       unisonFile <-
         Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
@@ -101,8 +114,29 @@ loadUnisonFile sourceName text = do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
       maybeTypecheckedUnisonFile & onNothing do
-        let namesWithFileDefinitions = UF.addNamesFromUnisonFile unisonFile names
-        pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+        let pped =
+              let ns =
+                    names
+                      -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
+                      -- don't have term `Names`)
+                      & Names.shadowing (UF.toNames unisonFile)
+               in PPED.makePPED
+                    (PPE.hqNamer 10 ns)
+                    ( PPE.suffixifyByHashWithUnhashedTermsInScope
+                        ( Set.union
+                            (Set.map Name.unsafeParseVar (Map.keysSet (UF.terms unisonFile)))
+                            ( foldMap
+                                ( foldMap \case
+                                    (v, _, _) ->
+                                      case Var.typeOf v of
+                                        Var.User _ -> Set.singleton (Name.unsafeParseVar v)
+                                        _ -> Set.empty
+                                )
+                                (UF.watches unisonFile)
+                            )
+                        )
+                        ns
+                    )
         let suffixifiedPPE = PPED.suffixifiedPPE pped
         let tes = [err | Result.TypeError err <- toList notes]
             cbs =

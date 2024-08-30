@@ -1,8 +1,7 @@
 module Unison.Codebase.Editor.UriParser
   ( readRemoteNamespaceParser,
-    writeRemoteNamespace,
-    writeRemoteNamespaceWith,
     parseReadShareLooseCode,
+    writeRemoteNamespace,
   )
 where
 
@@ -17,11 +16,9 @@ import Unison.Codebase.Editor.RemoteRepo
     ReadShareLooseCode (..),
     ShareCodeserver (DefaultCodeserver),
     ShareUserHandle (..),
-    WriteRemoteNamespace (..),
-    WriteShareRemoteNamespace (..),
   )
 import Unison.Codebase.Path qualified as Path
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified
@@ -53,25 +50,9 @@ parseReadShareLooseCode label input =
 
 -- >>> P.parseMaybe writeRemoteNamespace "unisonweb.base._releases.M4"
 -- Just (WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4}))
-writeRemoteNamespace :: P (WriteRemoteNamespace (These ProjectName ProjectBranchName))
+writeRemoteNamespace :: P (These ProjectName ProjectBranchName)
 writeRemoteNamespace =
-  writeRemoteNamespaceWith
-    (projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ProjectBranchSpecifier'Name)
-
-writeRemoteNamespaceWith :: P a -> P (WriteRemoteNamespace a)
-writeRemoteNamespaceWith projectBranchParser =
-  WriteRemoteProjectBranch <$> projectBranchParser
-    <|> WriteRemoteNamespaceShare <$> writeShareRemoteNamespace
-
--- >>> P.parseMaybe writeShareRemoteNamespace "unisonweb.base._releases.M4"
--- Just (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4})
-writeShareRemoteNamespace :: P WriteShareRemoteNamespace
-writeShareRemoteNamespace =
-  P.label "write share remote namespace" $
-    WriteShareRemoteNamespace
-      <$> pure DefaultCodeserver
-      <*> shareUserHandle
-      <*> (Path.fromList <$> P.many (C.char '.' *> nameSegment))
+  (projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths ProjectBranchSpecifier'Name)
 
 -- >>> P.parseMaybe readShareLooseCode ".unisonweb.base._releases.M4"
 -- >>> P.parseMaybe readShareLooseCode "unisonweb.base._releases.M4"

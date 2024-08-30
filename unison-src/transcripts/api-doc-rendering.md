@@ -1,7 +1,7 @@
 # Doc rendering
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison:hide
@@ -82,13 +82,13 @@ term = 42
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> display term.doc
+scratch/main> display term.doc
 ```
 
 ```api
-GET /api/non-project-code/getDefinition?names=term
+GET /api/projects/scratch/branches/main/getDefinition?names=term
 ```

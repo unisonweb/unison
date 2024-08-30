@@ -2,11 +2,11 @@
 
 Should block an `add` if it requires an update on an in-file dependency.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,8 +19,8 @@ x = 1
       x : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -29,12 +29,12 @@ x = 1
 ```
 Update `x`, and add a new `y` which depends on the update
 
-```unison
+``` unison
 x = 10
 y = x + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -54,8 +54,8 @@ y = x + 1
 ```
 Try to add only the new `y`. This should fail because it requires an update to `x`, but we only ran an 'add'.
 
-```ucm
-.> add y
+``` ucm
+scratch/main> add y
 
   x These definitions failed:
   

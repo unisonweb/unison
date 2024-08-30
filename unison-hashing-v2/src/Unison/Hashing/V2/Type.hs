@@ -23,6 +23,7 @@ where
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
+import Unison.HashQualified qualified as HQ
 import Unison.Hashing.V2.ABT qualified as ABT
 import Unison.Hashing.V2.Kind qualified as K
 import Unison.Hashing.V2.Reference (Reference (..), pattern ReferenceDerived)
@@ -64,12 +65,12 @@ bindReferences ::
   Set v ->
   Map Name.Name Reference ->
   Type v a ->
-  Names.ResolutionResult v a (Type v a)
+  Names.ResolutionResult a (Type v a)
 bindReferences unsafeVarToName keepFree ns t =
   let fvs = ABT.freeVarOccurrences keepFree t
       rs = [(v, a, Map.lookup (unsafeVarToName v) ns) | (v, a) <- fvs]
       ok (v, _a, Just r) = pure (v, r)
-      ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+      ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure (HQ.NameOnly (unsafeVarToName v)) a Names.NotFound))
    in List.validate ok rs <&> \es -> bindExternal es t
 
 -- some smart patterns
@@ -103,15 +104,15 @@ charRef = ReferenceBuiltin "Char"
 listRef = ReferenceBuiltin "Sequence"
 effectRef = ReferenceBuiltin "Effect"
 
-forall :: (Ord v) => a -> v -> Type v a -> Type v a
-forall a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))
+forAll :: (Ord v) => a -> v -> Type v a -> Type v a
+forAll a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
 generalize :: (Ord v) => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
   where
     f v t =
-      if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
+      if Set.member v (ABT.freeVars t) then forAll (ABT.annotation t) v t else t
 
 unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)

@@ -79,7 +79,7 @@ inferDecls ppe declMap =
 
 -- | Break the decls into strongly connected components in reverse
 -- topological order
-intoComponents :: forall v a. Ord v => Map Reference (Decl v a) -> [[(Reference, Decl v a)]]
+intoComponents :: forall v a. (Ord v) => Map Reference (Decl v a) -> [[(Reference, Decl v a)]]
 intoComponents declMap =
   let graphInput :: [(Decl v a, Reference, [Reference])]
       graphInput = Map.foldrWithKey (\k a b -> (a, k, declReferences a) : b) [] declMap

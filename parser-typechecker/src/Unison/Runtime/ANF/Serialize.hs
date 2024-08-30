@@ -19,11 +19,11 @@ import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
+import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
-import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
 import Unison.Util.EnumContainers qualified as EC
@@ -682,7 +682,7 @@ getBLit v =
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
-    ArrT -> Arr . PA.fromList <$> getList (getValue v)
+    ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue v)
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -948,7 +948,7 @@ serializeGroup fops sg = runPutS (putVersion *> putGroup mempty fops sg)
 -- Supplying a `Builtin` reference is not supported. Such code
 -- shouldn't be subject to rehashing.
 serializeGroupForRehash ::
-  Var v =>
+  (Var v) =>
   EC.EnumMap FOp Text ->
   Reference ->
   SuperGroup v ->
@@ -962,7 +962,7 @@ serializeGroupForRehash fops (Derived h _) sg =
     f _ = Nothing
     refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
-getVersionedValue :: MonadGet m => m Value
+getVersionedValue :: (MonadGet m) => m Value
 getVersionedValue = getVersion >>= getValue
   where
     getVersion =

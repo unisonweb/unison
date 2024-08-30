@@ -8,16 +8,16 @@ module Unison.Server.CodebaseServer where
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
-import Control.Lens ((.~))
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
+import Crypto.Random qualified as Crypto
 import Data.Aeson ()
+import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString qualified as Strict
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.UTF8 qualified as BLU
-import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
@@ -84,7 +84,8 @@ import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
-import System.Random.MWC (createSystemRandom)
+import U.Codebase.Branch qualified as V2
+import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -118,15 +119,12 @@ import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, List
 import Unison.Server.Local.Endpoints.UCM (UCMAPI, ucmServer)
 import Unison.Server.NameSearch (NameSearch (..))
 import Unison.Server.NameSearch.FromNames qualified as Names
-import Unison.Server.Types (TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
+import Unison.Server.Types (RequiredQueryParam, TermDefinition (..), TermDiffResponse (..), TypeDefinition (..), TypeDiffResponse (..), mungeString, setCacheControl)
 import Unison.ShortHash qualified as ShortHash
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty qualified as Pretty
-
--- | Fail the route with a reasonable error if the query param is missing.
-type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
 
 -- HTML content type
 data HTML = HTML
@@ -143,11 +141,8 @@ type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type UnisonAndDocsAPI = UnisonLocalAPI :<|> OpenApiJSON :<|> Raw
 
-type LooseCodeAPI = CodebaseServerAPI
-
 type UnisonLocalAPI =
   ("projects" :> ProjectsAPI)
-    :<|> ("non-project-code" :> LooseCodeAPI)
     :<|> ("ucm" :> UCMAPI)
 
 type CodebaseServerAPI =
@@ -235,9 +230,8 @@ data DefinitionReference
   deriving stock (Show)
 
 data Service
-  = LooseCodeUI Path.Absolute (Maybe DefinitionReference)
-  | -- (Project branch names, perspective within project, definition reference)
-    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Path (Maybe DefinitionReference)
+  = -- (Project branch names, perspective within project, definition reference)
+    ProjectBranchUI (ProjectAndBranch ProjectName ProjectBranchName) Path.Absolute (Maybe DefinitionReference)
   | Api
   deriving stock (Show)
 
@@ -296,14 +290,12 @@ data URISegment
 urlFor :: Service -> BaseUrl -> Text
 urlFor service baseUrl =
   case service of
-    LooseCodeUI perspective def ->
-      tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "non-project-code"] <> path (Path.unabsolute perspective) def)
     ProjectBranchUI (ProjectAndBranch projectName branchName) perspective def ->
       tShow baseUrl <> "/" <> toUrlPath ([DontEscape "ui", DontEscape "projects", DontEscape $ into @Text projectName, DontEscape $ into @Text branchName] <> path perspective def)
     Api -> tShow baseUrl <> "/" <> toUrlPath [DontEscape "api"]
   where
-    path :: Path.Path -> Maybe DefinitionReference -> [URISegment]
-    path ns def =
+    path :: Path.Absolute -> Maybe DefinitionReference -> [URISegment]
+    path (Path.Absolute ns) def =
       let nsPath = namespacePath ns
        in case definitionPath def of
             Just defPath -> case nsPath of
@@ -408,11 +400,18 @@ app env rt codebase uiPath expectedToken allowCorsHost =
 
 -- | The Token is used to help prevent multiple users on a machine gain access to
 -- each others codebases.
+--
+-- Generate a cryptographically secure random token.
+-- https://neilmadden.blog/2018/08/30/moving-away-from-uuids/
+--
+--  E.g.
+-- >>> genToken
+-- "uxf85C7Y0B6om47"
 genToken :: IO Strict.ByteString
 genToken = do
-  g <- createSystemRandom
-  n <- customNanoID defaultAlphabet 16 g
-  pure $ unNanoID n
+  BE.convertToBase @ByteString BE.Base64URLUnpadded <$> Crypto.getRandomBytes numRandomBytes
+  where
+    numRandomBytes = 10
 
 data Waiter a = Waiter
   { notify :: a -> IO (),
@@ -561,18 +560,6 @@ serveOpenAPI = pure openAPI
 hoistWithAuth :: forall api. (HasServer api '[]) => Proxy api -> ByteString -> ServerT api Handler -> ServerT (Authed api) Handler
 hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handler api (\h -> handleAuth expectedToken token *> h) server
 
-serveLooseCode ::
-  Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
-  ServerT LooseCodeAPI (Backend IO)
-serveLooseCode codebase rt =
-  (\root rel name -> setCacheControl <$> NamespaceListing.serve codebase (Left <$> root) rel name)
-    :<|> (\namespaceName mayRoot renderWidth -> setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Left <$> mayRoot) renderWidth)
-    :<|> (\mayRoot relativePath rawHqns renderWidth suff -> setCacheControl <$> serveDefinitions rt codebase (Left <$> mayRoot) relativePath rawHqns renderWidth suff)
-    :<|> (\mayRoot relativePath limit renderWidth query -> setCacheControl <$> serveFuzzyFind codebase (Left <$> mayRoot) relativePath limit renderWidth query)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTermSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
-    :<|> (\shortHash mayName mayRoot relativeTo renderWidth -> setCacheControl <$> serveTypeSummary codebase shortHash mayName (Left <$> mayRoot) relativeTo renderWidth)
-
 serveProjectsCodebaseServerAPI ::
   Codebase IO Symbol Ann ->
   Rt.Runtime Symbol ->
@@ -588,35 +575,39 @@ serveProjectsCodebaseServerAPI codebase rt projectName branchName = do
     :<|> serveTypeSummaryEndpoint
   where
     projectAndBranchName = ProjectAndBranch projectName branchName
-    namespaceListingEndpoint _rootParam rel name = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> NamespaceListing.serve codebase (Just . Right $ root) rel name
-    namespaceDetailsEndpoint namespaceName _rootParam renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Just . Right $ root) renderWidth
+    namespaceListingEndpoint rel name = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> NamespaceListing.serve codebase (Right $ root) rel name
+    namespaceDetailsEndpoint namespaceName renderWidth = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> NamespaceDetails.namespaceDetails rt codebase namespaceName (Right $ root) renderWidth
 
-    serveDefinitionsEndpoint _rootParam relativePath rawHqns renderWidth suff = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> serveDefinitions rt codebase (Just . Right $ root) relativePath rawHqns renderWidth suff
+    serveDefinitionsEndpoint relativePath rawHqns renderWidth suff = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> serveDefinitions rt codebase (Right $ root) relativePath rawHqns renderWidth suff
 
-    serveFuzzyFindEndpoint _rootParam relativePath limit renderWidth query = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> serveFuzzyFind codebase (Just . Right $ root) relativePath limit renderWidth query
+    serveFuzzyFindEndpoint relativePath limit renderWidth query = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> serveFuzzyFind codebase (Right $ root) relativePath limit renderWidth query
 
-    serveTermSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> serveTermSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
+    serveTermSummaryEndpoint shortHash mayName relativeTo renderWidth = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> serveTermSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
-    serveTypeSummaryEndpoint shortHash mayName _rootParam relativeTo renderWidth = do
-      root <- resolveProjectRoot codebase projectAndBranchName
-      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Just . Right $ root) relativeTo renderWidth
+    serveTypeSummaryEndpoint shortHash mayName relativeTo renderWidth = do
+      root <- resolveProjectRootHash codebase projectAndBranchName
+      setCacheControl <$> serveTypeSummary codebase shortHash mayName (Right $ root) relativeTo renderWidth
 
-resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO CausalHash
+resolveProjectRoot :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO (V2.CausalBranch Sqlite.Transaction)
 resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
-  mayCH <- liftIO . Codebase.runTransaction codebase $ Backend.causalHashForProjectBranchName @IO projectAndBranchName
-  case mayCH of
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
     Nothing -> throwError (Backend.ProjectBranchNameNotFound projectName branchName)
-    Just ch -> pure ch
+    Just cb -> pure cb
+
+resolveProjectRootHash :: (Codebase IO v a) -> (ProjectAndBranch ProjectName ProjectBranchName) -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> Causal.causalHash
 
 serveProjectDiffTermsEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TermDiffResponse
 serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef oldTerm newTerm = do
@@ -639,7 +630,7 @@ serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef 
 
 contextForProjectBranch :: (Codebase IO v a) -> ProjectName -> ProjectBranchName -> Backend IO (PrettyPrintEnvDecl, NameSearch Sqlite.Transaction)
 contextForProjectBranch codebase projectName branchName = do
-  projectRootHash <- resolveProjectRoot codebase (ProjectAndBranch projectName branchName)
+  projectRootHash <- resolveProjectRootHash codebase (ProjectAndBranch projectName branchName)
   projectRootBranch <- liftIO $ Codebase.expectBranchForHash codebase projectRootHash
   hashLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   let names = Branch.toNames (Branch.head projectRootBranch)
@@ -685,7 +676,7 @@ serveUnisonLocal ::
   Server UnisonLocalAPI
 serveUnisonLocal env codebase rt =
   hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $
-    serveProjectsAPI codebase rt :<|> serveLooseCode codebase rt :<|> (setCacheControl <$> ucmServer codebase)
+    serveProjectsAPI codebase rt :<|> (setCacheControl <$> ucmServer codebase)
 
 backendHandler :: BackendEnv -> Backend IO a -> Handler a
 backendHandler env m =

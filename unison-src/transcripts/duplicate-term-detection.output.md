@@ -2,12 +2,12 @@
 
 Trivial duplicate terms should be detected:
 
-```unison
+``` unison
 x = 1
 x = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,12 +21,12 @@ x = 2
 ```
 Equivalent duplicate terms should be detected:
 
-```unison
+``` unison
 x = 1
 x = 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -40,14 +40,14 @@ x = 1
 ```
 Duplicates from record accessors/setters should be detected
 
-```unison
+``` unison
 structural type Record = {x: Nat, y: Nat}
 Record.x = 1
 Record.x.set = 2
 Record.x.modify = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -74,7 +74,7 @@ Record.x.modify = 2
 ```
 Duplicate terms and constructors should be detected:
 
-```unison
+``` unison
 structural type SumType = X
 
 SumType.X = 1
@@ -85,7 +85,7 @@ structural ability AnAbility where
 AnAbility.thing = 2
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

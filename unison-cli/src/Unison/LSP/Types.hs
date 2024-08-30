@@ -24,7 +24,7 @@ import Language.LSP.Server
 import Language.LSP.Server qualified as LSP
 import Language.LSP.VFS
 import Unison.Codebase
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
@@ -41,7 +41,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
-import Unison.Syntax.Lexer qualified as Lexer
+import Unison.Syntax.Lexer.Unison qualified as Lexer
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary (FileSummary (..))
@@ -72,7 +72,7 @@ data Env = Env
     currentNamesCache :: IO Names,
     ppedCache :: IO PrettyPrintEnvDecl,
     nameSearchCache :: IO (NameSearch Sqlite.Transaction),
-    currentPathCache :: IO Path.Absolute,
+    currentProjectPathCache :: IO PP.ProjectPath,
     vfsVar :: MVar VFS,
     runtime :: Runtime Symbol,
     -- The information we have for each file.
@@ -129,8 +129,8 @@ data FileAnalysis = FileAnalysis
   }
   deriving stock (Show)
 
-getCurrentPath :: Lsp Path.Absolute
-getCurrentPath = asks currentPathCache >>= liftIO
+getCurrentProjectPath :: Lsp PP.ProjectPath
+getCurrentProjectPath = asks currentProjectPathCache >>= liftIO
 
 getCodebaseCompletions :: Lsp CompletionTree
 getCodebaseCompletions = asks completionsVar >>= atomically . readTMVar

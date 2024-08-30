@@ -3,7 +3,7 @@ File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -16,8 +16,8 @@ threadEyeDeez _ =
 ```
 
 ```ucm
-.> add
-.> run threadEyeDeez
+scratch/main> add
+scratch/main> run threadEyeDeez
 ```
 
 ```unison

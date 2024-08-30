@@ -1,10 +1,10 @@
 # tests for built-in IO functions
 
 ```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> load unison-src/transcripts-using-base/base.u
-.> add
+scratch/main> builtins.merge
+scratch/main> builtins.mergeio
+scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
 ```
 
 Tests for IO builtins which wired to foreign haskell calls.
@@ -17,18 +17,19 @@ TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ## Basic File Functions
 
 ### Creating/Deleting/Renaming Directories
 
-Tests: createDirectory,
-       isDirectory,
-       fileExists,
-       renameDirectory,
-       deleteDirectory
+Tests:
+- createDirectory,
+- isDirectory,
+- fileExists,
+- renameDirectory,
+- deleteDirectory
 
 ```unison
 testCreateRename : '{io2.IO} [Result]
@@ -57,15 +58,16 @@ testCreateRename _ =
 ```
 
 ```ucm
-.> add
-.> io.test testCreateRename
+scratch/main> add
+scratch/main> io.test testCreateRename
 ```
 
 ### Opening / Closing files
 
-Tests: openFile
-       closeFile
-       isFileOpen
+Tests:
+- openFile
+- closeFile
+- isFileOpen
 
 ```unison
 testOpenClose : '{io2.IO} [Result]
@@ -107,16 +109,17 @@ testOpenClose _ =
 ```
 
 ```ucm
-.> add
-.> io.test testOpenClose
+scratch/main> add
+scratch/main> io.test testOpenClose
 ```
 
 ### Reading files with getSomeBytes
 
-Tests: getSomeBytes
-       putBytes
-       isFileOpen
-       seekHandle
+Tests:
+- getSomeBytes
+- putBytes
+- isFileOpen
+- seekHandle
 
 ```unison
 testGetSomeBytes : '{io2.IO} [Result]
@@ -166,20 +169,21 @@ testGetSomeBytes _ =
 ```
 
 ```ucm
-.> add
-.> io.test testGetSomeBytes
+scratch/main> add
+scratch/main> io.test testGetSomeBytes
 ```
 
 ### Seeking in open files
 
-Tests: openFile
-       putBytes
-       closeFile
-       isSeekable
-       isFileEOF
-       seekHandle
-       getBytes
-       getLine
+Tests:
+- openFile
+- putBytes
+- closeFile
+- isSeekable
+- isFileEOF
+- seekHandle
+- getBytes
+- getLine
 
 ```unison
 testSeek : '{io2.IO} [Result]
@@ -240,9 +244,9 @@ testAppend _ =
 ```
 
 ```ucm
-.> add
-.> io.test testSeek
-.> io.test testAppend
+scratch/main> add
+scratch/main> io.test testSeek
+scratch/main> io.test testAppend
 ```
 
 ### SystemTime
@@ -257,8 +261,8 @@ testSystemTime _ =
 ```
 
 ```ucm
-.> add
-.> io.test testSystemTime
+scratch/main> add
+scratch/main> io.test testSystemTime
 ```
 
 ### Get temp directory
@@ -274,8 +278,8 @@ testGetTempDirectory _ =
 ```
 
 ```ucm
-.> add
-.> io.test testGetTempDirectory
+scratch/main> add
+scratch/main> io.test testGetTempDirectory
 ```
 
 ### Get current directory
@@ -291,8 +295,8 @@ testGetCurrentDirectory _ =
 ```
 
 ```ucm
-.> add
-.> io.test testGetCurrentDirectory
+scratch/main> add
+scratch/main> io.test testGetCurrentDirectory
 ```
 
 ### Get directory contents
@@ -310,8 +314,8 @@ testDirContents _ =
 ```
 
 ```ucm
-.> add
-.> io.test testDirContents
+scratch/main> add
+scratch/main> io.test testDirContents
 ```
 
 ### Read environment variables
@@ -328,8 +332,8 @@ testGetEnv _ =
   runTest test
 ```
 ```ucm
-.> add
-.> io.test testGetEnv
+scratch/main> add
+scratch/main> io.test testGetEnv
 ```
 
 ### Read command line args
@@ -346,49 +350,49 @@ testGetArgs.runMeWithNoArgs = 'let
   args = reraise !getArgs.impl
   match args with
     [] -> printLine "called with no args"
-    _ -> raise (fail "called with args")
+    _ -> raise (testGetArgs.fail "called with args")
 
 testGetArgs.runMeWithOneArg : '{io2.IO, Exception} ()
 testGetArgs.runMeWithOneArg = 'let
   args = reraise !getArgs.impl
   match args with
-    [] -> raise (fail "called with no args")
+    [] -> raise (testGetArgs.fail "called with no args")
     [_] -> printLine "called with one arg"
-    _ -> raise (fail "called with too many args")
+    _ -> raise (testGetArgs.fail "called with too many args")
 
 testGetArgs.runMeWithTwoArgs : '{io2.IO, Exception} ()
 testGetArgs.runMeWithTwoArgs = 'let
   args = reraise !getArgs.impl
   match args with
-    [] -> raise (fail "called with no args")
-    [_] -> raise (fail "called with one arg")
+    [] -> raise (testGetArgs.fail "called with no args")
+    [_] -> raise (testGetArgs.fail "called with one arg")
     [_, _] -> printLine "called with two args"
-    _ -> raise (fail "called with too many args")
+    _ -> raise (testGetArgs.fail "called with too many args")
 ```
 
 Test that they can be run with the right number of args.
 ```ucm
-.> add
-.> run runMeWithNoArgs
-.> run runMeWithOneArg foo
-.> run runMeWithTwoArgs foo bar
+scratch/main> add
+scratch/main> run runMeWithNoArgs
+scratch/main> run runMeWithOneArg foo
+scratch/main> run runMeWithTwoArgs foo bar
 ```
 
 Calling our examples with the wrong number of args will error.
 
 ```ucm:error
-.> run runMeWithNoArgs foo
+scratch/main> run runMeWithNoArgs foo
 ```
 
 ```ucm:error
-.> run runMeWithOneArg
+scratch/main> run runMeWithOneArg
 ```
 ```ucm:error
-.> run runMeWithOneArg foo bar
+scratch/main> run runMeWithOneArg foo bar
 ```
 
 ```ucm:error
-.> run runMeWithTwoArgs
+scratch/main> run runMeWithTwoArgs
 ```
 
 ### Get the time zone
@@ -401,8 +405,8 @@ testTimeZone = do
 ```
 
 ```ucm
-.> add
-.> run testTimeZone
+scratch/main> add
+scratch/main> run testTimeZone
 ```
 
 ### Get some random bytes
@@ -417,6 +421,6 @@ testRandom = do
 ```
 
 ```ucm
-.> add
-.> io.test testGetEnv
+scratch/main> add
+scratch/main> io.test testGetEnv
 ```

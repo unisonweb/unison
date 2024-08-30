@@ -9,8 +9,7 @@ MVars are the building block on which many other concurrency
 primitives can be built, such as Futures, Run at most once initializer
 blocks, Queues, etc.
 
-
-```unison
+``` unison
 eitherCk : (a -> Boolean) -> Either e a -> Boolean
 eitherCk f = cases
   Left _ -> false
@@ -51,7 +50,7 @@ testMvars _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -65,34 +64,34 @@ testMvars _ =
       testMvars : '{IO} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
     testMvars : '{IO} [Result]
 
-.> io.test testMvars
+scratch/main> io.test testMvars
 
     New test results:
   
-  ◉ testMvars   ma should not be empty
-  ◉ testMvars   should read what you sow
-  ◉ testMvars   should reap what you sow
-  ◉ testMvars   ma should be empty
-  ◉ testMvars   swap returns old contents
-  ◉ testMvars   swap returns old contents
-  ◉ testMvars   tryRead should succeed when not empty
-  ◉ testMvars   tryPut should fail when not empty
-  ◉ testMvars   tryTake should succeed when not empty
-  ◉ testMvars   tryTake should not succeed when empty
-  ◉ testMvars   ma2 should be empty
-  ◉ testMvars   tryTake should fail when empty
-  ◉ testMvars   tryRead should fail when empty
+    1. testMvars   ◉ ma should not be empty
+                   ◉ should read what you sow
+                   ◉ should reap what you sow
+                   ◉ ma should be empty
+                   ◉ swap returns old contents
+                   ◉ swap returns old contents
+                   ◉ tryRead should succeed when not empty
+                   ◉ tryPut should fail when not empty
+                   ◉ tryTake should succeed when not empty
+                   ◉ tryTake should not succeed when empty
+                   ◉ ma2 should be empty
+                   ◉ tryTake should fail when empty
+                   ◉ tryRead should fail when empty
   
   ✅ 13 test(s) passing
   
-  Tip: Use view testMvars to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

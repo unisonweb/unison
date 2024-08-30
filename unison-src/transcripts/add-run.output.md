@@ -2,7 +2,7 @@
 
 ## Basic usage
 
-```unison
+``` unison
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
 
@@ -13,7 +13,7 @@ is2even : 'Boolean
 is2even = '(even 2)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -30,8 +30,8 @@ is2even = '(even 2)
 ```
 it errors if there isn't a previous run
 
-```ucm
-.> add.run foo
+``` ucm
+scratch/main> add.run foo
 
   ⚠️
   
@@ -39,16 +39,17 @@ it errors if there isn't a previous run
   something before attempting to save it.
 
 ```
-```ucm
-.> run is2even
+``` ucm
+scratch/main> run is2even
 
   true
 
 ```
 it errors if the desired result name conflicts with a name in the
 unison file
-```ucm
-.> add.run is2even
+
+``` ucm
+scratch/main> add.run is2even
 
   ⚠️
   
@@ -57,16 +58,17 @@ unison file
 
 ```
 otherwise, the result is successfully persisted
-```ucm
-.> add.run foo.bar.baz
+
+``` ucm
+scratch/main> add.run foo.bar.baz
 
   ⍟ I've added these definitions:
   
     foo.bar.baz : Boolean
 
 ```
-```ucm
-.> view foo.bar.baz
+``` ucm
+scratch/main> view foo.bar.baz
 
   foo.bar.baz : Boolean
   foo.bar.baz = true
@@ -74,7 +76,7 @@ otherwise, the result is successfully persisted
 ```
 ## It resolves references within the unison file
 
-```unison
+``` unison
 z b = b Nat.+ 12
 y a b = a Nat.+ b Nat.+ z 10
 
@@ -85,7 +87,7 @@ main : '{IO, Exception} (Nat -> Nat -> Nat)
 main _ = y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -100,12 +102,12 @@ main _ = y
       z    : Nat -> Nat
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   a b -> a Nat.+ b Nat.+ z 10
 
-.> add.run result
+scratch/main> add.run result
 
   ⍟ I've added these definitions:
   
@@ -115,12 +117,12 @@ main _ = y
 ```
 ## It resolves references within the codebase
 
-```unison
+``` unison
 inc : Nat -> Nat
 inc x = x + 1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -133,20 +135,20 @@ inc x = x + 1
       inc : Nat -> Nat
 
 ```
-```ucm
-.> add inc
+``` ucm
+scratch/main> add inc
 
   ⍟ I've added these definitions:
   
     inc : Nat -> Nat
 
 ```
-```unison
+``` unison
 main : '(Nat -> Nat)
 main _ x = inc x
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -159,18 +161,18 @@ main _ x = inc x
       main : '(Nat -> Nat)
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   inc
 
-.> add.run natfoo
+scratch/main> add.run natfoo
 
   ⍟ I've added these definitions:
   
     natfoo : Nat -> Nat
 
-.> view natfoo
+scratch/main> view natfoo
 
   natfoo : Nat -> Nat
   natfoo = inc
@@ -178,13 +180,13 @@ main _ x = inc x
 ```
 ## It captures scratch file dependencies at run time
 
-```unison
+``` unison
 x = 1
 y = x + x
 main = 'y
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -199,17 +201,17 @@ main = 'y
       y    : Nat
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   2
 
 ```
-```unison
+``` unison
 x = 50
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -223,14 +225,15 @@ x = 50
 
 ```
 this saves 2 to xres, rather than 100
-```ucm
-.> add.run xres
+
+``` ucm
+scratch/main> add.run xres
 
   ⍟ I've added these definitions:
   
     xres : Nat
 
-.> view xres
+scratch/main> view xres
 
   xres : Nat
   xres = 2
@@ -238,11 +241,11 @@ this saves 2 to xres, rather than 100
 ```
 ## It fails with a message if add cannot complete cleanly
 
-```unison
+``` unison
 main = '5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -255,12 +258,12 @@ main = '5
       main : 'Nat
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   5
 
-.> add.run xres
+scratch/main> add.run xres
 
   x These definitions failed:
   
@@ -272,11 +275,11 @@ main = '5
 ```
 ## It works with absolute names
 
-```unison
+``` unison
 main = '5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -289,18 +292,18 @@ main = '5
       main : 'Nat
 
 ```
-```ucm
-.> run main
+``` ucm
+scratch/main> run main
 
   5
 
-.> add.run .an.absolute.name
+scratch/main> add.run .an.absolute.name
 
   ⍟ I've added these definitions:
   
     .an.absolute.name : Nat
 
-.> view .an.absolute.name
+scratch/main> view .an.absolute.name
 
   .an.absolute.name : Nat
   .an.absolute.name = 5

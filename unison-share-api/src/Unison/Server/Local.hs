@@ -14,7 +14,6 @@ import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
-import Unison.NameSegment (libSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Server.Backend
@@ -42,11 +41,11 @@ relocateToNameRoot perspective query rootBranch = do
           -- Since the project root is lower down we need to strip the part of the prefix
           -- which is now redundant.
           pure . Right $ (projectRoot, query <&> \n -> fromMaybe n $ Path.unprefixName (Path.Absolute remainder) n)
-        -- The namesRoot is _inside_ of the project containing the query
+        -- The namesRoot is _inside (or equal to)_ the project containing the query
         (_sharedPrefix, remainder, Path.Empty) -> do
           -- Since the project is higher up, we need to prefix the query
           -- with the remainder of the path
-          pure . Right $ (projectRoot, query <&> Path.prefixName (Path.Absolute remainder))
+          pure $ Right (projectRoot, query <&> Path.prefixNameIfRel (Path.RelativePath' $ Path.Relative remainder))
         -- The namesRoot and project root are disjoint, this shouldn't ever happen.
         (_, _, _) -> pure $ Left (DisjointProjectAndPerspective perspective projectRoot)
 
@@ -62,17 +61,15 @@ inferNamesRoot p b
   where
     findBaseProject :: Path -> Maybe Path
     findBaseProject
-      ( (NameSegment.toUnescapedText -> "public")
-          Cons.:< (NameSegment.toUnescapedText -> "base")
-          Cons.:< release
-          Cons.:< _rest
-        ) =
-        Just (Path.fromList ["public", "base", release])
+      (public Cons.:< base Cons.:< release Cons.:< _rest) =
+        if public == NameSegment.publicLooseCodeSegment && base == NameSegment.baseSegment
+          then Just (Path.fromList [public, base, release])
+          else Nothing
     findBaseProject _ = Nothing
     go :: Path -> Branch Sqlite.Transaction -> ReaderT Path (WriterT (Last Path) Sqlite.Transaction) ()
     go p b = do
       childMap <- lift . lift $ nonEmptyChildren b
-      when (isJust $ Map.lookup libSegment childMap) $ ask >>= tell . Last . Just
+      when (isJust $ Map.lookup NameSegment.libSegment childMap) $ ask >>= tell . Last . Just
       case p of
         Path.Empty -> pure ()
         (nextChild Cons.:< pathRemainder) ->
@@ -99,7 +96,7 @@ inferNamesRoot p b
 -- Nothing
 findDepRoot :: Path -> Maybe Path
 findDepRoot (lib Cons.:< depRoot Cons.:< rest)
-  | lib == libSegment =
+  | lib == NameSegment.libSegment =
       -- Keep looking to see if the full path is actually in a transitive dependency, otherwise
       -- fallback to this spot
       ((Path.fromList [lib, depRoot] <>) <$> findDepRoot rest)

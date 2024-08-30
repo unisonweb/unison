@@ -1,4 +1,4 @@
-```unison
+``` unison
 {{ Type doc }}
 structural type Optional a =
   None
@@ -23,8 +23,8 @@ test> z = let
   [Ok (x ++ y)]
 ```
 
-```ucm
-.> debug.lsp.fold-ranges
+``` ucm
+scratch/main> debug.lsp.fold-ranges
 
   《{{ Type doc }}》
   《structural type Optional a =

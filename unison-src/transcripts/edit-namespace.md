@@ -1,8 +1,8 @@
 ```ucm:hide
-.> builtins.mergeio lib.builtin
+project/main> builtins.mergeio lib.builtin
 ```
 
-```unison:hide
+```unison
 {{ ping doc }}
 nested.cycle.ping n = n Nat.+ pong n
 
@@ -16,26 +16,23 @@ simple.y = 20
 
 -- Shouldn't edit things in lib
 lib.project.ignoreMe = 30
-```
 
-```ucm:hide
-.> add
+-- Shouldn't render record accessors
+unique type Foo = { bar : Nat, baz : Nat }
 ```
-
-Edit current namespace
 
 ```ucm
-.simple> edit.namespace
+project/main> add
 ```
 
-Edit should hit things recursively
+`edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ```ucm
-.> edit.namespace
+project/main> edit.namespace
 ```
 
-Edit should handle multiple explicit paths at once.
+`edit.namespace` can also accept explicit paths
 
 ```ucm
-.> edit.namespace nested.cycle simple
+project/main> edit.namespace nested simple
 ```

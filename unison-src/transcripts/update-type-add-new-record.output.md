@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -18,15 +18,15 @@ unique type Foo = { bar : Nat }
       Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> view Foo
+scratch/main> view Foo
 
   type Foo = { bar : Nat }
 

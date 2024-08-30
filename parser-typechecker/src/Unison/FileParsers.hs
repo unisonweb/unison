@@ -9,6 +9,7 @@ import Control.Lens
 import Control.Monad.State (evalStateT)
 import Data.Foldable qualified as Foldable
 import Data.List (partition)
+import Data.List qualified as List
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -16,13 +17,13 @@ import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name qualified as Name
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
@@ -37,6 +38,7 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
@@ -76,7 +78,7 @@ computeTypecheckingEnvironment ::
   (Var v, Monad m) =>
   ShouldUseTndr m ->
   [Type v] ->
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
+  (DefnsF Set TermReference TypeReference -> m (TL.TypeLookup v Ann)) ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
 computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
@@ -99,8 +101,15 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                 let shortname = Name.unsafeParseVar v,
                 name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
             ]
-          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
+          possibleRefs =
+            List.foldl'
+              ( \acc -> \case
+                  (_, _, Referent.Con ref _) -> acc & over #types (Set.insert (ref ^. ConstructorReference.reference_))
+                  (_, _, Referent.Ref ref) -> acc & over #terms (Set.insert ref)
+              )
+              (Defns Set.empty Set.empty)
+              possibleDeps
+      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> possibleRefs))
       -- For populating the TDNR environment, we pick definitions
       -- from the namespace and from the local file whose full name
       -- has a suffix that equals one of the free variables in the file.
@@ -130,7 +139,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                 ]
       pure
         Typechecker.Env
-          { ambientAbilities = ambientAbilities,
+          { ambientAbilities,
             typeLookup = tl,
             termsByShortname = fqnsByShortName
           }

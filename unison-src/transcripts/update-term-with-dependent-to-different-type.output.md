@@ -1,10 +1,10 @@
-```ucm
-.> builtins.merge
+``` ucm
+scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 foo : Nat
 foo = 5
 
@@ -12,7 +12,7 @@ bar : Nat
 bar = foo + 10
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,8 +26,8 @@ bar = foo + 10
       foo : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -35,12 +35,12 @@ bar = foo + 10
     foo : Nat
 
 ```
-```unison
+``` unison
 foo : Int
 foo = +5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -54,8 +54,8 @@ foo = +5
       foo : Int
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -67,13 +67,17 @@ foo = +5
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
+foo : Int
+foo = +5
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 bar : Nat
 bar =
   use Nat +
   foo + 10
 
-foo : Int
-foo = +5
 ```
 

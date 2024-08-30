@@ -8,7 +8,6 @@ module Unison.KindInference.Generate
   )
 where
 
-import Control.Lens ((^.))
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
@@ -29,7 +28,6 @@ import Unison.Reference (Reference)
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Var (Type (User), Var (typed), freshIn)
-
 
 --------------------------------------------------------------------------------
 -- Constraints arising from Types
@@ -108,8 +106,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
-
-handleIntroOuter :: Var v => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
+handleIntroOuter :: (Var v) => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do
   let typ = Type.var loc v
   new <- freshVar typ
@@ -140,7 +137,6 @@ termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
         pure (annConstraints' : rest)
     cons mlhs mrhs = (++) <$> mlhs <*> mrhs
     nil = pure []
-
 
 -- | Helper for @termConstraints@ that instantiates the outermost
 -- foralls and keeps the type in scope (in the type map) while
@@ -175,7 +171,7 @@ dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
 -- Our rewrite signature machinery generates type annotations that are
 -- not well kinded. Work around this for now by stripping those
 -- annotations.
-hackyStripAnns :: Ord v => Term.Term v loc -> Term.Term v loc
+hackyStripAnns :: (Ord v) => Term.Term v loc -> Term.Term v loc
 hackyStripAnns =
   snd . ABT.cata \ann abt0 -> case abt0 of
     ABT.Var v -> (False, ABT.var ann v)

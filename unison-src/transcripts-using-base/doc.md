@@ -33,9 +33,9 @@ Notice that an anonymous documentation block `{{ ... }}` before a definition `Im
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
 ```ucm
-.> display d1
-.> docs ImportantConstant
-.> docs DayOfWeek
+scratch/main> display d1
+scratch/main> docs ImportantConstant
+scratch/main> docs DayOfWeek
 ```
 
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
@@ -45,11 +45,11 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
-.> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 Now we can review different portions of the guide.
@@ -57,25 +57,25 @@ we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
 ```ucm
-.> view basicFormatting
-.> display basicFormatting
-.> view lists
-.> display lists
-.> view evaluation
-.> display evaluation
-.> view includingSource
-.> display includingSource
-.> view nonUnisonCodeBlocks
-.> display nonUnisonCodeBlocks
-.> view otherElements
-.> display otherElements
+scratch/main> view basicFormatting
+scratch/main> display basicFormatting
+scratch/main> view lists
+scratch/main> display lists
+scratch/main> view evaluation
+scratch/main> display evaluation
+scratch/main> view includingSource
+scratch/main> display includingSource
+scratch/main> view nonUnisonCodeBlocks
+scratch/main> display nonUnisonCodeBlocks
+scratch/main> view otherElements
+scratch/main> display otherElements
 ```
 
 Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
 ```ucm
-.> view doc.guide
-.> display doc.guide
+scratch/main> view doc.guide
+scratch/main> display doc.guide
 ```
 
 🌻 THE END

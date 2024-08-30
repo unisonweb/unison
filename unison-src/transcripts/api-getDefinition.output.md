@@ -1,13 +1,13 @@
 # Get Definitions Test
 
-```unison
-{{ Documentation }}
-names.x = 42
+``` unison
+nested.names.x.doc = {{ Documentation }}
+nested.names.x = 42
 ```
 
-```api
+``` api
 --  Should NOT find names by suffix
-GET /api/non-project-code/getDefinition?names=x
+GET /api/projects/scratch/branches/main/getDefinition?names=x
 {
     "missingDefinitions": [
         "x"
@@ -16,7 +16,7 @@ GET /api/non-project-code/getDefinition?names=x
     "typeDefinitions": {}
 }
 --  Term names should strip relativeTo prefix.
-GET /api/non-project-code/getDefinition?names=names.x&relativeTo=nested
+GET /api/projects/scratch/branches/main/getDefinition?names=names.x&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -104,14 +104,14 @@ GET /api/non-project-code/getDefinition?names=names.x&relativeTo=nested
                 ]
             ],
             "termNames": [
-                "names.x"
+                "nested.names.x"
             ]
         }
     },
     "typeDefinitions": {}
 }
 --  Should find definitions by hash, names should be relative
-GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
+GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -199,30 +199,32 @@ GET /api/non-project-code/getDefinition?names=%23qkhkl0n238&relativeTo=nested
                 ]
             ],
             "termNames": [
-                "names.x"
+                "nested.names.x"
             ]
         }
     },
     "typeDefinitions": {}
 }
-``````unison
-thing.doc = {{ The correct docs for the thing }}
-thing = "A thing"
-thingalias.doc = {{ Docs for the alias, should not be displayed }}
-thingalias = "A thing"
-otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
-otherstuff.thing = "A different thing"
+```
+
+``` unison
+doctest.thing.doc = {{ The correct docs for the thing }}
+doctest.thing = "A thing"
+doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
+doctest.thingalias = "A thing"
+doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
+doctest.otherstuff.thing = "A different thing"
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
-```api
-GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
+``` api
+GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {
         "#jksc1s5kud95ro5ivngossullt2oavsd41s3u48bch67jf3gknru5j6hmjslonkd5sdqs8mr8k4rrnef8fodngbg4sm7u6au564ekjg": {
-            "bestTermName": "thing",
+            "bestTermName": "doctest.thing",
             "defnTermTag": "Plain",
             "signature": [
                 {
@@ -237,10 +239,10 @@ GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
                 "contents": [
                     {
                         "annotation": {
-                            "contents": "thing",
+                            "contents": "doctest.thing",
                             "tag": "HashQualifier"
                         },
-                        "segment": "thing"
+                        "segment": "doctest.thing"
                     },
                     {
                         "annotation": {
@@ -265,10 +267,10 @@ GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
                     },
                     {
                         "annotation": {
-                            "contents": "thing",
+                            "contents": "doctest.thing",
                             "tag": "HashQualifier"
                         },
-                        "segment": "thing"
+                        "segment": "doctest.thing"
                     },
                     {
                         "annotation": {
@@ -291,7 +293,7 @@ GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
             },
             "termDocs": [
                 [
-                    "thing.doc",
+                    "doctest.thing.doc",
                     "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o",
                     {
                         "contents": [
@@ -325,22 +327,24 @@ GET /api/non-project-code/getDefinition?names=thing&relativeTo=doctest
                 ]
             ],
             "termNames": [
-                "thing",
-                "thingalias"
+                "doctest.thing",
+                "doctest.thingalias"
             ]
         }
     },
     "typeDefinitions": {}
 }
-```If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+```
 
-```api
-GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
+If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
+
+``` api
+GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
 {
     "missingDefinitions": [],
     "termDefinitions": {
         "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o": {
-            "bestTermName": "thing.doc",
+            "bestTermName": "doctest.thing.doc",
             "defnTermTag": "Doc",
             "signature": [
                 {
@@ -355,10 +359,10 @@ GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
                 "contents": [
                     {
                         "annotation": {
-                            "contents": "thing.doc",
+                            "contents": "doctest.thing.doc",
                             "tag": "HashQualifier"
                         },
-                        "segment": "thing.doc"
+                        "segment": "doctest.thing.doc"
                     },
                     {
                         "annotation": {
@@ -383,10 +387,10 @@ GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
                     },
                     {
                         "annotation": {
-                            "contents": "thing.doc",
+                            "contents": "doctest.thing.doc",
                             "tag": "HashQualifier"
                         },
-                        "segment": "thing.doc"
+                        "segment": "doctest.thing.doc"
                     },
                     {
                         "annotation": {
@@ -467,7 +471,7 @@ GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
             },
             "termDocs": [
                 [
-                    "thing.doc",
+                    "doctest.thing.doc",
                     "#t9qfdoiuskj4n9go8cftj1r83s43s3o7sppafm5vr0bq5feieb7ap0cie5ed2qsf9g3ig448vffhnajinq81pnnkila1jp2epa7f26o",
                     {
                         "contents": [
@@ -501,10 +505,11 @@ GET /api/non-project-code/getDefinition?names=thing.doc&relativeTo=doctest
                 ]
             ],
             "termNames": [
-                "thing.doc"
+                "doctest.thing.doc"
             ]
         }
     },
     "typeDefinitions": {}
 }
 ```
+

@@ -5,7 +5,6 @@ module Unison.Merge.CombineDiffs
   )
 where
 
-import Control.Lens (view)
 import Data.Semialign (alignWith)
 import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -45,7 +44,7 @@ combine :: These (DiffOp (Synhashed a)) (DiffOp (Synhashed a)) -> CombinedDiffOp
 combine =
   TwoDiffOps.make >>> combine1 >>> fmap (view #value)
 
-combine1 :: Eq a => TwoDiffOps a -> CombinedDiffOp a
+combine1 :: (Eq a) => TwoDiffOps a -> CombinedDiffOp a
 combine1 = \case
   TwoDiffOps'Add x -> CombinedDiffOp'Add (xor2ior x)
   TwoDiffOps'Delete x -> CombinedDiffOp'Delete (xor2ior x)

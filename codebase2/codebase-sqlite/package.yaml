@@ -27,10 +27,12 @@ dependencies:
   - nonempty-containers
   - safe
   - text
+  - time
   - transformers
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-core1
   - unison-core-orphans-sqlite
   - unison-hash
   - unison-hash-orphans-sqlite
@@ -71,6 +73,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NamedFieldPuns
   - OverloadedLabels
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - QuasiQuotes

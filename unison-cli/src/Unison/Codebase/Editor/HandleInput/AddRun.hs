@@ -19,7 +19,6 @@ import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (Output (NoLastRunResult, SaveTermNameConflict, SlurpOutput))
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
-import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Name (Name)
@@ -37,16 +36,16 @@ handleAddRun input resultName = do
   let resultVar = Name.toVar resultName
   uf <- addSavedTermToUnisonFile resultName
   Cli.Env {codebase} <- ask
-  currentPath <- Cli.getCurrentPath
   currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
   let adds = SlurpResult.adds sr
-  Cli.stepAtNoSync (Path.unabsolute currentPath, doSlurpAdds adds uf)
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
+  let description = (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
+  pp <- Cli.getCurrentProjectPath
+  Cli.stepAt description (pp, doSlurpAdds adds uf)
   let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
   pped <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
   let suffixifiedPPE = PPE.suffixifiedPPE pped
-  Cli.syncRoot (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
 
 addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)

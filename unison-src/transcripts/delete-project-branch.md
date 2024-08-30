@@ -2,7 +2,6 @@ Deleting the branch you are on takes you to its parent (though this is impossibl
 your working directory with each command).
 
 ```ucm
-.> project.create-empty foo
 foo/main> branch topic
 foo/topic> delete.branch /topic
 ```
@@ -18,11 +17,26 @@ You can precede the branch name by a project name.
 
 ```ucm
 foo/main> branch topic
-.> delete.branch foo/topic
+scratch/main> delete.branch foo/topic
 ```
 
 You can delete the only branch in a project.
 
 ```ucm
 foo/main> delete.branch /main
+```
+
+You can delete the last branch in the project, a new one will be created.
+
+```ucm
+scratch/main> delete.branch scratch/main
+scratch/main> branches
+```
+
+If the the last branch isn't /main, then /main will be created.
+
+```ucm
+scratch/main2> delete.branch /main
+scratch/main2> delete.branch /main2
+scratch/other> branches
 ```

@@ -33,10 +33,11 @@ module Unison.DataDeclaration
     constructors_,
     asDataDecl_,
     declAsDataDecl_,
+    setConstructorNames,
   )
 where
 
-import Control.Lens (Iso', Lens', imap, iso, lens, over, _3)
+import Control.Lens (Iso', Lens', imap, iso, lens, _2, _3)
 import Control.Monad.State (evalState)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -48,10 +49,10 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.Referent' qualified as Referent'
+import Unison.ReferentPrime qualified as Referent'
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
@@ -107,7 +108,7 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Ord, Show, Functor)
+  deriving (Eq, Ord, Show, Functor, Generic)
 
 constructorCount :: DataDeclaration v a -> Int
 constructorCount DataDeclaration {constructors'} = length constructors'
@@ -164,6 +165,20 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: (Var v) => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
+-- | Overwrite the constructor names with the given list, given in canonical order, which is assumed to be of the
+-- correct length.
+--
+-- Presumably this is called because the decl was loaded from the database outside of the context of a namespace,
+-- since it's not stored with names there, so we had plugged in dummy names like "Constructor1", "Constructor2", ...
+--
+-- Then, at some point, we discover the constructors' names in a namespace, and now we'd like to combine the two
+-- together to get a Decl structure in memory with good/correct names for constructors.
+setConstructorNames :: [v] -> Decl v a -> Decl v a
+setConstructorNames constructorNames =
+  over
+    (declAsDataDecl_ . constructors_)
+    (zipWith (set _2) constructorNames)
+
 -- This function is unsound, since the `rid` and the `decl` have to match.
 -- It should probably be hashed directly from the Decl, once we have a
 -- reliable way of doing that. —AI
@@ -196,7 +211,7 @@ bindReferences ::
   Set v ->
   Map Name.Name Reference ->
   DataDeclaration v a ->
-  Names.ResolutionResult v a (DataDeclaration v a)
+  Names.ResolutionResult a (DataDeclaration v a)
 bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
     (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
@@ -207,7 +222,7 @@ bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constru
 -- (unless the decl is self-referential)
 -- Note: Does NOT include the referents for fields and field accessors.
 -- Those must be computed separately because we need access to the typechecker to do so.
-typeDependencies :: (Ord v) => DataDeclaration v a -> Set Reference
+typeDependencies :: (Ord v) => DataDeclaration v a -> Set TypeReference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 

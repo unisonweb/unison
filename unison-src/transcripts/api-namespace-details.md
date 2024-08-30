@@ -1,7 +1,7 @@
 # Namespace Details Test
 
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison
@@ -14,10 +14,10 @@ Here's a *README*!
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```api
 -- Should find names by suffix
-GET /api/non-project-code/namespaces/nested.names
+GET /api/projects/scratch/branches/main/namespaces/nested.names
 ```

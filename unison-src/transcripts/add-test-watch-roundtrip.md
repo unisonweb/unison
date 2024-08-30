@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.mergeio
+scratch/main> builtins.mergeio
 ```
 
 ```unison:hide
@@ -10,6 +10,6 @@ foo = []
 Apparently when we add a test watch, we add a type annotation to it, even if it already has one. We don't want this to happen though!
 
 ```ucm
-.> add
-.> view foo
+scratch/main> add
+scratch/main> view foo
 ```

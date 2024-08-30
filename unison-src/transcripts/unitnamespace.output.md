@@ -1,8 +1,8 @@
-```unison
-foo = "bar"
+``` unison
+`()`.foo = "bar"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -12,29 +12,27 @@ foo = "bar"
   
     ⍟ These new definitions are ok to `add`:
     
-      foo : ##Text
+      `()`.foo : ##Text
 
 ```
-```ucm
-  ☝️  The namespace .`()` is empty.
-
-.`()`> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
-    foo : ##Text
+    `()`.foo : ##Text
 
-.> find
+scratch/main> find
 
   1. `()`.foo : ##Text
   
 
-.> find-in `()`
+scratch/main> find-in `()`
 
   1. foo : ##Text
   
 
-.> delete.namespace `()`
+scratch/main> delete.namespace `()`
 
   Done.
 

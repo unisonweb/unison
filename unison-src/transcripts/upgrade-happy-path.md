@@ -1,5 +1,4 @@
 ```ucm:hide
-.> project.create-empty proj
 proj/main> builtins.merge lib.builtin
 ```
 
@@ -15,6 +14,7 @@ proj/main> add
 ```
 
 Test tab completion and fzf options of upgrade command.
+
 ```ucm
 proj/main> debug.tab-complete upgrade ol
 proj/main> debug.fuzzy-options upgrade _

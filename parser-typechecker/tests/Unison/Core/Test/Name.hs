@@ -5,6 +5,7 @@ import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Set qualified as Set
 import EasyTest
 import Unison.Name as Name
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Syntax.Name qualified as Name (unsafeParseText)
 import Unison.Util.Relation qualified as R
 
@@ -36,10 +37,10 @@ testEndsWithReverseSegments =
   [ scope "a.b.c ends with []" (expectEqual True (endsWithReverseSegments (Name.unsafeParseText "a.b.c") [])),
     scope
       "a.b.c ends with [c, b]"
-      (expectEqual True (endsWithReverseSegments (Name.unsafeParseText "a.b.c") ["c", "b"])),
+      (expectEqual True (endsWithReverseSegments (Name.unsafeParseText "a.b.c") [NameSegment "c", NameSegment "b"])),
     scope
       "a.b.c doesn't end with [d]"
-      (expectEqual False (endsWithReverseSegments (Name.unsafeParseText "a.b.c") ["d"]))
+      (expectEqual False (endsWithReverseSegments (Name.unsafeParseText "a.b.c") [NameSegment "d"]))
   ]
 
 testEndsWithSegments :: [Test ()]
@@ -47,31 +48,31 @@ testEndsWithSegments =
   [ scope "a.b.c ends with []" (expectEqual True (endsWithSegments (Name.unsafeParseText "a.b.c") [])),
     scope
       "a.b.c ends with [b, c]"
-      (expectEqual True (endsWithSegments (Name.unsafeParseText "a.b.c") ["b", "c"])),
+      (expectEqual True (endsWithSegments (Name.unsafeParseText "a.b.c") [NameSegment "b", NameSegment "c"])),
     scope
       "a.b.c doesn't end with [d]"
-      (expectEqual False (endsWithSegments (Name.unsafeParseText "a.b.c") ["d"]))
+      (expectEqual False (endsWithSegments (Name.unsafeParseText "a.b.c") [NameSegment "d"]))
   ]
 
 testSegments :: [Test ()]
 testSegments =
   [ do
       n <- int' 1 10
-      segs <- List.NonEmpty.fromList <$> listOf n (pick [".", "foo"])
+      segs <- List.NonEmpty.fromList <$> listOf n (pick [NameSegment ".", NameSegment "foo"])
       expectEqual (segments (fromSegments segs)) segs
   ]
 
 testSplitName :: [Test ()]
 testSplitName =
   [ scope "x" (expectEqual (splits (Name.unsafeParseText "x")) [([], Name.unsafeParseText "x")]),
-    scope "A.x" (expectEqual (splits (Name.unsafeParseText "A.x")) [([], Name.unsafeParseText "A.x"), (["A"], Name.unsafeParseText "x")]),
+    scope "A.x" (expectEqual (splits (Name.unsafeParseText "A.x")) [([], Name.unsafeParseText "A.x"), ([NameSegment "A"], Name.unsafeParseText "x")]),
     scope
       "A.B.x"
       ( expectEqual
           (splits (Name.unsafeParseText "A.B.x"))
           [ ([], Name.unsafeParseText "A.B.x"),
-            (["A"], Name.unsafeParseText "B.x"),
-            (["A", "B"], Name.unsafeParseText "x")
+            ([NameSegment "A"], Name.unsafeParseText "B.x"),
+            ([NameSegment "A", NameSegment "B"], Name.unsafeParseText "x")
           ]
       )
   ]
@@ -98,8 +99,8 @@ testSuffixSearch =
                 (n ".`.`", 6)
               ]
           n = Name.unsafeParseText
-      expectEqual' ("." :| []) (Name.reverseSegments (n ".`.`"))
-      expectEqual' ("." :| []) (Name.reverseSegments (n ".`.`"))
+      expectEqual' (NameSegment "." :| []) (Name.reverseSegments (n ".`.`"))
+      expectEqual' (NameSegment "." :| []) (Name.reverseSegments (n ".`.`"))
 
       expectEqual' (Set.fromList [1, 2]) (Name.searchBySuffix (n "map") rel)
       expectEqual' (n "List.map") (Name.suffixifyByHash (n "base.List.map") rel)
@@ -120,22 +121,22 @@ testUnsafeFromString :: [Test ()]
 testUnsafeFromString =
   [ scope "." do
       expectEqual' (isAbsolute (Name.unsafeParseText "`.`")) False
-      expectEqual' (segments (Name.unsafeParseText "`.`")) ("." :| [])
+      expectEqual' (segments (Name.unsafeParseText "`.`")) (NameSegment "." :| [])
       ok,
     scope ".`.`" do
       expectEqual' (isAbsolute (Name.unsafeParseText ".`.`")) True
-      expectEqual' (segments (Name.unsafeParseText ".`.`")) ("." :| [])
+      expectEqual' (segments (Name.unsafeParseText ".`.`")) (NameSegment "." :| [])
       ok,
     scope "foo.bar" do
       expectEqual' (isAbsolute (Name.unsafeParseText "foo.bar")) False
-      expectEqual' (segments (Name.unsafeParseText "foo.bar")) ("foo" :| ["bar"])
+      expectEqual' (segments (Name.unsafeParseText "foo.bar")) (NameSegment "foo" :| [NameSegment "bar"])
       ok,
     scope ".foo.bar" do
       expectEqual' (isAbsolute (Name.unsafeParseText ".foo.bar")) True
-      expectEqual' (segments (Name.unsafeParseText ".foo.bar")) ("foo" :| ["bar"])
+      expectEqual' (segments (Name.unsafeParseText ".foo.bar")) (NameSegment "foo" :| [NameSegment "bar"])
       ok,
     scope "foo.`.`" do
       expectEqual' (isAbsolute (Name.unsafeParseText "foo.`.`")) False
-      expectEqual' (segments (Name.unsafeParseText "foo.`.`")) ("foo" :| ["."])
+      expectEqual' (segments (Name.unsafeParseText "foo.`.`")) (NameSegment "foo" :| [NameSegment "."])
       ok
   ]

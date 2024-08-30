@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = { bar : Nat }
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -18,8 +18,8 @@ unique type Foo = { bar : Nat }
       Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -31,8 +31,8 @@ unique type Foo = { bar : Nat }
 ```
 Bug: this no-op update should (of course) succeed.
 
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

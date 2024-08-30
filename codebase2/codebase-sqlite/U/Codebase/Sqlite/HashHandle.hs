@@ -39,7 +39,7 @@ data HashHandle = HashHandle
     toReferenceDecl :: Hash -> C.Type.TypeD Symbol -> C.Reference,
     -- | Hash decl's mentions
     toReferenceDeclMentions :: Hash -> C.Type.TypeD Symbol -> Set C.Reference,
-    hashBranch :: forall m. Monad m => Branch m -> m BranchHash,
+    hashBranch :: forall m. (Monad m) => Branch m -> m BranchHash,
     hashBranchV3 :: forall m. BranchV3 m -> BranchHash,
     hashCausal ::
       -- The causal's namespace hash

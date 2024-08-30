@@ -31,12 +31,13 @@ dependencies:
   - unison-hash
   - unison-parser-typechecker
   - unison-prelude
+  - unison-pretty-printer
   - unison-sqlite
   - unison-syntax
   - unison-util-cache
-  - unison-util-nametree
   - unison-util-relation
   - vector
+  - witch
   - witherable
 
 library:
@@ -79,6 +80,7 @@ default-extensions:
   - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
+  - QuantifiedConstraints
   - RankNTypes
   - ScopedTypeVariables
   - TupleSections

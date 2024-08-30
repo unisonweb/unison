@@ -42,7 +42,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import Control.Lens (over, view, _2)
+import Control.Lens (_2)
 import Control.Monad.Fail qualified as MonadFail
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.State
@@ -84,6 +84,7 @@ import Unison.DataDeclaration
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
+import Unison.Name (Name)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -104,7 +105,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Name (Name)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -606,15 +606,15 @@ debugTrace :: String -> Bool
 debugTrace e | debugEnabled = trace e False
 debugTrace _ = False
 
-showType :: Var v => Type.Type v a -> String
+showType :: (Var v) => Type.Type v a -> String
 showType ty = TP.prettyStr (Just 120) PPE.empty ty
 
-debugType :: Var v => String -> Type.Type v a -> Bool
+debugType :: (Var v) => String -> Type.Type v a -> Bool
 debugType tag ty
   | debugEnabled = debugTrace $ "(" <> show tag <> "," <> showType ty <> ")"
   | otherwise = False
 
-debugTypes :: Var v => String -> Type.Type v a -> Type.Type v a -> Bool
+debugTypes :: (Var v) => String -> Type.Type v a -> Type.Type v a -> Bool
 debugTypes tag t1 t2
   | debugEnabled = debugTrace $ "(" <> show tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
   | otherwise = False
@@ -963,7 +963,7 @@ apply' solvedExistentials t = go t
       Type.Ann' v k -> Type.ann a (go v) k
       Type.Effect1' e t -> Type.effect1 a (go e) (go t)
       Type.Effects' es -> Type.effects a (map go es)
-      Type.ForallNamed' v t' -> Type.forall a v (go t')
+      Type.ForallNamed' v t' -> Type.forAll a v (go t')
       Type.IntroOuterNamed' v t' -> Type.introOuter a v (go t')
       _ -> error $ "Match error in Context.apply': " ++ show t
       where
@@ -1059,7 +1059,7 @@ vectorConstructorOfArity loc arity = do
   let elementVar = Var.named "elem"
       args = replicate arity (loc, Type.var loc elementVar)
       resultType = Type.app loc (Type.list loc) (Type.var loc elementVar)
-      vt = Type.forall loc elementVar (Type.arrows args resultType)
+      vt = Type.forAll loc elementVar (Type.arrows args resultType)
   pure vt
 
 generalizeAndUnTypeVar :: (Var v) => Type v a -> Type.Type v a
@@ -1525,11 +1525,9 @@ ensurePatternCoverage theMatch _theMatchType _scrutinee scrutineeType cases = do
             constructorCache = mempty
           }
   (redundant, _inaccessible, uncovered) <- flip evalStateT pmcState do
-    checkMatch matchLoc scrutineeType cases
-  let checkUncovered = case Nel.nonEmpty uncovered of
-        Nothing -> pure ()
-        Just xs -> failWith (UncoveredPatterns matchLoc xs)
-      checkRedundant = foldr (\a b -> failWith (RedundantPattern a) *> b) (pure ()) redundant
+    checkMatch scrutineeType cases
+  let checkUncovered = maybe (pure ()) (failWith . UncoveredPatterns matchLoc) $ Nel.nonEmpty uncovered
+      checkRedundant = foldr ((*>) . failWith . RedundantPattern) (pure ()) redundant
   checkUncovered *> checkRedundant
 
 checkCases ::
@@ -1984,7 +1982,7 @@ tweakEffects v0 t0
     rewrite p ty
       | Type.ForallNamed' v t <- ty,
         v0 /= v =
-          second (Type.forall a v) <$> rewrite p t
+          second (Type.forAll a v) <$> rewrite p t
       | Type.Arrow' i o <- ty = do
           (vis, i) <- rewrite (not <$> p) i
           (vos, o) <- rewrite p o
@@ -2097,7 +2095,7 @@ generalizeP p ctx0 ty = foldr gen (applyCtx ctx0 ty) ctx
           -- location of the forall is just the location of the input type
           -- and the location of each quantified variable is just inherited
           -- from its source location
-          Type.forall
+          Type.forAll
             (loc t)
             (TypeVar.Universal v)
             (ABT.substInheritAnnotation tv (universal' () v) t)
@@ -2561,8 +2559,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
       | Set.member v (existentials ctx)
           && notMember v (Type.freeVars t) = do
-          e <- extendExistential Var.inferAbility
-          instantiateL b v (relax' False e t)
+          instantiateL b v t
     go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
       | Set.member v (existentials ctx)
           && notMember v (Type.freeVars t) = do

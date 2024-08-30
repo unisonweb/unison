@@ -20,7 +20,7 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Runtime qualified as Rt
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.NamesWithHistory qualified as NS
 import Unison.NamesWithHistory qualified as Names
@@ -81,7 +81,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   -- ppe which returns names fully qualified to the current perspective,  not to the codebase root.
   let biases = maybeToList $ HQ.toName query
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
-  (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase (Just shallowRoot) namesRoot
+  (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase shallowRoot namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength localNamesOnly
   (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do

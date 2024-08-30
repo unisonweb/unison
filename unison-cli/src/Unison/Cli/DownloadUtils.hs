@@ -22,7 +22,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode, shareUserHandleToT
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectAndBranch (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
@@ -34,7 +34,7 @@ import Unison.Sync.Types qualified as Share
 
 -- | Download a project/branch from Share.
 downloadProjectBranchFromShare ::
-  HasCallStack =>
+  (HasCallStack) =>
   Share.IncludeSquashedHead ->
   Share.RemoteProjectBranch ->
   Cli (Either Output.ShareError CausalHash)

@@ -20,7 +20,6 @@ when:
 
 dependencies:
   - ListLike
-  - NanoID
   - aeson
   - ansi-terminal
   - asn1-encoding
@@ -38,7 +37,6 @@ dependencies:
   - cereal
   - clock
   - concurrent-output
-  - configurator
   - containers >= 0.6.3
   - cryptonite
   - data-default
@@ -81,7 +79,7 @@ dependencies:
   - nonempty-containers
   - open-browser
   - openapi3
-  - optparse-applicative >= 0.16.1.0
+  - optparse-applicative
   - pem
   - pretty-simple
   - primitive
@@ -127,7 +125,6 @@ dependencies:
   - unison-util-base32hex
   - unison-util-bytes
   - unison-util-cache
-  - unison-util-nametree
   - unison-util-relation
   - unison-util-rope
   - unison-util-serialization
@@ -140,9 +137,9 @@ dependencies:
   - warp
   - witch
   - witherable
-  - x509
-  - x509-store
-  - x509-system
+  - crypton-x509
+  - crypton-x509-store
+  - crypton-x509-system
   - yaml
   - zlib
 

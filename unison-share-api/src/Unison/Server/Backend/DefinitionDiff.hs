@@ -16,7 +16,7 @@ import Unison.Server.Types (DisplayObjectDiff (..), SemanticSyntaxDiff (..))
 import Unison.Util.AnnotatedText (AnnotatedText (..))
 import Unison.Util.AnnotatedText qualified as AT
 
-diffDisplayObjects :: HasCallStack => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
+diffDisplayObjects :: (HasCallStack) => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
 diffDisplayObjects from to = case (from, to) of
   (BuiltinObject fromST, BuiltinObject toST) -> DisplayObjectDiff (BuiltinObject (diffSyntaxText fromST toST))
   (MissingObject fromSH, MissingObject toSH)
@@ -59,5 +59,17 @@ diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
     detectSpecialCase fromSegment toSegment
       | fromSegment == toSegment = Left fromSegment
       | AT.annotation fromSegment == AT.annotation toSegment = Right (SegmentChange (AT.segment fromSegment, AT.segment toSegment) (AT.annotation fromSegment))
-      | AT.segment fromSegment == AT.segment toSegment = Right (AnnotationChange (AT.segment fromSegment) (AT.annotation fromSegment, AT.annotation toSegment))
+      -- We only emit an annotation change if it's a change in just the hash of the element (optionally the KIND of hash reference can change too).
+      | AT.segment fromSegment == AT.segment toSegment,
+        Just _fromHash <- AT.annotation fromSegment >>= elementHash,
+        Just _toHash <- AT.annotation toSegment >>= elementHash =
+          Right (AnnotationChange (AT.segment fromSegment) (AT.annotation fromSegment, AT.annotation toSegment))
       | otherwise = error "diffSyntaxText: found Syntax Elements in 'both' which have nothing in common."
+      where
+        elementHash :: Syntax.Element -> Maybe Syntax.UnisonHash
+        elementHash = \case
+          Syntax.TypeReference hash -> Just hash
+          Syntax.TermReference hash -> Just hash
+          Syntax.DataConstructorReference hash -> Just hash
+          Syntax.AbilityConstructorReference hash -> Just hash
+          _ -> Nothing

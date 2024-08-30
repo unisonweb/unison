@@ -1,5 +1,5 @@
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 # Basics
@@ -292,7 +292,7 @@ unit2t = cases
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 Pattern coverage checking needs the data decl map to contain all
@@ -316,7 +316,7 @@ evil = bug ""
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison:error
@@ -330,7 +330,7 @@ unique type SomeType = A
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -367,7 +367,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { B } -> ()
        { abort -> _ } -> bug "aborted"
 ```
@@ -421,7 +421,7 @@ unique type T = A | B
 
 result : '{e, Abort} T -> {e} ()
 result f = handle !f with cases
-       { A } -> ()
+       { T.A } -> ()
        { abort -> _ } -> bug "aborted"
 ```
 
@@ -434,7 +434,7 @@ unique type T = A | B
 result : '{e, Give T} r -> {e} r
 result f = handle !f with cases
        { x } -> x
-       { give A -> resume } -> result resume
+       { give T.A -> resume } -> result resume
 ```
 
 ```unison:error

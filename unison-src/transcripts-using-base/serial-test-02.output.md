@@ -1,4 +1,4 @@
-```unison
+``` unison
 structural ability Exit a where
   exit : a -> b
 
@@ -29,7 +29,7 @@ mkTestCase = do
 
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -48,8 +48,8 @@ mkTestCase = do
       products   : ([Nat], [Nat], [Nat]) -> Text
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -61,7 +61,7 @@ mkTestCase = do
     prod       : [Nat] -> Nat
     products   : ([Nat], [Nat], [Nat]) -> Text
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
 

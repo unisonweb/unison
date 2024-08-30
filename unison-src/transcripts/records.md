@@ -1,8 +1,8 @@
 Ensure that Records keep their syntax after being added to the codebase
 
 ```ucm:hide
-.> builtins.merge
-.> load unison-src/transcripts-using-base/base.u
+scratch/main> builtins.merge
+scratch/main> load unison-src/transcripts-using-base/base.u
 ```
 
 ## Record with 1 field
@@ -12,11 +12,11 @@ unique type Record1 = { a : Text }
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> view Record1
+scratch/main> view Record1
 ```
 
 ## Record with 2 fields
@@ -26,11 +26,11 @@ unique type Record2 = { a : Text, b : Int }
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> view Record2
+scratch/main> view Record2
 ```
 
 ## Record with 3 fields
@@ -40,11 +40,11 @@ unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> view Record3
+scratch/main> view Record3
 ```
 
 ## Record with many fields
@@ -62,11 +62,11 @@ unique type Record4 =
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> view Record4
+scratch/main> view Record4
 ```
 
 ## Record with many many fields
@@ -98,11 +98,11 @@ unique type Record5 = {
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> view Record5
+scratch/main> view Record5
 ```
 
 ## Record with user-defined type fields
@@ -116,13 +116,13 @@ unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
 
 ```ucm
-.> view RecordWithUserType
+scratch/main> view RecordWithUserType
 ```
 
 

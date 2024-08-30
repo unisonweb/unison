@@ -11,7 +11,7 @@ transcripts which contain less boilerplate.
 
 The test shows that `hex (fromHex str) == str` as expected.
 
-```unison
+``` unison
 test> hex.tests.ex1 = checks let
          s = "3984af9b"
          [hex (fromHex s) == s]
@@ -20,7 +20,7 @@ test> hex.tests.ex1 = checks let
 Lets do some basic testing of our test harness to make sure its
 working.
 
-```unison
+``` unison
 testAutoClean : '{io2.IO}[Result]
 testAutoClean _ =
   go: '{Stream Result, Exception, io2.IO, TempDirs} Text
@@ -39,7 +39,7 @@ testAutoClean _ =
          Left (Failure _ t _) -> results :+ (Fail t)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -52,22 +52,22 @@ testAutoClean _ =
       testAutoClean : '{IO} [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     testAutoClean : '{IO} [Result]
 
-.> io.test testAutoClean
+scratch/main> io.test testAutoClean
 
     New test results:
   
-  ◉ testAutoClean   our temporary directory should exist
-  ◉ testAutoClean   our temporary directory should no longer exist
+    1. testAutoClean   ◉ our temporary directory should exist
+                       ◉ our temporary directory should no longer exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testAutoClean to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

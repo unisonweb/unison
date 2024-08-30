@@ -36,7 +36,6 @@ module Unison.Runtime.MCode
   )
 where
 
-import Control.Applicative (liftA2)
 import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce

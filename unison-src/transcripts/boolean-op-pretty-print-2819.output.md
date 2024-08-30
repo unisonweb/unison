@@ -1,13 +1,13 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
-```unison
+``` unison
 hangExample : Boolean
 hangExample =
   ("a long piece of text to hang the line" == "")
     && ("a long piece of text to hang the line" == "")
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -20,18 +20,18 @@ hangExample =
       hangExample : Boolean
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     hangExample : Boolean
 
-.> view hangExample
+scratch/main> view hangExample
 
   hangExample : Boolean
   hangExample =
-    ("a long piece of text to hang the line" == "")
-      && ("a long piece of text to hang the line" == "")
+    "a long piece of text to hang the line" == ""
+      && "a long piece of text to hang the line" == ""
 
 ```

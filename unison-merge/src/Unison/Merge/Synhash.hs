@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 -- | Utilities for computing the "syntactic hash" of a decl or term, which is a hash that is computed after substituting
 -- references to other terms and decls with names from a pretty-print environment.
 --
@@ -24,17 +26,24 @@
 -- "foo" would have the same syntactic hash. This indicates (to our merge algorithm) that this was an auto-propagated
 -- update.
 module Unison.Merge.Synhash
-  ( hashType,
-    hashTerm,
-    hashDecl,
+  ( synhashType,
+    synhashTerm,
+    synhashBuiltinTerm,
+    synhashDerivedTerm,
+    synhashBuiltinDecl,
+    synhashDerivedDecl,
+
+    -- * Exported for debugging
+    hashBuiltinTermTokens,
+    hashDerivedTermTokens,
   )
 where
 
 import Data.Char (ord)
+import Data.List qualified as List
 import Data.Text qualified as Text
 import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, Decl)
@@ -49,16 +58,17 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference' (..), TypeReferenceId)
-import Unison.Referent qualified as V1 (Referent)
-import Unison.Referent qualified as V1.Referent
+import Unison.Reference (Reference' (..), TermReferenceId)
+import Unison.Reference qualified as V1
+import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
-import Unison.Var qualified as Var
+import Witch (unsafeFrom)
 
 type Token = H.Token Hash
 
@@ -72,13 +82,17 @@ isDeclTag, isTermTag :: H.Token Hash
 isDeclTag = H.Tag 0
 isTermTag = H.Tag 1
 
-hashBuiltinDecl :: Text -> Hash
-hashBuiltinDecl name =
+synhashBuiltinDecl :: Text -> Hash
+synhashBuiltinDecl name =
   H.accumulate [isBuiltinTag, isDeclTag, H.Text name]
 
-hashBuiltinTerm :: Text -> Hash
-hashBuiltinTerm name =
-  H.accumulate [isBuiltinTag, isTermTag, H.Text name]
+synhashBuiltinTerm :: Text -> Hash
+synhashBuiltinTerm =
+  H.accumulate . hashBuiltinTermTokens
+
+hashBuiltinTermTokens :: Text -> [Token]
+hashBuiltinTermTokens name =
+  [isBuiltinTag, isTermTag, H.Text name]
 
 hashCaseTokens :: PrettyPrintEnv -> Term.MatchCase loc a -> [Token]
 hashCaseTokens ppe (Term.MatchCase pat Nothing _) = H.Tag 0 : hashPatternTokens ppe pat
@@ -104,53 +118,50 @@ hashConstructorNameToken declName conName =
             )
    in H.Text (Name.toText strippedConName)
 
--- | Syntactically hash a decl, using reference names rather than hashes. Two decls will have the same syntactic hash if
--- they they are the same sort of decl (both are data decls or both are effect decls), the unique type guid is the same,
--- the constructors appear in the same order and have the same names, and the constructors' types have the same
--- syntactic hashes.
-hashDecl ::
-  (Monad m, Var v) =>
-  (TypeReferenceId -> m (Decl v a)) ->
-  PrettyPrintEnv ->
-  Name ->
-  TypeReference ->
-  m Hash
-hashDecl loadDecl ppe name = \case
-  ReferenceBuiltin builtin -> pure (hashBuiltinDecl builtin)
-  ReferenceDerived ref -> do
-    decl <- loadDecl ref
-    pure (hashDerivedDecl ppe name decl)
+synhashDerivedTerm :: (Var v) => PrettyPrintEnv -> Term v a -> Hash
+synhashDerivedTerm ppe term =
+  H.accumulate (hashDerivedTermTokens ppe term)
 
-hashDerivedTerm :: Var v => PrettyPrintEnv -> Term v a -> Hash
-hashDerivedTerm ppe t =
-  H.accumulate $ isNotBuiltinTag : hashTermTokens ppe t
+hashDerivedTermTokens :: forall a v. (Var v) => PrettyPrintEnv -> Term v a -> [Token]
+hashDerivedTermTokens ppe =
+  (isNotBuiltinTag :) . (isTermTag :) . go []
+  where
+    go :: [v] -> Term v a -> [Token]
+    go bound t =
+      H.Tag 255 : case ABT.out t of
+        ABT.Var v -> [H.Tag 0, hashVarToken bound v]
+        -- trick: encode the structure, followed the children as a flat list
+        ABT.Tm f -> H.Tag 1 : hashTermFTokens ppe (void f) <> (toList f >>= go bound)
+        ABT.Cycle c -> H.Tag 2 : go bound c
+        ABT.Abs v body -> H.Tag 3 : go (v : bound) body
 
 hashConstructorType :: ConstructorType -> Token
 hashConstructorType = \case
   CT.Effect -> H.Tag 0
   CT.Data -> H.Tag 1
 
-hashDataDeclTokens :: Var v => PrettyPrintEnv -> Name -> DataDeclaration v a -> [Token]
-hashDataDeclTokens ppe declName (DD.DataDeclaration modifier _ vs ctors) =
-  hashModifierTokens modifier <> goVs <> (ctors >>= hashConstructorTokens ppe declName)
-  where
-    goVs =
-      hashLengthToken vs : map hashVarToken vs
+hashDataDeclTokens :: (Var v) => PrettyPrintEnv -> Name -> DataDeclaration v a -> [Token]
+hashDataDeclTokens ppe declName (DD.DataDeclaration modifier _ bound ctors) =
+  hashModifierTokens modifier <> (ctors >>= hashConstructorTokens ppe declName bound)
 
 -- separating constructor types with tag of 99, which isn't used elsewhere
-hashConstructorTokens :: Var v => PrettyPrintEnv -> Name -> (a, v, Type v a) -> [Token]
-hashConstructorTokens ppe declName (_, conName, ty) =
+hashConstructorTokens :: (Var v) => PrettyPrintEnv -> Name -> [v] -> (a, v, Type v a) -> [Token]
+hashConstructorTokens ppe declName bound (_, conName, ty) =
   H.Tag 99
     : hashConstructorNameToken declName (Name.unsafeParseVar conName)
-    : hashTypeTokens ppe ty
+    : hashTypeTokens ppe bound ty
 
-hashDeclTokens :: Var v => PrettyPrintEnv -> Name -> Decl v a -> [Token]
+hashDeclTokens :: (Var v) => PrettyPrintEnv -> Name -> Decl v a -> [Token]
 hashDeclTokens ppe name decl =
   hashConstructorType (DD.constructorType decl) : hashDataDeclTokens ppe name (DD.asDataDecl decl)
 
-hashDerivedDecl :: Var v => PrettyPrintEnv -> Name -> Decl v a -> Hash
-hashDerivedDecl ppe name decl =
-  H.accumulate $ isNotBuiltinTag : hashDeclTokens ppe name decl
+-- | Syntactically hash a decl, using reference names rather than hashes. Two decls will have the same syntactic hash if
+-- they they are the same sort of decl (both are data decls or both are effect decls), the unique type guid is the same,
+-- the constructors appear in the same order and have the same names, and the constructors' types have the same
+-- syntactic hashes.
+synhashDerivedDecl :: (Var v) => PrettyPrintEnv -> Name -> Decl v a -> Hash
+synhashDerivedDecl ppe name decl =
+  H.accumulate $ isNotBuiltinTag : isDeclTag : hashDeclTokens ppe name decl
 
 hashHQNameToken :: HashQualified Name -> Token
 hashHQNameToken =
@@ -161,7 +172,7 @@ hashKindTokens k = case k of
   K.Star -> [H.Tag 0]
   K.Arrow k1 k2 -> H.Tag 1 : (hashKindTokens k1 <> hashKindTokens k2)
 
-hashLengthToken :: Foldable t => t a -> Token
+hashLengthToken :: (Foldable t) => t a -> Token
 hashLengthToken =
   H.Nat . fromIntegral @Int @Word64 . length
 
@@ -182,14 +193,14 @@ hashPatternTokens ppe = \case
   Pattern.Char _ c -> [H.Tag 7, H.Nat (fromIntegral (ord c))]
   Pattern.Constructor _ cr ps ->
     H.Tag 8
-      : hashReferentToken ppe (V1.Referent.Con cr CT.Data)
+      : hashReferentToken ppe (Referent.Con cr CT.Data)
       : hashLengthToken ps
       : (ps >>= hashPatternTokens ppe)
   Pattern.As _ p -> H.Tag 9 : hashPatternTokens ppe p
   Pattern.EffectPure _ p -> H.Tag 10 : hashPatternTokens ppe p
   Pattern.EffectBind _ cr ps k ->
     H.Tag 11
-      : hashReferentToken ppe (V1.Referent.Con cr CT.Effect)
+      : hashReferentToken ppe (Referent.Con cr CT.Effect)
       : hashLengthToken ps
       : hashPatternTokens ppe k <> (ps >>= hashPatternTokens ppe)
   Pattern.SequenceLiteral _ ps -> H.Tag 12 : hashLengthToken ps : (ps >>= hashPatternTokens ppe)
@@ -200,45 +211,22 @@ hashPatternTokens ppe = \case
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
 
-hashReferentToken :: PrettyPrintEnv -> V1.Referent -> Token
+hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
-  H.Hashed . H.accumulate . hashReferentTokens ppe
+  hashHQNameToken . PPE.termNameOrHashOnlyFq ppe
 
-hashReferentTokens :: PrettyPrintEnv -> V1.Referent -> [Token]
-hashReferentTokens ppe referent =
-  case referent of
-    -- distinguish constructor name from terms by tumbling in a name (of any alias of) its decl
-    V1.Referent.Con (ConstructorReference ref _i) _ct -> [hashTypeReferenceToken ppe ref, nameTok]
-    V1.Referent.Ref _ -> [nameTok]
-  where
-    nameTok :: Token
-    nameTok =
-      hashHQNameToken (PPE.termNameOrHashOnlyFq ppe referent)
+synhashTerm ::
+  forall m v a.
+  (Monad m, Var v) =>
+  (TermReferenceId -> m (Term v a)) ->
+  PrettyPrintEnv ->
+  V1.TermReference ->
+  m Hash
+synhashTerm loadTerm ppe = \case
+  ReferenceBuiltin builtin -> pure (synhashBuiltinTerm builtin)
+  ReferenceDerived ref -> synhashDerivedTerm ppe <$> loadTerm ref
 
--- | Syntactically hash a term, using reference names rather than hashes.
--- Two terms will have the same syntactic hash if they would
--- print the the same way under the given pretty-print env.
-hashTerm :: forall m v a. (Monad m, Var v) => (TypeReferenceId -> m (Term v a)) -> PrettyPrintEnv -> V1.Referent -> m Hash
-hashTerm loadTerm ppe = \case
-  V1.Referent.Con ref CT.Data -> pure (hashDerivedTerm ppe (Term.constructor @v () ref))
-  V1.Referent.Con ref CT.Effect -> pure (hashDerivedTerm ppe (Term.request @v () ref))
-  V1.Referent.Ref (ReferenceBuiltin builtin) -> pure (hashBuiltinTerm builtin)
-  V1.Referent.Ref (ReferenceDerived ref) -> hashDerivedTerm ppe <$> loadTerm ref
-
-hashTermTokens :: forall v a. Var v => PrettyPrintEnv -> Term v a -> [Token]
-hashTermTokens ppe =
-  go
-  where
-    go :: Term v a -> [Token]
-    go t =
-      H.Tag 255 : case ABT.out t of
-        ABT.Var v -> [H.Tag 0, hashVarToken v]
-        -- trick: encode the structure, followed the children as a flat list
-        ABT.Tm f -> H.Tag 1 : hashTermFTokens ppe (void f) <> (toList f >>= go)
-        ABT.Cycle c -> H.Tag 2 : go c
-        ABT.Abs v body -> H.Tag 3 : hashVarToken v : go body
-
-hashTermFTokens :: Var v => PrettyPrintEnv -> Term.F v a a () -> [Token]
+hashTermFTokens :: (Var v) => PrettyPrintEnv -> Term.F v a a () -> [Token]
 hashTermFTokens ppe = \case
   Term.Int n -> [H.Tag 0, H.Int n]
   Term.Nat n -> [H.Tag 1, H.Nat n]
@@ -248,12 +236,12 @@ hashTermFTokens ppe = \case
   Term.Char c -> [H.Tag 5, H.Nat (fromIntegral (ord c))]
   Term.Blank {} -> error "tried to hash a term with blanks, something's very wrong"
   -- note: these are all hashed the same, just based on the name
-  Term.Ref r -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Ref r)]
-  Term.Constructor cr -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Con cr CT.Data)]
-  Term.Request cr -> [H.Tag 7, hashReferentToken ppe (V1.Referent.Con cr CT.Effect)]
+  Term.Ref r -> [H.Tag 7, hashReferentToken ppe (Referent.Ref r)]
+  Term.Constructor cr -> [H.Tag 7, hashReferentToken ppe (Referent.Con cr CT.Data)]
+  Term.Request cr -> [H.Tag 7, hashReferentToken ppe (Referent.Con cr CT.Effect)]
   Term.Handle {} -> [H.Tag 8]
   Term.App {} -> [H.Tag 9]
-  Term.Ann _ ty -> H.Tag 10 : hashTypeTokens ppe ty
+  Term.Ann _ ty -> H.Tag 10 : hashTypeTokens ppe [] ty
   Term.List xs -> [H.Tag 11, hashLengthToken xs]
   Term.If {} -> [H.Tag 12]
   Term.And {} -> [H.Tag 13]
@@ -269,21 +257,21 @@ hashTermFTokens ppe = \case
 -- | Syntactically hash a type, using reference names rather than hashes.
 -- Two types will have the same syntactic hash if they would
 -- print the the same way under the given pretty-print env.
-hashType :: Var v => PrettyPrintEnv -> Type v a -> Hash
-hashType ppe t =
-  H.accumulate $ hashTypeTokens ppe t
+synhashType :: (Var v) => PrettyPrintEnv -> Type v a -> Hash
+synhashType ppe ty =
+  H.accumulate $ hashTypeTokens ppe [] ty
 
-hashTypeTokens :: forall v a. Var v => PrettyPrintEnv -> Type v a -> [Token]
+hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go
   where
-    go :: Type v a -> [Token]
-    go t =
+    go :: [v] -> Type v a -> [Token]
+    go bound t =
       H.Tag 254 : case ABT.out t of
-        ABT.Var v -> [H.Tag 0, hashVarToken v]
+        ABT.Var v -> [H.Tag 0, hashVarToken bound v]
         -- trick: encode the structure, followed the children as a flat list
-        ABT.Tm f -> H.Tag 1 : (hashTypeFTokens ppe (void f) <> (toList f >>= go))
-        ABT.Cycle c -> H.Tag 2 : go c
-        ABT.Abs v body -> H.Tag 3 : hashVarToken v : go body
+        ABT.Tm f -> H.Tag 1 : (hashTypeFTokens ppe (void f) <> (toList f >>= go bound))
+        ABT.Cycle c -> H.Tag 2 : go bound c
+        ABT.Abs v body -> H.Tag 3 : go (v : bound) body
 
 hashTypeFTokens :: PrettyPrintEnv -> Type.F () -> [Token]
 hashTypeFTokens ppe = \case
@@ -300,6 +288,8 @@ hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =
   hashHQNameToken . PPE.typeNameOrHashOnlyFq ppe
 
-hashVarToken :: Var v => v -> Token
-hashVarToken =
-  H.Text . Var.name
+hashVarToken :: (Var v) => [v] -> v -> Token
+hashVarToken bound v =
+  case List.elemIndex v bound of
+    Nothing -> error (reportBug "E633940" ("var " ++ show v ++ " not bound in " ++ show bound))
+    Just index -> H.Nat (unsafeFrom @Int @Word64 index)

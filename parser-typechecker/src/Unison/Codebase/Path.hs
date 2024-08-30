@@ -5,7 +5,9 @@ module Unison.Codebase.Path
     Path' (..),
     Absolute (..),
     pattern AbsolutePath',
+    absPath_,
     Relative (..),
+    relPath_,
     pattern RelativePath',
     Resolve (..),
     pattern Empty,
@@ -22,11 +24,16 @@ module Unison.Codebase.Path
     relativeEmpty',
     currentPath,
     prefix,
+    prefixAbs,
+    prefixRel,
+    maybePrefix,
     unprefix,
-    prefixName,
-    prefixName2,
+    maybePrefixName,
+    prefixNameIfRel,
     unprefixName,
     HQSplit,
+    HQSplitAbsolute,
+    AbsSplit,
     Split,
     Split',
     HQSplit',
@@ -40,7 +47,7 @@ module Unison.Codebase.Path
     isRoot,
     isRoot',
 
-    -- * things that could be replaced with `Convert` instances
+    -- * conversions
     absoluteToPath',
     fromList,
     fromName,
@@ -53,17 +60,16 @@ module Unison.Codebase.Path
     toList,
     toName,
     toName',
-    unsafeToName,
-    unsafeToName',
     toText,
     toText',
+    absToText,
+    relToText,
     unsplit,
     unsplit',
     unsplitAbsolute,
-    unsplitHQ,
-    unsplitHQ',
-
-    -- * things that could be replaced with `Parse` instances
+    nameFromHQSplit,
+    nameFromHQSplit',
+    nameFromSplit',
     splitFromName,
     splitFromName',
     hqSplitFromName',
@@ -74,13 +80,12 @@ module Unison.Codebase.Path
     -- * things that could be replaced with `Snoc` instances
     snoc,
     unsnoc,
-    -- This should be moved to a common util module, or we could use the 'witch' package.
-    Convert (..),
   )
 where
 
 import Control.Lens hiding (cons, snoc, unsnoc, pattern Empty)
 import Control.Lens qualified as Lens
+import Data.Bitraversable (bitraverse)
 import Data.Foldable qualified as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -89,15 +94,20 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.Exts qualified as GHC
-import Unison.HashQualified' qualified as HQ'
-import Unison.Name (Convert (..), Name, Parse)
+import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude hiding (empty, toList)
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseText)
 import Unison.Util.List qualified as List
 
--- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
+-- | A `Path` is an internal structure representing some namespace in the codebase.
+--
+--  @Foo.Bar.baz@ becomes @["Foo", "Bar", "baz"]@.
+--
+--  __NB__:  This shouldn’t be exposed outside of this module (prefer`Path'`, `Absolute`, or `Relative`), but it’s
+--   currently used pretty widely. Such usage should be replaced when encountered.
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
@@ -109,10 +119,20 @@ instance GHC.IsList Path where
   toList (Path segs) = Foldable.toList segs
   fromList = Path . Seq.fromList
 
+-- | An absolute from the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
 
+absPath_ :: Lens' Absolute Path
+absPath_ = lens unabsolute (\_ new -> Absolute new)
+
+-- | A namespace path that doesn’t necessarily start from the root.
+-- Typically refers to a path from the current namespace.
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
+relPath_ :: Lens' Relative Path
+relPath_ = lens unrelative (\_ new -> Relative new)
+
+-- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
 
@@ -141,14 +161,14 @@ absoluteToPath' = AbsolutePath'
 
 instance Show Path' where
   show = \case
-    AbsolutePath' abs -> show abs
-    RelativePath' rel -> show rel
+    AbsolutePath' abs -> Text.unpack $ absToText abs
+    RelativePath' rel -> Text.unpack $ relToText rel
 
 instance Show Absolute where
-  show s = "." ++ show (unabsolute s)
+  show s = Text.unpack $ absToText s
 
 instance Show Relative where
-  show = show . unrelative
+  show = Text.unpack . relToText
 
 unsplit' :: Split' -> Path'
 unsplit' = \case
@@ -162,11 +182,13 @@ unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
 unsplitAbsolute =
   coerce unsplit
 
-unsplitHQ :: HQSplit -> HQ'.HashQualified Path
-unsplitHQ (p, a) = fmap (snoc p) a
+nameFromHQSplit :: HQSplit -> HQ'.HashQualified Name
+nameFromHQSplit = nameFromHQSplit' . first (RelativePath' . Relative)
 
-unsplitHQ' :: HQSplit' -> HQ'.HashQualified Path'
-unsplitHQ' (p, a) = fmap (snoc' p) a
+nameFromHQSplit' :: HQSplit' -> HQ'.HashQualified Name
+nameFromHQSplit' (p, a) = fmap (nameFromSplit' . (p,)) a
+
+type AbsSplit = (Absolute, NameSegment)
 
 type Split = (Path, NameSegment)
 
@@ -187,16 +209,25 @@ unprefix (Absolute prefix) = \case
   AbsolutePath' abs -> unabsolute abs
   RelativePath' rel -> fromList $ dropPrefix (toList prefix) (toList (unrelative rel))
 
--- too many types
-prefix :: Absolute -> Path' -> Path
-prefix (Absolute (Path prefix)) = \case
-  AbsolutePath' abs -> unabsolute abs
-  RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
+prefixAbs :: Absolute -> Relative -> Absolute
+prefixAbs prefix = Absolute . Path . (toSeq (unabsolute prefix) <>) . toSeq . unrelative
 
-prefix2 :: Path -> Path' -> Path
-prefix2 (Path prefix) = \case
-  AbsolutePath' abs -> unabsolute abs
-  RelativePath' rel -> Path $ prefix <> toSeq (unrelative rel)
+prefixRel :: Relative -> Relative -> Relative
+prefixRel prefix = Relative . Path . (toSeq (unrelative prefix) <>) . toSeq . unrelative
+
+-- | This always prefixes, since the secend argument can never be Absolute.
+prefix :: Path' -> Relative -> Path'
+prefix prefix =
+  Path' . case prefix of
+    AbsolutePath' abs -> Left . prefixAbs abs
+    RelativePath' rel -> pure . prefixRel rel
+
+-- | Returns `Nothing` if the second argument is absolute. A common pattern is
+--   @fromMaybe path $ maybePrefix prefix path@ to use the unmodified path in that case.
+maybePrefix :: Path' -> Path' -> Maybe Path'
+maybePrefix pre = \case
+  AbsolutePath' _ -> Nothing
+  RelativePath' rel -> pure $ prefix pre rel
 
 -- | Finds the longest shared path prefix of two paths.
 -- Returns (shared prefix, path to first location from shared prefix, path to second location from shared prefix)
@@ -244,8 +275,8 @@ fromList = Path . Seq.fromList
 ancestors :: Absolute -> Seq Absolute
 ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
-hqSplitFromName' :: Name -> Maybe HQSplit'
-hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
+hqSplitFromName' :: Name -> HQSplit'
+hqSplitFromName' = fmap HQ'.fromName . splitFromName'
 
 -- |
 -- >>> splitFromName "a.b.c"
@@ -268,6 +299,11 @@ splitFromName' name =
             seg
           )
 
+nameFromSplit' :: Split' -> Name
+nameFromSplit' (path', seg) = case path' of
+  AbsolutePath' abs -> Name.makeAbsolute . Name.fromReverseSegments $ seg :| reverse (toList $ unabsolute abs)
+  RelativePath' rel -> Name.makeRelative . Name.fromReverseSegments $ seg :| reverse (toList $ unrelative rel)
+
 -- | Remove a path prefix from a name.
 -- Returns 'Nothing' if there are no remaining segments to construct the name from.
 --
@@ -276,11 +312,13 @@ splitFromName' name =
 unprefixName :: Absolute -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
-prefixName :: Absolute -> Name -> Name
-prefixName p n = fromMaybe n . toName . prefix p . fromName' $ n
+-- | Returns `Nothing` if the second argument is absolute. A common pattern is
+--   @fromMaybe name $ maybePrefixName prefix name@ to use the unmodified path in that case.
+maybePrefixName :: Path' -> Name -> Maybe Name
+maybePrefixName pre = fmap nameFromSplit' . bitraverse (maybePrefix pre) pure . splitFromName'
 
-prefixName2 :: Path -> Name -> Name
-prefixName2 p n = fromMaybe n . toName . prefix2 p . fromName' $ n
+prefixNameIfRel :: Path' -> Name -> Name
+prefixNameIfRel p name = fromMaybe name $ maybePrefixName p name
 
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
@@ -290,9 +328,6 @@ cons = Lens.cons
 
 snoc :: Path -> NameSegment -> Path
 snoc = Lens.snoc
-
-snoc' :: Path' -> NameSegment -> Path'
-snoc' = Lens.snoc
 
 unsnoc :: Path -> Maybe (Path, NameSegment)
 unsnoc = Lens.unsnoc
@@ -318,15 +353,6 @@ fromName' n
   | otherwise = RelativePath' (Relative path)
   where
     path = fromName n
-
-unsafeToName :: Path -> Name
-unsafeToName =
-  fromMaybe (error "empty path") . toName
-
--- | Convert a Path' to a Name
-unsafeToName' :: Path' -> Name
-unsafeToName' =
-  fromMaybe (error "empty path") . toName'
 
 toName :: Path -> Maybe Name
 toName = \case
@@ -357,10 +383,28 @@ empty = Path mempty
 instance Show Path where
   show = Text.unpack . toText
 
+instance From Path Text where
+  from = toText
+
+instance From Absolute Text where
+  from = absToText
+
+instance From Relative Text where
+  from = relToText
+
+instance From Path' Text where
+  from = toText'
+
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
 toText =
   maybe Text.empty Name.toText . toName
+
+absToText :: Absolute -> Text
+absToText abs = "." <> toText (unabsolute abs)
+
+relToText :: Relative -> Text
+relToText rel = toText (unrelative rel)
 
 unsafeParseText :: Text -> Path
 unsafeParseText = \case
@@ -498,6 +542,9 @@ instance Resolve Absolute Relative Absolute where
 instance Resolve Absolute Relative Path' where
   resolve l r = AbsolutePath' (resolve l r)
 
+instance Resolve Absolute Path Absolute where
+  resolve (Absolute l) r = Absolute (resolve l r)
+
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a
   resolve (AbsolutePath' a) (RelativePath' r) = AbsolutePath' (resolve a r)
@@ -515,36 +562,3 @@ instance Resolve Absolute HQSplit HQSplitAbsolute where
 instance Resolve Absolute Path' Absolute where
   resolve _ (AbsolutePath' a) = a
   resolve a (RelativePath' r) = resolve a r
-
-instance Convert Absolute Path where convert = unabsolute
-
-instance Convert Absolute Path' where convert = absoluteToPath'
-
-instance Convert Absolute Text where convert = toText' . absoluteToPath'
-
-instance Convert Relative Text where convert = toText . unrelative
-
-instance Convert Absolute String where convert = Text.unpack . convert
-
-instance Convert Relative String where convert = Text.unpack . convert
-
-instance Convert [NameSegment] Path where convert = fromList
-
-instance Convert Path [NameSegment] where convert = toList
-
-instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
-
-instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
-
-instance Convert Name Split where
-  convert = splitFromName
-
-instance Convert (path, NameSegment) (path, HQ'.HQSegment) where
-  convert (path, name) =
-    (path, HQ'.fromName name)
-
-instance (Convert path0 path1) => Convert (path0, name) (path1, name) where
-  convert =
-    over _1 convert
-
-instance Parse Name HQSplit' where parse = hqSplitFromName'

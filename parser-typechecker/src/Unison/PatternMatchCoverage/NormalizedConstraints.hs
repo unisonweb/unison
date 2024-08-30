@@ -216,14 +216,14 @@ data VarConstraints vt v loc
   | Vc'Text (Maybe Text) (Set Text)
   | Vc'Char (Maybe Char) (Set Char)
   | Vc'ListRoot
+      -- | type of list elems
       (Type vt loc)
-      -- ^ type of list elems
+      -- | Positive constraint on cons elements
       (Seq v)
-      -- ^ Positive constraint on cons elements
+      -- | Positive constraint on snoc elements
       (Seq v)
-      -- ^ Positive constraint on snoc elements
+      -- | positive constraint on input list size
       IntervalSet
-      -- ^ positive constraint on input list size
   deriving stock (Show, Eq, Ord, Generic)
 
 data EffectInfo

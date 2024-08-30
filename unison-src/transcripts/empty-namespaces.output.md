@@ -1,18 +1,19 @@
 # Empty namespace behaviours
 
-```unison
+``` unison
 mynamespace.x = 1
 ```
 
 The deleted namespace shouldn't appear in `ls` output.
-```ucm
-.> ls
+
+``` ucm
+scratch/main> ls
 
   nothing to show
 
 ```
-```ucm
-.> find.verbose
+``` ucm
+scratch/main> find.verbose
 
   ☝️
   
@@ -24,12 +25,12 @@ The deleted namespace shouldn't appear in `ls` output.
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
 
 ```
-```ucm
-.> find mynamespace
+``` ucm
+scratch/main> find mynamespace
 
   ☝️
   
@@ -41,7 +42,7 @@ The deleted namespace shouldn't appear in `ls` output.
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
 
 ```
@@ -49,35 +50,20 @@ The deleted namespace shouldn't appear in `ls` output.
 
 The history of the namespace should be empty.
 
-```ucm
-.> history mynamespace
+``` ucm
+scratch/main> history mynamespace
 
-  ☝️  The namespace .mynamespace is empty.
-
-```
-Merging an empty namespace should be a no-op
-
-```ucm
-  ☝️  The namespace .empty is empty.
-
-.empty> history
-
-  ☝️  The namespace .empty is empty.
-
-.empty> merge.old .mynamespace
-
-  ⚠️
+  Note: The most recent namespace hash is immediately below this
+        message.
   
-  The namespace .mynamespace doesn't exist.
-
-.empty> history
-
-  ☝️  The namespace .empty is empty.
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
 
-```unison
+``` unison
 deleted.x = 1
 stuff.thing = 2
 ```
@@ -86,16 +72,16 @@ stuff.thing = 2
 
 I should be allowed to fork over a deleted namespace
 
-```ucm
-.> fork stuff deleted
+``` ucm
+scratch/main> fork stuff deleted
 
   Done.
 
 ```
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
-```ucm
-.> history stuff
+``` ucm
+scratch/main> history stuff
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -104,7 +90,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   □ 1. #q2dq4tsno1 (start of history)
 
-.> history deleted
+scratch/main> history deleted
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -116,7 +102,7 @@ The history from the `deleted` namespace should have been overwritten by the his
 ```
 ## move.namespace
 
-```unison
+``` unison
 moveoverme.x = 1
 moveme.y = 2
 ```
@@ -124,12 +110,12 @@ moveme.y = 2
 I should be able to move a namespace over-top of a deleted namespace.
 The history should be that of the moved namespace.
 
-```ucm
-.> delete.namespace moveoverme
+``` ucm
+scratch/main> delete.namespace moveoverme
 
   Done.
 
-.> history moveme
+scratch/main> history moveme
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -138,11 +124,11 @@ The history should be that of the moved namespace.
   
   □ 1. #c5uisu4kll (start of history)
 
-.> move.namespace moveme moveoverme
+scratch/main> move.namespace moveme moveoverme
 
   Done.
 
-.> history moveoverme
+scratch/main> history moveoverme
 
   Note: The most recent namespace hash is immediately below this
         message.

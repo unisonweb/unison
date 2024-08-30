@@ -13,7 +13,7 @@ import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0 (..))
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchDiff qualified as BranchDiff
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
@@ -36,7 +36,7 @@ diffHelper before after =
     Cli.Env {codebase} <- ask
     hqLength <- Cli.runTransaction Codebase.hashLength
     diff <- liftIO (BranchDiff.diff0 before after)
-    names <- Cli.currentNames
+    names <- Cli.currentNames <&> \currentNames -> currentNames <> Branch.toNames before <> Branch.toNames after
     pped <- Cli.prettyPrintEnvDeclFromNames names
     let suffixifiedPPE = PPED.suffixifiedPPE pped
     fmap (suffixifiedPPE,) do

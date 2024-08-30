@@ -2,7 +2,7 @@ Regression test for https://github.com/unisonweb/unison/pull/2377
 
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -65,21 +65,21 @@ doc = cases
 ```
 
 ```ucm
-.> add
-.> view dopey
-.> view grumpy
-.> view happy
-.> view sneezy
-.> view bashful
-.> view mouthy
-.> view pokey
-.> view sleepy
-.> view demure
-.> view angry
-.> view tremulous
-.> view throaty
-.> view agitated
-.> view doc
+scratch/main> add
+scratch/main> view dopey
+scratch/main> view grumpy
+scratch/main> view happy
+scratch/main> view sneezy
+scratch/main> view bashful
+scratch/main> view mouthy
+scratch/main> view pokey
+scratch/main> view sleepy
+scratch/main> view demure
+scratch/main> view angry
+scratch/main> view tremulous
+scratch/main> view throaty
+scratch/main> view agitated
+scratch/main> view doc
 
 ```
 

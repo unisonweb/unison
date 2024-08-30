@@ -1,6 +1,6 @@
 # Doc rendering
 
-```unison
+``` unison
 structural type Maybe a = Nothing | Just a
 otherTerm = "text"
 
@@ -77,8 +77,8 @@ Transclusion/evaluation:
 term = 42
 ```
 
-```ucm
-.> display term.doc
+``` ucm
+scratch/main> display term.doc
 
   # Heading
   
@@ -146,8 +146,8 @@ term = 42
       message
 
 ```
-```api
-GET /api/non-project-code/getDefinition?names=term
+``` api
+GET /api/projects/scratch/branches/main/getDefinition?names=term
 {
     "missingDefinitions": [],
     "termDefinitions": {
@@ -941,3 +941,4 @@ GET /api/non-project-code/getDefinition?names=term
     "typeDefinitions": {}
 }
 ```
+

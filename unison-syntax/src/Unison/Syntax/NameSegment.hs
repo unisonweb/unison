@@ -33,8 +33,8 @@ import Text.Megaparsec (ParsecT)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
 import Text.Megaparsec.Internal qualified as P (withParsecT)
-import Unison.NameSegment (NameSegment (..))
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Syntax.Lexer.Token (Token (..), posP)
 import Unison.Syntax.ReservedWords (keywords, reservedOperators)
@@ -91,7 +91,7 @@ renderParseErr = \case
   ReservedOperator s -> "reserved operator: " <> s
   ReservedWord s -> "reserved word: " <> s
 
-segmentP :: Monad m => ParsecT (Token ParseErr) [Char] m NameSegment
+segmentP :: (Monad m) => ParsecT (Token ParseErr) [Char] m NameSegment
 segmentP =
   P.withParsecT (fmap ReservedOperator) symbolyP
     <|> P.withParsecT (fmap ReservedWord) wordyP

@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,25 +15,25 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-.> move.term Foo.Bar Stray.Bar
+scratch/main> move.term Foo.Bar Stray.Bar
 
   Done.
 
 ```
 Now we've set up a situation where the constructor is not where it's supposed to be; it's somewhere else.
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -49,22 +49,20 @@ unique type Foo = Bar Nat Nat
 ```
 Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`) doesn't really exist, it's just showing up due to a pretty-printer bug.
 
-```ucm
-.> view Foo
+``` ucm
+scratch/main> view Foo
 
   type Foo = Stray.Bar Nat
 
-.> update
+scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  I couldn't complete the update because the type Foo has
-  unnamed constructors. (I currently need each constructor to
-  have a name somewhere under the type name.)
+  Sorry, I wasn't able to perform the update:
+  
+  The type Foo has some constructors with missing names, and I
+  can't perform an update in this situation.
   
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each constructor, and then try the update again.
+  each unnamed constructor, and then try the update again.
 
 ```

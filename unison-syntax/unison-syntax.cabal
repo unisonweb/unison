@@ -20,12 +20,15 @@ library
       Unison.Lexer.Pos
       Unison.Parser.Ann
       Unison.Syntax.HashQualified
-      Unison.Syntax.HashQualified'
+      Unison.Syntax.HashQualifiedPrime
       Unison.Syntax.Lexer
       Unison.Syntax.Lexer.Token
+      Unison.Syntax.Lexer.Unison
       Unison.Syntax.Name
       Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.Parser.Doc
+      Unison.Syntax.Parser.Doc.Data
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash
       Unison.Syntax.Var
@@ -68,7 +71,9 @@ library
     , bytes
     , containers
     , cryptonite
+    , deriving-compat
     , extra
+    , free
     , lens
     , megaparsec
     , mtl
@@ -125,8 +130,10 @@ test-suite syntax-tests
     , code-page
     , containers
     , cryptonite
+    , deriving-compat
     , easytest
     , extra
+    , free
     , lens
     , megaparsec
     , mtl

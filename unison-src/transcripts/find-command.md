@@ -1,6 +1,5 @@
 ```ucm:hide
-.> builtins.merge
-.> move builtin lib.builtin
+scratch/main> builtins.merge lib.builtin
 ```
 
 ```unison:hide
@@ -14,37 +13,31 @@ somewhere.bar = 7
 ```
 
 ```ucm:hide
-.> add
+scratch/main> add
 ```
 
 ```ucm
-.> find foo
-.> view 1
-.> find.all foo
-.> view 1
+scratch/main> find foo
+scratch/main> view 1
+scratch/main> find.all foo
+scratch/main> view 1
 ```
 
 ```ucm
-.> find-in cat foo
-.> view 1
-.> find-in.all cat foo
-.> view 1
+scratch/main> find-in cat foo
+scratch/main> view 1
+scratch/main> find-in.all cat foo
+scratch/main> view 1
 ```
 
-```ucm
-.somewhere> find bar
-.somewhere> find.global bar
-```
+Finding within a namespace
 
 ```ucm
-.> find bar
-.> find-in somewhere bar
+scratch/main> find bar
+scratch/other> debug.find.global bar
+scratch/main> find-in somewhere bar
 ```
 
 ```ucm:error
-.> find baz
-```
-
-```ucm:error
-.> find.global notHere
+scratch/main> find baz
 ```

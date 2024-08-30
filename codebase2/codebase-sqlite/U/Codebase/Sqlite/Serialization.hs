@@ -60,6 +60,7 @@ import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.List (elemIndex)
 import Data.Set qualified as Set
 import Data.Vector (Vector)
+import U.Codebase.Decl (Modifier)
 import U.Codebase.Decl qualified as Decl
 import U.Codebase.Kind (Kind)
 import U.Codebase.Kind qualified as Kind
@@ -94,7 +95,6 @@ import Unison.Hash32 qualified as Hash32
 import Unison.Prelude
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (getChar, putChar)
-import U.Codebase.Decl (Modifier)
 
 debug :: Bool
 debug = False
@@ -462,7 +462,7 @@ putDeclFormat = \case
     putDeclComponent (DeclFormat.LocallyIndexedComponent v) =
       putFramedArray (putPair putLocalIds putDeclElement) v
 
-putDeclElement :: MonadPut m => Decl.DeclR DeclFormat.TypeRef Symbol -> m ()
+putDeclElement :: (MonadPut m) => Decl.DeclR DeclFormat.TypeRef Symbol -> m ()
 putDeclElement Decl.DataDeclaration {..} = do
   putDeclType declType
   putModifier modifier
@@ -499,7 +499,7 @@ getDeclElement =
         1 -> pure Decl.Effect
         other -> unknownTag "DeclType" other
 
-getModifier :: MonadGet m => m Modifier
+getModifier :: (MonadGet m) => m Modifier
 getModifier =
   getWord8 >>= \case
     0 -> pure Decl.Structural
@@ -720,7 +720,7 @@ getLocalBranch =
         x -> unknownTag "getMetadataSetFormat" x
 
 getBranchDiff' ::
-  MonadGet m =>
+  (MonadGet m) =>
   m branchRef ->
   m (BranchFormat.BranchLocalIds' text defRef patchRef childRef) ->
   m (BranchFormat.BranchFormat' text defRef patchRef childRef branchRef)

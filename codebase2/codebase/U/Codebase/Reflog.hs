@@ -13,6 +13,7 @@ data Entry causal text = Entry
     toRootCausalHash :: causal,
     reason :: text
   }
+  deriving (Functor)
 
 instance Bifunctor Entry where
   bimap = bimapDefault

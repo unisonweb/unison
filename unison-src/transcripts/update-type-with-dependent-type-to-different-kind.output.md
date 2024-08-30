@@ -1,9 +1,9 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -17,8 +17,8 @@ unique type Baz = Qux Foo
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -26,11 +26,11 @@ unique type Baz = Qux Foo
     type Foo
 
 ```
-```unison
+``` unison
 unique type Foo a = Bar Nat a
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -44,8 +44,8 @@ unique type Foo a = Bar Nat a
       type Foo a
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -57,9 +57,13 @@ unique type Foo a = Bar Nat a
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
+type Foo a = Bar Nat a
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 type Baz = Qux Foo
 
-type Foo a = Bar Nat a
 ```
 

@@ -1,4 +1,4 @@
-```unison
+``` unison
 x = 30
 
 y : Nat
@@ -12,8 +12,8 @@ ability Ask a where
   ask : a
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -23,15 +23,15 @@ ability Ask a where
     x : Nat
     y : Nat
 
-.> debug.term.abt Nat.+
+scratch/main> debug.term.abt Nat.+
 
   Builtin term: ##Nat.+
 
-.> debug.term.abt y
+scratch/main> debug.term.abt y
 
   (let Ref(ReferenceBuiltin "Nat.+") Ref(ReferenceDerived (Id "qpo3o788girkkbb43uf6ggqberfduhtnqbt7096eojlrp27jieco09mdasb7b0b06ej9hj60a00nnbbdo8he0b4e0m7vtopifiuhdig" 0)) 2 in (User "z". Ref(ReferenceBuiltin "Nat.+") (Var User "z") 10)):ReferenceBuiltin "Nat"
 
-.> debug.term.abt Some
+scratch/main> debug.term.abt Some
 
   Constructor #0 of the following type:
   DataDeclaration
@@ -61,7 +61,7 @@ ability Ask a where
           ]
       }
 
-.> debug.term.abt ask
+scratch/main> debug.term.abt ask
 
   Constructor #0 of the following type:
   EffectDeclaration
@@ -90,11 +90,11 @@ ability Ask a where
           }
       }
 
-.> debug.type.abt Nat
+scratch/main> debug.type.abt Nat
 
   Builtin type: ##Nat
 
-.> debug.type.abt Optional
+scratch/main> debug.type.abt Optional
 
   DataDeclaration
       { modifier = Structural
@@ -123,7 +123,7 @@ ability Ask a where
           ]
       }
 
-.> debug.type.abt Ask
+scratch/main> debug.type.abt Ask
 
   EffectDeclaration
       { toDataDecl = DataDeclaration

@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -47,7 +47,7 @@ library
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
-      Unison.Cli.UnisonConfigUtils
+      Unison.Cli.UpdateUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AddRun
@@ -55,15 +55,21 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.CommitMerge
+      Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
+      Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
+      Unison.Codebase.Editor.HandleInput.Global
       Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
+      Unison.Codebase.Editor.HandleInput.Ls
+      Unison.Codebase.Editor.HandleInput.LSPDebug
       Unison.Codebase.Editor.HandleInput.Merge2
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
@@ -78,12 +84,14 @@ library
       Unison.Codebase.Editor.HandleInput.ProjectSwitch
       Unison.Codebase.Editor.HandleInput.Pull
       Unison.Codebase.Editor.HandleInput.Push
+      Unison.Codebase.Editor.HandleInput.Reflogs
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.ShowDefinition
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests
+      Unison.Codebase.Editor.HandleInput.Todo
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
@@ -97,10 +105,12 @@ library
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
-      Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.TranscriptParser
+      Unison.Codebase.Transcript
+      Unison.Codebase.Transcript.Parser
+      Unison.Codebase.Transcript.Runner
       Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.BranchRelativePath
@@ -108,6 +118,7 @@ library
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.FZFResolvers
+      Unison.CommandLine.Helpers
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
@@ -124,6 +135,7 @@ library
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
+      Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
       Unison.LSP.Formatting
       Unison.LSP.HandlerUtils
@@ -133,6 +145,7 @@ library
       Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
+      Unison.LSP.Util.Signal
       Unison.LSP.VFS
       Unison.Main
       Unison.Share.Codeserver
@@ -188,10 +201,10 @@ library
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
@@ -223,6 +236,7 @@ library
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
@@ -262,7 +276,6 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
-    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -329,10 +342,10 @@ executable transcripts
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
@@ -365,6 +378,7 @@ executable transcripts
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
@@ -406,7 +420,6 @@ executable transcripts
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
-    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers
@@ -477,10 +490,10 @@ test-suite cli-tests
     , base
     , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
     , containers >=0.6.3
     , cryptonite
     , directory
@@ -514,6 +527,7 @@ test-suite cli-tests
     , network-udp
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
@@ -554,7 +568,6 @@ test-suite cli-tests
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
-    , unison-util-nametree
     , unison-util-relation
     , unliftio
     , unordered-containers

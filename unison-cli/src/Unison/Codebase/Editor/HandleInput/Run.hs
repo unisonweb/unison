@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Run
   )
 where
 
-import Control.Lens (view, (.=), _1)
+import Control.Lens ((.=), _1)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -20,6 +20,8 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -38,9 +40,10 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..))
 import Unison.Var qualified as Var
 
-handleRun :: Bool -> Text -> [String] -> Cli ()
+handleRun :: Bool -> HQ.HashQualified Name -> [String] -> Cli ()
 handleRun native main args = do
   (unisonFile, mainResType) <- do
     (sym, term, typ, otyp) <- getTerm main
@@ -75,7 +78,7 @@ data GetTermResult
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
 -- the type of the evaluated term.
-getTerm :: Text -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+getTerm :: HQ.HashQualified Name -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
@@ -90,7 +93,7 @@ getTerm main =
       Cli.returnEarly $ Output.BadMainFunction "run" main ty suffixifiedPPE [mainType]
     GetTermSuccess x -> pure x
 
-getTerm' :: Text -> Cli GetTermResult
+getTerm' :: HQ.HashQualified Name -> Cli GetTermResult
 getTerm' mainName =
   let getFromCodebase = do
         Cli.Env {codebase, runtime} <- ask
@@ -99,7 +102,6 @@ getTerm' mainName =
         mainToFile
           =<< MainTerm.getMainTerm loadTypeOfTerm names mainName (Runtime.mainType runtime)
         where
-          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
           mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
           mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
           mainToFile (MainTerm.Success hq tm typ) =
@@ -108,7 +110,8 @@ getTerm' mainName =
                   pure (GetTermSuccess (v, tm, typ, otyp))
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.name v == mainName) . view _1) components
+        -- __TODO__: We shouldn’t need to serialize mainName` for this check
+        let mainComponent = filter ((\v -> Var.name v == HQ.toText mainName) . view _1) components
         case mainComponent of
           [(v, _, tm, ty)] ->
             checkType ty \otyp ->
@@ -122,7 +125,9 @@ getTerm' mainName =
         Cli.Env {codebase, runtime} <- ask
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
           True -> do
-            typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies codebase (Type.dependencies ty))
+            typeLookup <-
+              Cli.runTransaction $
+                Codebase.typeLookupForDependencies codebase Defns {terms = Set.empty, types = Type.dependencies ty}
             f $! synthesizeForce typeLookup ty
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case

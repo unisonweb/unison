@@ -1,6 +1,6 @@
 # delete.namespace.force
 
-```unison
+``` unison
 no_dependencies.thing = "no dependents on this term"
 
 dependencies.term1 = 1
@@ -12,16 +12,16 @@ dependents.usage2 = dependencies.term1 * dependencies.term2
 
 Deleting a namespace with no external dependencies should succeed.
 
-```ucm
-.> delete.namespace no_dependencies
+``` ucm
+scratch/main> delete.namespace no_dependencies
 
   Done.
 
 ```
 Deleting a namespace with external dependencies should fail and list all dependents.
 
-```ucm
-.> delete.namespace dependencies
+``` ucm
+scratch/main> delete.namespace dependencies
 
   ⚠️
   
@@ -41,8 +41,8 @@ Deleting a namespace with external dependencies should fail and list all depende
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
 
-```ucm
-.> delete.namespace.force dependencies
+``` ucm
+scratch/main> delete.namespace.force dependencies
 
   Done.
 
@@ -61,8 +61,8 @@ Deleting a namespace with external dependencies should succeed when using `delet
 ```
 I should be able to view an affected dependency by number
 
-```ucm
-.> view 2
+``` ucm
+scratch/main> view 2
 
   dependents.usage2 : Nat
   dependents.usage2 =
@@ -72,38 +72,49 @@ I should be able to view an affected dependency by number
 ```
 Deleting the root namespace should require confirmation if not forced.
 
-```ucm
-.> delete.namespace .
+``` ucm
+scratch/main> delete.namespace .
 
   ⚠️
   
   Are you sure you want to clear away everything?
-  You could use `project.create` to switch to a new project instead.
+  You could use `project.create` to switch to a new project
+  instead, or delete the current branch with `delete.branch`
 
-.> delete.namespace .
+scratch/main> delete.namespace .
 
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
 
 -- Should have an empty history
-.> history .
+scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
 Deleting the root namespace shouldn't require confirmation if forced.
 
-```ucm
-.> delete.namespace.force .
+``` ucm
+scratch/main> delete.namespace.force .
 
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
 
 -- Should have an empty history
-.> history .
+scratch/main> history .
 
-  ☝️  The namespace . is empty.
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ 1. #sg60bvjo91 (start of history)
 
 ```

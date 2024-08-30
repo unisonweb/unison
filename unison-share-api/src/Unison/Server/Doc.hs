@@ -8,7 +8,6 @@
 
 module Unison.Server.Doc where
 
-import Control.Lens (view, (^.))
 import Control.Monad
 import Data.Aeson (ToJSON)
 import Data.Foldable
@@ -334,11 +333,13 @@ evalDoc terms typeOf eval types tm =
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
         pure $ EExample ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          annotatedVs = ((),) <$> vs
+          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) annotatedVs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
         pure $ EExampleBlock ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          annotatedVs = ((),) <$> vs
+          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) annotatedVs) body
 
       -- Link (Either Link.Type Doc2.Term)
       DD.Doc2SpecialFormLink e ->

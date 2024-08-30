@@ -1,11 +1,11 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n+1)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -19,8 +19,8 @@ incrFoo = cases Bar n -> Bar (n+1)
       incrFoo : Foo -> Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -28,11 +28,11 @@ incrFoo = cases Bar n -> Bar (n+1)
     incrFoo : Foo -> Foo
 
 ```
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -46,8 +46,8 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -59,10 +59,14 @@ unique type Foo = Bar Nat Nat
   `update` again.
 
 ```
-```unison:added-by-ucm scratch.u
+``` unison:added-by-ucm scratch.u
+type Foo = Bar Nat Nat
+
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n Nat.+ 1)
 
-type Foo = Bar Nat Nat
 ```
 

@@ -1,6 +1,6 @@
 
 ```ucm:hide
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 This file contains programs with parse errors and type errors, for visual inspection of error message quality and to check for regressions or changes to error reporting.
@@ -27,7 +27,7 @@ x = 1e- -- missing an exponent
 x = 1E+ -- missing an exponent
 ```
 
-### Hex, octal, and bytes literals
+### Hex, octal, binary, and bytes literals
 
 ```unison:error
 x = 0xoogabooga -- invalid hex chars
@@ -35,6 +35,10 @@ x = 0xoogabooga -- invalid hex chars
 
 ```unison:error
 x = 0o987654321 -- 9 and 8 are not valid octal char
+```
+
+```unison:error
+x = 0b3201 -- 3 and 2 are not valid binary chars
 ```
 
 ```unison:error
@@ -81,7 +85,7 @@ foo = cases
 ```unison:error
 -- Missing a '->'
 x = match Some a with
-      None -> 
+      None ->
         1
       Some _
         2

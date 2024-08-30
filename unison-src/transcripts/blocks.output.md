@@ -4,7 +4,7 @@
 
 For example:
 
-```unison
+``` unison
 ex thing =
   thing y = y
   -- refers to `thing` in this block
@@ -15,7 +15,7 @@ ex thing =
 > ex "hello"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -39,7 +39,7 @@ ex thing =
 
 The `thing` reference in `bar` refers to the one declared locally in the block that `bar` is part of. This is true even if the declaration which shadows the outer name appears later in the block, for instance:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1
   thing y = y
@@ -48,7 +48,7 @@ ex thing =
 > ex "hello"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -72,7 +72,7 @@ ex thing =
 
 This is just the normal lexical scoping behavior. For example:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1 -- references outer `thing`
   baz z =
@@ -83,7 +83,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -103,9 +103,9 @@ ex thing =
           4201
 
 ```
-Here's another example, showing that bindings cannot reference bindings declared in blocks nested in the _body_ (the final expression) of a block:
+Here's another example, showing that bindings cannot reference bindings declared in blocks nested in the *body* (the final expression) of a block:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1 -- refers to outer thing
   let
@@ -115,7 +115,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -137,9 +137,9 @@ ex thing =
 ```
 ### Blocks can define one or more functions which are recursive or mutually recursive
 
-We call these groups of definitions that reference each other in a block _cycles_. For instance:
+We call these groups of definitions that reference each other in a block *cycles*. For instance:
 
-```unison
+``` unison
 sumTo n =
   -- A recursive function, defined inside a block
   go acc n =
@@ -154,7 +154,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -174,14 +174,14 @@ The `go` function is a one-element cycle (it reference itself), and `ping` and `
 
 For instance, this works:
 
-```unison
+``` unison
 ex n =
   ping x = pong + 1 + x
   pong = 42
   ping 0
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -198,14 +198,14 @@ Since the forward reference to `pong` appears inside `ping`.
 
 This, however, will not compile:
 
-```unison
+``` unison
 ex n =
   pong = ping + 1
   ping = 42
   pong
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -217,13 +217,13 @@ ex n =
 ```
 This also won't compile; it's a cyclic reference that isn't guarded:
 
-```unison
+``` unison
 ex n =
   loop = loop
   loop
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -234,13 +234,13 @@ ex n =
 ```
 This, however, will compile. This also shows that `'expr` is another way of guarding a definition.
 
-```unison
+``` unison
 ex n =
   loop = '(!loop)
   !loop
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -253,13 +253,13 @@ ex n =
       ex : n -> r
 
 ```
-Just don't try to run it as it's an infinite loop!
+Just don't try to run it as it's an infinite loop\!
 
 ### Cyclic definitions in a block don't have access to any abilities
 
 The reason is it's unclear what the order should be of any requests that are made. It can also be viewed of a special case of the restriction that elements of a cycle must all be guarded. Here's an example:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -269,7 +269,7 @@ ex n =
   zap1
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -279,11 +279,11 @@ ex n =
   
 
 ```
-### The _body_ of recursive functions can certainly access abilities
+### The *body* of recursive functions can certainly access abilities
 
 For instance, this works fine:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -293,7 +293,7 @@ ex n =
   zap1 "pluto"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -311,7 +311,7 @@ ex n =
 
 For instance, `zap` here isn't considered part of the cycle (it doesn't reference `ping` or `pong`), so this typechecks fine:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -322,7 +322,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -338,7 +338,7 @@ ex n =
 ```
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -349,7 +349,7 @@ ex n =
   ping 42
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 

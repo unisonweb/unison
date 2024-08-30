@@ -1,4 +1,4 @@
-```unison
+``` unison
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
 availableCases : '{IO,Exception} [Text]
@@ -55,7 +55,7 @@ serialTests = do
   List.map snd (bSort (List.map runTestCase cs))
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -73,8 +73,8 @@ serialTests = do
       shuffle        : Nat -> [a] -> [a]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -85,18 +85,18 @@ serialTests = do
     serialTests    : '{IO, Exception} [Result]
     shuffle        : Nat -> [a] -> [a]
 
-.> io.test serialTests
+scratch/main> io.test serialTests
 
     New test results:
   
-  ◉ serialTests   case-00
-  ◉ serialTests   case-01
-  ◉ serialTests   case-02
-  ◉ serialTests   case-03
-  ◉ serialTests   case-04
+    1. serialTests   ◉ case-00
+                     ◉ case-01
+                     ◉ case-02
+                     ◉ case-03
+                     ◉ case-04
   
   ✅ 5 test(s) passing
   
-  Tip: Use view serialTests to view the source of a test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

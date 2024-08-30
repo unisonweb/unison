@@ -1,7 +1,5 @@
 module Unison.Name
   ( Name,
-    Convert (..),
-    Parse (..),
 
     -- * Basic construction
     cons,
@@ -34,6 +32,7 @@ module Unison.Name
     parent,
     stripNamePrefix,
     unqualified,
+    isUnqualified,
 
     -- * To organize later
     commonPrefix,
@@ -56,7 +55,7 @@ module Unison.Name
   )
 where
 
-import Control.Lens (mapped, over, _1, _2)
+import Control.Lens (mapped, _1, _2)
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -66,7 +65,7 @@ import Data.Monoid (Sum (..))
 import Data.RFC5051 qualified as RFC5051
 import Data.Set qualified as Set
 import Unison.Name.Internal
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
@@ -349,7 +348,7 @@ searchByRankedSuffix suffix rel =
 
 -- | precondition: input list is deduped, and so is the Name list in
 -- the tuple
-preferShallowLibDepth :: Ord r => [([Name], r)] -> Set r
+preferShallowLibDepth :: (Ord r) => [([Name], r)] -> Set r
 preferShallowLibDepth = \case
   [] -> Set.empty
   [x] -> Set.singleton (snd x)
@@ -506,6 +505,11 @@ unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
 
+isUnqualified :: Name -> Bool
+isUnqualified = \case
+  Name Relative (_ :| []) -> True
+  Name _ (_ :| _) -> False
+
 -- Tries to shorten `fqn` to the smallest suffix that still unambiguously refers to the same name. Uses an efficient
 -- logarithmic lookup in the provided relation.
 --
@@ -570,12 +574,3 @@ commonPrefix x@(Name p1 _) y@(Name p2 _)
     commonPrefix' (a : as) (b : bs)
       | a == b = a : commonPrefix' as bs
     commonPrefix' _ _ = []
-
-class Convert a b where
-  convert :: a -> b
-
-class Parse a b where
-  parse :: a -> Maybe b
-
-instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
-  parse (a, b) = (,) <$> parse a <*> parse b

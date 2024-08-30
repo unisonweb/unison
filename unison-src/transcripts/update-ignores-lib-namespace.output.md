@@ -2,12 +2,12 @@
 the project organization convention that dependencies are put in "lib"; it's much easier to apply a patch to all of
 one's own code if the "lib" namespace is simply ignored.
 
-```unison
+``` unison
 foo = 100
 lib.foo = 100
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -21,8 +21,8 @@ lib.foo = 100
       lib.foo : Nat
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -30,11 +30,11 @@ lib.foo = 100
     lib.foo : Nat
 
 ```
-```unison
+``` unison
 foo = 200
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -49,20 +49,18 @@ foo = 200
         (The old definition is also named lib.foo.)
 
 ```
-```ucm
-.> update
+``` ucm
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-.> names foo
+scratch/main> names foo
 
   Term
   Hash:   #9ntnotdp87
   Names:  foo
-  
-  Tip: Use `names.global` to see more results.
 
 ```

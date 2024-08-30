@@ -38,12 +38,21 @@ module Unison.Prelude
     throwEitherMWith,
     throwExceptT,
     throwExceptTWith,
+
+    -- * Basic lensy stuff we use all over
+    (^.),
+    (.~),
+    (%~),
+    view,
+    set,
+    over,
   )
 where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
+import Control.Lens (over, set, view, (%~), (.~), (^.))
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
@@ -93,7 +102,7 @@ import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromExce
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | Can be removed when we upgrade transformers to a more recent version.
-hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe :: (Applicative m) => Maybe a -> MaybeT m a
 hoistMaybe = MaybeT . pure
 
 -- | Like 'fold' but for Alternative.

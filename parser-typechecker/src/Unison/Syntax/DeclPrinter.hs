@@ -3,6 +3,7 @@ module Unison.Syntax.DeclPrinter
     prettyDeclW,
     prettyDeclHeader,
     prettyDeclOrBuiltinHeader,
+    getFieldAndAccessorNames,
     AccessorName,
   )
 where
@@ -10,6 +11,7 @@ where
 import Control.Monad.Writer (Writer, runWriter, tell)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -19,12 +21,13 @@ import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (Reference, Reference' (DerivedId), TypeReference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.Name qualified as Name
@@ -38,7 +41,6 @@ import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
 import Unison.Var (Var)
 import Unison.Var qualified as Var (freshenId, name, named)
-import qualified Data.Set as Set
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -124,26 +126,31 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
       Nothing -> pure $ prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)
-      Just ts -> case fieldNames unsuffixifiedPPE r name dd of
+      Just ts -> case getFieldAndAccessorNames unsuffixifiedPPE r name dd of
         Nothing ->
           pure
             . P.group
             . P.hang' (prettyPattern unsuffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
             $ P.spaced (runPretty suffixifiedPPE (traverse (TypePrinter.prettyRaw Map.empty 10) (init ts)))
-        Just fs -> do
-          tell $ Set.fromList $
-            [ case accessor of
-                Nothing -> declName `Name.joinDot` fieldName
-                Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
-              | HQ.NameOnly declName <- [name],
-                fieldName <- fs,
-                accessor <- [Nothing, Just (Name.fromSegment "set"), Just (Name.fromSegment "modify")]
-            ]
+        Just (fieldNames, _) -> do
+          tell $
+            Set.fromList $
+              [ case accessor of
+                  Nothing -> declName `Name.joinDot` fieldName
+                  Just accessor -> declName `Name.joinDot` fieldName `Name.joinDot` accessor
+                | HQ.NameOnly declName <- [name],
+                  fieldName <- fieldNames,
+                  accessor <-
+                    [ Nothing,
+                      Just (Name.fromSegment NameSegment.setSegment),
+                      Just (Name.fromSegment NameSegment.modifySegment)
+                    ]
+              ]
           pure . P.group $
             fmt S.DelimiterChar "{ "
               <> P.sep
                 (fmt S.DelimiterChar "," <> " " `P.orElse` "\n      ")
-                (field <$> zip fs (init ts))
+                (field <$> zip fieldNames (init ts))
               <> fmt S.DelimiterChar " }"
     field (fname, typ) =
       P.group $
@@ -152,28 +159,31 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
             `P.hang` runPretty suffixifiedPPE (TypePrinter.prettyRaw Map.empty (-1) typ)
     header = prettyDataHeader name dd <> fmt S.DelimiterChar (" = " `P.orElse` "\n  = ")
 
--- Comes up with field names for a data declaration which has the form of a
--- record, like `type Pt = { x : Int, y : Int }`. Works by generating the
--- record accessor terms for the data type, hashing these terms, and then
--- checking the `PrettyPrintEnv` for the names of those hashes. If the names for
--- these hashes are:
+-- This function determines if a data declaration "looks like a record", and if so, returns both its auto-generated
+-- accessor names (such as "Pt.x.set") and field names (such as "x"). Because we generate three accessors per field,
+-- there will always be three times as many accessors as there are fields.
+--
+-- It works by works by generating the record accessor terms for the data type, hashing these terms, and then checking
+-- the `PrettyPrintEnv` for the names of those hashes.
+--
+-- For example, for a type named "Pt", if the names of its accessors are
 --
 --   `Pt.x`, `Pt.x.set`, `Pt.x.modify`, `Pt.y`, `Pt.y.set`, `Pt.y.modify`
 --
--- then this matches the naming convention generated by the parser, and we
--- return `x` and `y` as the field names.
+-- then we will return those accessors along with the field names
 --
--- This function bails with `Nothing` if the names aren't an exact match for
--- the expected record naming convention.
-fieldNames ::
+--   `x`, `y`
+--
+-- This function returns `Nothing` if the given data declaration does not "look like a record".
+getFieldAndAccessorNames ::
   forall v a.
   (Var v) =>
   PrettyPrintEnv ->
   TypeReference ->
   HQ.HashQualified Name ->
   DataDeclaration v a ->
-  Maybe [Name]
-fieldNames env r hqTypename dd = do
+  Maybe ([Name], [Name]) -- field names, accessor names
+getFieldAndAccessorNames env r hqTypename dd = do
   -- If we only have a hash for the decl, then we can't know where in the namespace to look for the generated accessors,
   -- so we just give up trying to infer whether this was a record (even if it was one).
   typename <- HQ.toName hqTypename
@@ -206,10 +216,11 @@ fieldNames env r hqTypename dd = do
   --   ( #sety    , "Pt.y.set"    )
   --   ( #modifyy , "Pt.y.modify" )
   -- ]
-  let names =
-        [ (r, HQ.toText . PPE.termName env . Referent.Ref $ DerivedId r)
-          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
-        ]
+  let accessorNamesByHash =
+        hashes
+          & Map.elems
+          & map \(refId, _term, _typ) ->
+            (refId, HQ.toText (PPE.termName env (Referent.fromTermReferenceId refId)))
 
   -- {
   --   #getx    => "x"
@@ -219,10 +230,10 @@ fieldNames env r hqTypename dd = do
   --   #sety    => "y"
   --   #modifyy => "y"
   -- }
-  let fieldNames =
+  let fieldNamesByHash =
         Map.fromList
           [ (r, f)
-            | (r, n) <- names,
+            | (r, n) <- accessorNamesByHash,
               let typenameText = Name.toText typename,
               typenameText `Text.isPrefixOf` n,
               let rest = Text.drop (Text.length typenameText + 1) n,
@@ -230,17 +241,19 @@ fieldNames env r hqTypename dd = do
               rest `elem` ["", ".set", ".modify"]
           ]
 
-  if Map.size fieldNames == length names
+  if Map.size fieldNamesByHash == length accessorNamesByHash
     then
       Just
-        [ Name.unsafeParseText name
-          | -- "_0"
-            v <- vars,
-            -- #getx
-            Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
-            -- "x"
-            Just name <- [Map.lookup ref fieldNames]
-        ]
+        ( [ Name.unsafeParseText name
+            | -- "_0"
+              v <- vars,
+              -- #getx
+              Just (ref, _, _) <- [Map.lookup (Var.namespaced (Name.toVar typename :| [v])) hashes],
+              -- "x"
+              Just name <- [Map.lookup ref fieldNamesByHash]
+          ],
+          map (Name.unsafeParseText . snd) accessorNamesByHash
+        )
     else Nothing
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText

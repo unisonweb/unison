@@ -10,6 +10,8 @@ import Data.String.Here.Uninterpolated (here)
 import Data.Text
 import Data.Text qualified as Text
 import EasyTest
+import Language.LSP.Protocol.Lens qualified as LSP
+import Language.LSP.Protocol.Types qualified as LSP
 import System.IO.Temp qualified as Temp
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef)
@@ -20,6 +22,8 @@ import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.LSP.Conversions qualified as Cv
+import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
@@ -42,6 +46,10 @@ test = do
     tests
       [ refFinding,
         annotationNesting
+      ]
+  scope "diagnostics" $
+    tests
+      [ unusedBindingLocations
       ]
 
 trm :: Term.F Symbol () () (ABT.Term (Term.F Symbol () ()) Symbol ()) -> LSPQ.SourceNode ()
@@ -239,15 +247,39 @@ term = let
       )
     ]
 
--- | Test helper which lets you specify a cursor position inline with source text as a '|'.
+-- | Test helper which lets you specify a cursor position inline with source text as a '^'.
 extractCursor :: Text -> Test (Lexer.Pos, Text)
 extractCursor txt =
-  case Text.splitOn "^" txt of
+  case splitOnDelimiter '^' txt of
+    Nothing -> crash "expected exactly one cursor"
+    Just (before, pos, after) -> pure (pos, before <> after)
+
+-- | Splits a text on a delimiter, returning the text before and after the delimiter, along with the position of the delimiter.
+--
+-- >>> splitOnDelimiter '^' "foo b^ar baz"
+-- Just ("foo b",Pos {line = 0, column = 5},"ar baz")
+splitOnDelimiter :: Char -> Text -> Maybe (Text, Lexer.Pos, Text)
+splitOnDelimiter sym txt =
+  case Text.splitOn (Text.singleton sym) txt of
     [before, after] ->
-      let col = Text.length $ Text.takeWhileEnd (/= '\n') before
-          line = Prelude.length $ Text.lines before
-       in pure $ (Lexer.Pos line col, before <> after)
-    _ -> crash "expected exactly one cursor"
+      let col = (Text.length $ Text.takeWhileEnd (/= '\n') before) + 1
+          line = Text.count "\n" before + 1
+       in Just $ (before, Lexer.Pos line col, after)
+    _ -> Nothing
+
+-- | Test helper which lets you specify a cursor position inline with source text as a '^'.
+--
+-- >>> extractDelimitedBlock ('{', '}') "foo {bar} baz"
+-- Just (Ann {start = Pos {line = 1, column = 4}, end = Pos {line = 1, column = 7}},"bar","foo bar baz")
+--
+-- >>> extractDelimitedBlock ('{', '}') "term =\n  {foo} = 12345"
+-- Just (Ann {start = Pos {line = 2, column = 2}, end = Pos {line = 2, column = 5}},"foo","term =\n  foo = 12345")
+extractDelimitedBlock :: (Char, Char) -> Text -> Maybe (Ann {- ann spanning the inside of the delimiters -}, Text {- Text within the delimiters -}, Text {- entire source text with the delimiters stripped -})
+extractDelimitedBlock (startDelim, endDelim) txt = do
+  (beforeStart, startPos, afterStart) <- splitOnDelimiter startDelim txt
+  (beforeEnd, endPos, afterEnd) <- splitOnDelimiter endDelim (beforeStart <> afterStart)
+  let ann = Ann startPos endPos
+  pure (ann, Text.takeWhile (/= endDelim) afterStart, beforeEnd <> afterEnd)
 
 makeNodeSelectionTest :: (String, Text, Bool, LSPQ.SourceNode ()) -> Test ()
 makeNodeSelectionTest (name, testSrc, testTypechecked, expected) = scope name $ do
@@ -308,7 +340,7 @@ annotationNestingTest (name, src) = scope name do
     & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
       assertAnnotationsAreNested trm
 
--- | Asserts that for all nodes in the provided ABT, the annotations of all child nodes are
+-- | Asserts that for all nodes in the provided ABT EXCEPT Abs nodes, the annotations of all child nodes are
 -- within the span of the parent node.
 assertAnnotationsAreNested :: forall f. (Foldable f, Functor f, Show (f (Either String Ann))) => ABT.Term f Symbol Ann -> Test ()
 assertAnnotationsAreNested term = do
@@ -319,12 +351,19 @@ assertAnnotationsAreNested term = do
     alg :: Ann -> ABT.ABT f Symbol (Either String Ann) -> Either String Ann
     alg ann abt = do
       childSpan <- abt & foldMapM id
-      case ann `Ann.encompasses` childSpan of
-        -- one of the annotations isn't in the file, don't bother checking.
-        Nothing -> pure (ann <> childSpan)
-        Just isInFile
-          | isInFile -> pure ann
-          | otherwise -> Left $ "Containment breach: children aren't contained with the parent:" <> show (ann, abt)
+      case abt of
+        -- Abs nodes are the only nodes whose annotations are allowed to not contain their children,
+        -- they represet the location of the variable being bound instead. Ideally we'd have a separate child
+        -- node for that, but we can't add it without editing the ABT or Term types.
+        ABT.Abs _ _ ->
+          pure (ann <> childSpan)
+        _ -> do
+          case ann `Ann.encompasses` childSpan of
+            -- one of the annotations isn't in the file, don't bother checking.
+            Nothing -> pure (ann <> childSpan)
+            Just isInFile
+              | isInFile -> pure ann
+              | otherwise -> Left $ "Containment breach: children aren't contained with the parent:" <> show (ann, abt)
 
 typecheckSrc ::
   String ->
@@ -345,7 +384,9 @@ typecheckSrc name src = do
             Parser.ParsingEnv
               { uniqueNames = uniqueName,
                 uniqueTypeGuid = \_ -> pure Nothing,
-                names = parseNames
+                names = parseNames,
+                maybeNamespace = Nothing,
+                localNamespacePrefixedTypesAndConstructors = mempty
               }
       Codebase.runTransaction codebase do
         Parsers.parseFile name (Text.unpack src) parsingEnv >>= \case
@@ -374,3 +415,54 @@ withTestCodebase action = do
     tmpDir <- Temp.createTempDirectory tmp "lsp-test"
     Codebase.Init.withCreatedCodebase SC.init "lsp-test" tmpDir SC.DontLock action
   either (crash . show) pure r
+
+makeDiagnosticRangeTest :: (String, Text) -> Test ()
+makeDiagnosticRangeTest (testName, testSrc) = scope testName $ do
+  let (cleanSrc, mayExpectedDiagnostic) = case extractDelimitedBlock ('«', '»') testSrc of
+        Nothing -> (testSrc, Nothing)
+        Just (ann, block, clean) -> (clean, Just (ann, block))
+  (pf, _mayTypecheckedFile) <- typecheckSrc testName cleanSrc
+  UF.terms pf
+    & Map.elems
+    & \case
+      [(_a, trm)] -> do
+        case (mayExpectedDiagnostic, UnusedBindings.analyseTerm (LSP.Uri "test") trm) of
+          (Just (ann, _block), [diag]) -> do
+            let expectedRange = Cv.annToRange ann
+            let actualRange = Just (diag ^. LSP.range)
+            when (expectedRange /= actualRange) do
+              crash $ "Expected diagnostic at range: " <> show expectedRange <> ", got: " <> show actualRange
+          (Nothing, []) -> pure ()
+          (expected, actual) -> case expected of
+            Nothing -> crash $ "Expected no diagnostics, got: " <> show actual
+            Just _ -> crash $ "Expected exactly one diagnostic, but got " <> show actual
+      _ -> crash "Expected exactly one term"
+
+unusedBindingLocations :: Test ()
+unusedBindingLocations =
+  scope "unused bindings" . tests . fmap makeDiagnosticRangeTest $
+    [ ( "Unused binding in let block",
+        [here|term =
+  usedOne = true
+  «unused = "unused"»
+  usedTwo = false
+  usedOne && usedTwo
+        |]
+      ),
+      ( "Unused argument",
+        [here|term «unused» = 1|]
+      ),
+      ( "Unused binding in cases block",
+        [here|term = cases
+  -- Note: the diagnostic _should_ only wrap the unused bindings, but right now it just wraps the whole pattern.
+  («unused, used»)
+    | used > 0 -> true
+    | otherwise -> false
+    |]
+      ),
+      ( "Ignored unused binding in cases block shouldn't error",
+        [here|term = cases
+  (used, _ignored) -> used
+    |]
+      )
+    ]

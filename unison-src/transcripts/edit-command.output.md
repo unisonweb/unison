@@ -1,10 +1,10 @@
-```ucm
-.> builtins.merge
+``` ucm
+scratch/main> builtins.merge
 
   Done.
 
 ```
-```unison
+``` unison
 ---
 title: /private/tmp/scratch.u
 ---
@@ -16,8 +16,7 @@ mytest = [Ok "ok"]
 
 ```
 
-
-```ucm
+``` ucm
 
   Loading changes detected in /private/tmp/scratch.u.
 
@@ -32,8 +31,8 @@ mytest = [Ok "ok"]
       mytest : [Result]
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
@@ -41,7 +40,7 @@ mytest = [Ok "ok"]
     foo    : Nat
     mytest : [Result]
 
-.> edit foo bar
+scratch/main> edit foo bar
 
   ☝️
   
@@ -50,7 +49,7 @@ mytest = [Ok "ok"]
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
-.> edit mytest
+scratch/main> edit mytest
 
   ☝️
   
@@ -60,7 +59,7 @@ mytest = [Ok "ok"]
   definitions currently in this namespace.
 
 ```
-```unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm /private/tmp/scratch.u
 bar : Nat
 bar = 456
 
@@ -68,12 +67,12 @@ foo : Nat
 foo = 123
 ```
 
-```unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm /private/tmp/scratch.u
 test> mytest = [Ok "ok"]
 ```
 
-```ucm
-.> edit missing
+``` ucm
+scratch/main> edit missing
 
   ⚠️
   

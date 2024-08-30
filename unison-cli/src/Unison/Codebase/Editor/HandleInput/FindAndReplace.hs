@@ -18,8 +18,9 @@ import Unison.Cli.Pretty qualified as P
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
+import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -81,15 +82,14 @@ handleStructuredFindI rule = do
     Referent.Ref _ <- pure r
     Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
     pure (HQ'.toHQ shortName, r)
-  let ok t@(_, Referent.Ref (Reference.DerivedId r)) = do
+  let ok (hq, Referent.Ref (Reference.DerivedId r)) = do
         oe <- Cli.runTransaction (Codebase.getTerm codebase r)
-        pure $ (t, maybe False (\e -> any ($ e) rules) oe)
-      ok t = pure (t, False)
+        pure $ (hq, maybe False (\e -> any ($ e) rules) oe)
+      ok (hq, _) = pure (hq, False)
   results0 <- traverse ok results
-  let results = Alphabetical.sortAlphabeticallyOn fst [(hq, r) | ((hq, r), True) <- results0]
-  let toNumArgs = Text.unpack . Reference.toText . Referent.toReference . view _2
-  Cli.setNumberedArgs $ map toNumArgs results
-  Cli.respond (ListStructuredFind (fst <$> results))
+  let results = Alphabetical.sortAlphabetically [hq | (hq, True) <- results0]
+  Cli.setNumberedArgs $ map SA.HashQualified results
+  Cli.respond (ListStructuredFind results)
 
 lookupRewrite ::
   (HQ.HashQualified Name -> Output) ->

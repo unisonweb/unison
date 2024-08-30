@@ -1,7 +1,6 @@
 module Unison.Test.UnisonSources where
 
 import Control.Exception (throwIO)
-import Control.Lens (view)
 import Control.Lens.Tuple (_5)
 import Data.Map qualified as Map
 import Data.Text (unpack)
@@ -11,7 +10,7 @@ import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
-import Unison.NamesWithHistory qualified as Names
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude

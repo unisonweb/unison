@@ -4,9 +4,15 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ## Codebase Setup
 
+``` ucm
+scratch/main> builtins.merge lib.builtins
+
+  Done.
+
+```
 First we define differing types with the same name in different namespaces:
 
-```unison
+``` unison
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
 
@@ -14,7 +20,7 @@ one.ambiguousTerm = "term one"
 two.ambiguousTerm = "term two"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -26,21 +32,19 @@ two.ambiguousTerm = "term two"
     
       type one.AmbiguousType
       type two.AmbiguousType
-      one.ambiguousTerm : ##Text
-      two.ambiguousTerm : ##Text
+      one.ambiguousTerm : Text
+      two.ambiguousTerm : Text
 
 ```
-```ucm
-  ☝️  The namespace .example.resolution_failures is empty.
-
-.example.resolution_failures> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type one.AmbiguousType
     type two.AmbiguousType
-    one.ambiguousTerm : ##Text
-    two.ambiguousTerm : ##Text
+    one.ambiguousTerm : Text
+    two.ambiguousTerm : Text
 
 ```
 ## Tests
@@ -50,10 +54,10 @@ It is ambiguous which type from which namespace we mean.
 
 We expect the output to:
 
-1. Print all ambiguous usage sites separately
-2. Print possible disambiguation suggestions for each unique ambiguity
+1.  Print all ambiguous usage sites separately
+2.  Print possible disambiguation suggestions for each unique ambiguity
 
-```unison
+``` unison
 -- We intentionally avoid using a constructor to ensure the constructor doesn't
 -- affect type resolution.
 useAmbiguousType : AmbiguousType -> ()
@@ -67,7 +71,7 @@ separateAmbiguousTypeUsage : AmbiguousType -> ()
 separateAmbiguousTypeUsage _ = ()
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -98,11 +102,11 @@ separateAmbiguousTypeUsage _ = ()
 Currently, ambiguous terms are caught and handled by type directed name resolution,
 but expect it to eventually be handled by the above machinery.
 
-```unison
+``` unison
 useAmbiguousTerm = ambiguousTerm
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -116,7 +120,7 @@ useAmbiguousTerm = ambiguousTerm
   I found some terms in scope that have matching names and
   types. Maybe you meant one of these:
   
-  one.ambiguousTerm : ##Text
-  two.ambiguousTerm : ##Text
+  one.ambiguousTerm : Text
+  two.ambiguousTerm : Text
 
 ```

@@ -1,7 +1,6 @@
 The `release.draft` command drafts a release from the current branch.
 
 ```ucm:hide
-.> project.create-empty foo
 foo/main> builtins.merge
 ```
 

@@ -1,5 +1,5 @@
 ```ucm
-.> builtins.merge
+scratch/main> builtins.merge
 ```
 
 ```unison
@@ -11,7 +11,7 @@ bar = foo + 10
 ```
 
 ```ucm
-.> add
+scratch/main> add
 ```
 
 ```unison
@@ -20,5 +20,5 @@ foo = +5
 ```
 
 ```ucm:error
-.> update
+scratch/main> update
 ```

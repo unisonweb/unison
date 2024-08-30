@@ -9,8 +9,8 @@ import System.IO.CodePage (withCP65001)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as ShortHash
-import Unison.Syntax.HashQualified' qualified as HQ' (unsafeParseText)
-import Unison.Syntax.Lexer
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
+import Unison.Syntax.Lexer.Unison
 
 main :: IO ()
 main =
@@ -210,13 +210,19 @@ test =
         [Textual "test escaped quotes \"in quotes\""],
       t "\"\\n \\t \\b \\a\"" [Textual "\n \t \b \a"],
       -- Delayed string
-      t "'\"\"" [Reserved "'", Textual ""]
+      t "'\"\"" [Reserved "'", Textual ""],
+      -- https://github.com/unisonweb/unison/issues/4683
+      -- don't emit virtual semis in ability lists or normal lists
+      t "{foo\n,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "{foo\n ,bar}" [Open "{", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "[foo\n,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close],
+      t "[foo\n ,bar]" [Open "[", simpleWordyId "foo", Reserved ",", simpleWordyId "bar", Close]
     ]
 
 t :: String -> [Lexeme] -> Test ()
 t s expected =
-  let actual0 = payload <$> lexer "ignored filename" s
-      actual = take (length actual0 - 2) . drop 1 $ actual0
+  let actual0 = payload <$> preParse (lexer "ignored filename" s)
+      actual = take (length actual0 - 2) . drop 1 $ toList actual0
    in scope s $
         if actual == expected
           then ok

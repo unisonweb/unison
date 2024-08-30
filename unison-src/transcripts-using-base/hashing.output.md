@@ -2,8 +2,8 @@
 
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
-```ucm
-.> ls builtin.Bytes
+``` ucm
+scratch/main> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
@@ -45,7 +45,7 @@ Notice the `fromBase16` and `toBase16` functions. Here's some convenience functi
 
 Here's a few usage examples:
 
-```unison
+``` unison
 ex1 = fromHex "2947db"
         |> crypto.hashBytes Sha3_512
         |> hex
@@ -74,7 +74,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 > ex5
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -119,8 +119,8 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 ```
 And here's the full API:
 
-```ucm
-.> find-in builtin.crypto
+``` ucm
+scratch/main> find-in builtin.crypto
 
   1.  type CryptoFailure
   2.  Ed25519.sign.impl : Bytes
@@ -155,11 +155,11 @@ And here's the full API:
 ```
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
-```unison
+``` unison
 > hash Sha3_256 (fromHex "3849238492")
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -177,9 +177,9 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 ```
 ## Hashing tests
 
-Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_(hash_function))) for the various hashing algorithms:
+Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_\(hash_function\))) for the various hashing algorithms:
 
-```unison
+``` unison
 ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
 
 test> sha3_512.tests.ex1 =
@@ -311,48 +311,47 @@ test> crypto.hash.numTests =
         checks (List.map t (range 0 20))
 ```
 
-```ucm
-.> test
+``` ucm
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1   Passed
-  ◉ blake2b_512.tests.ex2   Passed
-  ◉ blake2b_512.tests.ex3   Passed
-  ◉ blake2s_256.tests.ex1   Passed
-  ◉ crypto.hash.numTests    Passed
-  ◉ sha1.tests.ex1          Passed
-  ◉ sha1.tests.ex2          Passed
-  ◉ sha1.tests.ex3          Passed
-  ◉ sha1.tests.ex4          Passed
-  ◉ sha2_256.tests.ex1      Passed
-  ◉ sha2_256.tests.ex2      Passed
-  ◉ sha2_256.tests.ex3      Passed
-  ◉ sha2_256.tests.ex4      Passed
-  ◉ sha2_512.tests.ex1      Passed
-  ◉ sha2_512.tests.ex2      Passed
-  ◉ sha2_512.tests.ex3      Passed
-  ◉ sha2_512.tests.ex4      Passed
-  ◉ sha3_256.tests.ex1      Passed
-  ◉ sha3_256.tests.ex2      Passed
-  ◉ sha3_256.tests.ex3      Passed
-  ◉ sha3_256.tests.ex4      Passed
-  ◉ sha3_512.tests.ex1      Passed
-  ◉ sha3_512.tests.ex2      Passed
-  ◉ sha3_512.tests.ex3      Passed
-  ◉ sha3_512.tests.ex4      Passed
+    1.  blake2b_512.tests.ex1   ◉ Passed
+    2.  blake2b_512.tests.ex2   ◉ Passed
+    3.  blake2b_512.tests.ex3   ◉ Passed
+    4.  blake2s_256.tests.ex1   ◉ Passed
+    5.  crypto.hash.numTests    ◉ Passed
+    6.  sha1.tests.ex1          ◉ Passed
+    7.  sha1.tests.ex2          ◉ Passed
+    8.  sha1.tests.ex3          ◉ Passed
+    9.  sha1.tests.ex4          ◉ Passed
+    10. sha2_256.tests.ex1      ◉ Passed
+    11. sha2_256.tests.ex2      ◉ Passed
+    12. sha2_256.tests.ex3      ◉ Passed
+    13. sha2_256.tests.ex4      ◉ Passed
+    14. sha2_512.tests.ex1      ◉ Passed
+    15. sha2_512.tests.ex2      ◉ Passed
+    16. sha2_512.tests.ex3      ◉ Passed
+    17. sha2_512.tests.ex4      ◉ Passed
+    18. sha3_256.tests.ex1      ◉ Passed
+    19. sha3_256.tests.ex2      ◉ Passed
+    20. sha3_256.tests.ex3      ◉ Passed
+    21. sha3_256.tests.ex4      ◉ Passed
+    22. sha3_512.tests.ex1      ◉ Passed
+    23. sha3_512.tests.ex2      ◉ Passed
+    24. sha3_512.tests.ex3      ◉ Passed
+    25. sha3_512.tests.ex4      ◉ Passed
   
   ✅ 25 test(s) passing
   
-  Tip: Use view blake2b_512.tests.ex1 to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```
 ## HMAC tests
 
 These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231#section-4.3).
 
-```unison
+``` unison
 ex' alg secret msg expected = checks [hmacBytes alg (fromHex secret) (ascii msg) == fromHex expected]
 
 test> hmac_sha2_256.tests.ex1 =
@@ -379,7 +378,7 @@ test> hmac_sha2_512.tests.ex2 =
     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -423,7 +422,7 @@ test> hmac_sha2_512.tests.ex2 =
 
 Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
 
-```unison
+``` unison
 ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
 
 test> md5.tests.ex1 =
@@ -442,7 +441,7 @@ test> md5.tests.ex3 =
     "e4d909c290d0fb1ca068ffaddf22cbd0"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -474,43 +473,42 @@ test> md5.tests.ex3 =
     ✅ Passed Passed
 
 ```
-```ucm
-.> test
+``` ucm
+scratch/main> test
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ blake2b_512.tests.ex1   Passed
-  ◉ blake2b_512.tests.ex2   Passed
-  ◉ blake2b_512.tests.ex3   Passed
-  ◉ blake2s_256.tests.ex1   Passed
-  ◉ crypto.hash.numTests    Passed
-  ◉ md5.tests.ex1           Passed
-  ◉ md5.tests.ex2           Passed
-  ◉ md5.tests.ex3           Passed
-  ◉ sha1.tests.ex1          Passed
-  ◉ sha1.tests.ex2          Passed
-  ◉ sha1.tests.ex3          Passed
-  ◉ sha1.tests.ex4          Passed
-  ◉ sha2_256.tests.ex1      Passed
-  ◉ sha2_256.tests.ex2      Passed
-  ◉ sha2_256.tests.ex3      Passed
-  ◉ sha2_256.tests.ex4      Passed
-  ◉ sha2_512.tests.ex1      Passed
-  ◉ sha2_512.tests.ex2      Passed
-  ◉ sha2_512.tests.ex3      Passed
-  ◉ sha2_512.tests.ex4      Passed
-  ◉ sha3_256.tests.ex1      Passed
-  ◉ sha3_256.tests.ex2      Passed
-  ◉ sha3_256.tests.ex3      Passed
-  ◉ sha3_256.tests.ex4      Passed
-  ◉ sha3_512.tests.ex1      Passed
-  ◉ sha3_512.tests.ex2      Passed
-  ◉ sha3_512.tests.ex3      Passed
-  ◉ sha3_512.tests.ex4      Passed
+    1.  blake2b_512.tests.ex1   ◉ Passed
+    2.  blake2b_512.tests.ex2   ◉ Passed
+    3.  blake2b_512.tests.ex3   ◉ Passed
+    4.  blake2s_256.tests.ex1   ◉ Passed
+    5.  crypto.hash.numTests    ◉ Passed
+    6.  md5.tests.ex1           ◉ Passed
+    7.  md5.tests.ex2           ◉ Passed
+    8.  md5.tests.ex3           ◉ Passed
+    9.  sha1.tests.ex1          ◉ Passed
+    10. sha1.tests.ex2          ◉ Passed
+    11. sha1.tests.ex3          ◉ Passed
+    12. sha1.tests.ex4          ◉ Passed
+    13. sha2_256.tests.ex1      ◉ Passed
+    14. sha2_256.tests.ex2      ◉ Passed
+    15. sha2_256.tests.ex3      ◉ Passed
+    16. sha2_256.tests.ex4      ◉ Passed
+    17. sha2_512.tests.ex1      ◉ Passed
+    18. sha2_512.tests.ex2      ◉ Passed
+    19. sha2_512.tests.ex3      ◉ Passed
+    20. sha2_512.tests.ex4      ◉ Passed
+    21. sha3_256.tests.ex1      ◉ Passed
+    22. sha3_256.tests.ex2      ◉ Passed
+    23. sha3_256.tests.ex3      ◉ Passed
+    24. sha3_256.tests.ex4      ◉ Passed
+    25. sha3_512.tests.ex1      ◉ Passed
+    26. sha3_512.tests.ex2      ◉ Passed
+    27. sha3_512.tests.ex3      ◉ Passed
+    28. sha3_512.tests.ex4      ◉ Passed
   
   ✅ 28 test(s) passing
   
-  Tip: Use view blake2b_512.tests.ex1 to view the source of a
-       test.
+  Tip: Use view 1 to view the source of a test.
 
 ```

@@ -1,9 +1,8 @@
-# reset loose code
-```unison
-a = 5
+``` unison
+def = "first value"
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -13,148 +12,117 @@ a = 5
   
     ⍟ These new definitions are ok to `add`:
     
-      a : Nat
+      def : Text
 
 ```
-```ucm
-.> add
+``` unison
+def = "second value"
+```
 
-  ⍟ I've added these definitions:
-  
-    a : Nat
+Can reset to a value from history by number.
 
-.> history
+``` ucm
+scratch/main> update
 
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #d079vet1oj
-  
-    + Adds / updates:
-    
-      a
-  
-  □ 2. #4bigcpnl7t (start of history)
-
-.> reset 2
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 
-.> history
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  
-  
-  □ 1. #4bigcpnl7t (start of history)
-
-```
-```unison
-foo.a = 5
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      foo.a : Nat
-
-```
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    foo.a : Nat
-
-.> ls foo
-
-  1. a (Nat)
-
-.> history
-
-  Note: The most recent namespace hash is immediately below this
-        message.
-  
-  ⊙ 1. #tfg7r9359n
+  ⊙ 1. #5vq851j3hg
   
     + Adds / updates:
     
-      foo.a
+      def
   
-  □ 2. #4bigcpnl7t (start of history)
+  ⊙ 2. #ujvq6e87kp
+  
+    + Adds / updates:
+    
+      def
+  
+  □ 3. #4bigcpnl7t (start of history)
 
-.> reset 1 foo
+scratch/main> reset 2
 
   Done.
 
-.> ls foo.foo
+scratch/main> view def
 
-  1. a (Nat)
+  def : Text
+  def = "first value"
+
+scratch/main> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ 1. #ujvq6e87kp
+  
+    + Adds / updates:
+    
+      def
+  
+  □ 2. #4bigcpnl7t (start of history)
+
+```
+Can reset to a value from reflog by number.
+
+``` ucm
+scratch/main> reflog
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+  
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+  
+       Branch         Hash          Description
+  1.   scratch/main   #ujvq6e87kp   reset ujvq6e87kp4288eq3al9v5luctic0ocd7ug1fu0go5bicrr2vfnrb0...
+  2.   scratch/main   #5vq851j3hg   update
+  3.   scratch/main   #ujvq6e87kp   update
+  4.   scratch/main   #4bigcpnl7t   builtins.merge
+  5.   scratch/main   #sg60bvjo91   Project Created
+
+-- Reset the current branch to the first history element
+scratch/main> reset 2
+
+  Done.
+
+scratch/main> view def
+
+  def : Text
+  def = "second value"
+
+scratch/main> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ 1. #5vq851j3hg
+  
+    + Adds / updates:
+    
+      def
+  
+  ⊙ 2. #ujvq6e87kp
+  
+    + Adds / updates:
+    
+      def
+  
+  □ 3. #4bigcpnl7t (start of history)
 
 ```
 # reset branch
 
-```ucm
-.> project.create-empty foo
-
-  🎉 I've created the project foo.
-
-  🎨 Type `ui` to explore this project's code in your browser.
-  🔭 Discover libraries at https://share.unison-lang.org
-  📖 Use `help-topic projects` to learn more about projects.
-  
-  Write your first Unison code with UCM:
-  
-    1. Open scratch.u.
-    2. Write some Unison code and save the file.
-    3. In UCM, type `add` to save it to your new project.
-  
-  🎉 🥳 Happy coding!
-
-foo/main> history
-
-  ☝️  The namespace  is empty.
-
-```
-```unison
-a = 5
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      a : ##Nat
-
-```
-```ucm
-foo/main> add
-
-  ⍟ I've added these definitions:
-  
-    a : ##Nat
-
-foo/main> branch topic
-
-  Done. I've created the topic branch based off of main.
-  
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
-
+``` ucm
 foo/main> history
 
   Note: The most recent namespace hash is immediately below this
@@ -162,28 +130,14 @@ foo/main> history
   
   
   
-  □ 1. #5l94rduvel (start of history)
+  □ 1. #sg60bvjo91 (start of history)
 
 ```
-```unison
-a = 3
+``` unison
+a = 5
 ```
 
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      a : ##Nat
-
-```
-```ucm
+``` ucm
 foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
@@ -191,11 +145,16 @@ foo/main> update
 
   Done.
 
-foo/main> reset /topic
+foo/empty> reset /main:
 
   Done.
 
-foo/main> history
+foo/empty> view a
+
+  a : ##Nat
+  a = 5
+
+foo/empty> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -205,32 +164,19 @@ foo/main> history
   □ 1. #5l94rduvel (start of history)
 
 ```
-# ambiguous reset
+## second argument is always interpreted as a branch
 
-## ambiguous target
-```unison
+``` unison
 main.a = 3
 ```
 
-```ucm
+``` ucm
+foo/main> update
 
-  Loading changes detected in scratch.u.
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      main.a : ##Nat
-
-```
-```ucm
-foo/main> add
-
-  ⍟ I've added these definitions:
-  
-    main.a : ##Nat
+  Done.
 
 foo/main> history
 
@@ -247,49 +193,6 @@ foo/main> history
 
 foo/main> reset 2 main
 
-  I'm not sure if you wanted to reset the branch foo/main or the
-  namespace main in the current branch. Could you be more
-  specific?
-  
-  1. /main (the branch main in the current project)
-  2. main (the relative path main in the current branch)
-  
-  Tip: use `reset <some hash> 1` or `reset <some hash> 2` to
-       pick one of these.
-
-```
-## ambiguous hash
-
-```unison
-main.a = 3
-```
-
-```ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
-
-```
-```ucm
-foo/main> switch /topic
-
-foo/topic> add
-
-  ⍟ I've added these definitions:
-  
-    main.a : ##Nat
-
-foo/topic> reset main
-
-  I'm not sure if you wanted to reset to the branch foo/main or
-  to the namespace main in the current branch. Could you be more
-  specific?
-  
-  1. /main (the branch main in the current project)
-  2. main (the relative path main in the current branch)
-  
-  Tip: use `reset 1` or `reset 2` to pick one of these.
+  Done.
 
 ```

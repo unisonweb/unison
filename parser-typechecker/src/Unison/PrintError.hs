@@ -14,7 +14,6 @@ module Unison.PrintError
   )
 where
 
-import Control.Lens ((%~))
 import Control.Lens.Tuple (_1, _2, _3)
 import Data.Foldable qualified as Foldable
 import Data.Function (on)
@@ -33,13 +32,14 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef, pattern TupleType')
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
-import Unison.HashQualified (HashQualified)
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualified qualified as HQ
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Kind (Kind)
 import Unison.Kind qualified as Kind
 import Unison.KindInference.Error.Pretty (prettyKindError)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -54,11 +54,12 @@ import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
-import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified0)
 import Unison.Syntax.Parser (Annotated, ann)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.Precedence qualified as Precedence
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -75,6 +76,7 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
+import Unison.Util.Text (ordinal)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -125,6 +127,10 @@ styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
 style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
+
+-- | Applies the color highlighting for `Code`, but also quotes the code, to separate it from the containing context.
+quoteCode :: String -> Pretty ColorText
+quoteCode = Pr.backticked . style Code
 
 stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
 stylePretty = Pr.map . AT.annotate
@@ -827,14 +833,6 @@ renderTypeError e env src = case e of
       let sz = length wrongs
           pl a b = if sz == 1 then a else b
        in mconcat [txt pl, intercalateMap "\n" (renderSuggestion env) wrongs]
-    ordinal :: (IsString s) => Int -> s
-    ordinal n =
-      fromString $
-        show n ++ case last (show n) of
-          '1' -> "st"
-          '2' -> "nd"
-          '3' -> "rd"
-          _ -> "th"
     debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
     debugSummary :: C.ErrorNote v loc -> Pretty ColorText
     debugSummary note =
@@ -1135,7 +1133,7 @@ renderTerm env e =
         else fromString s
 
 renderPattern :: Env -> Pattern ann -> ColorText
-renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc 0 ([] :: [Symbol]) e
+renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol]) e
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
@@ -1339,7 +1337,7 @@ prettyParseError s e =
     lexerOutput :: Pretty (AnnotatedText a)
     lexerOutput =
       if showLexerOutput
-        then "\nLexer output:\n" <> fromString (L.debugLex' s)
+        then "\nLexer output:\n" <> fromString (L.debugPreParse' s)
         else mempty
 
 renderParseErrors ::
@@ -1366,31 +1364,31 @@ renderParseErrors s = \case
             <> style ErrorSite (fromString open)
             <> ".\n\n"
             <> excerpt
-        L.InvalidWordyId _id ->
+        L.ReservedWordyId id ->
           Pr.lines
-            [ "This identifier isn't valid syntax: ",
+            [ "The identifier " <> quoteCode id <> " used here is a reserved keyword: ",
               "",
               excerpt,
-              "Here's a few examples of valid syntax: "
-                <> style Code "abba1', snake_case, Foo.zoink!, 🌻"
+              Pr.wrap $
+                "You can avoid this problem either by renaming the identifier or wrapping it in backticks (like "
+                  <> style Code ("`" <> id <> "`")
+                  <> ")."
             ]
-        L.ReservedWordyId _id ->
+        L.InvalidSymbolyId id ->
           Pr.lines
-            [ "The identifier used here isn't allowed to be a reserved keyword: ",
-              "",
-              excerpt
-            ]
-        L.InvalidSymbolyId _id ->
-          Pr.lines
-            [ "This infix identifier isn't valid syntax: ",
+            [ "The infix identifier " <> quoteCode id <> " isn’t valid syntax: ",
               "",
               excerpt,
-              "Here's a few valid examples: "
-                <> style Code "++, Float./, `List.map`"
+              "Here are a few valid examples: "
+                <> quoteCode "++"
+                <> ", "
+                <> quoteCode "Float./"
+                <> ", and "
+                <> quoteCode "List.map"
             ]
-        L.ReservedSymbolyId _id ->
+        L.ReservedSymbolyId id ->
           Pr.lines
-            [ "This identifier is reserved by Unison and can't be used as an operator: ",
+            [ "The identifier " <> quoteCode id <> " is reserved by Unison and can't be used as an operator: ",
               "",
               excerpt
             ]
@@ -1430,6 +1428,18 @@ renderParseErrors s = \case
                   <> "after the"
                   <> Pr.group (style ErrorSite "0o" <> ".")
             ]
+        L.InvalidBinaryLiteral ->
+          Pr.lines
+            [ "This number isn't valid syntax: ",
+              "",
+              excerpt,
+              Pr.wrap $
+                "I was expecting only binary characters"
+                  <> "(one of"
+                  <> Pr.group (style Code "01" <> ")")
+                  <> "after the"
+                  <> Pr.group (style ErrorSite "0b" <> ".")
+            ]
         L.InvalidShortHash h ->
           Pr.lines
             [ "Invalid hash: " <> style ErrorSite (fromString h),
@@ -1444,11 +1454,12 @@ renderParseErrors s = \case
               "",
               excerpt,
               Pr.wrap $
-                "I was expecting some digits after the '.',"
-                  <> "for example: "
-                  <> style Code (n <> "0")
+                "I was expecting some digits after the "
+                  <> quoteCode "."
+                  <> ", for example: "
+                  <> quoteCode (n <> "0")
                   <> "or"
-                  <> Pr.group (style Code (n <> "1e37") <> ".")
+                  <> Pr.group (quoteCode (n <> "1e37") <> ".")
             ]
         L.MissingExponent n ->
           Pr.lines
@@ -1458,7 +1469,7 @@ renderParseErrors s = \case
               Pr.wrap $
                 "I was expecting some digits for the exponent,"
                   <> "for example: "
-                  <> Pr.group (style Code (n <> "37") <> ".")
+                  <> Pr.group (quoteCode (n <> "37") <> ".")
             ]
         L.TextLiteralMissingClosingQuote _txt ->
           Pr.lines
@@ -1474,7 +1485,7 @@ renderParseErrors s = \case
               "",
               "I only know about the following escape characters:",
               "",
-              let s ch = style Code (fromString $ "\\" <> [ch])
+              let s ch = quoteCode (fromString $ "\\" <> [ch])
                in Pr.indentN 2 $ intercalateMap "," s (fst <$> L.escapeChars)
             ]
         L.LayoutError ->
@@ -1701,11 +1712,11 @@ renderParseErrors s = \case
                   else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
        in (msgs, allRanges)
     go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId (HQ'.NameOnly name))))
-      | name == Name.fromSegment "::" =
+      | name == Name.fromSegment (NameSegment "::") =
           let msg =
                 mconcat
                   [ "This looks like the start of an expression here but I was expecting a binding.",
-                    "\nDid you mean to use a single " <> style Code ":",
+                    "\nDid you mean to use a single " <> quoteCode ":",
                     " here for a type signature?",
                     "\n\n",
                     tokenAsErrorSite s t
@@ -1776,21 +1787,6 @@ renderParseErrors s = \case
                 tokenAsErrorSite s tok
               ]
        in (msg, [rangeForToken tok])
-    go (Parser.EmptyMatch tok) =
-      let msg =
-            Pr.indentN 2 . Pr.callout "😶" $
-              Pr.lines
-                [ Pr.wrap
-                    ( "I expected some patterns after a "
-                        <> style ErrorSite "match"
-                        <> "/"
-                        <> style ErrorSite "with"
-                        <> " or cases but I didn't find any."
-                    ),
-                  "",
-                  tokenAsErrorSite s tok
-                ]
-       in (msg, [rangeForToken tok])
     go (Parser.EmptyWatch tok) =
       let msg =
             Pr.lines
@@ -1799,8 +1795,6 @@ renderParseErrors s = \case
                 annotatedAsErrorSite s tok
               ]
        in (msg, maybeToList $ rangeForAnnotated tok)
-    go (Parser.UnknownAbilityConstructor tok _referents) = (unknownConstructor "ability" tok, [rangeForToken tok])
-    go (Parser.UnknownDataConstructor tok _referents) = (unknownConstructor "data" tok, [rangeForToken tok])
     go (Parser.UnknownId tok referents references) =
       let msg =
             Pr.lines
@@ -1863,24 +1857,14 @@ renderParseErrors s = \case
                     <> structuralVsUniqueDocsLink
               ]
        in (msg, rangeForToken <$> [void keyword, void name])
-
-    unknownConstructor ::
-      String -> L.Token (HashQualified Name) -> Pretty ColorText
-    unknownConstructor ctorType tok =
-      Pr.lines
-        [ (Pr.wrap . mconcat)
-            [ "I don't know about any ",
-              fromString ctorType,
-              " constructor named ",
-              Pr.group
-                ( stylePretty ErrorSite (prettyHashQualified0 (L.payload tok))
-                    <> "."
-                ),
-              "Maybe make sure it's correctly spelled and that you've imported it:"
-            ],
-          "",
-          tokenAsErrorSite s tok
-        ]
+    go (Parser.TypeNotAllowed tok) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap "I expected to see a term here, but instead it’s a type:",
+                "",
+                tokenAsErrorSite s $ HQ.toText <$> tok
+              ]
+       in (msg, [rangeForToken tok])
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText
@@ -1962,11 +1946,11 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
 -- suggestions.
 prettyResolutionFailures ::
-  forall v a.
-  (Annotated a, Var v, Ord a) =>
+  forall a.
+  (Annotated a, Ord a) =>
   -- | src
   String ->
-  [Names.ResolutionFailure v a] ->
+  [Names.ResolutionFailure a] ->
   Pretty ColorText
 prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
@@ -1981,32 +1965,39 @@ prettyResolutionFailures s allFailures =
   where
     -- Collapses identical failures which may have multiple annotations into a single failure.
     -- uniqueFailures
-    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable :: [Names.ResolutionFailure a] -> Pretty ColorText
     ambiguitiesToTable failures =
-      let pairs :: ([(v, Maybe (NESet String))])
+      let pairs :: ([(HQ.HashQualified Name, Maybe (NESet String))])
           pairs = nubOrd . fmap toAmbiguityPair $ failures
           spacerRow = ("", "")
        in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
 
-    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
+    toAmbiguityPair :: Names.ResolutionFailure annotation -> (HQ.HashQualified Name, Maybe (NESet String))
     toAmbiguityPair = \case
-      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+      (Names.TermResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTermRef ppe) refs)
-      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+         in ( name,
+              Just $
+                NES.unsafeFromSet
+                  (Set.map (showTermRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
+      (Names.TypeResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
         let ppe = ppeFromNames names
-         in (v, Just $ NES.map (showTypeRef ppe) refs)
-      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
-      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+         in ( name,
+              Just $
+                NES.unsafeFromSet (Set.map (showTypeRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
+            )
+      (Names.TermResolutionFailure name _ Names.NotFound) -> (name, Nothing)
+      (Names.TypeResolutionFailure name _ Names.NotFound) -> (name, Nothing)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names =
       PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
-    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
-    prettyRow (v, mSet) = case mSet of
-      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
-      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
+    prettyRow :: (HQ.HashQualified Name, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
+    prettyRow (name, mSet) = case mSet of
+      Nothing -> [(prettyHashQualified0 name, Pr.hiBlack "No matches")]
+      Just suggestions -> zip ([prettyHashQualified0 name] ++ repeat "") (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples =

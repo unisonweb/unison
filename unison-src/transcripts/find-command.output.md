@@ -1,4 +1,4 @@
-```unison
+``` unison
 foo = 1
 lib.foo = 2
 lib.bar = 3
@@ -8,19 +8,19 @@ cat.lib.bar = 6
 somewhere.bar = 7
 ```
 
-```ucm
-.> find foo
+``` ucm
+scratch/main> find foo
 
   1. cat.foo : Nat
   2. foo : Nat
   
 
-.> view 1
+scratch/main> view 1
 
   cat.foo : Nat
   cat.foo = 4
 
-.> find.all foo
+scratch/main> find.all foo
 
   1. cat.foo : Nat
   2. cat.lib.foo : Nat
@@ -28,63 +28,60 @@ somewhere.bar = 7
   4. foo : Nat
   
 
-.> view 1
+scratch/main> view 1
 
   cat.foo : Nat
   cat.foo = 4
 
 ```
-```ucm
-.> find-in cat foo
+``` ucm
+scratch/main> find-in cat foo
 
   1. foo : Nat
   
 
-.> view 1
+scratch/main> view 1
 
   cat.foo : Nat
   cat.foo = 4
 
-.> find-in.all cat foo
+scratch/main> find-in.all cat foo
 
   1. lib.foo : Nat
   2. foo : Nat
   
 
-.> view 1
+scratch/main> view 1
 
   cat.lib.foo : Nat
   cat.lib.foo = 5
 
 ```
-```ucm
-.somewhere> find bar
+Finding within a namespace
 
-  1. bar : ##Nat
+``` ucm
+scratch/main> find bar
+
+  1. somewhere.bar : Nat
   
 
-.somewhere> find.global bar
+scratch/other> debug.find.global bar
 
+  Found results in scratch/main
+  
   1. .cat.lib.bar : Nat
   2. .lib.bar : Nat
   3. .somewhere.bar : Nat
   
 
-```
-```ucm
-.> find bar
-
-  1. somewhere.bar : Nat
-  
-
-.> find-in somewhere bar
+scratch/main> find-in somewhere bar
 
   1. bar : Nat
   
 
 ```
-```ucm
-.> find baz
+``` ucm
+scratch/main> find baz
 
   ☝️
   
@@ -96,17 +93,7 @@ somewhere.bar = 7
   No results. Check your spelling, or try using tab completion
   to supply command arguments.
   
-  `find.global` can be used to search outside the current
+  `debug.find.global` can be used to search outside the current
   namespace.
-
-```
-```ucm
-.> find.global notHere
-
-  😶
-  
-  No results. Check your spelling, or try using tab completion
-  to supply command arguments.
-  
 
 ```

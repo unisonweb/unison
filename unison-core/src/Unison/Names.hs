@@ -12,6 +12,8 @@ module Unison.Names
     filterByHQs,
     filterBySHs,
     filterTypes,
+    fromReferenceIds,
+    fromUnconflictedReferenceIds,
     map,
     makeAbsolute,
     makeRelative,
@@ -36,9 +38,7 @@ module Unison.Names
     typeReferences,
     termsNamed,
     typesNamed,
-    unionLeft,
-    unionLeftName,
-    unionLeftRef,
+    shadowing,
     namesForReference,
     namesForReferent,
     shadowTerms,
@@ -49,28 +49,34 @@ module Unison.Names
     hashQualifyTypesRelation,
     hashQualifyTermsRelation,
     fromTermsAndTypes,
+    lenientToNametree,
   )
 where
 
 import Data.Map qualified as Map
+import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.These (These (..))
 import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Nametree (Nametree, unflattenNametree)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
@@ -85,7 +91,7 @@ data Names = Names
   { terms :: Relation Name Referent,
     types :: Relation Name TypeReference
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Semigroup (Names) where
   Names e1 t1 <> Names e2 t2 =
@@ -95,7 +101,23 @@ instance Monoid (Names) where
   mempty = Names mempty mempty
 
 isEmpty :: Names -> Bool
-isEmpty n = R.null (terms n) && R.null (types n)
+isEmpty n = R.null n.terms && R.null n.types
+
+-- | Construct a 'Names' from unconflicted reference ids.
+fromReferenceIds :: DefnsF (Relation Name) TermReferenceId TypeReferenceId -> Names
+fromReferenceIds defns =
+  Names
+    { terms = Relation.mapRan Referent.fromTermReferenceId defns.terms,
+      types = Relation.mapRan Reference.fromId defns.types
+    }
+
+-- | Construct a 'Names' from unconflicted reference ids.
+fromUnconflictedReferenceIds :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Names
+fromUnconflictedReferenceIds defns =
+  Names
+    { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
+      types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
 
 map :: (Name -> Name) -> Names -> Names
 map f (Names {terms, types}) = Names terms' types'
@@ -122,8 +144,8 @@ fuzzyFind nameToText query names =
     . Prelude.filter prefilter
     . Map.toList
     -- `mapMonotonic` is safe here and saves a log n factor
-    $ (Set.mapMonotonic Left <$> R.toMultimap (terms names))
-      <> (Set.mapMonotonic Right <$> R.toMultimap (types names))
+    $ (Set.mapMonotonic Left <$> R.toMultimap names.terms)
+      <> (Set.mapMonotonic Right <$> R.toMultimap names.types)
   where
     lowerqueryt = Text.toLower . Text.pack <$> query
     -- For performance, case-insensitive substring matching as a pre-filter
@@ -181,86 +203,22 @@ restrictReferences refs Names {..} = Names terms' types'
     terms' = R.filterRan ((`Set.member` refs) . Referent.toReference) terms
     types' = R.filterRan (`Set.member` refs) types
 
--- | Guide to unionLeft*
--- Is it ok to create new aliases for parsing?
---    Sure.
---
--- Is it ok to create name conflicts for parsing?
---    It's okay but not great. The user will have to hash-qualify to disambiguate.
---
--- Is it ok to create new aliases for pretty-printing?
---    Not helpful, we need to choose a name to show.
---    We'll just have to choose one at random if there are aliases.
--- Is it ok to create name conflicts for pretty-printing?
---    Still okay but not great.  The pretty-printer will have to hash-qualify
---    to disambiguate.
---
--- Thus, for parsing:
---       unionLeftName is good if the name `n` on the left is the only `n` the
---           user will want to reference.  It allows the rhs to add aliases.
---       unionLeftRef allows new conflicts but no new aliases.  Lame?
---       (<>) is ok for parsing if we expect to add some conflicted names,
---           e.g. from history
---
--- For pretty-printing:
---       Probably don't want to add new aliases, unless we don't know which
---       `Names` is higher priority.  So if we do have a preferred `Names`,
---       don't use `unionLeftName` or (<>).
---       You don't want to create new conflicts either if you have a preferred
---       `Names`.  So in this case, don't use `unionLeftRef` either.
---       I guess that leaves `unionLeft`.
---
--- Not sure if the above is helpful or correct!
-
--- unionLeft two Names, including new aliases, but excluding new name conflicts.
--- e.g. unionLeftName [foo -> #a, bar -> #a, cat -> #c]
---                    [foo -> #b, baz -> #c]
---                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
--- Btw, it's ok to create name conflicts for parsing environments, if you don't
--- mind disambiguating.
-unionLeftName :: Names -> Names -> Names
-unionLeftName = unionLeft' $ const . R.memberDom
-
--- unionLeft two Names, including new name conflicts, but excluding new aliases.
--- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
---                   [foo -> #b, baz -> #c]
---                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
-unionLeftRef :: Names -> Names -> Names
-unionLeftRef (Names priorityTerms priorityTypes) (Names fallbackTerms fallbackTypes) =
-  Names (restricter priorityTerms fallbackTerms) (restricter priorityTypes fallbackTypes)
+-- | Prefer names in the first argument, falling back to names in the second.
+-- This can be used to shadow names in the codebase with names in a unison file for instance:
+-- e.g. @shadowing scratchFileNames codebaseNames@
+shadowing :: Names -> Names -> Names
+shadowing a b =
+  Names (shadowing a.terms b.terms) (shadowing a.types b.types)
   where
-    restricter priorityRel fallbackRel =
-      let refsExclusiveToFallback = (Relation.ran fallbackRel) `Set.difference` (Relation.ran priorityRel)
-       in priorityRel <> Relation.restrictRan fallbackRel refsExclusiveToFallback
-
--- unionLeft two Names, but don't create new aliases or new name conflicts.
--- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
---                [foo -> #b, baz -> #c]
---              = [foo -> #a, bar -> #a, cat -> #c]
-unionLeft :: Names -> Names -> Names
-unionLeft = unionLeft' go
-  where
-    go n r acc = R.memberDom n acc || R.memberRan r acc
-
--- implementation detail of the above
-unionLeft' ::
-  (forall a b. (Ord a, Ord b) => a -> b -> Relation a b -> Bool) ->
-  Names ->
-  Names ->
-  Names
-unionLeft' shouldOmit a b = Names terms' types'
-  where
-    terms' = foldl' go (terms a) (R.toList $ terms b)
-    types' = foldl' go (types a) (R.toList $ types b)
-    go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-    go acc (n, r) = if shouldOmit n r acc then acc else R.insert n r acc
+    shadowing xs ys =
+      Relation.fromMultimap (Map.unionWith (\x _ -> x) (Relation.domain xs) (Relation.domain ys))
 
 -- | TODO: get this from database. For now it's a constant.
 numHashChars :: Int
 numHashChars = 3
 
 termsNamed :: Names -> Name -> Set Referent
-termsNamed = flip R.lookupDom . terms
+termsNamed = flip R.lookupDom . (.terms)
 
 -- | Get all terms with a specific name.
 refTermsNamed :: Names -> Name -> Set TermReference
@@ -281,13 +239,13 @@ refTermsHQNamed names = \case
      in Set.mapMaybe f (termsNamed names name)
 
 typesNamed :: Names -> Name -> Set TypeReference
-typesNamed = flip R.lookupDom . types
+typesNamed = flip R.lookupDom . (.types)
 
 namesForReferent :: Names -> Referent -> Set Name
-namesForReferent names r = R.lookupRan r (terms names)
+namesForReferent names r = R.lookupRan r names.terms
 
 namesForReference :: Names -> TypeReference -> Set Name
-namesForReference names r = R.lookupRan r (types names)
+namesForReference names r = R.lookupRan r names.types
 
 termAliases :: Names -> Name -> Referent -> Set Name
 termAliases names n r = Set.delete n $ namesForReferent names r
@@ -422,20 +380,20 @@ filterTypes f (Names terms types) = Names terms (R.filterDom f types)
 difference :: Names -> Names -> Names
 difference a b =
   Names
-    (R.difference (terms a) (terms b))
-    (R.difference (types a) (types b))
+    (R.difference a.terms b.terms)
+    (R.difference a.types b.types)
 
 contains :: Names -> Reference -> Bool
 contains names =
   -- We want to compute `termsReferences` only once, if `contains` is partially applied to a `Names`, and called over
   -- and over for different references. GHC would probably float `termsReferences` out without the explicit lambda, but
   -- it's written like this just to be sure.
-  \r -> Set.member r termsReferences || R.memberRan r (types names)
+  \r -> Set.member r termsReferences || R.memberRan r names.types
   where
     -- this check makes `contains` O(n) instead of O(log n)
     termsReferences :: Set TermReference
     termsReferences =
-      Set.map Referent.toReference (R.ran (terms names))
+      Set.map Referent.toReference (R.ran names.terms)
 
 -- | filters out everything from the domain except what's conflicted
 conflicts :: Names -> Names
@@ -448,9 +406,9 @@ conflicts Names {..} = Names (R.filterManyDom terms) (R.filterManyDom types)
 -- See usage in `FileParser` for handling precendence of symbol
 -- resolution where local names are preferred to codebase names.
 shadowTerms :: [Name] -> Names -> Names
-shadowTerms ns n0 = Names terms' (types n0)
+shadowTerms ns n0 = Names terms' n0.types
   where
-    terms' = foldl' go (terms n0) ns
+    terms' = foldl' go n0.terms ns
     go ts name = R.deleteDom name ts
 
 -- | Given a mapping from name to qualified name, update a `Names`,
@@ -461,8 +419,8 @@ shadowTerms ns n0 = Names terms' (types n0)
 importing :: [(Name, Name)] -> Names -> Names
 importing shortToLongName ns =
   Names
-    (foldl' go (terms ns) shortToLongName)
-    (foldl' go (types ns) shortToLongName)
+    (foldl' go ns.terms shortToLongName)
+    (foldl' go ns.types shortToLongName)
   where
     go :: (Ord r) => Relation Name r -> (Name, Name) -> Relation Name r
     go m (shortname, qname) = case Name.searchByRankedSuffix qname m of
@@ -476,8 +434,8 @@ importing shortToLongName ns =
 -- `[(foo, io.foo), (bar, io.bar)]`.
 expandWildcardImport :: Name -> Names -> [(Name, Name)]
 expandWildcardImport prefix ns =
-  [(suffix, full) | Just (suffix, full) <- go <$> R.toList (terms ns)]
-    <> [(suffix, full) | Just (suffix, full) <- go <$> R.toList (types ns)]
+  [(suffix, full) | Just (suffix, full) <- go <$> R.toList ns.terms]
+    <> [(suffix, full) | Just (suffix, full) <- go <$> R.toList ns.types]
   where
     go :: (Name, a) -> Maybe (Name, Name)
     go (full, _) = do
@@ -498,7 +456,7 @@ constructorsForType r ns =
       possibleDatas = [Referent.Con (ConstructorReference r cid) CT.Data | cid <- [0 ..]]
       possibleEffects = [Referent.Con (ConstructorReference r cid) CT.Effect | cid <- [0 ..]]
       trim [] = []
-      trim (h : t) = case R.lookupRan h (terms ns) of
+      trim (h : t) = case R.lookupRan h ns.terms of
         s
           | Set.null s -> []
           | otherwise -> [(n, h) | n <- toList s] ++ trim t
@@ -517,3 +475,25 @@ hashQualifyRelation fromNamedRef rel = R.map go rel
       if Set.size (R.lookupDom n rel) > 1
         then (HQ.take numHashChars $ fromNamedRef n r, r)
         else (HQ.NameOnly n, r)
+
+-- | "Leniently" view a Names as a NameTree
+--
+-- This function is "lenient" in the sense that it does not handle conflicted names with any smarts whatsoever. The
+-- resulting nametree will simply contain one of the associated references of a conflicted name - we don't specify
+-- which.
+lenientToNametree :: Names -> Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+lenientToNametree names =
+  alignWith
+    ( \case
+        This terms -> Defns {terms, types = Map.empty}
+        That types -> Defns {terms = Map.empty, types}
+        These terms types -> Defns {terms, types}
+    )
+    (lenientRelationToNametree names.terms)
+    (lenientRelationToNametree names.types)
+  where
+    lenientRelationToNametree :: (Ord a) => Relation Name a -> Nametree (Map NameSegment a)
+    lenientRelationToNametree =
+      -- The partial `Set.findMin` is fine here because Relation.domain only has non-empty Set values. A NESet would be
+      -- better.
+      unflattenNametree . Map.map Set.findMin . Relation.domain

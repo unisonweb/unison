@@ -28,7 +28,7 @@ import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)

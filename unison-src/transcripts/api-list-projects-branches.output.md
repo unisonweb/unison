@@ -1,6 +1,6 @@
 # List Projects And Branches Test
 
-```api
+``` api
 --  Should list all projects
 GET /api/projects
 [
@@ -12,6 +12,9 @@ GET /api/projects
     },
     {
         "projectName": "project-two"
+    },
+    {
+        "projectName": "scratch"
     }
 ]
 --  Should list projects starting with project-t
@@ -51,3 +54,4 @@ GET /api/projects/project-one/branches?prefix=branch-t
     }
 ]
 ```
+

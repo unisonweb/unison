@@ -1,8 +1,8 @@
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -15,25 +15,25 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-.> delete.term Foo.Bar
+scratch/main> delete.term Foo.Bar
 
   Done.
 
 ```
 Now we've set up a situation where the original constructor missing.
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm
+``` ucm
 
   Loading changes detected in scratch.u.
 
@@ -47,22 +47,20 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
-```ucm
-.> view Foo
+``` ucm
+scratch/main> view Foo
 
   type Foo = #b509v3eg4k#0 Nat
 
-.> update
+scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  I couldn't complete the update because the type Foo has
-  unnamed constructors. (I currently need each constructor to
-  have a name somewhere under the type name.)
+  Sorry, I wasn't able to perform the update:
+  
+  The type Foo has some constructors with missing names, and I
+  can't perform an update in this situation.
   
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each constructor, and then try the update again.
+  each unnamed constructor, and then try the update again.
 
 ```

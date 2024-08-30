@@ -12,6 +12,8 @@ module Unison.Referent
     toId,
     toReference,
     toReferenceId,
+    toConstructorReference,
+    toConstructorReferenceId,
     toTermReference,
     toTermReferenceId,
     fromId,
@@ -41,7 +43,7 @@ import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R
 import Unison.Reference qualified as Reference
-import Unison.Referent' (Referent' (..), reference_, toReference')
+import Unison.ReferentPrime (Referent' (..), reference_, toReference')
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 
@@ -119,7 +121,16 @@ toReference = toReference'
 toReferenceId :: Referent -> Maybe Reference.Id
 toReferenceId = Reference.toId . toReference
 
-toTermReference :: Referent -> Maybe TermReference
+toConstructorReference :: Referent' r -> Maybe (GConstructorReference r)
+toConstructorReference = \case
+  Con' r _ -> Just r
+  Ref' _ -> Nothing
+
+toConstructorReferenceId :: Referent -> Maybe ConstructorReferenceId
+toConstructorReferenceId =
+  toConstructorReference >=> ConstructorReference.toId
+
+toTermReference :: Referent' r -> Maybe r
 toTermReference = \case
   Con' _ _ -> Nothing
   Ref' reference -> Just reference
@@ -129,7 +140,7 @@ toTermReferenceId r = toTermReference r >>= Reference.toId
 
 -- | Inject a Term Reference into a Referent
 fromTermReference :: TermReference -> Referent
-fromTermReference r = Ref r
+fromTermReference = Ref
 
 fromTermReferenceId :: TermReferenceId -> Referent
 fromTermReferenceId = fromTermReference . Reference.fromId

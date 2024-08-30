@@ -48,17 +48,6 @@ module Unison.Sync.Types
     UploadEntitiesResponse (..),
     UploadEntitiesError (..),
 
-    -- ** Fast-forward path
-    FastForwardPathRequest (..),
-    FastForwardPathResponse (..),
-    FastForwardPathError (..),
-
-    -- ** Update path
-    UpdatePathRequest (..),
-    UpdatePathResponse (..),
-    UpdatePathError (..),
-    HashMismatch (..),
-
     -- * Common/shared error types
     HashMismatchForEntity (..),
     InvalidParentage (..),
@@ -203,7 +192,7 @@ entityDependencies = \case
   C Causal {namespaceHash, parents} -> Set.insert namespaceHash parents
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable TermComponent where
   bifoldMap = bifoldMapDefault
@@ -252,7 +241,7 @@ decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
   pure (localIDs, bytes)
 
 data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable DeclComponent where
   bifoldMap = bifoldMapDefault
@@ -280,7 +269,7 @@ data LocalIds text hash = LocalIds
   { texts :: [text],
     hashes :: [hash]
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable LocalIds where
   bifoldMap = bifoldMapDefault
@@ -381,7 +370,7 @@ data Namespace text hash = Namespace
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
     bytes :: LocalBranchBytes
   }
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show)
 
 instance Bifoldable Namespace where
   bifoldMap = bifoldMapDefault
@@ -751,110 +740,8 @@ instance FromJSON HashMismatchForEntity where
         <*> obj
           .: "computed"
 
-------------------------------------------------------------------------------------------------------------------------
--- Fast-forward path
-
--- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
--- fast-forward to back to wherever the (client believes the) server is (including the server head, in a separate
--- field).
---
--- For example, if the client wants to update
---
--- @
--- A -> B -> C
--- @
---
--- to
---
--- @
--- A -> B -> C -> D -> E -> F
--- @
---
--- then it would send hashes
---
--- @
--- expectedHash = C
--- hashes = [D, E, F]
--- @
---
--- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
--- instead.
-data FastForwardPathRequest = FastForwardPathRequest
-  { -- | The causal that the client believes exists at `path`
-    expectedHash :: Hash32,
-    -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
-    hashes :: NonEmpty Hash32,
-    -- | The path to fast-forward
-    path :: Path
-  }
-  deriving stock (Show)
-
-instance ToJSON FastForwardPathRequest where
-  toJSON FastForwardPathRequest {expectedHash, hashes, path} =
-    object
-      [ "expected_hash" .= expectedHash,
-        "hashes" .= hashes,
-        "path" .= path
-      ]
-
-instance FromJSON FastForwardPathRequest where
-  parseJSON =
-    Aeson.withObject "FastForwardPathRequest" \o -> do
-      expectedHash <- o .: "expected_hash"
-      hashes <- o .: "hashes"
-      path <- o .: "path"
-      pure FastForwardPathRequest {expectedHash, hashes, path}
-
-data FastForwardPathResponse
-  = FastForwardPathSuccess
-  | FastForwardPathFailure FastForwardPathError
-  deriving stock (Show)
-
-data FastForwardPathError
-  = FastForwardPathError'MissingDependencies (NeedDependencies Hash32)
-  | FastForwardPathError'NoWritePermission Path
-  | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
-    FastForwardPathError'NotFastForward HashJWT
-  | -- | There was no history at this path; the client should use the "update path" endpoint instead.
-    FastForwardPathError'NoHistory
-  | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
-    FastForwardPathError'InvalidParentage InvalidParentage
-  | FastForwardPathError'InvalidRepoInfo Text RepoInfo
-  | FastForwardPathError'UserNotFound
-  deriving stock (Show)
-
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
-
-instance ToJSON FastForwardPathResponse where
-  toJSON = \case
-    FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'MissingDependencies deps)) -> jsonUnion "missing_dependencies" deps
-    (FastForwardPathFailure (FastForwardPathError'NoWritePermission path)) -> jsonUnion "no_write_permission" path
-    (FastForwardPathFailure (FastForwardPathError'NotFastForward hashJwt)) -> jsonUnion "not_fast_forward" hashJwt
-    (FastForwardPathFailure FastForwardPathError'NoHistory) -> jsonUnion "no_history" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'InvalidParentage invalidParentage)) ->
-      jsonUnion "invalid_parentage" invalidParentage
-    (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo)) ->
-      jsonUnion "invalid_repo_info" (msg, repoInfo)
-    (FastForwardPathFailure FastForwardPathError'UserNotFound) ->
-      jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON FastForwardPathResponse where
-  parseJSON =
-    Aeson.withObject "FastForwardPathResponse" \o ->
-      o .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure FastForwardPathSuccess
-        "missing_dependencies" -> FastForwardPathFailure . FastForwardPathError'MissingDependencies <$> o .: "payload"
-        "no_write_permission" -> FastForwardPathFailure . FastForwardPathError'NoWritePermission <$> o .: "payload"
-        "not_fast_forward" -> FastForwardPathFailure . FastForwardPathError'NotFastForward <$> o .: "payload"
-        "no_history" -> pure (FastForwardPathFailure FastForwardPathError'NoHistory)
-        "invalid_parentage" -> FastForwardPathFailure . FastForwardPathError'InvalidParentage <$> o .: "payload"
-        "invalid_repo_info" -> do
-          (msg, repoInfo) <- o .: "payload"
-          pure (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo))
-        "user_not_found" -> pure (FastForwardPathFailure FastForwardPathError'UserNotFound)
-        t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
 
 instance ToJSON InvalidParentage where
   toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]
@@ -862,89 +749,6 @@ instance ToJSON InvalidParentage where
 instance FromJSON InvalidParentage where
   parseJSON =
     Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
-
-------------------------------------------------------------------------------------------------------------------------
--- Update path
-
-data UpdatePathRequest = UpdatePathRequest
-  { path :: Path,
-    expectedHash :: Maybe Hash32, -- Nothing requires empty history at destination
-    newHash :: Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathRequest where
-  toJSON (UpdatePathRequest path expectedHash newHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "new_hash" .= newHash
-      ]
-
-instance FromJSON UpdatePathRequest where
-  parseJSON = Aeson.withObject "UpdatePathRequest" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    newHash <- obj .: "new_hash"
-    pure UpdatePathRequest {..}
-
-data UpdatePathResponse
-  = UpdatePathSuccess
-  | UpdatePathFailure UpdatePathError
-  deriving stock (Show, Eq, Ord)
-
-data UpdatePathError
-  = UpdatePathError'HashMismatch HashMismatch
-  | UpdatePathError'InvalidRepoInfo Text RepoInfo -- err msg, repo info
-  | UpdatePathError'MissingDependencies (NeedDependencies Hash32)
-  | UpdatePathError'NoWritePermission Path
-  | UpdatePathError'UserNotFound
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathResponse where
-  toJSON = \case
-    UpdatePathSuccess -> jsonUnion "success" (Object mempty)
-    UpdatePathFailure (UpdatePathError'HashMismatch hm) -> jsonUnion "hash_mismatch" hm
-    UpdatePathFailure (UpdatePathError'MissingDependencies md) -> jsonUnion "missing_dependencies" md
-    UpdatePathFailure (UpdatePathError'NoWritePermission path) -> jsonUnion "no_write_permission" path
-    UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo) -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
-    UpdatePathFailure UpdatePathError'UserNotFound -> jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON UpdatePathResponse where
-  parseJSON v =
-    v & Aeson.withObject "UpdatePathResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UpdatePathSuccess
-        "hash_mismatch" -> UpdatePathFailure . UpdatePathError'HashMismatch <$> obj .: "payload"
-        "missing_dependencies" -> UpdatePathFailure . UpdatePathError'MissingDependencies <$> obj .: "payload"
-        "no_write_permission" -> UpdatePathFailure . UpdatePathError'NoWritePermission <$> obj .: "payload"
-        "invalid_repo_info" -> do
-          (errMsg, repoInfo) <- obj .: "payload"
-          pure (UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo))
-        "user_not_found" -> pure (UpdatePathFailure UpdatePathError'UserNotFound)
-        t -> failText $ "Unexpected UpdatePathResponse type: " <> t
-
-data HashMismatch = HashMismatch
-  { path :: Path,
-    expectedHash :: Maybe Hash32,
-    actualHash :: Maybe Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON HashMismatch where
-  toJSON (HashMismatch path expectedHash actualHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "actual_hash" .= actualHash
-      ]
-
-instance FromJSON HashMismatch where
-  parseJSON = Aeson.withObject "HashMismatch" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    actualHash <- obj .: "actual_hash"
-    pure HashMismatch {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Common/shared error types

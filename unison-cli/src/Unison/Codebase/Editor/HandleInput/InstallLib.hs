@@ -10,8 +10,6 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import U.Codebase.Sqlite.Project qualified as Sqlite (Project (..))
-import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite (ProjectBranch (..))
 import Unison.Cli.DownloadUtils
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -22,9 +20,11 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project (ProjectBranchName)
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment qualified as NameSegment (libSegment)
+import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -37,16 +37,8 @@ import Unison.Project
   )
 import Unison.Syntax.NameSegment qualified as NameSegment (unsafeParseText)
 
-handleInstallLib :: ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
-handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
-  (currentProjectAndBranch, _path) <- ProjectUtils.expectCurrentProjectBranch
-
-  let currentProjectBranchPath =
-        ProjectUtils.projectBranchPath $
-          ProjectAndBranch
-            currentProjectAndBranch.project.projectId
-            currentProjectAndBranch.branch.branchId
-
+handleInstallLib :: Bool -> ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
+handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
   libdepProject <- ProjectUtils.expectRemoteProjectByName libdepProjectName
 
   libdepBranchName <-
@@ -62,6 +54,9 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
       Share.IncludeSquashedHead
       (ProjectAndBranch (libdepProject.projectId, libdepProjectName) libdepBranchName)
 
+  when remind do
+    Cli.respond (Output.UseLibInstallNotPull (ProjectAndBranch libdepProjectName libdepBranchName))
+
   Cli.Env {codebase} <- ask
 
   causalHash <-
@@ -75,28 +70,27 @@ handleInstallLib (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName)
   --
   -- For example, if the best name is "foo", and libdeps "foo" and "foo__2" already exist, then we'll get "foo__3".
   libdepNameSegment :: NameSegment <- do
-    currentBranchObject <- Cli.getBranch0At currentProjectBranchPath
+    currentBranchObject <- Cli.getCurrentProjectRoot0
     pure $
       fresh
         (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
-        ( case Map.lookup NameSegment.libSegment currentBranchObject._children of
+        ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children) of
             Nothing -> Set.empty
-            Just libdeps -> Map.keysSet (Branch._children (Branch.head libdeps))
+            Just libdeps -> Map.keysSet ((Branch.head libdeps) ^. Branch.children)
         )
         (makeDependencyName libdepProjectName libdepBranchName)
 
   let libdepPath :: Path.Absolute
-      libdepPath =
-        Path.resolve
-          currentProjectBranchPath
-          (Path.Relative (Path.fromList [NameSegment.libSegment, libdepNameSegment]))
+      libdepPath = Path.Absolute $ Path.fromList [NameSegment.libSegment, libdepNameSegment]
 
   let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
-  _didUpdate <- Cli.updateAt reflogDescription libdepPath (\_empty -> remoteBranchObject)
+  pp <- Cli.getCurrentProjectPath
+  let libDepPP = pp & PP.absPath_ .~ libdepPath
+  _didUpdate <- Cli.updateAt reflogDescription libDepPP (\_empty -> remoteBranchObject)
 
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
-fresh :: Ord a => (Int -> a -> a) -> Set a -> a -> a
+fresh :: (Ord a) => (Int -> a -> a) -> Set a -> a -> a
 fresh bump taken x =
   fromJust (List.find (\y -> not (Set.member y taken)) (x : map (\i -> bump i x) [2 ..]))
 
