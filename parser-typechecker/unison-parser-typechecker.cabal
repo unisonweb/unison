@@ -196,7 +196,7 @@ library
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -O2 -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -ddump-to-file -dsuppress-coercions -dsuppress-module-prefixes -dsuppress-type-applications -ddump-ds -ddump-simpl -ddump-spec -ddump-stg-final -dverbose-core2core
   build-depends:
       ListLike
     , aeson
@@ -317,7 +317,7 @@ test-suite parser-typechecker-tests
       TypeApplications
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  ghc-options: -O2 -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -ddump-to-file -dsuppress-coercions -dsuppress-module-prefixes -dsuppress-type-applications -ddump-ds -ddump-simpl -ddump-spec -ddump-stg-final -dverbose-core2core -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
     , code-page

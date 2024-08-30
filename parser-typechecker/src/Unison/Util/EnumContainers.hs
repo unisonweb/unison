@@ -181,32 +181,34 @@ setSize (ES s) = IS.size s
 -- | A type optimized for lookups by enum for small numbers of key-value pairs.
 --
 -- It aims to minimize pointer-chasing and pack memory tightly so it fits in cache-lines for the CPU
-data SmallEnumMap k v
+data SmallEnumMap v
   = SmallEnumMap
-      {-# UNPACK #-} !(VUnboxed.Vector Int) -- keys
+      {-# UNPACK #-} !(VUnboxed.Vector Word64) -- keys
       {-# UNPACK #-} !(Vector.Vector v) -- values
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-mapToSmallEnumMap :: (EnumKey k) => EnumMap k v -> SmallEnumMap k v
+mapToSmallEnumMap :: EnumMap Word64 v -> SmallEnumMap v
 mapToSmallEnumMap !(EM m) =
   let (keys, values) = unzip $ IM.toList m
-   in SmallEnumMap (VUnboxed.fromList keys) (Vector.fromList values)
+   in SmallEnumMap (VUnboxed.fromList (fmap intToKey keys)) (Vector.fromList values)
 
-smallEnumMapFromList :: (EnumKey k) => [(k, v)] -> SmallEnumMap k v
+smallEnumMapFromList :: [(Word64, v)] -> SmallEnumMap v
 smallEnumMapFromList kvs =
   let (keys, values) = unzip kvs
-   in SmallEnumMap (VUnboxed.fromList $ fmap keyToInt keys) (Vector.fromList values)
+   in SmallEnumMap (VUnboxed.fromList keys) (Vector.fromList values)
 
-smallEnumMapElems :: SmallEnumMap k v -> Vector.Vector v
+smallEnumMapElems :: SmallEnumMap v -> Vector.Vector v
 smallEnumMapElems !(SmallEnumMap _ v) = v
 
-smallEnumMapToList :: (EnumKey k) => SmallEnumMap k v -> [(k, v)]
+smallEnumMapToList :: SmallEnumMap v -> [(Word64, v)]
 smallEnumMapToList !(SmallEnumMap keys values) =
-  zip (fmap intToKey . VUnboxed.toList $ keys) (Vector.toList values)
+  zip (VUnboxed.toList $ keys) (Vector.toList values)
 
-smallEnumMapLookup :: (EnumKey k) => k -> SmallEnumMap k v -> Maybe v
+smallEnumMapLookup :: Word64 -> SmallEnumMap v -> Maybe v
 smallEnumMapLookup !k !(SmallEnumMap keys values) =
-  let intKey = keyToInt k
-   in case VUnboxed.elemIndex intKey keys of
-        Just j -> Just $! (values Vector.! j)
-        Nothing -> Nothing
+  case VUnboxed.elemIndex k keys of
+    Just j -> do
+      v <- Vector.unsafeIndexM values j
+      Just $! v
+    Nothing -> Nothing
+{-# INLINE smallEnumMapLookup #-}

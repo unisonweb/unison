@@ -2,7 +2,20 @@ name: unison-parser-typechecker
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
-ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+ghc-options:
+  - "-O2"
+  - "-Wall"
+  - "-fno-warn-name-shadowing"
+  - "-fno-warn-missing-pattern-synonym-signatures"
+  - "-ddump-to-file"
+  - "-dsuppress-coercions"
+  - "-dsuppress-module-prefixes"
+  - "-dsuppress-type-applications"
+  - "-ddump-ds"
+  - "-ddump-simpl"
+  - "-ddump-spec"
+  - "-ddump-stg-final"
+  - "-dverbose-core2core"
 
 flags:
   optimized:

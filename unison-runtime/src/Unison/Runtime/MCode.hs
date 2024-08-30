@@ -560,7 +560,7 @@ data Section
     RMatch
       !Int -- index of request item on the boxed stack
       !Section -- pure case
-      !(SmallEnumMap Word64 Branch) -- effect cases
+      !(SmallEnumMap Branch) -- effect cases
   deriving (Show, Eq, Ord)
 
 data CombIx
@@ -603,7 +603,7 @@ data Ref
   deriving (Show, Eq, Ord)
 
 data Branch
-  = Branch {-# UNPACK #-} !(SmallEnumMap Word64 Section) !(Section {- default -})
+  = Branch {-# UNPACK #-} !(SmallEnumMap Section) !(Section {- default -})
   | TextBranch {-# UNPACK #-} !(M.Map Text Section) !(Section {- default -})
   deriving (Show, Eq, Ord)
 
@@ -1296,12 +1296,12 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], ANormal v)) ->
   ANormal v ->
-  Emit (Section, SmallEnumMap Word64 Branch)
+  Emit (Section, SmallEnumMap Branch)
 emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
     pur :: Emit Section
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
-    tops :: Emit (SmallEnumMap Word64 Branch)
+    tops :: Emit (SmallEnumMap Branch)
     tops = EC.mapToSmallEnumMap <$> traverse f (coerce hs)
     f :: EnumMap Word64 ([Mem], ANormal v) -> Emit Branch
     f cs = Branch <$> fmap EC.mapToSmallEnumMap (traverse (emitCase rns grpr grpn rec ctx) cs) <*> pure edf
