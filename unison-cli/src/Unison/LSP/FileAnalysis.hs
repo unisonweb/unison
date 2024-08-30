@@ -62,6 +62,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
@@ -224,7 +225,12 @@ analyseNotes codebase fileUri ppe src notes = do
     Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
       let typeErr = TypeError.typeErrorFromNote errNote
           ranges = case typeErr of
-            TypeError.Mismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
+            TypeError.Mismatch {mismatchSite, foundType, expectedType}
+              | -- If it's a delay mismatch, the error is likely with the block definition (e.g. missing 'do') so we highlight the whole block.
+                Just _ <- Typechecker.isMismatchMissingDelay foundType expectedType ->
+                  singleRange $ ABT.annotation mismatchSite
+              -- Otherwise we highlight the leafe nodes of the block
+              | otherwise -> leafNodeRanges "mismatch" mismatchSite
             TypeError.BooleanMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
             TypeError.ExistentialMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
             TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
