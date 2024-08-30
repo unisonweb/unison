@@ -92,10 +92,6 @@ module Unison.Codebase
 
     -- * Sync
 
-    -- ** Local sync
-    syncFromDirectory,
-    syncToDirectory,
-
     -- * Codebase path
     getCodebaseDir,
     CodebasePath,

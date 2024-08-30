@@ -65,7 +65,6 @@ library
       U.Codebase.Sqlite.RemoteProjectBranch
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
-      U.Codebase.Sqlite.Sync22
       U.Codebase.Sqlite.TempEntity
       U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
