@@ -15,7 +15,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Prelude
-import Unison.Reference (Reference, TypeReference, TermReferenceId, TypeReferenceId)
+import Unison.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
