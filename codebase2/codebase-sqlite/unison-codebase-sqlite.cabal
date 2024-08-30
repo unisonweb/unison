@@ -116,7 +116,6 @@ library
     , extra
     , generic-lens
     , lens
-    , monad-validate
     , mtl
     , network-uri
     , network-uri-orphans-sqlite
@@ -125,7 +124,6 @@ library
     , time
     , transformers
     , unison-codebase
-    , unison-codebase-sync
     , unison-core
     , unison-core-orphans-sqlite
     , unison-core1
@@ -134,7 +132,6 @@ library
     , unison-prelude
     , unison-sqlite
     , unison-util-base32hex
-    , unison-util-cache
     , unison-util-file-embed
     , unison-util-serialization
     , unison-util-term
