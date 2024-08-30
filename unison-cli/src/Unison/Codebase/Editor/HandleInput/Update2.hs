@@ -325,16 +325,18 @@ makePPE ::
   Names ->
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   PrettyPrintEnvDecl
-makePPE hashLen names initialFileNames dependents =
+makePPE hashLen namespaceNames initialFileNames dependents =
   PPED.addFallback
-    (PPED.makeFilePPED (initialFileNames <> Names.fromUnconflictedReferenceIds dependents))
+    ( let names = initialFileNames <> Names.fromUnconflictedReferenceIds dependents
+       in PPED.makePPED (PPE.namer names) (PPE.suffixifyByName (Names.shadowing names namespaceNames))
+    )
     ( PPED.makePPED
-        (PPE.hqNamer hashLen names)
+        (PPE.hqNamer hashLen namespaceNames)
         -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
         -- ambiguous in the context of namespace + file names.
         --
         -- So, we use `shadowing`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
-        (PPE.suffixifyByHash (Names.shadowing names initialFileNames))
+        (PPE.suffixifyByHash (Names.shadowing namespaceNames initialFileNames))
     )
