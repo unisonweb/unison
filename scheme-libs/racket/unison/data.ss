@@ -727,7 +727,8 @@
 (define code-associations (make-hash))
 
 (define (declare-code hs co)
-  (hash-set! code-associations hs co))
+  (unless (hash-has-key? code-associations hs)
+    (hash-set! code-associations hs co)))
 
 (define (lookup-code hs)
   (let ([mco (hash-ref code-associations hs #f)])
