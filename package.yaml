@@ -1,56 +1,52 @@
-name: unison-core1
+name: unison-syntax
 github: unisonweb/unison
-copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
+
+ghc-options: -Wall
 
 library:
+  source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_core1
-  source-dirs: src
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
+      other-modules: Paths_unison_syntax
+
   dependencies:
     - base
-    - bytestring
-    - containers >= 0.6.3
-    - nonempty-containers
+    - bytes
+    - containers
     - cryptonite
+    - deriving-compat
     - extra
-    - fuzzyfind
-    - generic-lens
+    - free
     - lens
     - megaparsec
-    - memory
     - mtl
-    - rfc5051
-    - semialign
-    - semigroups
+    - parser-combinators
     - text
-    - text-builder
-    - these
     - unison-core
+    - unison-core1
     - unison-hash
     - unison-prelude
-    - unison-util-relation
-    - witch
+    - unison-util-base32hex
+    - unison-util-bytes
 
 tests:
-  tests:
+  syntax-tests:
     when:
       - condition: false
-        other-modules: Paths_unison_core1
+        other-modules: Paths_unison_syntax
     dependencies:
       - base
       - code-page
       - easytest
-      - text
-      - these
+      - unison-syntax
       - unison-core
-      - unison-core1
       - unison-prelude
     main: Main.hs
     source-dirs: test
 
 default-extensions:
+  - ApplicativeDo
   - BangPatterns
   - BlockArguments
   - DeriveAnyClass
@@ -64,29 +60,18 @@ default-extensions:
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
-  - GADTs
+  - FunctionalDependencies
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
-  - InstanceSigs
-  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
-  - OverloadedLabels
   - OverloadedStrings
-  - OverloadedRecordDot
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns
-
-flags:
-  optimized:
-    manual: true
-    default: false
-
-when:
-  - condition: flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields

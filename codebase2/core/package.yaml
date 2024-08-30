@@ -17,8 +17,6 @@ dependencies:
   - text
   - unison-hash
   - unison-prelude
-  - unison-util-base32hex
-  - vector
 
 default-extensions:
   - ApplicativeDo

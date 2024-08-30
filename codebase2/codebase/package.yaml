@@ -7,12 +7,10 @@ dependencies:
   - generic-lens
   - lens
   - mtl
-  - text
   - time
   - unison-core
   - unison-hash
   - unison-prelude
-  - unison-util-base32hex
 
 library:
   source-dirs: .

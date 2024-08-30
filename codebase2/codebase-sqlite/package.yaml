@@ -11,7 +11,6 @@ extra-source-files:
   - sql/*
 
 dependencies:
-  - Only
   - aeson
   - base
   - bytes
@@ -25,7 +24,6 @@ dependencies:
   - network-uri
   - network-uri-orphans-sqlite
   - nonempty-containers
-  - safe
   - text
   - time
   - transformers
@@ -47,7 +45,6 @@ dependencies:
   - uuid
   - uuid-orphans-sqlite
   - vector
-  - witch
 
 default-extensions:
   - ApplicativeDo

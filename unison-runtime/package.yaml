@@ -1,113 +1,112 @@
-name: unison-parser-typechecker
+name: unison-runtime
 github: unisonweb/unison
-copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+copyright: Copyright (C) 2013-2024 Unison Computing, PBC and contributors
 
-ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+ghc-options: -Wall -O0
 
 flags:
   optimized:
     manual: true
     default: true
+  arraychecks:
+    manual: true
+    default: false
 
 when:
   - condition: flag(optimized)
     ghc-options: -funbox-strict-fields -O2
+  - condition: flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
 
 
 library:
   source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_parser_typechecker
+      other-modules: Paths_unison_runtime
 
   dependencies:
-    - ListLike
-    - aeson
-    - ansi-terminal
-    - async
+    - asn1-encoding
+    - asn1-types
     - atomic-primops
     - base
+    - binary
     - bytes
     - bytestring
-    - concurrent-output
+    - cereal
+    - clock
     - containers >= 0.6.3
-    - errors
-    - extra
-    - filelock
+    - cryptonite
+    - data-default
+    - data-memocombinators
+    - deepseq
+    - directory
+    - exceptions
     - filepath
-    - free
-    - generic-lens
-    - hashable
-    - hashtables
+    - iproute
     - lens
-    - megaparsec
+    - memory
     - mmorph
     - mtl
-    - mutable-containers
-    - network-uri
-    - nonempty-containers
-    - pretty-simple
-    - regex-tdfa
-    - semialign
-    - semigroups
-    - servant-client
+    - murmur-hash
+    - network
+    - network-simple
+    - network-udp
+    - pem
+    - primitive
+    - process
+    - raw-strings-qq
+    - safe-exceptions
     - stm
+    - tagged
+    - temporary
     - text
-    - these
     - time
-    - transformers
-    - unicode-show
-    - unison-codebase
+    - tls
     - unison-codebase-sqlite
-    - unison-codebase-sqlite-hashing-v2
-    - unison-codebase-sync
     - unison-core
     - unison-core1
     - unison-hash
-    - unison-hashing-v2
+    - unison-parser-typechecker
     - unison-prelude
     - unison-pretty-printer
-    - unison-sqlite
     - unison-syntax
-    - unison-util-base32hex
     - unison-util-bytes
-    - unison-util-cache
-    - unison-util-relation
-    - unison-util-rope
-    - unison-util-serialization
     - unliftio
-    - uuid
     - vector
-    - witherable
+    - crypton-x509
+    - crypton-x509-store
+    - crypton-x509-system
 
 tests:
-  parser-typechecker-tests:
+  runtime-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    when:
+      - condition: false
+        other-modules: Paths_unison_parser_typechecker
     dependencies:
       - base
       - code-page
       - containers
+      - cryptonite
+      - directory
       - easytest
+      - filemanip
+      - filepath
+      - hex-text
+      - lens
+      - megaparsec
+      - mtl
+      - stm
       - text
-      - unison-core
       - unison-core1
-      - unison-hash
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer
+      - unison-runtime
       - unison-syntax
-      - unison-util-relation
-      - unison-util-rope
-      - megaparsec
-      - mtl
-      - temporary
-      - raw-strings-qq
-      - unison-hashing-v2
-    when:
-      - condition: false
-        other-modules: Paths_unison_parser_typechecker
 
 default-extensions:
   - ApplicativeDo

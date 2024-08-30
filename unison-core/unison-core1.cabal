@@ -102,7 +102,6 @@ library
     , bytestring
     , containers >=0.6.3
     , cryptonite
-    , either
     , extra
     , fuzzyfind
     , generic-lens
@@ -112,19 +111,15 @@ library
     , mtl
     , nonempty-containers
     , rfc5051
-    , safe
     , semialign
     , semigroups
     , text
     , text-builder
     , these
-    , transformers
     , unison-core
     , unison-hash
     , unison-prelude
-    , unison-util-base32hex
     , unison-util-relation
-    , vector
     , witch
   default-language: Haskell2010
   if flag(optimized)

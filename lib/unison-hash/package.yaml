@@ -7,10 +7,8 @@ ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synony
 dependencies:
   - base
   - bytestring
-  - text
   - unison-prelude
   - unison-util-base32hex
-  - witch
 
 library:
   source-dirs: src

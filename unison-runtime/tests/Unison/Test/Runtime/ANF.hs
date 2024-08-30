@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PatternGuards #-}
 
-module Unison.Test.ANF where
+module Unison.Test.Runtime.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
@@ -17,7 +17,7 @@ import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.MCode (RefNums (..), emitCombs)
 import Unison.Term qualified as Term
-import Unison.Test.Common (tm)
+import Unison.Test.Common
 import Unison.Type as Ty
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text qualified as Util.Text

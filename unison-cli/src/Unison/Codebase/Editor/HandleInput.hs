@@ -102,6 +102,7 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
+import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Path (Path, Path' (..))
@@ -1446,7 +1447,7 @@ doCompile native output main = do
         | native = nativeRuntime
         | otherwise = runtime
   (ref, ppe) <- resolveMainRef main
-  let codeLookup = () <$ Codebase.toCodeLookup codebase
+  let codeLookup = () <$ Codebase.codebaseToCodeLookup codebase
       outf
         | native = output
         | otherwise = output <> ".uc"
