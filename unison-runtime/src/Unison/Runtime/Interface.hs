@@ -1205,7 +1205,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat putComb) cs
+  putEnumMap putNat (putSmallEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1218,7 +1218,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat getComb)
+    <$> getEnumMap getNat (getSmallEnumMap getNat getComb)
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1275,7 +1275,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     rf k = builtinTermBackref ! k
     combs =
       mapWithKey
-        (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
+        (\k v -> mapToSmallEnumMap $ emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
 
 traceNeeded ::

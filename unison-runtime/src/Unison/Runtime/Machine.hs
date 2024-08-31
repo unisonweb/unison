@@ -120,7 +120,7 @@ refNumTy' cc r = M.lookup r <$> refNumsTy cc
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
   CCache ffuncs sandboxed noTrace
-    <$> newTVarIO combs
+    <$> newTVarIO (mapToSmallEnumMap <$> combs)
     <*> newTVarIO builtinTermBackref
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
@@ -1925,7 +1925,7 @@ unhandledErr fname env i =
 combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 combSection env (CIx _ n i) =
   readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
-    Just cmbs -> case EC.lookup i cmbs of
+    Just cmbs -> case EC.smallEnumMapLookup i cmbs of
       Just cmb -> pure cmb
       Nothing ->
         die $
@@ -2098,7 +2098,7 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
   rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
   -- check for missing references
   let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
-      combinate n (r, g) = (n, emitCombs rns r n g)
+      combinate n (r, g) = (n, mapToSmallEnumMap $ emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
   ncs <- updateMap (mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
   nsn <- updateMap (M.fromList sands) (sandbox cc)

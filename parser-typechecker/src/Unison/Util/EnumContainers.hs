@@ -33,6 +33,7 @@ module Unison.Util.EnumContainers
     smallEnumMapElems,
     smallEnumMapToList,
     smallEnumMapLookup,
+    smallEnumMapMapWithKey,
   )
 where
 
@@ -186,6 +187,17 @@ data SmallEnumMap v
       {-# UNPACK #-} !(VUnboxed.Vector Word64) -- keys
       {-# UNPACK #-} !(Vector.Vector v) -- values
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+-- | Note: this is inefficient, but SmallEnumMaps aren't meant to have efficient updates.
+instance Semigroup (SmallEnumMap v) where
+  m1 <> m2 = smallEnumMapFromList (smallEnumMapToList m1 <> smallEnumMapToList m2)
+
+instance Monoid (SmallEnumMap v) where
+  mempty = SmallEnumMap mempty mempty
+
+smallEnumMapMapWithKey :: (Word64 -> v -> v') -> SmallEnumMap v -> SmallEnumMap v'
+smallEnumMapMapWithKey f (SmallEnumMap keys values) =
+  SmallEnumMap keys (Vector.imap (\i v -> f (VUnboxed.unsafeIndex keys i) v) values)
 
 mapToSmallEnumMap :: EnumMap Word64 v -> SmallEnumMap v
 mapToSmallEnumMap !(EM m) =

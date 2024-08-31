@@ -592,7 +592,7 @@ data Comb
       !Section -- Entry
   deriving (Show, Eq, Ord)
 
-type Combs = EnumMap Word64 Comb
+type Combs = SmallEnumMap Comb
 
 data Ref
   = Stk !Int -- stack reference to a closure
