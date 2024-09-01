@@ -350,7 +350,7 @@ parsePattern = label "pattern" root
                   pure (Set.findMin s <$ tok)
               | otherwise -> die names tok s
       where
-        isLower = Text.all Char.isLower . Text.take 1 . Name.toText
+        isLower = Text.all Char.isLower . Text.take 1 . NameSegment.toUnescapedText . Name.lastSegment
         isIgnored n = Text.take 1 (Name.toText n) == "_"
         die :: Names -> L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> P v m a
         die names hq s = case L.payload hq of
