@@ -59,7 +59,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED (addFallback)
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED (makeCodebasePPED, makeFilePPED)
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED (makePPED)
 import Unison.Project (ProjectBranchName)
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -162,15 +162,23 @@ handleUpgrade oldName newName = do
           UnisonFile.emptyUnisonFile
       pure
         ( unisonFile,
-          makeOldDepPPE
-            oldName
-            newName
-            currentDeepNamesSansOld
-            (Branch.toNames oldNamespace)
-            (Branch.toNames oldLocalNamespace)
-            (Branch.toNames newLocalNamespace)
-            `PPED.addFallback` PPED.makeFilePPED (Names.fromReferenceIds dependents)
-            `PPED.addFallback` PPED.makeCodebasePPED currentDeepNamesSansOld
+          let ppe1 =
+                makeOldDepPPE
+                  oldName
+                  newName
+                  currentDeepNamesSansOld
+                  (Branch.toNames oldNamespace)
+                  (Branch.toNames oldLocalNamespace)
+                  (Branch.toNames newLocalNamespace)
+              ppe2 =
+                PPED.makePPED
+                  (PPE.namer (Names.fromReferenceIds dependents))
+                  (PPE.suffixifyByName currentDeepNamesSansOld)
+              ppe3 =
+                PPED.makePPED
+                  (PPE.hqNamer 10 currentDeepNamesSansOld)
+                  (PPE.suffixifyByHash currentDeepNamesSansOld)
+           in ppe1 `PPED.addFallback` ppe2 `PPED.addFallback` ppe3
         )
 
   pp@(PP.ProjectPath project projectBranch _path) <- Cli.getCurrentProjectPath
@@ -300,12 +308,12 @@ makeUnisonFile abort codebase doFindCtorNames defns = do
                 overwriteConstructorNames name ed.toDataDecl <&> \ed' ->
                   uf
                     & #effectDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, Decl.EffectDeclaration ed')
               Right dd ->
                 overwriteConstructorNames name dd <&> \dd' ->
                   uf
                     & #dataDeclarationsId
-                    %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
+                      %~ Map.insertWith (\_new old -> old) (Name.toVar name) (Reference.Id h i, dd')
 
         -- Constructor names are bogus when pulled from the database, so we set them to what they should be here
         overwriteConstructorNames :: Name -> DataDeclaration Symbol Ann -> Transaction (DataDeclaration Symbol Ann)
