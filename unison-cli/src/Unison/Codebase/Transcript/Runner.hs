@@ -299,11 +299,13 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
             _ <- liftIO (writeIORef mStanza maybeStanza)
             case maybeStanza of
-              Nothing -> do
-                liftIO (putStrLn "\r✔️   Completed transcript.                   ")
+              Nothing -> liftIO do
+                clearCurrentLine
+                putStrLn "\r✔️   Completed transcript."
                 pure $ Right QuitI
               Just (s, midx) -> do
                 unless (Verbosity.isSilent verbosity) . liftIO $ do
+                  clearCurrentLine
                   putStr $
                     maybe
                       "\r⏩   Skipping non-executable Markdown block."
@@ -312,7 +314,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime config ucmV
                             ++ show idx
                             ++ " of "
                             ++ show (length stanzas)
-                            ++ ".          "
+                            ++ "."
                       )
                       midx
                   IO.hFlush IO.stdout
