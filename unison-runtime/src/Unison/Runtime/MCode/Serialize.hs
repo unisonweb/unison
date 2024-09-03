@@ -4,7 +4,10 @@
 
 module Unison.Runtime.MCode.Serialize
   ( putComb,
+    putRComb,
     getComb,
+    putCombIx,
+    getCombIx,
   )
 where
 
@@ -19,12 +22,16 @@ import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 
-putComb :: (MonadPut m) => Comb -> m ()
-putComb (Lam ua ba uf bf body) =
-  pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection body
+putComb :: (MonadPut m) => (cix -> m ()) -> GComb cix -> m ()
+putComb putCix (Lam rf ua ba uf bf body) =
+  putReference rf *> pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection putCix body
 
-getComb :: (MonadGet m) => m Comb
-getComb = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
+putRComb :: (MonadPut m) => RComb -> m ()
+putRComb (RComb _combIx _comb) =
+  error "TODO: figure out how to mark recursive points and serialize RComb"
+
+getComb :: (MonadGet m) => m cix -> m (GComb cix)
+getComb gCix = Lam <$> getReference <*> gInt <*> gInt <*> gInt <*> gInt <*> (getSection gCix)
 
 data SectionT
   = AppT
@@ -68,51 +75,51 @@ instance Tag SectionT where
   word2tag 11 = pure RMatchT
   word2tag i = unknownTag "SectionT" i
 
-putSection :: (MonadPut m) => Section -> m ()
-putSection (App b r a) =
+putSection :: (MonadPut m) => (cix -> m ()) -> GSection cix -> m ()
+putSection _pCIx (App b r a) =
   putTag AppT *> serialize b *> putRef r *> putArgs a
-putSection (Call b w a) =
+putSection _pCIx (Call b w a) =
   putTag CallT *> serialize b *> pWord w *> putArgs a
-putSection (Jump i a) =
+putSection _pCIx (Jump i a) =
   putTag JumpT *> pInt i *> putArgs a
-putSection (Match i b) =
-  putTag MatchT *> pInt i *> putBranch b
-putSection (Yield a) =
+putSection pCIx (Match i b) =
+  putTag MatchT *> pInt i *> putBranch pCIx b
+putSection _pCIx (Yield a) =
   putTag YieldT *> putArgs a
-putSection (Ins i s) =
-  putTag InsT *> putInstr i *> putSection s
-putSection (Let s ci) =
-  putTag LetT *> putSection s *> putCombIx ci
-putSection (Die s) =
+putSection pCIx (Ins i s) =
+  putTag InsT *> putInstr i *> putSection pCIx s
+putSection pCIx (Let s ci) =
+  putTag LetT *> putSection pCIx s *> pCIx ci
+putSection _pCIx (Die s) =
   putTag DieT *> serialize s
-putSection Exit =
+putSection _pCIx Exit =
   putTag ExitT
-putSection (DMatch mr i b) =
-  putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
-putSection (NMatch mr i b) =
-  putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
-putSection (RMatch i pu bs) =
+putSection pCIx (DMatch mr i b) =
+  putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch pCIx b
+putSection pCIx (NMatch mr i b) =
+  putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch pCIx b
+putSection pCIx (RMatch i pu bs) =
   putTag RMatchT
     *> pInt i
-    *> putSection pu
-    *> putEnumMap pWord putBranch bs
+    *> putSection pCIx pu
+    *> putEnumMap pWord (putBranch pCIx) bs
 
-getSection :: (MonadGet m) => m Section
-getSection =
+getSection :: (MonadGet m) => m cix -> m (GSection cix)
+getSection gCix =
   getTag >>= \case
     AppT -> App <$> deserialize <*> getRef <*> getArgs
     CallT -> Call <$> deserialize <*> gWord <*> getArgs
     JumpT -> Jump <$> gInt <*> getArgs
-    MatchT -> Match <$> gInt <*> getBranch
+    MatchT -> Match <$> gInt <*> getBranch gCix
     YieldT -> Yield <$> getArgs
-    InsT -> Ins <$> getInstr <*> getSection
-    LetT -> Let <$> getSection <*> getCombIx
+    InsT -> Ins <$> getInstr <*> getSection gCix
+    LetT -> Let <$> getSection gCix <*> gCix
     DieT -> Die <$> deserialize
     ExitT -> pure Exit
-    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
-    NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
+    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch gCix
+    NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch gCix
     RMatchT ->
-      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
+      RMatch <$> gInt <*> getSection gCix <*> getEnumMap gWord (getBranch gCix)
 
 data InstrT
   = UPrim1T
@@ -395,34 +402,34 @@ instance Tag BranchT where
   word2tag 3 = pure TestTT
   word2tag n = unknownTag "BranchT" n
 
-putBranch :: (MonadPut m) => Branch -> m ()
-putBranch (Test1 w s d) =
-  putTag Test1T *> pWord w *> putSection s *> putSection d
-putBranch (Test2 a sa b sb d) =
+putBranch :: (MonadPut m) => (cix -> m ()) -> GBranch cix -> m ()
+putBranch pCix (Test1 w s d) =
+  putTag Test1T *> pWord w *> putSection pCix s *> putSection pCix d
+putBranch pCix (Test2 a sa b sb d) =
   putTag Test2T
     *> pWord a
-    *> putSection sa
+    *> putSection pCix sa
     *> pWord b
-    *> putSection sb
-    *> putSection d
-putBranch (TestW d m) =
-  putTag TestWT *> putSection d *> putEnumMap pWord putSection m
-putBranch (TestT d m) =
-  putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
+    *> putSection pCix sb
+    *> putSection pCix d
+putBranch pCix (TestW d m) =
+  putTag TestWT *> putSection pCix d *> putEnumMap pWord (putSection pCix) m
+putBranch pCix (TestT d m) =
+  putTag TestTT *> putSection pCix d *> putMap (putText . Util.Text.toText) (putSection pCix) m
 
-getBranch :: (MonadGet m) => m Branch
-getBranch =
+getBranch :: (MonadGet m) => m cix -> m (GBranch cix)
+getBranch gCix =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
+    Test1T -> Test1 <$> gWord <*> getSection gCix <*> getSection gCix
     Test2T ->
       Test2
         <$> gWord
-        <*> getSection
+        <*> getSection gCix
         <*> gWord
-        <*> getSection
-        <*> getSection
-    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
-    TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
+        <*> getSection gCix
+        <*> getSection gCix
+    TestWT -> TestW <$> getSection gCix <*> getEnumMap gWord (getSection gCix)
+    TestTT -> TestT <$> getSection gCix <*> getMap (Util.Text.fromText <$> getText) (getSection gCix)
 
 gInt :: (MonadGet m) => m Int
 gInt = unVarInt <$> deserialize

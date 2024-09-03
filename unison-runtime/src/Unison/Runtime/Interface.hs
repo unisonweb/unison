@@ -103,6 +103,7 @@ import Unison.Runtime.MCode
     Combs,
     GSection (..),
     Instr (..),
+    RCombs,
     RefNums (..),
     combDeps,
     combTypes,
@@ -1192,7 +1193,7 @@ runStandalone sc init =
 
 data StoredCache
   = SCache
-      (EnumMap Word64 Combs)
+      (EnumMap Word64 RCombs)
       (EnumMap Word64 Reference)
       (EnumMap Word64 Reference)
       Word64
@@ -1205,7 +1206,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat putComb) cs
+  putEnumMap putNat (putEnumMap putNat (putComb putRComb)) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm

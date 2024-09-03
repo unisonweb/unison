@@ -596,6 +596,7 @@ type Comb = GComb CombIx
 
 data GComb comb
   = Lam
+      !Reference -- function reference, for debugging
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
@@ -608,7 +609,15 @@ type Combs = GCombs CombIx
 type RCombs = GCombs RComb
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-newtype RComb = RComb {unRComb :: GComb RComb}
+data RComb = RComb
+  { rCombIx :: CombIx,
+    unRComb :: GComb RComb
+  }
+  deriving (Eq, Ord)
+
+-- | RCombs can be infinitely recursive so we can't show them.
+instance Show RComb where
+  show _ = "<RComb>"
 
 type GCombs comb = EnumMap Word64 (GComb comb)
 
@@ -753,10 +762,10 @@ resolveCombs combs =
   -- or we'll loop forever.
   let ~resolved =
         combs
-          <&> (fmap . fmap) \(CIx _ n i) ->
+          <&> (fmap . fmap) \(cix@(CIx _ n i)) ->
             case EC.lookup n resolved of
               Just cmbs -> case EC.lookup i cmbs of
-                Just cmb -> RComb cmb
+                Just cmb -> RComb cix cmb
                 Nothing ->
                   error $
                     "unknown section `"
@@ -803,14 +812,14 @@ record ctx l (EM es) = EM $ \c ->
   let (m, C u b s) = es c
       (au, ab) = countCtx0 0 0 ctx
       n = letIndex l c
-   in (EC.mapInsert n (Lam au ab u b s) m, C u b n)
+   in (EC.mapInsert n (Lam (error "record: Missing Ref") au ab u b s) m, C u b n)
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
 recordTop vs l (EM e) = EM $ \c ->
   let (m, C u b s) = e c
       ab = length vs
       n = letIndex l c
-   in (EC.mapInsert n (Lam 0 ab u b s) m, C u b ())
+   in (EC.mapInsert n (Lam (error "recordTop: Missing Ref") 0 ab u b s) m, C u b ())
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
@@ -1479,10 +1488,10 @@ demuxArgs as0 =
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
 
 combDeps :: Comb -> [Word64]
-combDeps (Lam _ _ _ _ s) = sectionDeps s
+combDeps (Lam _ _ _ _ _ s) = sectionDeps s
 
 combTypes :: Comb -> [Word64]
-combTypes (Lam _ _ _ _ s) = sectionTypes s
+combTypes (Lam _ _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
@@ -1547,7 +1556,7 @@ prettyCombs w es =
     (mapToList es)
 
 prettyComb :: Word64 -> Word64 -> Comb -> ShowS
-prettyComb w i (Lam ua ba _ _ s) =
+prettyComb w i (Lam _ref ua ba _ _ s) =
   shows w
     . showString ":"
     . shows i
