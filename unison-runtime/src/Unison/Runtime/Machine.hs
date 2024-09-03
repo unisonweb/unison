@@ -161,8 +161,9 @@ eval0 :: CCache -> ActiveThreads -> Section -> IO ()
 eval0 !env !activeThreads !co = do
   ustk <- alloc
   bstk <- alloc
+  cmbs <- readTVarIO $ combs env
   (denv, k) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
@@ -172,6 +173,7 @@ topDEnv ::
   (DEnv, K -> K)
 topDEnv combs rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy,
+    -- TODO: Should I special-case this raise ref and pass it down from the top rather than always looking it up?
     rcrf <- Builtin (DTx.pack "raise"),
     Just j <- M.lookup rcrf rfTm =
       let cix = (CIx rcrf j 0)
@@ -595,7 +597,7 @@ eval ::
   Stack 'BX ->
   K ->
   Reference ->
-  Section ->
+  RSection ->
   IO ()
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
@@ -631,9 +633,8 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
 eval !env !denv !activeThreads !ustk !bstk !k _ (App ck r args) =
   resolve env denv bstk r
     >>= apply env denv activeThreads ustk bstk k ck args
-eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck n args) =
-  combSection env (CIx dummyRef n 0)
-    >>= enter env denv activeThreads ustk bstk k ck args
+eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck rcomb args) =
+  enter env denv activeThreads ustk bstk k ck args rcomb
 eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
 eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix) = do
@@ -694,9 +695,9 @@ enter ::
   K ->
   Bool ->
   Args ->
-  Comb ->
+  RComb ->
   IO ()
-enter !env !denv !activeThreads !ustk !bstk !k !ck !args !comb = do
+enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
   ustk <- if ck then ensure ustk uf else pure ustk
   bstk <- if ck then ensure bstk bf else pure bstk
   (ustk, bstk) <- moveArgs ustk bstk args
@@ -706,7 +707,7 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !comb = do
   -- detecting saturated calls.
   eval env denv activeThreads ustk bstk k dummyRef entry
   where
-    Lam _rf ua ba uf bf entry = comb
+    (RComb _ (Lam _rf ua ba uf bf entry)) = rcomb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -1845,7 +1846,7 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
 {-# INLINE yield #-}
 
 selectTextBranch ::
-  Util.Text.Text -> Section -> M.Map Util.Text.Text Section -> Section
+  Util.Text.Text -> RSection -> M.Map Util.Text.Text RSection -> RSection
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 

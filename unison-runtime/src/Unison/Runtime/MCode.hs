@@ -13,6 +13,7 @@ module Unison.Runtime.MCode
     MLit (..),
     Instr (..),
     GSection (.., MatchT, MatchW),
+    RSection,
     Section,
     GComb (..),
     Comb,
@@ -516,6 +517,8 @@ data Instr
 
 type Section = GSection CombIx
 
+type RSection = GSection RComb
+
 data GSection comb
   = -- Apply a function to arguments. This is the 'slow path', and
     -- handles applying functions from arbitrary sources. This
@@ -532,7 +535,7 @@ data GSection comb
     -- sufficient for where we're jumping to.
     Call
       !Bool -- skip stack check
-      !Word64 -- global function reference
+      !RComb -- global function reference
       !Args -- arguments
   | -- Jump to a captured continuation value.
     Jump
@@ -1503,7 +1506,7 @@ combTypes (Lam _ _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env w _) _) = [w]
-sectionDeps (Call _ w _) = [w]
+sectionDeps (Call _ (RComb (CIx _ w _) _) _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
 sectionDeps (RMatch _ pu br) =
