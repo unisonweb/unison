@@ -101,9 +101,9 @@ import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
     Combs,
+    GSection (..),
     Instr (..),
     RefNums (..),
-    Section (..),
     combDeps,
     combTypes,
     emitComb,

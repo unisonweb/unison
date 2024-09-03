@@ -23,7 +23,6 @@ import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
 import GHC.Conc as STM (unsafeIOToSTM)
-import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
@@ -85,7 +84,7 @@ data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
-    combs :: TVar (EnumMap Word64 Combs),
+    combs :: TVar (EnumMap Word64 RCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
@@ -137,10 +136,12 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
-    combs =
+    combs :: EnumMap Word64 RCombs
+    ~combs =
       mapWithKey
         (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
         numberedTermLookup
+        & resolveCombs
 
 info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -1929,19 +1930,19 @@ unhandledErr fname env i =
   where
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
-combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
-combSection env (CIx _ n i) =
-  readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
-    Just cmbs -> case EC.lookup i cmbs of
-      Just cmb -> pure cmb
-      Nothing ->
-        die $
-          "unknown section `"
-            ++ show i
-            ++ "` of combinator `"
-            ++ show n
-            ++ "`."
-    Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
+-- combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
+-- combSection env (CIx _ n i) =
+--   readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
+--     Just cmbs -> case EC.lookup i cmbs of
+--       Just cmb -> pure cmb
+--       Nothing ->
+--         die $
+--           "unknown section `"
+--             ++ show i
+--             ++ "` of combinator `"
+--             ++ show n
+--             ++ "`."
+--     Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
 
 dummyRef :: Reference
 dummyRef = Builtin (DTx.pack "dummy")
@@ -2107,7 +2108,7 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
   let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
       combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- updateMap (mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
+  ncs <- updateMap ((fmap . fmap) unRComb . mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
