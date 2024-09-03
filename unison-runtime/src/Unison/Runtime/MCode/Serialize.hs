@@ -6,6 +6,7 @@ module Unison.Runtime.MCode.Serialize
   ( putComb,
     putRComb,
     getComb,
+    getRComb,
     putCombIx,
     getCombIx,
   )
@@ -32,6 +33,9 @@ putRComb (RComb _combIx _comb) =
 
 getComb :: (MonadGet m) => m cix -> m (GComb cix)
 getComb gCix = Lam <$> getReference <*> gInt <*> gInt <*> gInt <*> gInt <*> (getSection gCix)
+
+getRComb :: (MonadGet m) => m RComb
+getRComb = error "TODO: figure out how to mark recursive points and serialize RComb"
 
 data SectionT
   = AppT

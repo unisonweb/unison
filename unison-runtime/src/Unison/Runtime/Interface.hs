@@ -100,7 +100,6 @@ import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
-    Combs,
     GSection (..),
     Instr (..),
     RCombs,
@@ -109,6 +108,8 @@ import Unison.Runtime.MCode
     combTypes,
     emitComb,
     emptyRNs,
+    rCombIx,
+    resolveCombs,
   )
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
@@ -1219,7 +1220,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat getComb)
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getRComb))
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1274,26 +1275,28 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
+    combs :: EnumMap Word64 RCombs
     combs =
       mapWithKey
         (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
+        & resolveCombs
 
 traceNeeded ::
   Word64 ->
-  EnumMap Word64 Combs ->
-  IO (EnumMap Word64 Combs)
+  EnumMap Word64 RCombs ->
+  IO (EnumMap Word64 RCombs)
 traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
   where
     ks = keysSet numberedTermLookup
     go acc w
       | hasKey w acc = pure acc
       | Just co <- EC.lookup w src =
-          foldlM go (mapInsert w co acc) (foldMap combDeps co)
+          foldlM go (mapInsert w co acc) (foldMap (combDeps . fmap rCombIx) co)
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
-  EnumMap Word64 Combs ->
+  EnumMap Word64 RCombs ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Word64 ->
@@ -1319,7 +1322,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx =
     crs = restrictTmW crsrc
     termRefs = foldMap Set.singleton crs
 
-    typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
+    typeKeys = setFromList $ (foldMap . foldMap) (combTypes . fmap rCombIx) cs
     trs = restrictTyW trsrc
     typeRefs = foldMap Set.singleton trs
 

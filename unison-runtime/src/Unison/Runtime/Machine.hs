@@ -166,17 +166,20 @@ eval0 !env !activeThreads !co = do
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
+  EnumMap Word64 RCombs ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
   (DEnv, K -> K)
-topDEnv rfTy rfTm
+topDEnv combs rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy,
     rcrf <- Builtin (DTx.pack "raise"),
     Just j <- M.lookup rcrf rfTm =
-      ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull),
-        Mark 0 0 (EC.setSingleton n) mempty
-      )
-topDEnv _ _ = (mempty, id)
+      let cix = (CIx rcrf j 0)
+          comb = rCombSection combs cix
+       in ( EC.mapSingleton n (PAp comb unull bnull),
+            Mark 0 0 (EC.setSingleton n) mempty
+          )
+topDEnv _ _ _ = (mempty, id)
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -193,13 +196,15 @@ apply0 !callback !env !threadTracker !i = do
   ustk <- alloc
   bstk <- alloc
   cmbrs <- readTVarIO $ combRefs env
+  cmbs <- readTVarIO $ combs env
   (denv, kf) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
     Nothing -> die "apply0: missing reference to entry point"
+  let entryComb = rCombSection cmbs (CIx r i 0)
   apply env denv threadTracker ustk bstk (kf k0) True ZArgs $
-    PAp (CIx r i 0) unull bnull
+    PAp entryComb unull bnull
   where
     k0 = maybe KE (CB . Hook) callback
 
@@ -231,8 +236,9 @@ jump0 ::
 jump0 !callback !env !activeThreads !clo = do
   ustk <- alloc
   bstk <- alloc
+  cmbs <- readTVarIO $ combs env
   (denv, kf) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   bstk <- bump bstk
   poke bstk (Enum Rf.unitRef unitTag)
   jump env denv activeThreads ustk bstk (kf k0) (BArg1 0) clo
@@ -1929,6 +1935,14 @@ unhandledErr fname env i =
     Nothing -> bomb (show i)
   where
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
+
+rCombSection :: EnumMap Word64 RCombs -> CombIx -> RComb
+rCombSection combs cix@(CIx _ n i) =
+  case EC.lookup n combs of
+    Just cmbs -> case EC.lookup i cmbs of
+      Just cmb -> RComb cix cmb
+      Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`."
+    Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
 
 -- combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 -- combSection env (CIx _ n i) =

@@ -17,6 +17,7 @@ module Unison.Runtime.MCode
     GComb (..),
     Comb,
     RComb (..),
+    rCombToComb,
     GCombs,
     Combs,
     RCombs,
@@ -37,6 +38,7 @@ module Unison.Runtime.MCode
     argsToLists,
     combRef,
     combDeps,
+    rCombDeps,
     combTypes,
     prettyCombs,
     prettyComb,
@@ -614,6 +616,9 @@ data RComb = RComb
     unRComb :: GComb RComb
   }
   deriving (Eq, Ord)
+
+rCombToComb :: RComb -> Comb
+rCombToComb (RComb _ix c) = rCombIx <$> c
 
 -- | RCombs can be infinitely recursive so we can't show them.
 instance Show RComb where
@@ -1486,6 +1491,9 @@ demuxArgs as0 =
     (us, []) -> UArgN $ primArrayFromList us
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
+
+rCombDeps :: RComb -> [Word64]
+rCombDeps = combDeps . rCombToComb
 
 combDeps :: Comb -> [Word64]
 combDeps (Lam _ _ _ _ _ s) = sectionDeps s
