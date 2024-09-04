@@ -902,24 +902,24 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
   where
     ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
-  emitClosures grpn rec ctx args $ \ctx as ->
-    Ins (Name (Env (cnum rns f) 0) as)
+  emitClosures grpr grpn rec ctx args $ \ctx as ->
+    Ins (Name (Env (CIx f (cnum rns f) 0)) as)
       <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
 emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
   | Just (i, BX) <- ctxResolve ctx v =
-      emitClosures grpn rec ctx args $ \ctx as ->
+      emitClosures grpr grpn rec ctx args $ \ctx as ->
         Ins (Name (Stk i) as)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | Just n <- rctxResolve rec v =
-      emitClosures grpn rec ctx args $ \ctx as ->
-        Ins (Name (Env grpn n) as)
+      emitClosures grpr grpn rec ctx args $ \ctx as ->
+        Ins (Name (Env (CIx grpr grpn n)) as)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
-emitSection _ _ grpn rec ctx (TVar v)
+emitSection _ grpr grpn rec ctx (TVar v)
   | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
   | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v =
-      countCtx ctx $ App False (Env grpn j) ZArgs
+      countCtx ctx $ App False (Env (CIx grpr grpn j)) ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
@@ -939,9 +939,9 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     $ DArgV i j
   where
     (i, j) = countBlock ctx
-emitSection rns _ grpn rec ctx (TApp f args) =
-  emitClosures grpn rec ctx args $ \ctx as ->
-    countCtx ctx $ emitFunction rns grpn rec ctx f as
+emitSection rns grpr grpn rec ctx (TApp f args) =
+  emitClosures grpr grpn rec ctx args $ \ctx as ->
+    countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
 emitSection _ _ _ _ ctx (TLit l) =
   c . countCtx ctx . Ins (emitLit l) . Yield $ litArg l
   where
@@ -1036,31 +1036,32 @@ emitSection _ _ _ _ _ tm =
 emitFunction ::
   (Var v) =>
   RefNums ->
+  Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
   Ctx v -> -- local context
   Func v ->
   Args ->
   Section
-emitFunction _ grpn rec ctx (FVar v) as
+emitFunction _ grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
-      App False (Env grpn j) as
+      App False (Env (CIx grpr grpn j)) as
   | otherwise = emitSectionVErr v
-emitFunction rns _ _ _ (FComb r) as
+emitFunction rns _grpr _ _ _ (FComb r) as
   | otherwise -- slow path
     =
-      App False (Env n 0) as
+      App False (Env (CIx r n 0)) as
   where
     n = cnum rns r
-emitFunction rns _ _ _ (FCon r t) as =
+emitFunction rns _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
     $ BArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _ _ _ (FReq r e) as =
+emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
@@ -1070,11 +1071,11 @@ emitFunction rns _ _ _ (FReq r e) as =
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-emitFunction _ _ _ ctx (FCont k) as
+emitFunction _ _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug $ "emitFunction: continuations are boxed"
-emitFunction _ _ _ _ (FPrim _) _ =
+emitFunction _ _grpr _ _ _ (FPrim _) _ =
   internalBug "emitFunction: impossible"
 
 countBlock :: Ctx v -> (Int, Int)
@@ -1480,20 +1481,21 @@ emitBLit l = BLit (ANF.litRef l) (litToMLit l)
 -- provided continuation.
 emitClosures ::
   (Var v) =>
+  Reference ->
   Word64 ->
   RCtx v ->
   Ctx v ->
   [v] ->
   (Ctx v -> Args -> Emit Section) ->
   Emit Section
-emitClosures grpn rec ctx args k =
+emitClosures grpr grpn rec ctx args k =
   allocate ctx args $ \ctx -> k ctx $ emitArgs grpn ctx args
   where
     allocate ctx [] k = k ctx
     allocate ctx (a : as) k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
-          Ins (Name (Env grpn n) ZArgs) <$> allocate (Var a BX ctx) as k
+          Ins (Name (Env (CIx grpr grpn n)) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 
@@ -1535,7 +1537,7 @@ combTypes (Lam _ _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
-sectionDeps (Call _ w _) = [w]
+sectionDeps (Call _ (CIx _ w _) _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
 sectionDeps (RMatch _ pu br) =
