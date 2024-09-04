@@ -85,7 +85,7 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !CombIx -- local continuation reference
+      !RComb -- local continuation reference
       !K
   deriving (Eq, Ord)
 
@@ -112,7 +112,7 @@ traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
     dedup p (Mark _ _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) k)
+    dedup p@(cur, n) (Push _ _ _ _ (RComb (CIx r _ _) _) k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
@@ -175,7 +175,7 @@ pattern DataC rf ct us bs <-
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: CombIx -> [Int] -> [Closure] -> Closure
+pattern PApV :: RComb -> [Int] -> [Closure] -> Closure
 pattern PApV ic us bs <-
   PAp ic (ints -> us) (bsegToList -> bs)
   where
@@ -703,7 +703,7 @@ bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
 closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
-closureTermRefs f (PAp (CIx r _ _) _ cs) =
+closureTermRefs f (PAp (RComb (CIx r _ _) _) _ cs) =
   f r <> foldMap (closureTermRefs f) cs
 closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
 closureTermRefs f (DataB2 _ _ c1 c2) =
@@ -720,6 +720,6 @@ closureTermRefs _ _ = mempty
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (CIx r _ _) k) =
+contTermRefs f (Push _ _ _ _ (RComb (CIx r _ _) _) k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty

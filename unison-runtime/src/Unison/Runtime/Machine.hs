@@ -141,7 +141,7 @@ baseCCache sandboxed = do
       mapWithKey
         (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
         numberedTermLookup
-        & resolveCombs
+        & resolveCombs Nothing
 
 info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -157,7 +157,7 @@ stk'info s@(BS _ _ sp _) = do
   prn sp
 
 -- Entry point for evaluating a section
-eval0 :: CCache -> ActiveThreads -> Section -> IO ()
+eval0 :: CCache -> ActiveThreads -> RSection -> IO ()
 eval0 !env !activeThreads !co = do
   ustk <- alloc
   bstk <- alloc
@@ -734,7 +734,7 @@ apply ::
   Closure ->
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
-  combSection env comb >>= \case
+  case unRComb comb of
     Lam _rf ua ba uf bf entry
       | ck || ua <= uac && ba <= bac -> do
           ustk <- ensure ustk uf
@@ -744,7 +744,7 @@ apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
           bstk <- dumpSeg bstk bseg A
           ustk <- acceptArgs ustk ua
           bstk <- acceptArgs bstk ba
-          eval env denv activeThreads ustk bstk k (combRef comb) entry
+          eval env denv activeThreads ustk bstk k (rCombRef comb) entry
       | otherwise -> do
           (useg, bseg) <- closeArgs C ustk bstk useg bseg args
           ustk <- discardFrame =<< frameArgs ustk
@@ -1834,13 +1834,13 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       ustk <- adjustArgs ustk ua
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
-    leap !denv (Push ufsz bfsz uasz basz cix k) = do
-      Lam _rf _ _ uf bf nx <- combSection env cix
+    leap !denv (Push ufsz bfsz uasz basz rComb k) = do
+      let Lam _rf _ _ uf bf nx = unRComb rComb
       ustk <- restoreFrame ustk ufsz uasz
       bstk <- restoreFrame bstk bfsz basz
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k (combRef cix) nx
+      eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
@@ -1850,7 +1850,7 @@ selectTextBranch ::
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
-selectBranch :: Tag -> Branch -> Section
+selectBranch :: Tag -> RBranch -> RSection
 selectBranch t (Test1 u y n)
   | t == u = y
   | otherwise = n
@@ -1970,6 +1970,9 @@ updateMap new0 r = do
   new <- evaluateSTM new0
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
+
+modifyMap :: (s -> s) -> TVar s -> STM s
+modifyMap f r = stateTVar r $ \old -> let new = f old in (new, new)
 
 refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
 refLookup s m r
@@ -2121,9 +2124,10 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
   rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
   -- check for missing references
   let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
       combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- updateMap ((fmap . fmap) unRComb . mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
+  ncs <- modifyMap (\oldCombs -> (resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs)) (combs cc)
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where

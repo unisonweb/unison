@@ -1280,7 +1280,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
       mapWithKey
         (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
         numberedTermLookup
-        & resolveCombs
+        & resolveCombs Nothing
 
 traceNeeded ::
   Word64 ->

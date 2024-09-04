@@ -30,6 +30,7 @@ module Unison.Runtime.MCode
     BPrim2 (..),
     GBranch (..),
     Branch,
+    RBranch,
     bcount,
     ucount,
     emitCombs,
@@ -38,6 +39,7 @@ module Unison.Runtime.MCode
     emptyRNs,
     argsToLists,
     combRef,
+    rCombRef,
     combDeps,
     rCombDeps,
     combTypes,
@@ -446,9 +448,11 @@ data MLit
   | MY !Reference
   deriving (Show, Eq, Ord)
 
+type Instr = GInstr CombIx
+
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
-data Instr
+data GInstr comb
   = -- 1-argument unboxed primitive operations
     UPrim1
       !UPrim1 -- primitive instruction
@@ -483,7 +487,7 @@ data Instr
     -- statically known function into a closure with arguments.
     -- No stack is necessary, because no nested evaluation happens,
     -- so the instruction directly takes a follow-up.
-    Name !Ref !Args
+    Name !(GRef comb) !Args
   | -- Dump some debugging information about the machine state to
     -- the screen.
     Info !String -- prefix for output
@@ -525,7 +529,7 @@ data GSection comb
     -- requires checks to determine what exactly should happen.
     App
       !Bool -- skip argument check for known calling convention
-      !Ref -- function to call
+      !(GRef comb) -- function to call
       !Args -- arguments
   | -- This is the 'fast path', for when we statically know we're
     -- making an exactly saturated call to a statically known
@@ -548,7 +552,7 @@ data GSection comb
   | -- Yield control to the current continuation, with arguments
     Yield !Args -- values to yield
   | -- Prefix an instruction onto a section
-    Ins !Instr !(GSection comb)
+    Ins !(GInstr comb) !(GSection comb)
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
@@ -586,6 +590,9 @@ data CombIx
 
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
+
+rCombRef :: RComb -> Reference
+rCombRef (RComb cix _) = combRef cix
 
 data RefNums = RN
   { dnum :: Reference -> Word64,
@@ -629,15 +636,19 @@ instance Show RComb where
 
 type GCombs comb = EnumMap Word64 (GComb comb)
 
-data Ref
+type Ref = GRef CombIx
+
+data GRef comb
   = Stk !Int -- stack reference to a closure
-  | Env
-      !Word64 -- global environment reference to a combinator
-      !Word64 -- section
-  | Dyn !Word64 -- dynamic scope reference to a closure
+  | Env !comb
+  | -- !Word64 -- global environment reference to a combinator
+    -- !Word64 -- section
+    Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord)
 
 type Branch = GBranch CombIx
+
+type RBranch = GBranch RComb
 
 data GBranch comb
   = -- if tag == n then t else f
@@ -763,25 +774,33 @@ emitCombs rns grpr grpn (Rec grp ent) =
 -- | lazily replace all references to combinators with the combinators themselves,
 -- tying the knot recursively when necessary.
 resolveCombs ::
+  -- Existing in-scope combs that might be referenced
+  -- TODO: Do we ever actually need to pass this?
+  Maybe (EnumMap Word64 RCombs) ->
+  -- Combinators which need their knots tied.
   EnumMap Word64 Combs ->
   EnumMap Word64 RCombs
-resolveCombs combs =
+resolveCombs mayExisting combs =
   -- Fixed point lookup; make sure all uses of Combs are non-strict
   -- or we'll loop forever.
   let ~resolved =
         combs
           <&> (fmap . fmap) \(cix@(CIx _ n i)) ->
-            case EC.lookup n resolved of
-              Just cmbs -> case EC.lookup i cmbs of
-                Just cmb -> RComb cix cmb
-                Nothing ->
-                  error $
-                    "unknown section `"
-                      ++ show i
-                      ++ "` of combinator `"
-                      ++ show n
-                      ++ "`."
-              Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+            let cmbs = case mayExisting >>= EC.lookup n of
+                  Just cmbs -> cmbs
+                  Nothing ->
+                    case EC.lookup n resolved of
+                      Just cmbs -> cmbs
+                      Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+             in case EC.lookup i cmbs of
+                  Just cmb -> RComb cix cmb
+                  Nothing ->
+                    error $
+                      "unknown section `"
+                        ++ show i
+                        ++ "` of combinator `"
+                        ++ show n
+                        ++ "`."
    in resolved
 
 -- Type for aggregating the necessary stack frame size. First field is
@@ -1505,7 +1524,7 @@ combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
-sectionDeps (App _ (Env w _) _) = [w]
+sectionDeps (App _ (Env (RComb (CIx _ w _) _)) _) = [w]
 sectionDeps (Call _ (RComb (CIx _ w _) _) _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
@@ -1513,7 +1532,7 @@ sectionDeps (RMatch _ pu br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
-  | Name (Env w _) _ <- i = w : sectionDeps s
+  | Name (Env (RComb (CIx _ w _) _)) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
