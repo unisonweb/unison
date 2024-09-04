@@ -11,19 +11,23 @@ module Unison.Runtime.MCode
     Args (..),
     RefNums (..),
     MLit (..),
-    Instr (..),
+    GInstr (..),
+    Instr,
     GSection (.., MatchT, MatchW),
     RSection,
     Section,
     GComb (..),
     Comb,
     RComb (..),
+    pattern RCombIx,
+    pattern RCombRef,
     rCombToComb,
     GCombs,
     Combs,
     RCombs,
     CombIx (..),
-    Ref (..),
+    GRef (..),
+    Ref,
     UPrim1 (..),
     UPrim2 (..),
     BPrim1 (..),
@@ -517,7 +521,7 @@ data GInstr comb
     Seq !Args
   | -- Force a delayed expression, catching any runtime exceptions involved
     TryForce !Int
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Section = GSection CombIx
 
@@ -539,7 +543,7 @@ data GSection comb
     -- sufficient for where we're jumping to.
     Call
       !Bool -- skip stack check
-      !RComb -- global function reference
+      !comb -- global function reference
       !Args -- arguments
   | -- Jump to a captured continuation value.
     Jump
@@ -620,6 +624,12 @@ type Combs = GCombs CombIx
 
 type RCombs = GCombs RComb
 
+pattern RCombIx :: CombIx -> RComb
+pattern RCombIx r <- (rCombIx -> r)
+
+pattern RCombRef :: Reference -> RComb
+pattern RCombRef r <- (combRef . rCombIx -> r)
+
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
 data RComb = RComb
   { rCombIx :: CombIx,
@@ -644,7 +654,7 @@ data GRef comb
   | -- !Word64 -- global environment reference to a combinator
     -- !Word64 -- section
     Dyn !Word64 -- dynamic scope reference to a closure
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Branch = GBranch CombIx
 
@@ -1524,15 +1534,15 @@ combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
-sectionDeps (App _ (Env (RComb (CIx _ w _) _)) _) = [w]
-sectionDeps (Call _ (RComb (CIx _ w _) _) _) = [w]
+sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
+sectionDeps (Call _ w _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
 sectionDeps (RMatch _ pu br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
-  | Name (Env (RComb (CIx _ w _) _)) _ <- i = w : sectionDeps s
+  | Name (Env (CIx _ w _)) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
