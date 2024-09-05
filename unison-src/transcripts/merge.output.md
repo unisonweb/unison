@@ -46,11 +46,11 @@ bar = "bobs bar"
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar
+scratch/alice> view foo bar
 
   bar : Text
   bar = "bobs bar"
@@ -83,11 +83,11 @@ bar = "bobs bar"
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar
+scratch/alice> view foo bar
 
   bar : Text
   bar = "bobs bar"
@@ -122,7 +122,7 @@ bar = foo ++ " - " ++ foo
 ```
 
 ``` ucm
-project/bob> display bar
+scratch/bob> display bar
 
   "old foo - old foo"
 
@@ -130,11 +130,11 @@ project/bob> display bar
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar
+scratch/alice> view foo bar
 
   bar : Text
   bar =
@@ -144,7 +144,7 @@ project/alice> view foo bar
   foo : Text
   foo = "new foo"
 
-project/alice> display bar
+scratch/alice> display bar
 
   "old foo - old foo"
 
@@ -176,7 +176,7 @@ bar = "alices bar"
 ```
 
 ``` ucm
-project/alice> display foo
+scratch/alice> display foo
 
   "foo - alices bar - old baz"
 
@@ -189,7 +189,7 @@ baz = "bobs baz"
 ```
 
 ``` ucm
-project/bob> display foo
+scratch/bob> display foo
 
   "foo - old bar - bobs baz"
 
@@ -197,11 +197,11 @@ project/bob> display foo
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar baz
+scratch/alice> view foo bar baz
 
   bar : Text
   bar = "alices bar"
@@ -214,7 +214,7 @@ project/alice> view foo bar baz
     use Text ++
     "foo" ++ " - " ++ bar ++ " - " ++ baz
 
-project/alice> display foo
+scratch/alice> display foo
 
   "foo - alices bar - bobs baz"
 
@@ -237,7 +237,7 @@ baz = "old baz"
 ```
 
 ``` ucm
-project/main> display foo
+scratch/main> display foo
 
   "old foo - old bar - old baz"
 
@@ -250,7 +250,7 @@ baz = "alices baz"
 ```
 
 ``` ucm
-project/alice> display foo
+scratch/alice> display foo
 
   "old foo - old bar - alices baz"
 
@@ -263,7 +263,7 @@ bar = "bobs bar" ++ " - " ++ baz
 ```
 
 ``` ucm
-project/bob> display foo
+scratch/bob> display foo
 
   "old foo - bobs bar - old baz"
 
@@ -271,11 +271,11 @@ project/bob> display foo
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar baz
+scratch/alice> view foo bar baz
 
   bar : Text
   bar =
@@ -290,7 +290,7 @@ project/alice> view foo bar baz
     use Text ++
     "old foo" ++ " - " ++ bar
 
-project/alice> display foo
+scratch/alice> display foo
 
   "old foo - bobs bar - alices baz"
 
@@ -316,7 +316,7 @@ foo = "alices foo"
 Bob's changes:
 
 ``` ucm
-project/bob> delete.term foo
+scratch/bob> delete.term foo
 
   Done.
 
@@ -324,11 +324,11 @@ project/bob> delete.term foo
 Merge result:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo
+scratch/alice> view foo
 
   foo : Text
   foo = "alices foo"
@@ -369,11 +369,11 @@ lib.bothDifferent.baz = 21
 Merge result:
 
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
-project/alice> view foo bar baz
+scratch/alice> view foo bar baz
 
   lib.alice.foo : Nat
   lib.alice.foo = 17
@@ -396,25 +396,25 @@ project/alice> view foo bar baz
 If Bob is equals Alice, then merging Bob into Alice looks like this.
 
 ``` ucm
-project/main> branch alice
+scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-project/main> branch bob
+scratch/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   😶
   
-  project/alice was already up-to-date with project/bob.
+  scratch/alice was already up-to-date with scratch/bob.
 
 ```
 ## No-op merge (Bob \< Alice)
@@ -422,14 +422,14 @@ project/alice> merge /bob
 If Bob is behind Alice, then merging Bob into Alice looks like this.
 
 ``` ucm
-project/main> branch alice
+scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-project/main> branch bob
+scratch/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
@@ -445,17 +445,17 @@ foo = "foo"
 ```
 
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
     foo : Text
 
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   😶
   
-  project/alice was already up-to-date with project/bob.
+  scratch/alice was already up-to-date with scratch/bob.
 
 ```
 ## Fast-forward merge (Bob \> Alice)
@@ -463,14 +463,14 @@ project/alice> merge /bob
 If Bob is ahead of Alice, then merging Bob into Alice looks like this.
 
 ``` ucm
-project/main> branch alice
+scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-project/main> branch bob
+scratch/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
@@ -486,32 +486,32 @@ foo = "foo"
 ```
 
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
     foo : Text
 
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I fast-forward merged project/bob into project/alice.
+  I fast-forward merged scratch/bob into scratch/alice.
 
 ```
 ## No-op merge: merge empty namespace into empty namespace
 
 ``` ucm
-project/main> branch topic
+scratch/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
-project/main> merge /topic
+scratch/main> merge /topic
 
   😶
   
-  project/main was already up-to-date with project/topic.
+  scratch/main was already up-to-date with scratch/topic.
 
 ```
 ## Merge failure: someone deleted something
@@ -532,7 +532,7 @@ foo = "foo"
 Alice's delete:
 
 ``` ucm
-project/alice> delete.term foo
+scratch/alice> delete.term foo
 
   Done.
 
@@ -545,15 +545,15 @@ bar = foo ++ " - " ++ foo
 ```
 
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
     bar : Text
 
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -606,9 +606,9 @@ bar = foo ++ " - " ++ foo
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -672,9 +672,9 @@ baz = "bobs baz"
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -692,11 +692,11 @@ project/alice> merge /bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 foo : Text
 foo = "alices foo"
 
--- project/bob
+-- scratch/bob
 foo : Text
 foo = "bobs foo"
 
@@ -711,7 +711,7 @@ qux =
 ```
 
 ``` ucm
-project/merge-bob-into-alice> view bar baz
+scratch/merge-bob-into-alice> view bar baz
 
   bar : Text
   bar = "alices bar"
@@ -743,9 +743,9 @@ unique type Foo = MkFoo Nat Text
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -763,10 +763,10 @@ project/alice> merge /bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 type Foo = MkFoo Nat Nat
 
--- project/bob
+-- scratch/bob
 type Foo = MkFoo Nat Text
 
 ```
@@ -790,15 +790,15 @@ unique type Foo = Baz Nat Nat | Qux Text
 Bob's renames `Qux` to `BobQux`:
 
 ``` ucm
-project/bob> move.term Foo.Qux Foo.BobQux
+scratch/bob> move.term Foo.Qux Foo.BobQux
 
   Done.
 
 ```
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -816,10 +816,10 @@ project/alice> merge /bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 type Foo = Baz Nat Nat | Qux Text
 
--- project/bob
+-- scratch/bob
 type Foo = BobQux Text | Baz Nat
 
 ```
@@ -837,7 +837,7 @@ unique type Foo = Baz Nat | Qux Text
 Alice's rename:
 
 ``` ucm
-project/alice> move.term Foo.Baz Foo.Alice
+scratch/alice> move.term Foo.Baz Foo.Alice
 
   Done.
 
@@ -845,15 +845,15 @@ project/alice> move.term Foo.Baz Foo.Alice
 Bob's rename:
 
 ``` ucm
-project/bob> move.term Foo.Qux Foo.Bob
+scratch/bob> move.term Foo.Qux Foo.Bob
 
   Done.
 
 ```
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -871,10 +871,10 @@ project/alice> merge bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 type Foo = Qux Text | Alice Nat
 
--- project/bob
+-- scratch/bob
 type Foo = Bob Text | Baz Nat
 
 ```
@@ -898,9 +898,9 @@ unique ability my.cool where
 ```
 
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -918,11 +918,11 @@ project/alice> merge bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 my.cool.thing : Nat
 my.cool.thing = 17
 
--- project/bob
+-- scratch/bob
 ability my.cool where thing : Nat ->{cool} Nat
 
 ```
@@ -947,7 +947,7 @@ unique type Foo = Alice Nat
 Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.Bar` term:
 
 ``` ucm
-project/bob> delete.term Foo.Bar
+scratch/bob> delete.term Foo.Bar
 
   Done.
 
@@ -959,9 +959,9 @@ unique type Foo = Bar Nat Nat
 These won't cleanly merge.
 
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -979,14 +979,14 @@ project/alice> merge bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 Foo.Bar : Nat
 Foo.Bar = 17
 
--- project/alice
+-- scratch/alice
 type Foo = Alice Nat
 
--- project/bob
+-- scratch/bob
 type Foo = Bar Nat Nat
 
 ```
@@ -1007,7 +1007,7 @@ Foo.Bar.Hello = 17
 Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
 
 ``` ucm
-project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
+scratch/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 
   Foo.Bar.Baz : Nat
   Foo.Bar.Baz = 100
@@ -1022,7 +1022,7 @@ project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one constructor's fully qualified names doesn't actually change. The other constructor reuses the name of the deleted term.
 
 ``` ucm
-project/bob> view Foo.Bar
+scratch/bob> view Foo.Bar
 
   type Foo.Bar = Baz Nat | Hello Nat Nat
 
@@ -1032,9 +1032,9 @@ At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in diffe
 Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
 
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -1052,15 +1052,15 @@ project/alice> merge bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 Foo.Bar.Baz : Nat
 Foo.Bar.Baz = 100
 
--- project/alice
+-- scratch/alice
 Foo.Bar.Hello : Nat
 Foo.Bar.Hello = 18
 
--- project/bob
+-- scratch/bob
 type Foo.Bar = Baz Nat | Hello Nat Nat
 
 ```
@@ -1092,9 +1092,9 @@ bob _ = 19
 ```
 
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -1112,11 +1112,11 @@ project/alice> merge bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 type Foo
   = Bar
 
--- project/bob
+-- scratch/bob
 type Foo
   = Bar
 
@@ -1160,9 +1160,9 @@ foo = "bobs foo"
 Attempt to merge:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -1180,11 +1180,11 @@ project/alice> merge /bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 foo : Text
 foo = "alices foo"
 
--- project/bob
+-- scratch/bob
 foo : Text
 foo = "bobs foo"
 
@@ -1211,24 +1211,24 @@ foo = "alice and bobs foo"
 
 ```
 ``` ucm
-project/merge-bob-into-alice> update
+scratch/merge-bob-into-alice> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-project/merge-bob-into-alice> merge.commit
+scratch/merge-bob-into-alice> merge.commit
 
-  I fast-forward merged project/merge-bob-into-alice into
-  project/alice.
+  I fast-forward merged scratch/merge-bob-into-alice into
+  scratch/alice.
 
-project/alice> view foo
+scratch/alice> view foo
 
   foo : Text
   foo = "alice and bobs foo"
 
-project/alice> branches
+scratch/alice> branches
 
        Branch   Remote branch
   1.   alice    
@@ -1241,7 +1241,7 @@ project/alice> branches
 `merge.commit` can only be run on a "merge branch".
 
 ``` ucm
-project/main> branch topic
+scratch/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
@@ -1250,7 +1250,7 @@ project/main> branch topic
 
 ```
 ``` ucm
-project/topic> merge.commit
+scratch/topic> merge.commit
 
   It doesn't look like there's a merge in progress.
 
@@ -1291,16 +1291,16 @@ baz = "baz"
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
   On the merge ancestor, bar and foo were aliases for the same
-  term, but on project/alice the names have different
+  term, but on scratch/alice the names have different
   definitions currently. I'd need just a single new definition
   to use in their dependents when I merge.
   
-  Please fix up project/alice to resolve this. For example,
+  Please fix up scratch/alice to resolve this. For example,
   
     * `update` the definitions to be the same again, so that
       there's nothing for me to decide.
@@ -1321,7 +1321,7 @@ One way to fix this in the future would be to introduce a syntax for defining al
 Alice's branch:
 
 ``` ucm
-project/alice> alias.type lib.builtins.Nat MyNat
+scratch/alice> alias.type lib.builtins.Nat MyNat
 
   Done.
 
@@ -1333,7 +1333,7 @@ unique type MyNat = MyNat Nat
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
@@ -1357,7 +1357,7 @@ unique type Foo = Bar
 ```
 
 ``` ucm
-project/alice> alias.term Foo.Bar Foo.some.other.Alias
+scratch/alice> alias.term Foo.Bar Foo.some.other.Alias
 
   Done.
 
@@ -1370,11 +1370,11 @@ bob = 100
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
-  On project/alice, the type Foo has a constructor with multiple
+  On scratch/alice, the type Foo has a constructor with multiple
   names, and I can't perform a merge in this situation:
   
     * Foo.Bar
@@ -1395,7 +1395,7 @@ unique type Foo = Bar
 ```
 
 ``` ucm
-project/alice> delete.term Foo.Bar
+scratch/alice> delete.term Foo.Bar
 
   Done.
 
@@ -1408,11 +1408,11 @@ bob = 100
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
-  On project/alice, the type Foo has some constructors with
+  On scratch/alice, the type Foo has some constructors with
   missing names, and I can't perform a merge in this situation.
   
   You can use `view Foo` and
@@ -1432,7 +1432,7 @@ structural type A.inner.X = Y Nat | Z Nat Nat
 ```
 
 ``` ucm
-project/alice> names A
+scratch/alice> names A
 
   Type
   Hash:  #65mdg7015r
@@ -1447,9 +1447,9 @@ bob = 100
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  On project/alice, the type A.inner.X is an alias of A. I'm not
+  On scratch/alice, the type A.inner.X is an alias of A. I'm not
   able to perform a merge when a type exists nested under an
   alias of itself. Please separate them or delete one copy, and
   then try merging again.
@@ -1462,13 +1462,13 @@ Constructors may only exist within the corresponding decl's namespace.
 Alice's branch:
 
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
+scratch/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 
   Done.
 
@@ -1476,7 +1476,7 @@ project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 Bob's branch:
 
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
@@ -1484,13 +1484,13 @@ project/bob> add
 
 ```
 ``` ucm
-project/alice> merge bob
+scratch/alice> merge bob
 
   Sorry, I wasn't able to perform the merge, because I need all
   constructor names to be nested somewhere beneath the
   corresponding type name.
   
-  On project/alice, the constructor AliasOutsideFooNamespace is
+  On scratch/alice, the constructor AliasOutsideFooNamespace is
   not nested beneath the corresponding type name. Please either
   use `move` to move it, or if it's an extra copy, you can
   simply `delete` it. Then try the merge again.
@@ -1515,11 +1515,11 @@ bob = 100
 ```
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
   
-  On project/alice, there's a type or term at the top level of
+  On scratch/alice, there's a type or term at the top level of
   the `lib` namespace, where I only expect to find subnamespaces
   representing library dependencies.
   
@@ -1553,13 +1553,13 @@ structural type Foo = Bar Nat | Baz Nat Nat
 
 ```
 ``` ucm
-project/main> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     structural type Foo
 
-project/main> delete.term Foo.Baz
+scratch/main> delete.term Foo.Baz
 
   Done.
 
@@ -1567,18 +1567,18 @@ project/main> delete.term Foo.Baz
 Alice's branch:
 
 ``` ucm
-project/main> branch alice
+scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-project/alice> delete.type Foo
+scratch/alice> delete.type Foo
 
   Done.
 
-project/alice> delete.term Foo.Bar
+scratch/alice> delete.term Foo.Bar
 
   Done.
 
@@ -1602,7 +1602,7 @@ alice = 100
 
 ```
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
@@ -1612,18 +1612,18 @@ project/alice> add
 Bob's branch:
 
 ``` ucm
-project/main> branch bob
+scratch/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
-project/bob> delete.type Foo
+scratch/bob> delete.type Foo
 
   Done.
 
-project/bob> delete.term Foo.Bar
+scratch/bob> delete.term Foo.Bar
 
   Done.
 
@@ -1647,7 +1647,7 @@ bob = 101
 
 ```
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
@@ -1657,9 +1657,9 @@ project/bob> add
 Now we merge:
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
 ```
 ## Regression tests
@@ -1686,21 +1686,21 @@ bar = 17
 
 ```
 ``` ucm
-project/main> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     bar : Nat
     foo : Nat
 
-project/main> branch alice
+scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-project/alice> delete.term bar
+scratch/alice> delete.term bar
 
   Done.
 
@@ -1724,14 +1724,14 @@ foo = 18
 
 ```
 ``` ucm
-project/alice> update
+scratch/alice> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-project/main> branch bob
+scratch/main> branch bob
 
   Done. I've created the bob branch based off of main.
   
@@ -1757,7 +1757,7 @@ bob = 101
 
 ```
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
@@ -1765,9 +1765,9 @@ project/bob> add
 
 ```
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I merged project/bob into project/alice.
+  I merged scratch/bob into scratch/alice.
 
 ```
 ### Delete a constructor
@@ -1790,13 +1790,13 @@ type Foo = Bar | Baz
 
 ```
 ``` ucm
-project/main> add
+scratch/main> add
 
   ⍟ I've added these definitions:
   
     type Foo
 
-project/main> branch topic
+scratch/main> branch topic
 
   Done. I've created the topic branch based off of main.
   
@@ -1822,7 +1822,7 @@ boop = "boop"
 
 ```
 ``` ucm
-project/topic> add
+scratch/topic> add
 
   ⍟ I've added these definitions:
   
@@ -1848,7 +1848,7 @@ type Foo = Bar
 
 ```
 ``` ucm
-project/main> update
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -1857,11 +1857,11 @@ project/main> update
 
 ```
 ``` ucm
-project/main> merge topic
+scratch/main> merge topic
 
-  I merged project/topic into project/main.
+  I merged scratch/topic into scratch/main.
 
-project/main> view Foo
+scratch/main> view Foo
 
   type Foo = Bar
 
@@ -1899,7 +1899,7 @@ baz = "lca"
 
 ```
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
@@ -1907,7 +1907,7 @@ project/alice> add
     baz : Text
     foo : Nat
 
-project/alice> branch bob
+scratch/alice> branch bob
 
   Done. I've created the bob branch based off of alice.
   
@@ -1937,7 +1937,7 @@ baz = "bob"
 
 ```
 ``` ucm
-project/bob> update
+scratch/bob> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -1971,7 +1971,7 @@ baz = "alice"
 
 ```
 ``` ucm
-project/alice> update
+scratch/alice> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -1987,9 +1987,9 @@ When we try to merge Bob into Alice, we should see both versions of `baz`, with 
 the underlying namespace.
 
 ``` ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 
-  I couldn't automatically merge project/bob into project/alice.
+  I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
   
@@ -2007,11 +2007,11 @@ project/alice> merge /bob
 
 ```
 ``` unison:added-by-ucm scratch.u
--- project/alice
+-- scratch/alice
 baz : Text
 baz = "alice"
 
--- project/bob
+-- scratch/bob
 baz : Text
 baz = "bob"
 
@@ -2052,7 +2052,7 @@ a = 1
 
 ```
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
@@ -2077,7 +2077,7 @@ b = 2
 
 ```
 ``` ucm
-project/alice> add
+scratch/alice> add
 
   ⍟ I've added these definitions:
   
@@ -2097,7 +2097,7 @@ b = 2
 
 ```
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
@@ -2122,7 +2122,7 @@ a = 1
 
 ```
 ``` ucm
-project/bob> add
+scratch/bob> add
 
   ⍟ I've added these definitions:
   
@@ -2143,22 +2143,22 @@ b = 2
 
 ```
 ``` ucm
-project/carol> add
+scratch/carol> add
 
   ⍟ I've added these definitions:
   
     a : ##Nat
     b : ##Nat
 
-project/bob> merge /alice
+scratch/bob> merge /alice
 
-  I merged project/alice into project/bob.
+  I merged scratch/alice into scratch/bob.
 
-project/carol> merge /bob
+scratch/carol> merge /bob
 
-  I merged project/bob into project/carol.
+  I merged scratch/bob into scratch/carol.
 
-project/carol> history
+scratch/carol> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -2294,5 +2294,139 @@ scratch/alice> update
 scratch/alice> merge /bob
 
   I merged scratch/bob into scratch/alice.
+
+```
+### Unique type GUID reuse
+
+Previously, a merge branch would not include any dependents in the namespace, but that resulted in dependent unique
+types' GUIDs being regenerated.
+
+``` unison
+type Foo = Lca
+type Bar = MkBar Foo
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Bar
+      type Foo
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    type Bar
+    type Foo
+
+scratch/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+scratch/alice> move.term Foo.Lca Foo.Alice
+
+  Done.
+
+scratch/main> branch bob
+
+  Done. I've created the bob branch based off of main.
+  
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /bob`.
+
+scratch/bob> move.term Foo.Lca Foo.Bob
+
+  Done.
+
+```
+``` ucm
+scratch/alice> merge /bob
+
+  I couldn't automatically merge scratch/bob into scratch/alice.
+  However, I've added the definitions that need attention to the
+  top of scratch.u.
+  
+  When you're done, you can run
+  
+    merge.commit
+  
+  to merge your changes back into alice and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+  
+    delete.branch /merge-bob-into-alice
+  
+  to delete the temporary branch and switch back to alice.
+
+```
+``` unison:added-by-ucm scratch.u
+-- scratch/alice
+type Foo
+  = Alice
+
+-- scratch/bob
+type Foo
+  = Bob
+
+-- The definitions below are not conflicted, but they each depend on one or more
+-- conflicted definitions above.
+
+type Bar
+  = MkBar Foo
+
+```
+
+``` ucm
+```
+``` unison
+type Foo = Merged
+type Bar = MkBar Foo
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      type Bar
+      type Foo
+
+```
+``` ucm
+scratch/merge-bob-into-alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/merge-bob-into-alice> names Bar
+
+  Type
+  Hash:  #il57732sur
+  Names: Bar
+
+scratch/alice> names Bar
+
+  Type
+  Hash:  #h3af39sae7
+  Names: Bar
 
 ```
