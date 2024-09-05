@@ -234,10 +234,10 @@ main version = do
                 exitError . P.wrap . P.text $
                   "I was unable to parse this file as a compiled\
                   \ program. The parser generated an unrecognized error."
-              Right (Right (v, rf, w, sto))
+              Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
-                    withArgs args (RTI.runStandalone sto w) >>= \case
+                    withArgs args (RTI.runStandalone sto combIx) >>= \case
                       Left err -> exitError err
                       Right () -> pure ()
                 where

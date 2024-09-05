@@ -100,7 +100,7 @@ import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
-    CombIx,
+    CombIx (..),
     GInstr (..),
     GSection (..),
     RCombs,
@@ -663,11 +663,13 @@ interpCompile version ctxVar cl ppe rf path = tryM $ do
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
+  -- TODO: Check with Dan that this is correct
+  let combIx = CIx rf w 0
   sto <- standalone cc w
   BL.writeFile path . runPutL $ do
     serialize $ version
     serialize $ RF.showShort 8 rf
-    putNat w
+    putCombIx combIx
     putStoredCache sto
 
 backrefLifted ::
@@ -1121,7 +1123,7 @@ catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
 
 decodeStandalone ::
   BL.ByteString ->
-  Either String (Text, Text, Word64, StoredCache)
+  Either String (Text, Text, CombIx, StoredCache)
 decodeStandalone b = bimap thd thd $ runGetOrFail g b
   where
     thd (_, _, x) = x
@@ -1130,7 +1132,7 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
         <$> deserialize
         <*> deserialize
         -- TODO: Check where this is encoded.
-        <*> getNat
+        <*> getCombIx
         <*> getStoredCache
 
 -- | Whether the runtime is hosted within a persistent session or as a one-off process.
