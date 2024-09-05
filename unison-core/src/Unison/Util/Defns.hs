@@ -13,6 +13,7 @@ module Unison.Util.Defns
     zipDefns,
     zipDefnsWith,
     zipDefnsWith3,
+    zipDefnsWith4,
   )
 where
 
@@ -99,3 +100,14 @@ zipDefnsWith3 ::
   Defns tm4 ty4
 zipDefnsWith3 f g (Defns terms1 types1) (Defns terms2 types2) (Defns terms3 types3) =
   Defns (f terms1 terms2 terms3) (g types1 types2 types3)
+
+zipDefnsWith4 ::
+  (tm1 -> tm2 -> tm3 -> tm4 -> tm5) ->
+  (ty1 -> ty2 -> ty3 -> ty4 -> ty5) ->
+  Defns tm1 ty1 ->
+  Defns tm2 ty2 ->
+  Defns tm3 ty3 ->
+  Defns tm4 ty4 ->
+  Defns tm5 ty5
+zipDefnsWith4 f g (Defns terms1 types1) (Defns terms2 types2) (Defns terms3 types3) (Defns terms4 types4) =
+  Defns (f terms1 terms2 terms3 terms4) (g types1 types2 types3 types4)

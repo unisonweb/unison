@@ -14,11 +14,11 @@ contains both additions.
 ## Basic merge: two unconflicted adds
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's adds:
@@ -28,8 +28,8 @@ foo = "alices foo"
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's adds:
@@ -39,16 +39,16 @@ bar = "bobs bar"
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo bar
+scratch/alice> merge /bob
+scratch/alice> view foo bar
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Basic merge: two identical adds
@@ -56,8 +56,8 @@ scratch/main> project.delete project
 If Alice and Bob also happen to add the same definition, that's not a conflict.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
-project/main> branch alice
+scratch/main> builtins.mergeio lib.builtins
+scratch/main> branch alice
 ```
 
 Alice's adds:
@@ -67,8 +67,8 @@ foo = "alice and bobs foo"
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's adds:
@@ -80,16 +80,16 @@ bar : Text
 bar = "bobs bar"
 ```
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo bar
+scratch/alice> merge /bob
+scratch/alice> view foo bar
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Simple update propagation
@@ -97,7 +97,7 @@ scratch/main> project.delete project
 Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new dependent `bar` of the original `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his `bar`.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -107,8 +107,8 @@ foo = "old foo"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's updates:
@@ -118,8 +118,8 @@ foo = "new foo"
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's adds:
@@ -128,21 +128,21 @@ bar : Text
 bar = foo ++ " - " ++ foo
 ```
 ```ucm
-project/bob> display bar
+scratch/bob> display bar
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo bar
-project/alice> display bar
+scratch/alice> merge /bob
+scratch/alice> view foo bar
+scratch/alice> display bar
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Update propagation with common dependent
@@ -152,7 +152,7 @@ We classify something as an update if its "syntactic hash"—not its normal Unis
 Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice updates `bar` (propagating to `foo`), and Bob updates `baz` (propagating to `foo`). When we merge their updates, both updates will be reflected in the final `foo`.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -168,8 +168,8 @@ baz = "old baz"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's updates:
@@ -179,13 +179,13 @@ bar = "alices bar"
 ```
 
 ```ucm:hide
-project/alice> update
+scratch/alice> update
 ```
 ```ucm
-project/alice> display foo
+scratch/alice> display foo
 ```
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 Bob's updates:
@@ -195,20 +195,20 @@ baz = "bobs baz"
 ```
 
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 ```ucm
-project/bob> display foo
+scratch/bob> display foo
 ```
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo bar baz
-project/alice> display foo
+scratch/alice> merge /bob
+scratch/alice> view foo bar baz
+scratch/alice> display foo
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Propagating an update to an update
@@ -216,7 +216,7 @@ scratch/main> project.delete project
 Of course, it's also possible for Alice's update to propagate to one of Bob's updates. In this example, `foo` depends on `bar` which depends on `baz`. Alice updates `baz`, propagating to `bar` and `foo`, while Bob updates `bar` (to something that still depends on `foo`), propagating to `baz`. The merged result will have Alice's update to `foo` incorporated into Bob's updated `bar`, and both updates will propagate to `baz`.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -232,13 +232,13 @@ baz = "old baz"
 ```
 
 ```ucm:hide
-project/main> add
+scratch/main> add
 ```
 ```ucm
-project/main> display foo
+scratch/main> display foo
 ```
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's updates:
@@ -248,13 +248,13 @@ baz = "alices baz"
 ```
 
 ```ucm:hide
-project/alice> update
+scratch/alice> update
 ```
 ```ucm
-project/alice> display foo
+scratch/alice> display foo
 ```
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 Bob's updates:
@@ -264,21 +264,21 @@ bar = "bobs bar" ++ " - " ++ baz
 ```
 
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 ```ucm
-project/bob> display foo
+scratch/bob> display foo
 ```
 
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo bar baz
-project/alice> display foo
+scratch/alice> merge /bob
+scratch/alice> view foo bar baz
+scratch/alice> display foo
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Update + delete isn't (currently) a conflict
@@ -286,7 +286,7 @@ scratch/main> project.delete project
 We don't currently consider "update + delete" a conflict like Git does. In this situation, the delete is just ignored, allowing the update to proceed.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -296,8 +296,8 @@ foo = "old foo"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's updates:
@@ -307,23 +307,23 @@ foo = "alices foo"
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's changes:
 ```ucm
-project/bob> delete.term foo
+scratch/bob> delete.term foo
 ```
 
 Merge result:
 ```ucm
-project/alice> merge /bob
-project/alice> view foo
+scratch/alice> merge /bob
+scratch/alice> view foo
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 In a future version, we'd like to give the user a warning at least.
@@ -333,12 +333,12 @@ In a future version, we'd like to give the user a warning at least.
 Library dependencies don't cause merge conflicts, the library dependencies are just unioned together. If two library dependencies have the same name but different namespace hashes, then the merge algorithm makes up two fresh names.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Alice's adds:
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 ```unison:hide
@@ -353,8 +353,8 @@ lib.bothDifferent.baz = 19
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's adds:
@@ -370,16 +370,16 @@ lib.bothDifferent.baz = 21
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 Merge result:
 ```ucm
-project/alice> merge bob
-project/alice> view foo bar baz
+scratch/alice> merge bob
+scratch/alice> view foo bar baz
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## No-op merge (Bob = Alice)
@@ -387,17 +387,17 @@ scratch/main> project.delete project
 If Bob is equals Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm
-project/main> branch alice
-project/main> branch bob
-project/alice> merge /bob
+scratch/main> branch alice
+scratch/main> branch bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## No-op merge (Bob < Alice)
@@ -405,12 +405,12 @@ scratch/main> project.delete project
 If Bob is behind Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm
-project/main> branch alice
-project/main> branch bob
+scratch/main> branch alice
+scratch/main> branch bob
 ```
 
 Alice's addition:
@@ -420,12 +420,12 @@ foo = "foo"
 ```
 
 ```ucm
-project/alice> add
-project/alice> merge /bob
+scratch/alice> add
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Fast-forward merge (Bob > Alice)
@@ -433,12 +433,12 @@ scratch/main> project.delete project
 If Bob is ahead of Alice, then merging Bob into Alice looks like this.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm
-project/main> branch alice
-project/main> branch bob
+scratch/main> branch alice
+scratch/main> branch bob
 ```
 
 Bob's addition:
@@ -448,23 +448,23 @@ foo = "foo"
 ```
 
 ```ucm
-project/bob> add
-project/alice> merge /bob
+scratch/bob> add
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## No-op merge: merge empty namespace into empty namespace
 
 ```ucm
-project/main> branch topic
-project/main> merge /topic
+scratch/main> branch topic
+scratch/main> merge /topic
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: someone deleted something
@@ -476,7 +476,7 @@ This can cause merge failures due to out-of-scope identifiers, and the user may 
 In this example, Alice deletes `foo`, while Bob adds a new dependent of `foo`.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -486,15 +486,15 @@ foo = "foo"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 Alice's delete:
 ```ucm
-project/alice> delete.term foo
+scratch/alice> delete.term foo
 ```
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 Bob's new code that depends on `foo`:
@@ -504,12 +504,12 @@ bar = foo ++ " - " ++ foo
 ```
 
 ```ucm:error
-project/bob> add
-project/alice> merge /bob
+scratch/bob> add
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: type error
@@ -519,7 +519,7 @@ It may be Alice's and Bob's changes merge together cleanly in the sense that the
 In this example, Alice updates a `Text` to a `Nat`, while Bob adds a new dependent of the `Text`. Upon merging, propagating Alice's update to Bob's dependent causes a typechecking failure.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -529,8 +529,8 @@ foo = "foo"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's update:
@@ -540,8 +540,8 @@ foo = 100
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's new definition:
@@ -551,15 +551,15 @@ bar = foo ++ " - " ++ foo
 ```
 
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: simple term conflict
@@ -568,7 +568,7 @@ Alice and Bob may disagree about the definition of a term. In this case, the con
 are presented to the user to resolve.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -581,8 +581,8 @@ bar = "old bar"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's changes:
@@ -598,8 +598,8 @@ qux = "alices qux depends on alices foo" ++ foo
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's changes:
@@ -613,18 +613,18 @@ baz = "bobs baz"
 ```
 
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm
-project/merge-bob-into-alice> view bar baz
+scratch/merge-bob-into-alice> view bar baz
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: simple type conflict
@@ -632,7 +632,7 @@ scratch/main> project.delete project
 Ditto for types; if the hashes don't match, it's a conflict. In this example, Alice and Bob do different things to the same constructor. However, any explicit changes to the same type will result in a conflict, including changes that could concievably be merged (e.g. Alice and Bob both add a new constructor, or edit different constructors).
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -641,8 +641,8 @@ unique type Foo = MkFoo Nat
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's changes:
@@ -651,8 +651,8 @@ unique type Foo = MkFoo Nat Nat
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's changes:
@@ -660,14 +660,14 @@ Bob's changes:
 unique type Foo = MkFoo Nat Text
 ```
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: type-update + constructor-rename conflict
@@ -675,7 +675,7 @@ scratch/main> project.delete project
 We model the renaming of a type's constructor as an update, so if Alice updates a type and Bob renames one of its constructors (even without changing its structure), we consider it a conflict.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -684,8 +684,8 @@ unique type Foo = Baz Nat | Qux Text
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's changes `Baz Nat` to `Baz Nat Nat`
@@ -694,20 +694,20 @@ unique type Foo = Baz Nat Nat | Qux Text
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's renames `Qux` to `BobQux`:
 ```ucm
-project/bob> move.term Foo.Qux Foo.BobQux
+scratch/bob> move.term Foo.Qux Foo.BobQux
 ```
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: constructor-rename conflict
@@ -715,7 +715,7 @@ scratch/main> project.delete project
 Here is another example demonstrating that constructor renames are modeled as updates.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -724,28 +724,28 @@ unique type Foo = Baz Nat | Qux Text
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's rename:
 ```ucm
-project/alice> move.term Foo.Baz Foo.Alice
+scratch/alice> move.term Foo.Baz Foo.Alice
 ```
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 Bob's rename:
 ```ucm
-project/bob> move.term Foo.Qux Foo.Bob
+scratch/bob> move.term Foo.Qux Foo.Bob
 ```
 
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: non-constructor/constructor conflict
@@ -753,11 +753,11 @@ scratch/main> project.delete project
 A constructor on one side can conflict with a regular term definition on the other.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's additions:
@@ -767,8 +767,8 @@ my.cool.thing = 17
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's additions:
@@ -778,15 +778,15 @@ unique ability my.cool where
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge failure: type/type conflict with term/constructor conflict
@@ -794,7 +794,7 @@ scratch/main> project.delete project
 Here's a subtle situation where a new type is added on each side of the merge, and an existing term is replaced with a constructor of one of the types.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -804,8 +804,8 @@ Foo.Bar = 17
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice adds this type `Foo` with constructor `Foo.Alice`:
@@ -814,13 +814,13 @@ unique type Foo = Alice Nat
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.Bar` term:
 ```ucm
-project/bob> delete.term Foo.Bar
+scratch/bob> delete.term Foo.Bar
 ```
 
 ```unison:hide
@@ -828,22 +828,22 @@ unique type Foo = Bar Nat Nat
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 These won't cleanly merge.
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 Here's a more involved example that demonstrates the same idea.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 In the LCA, we have a type with two constructors, and some term.
@@ -858,16 +858,16 @@ Foo.Bar.Hello = 17
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice deletes this type entirely, and repurposes its constructor names for other terms. She also updates the term.
 
 ```ucm:hide
-project/alice> delete.type Foo
-project/alice> delete.term Foo.Bar.Baz
-project/alice> delete.term Foo.Bar.Qux
+scratch/alice> delete.type Foo
+scratch/alice> delete.term Foo.Bar.Baz
+scratch/alice> delete.term Foo.Bar.Qux
 ```
 
 ```unison:hide:all
@@ -882,23 +882,23 @@ Foo.Bar.Hello = 18
 ```
 
 ```ucm:hide
-project/alice> update
+scratch/alice> update
 ```
 ```ucm
-project/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
+scratch/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
 ```
 
 Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one constructor's fully qualified names doesn't actually change. The other constructor reuses the name of the deleted term.
 
 ```ucm:hide
-project/main> branch bob
-project/bob> delete.term Foo.Bar.Hello
-project/bob> move.type Foo Foo.Bar
-project/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
+scratch/main> branch bob
+scratch/bob> delete.term Foo.Bar.Hello
+scratch/bob> move.type Foo Foo.Bar
+scratch/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
 ```
 
 ```ucm
-project/bob> view Foo.Bar
+scratch/bob> view Foo.Bar
 ```
 
 At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
@@ -906,11 +906,11 @@ At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in diffe
 Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
 
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Merge algorithm quirk: add/add unique types
@@ -922,11 +922,11 @@ which is a parse error.
 We will resolve this situation automatically in a future version.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's additions:
@@ -938,8 +938,8 @@ alice _ = 18
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's additions:
@@ -951,15 +951,15 @@ bob _ = 19
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## `merge.commit` example (success)
@@ -968,7 +968,7 @@ After merge conflicts are resolved, you can use `merge.commit` rather than `swit
 "commit" your changes.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -978,8 +978,8 @@ foo = "old foo"
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's changes:
@@ -989,8 +989,8 @@ foo = "alices foo"
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's changes:
@@ -1003,10 +1003,10 @@ foo = "bobs foo"
 Attempt to merge:
 
 ```ucm:hide
-project/bob> update
+scratch/bob> update
 ```
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 Resolve conflicts and commit:
@@ -1017,14 +1017,14 @@ foo = "alice and bobs foo"
 ```
 
 ```ucm
-project/merge-bob-into-alice> update
-project/merge-bob-into-alice> merge.commit
-project/alice> view foo
-project/alice> branches
+scratch/merge-bob-into-alice> update
+scratch/merge-bob-into-alice> merge.commit
+scratch/alice> view foo
+scratch/alice> branches
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## `merge.commit` example (failure)
@@ -1032,19 +1032,19 @@ scratch/main> project.delete project
 `merge.commit` can only be run on a "merge branch".
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm
-project/main> branch topic
+scratch/main> branch topic
 ```
 
 ```ucm:error
-project/topic> merge.commit
+scratch/topic> merge.commit
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 
@@ -1057,7 +1057,7 @@ There are a number of conditions under which we can't perform a merge, and the u
 If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice's branch, then we don't know whether to update Bob's dependents to Alice's `foo` or Alice's `bar` (and vice-versa).
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Original branch:
@@ -1070,8 +1070,8 @@ bar = 100
 ```
 
 ```ucm:hide
-project/main> add
-project/main> branch alice
+scratch/main> add
+scratch/main> branch alice
 ```
 
 Alice's updates:
@@ -1084,8 +1084,8 @@ bar = 300
 ```
 
 ```ucm:hide
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 Bob's addition:
@@ -1095,15 +1095,15 @@ baz = "baz"
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Conflict involving builtin
@@ -1114,21 +1114,21 @@ conflict involving a builtin, we can't perform a merge.
 One way to fix this in the future would be to introduce a syntax for defining aliases in the scratch file.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's branch:
 ```ucm
-project/alice> alias.type lib.builtins.Nat MyNat
+scratch/alice> alias.type lib.builtins.Nat MyNat
 ```
 
 Bob's branch:
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 ```unison:hide
@@ -1136,15 +1136,15 @@ unique type MyNat = MyNat Nat
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Constructor alias
@@ -1152,11 +1152,11 @@ scratch/main> project.delete project
 Each naming of a decl may not have more than one name for each constructor, within the decl's namespace.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 Alice's branch:
@@ -1165,15 +1165,15 @@ unique type Foo = Bar
 ```
 
 ```ucm:hide
-project/alice> add
+scratch/alice> add
 ```
 ```ucm
-project/alice> alias.term Foo.Bar Foo.some.other.Alias
+scratch/alice> alias.term Foo.Bar Foo.some.other.Alias
 ```
 
 Bob's branch:
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 ```unison:hide
@@ -1182,15 +1182,15 @@ bob = 100
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Missing constructor name
@@ -1198,12 +1198,12 @@ scratch/main> project.delete project
 Each naming of a decl must have a name for each constructor, within the decl's namespace.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Alice's branch:
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 ```unison:hide
@@ -1211,16 +1211,16 @@ unique type Foo = Bar
 ```
 
 ```ucm:hide
-project/alice> add
+scratch/alice> add
 ```
 
 ```ucm
-project/alice> delete.term Foo.Bar
+scratch/alice> delete.term Foo.Bar
 ```
 
 Bob's branch:
 ```ucm:hide
-project/main> branch /bob
+scratch/main> branch /bob
 ```
 
 ```unison:hide
@@ -1229,15 +1229,15 @@ bob = 100
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Nested decl alias
@@ -1245,12 +1245,12 @@ scratch/main> project.delete project
 A decl cannot be aliased within the namespace of another of its aliased.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Alice's branch:
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 ```unison:hide
@@ -1259,16 +1259,16 @@ structural type A.inner.X = Y Nat | Z Nat Nat
 ```
 
 ```ucm:hide
-project/alice> add
+scratch/alice> add
 ```
 
 ```ucm
-project/alice> names A
+scratch/alice> names A
 ```
 
 Bob's branch:
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 ```unison:hide
@@ -1277,15 +1277,15 @@ bob = 100
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Stray constructor alias
@@ -1293,12 +1293,12 @@ scratch/main> project.delete project
 Constructors may only exist within the corresponding decl's namespace.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Alice's branch:
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 ```unison:hide:all
@@ -1306,13 +1306,13 @@ unique type Foo = Bar
 ```
 
 ```ucm
-project/alice> add
-project/alice> alias.term Foo.Bar AliasOutsideFooNamespace
+scratch/alice> add
+scratch/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 ```
 
 Bob's branch:
 ```ucm:hide
-project/main> branch bob
+scratch/main> branch bob
 ```
 
 ```unison:hide:all
@@ -1321,15 +1321,15 @@ bob = 101
 ```
 
 ```ucm
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge bob
+scratch/alice> merge bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Term or type in `lib`
@@ -1337,12 +1337,12 @@ scratch/main> project.delete project
 By convention, `lib` can only namespaces; each of these represents a library dependencies. Individual terms and types are not allowed at the top level of `lib`.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 Alice's branch:
 ```ucm:hide
-project/main> branch alice
+scratch/main> branch alice
 ```
 
 ```unison:hide
@@ -1351,8 +1351,8 @@ lib.foo = 1
 ```
 
 ```ucm:hide
-project/alice> add
-project/main> branch bob
+scratch/alice> add
+scratch/main> branch bob
 ```
 
 Bob's branch:
@@ -1362,15 +1362,15 @@ bob = 100
 ```
 
 ```ucm:hide
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## LCA precondition violations
@@ -1381,7 +1381,7 @@ Here's an example. We'll delete a constructor name from the LCA and still be abl
 together.
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 LCA:
@@ -1391,16 +1391,16 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ```
 
 ```ucm
-project/main> add
-project/main> delete.term Foo.Baz
+scratch/main> add
+scratch/main> delete.term Foo.Baz
 ```
 
 Alice's branch:
 
 ```ucm
-project/main> branch alice
-project/alice> delete.type Foo
-project/alice> delete.term Foo.Bar
+scratch/main> branch alice
+scratch/alice> delete.type Foo
+scratch/alice> delete.term Foo.Bar
 ```
 
 ```unison
@@ -1409,15 +1409,15 @@ alice = 100
 ```
 
 ```ucm
-project/alice> add
+scratch/alice> add
 ```
 
 Bob's branch:
 
 ```ucm
-project/main> branch bob
-project/bob> delete.type Foo
-project/bob> delete.term Foo.Bar
+scratch/main> branch bob
+scratch/bob> delete.type Foo
+scratch/bob> delete.term Foo.Bar
 ```
 
 ```unison
@@ -1426,17 +1426,17 @@ bob = 101
 ```
 
 ```ucm
-project/bob> add
+scratch/bob> add
 ```
 
 Now we merge:
 
 ```ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ## Regression tests
@@ -1445,7 +1445,7 @@ scratch/main> project.delete project
 
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
@@ -1454,9 +1454,9 @@ bar = 17
 ```
 
 ```ucm
-project/main> add
-project/main> branch alice
-project/alice> delete.term bar
+scratch/main> add
+scratch/main> branch alice
+scratch/alice> delete.term bar
 ```
 
 ```unison
@@ -1464,8 +1464,8 @@ foo = 18
 ```
 
 ```ucm
-project/alice> update
-project/main> branch bob
+scratch/alice> update
+scratch/main> branch bob
 ```
 
 ```unison
@@ -1473,22 +1473,22 @@ bob = 101
 ```
 
 ```ucm
-project/bob> add
+scratch/bob> add
 ```
 
 ```ucm
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Delete a constructor
 
 
 ```ucm:hide
-project/main> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ```unison
@@ -1496,8 +1496,8 @@ type Foo = Bar | Baz
 ```
 
 ```ucm
-project/main> add
-project/main> branch topic
+scratch/main> add
+scratch/main> branch topic
 ```
 
 ```unison
@@ -1505,7 +1505,7 @@ boop = "boop"
 ```
 
 ```ucm
-project/topic> add
+scratch/topic> add
 ```
 
 ```unison
@@ -1513,16 +1513,16 @@ type Foo = Bar
 ```
 
 ```ucm
-project/main> update
+scratch/main> update
 ```
 
 ```ucm
-project/main> merge topic
-project/main> view Foo
+scratch/main> merge topic
+scratch/main> view Foo
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Dependent that doesn't need to be in the file
@@ -1531,7 +1531,7 @@ This test demonstrates a bug.
 
 
 ```ucm:hide
-project/alice> builtins.mergeio lib.builtins
+scratch/alice> builtins.mergeio lib.builtins
 ```
 
 In the LCA, we have `foo` with dependent `bar`, and `baz`.
@@ -1548,8 +1548,8 @@ baz = "lca"
 ```
 
 ```ucm
-project/alice> add
-project/alice> branch bob
+scratch/alice> add
+scratch/alice> branch bob
 ```
 
 On Bob, we update `baz` to "bob".
@@ -1560,7 +1560,7 @@ baz = "bob"
 ```
 
 ```ucm
-project/bob> update
+scratch/bob> update
 ```
 
 On Alice, we update `baz` to "alice" (conflict), but also update `foo` (unconflicted), which propagates to `bar`.
@@ -1574,20 +1574,20 @@ baz = "alice"
 ```
 
 ```ucm
-project/alice> update
+scratch/alice> update
 ```
 
 When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
 the underlying namespace.
 
 ```ucm:error
-project/alice> merge /bob
+scratch/alice> merge /bob
 ```
 
 But `bar` was put into the scratch file instead.
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Merge loop test
@@ -1602,7 +1602,7 @@ a = 1
 ```
 
 ```ucm
-project/alice> add
+scratch/alice> add
 ```
 
 ```unison
@@ -1610,7 +1610,7 @@ b = 2
 ```
 
 ```ucm
-project/alice> add
+scratch/alice> add
 ```
 
 ```unison
@@ -1618,7 +1618,7 @@ b = 2
 ```
 
 ```ucm
-project/bob> add
+scratch/bob> add
 ```
 
 ```unison
@@ -1626,7 +1626,7 @@ a = 1
 ```
 
 ```ucm
-project/bob> add
+scratch/bob> add
 ```
 
 ```unison
@@ -1635,14 +1635,14 @@ b = 2
 ```
 
 ```ucm
-project/carol> add
-project/bob> merge /alice
-project/carol> merge /bob
-project/carol> history
+scratch/carol> add
+scratch/bob> merge /alice
+scratch/carol> merge /bob
+scratch/carol> history
 ```
 
 ```ucm:hide
-scratch/main> project.delete project
+scratch/main> project.delete scratch
 ```
 
 ### Variables named `_`
@@ -1697,4 +1697,53 @@ scratch/alice> update
 
 ```ucm
 scratch/alice> merge /bob
+```
+
+```ucm:hide
+scratch/main> project.delete scratch
+```
+
+### Unique type GUID reuse
+
+Previously, a merge branch would not include any dependents in the namespace, but that resulted in dependent unique
+types' GUIDs being regenerated.
+
+```ucm:hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+```unison
+type Foo = Lca
+type Bar = MkBar Foo
+```
+
+```ucm
+scratch/main> add
+scratch/main> branch alice
+scratch/alice> move.term Foo.Lca Foo.Alice
+scratch/main> branch bob
+scratch/bob> move.term Foo.Lca Foo.Bob
+```
+
+```ucm:error
+scratch/alice> merge /bob
+```
+
+```ucm
+scratch/merge-bob-into-alice>
+```
+
+```unison
+type Foo = Merged
+type Bar = MkBar Foo
+```
+
+```ucm
+scratch/merge-bob-into-alice> update
+scratch/merge-bob-into-alice> names Bar
+scratch/alice> names Bar
+```
+
+```ucm:hide
+scratch/main> project.delete scratch
 ```

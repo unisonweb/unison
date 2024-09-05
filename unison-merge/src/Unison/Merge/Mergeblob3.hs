@@ -17,8 +17,10 @@ import Data.Zip (unzip)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup, expectConstructorNames)
+import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
 import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnvs)
+import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay)
 import Unison.Merge.TwoWay qualified as TwoWay
@@ -38,7 +40,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith, zipDefnsWith3)
+import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith, zipDefnsWith3, zipDefnsWith4)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
@@ -47,6 +49,7 @@ import Prelude hiding (unzip)
 data Mergeblob3 = Mergeblob3
   { libdeps :: Names,
     stageOne :: DefnsF (Map Name) Referent TypeReference,
+    stageTwo :: DefnsF (Map Name) Referent TypeReference,
     uniqueTypeGuids :: Map Name Text,
     unparsedFile :: Pretty ColorText
   }
@@ -64,6 +67,7 @@ makeMergeblob3 blob dependents0 libdeps authors =
 
       -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
       -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+      dependents :: TwoWay (DefnsF Set Name Name)
       dependents =
         filterDependents
           conflictsNames
@@ -105,6 +109,13 @@ makeMergeblob3 blob dependents0 libdeps authors =
               dependents
               (bimap BiMultimap.range BiMultimap.range blob.defns.lca),
           uniqueTypeGuids = makeUniqueTypeGuids blob.hydratedDefns,
+          stageTwo =
+            makeStageTwo
+              blob.declNameLookups
+              conflictsNames
+              blob.unconflicts
+              dependents
+              (bimap BiMultimap.range BiMultimap.range <$> blob.defns),
           unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents
         }
 
@@ -163,6 +174,41 @@ makeStageOne declNameLookups conflicts unconflicts dependents =
 makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
 makeStageOneV unconflicts namesToDelete =
   (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
+
+makeStageTwo ::
+  forall term typ.
+  TwoWay DeclNameLookup ->
+  TwoWay (DefnsF Set Name Name) ->
+  DefnsF Unconflicts term typ ->
+  TwoWay (DefnsF Set Name Name) ->
+  ThreeWay (DefnsF (Map Name) term typ) ->
+  DefnsF (Map Name) term typ
+makeStageTwo declNameLookups conflicts unconflicts dependents defns =
+  zipDefnsWith4 makeStageTwoV makeStageTwoV defns.lca aliceBiasedDependents unconflicts aliceConflicts
+  where
+    aliceConflicts :: DefnsF (Map Name) term typ
+    aliceConflicts =
+      zipDefnsWith
+        (\defns conflicts -> Map.restrictKeys defns (conflicts <> aliceConstructorsOfTypeConflicts))
+        Map.restrictKeys
+        defns.alice
+        conflicts.alice
+
+    aliceConstructorsOfTypeConflicts :: Set Name
+    aliceConstructorsOfTypeConflicts =
+      foldMap
+        (Set.fromList . DeclNameLookup.expectConstructorNames declNameLookups.alice)
+        conflicts.alice.types
+
+    aliceBiasedDependents :: DefnsF (Map Name) term typ
+    aliceBiasedDependents =
+      TwoWay.twoWay
+        (zipDefnsWith (Map.unionWith const) (Map.unionWith const))
+        (zipDefnsWith Map.restrictKeys Map.restrictKeys <$> ThreeWay.forgetLca defns <*> dependents)
+
+makeStageTwoV :: Map Name v -> Map Name v -> Unconflicts v -> Map Name v -> Map Name v
+makeStageTwoV lca dependents unconflicts conflicts =
+  Map.unionWith const conflicts (Unconflicts.apply unconflicts (Map.unionWith const dependents lca))
 
 -- Given just named term/type reference ids, fill out all names that occupy the term and type namespaces. This is simply
 -- the given names plus all of the types' constructors.

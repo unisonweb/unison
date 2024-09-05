@@ -313,8 +313,6 @@ doMerge info = do
                 Left _typecheckErr -> Nothing
                 Right blob5 -> Just blob5
 
-      let stageOneBranch = defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
-
       let parents =
             causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
 
@@ -326,7 +324,11 @@ doMerge info = do
               info.description
               ( HandleInput.Branch.CreateFrom'NamespaceWithParent
                   info.alice.projectAndBranch.branch
-                  (Branch.mergeNode stageOneBranch parents.alice parents.bob)
+                  ( Branch.mergeNode
+                      (defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps)
+                      parents.alice
+                      parents.bob
+                  )
               )
               info.alice.projectAndBranch.project
               (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
@@ -338,11 +340,18 @@ doMerge info = do
           done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
 
       Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)
-      let stageTwoBranch = Branch.batchUpdates (typecheckedUnisonFileToBranchAdds blob5.file) stageOneBranch
       Cli.updateProjectBranchRoot_
         info.alice.projectAndBranch.branch
         info.description
-        (\_aliceBranch -> Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+        ( \_aliceBranch ->
+            Branch.mergeNode
+              ( Branch.batchUpdates
+                  (typecheckedUnisonFileToBranchAdds blob5.file)
+                  (defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps)
+              )
+              parents.alice
+              parents.bob
+        )
       pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput
