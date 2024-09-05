@@ -264,6 +264,7 @@ buildLit _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
 buildLit _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
 buildLit _ (MD _) = error "buildLit: double"
 
+-- | Execute an instruction
 exec ::
   CCache ->
   DEnv ->
@@ -272,7 +273,7 @@ exec ::
   Stack 'BX ->
   K ->
   Reference ->
-  Instr ->
+  RInstr ->
   IO (DEnv, Stack 'UN, Stack 'BX, K)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Info tx) = do
   info tx ustk
@@ -589,6 +590,7 @@ numValue mr clo =
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 
+-- | Evaluate a section
 eval ::
   CCache ->
   DEnv ->
@@ -1919,11 +1921,8 @@ discardCont denv ustk bstk k p =
     <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
-resolve :: CCache -> DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ (Env n i) =
-  readTVarIO (combRefs env) >>= \rs -> case EC.lookup n rs of
-    Just r -> pure $ PAp (CIx r n i) unull bnull
-    Nothing -> die $ "resolve: missing reference for comb: " ++ show n
+resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
+resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
@@ -1944,6 +1943,11 @@ rCombSection combs cix@(CIx _ n i) =
       Just cmb -> RComb cix cmb
       Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`."
     Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+
+resolveSection :: CCache -> Section -> IO RSection
+resolveSection cc section = do
+  rcombs <- readTVarIO (combs cc)
+  pure $ rCombSection rcombs <$> section
 
 -- combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
 -- combSection env (CIx _ n i) =
@@ -2183,8 +2187,8 @@ reflectValue rty = goV
 
     goIx (CIx r _ i) = ANF.GR r i
 
-    goV (PApV cix ua ba) =
-      ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+    goV (PApV rComb ua ba) =
+      ANF.Partial (goIx $ rCombIx rComb) (fromIntegral <$> ua) <$> traverse goV ba
     goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
@@ -2199,13 +2203,13 @@ reflectValue rty = goV
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
-    goK (Push uf bf ua ba cix k) =
+    goK (Push uf bf ua ba rComb k) =
       ANF.Push
         (fromIntegral uf)
         (fromIntegral bf)
         (fromIntegral ua)
         (fromIntegral ba)
-        (goIx cix)
+        (goIx $ rCombIx rComb)
         <$> goK k
 
     goF f
@@ -2238,16 +2242,17 @@ reflectValue rty = goV
       | t == floatTag = pure $ ANF.Float (intToDouble v)
       | otherwise = die . err $ "unboxed data: " <> show (t, v)
 
-reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
+reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] RClosure)
 reifyValue cc val = do
   erc <-
-    atomically $
-      readTVar (refTm cc) >>= \rtm ->
-        case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
-          [] ->
-            Right . (,rtm)
-              <$> addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          l -> pure (Left l)
+    atomically $ do
+      combs <- readTVar (combs cc)
+      rtm <- readTVar (refTm cc)
+      case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
+        [] -> do
+          newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
+          pure . Right $ (combs, newTy, rtm)
+        l -> pure (Left l)
   traverse (\rfs -> reifyValue0 rfs val) erc
   where
     f False r = (mempty, S.singleton r)
@@ -2255,10 +2260,10 @@ reifyValue cc val = do
     (tyLinks, tmLinks) = valueLinks f val
 
 reifyValue0 ::
-  (M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 RCombs, M.Map Reference Word64, M.Map Reference Word64) ->
   ANF.Value ->
   IO Closure
-reifyValue0 (rty, rtm) = goV
+reifyValue0 (combs, rty, rtm) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2267,7 +2272,10 @@ reifyValue0 (rty, rtm) = goV
     refTm r
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
-    goIx (ANF.GR r i) = refTm r <&> \n -> CIx r n i
+    goIx :: ANF.GroupRef -> IO RComb
+    goIx (ANF.GR r i) =
+      refTm r <&> \n ->
+        rCombSection combs (CIx r n i)
 
     goV (ANF.Partial gr ua ba) =
       pap <$> (goIx gr) <*> traverse goV ba

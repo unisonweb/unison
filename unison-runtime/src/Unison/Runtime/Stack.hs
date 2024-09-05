@@ -8,7 +8,10 @@
 
 module Unison.Runtime.Stack
   ( K (..),
-    Closure (.., DataC, PApV, CapV),
+    GClosure (.., DataC, PApV, CapV),
+    Closure,
+    RClosure,
+    IxClosure,
     Callback (..),
     Augment (..),
     Dump (..),
@@ -77,7 +80,7 @@ data K
       !Int -- pending unboxed args
       !Int -- pending boxed args
       !(EnumSet Word64)
-      !(EnumMap Word64 Closure)
+      !(EnumMap Word64 RClosure)
       !K
   | -- save information about a frame for later resumption
     Push
@@ -89,18 +92,24 @@ data K
       !K
   deriving (Eq, Ord)
 
-data Closure
+type RClosure = GClosure RComb
+
+type IxClosure = GClosure CombIx
+
+type Closure = GClosure RComb
+
+data GClosure comb
   = PAp
-      RComb {- Possibly recursive comb, keep it lazy or risk blowing up! -}
+      comb {- Possibly recursive comb, keep it lazy or risk blowing up -}
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
       !(Seg 'BX) -- boxed args
   | Enum !Reference !Word64
   | DataU1 !Reference !Word64 !Int
   | DataU2 !Reference !Word64 !Int !Int
-  | DataB1 !Reference !Word64 !Closure
-  | DataB2 !Reference !Word64 !Closure !Closure
-  | DataUB !Reference !Word64 !Int !Closure
+  | DataB1 !Reference !Word64 !(GClosure comb)
+  | DataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
+  | DataUB !Reference !Word64 !Int !(GClosure comb)
   | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
   | -- code cont, u/b arg size, u/b data stacks
     Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
@@ -117,7 +126,7 @@ traceK begin = dedup (begin, 1)
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
+splitData :: RClosure -> Maybe (Reference, Word64, [Int], [RClosure])
 splitData (Enum r t) = Just (r, t, [], [])
 splitData (DataU1 r t i) = Just (r, t, [i], [])
 splitData (DataU2 r t i j) = Just (r, t, [i, j], [])
@@ -144,15 +153,15 @@ useg ws = case L.fromList $ reverse ws of
 
 -- | Converts a boxed segment to a list of closures. The segments are stored
 -- backwards, so this reverses the contents.
-bsegToList :: Seg 'BX -> [Closure]
+bsegToList :: Seg 'BX -> [RClosure]
 bsegToList = reverse . L.toList
 
 -- | Converts a list of closures back to a boxed segment. Segments are stored
 -- backwards, so this reverses the contents.
-bseg :: [Closure] -> Seg 'BX
+bseg :: [RClosure] -> Seg 'BX
 bseg = L.fromList . reverse
 
-formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+formData :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
 formData r t [] [] = Enum r t
 formData r t [i] [] = DataU1 r t i
 formData r t [i, j] [] = DataU2 r t i j
@@ -169,19 +178,19 @@ frameDataSize = go 0 0
     go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
     go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
 
-pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
+pattern DataC :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
 pattern DataC rf ct us bs <-
   (splitData -> Just (rf, ct, us, bs))
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: RComb -> [Int] -> [Closure] -> Closure
+pattern PApV :: RComb -> [Int] -> [RClosure] -> RClosure
 pattern PApV ic us bs <-
   PAp ic (ints -> us) (bsegToList -> bs)
   where
     PApV ic us bs = PAp ic (useg us) (bseg bs)
 
-pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
+pattern CapV :: K -> Int -> Int -> [Int] -> [RClosure] -> RClosure
 pattern CapV k ua ba us bs <-
   Captured k ua ba (ints -> us) (bsegToList -> bs)
   where
@@ -193,7 +202,7 @@ pattern CapV k ua ba us bs <-
 
 {-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole #-}
 
-marshalToForeign :: (HasCallStack) => Closure -> Foreign
+marshalToForeign :: (HasCallStack) => RClosure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign c =
   error $ "marshalToForeign: unhandled closure: " ++ show c
@@ -206,7 +215,7 @@ type FP = Int
 
 type UA = MutableByteArray (PrimState IO)
 
-type BA = MutableArray (PrimState IO) Closure
+type BA = MutableArray (PrimState IO) RClosure
 
 words :: Int -> Int
 words n = n `div` 8
@@ -518,16 +527,16 @@ peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
 peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffBi #-}
 
-peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
+peekOffS :: Stack 'BX -> Int -> IO (Seq RClosure)
 peekOffS bstk i =
   unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffS #-}
 
-pokeS :: Stack 'BX -> Seq Closure -> IO ()
+pokeS :: Stack 'BX -> Seq RClosure -> IO ()
 pokeS bstk s = poke bstk (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeS #-}
 
-pokeOffS :: Stack 'BX -> Int -> Seq Closure -> IO ()
+pokeOffS :: Stack 'BX -> Int -> Seq RClosure -> IO ()
 pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeOffS #-}
 
@@ -560,10 +569,10 @@ instance MEM 'BX where
     { bap :: !Int,
       bfp :: !Int,
       bsp :: !Int,
-      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) Closure)
+      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) RClosure)
     }
-  type Elem 'BX = Closure
-  type Seg 'BX = Array Closure
+  type Elem 'BX = RClosure
+  type Seg 'BX = Array RClosure
 
   alloc = BS (-1) (-1) (-1) <$> newArray 512 BlackHole
   {-# INLINE alloc #-}
@@ -702,7 +711,7 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
-closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
+closureTermRefs :: (Monoid m) => (Reference -> m) -> (RClosure -> m)
 closureTermRefs f (PAp (RComb (CIx r _ _) _) _ cs) =
   f r <> foldMap (closureTermRefs f) cs
 closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
@@ -713,7 +722,7 @@ closureTermRefs f (DataUB _ _ _ c) =
 closureTermRefs f (Captured k _ _ _ cs) =
   contTermRefs f k <> foldMap (closureTermRefs f) cs
 closureTermRefs f (Foreign fo)
-  | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo =
+  | Just (cs :: Seq RClosure) <- maybeUnwrapForeign Ty.listRef fo =
       foldMap (closureTermRefs f) cs
 closureTermRefs _ _ = mempty
 

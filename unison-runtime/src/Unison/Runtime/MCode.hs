@@ -13,6 +13,7 @@ module Unison.Runtime.MCode
     MLit (..),
     GInstr (..),
     Instr,
+    RInstr,
     GSection (.., MatchT, MatchW),
     RSection,
     Section,
@@ -27,6 +28,7 @@ module Unison.Runtime.MCode
     RCombs,
     CombIx (..),
     GRef (..),
+    RRef,
     Ref,
     UPrim1 (..),
     UPrim2 (..),
@@ -454,6 +456,8 @@ data MLit
 
 type Instr = GInstr CombIx
 
+type RInstr = GInstr RComb
+
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
 data GInstr comb
@@ -627,8 +631,12 @@ type RCombs = GCombs RComb
 pattern RCombIx :: CombIx -> RComb
 pattern RCombIx r <- (rCombIx -> r)
 
+{-# COMPLETE RCombIx #-}
+
 pattern RCombRef :: Reference -> RComb
 pattern RCombRef r <- (combRef . rCombIx -> r)
+
+{-# COMPLETE RCombRef #-}
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
 data RComb = RComb
@@ -647,6 +655,8 @@ instance Show RComb where
 type GCombs comb = EnumMap Word64 (GComb comb)
 
 type Ref = GRef CombIx
+
+type RRef = GRef RComb
 
 data GRef comb
   = Stk !Int -- stack reference to a closure

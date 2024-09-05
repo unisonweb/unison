@@ -100,8 +100,9 @@ import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
+    CombIx,
+    GInstr (..),
     GSection (..),
-    Instr (..),
     RCombs,
     RefNums (..),
     combDeps,
@@ -127,6 +128,7 @@ import Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     reifyValue,
+    resolveSection,
   )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
@@ -991,15 +993,13 @@ evalInContext ppe ctx activeThreads w = do
   pure $ finish result
 
 executeMainComb ::
-  Word64 ->
+  CombIx ->
   CCache ->
   IO (Either (Pretty ColorText) ())
 executeMainComb init cc = do
+  rSection <- resolveSection cc $ Ins (Pack RF.unitRef 0 ZArgs) $ Call True init (BArg1 0)
   result <-
-    UnliftIO.try
-      . eval0 cc Nothing
-      . Ins (Pack RF.unitRef 0 ZArgs)
-      $ Call True init (BArg1 0)
+    UnliftIO.try . eval0 cc Nothing $ rSection
   case result of
     Left err -> Left <$> formatErr err
     Right () -> pure (Right ())
@@ -1129,6 +1129,7 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
       (,,,)
         <$> deserialize
         <*> deserialize
+        -- TODO: Check where this is encoded.
         <*> getNat
         <*> getStoredCache
 
@@ -1188,7 +1189,7 @@ tryM =
     hRE (PE _ e) = pure $ Just e
     hRE (BU _ _ _) = pure $ Just "impossible"
 
-runStandalone :: StoredCache -> Word64 -> IO (Either (Pretty ColorText) ())
+runStandalone :: StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =
   restoreCache sc >>= executeMainComb init
 

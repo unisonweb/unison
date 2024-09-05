@@ -34,7 +34,8 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), RComb (..), pattern RCombIx)
 import Unison.Runtime.Stack
-  ( Closure (..),
+  ( Closure,
+    GClosure (..),
     pattern DataC,
     pattern PApV,
   )
