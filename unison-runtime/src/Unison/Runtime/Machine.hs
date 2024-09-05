@@ -138,9 +138,10 @@ baseCCache sandboxed = do
 
     combs :: EnumMap Word64 RCombs
     ~combs =
-      mapWithKey
-        (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
-        numberedTermLookup
+      ( mapWithKey
+          (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
+          numberedTermLookup
+      )
         & resolveCombs Nothing
 
 info :: (Show a) => String -> a -> IO ()
@@ -1937,12 +1938,12 @@ unhandledErr fname env i =
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
 rCombSection :: EnumMap Word64 RCombs -> CombIx -> RComb
-rCombSection combs cix@(CIx _ n i) =
+rCombSection combs cix@(CIx r n i) =
   case EC.lookup n combs of
     Just cmbs -> case EC.lookup i cmbs of
       Just cmb -> RComb cix cmb
-      Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`."
-    Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+      Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`. Reference: " ++ show r
+    Nothing -> error $ "unknown combinator `" ++ show n ++ "`. Reference: " ++ show r
 
 resolveSection :: CCache -> Section -> IO RSection
 resolveSection cc section = do
@@ -1975,8 +1976,8 @@ updateMap new0 r = do
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
 
-modifyMap :: (s -> s) -> TVar s -> STM s
-modifyMap f r = stateTVar r $ \old -> let new = f old in (new, new)
+modifyMap :: TVar s -> (s -> s) -> STM s
+modifyMap r f = stateTVar r $ \old -> let new = f old in (new, new)
 
 refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
 refLookup s m r
@@ -2131,7 +2132,9 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
       combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
       combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- modifyMap (\oldCombs -> (resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs)) (combs cc)
+  ncs <- modifyMap (combs cc) \oldCombs ->
+    let newCombs = resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs
+     in newCombs <> oldCombs
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
