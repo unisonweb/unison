@@ -1205,7 +1205,8 @@ foo = "alice and bobs foo"
   do an `add` or `update`, here's how your codebase would
   change:
   
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
     
       foo : Text
 
@@ -2399,14 +2400,8 @@ type Bar = MkBar Foo
 
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      type Bar
-      type Foo
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
 
 ```
 ``` ucm
@@ -2420,7 +2415,7 @@ scratch/merge-bob-into-alice> update
 scratch/merge-bob-into-alice> names Bar
 
   Type
-  Hash:  #il57732sur
+  Hash:  #h3af39sae7
   Names: Bar
 
 scratch/alice> names Bar
