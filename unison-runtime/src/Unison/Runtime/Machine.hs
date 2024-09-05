@@ -709,7 +709,7 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
   -- detecting saturated calls.
   eval env denv activeThreads ustk bstk k dummyRef entry
   where
-    (RComb _ (Lam _rf ua ba uf bf entry)) = rcomb
+    (RComb _ (Lam ua ba uf bf entry)) = rcomb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -737,7 +737,7 @@ apply ::
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
   case unRComb comb of
-    Lam _rf ua ba uf bf entry
+    Lam ua ba uf bf entry
       | ck || ua <= uac && ba <= bac -> do
           ustk <- ensure ustk uf
           bstk <- ensure bstk bf
@@ -1837,7 +1837,7 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
     leap !denv (Push ufsz bfsz uasz basz rComb k) = do
-      let Lam _rf _ _ uf bf nx = unRComb rComb
+      let Lam _ _ uf bf nx = unRComb rComb
       ustk <- restoreFrame ustk ufsz uasz
       bstk <- restoreFrame bstk bfsz basz
       ustk <- ensure ustk uf

@@ -122,6 +122,8 @@ instance ForeignConvention Char where
     ustk <- bump ustk
     (ustk, bstk) <$ poke ustk (Char.ord ch)
 
+-- In reality this fixes the type to be 'RClosure', but allows us to defer
+-- the typechecker a bit and avoid a bunch of annoying type annotations.
 instance (GClosure comb ~ Elem 'BX) => ForeignConvention (GClosure comb) where
   readForeign us (i : bs) _ bstk = (us,bs,) <$> peekOff bstk i
   readForeign _ [] _ _ = foreignCCError "Closure"
@@ -437,6 +439,8 @@ instance ForeignConvention BufferMode where
           ustk <- bump ustk
           (ustk, bstk) <$ poke ustk sblock'buf
 
+-- In reality this fixes the type to be 'RClosure', but allows us to defer
+-- the typechecker a bit and avoid a bunch of annoying type annotations.
 instance (GClosure comb ~ Elem 'BX) => ForeignConvention [GClosure comb] where
   readForeign us (i : bs) _ bstk =
     (us,bs,) . toList <$> peekOffS bstk i

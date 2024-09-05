@@ -32,7 +32,7 @@ import Unison.Runtime.Foreign
     maybeUnwrapForeign,
   )
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
-import Unison.Runtime.MCode (CombIx (..), GComb (..), RComb (..), pattern RCombIx)
+import Unison.Runtime.MCode (CombIx (..), pattern RCombIx, pattern RCombRef)
 import Unison.Runtime.Stack
   ( Closure,
     GClosure (..),
@@ -173,7 +173,7 @@ decompile backref topTerms (PApV (RCombIx (CIx rf rt k)) [] bs)
     Just _ <- topTerms rt 0 =
       err (UnkLocal rf k) $ bug "<Unknown>"
   | otherwise = err (UnkComb rf) $ ref () rf
-decompile _ _ (PAp (RComb _cix (Lam rf _ _ _ _ _)) _ _) =
+decompile _ _ (PAp (RCombRef rf) _ _) =
   err (BadPAp rf) $ bug "<Unknown>"
 decompile _ _ (DataC rf _ _ _) = err (BadData rf) $ bug "<Data>"
 decompile _ _ BlackHole = err Exn $ bug "<Exception>"
