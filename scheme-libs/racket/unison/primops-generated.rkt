@@ -1053,16 +1053,20 @@
   (define deps
     (map reference->termlink
          (chunked-list->list (value-term-dependencies val))))
-  (define-values (ndeps hdeps) (partition need-code? deps))
 
-  (cond
-    [(not (null? ndeps))
-     (sum 0 (list->chunked-list ndeps))]
-    [else
-     (define ldeps (filter need-code-loaded? hdeps))
-     (define to-load (resolve-unloaded ldeps))
-     (add-runtime-code-proc #f to-load)
-     (sum 1 (reify-value val))]))
+  (namespace-call-with-registry-lock runtime-namespace
+    (lambda ()
+
+      (define-values (ndeps hdeps) (partition need-code? deps))
+
+      (cond
+        [(not (null? ndeps))
+         (sum 0 (list->chunked-list ndeps))]
+        [else
+         (define ldeps (filter need-code-loaded? hdeps))
+         (define to-load (resolve-unloaded ldeps))
+         (add-runtime-code-proc #f to-load)
+         (sum 1 (reify-value val))]))))
 
 (define (unison-POp-LKUP tl) (lookup-code tl))
 
