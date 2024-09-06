@@ -626,11 +626,13 @@ type Combs = GCombs CombIx
 
 type RCombs = GCombs RComb
 
+-- | Extract the CombIx from an RComb.
 pattern RCombIx :: CombIx -> RComb
 pattern RCombIx r <- (rCombIx -> r)
 
 {-# COMPLETE RCombIx #-}
 
+-- | Extract the Reference from an RComb.
 pattern RCombRef :: Reference -> RComb
 pattern RCombRef r <- (combRef . rCombIx -> r)
 
@@ -641,8 +643,9 @@ data RComb = RComb
   { rCombIx :: !CombIx,
     unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
   }
-  deriving (Eq, Ord)
+  deriving stock (Eq, Ord)
 
+-- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
 rCombToComb :: RComb -> Comb
 rCombToComb (RComb _ix c) = rCombIx <$> c
 
@@ -650,18 +653,18 @@ rCombToComb (RComb _ix c) = rCombIx <$> c
 instance Show RComb where
   show _ = "<RComb>"
 
+-- | Map of combinators, parameterized by comb reference type
 type GCombs comb = EnumMap Word64 (GComb comb)
 
+-- | A reference to a combinator, parameterized by comb
 type Ref = GRef CombIx
 
 type RRef = GRef RComb
 
 data GRef comb
   = Stk !Int -- stack reference to a closure
-  | Env !comb
-  | -- !Word64 -- global environment reference to a combinator
-    -- !Word64 -- section
-    Dyn !Word64 -- dynamic scope reference to a closure
+  | Env !comb -- direct reference to comb, usually embedded as an RComb
+  | Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Branch = GBranch CombIx
@@ -799,8 +802,8 @@ resolveCombs ::
   EnumMap Word64 Combs ->
   EnumMap Word64 RCombs
 resolveCombs mayExisting combs =
-  -- Fixed point lookup; make sure all uses of Combs are non-strict
-  -- or we'll loop forever.
+  -- Fixed point lookup;
+  -- We make sure not to force resolved Combs or we'll loop forever.
   let ~resolved =
         combs
           <&> (fmap . fmap) \(cix@(CIx _ n i)) ->

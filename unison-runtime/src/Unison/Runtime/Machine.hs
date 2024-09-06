@@ -137,7 +137,7 @@ baseCCache sandboxed = do
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
     combs :: EnumMap Word64 RCombs
-    ~combs =
+    combs =
       ( mapWithKey
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
           numberedTermLookup
@@ -1949,20 +1949,6 @@ resolveSection :: CCache -> Section -> IO RSection
 resolveSection cc section = do
   rcombs <- readTVarIO (combs cc)
   pure $ rCombSection rcombs <$> section
-
--- combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
--- combSection env (CIx _ n i) =
---   readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
---     Just cmbs -> case EC.lookup i cmbs of
---       Just cmb -> pure cmb
---       Nothing ->
---         die $
---           "unknown section `"
---             ++ show i
---             ++ "` of combinator `"
---             ++ show n
---             ++ "`."
---     Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
 
 dummyRef :: Reference
 dummyRef = Builtin (DTx.pack "dummy")

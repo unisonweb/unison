@@ -664,7 +664,6 @@ interpCompile version ctxVar cl ppe rf path = tryM $ do
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
-  -- TODO: Check with Dan that this is correct
   let combIx = CIx rf w 0
   sto <- standalone cc w
   BL.writeFile path . runPutL $ do
