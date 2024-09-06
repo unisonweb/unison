@@ -101,6 +101,7 @@ import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
+    Combs,
     GInstr (..),
     GSection (..),
     RCombs,
@@ -1131,7 +1132,6 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
       (,,,)
         <$> deserialize
         <*> deserialize
-        -- TODO: Check where this is encoded.
         <*> getCombIx
         <*> getStoredCache
 
@@ -1195,9 +1195,11 @@ runStandalone :: StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =
   restoreCache sc >>= executeMainComb init
 
+-- | A version of the Code Cache designed to be serialized to disk as
+-- standalone bytecode.
 data StoredCache
   = SCache
-      (EnumMap Word64 RCombs)
+      (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
       (EnumMap Word64 Reference)
       Word64
@@ -1210,7 +1212,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb putRComb)) cs
+  putEnumMap putNat (putEnumMap putNat (putComb putCombIx)) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1223,7 +1225,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getRComb))
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getCombIx))
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1253,7 +1255,7 @@ tabulateErrors errs =
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
   CCache builtinForeigns False debugText
-    <$> newTVarIO (cs <> combs)
+    <$> newTVarIO combs
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
     <*> newTVarIO ftm
@@ -1280,10 +1282,9 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     rf k = builtinTermBackref ! k
     combs :: EnumMap Word64 RCombs
     combs =
-      mapWithKey
-        (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v))
-        numberedTermLookup
-        & resolveCombs Nothing
+      let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
+       in builtinCombs <> cs
+            & resolveCombs Nothing
 
 traceNeeded ::
   Word64 ->
@@ -1299,7 +1300,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
-  EnumMap Word64 RCombs ->
+  EnumMap Word64 Combs ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Word64 ->
@@ -1325,7 +1326,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx =
     crs = restrictTmW crsrc
     termRefs = foldMap Set.singleton crs
 
-    typeKeys = setFromList $ (foldMap . foldMap) (combTypes . fmap rCombIx) cs
+    typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
     trs = restrictTyW trsrc
     typeRefs = foldMap Set.singleton trs
 
@@ -1339,7 +1340,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx =
 standalone :: CCache -> Word64 -> IO StoredCache
 standalone cc init =
   buildSCache
-    <$> (readTVarIO (combs cc) >>= traceNeeded init)
+    <$> (readTVarIO (combs cc) >>= traceNeeded init >>= pure . unTieRCombs)
     <*> readTVarIO (combRefs cc)
     <*> readTVarIO (tagRefs cc)
     <*> readTVarIO (freshTm cc)
@@ -1348,3 +1349,6 @@ standalone cc init =
     <*> readTVarIO (refTm cc)
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
+  where
+    unTieRCombs :: EnumMap Word64 RCombs -> EnumMap Word64 Combs
+    unTieRCombs = fmap . fmap . fmap $ rCombIx

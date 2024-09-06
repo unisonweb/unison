@@ -47,7 +47,6 @@ module Unison.Runtime.MCode
     combRef,
     rCombRef,
     combDeps,
-    rCombDeps,
     combTypes,
     prettyCombs,
     prettyComb,
@@ -1534,9 +1533,6 @@ demuxArgs as0 =
     (us, []) -> UArgN $ primArrayFromList us
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
-
-rCombDeps :: RComb -> [Word64]
-rCombDeps = combDeps . rCombToComb
 
 combDeps :: Comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
