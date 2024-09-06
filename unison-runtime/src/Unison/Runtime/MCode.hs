@@ -638,8 +638,8 @@ pattern RCombRef r <- (combRef . rCombIx -> r)
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
 data RComb = RComb
-  { rCombIx :: CombIx,
-    unRComb :: GComb RComb
+  { rCombIx :: !CombIx,
+    unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
   }
   deriving (Eq, Ord)
 

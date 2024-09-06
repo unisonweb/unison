@@ -100,7 +100,7 @@ type Closure = GClosure RComb
 
 data GClosure comb
   = PAp
-      comb {- Possibly recursive comb, keep it lazy or risk blowing up -}
+      !comb
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
       !(Seg 'BX) -- boxed args
