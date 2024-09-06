@@ -654,7 +654,12 @@
      (match id
        [(unison-data _ t (list rf i))
         #:when (= t ref-id-id:tag)
-        (unison-termlink-derived rf i)])]))
+        (unison-termlink-derived rf i)])]
+    [else
+     (raise-argument-error
+       'reference->termlink
+       "unison-reference?"
+       rf)]))
 
 (define (referent->termlink rn)
   (match rn
