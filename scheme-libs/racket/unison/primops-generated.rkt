@@ -858,9 +858,6 @@
     ; code declarations
     ,@codecls
 
-    ; termlink registrations
-    ,@lndecs
-
     ,(if profile?
        `(profile
           (handle [ref-exception] top-exn-handler (,pname #f))

@@ -226,15 +226,6 @@
 (define (current-microseconds)
   (fl->fx (* 1000 (current-inexact-milliseconds))))
 
-(define (list-head l n)
-  (let rec ([c l] [m n])
-    (cond
-      [(eqv? m 0) '()]
-      [(null? c) '()]
-      [else
-        (let ([sub (rec (cdr c) (- m 1))])
-          (cons (car c) sub))])))
-
 ; Simple macro to expand a syntactic sequence of comparisons into a
 ; short-circuiting nested comparison.
 (define-syntax comparisons
