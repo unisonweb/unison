@@ -11,7 +11,7 @@ flags:
 
 when:
   - condition: flag(optimized)
-    ghc-options: -funbox-strict-fields -O
+    ghc-options: -funbox-strict-fields -O2
 
 library:
   source-dirs: src
