@@ -43,6 +43,7 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
+    resolveFFs,
     emptyRNs,
     combRef,
     rCombRef,
@@ -53,17 +54,17 @@ module Unison.Runtime.MCode
   )
 where
 
-import Data.Bifunctor (bimap, first)
+import Control.Lens hiding (un)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
-import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
-import Data.Word (Word16, Word64)
-import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
+import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF
@@ -403,9 +404,7 @@ type Instr = GInstr FFRef CombIx
 type RInstr ff = GInstr ff (RComb ff)
 
 -- | Reference to a foreign function.
-newtype FFRef = FFRef Word64
-  deriving stock (Show)
-  deriving newtype (Eq, Ord, Num, Enum, Integral, Real)
+type FFRef = Word64
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -476,6 +475,34 @@ data GInstr ff comb
     TryForce !Int
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
+instance Bifunctor GInstr where
+  bimap = bimapDefault
+
+instance Bifoldable GInstr where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable GInstr where
+  bitraverse f g = \case
+    UPrim1 p i -> pure $ UPrim1 p i
+    UPrim2 p i j -> pure $ UPrim2 p i j
+    BPrim1 p i -> pure $ BPrim1 p i
+    BPrim2 p i j -> pure $ BPrim2 p i j
+    ForeignCall b ff as -> ForeignCall b <$> (f ff) <*> pure as
+    SetDyn p i -> pure $ SetDyn p i
+    Capture p -> pure $ Capture p
+    Name r as -> Name <$> traverse g r <*> pure as
+    Info s -> pure $ Info s
+    Pack r t as -> pure $ Pack r t as
+    Unpack r i -> pure $ Unpack r i
+    Lit l -> pure $ Lit l
+    BLit r l -> pure $ BLit r l
+    Print i -> pure $ Print i
+    Reset ps -> pure $ Reset ps
+    Fork i -> pure $ Fork i
+    Atomically i -> pure $ Atomically i
+    Seq as -> pure $ Seq as
+    TryForce i -> pure $ TryForce i
+
 type Section = GSection FFRef CombIx
 
 type RSection ff = GSection ff (RComb ff)
@@ -538,6 +565,27 @@ data GSection ff comb
       !(EnumMap Word64 (GBranch ff comb)) -- effect cases
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
+instance Bifunctor GSection where
+  bimap = bimapDefault
+
+instance Bifoldable GSection where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable GSection where
+  bitraverse f g = \case
+    App b r a -> App b <$> traverse g r <*> pure a
+    Call b r a -> Call b <$> g r <*> pure a
+    Jump i a -> Jump i <$> pure a
+    Match i bs -> Match i <$> bitraverse f g bs
+    Yield a -> pure $ Yield a
+    Ins i s -> Ins <$> bitraverse f g i <*> bitraverse f g s
+    Let s r -> Let <$> bitraverse f g s <*> g r
+    Die s -> pure $ Die s
+    Exit -> pure Exit
+    DMatch r i bs -> DMatch r i <$> bitraverse f g bs
+    NMatch r i bs -> NMatch r i <$> bitraverse f g bs
+    RMatch i p cs -> RMatch i <$> bitraverse f g p <*> traverse (bitraverse f g) cs
+
 data CombIx
   = CIx
       !Reference -- top reference
@@ -571,6 +619,15 @@ data GComb ff comb
       !Int -- Maximum needed boxed frame size
       !(GSection ff comb) -- Entry
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+instance Bifunctor GComb where
+  bimap f g (Lam u b uf bf s) = Lam u b uf bf (bimap f g s)
+
+instance Bifoldable GComb where
+  bifoldMap f g (Lam _ _ _ _ s) = bifoldMap f g s
+
+instance Bitraversable GComb where
+  bitraverse f g (Lam u b uf bf s) = Lam u b uf bf <$> bitraverse f g s
 
 type Combs = GCombs FFRef CombIx
 
@@ -647,6 +704,19 @@ data GBranch ff comb
       !(GSection ff comb)
       !(M.Map Text (GSection ff comb))
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+instance Bifunctor GBranch where
+  bimap = bimapDefault
+
+instance Bifoldable GBranch where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable GBranch where
+  bitraverse f g = \case
+    Test1 t t1 t2 -> Test1 t <$> bitraverse f g t1 <*> bitraverse f g t2
+    Test2 m t1 n t2 e -> Test2 m <$> bitraverse f g t1 <*> pure n <*> bitraverse f g t2 <*> bitraverse f g e
+    TestW d cs -> TestW <$> bitraverse f g d <*> traverse (bitraverse f g) cs
+    TestT d cs -> TestT <$> bitraverse f g d <*> traverse (bitraverse f g) cs
 
 -- Convenience patterns for matches used in the algorithms below.
 pattern MatchW :: Int -> (GSection ff comb) -> EnumMap Word64 (GSection ff comb) -> (GSection ff comb)
@@ -753,7 +823,6 @@ emitCombs rns grpr grpn (Rec grp ent) =
 -- tying the knot recursively when necessary.
 resolveCombs ::
   -- Existing in-scope combs that might be referenced
-  -- TODO: Do we ever actually need to pass this?
   Maybe (EnumMap Word64 (RCombs ff)) ->
   -- Combinators which need their knots tied.
   EnumMap Word64 (GCombs ff CombIx) ->
@@ -780,6 +849,14 @@ resolveCombs mayExisting combs =
                         ++ show n
                         ++ "`."
    in resolved
+
+resolveFFs :: EnumMap FFRef ff -> EnumMap Word64 (EnumMap Word64 Comb) -> EnumMap Word64 (GCombs ff CombIx)
+resolveFFs ffs combs =
+  combs
+    & traversed . traversed . first_ %~ \ffRef ->
+      case EC.lookup ffRef ffs of
+        Just ff -> ff
+        Nothing -> error $ "unknown foreign function: " <> show ffRef
 
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the

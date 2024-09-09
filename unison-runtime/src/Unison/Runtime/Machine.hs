@@ -93,7 +93,7 @@ data Tracer
 
 -- code caching environment
 data CCache = CCache
-  { foreignFuncs :: EnumMap Word64 ForeignFunc,
+  { foreignFuncs :: EnumMap FFRef ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
     combs :: TVar (EnumMap Word64 (RCombs ForeignFunc)),
@@ -141,7 +141,10 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO baseSandboxInfo
   where
-    ffuncs | sandboxed = sandboxedForeigns | otherwise = builtinForeigns
+    ffuncs :: EnumMap FFRef ForeignFunc
+    ffuncs
+      | sandboxed = sandboxedForeigns
+      | otherwise = builtinForeigns
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
@@ -154,6 +157,7 @@ baseCCache sandboxed = do
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
           numberedTermLookup
       )
+        & resolveFFs ffuncs
         & resolveCombs Nothing
 
 info :: (Show a) => String -> a -> IO ()
@@ -531,12 +535,9 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Seq as) = do
   bstk <- bump bstk
   pokeS bstk $ Sq.fromList l
   pure (denv, ustk, bstk, k)
-exec !env !denv !_activeThreads !ustk !bstk !k _ (ForeignCall _ w args)
-  | Just (FF arg res ev) <- EC.lookup w (foreignFuncs env) =
-      uncurry (denv,,,k)
-        <$> (arg ustk bstk args >>= ev >>= res ustk bstk)
-  | otherwise =
-      die $ "reference to unknown foreign function: " ++ show w
+exec !_env !denv !_activeThreads !ustk !bstk !k _ (ForeignCall _ (FF arg res ev) args) =
+  uncurry (denv,,,k)
+    <$> (arg ustk bstk args >>= ev >>= res ustk bstk)
 exec !env !denv !activeThreads !ustk !bstk !k _ (Fork i)
   | sandboxed env = die "attempted to use sandboxed operation: fork"
   | otherwise = do
@@ -1960,7 +1961,9 @@ rCombSection combs cix@(CIx r n i) =
 resolveSection :: CCache -> Section -> IO MSection
 resolveSection cc section = do
   rcombs <- readTVarIO (combs cc)
-  pure $ rCombSection rcombs <$> section
+  pure $ rCombSection rcombs <$> first lookupFF section
+  where
+    lookupFF ffRef = fromMaybe (error $ "Unknown foreign function: " <> show ffRef) $ EC.lookup ffRef (foreignFuncs cc)
 
 dummyRef :: Reference
 dummyRef = Builtin (DTx.pack "dummy")
@@ -2131,7 +2134,7 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
       combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
   ncs <- modifyMap (combs cc) \oldCombs ->
-    let newCombs = resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs
+    let newCombs = resolveCombs (Just oldCombs) . resolveFFs (foreignFuncs cc) . mapFromList $ zipWith combinate [ntm ..] rgs
      in newCombs <> oldCombs
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()

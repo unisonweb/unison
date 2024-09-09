@@ -46,13 +46,17 @@ module Unison.Prelude
     view,
     set,
     over,
+
+    -- * Handy Traversals
+    first_,
+    second_,
   )
 where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
-import Control.Lens (over, set, view, (%~), (.~), (^.))
+import Control.Lens (Traversal, over, set, view, (%~), (.~), (^.))
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
@@ -60,6 +64,9 @@ import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
 import Data.Bifunctor as X (Bifunctor (..))
+-- #labelSyntax for generics-derived lenses
+
+import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString as X (ByteString)
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
@@ -69,7 +76,6 @@ import Data.Foldable as X (fold, foldl', for_, toList, traverse_)
 import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Functor.Identity as X
--- #labelSyntax for generics-derived lenses
 import Data.Generics.Labels ()
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)
@@ -290,3 +296,9 @@ reportBug bugId msg =
 {-# WARNING wundefined "You left this wundefined." #-}
 wundefined :: (HasCallStack) => a
 wundefined = undefined
+
+first_ :: (Bitraversable t) => Traversal (t a c) (t b c) a b
+first_ f = bitraverse f pure
+
+second_ :: (Bitraversable t) => Traversal (t c a) (t c b) a b
+second_ f = bitraverse pure f
