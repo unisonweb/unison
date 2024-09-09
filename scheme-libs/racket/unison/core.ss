@@ -42,6 +42,7 @@
 
   decode-value
   describe-value
+  describe-hash
 
   bytevector->string/utf-8
   string->bytevector/utf-8)
@@ -195,17 +196,13 @@
      (string-append "{Code " (describe-value v) "}")]
     [(unison-cont-reflected fs) "{Continuation}"]
     [(unison-cont-wrapped _) "{Continuation}"]
-    [(unison-closure _ code env)
-     (define dc
-       (termlink->string (lookup-function-link code) #t))
+    [(unison-closure gr code env)
+     (define dc (groupref->string gr #t))
      (define (f v)
        (string-append " " (describe-value v)))
 
      (string-append* dc (map f env))]
-    [(? procedure?)
-     (string-append
-       "ref"
-       (termlink->string (lookup-function-link x) #t))]
+    [(? procedure?) (describe-value (build-closure x))]
     [(? chunked-list?)
      (describe-list-sq (vector->list (chunked-list->vector x)))]
     [(? chunked-string?)
@@ -229,15 +226,6 @@
 (define (current-microseconds)
   (fl->fx (* 1000 (current-inexact-milliseconds))))
 
-(define (list-head l n)
-  (let rec ([c l] [m n])
-    (cond
-      [(eqv? m 0) '()]
-      [(null? c) '()]
-      [else
-        (let ([sub (rec (cdr c) (- m 1))])
-          (cons (car c) sub))])))
-
 ; Simple macro to expand a syntactic sequence of comparisons into a
 ; short-circuiting nested comparison.
 (define-syntax comparisons
@@ -254,6 +242,8 @@
   (let rec ([cls ls] [crs rs])
     (cond
       [(and (null? cls) (null? crs)) '=]
+      [(null? cls) '<]
+      [(null? crs) '>]
       [else
         (comparisons
           (universal-compare (car cls) (car crs) cmp-ty)
@@ -285,6 +275,22 @@
           (compare-num i j))]
        [(? unison-typelink-builtin?) '>])]))
 
+(define (compare-groupref lr rr)
+  (match lr
+    [(unison-groupref-builtin lname)
+     (match rr
+       [(unison-groupref-builtin rname)
+        (compare-string lname rname)]
+       [else '<])]
+    [(unison-groupref-derived lh li ll)
+     (match rr
+       [(unison-groupref-derived rh ri rl)
+        (comparisons
+          (compare-bytes lh rh)
+          (compare-num li ri)
+          (compare-num ll rl))]
+       [else '>])]))
+
 (define (compare-termlink ll rl)
   (match ll
     [(unison-termlink-builtin lnm)
@@ -310,8 +316,8 @@
 
 (define (value->category v)
   (cond
-    [(procedure? v) 0]
     [(unison-closure? v) 0]
+    [(procedure? v) 0]
     [(number? v) 1]
     [(char? v) 1]
     [(boolean? v) 1]
@@ -350,18 +356,18 @@
 
 (define (compare-proc l r cmp-ty)
   (define (unpack v)
-    (if (procedure? v)
-      (values (lookup-function-link v) '())
-      (values
-        (lookup-function-link (unison-closure-code v))
-        (unison-closure-env v))))
+    (define clo (build-closure v))
 
-  (define-values (lnl envl) (unpack l))
+    (values
+      (unison-closure-ref clo)
+      (unison-closure-env clo)))
 
-  (define-values (lnr envr) (unpack r))
+  (define-values (grl envl) (unpack l))
+
+  (define-values (grr envr) (unpack r))
 
   (comparisons
-    (compare-termlink lnl lnr)
+    (compare-groupref grl grr)
     (lexico-compare envl envr cmp-ty)))
 
 (define (compare-timespec l r)
@@ -386,7 +392,7 @@
      (chunked-bytes-compare/recur l r compare-byte)]
     [(and (unison-data? l) (unison-data? r)) (compare-data l r cmp-ty)]
     [(and (bytes? r) (bytes? r)) (compare-bytes l r)]
-    [(and (u-proc? l) (u-proc? r)) (compare-proc l r)]
+    [(and (u-proc? l) (u-proc? r)) (compare-proc l r cmp-ty)]
     [(and (unison-termlink? l) (unison-termlink? r))
      (compare-termlink l r)]
     [(and (unison-typelink? l) (unison-typelink? r))

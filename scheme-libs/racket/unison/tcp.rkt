@@ -102,7 +102,7 @@
                 ref-unit-unit))] ]
         (let ([listener (tcp-listen
                           (string->number port)
-                          4
+                          2048
                           #t
                           (if (equal? 0 hostname) #f hostname))])
           (right listener))))))
