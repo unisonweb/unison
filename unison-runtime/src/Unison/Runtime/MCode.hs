@@ -572,7 +572,7 @@ data GComb ff comb
       !(GSection ff comb) -- Entry
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs ff = GCombs ff CombIx
+type Combs = GCombs FFRef CombIx
 
 type RCombs ff = GCombs ff (RComb ff)
 
@@ -626,7 +626,7 @@ data GRef comb
 
 type Branch = GBranch FFRef CombIx
 
-type RBranch ff = GBranch (RComb ff)
+type RBranch ff = GBranch ff (RComb ff)
 
 data GBranch ff comb
   = -- if tag == n then t else f
@@ -756,7 +756,7 @@ resolveCombs ::
   -- TODO: Do we ever actually need to pass this?
   Maybe (EnumMap Word64 (RCombs ff)) ->
   -- Combinators which need their knots tied.
-  EnumMap Word64 (Combs ff) ->
+  EnumMap Word64 (GCombs ff CombIx) ->
   EnumMap Word64 (RCombs ff)
 resolveCombs mayExisting combs =
   -- Fixed point lookup;

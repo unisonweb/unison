@@ -117,6 +117,7 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    MCombs,
     Tracer (..),
     apply0,
     baseCCache,
@@ -1279,7 +1280,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
-    combs :: EnumMap Word64 RCombs
+    combs :: EnumMap Word64 MCombs
     combs =
       let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
        in builtinCombs <> cs
@@ -1287,8 +1288,8 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
 
 traceNeeded ::
   Word64 ->
-  EnumMap Word64 RCombs ->
-  IO (EnumMap Word64 RCombs)
+  EnumMap Word64 MCombs ->
+  IO (EnumMap Word64 MCombs)
 traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
   where
     ks = keysSet numberedTermLookup
@@ -1349,5 +1350,5 @@ standalone cc init =
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
   where
-    unTieRCombs :: EnumMap Word64 RCombs -> EnumMap Word64 Combs
+    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 Combs
     unTieRCombs = fmap . fmap . fmap $ rCombIx

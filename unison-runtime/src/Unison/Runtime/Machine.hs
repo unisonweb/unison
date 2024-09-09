@@ -62,6 +62,18 @@ import UnliftIO (IORef)
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
+type MInstr = RInstr ForeignFunc
+
+type MSection = RSection ForeignFunc
+
+type MComb = RComb ForeignFunc
+
+type MCombs = RCombs ForeignFunc
+
+type MBranch = RBranch ForeignFunc
+
+type MRef = RRef ForeignFunc
+
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
 -- completes. We track threads when running in a host process like UCM,
@@ -84,7 +96,7 @@ data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
-    combs :: TVar (EnumMap Word64 RCombs),
+    combs :: TVar (EnumMap Word64 (RCombs ForeignFunc)),
     combRefs :: TVar (EnumMap Word64 Reference),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
@@ -136,7 +148,7 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
-    combs :: EnumMap Word64 RCombs
+    combs :: EnumMap Word64 MCombs
     combs =
       ( mapWithKey
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
@@ -158,7 +170,7 @@ stk'info s@(BS _ _ sp _) = do
   prn sp
 
 -- Entry point for evaluating a section
-eval0 :: CCache -> ActiveThreads -> RSection -> IO ()
+eval0 :: CCache -> ActiveThreads -> MSection -> IO ()
 eval0 !env !activeThreads !co = do
   ustk <- alloc
   bstk <- alloc
@@ -168,7 +180,7 @@ eval0 !env !activeThreads !co = do
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
-  EnumMap Word64 RCombs ->
+  EnumMap Word64 (RCombs ForeignFunc) ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
   (DEnv, K -> K)
@@ -274,7 +286,7 @@ exec ::
   Stack 'BX ->
   K ->
   Reference ->
-  RInstr ->
+  MInstr ->
   IO (DEnv, Stack 'UN, Stack 'BX, K)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Info tx) = do
   info tx ustk
@@ -600,7 +612,7 @@ eval ::
   Stack 'BX ->
   K ->
   Reference ->
-  RSection ->
+  MSection ->
   IO ()
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
@@ -698,7 +710,7 @@ enter ::
   K ->
   Bool ->
   Args ->
-  RComb ->
+  MComb ->
   IO ()
 enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
   ustk <- if ck then ensure ustk uf else pure ustk
@@ -1849,11 +1861,11 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
 {-# INLINE yield #-}
 
 selectTextBranch ::
-  Util.Text.Text -> RSection -> M.Map Util.Text.Text RSection -> RSection
+  Util.Text.Text -> MSection -> M.Map Util.Text.Text MSection -> MSection
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
-selectBranch :: Tag -> RBranch -> RSection
+selectBranch :: Tag -> MBranch -> MSection
 selectBranch t (Test1 u y n)
   | t == u = y
   | otherwise = n
@@ -1922,7 +1934,7 @@ discardCont denv ustk bstk k p =
     <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
-resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
+resolve :: CCache -> DEnv -> Stack 'BX -> MRef -> IO Closure
 resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
@@ -1937,7 +1949,7 @@ unhandledErr fname env i =
   where
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
-rCombSection :: EnumMap Word64 RCombs -> CombIx -> RComb
+rCombSection :: EnumMap Word64 MCombs -> CombIx -> MComb
 rCombSection combs cix@(CIx r n i) =
   case EC.lookup n combs of
     Just cmbs -> case EC.lookup i cmbs of
@@ -1945,7 +1957,7 @@ rCombSection combs cix@(CIx r n i) =
       Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`. Reference: " ++ show r
     Nothing -> error $ "unknown combinator `" ++ show n ++ "`. Reference: " ++ show r
 
-resolveSection :: CCache -> Section -> IO RSection
+resolveSection :: CCache -> Section -> IO MSection
 resolveSection cc section = do
   rcombs <- readTVarIO (combs cc)
   pure $ rCombSection rcombs <$> section
@@ -2249,7 +2261,7 @@ reifyValue cc val = do
     (tyLinks, tmLinks) = valueLinks f val
 
 reifyValue0 ::
-  (EnumMap Word64 RCombs, M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
   ANF.Value ->
   IO Closure
 reifyValue0 (combs, rty, rtm) = goV
@@ -2261,7 +2273,7 @@ reifyValue0 (combs, rty, rtm) = goV
     refTm r
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
-    goIx :: ANF.GroupRef -> IO RComb
+    goIx :: ANF.GroupRef -> IO MComb
     goIx (ANF.GR r i) =
       refTm r <&> \n ->
         rCombSection combs (CIx r n i)
