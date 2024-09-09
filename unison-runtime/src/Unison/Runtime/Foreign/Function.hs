@@ -55,8 +55,6 @@ import Unison.Util.Bytes (Bytes)
 import Unison.Util.RefPromise (Promise)
 import Unison.Util.Text (Text, pack, unpack)
 
-type ForeignFunc = GForeignFunc Stack
-
 class ForeignConvention a where
   readForeign ::
     [Int] -> [Int] -> Stack 'UN -> Stack 'BX -> IO ([Int], [Int], a)
@@ -67,7 +65,7 @@ mkForeign ::
   (ForeignConvention a, ForeignConvention r) =>
   (a -> IO r) ->
   ForeignFunc
-mkForeign ev = FF readArgs writeForeign ev
+mkForeign ev = FF () readArgs writeForeign ev
   where
     readArgs ustk bstk (argsToLists -> (us, bs)) =
       readForeign us bs ustk bstk >>= \case

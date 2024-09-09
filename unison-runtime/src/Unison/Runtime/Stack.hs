@@ -12,6 +12,7 @@ module Unison.Runtime.Stack
     Closure,
     RClosure,
     IxClosure,
+    ForeignFunc,
     Callback (..),
     Augment (..),
     Dump (..),
@@ -93,7 +94,8 @@ data K
       !K
   deriving (Eq, Ord)
 
-type ForeignFunc = GForeignFunc Stack
+-- | The ref of Foreign Func is '()' until we pack them all together and determine their ordering.
+type ForeignFunc = GForeignFunc () Stack
 
 type RClosure = GClosure ForeignFunc (RComb ForeignFunc)
 

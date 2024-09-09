@@ -2282,8 +2282,8 @@ declareForeign sand name op func0 = do
     let func
           | sanitize,
             Tracked <- sand,
-            FF r w _ <- func0 =
-              FF r w (bomb name)
+            FF ref r w _ <- func0 =
+              FF ref r w (bomb name)
           | otherwise = func0
         code = (name, (sand, uncurry Lambda (op w)))
      in (w + 1, code : codes, mapInsert w (name, func) funcs)

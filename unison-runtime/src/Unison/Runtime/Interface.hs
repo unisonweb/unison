@@ -1212,7 +1212,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb putCombIx)) cs
+  putEnumMap putNat (putEnumMap putNat (putComb putFFRef putCombIx)) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1225,7 +1225,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getCombIx))
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getFFRef getCombIx))
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1351,4 +1351,4 @@ standalone cc init =
     <*> readTVarIO (sandbox cc)
   where
     unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 Combs
-    unTieRCombs = fmap . fmap . fmap $ rCombIx
+    unTieRCombs = fmap . fmap $ bimap _ rCombIx

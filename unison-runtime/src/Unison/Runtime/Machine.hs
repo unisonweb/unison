@@ -535,7 +535,7 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Seq as) = do
   bstk <- bump bstk
   pokeS bstk $ Sq.fromList l
   pure (denv, ustk, bstk, k)
-exec !_env !denv !_activeThreads !ustk !bstk !k _ (ForeignCall _ (FF arg res ev) args) =
+exec !_env !denv !_activeThreads !ustk !bstk !k _ (ForeignCall _ (FF _ref arg res ev) args) =
   uncurry (denv,,,k)
     <$> (arg ustk bstk args >>= ev >>= res ustk bstk)
 exec !env !denv !activeThreads !ustk !bstk !k _ (Fork i)

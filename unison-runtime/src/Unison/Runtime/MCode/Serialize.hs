@@ -7,6 +7,8 @@ module Unison.Runtime.MCode.Serialize
     getComb,
     putCombIx,
     getCombIx,
+    putFFRef,
+    getFFRef,
   )
 where
 
@@ -322,6 +324,12 @@ putCombIx (CIx r n i) = putReference r *> pWord n *> pWord i
 
 getCombIx :: (MonadGet m) => m CombIx
 getCombIx = CIx <$> getReference <*> gWord <*> gWord
+
+putFFRef :: (MonadPut m) => FFRef -> m ()
+putFFRef r = pWord r
+
+getFFRef :: (MonadGet m) => m FFRef
+getFFRef = gWord
 
 data MLitT = MIT | MDT | MTT | MMT | MYT
 
