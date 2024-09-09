@@ -115,7 +115,7 @@ data GClosure comb
     Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)

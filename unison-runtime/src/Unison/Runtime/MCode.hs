@@ -643,15 +643,22 @@ data RComb = RComb
   { rCombIx :: !CombIx,
     unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
   }
-  deriving stock (Eq, Ord)
+
+-- Eq and Ord instances on the CombIx to avoid infinite recursion when
+-- comparing self-recursive functions.
+instance Eq RComb where
+  RComb r1 _ == RComb r2 _ = r1 == r2
+
+instance Ord RComb where
+  compare (RComb r1 _) (RComb r2 _) = compare r1 r2
 
 -- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
 rCombToComb :: RComb -> Comb
 rCombToComb (RComb _ix c) = rCombIx <$> c
 
--- | RCombs can be infinitely recursive so we can't show them.
+-- | RCombs can be infinitely recursive so we show the CombIx instead.
 instance Show RComb where
-  show _ = "<RComb>"
+  show (RComb ix _) = show ix
 
 -- | Map of combinators, parameterized by comb reference type
 type GCombs comb = EnumMap Word64 (GComb comb)
