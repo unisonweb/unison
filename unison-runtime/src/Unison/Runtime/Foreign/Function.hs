@@ -111,7 +111,7 @@ instance ForeignConvention Char where
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
-instance (GClosure comb ~ Elem 'BX) => ForeignConvention (GClosure comb) where
+instance (GClosure ff comb ~ Elem 'BX) => ForeignConvention (GClosure ff comb) where
   readForeign us (i : bs) _ bstk = (us,bs,) <$> peekOff bstk i
   readForeign _ [] _ _ = foreignCCError "Closure"
   writeForeign ustk bstk c = do
@@ -428,7 +428,7 @@ instance ForeignConvention BufferMode where
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
-instance (GClosure comb ~ Elem 'BX) => ForeignConvention [GClosure comb] where
+instance (GClosure ff comb ~ Elem 'BX) => ForeignConvention [GClosure ff comb] where
   readForeign us (i : bs) _ bstk =
     (us,bs,) . toList <$> peekOffS bstk i
   readForeign _ _ _ _ = foreignCCError "[Closure]"

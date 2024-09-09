@@ -59,6 +59,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF (Mem (..))
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign.Function.Types (GForeignFunc)
 import Unison.Runtime.MCode
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
@@ -88,17 +89,19 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !RComb -- local continuation reference
+      !(RComb ForeignFunc) -- local continuation reference
       !K
   deriving (Eq, Ord)
 
-type RClosure = GClosure RComb
+type ForeignFunc = GForeignFunc Stack
 
-type IxClosure = GClosure CombIx
+type RClosure = GClosure ForeignFunc (RComb ForeignFunc)
 
-type Closure = GClosure RComb
+type IxClosure = GClosure FFRef CombIx
 
-data GClosure comb
+type Closure = RClosure
+
+data GClosure ff comb
   = PAp
       !comb
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
@@ -107,9 +110,9 @@ data GClosure comb
   | Enum !Reference !Word64
   | DataU1 !Reference !Word64 !Int
   | DataU2 !Reference !Word64 !Int !Int
-  | DataB1 !Reference !Word64 !(GClosure comb)
-  | DataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
-  | DataUB !Reference !Word64 !Int !(GClosure comb)
+  | DataB1 !Reference !Word64 !(GClosure ff comb)
+  | DataB2 !Reference !Word64 !(GClosure ff comb) !(GClosure ff comb)
+  | DataUB !Reference !Word64 !Int !(GClosure ff comb)
   | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
   | -- code cont, u/b arg size, u/b data stacks
     Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
@@ -184,7 +187,7 @@ pattern DataC rf ct us bs <-
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: RComb -> [Int] -> [RClosure] -> RClosure
+pattern PApV :: RComb ForeignFunc -> [Int] -> [RClosure] -> RClosure
 pattern PApV ic us bs <-
   PAp ic (ints -> us) (bsegToList -> bs)
   where
@@ -348,8 +351,8 @@ class MEM (b :: Mem) where
   asize :: Stack b -> SZ
 
 instance MEM 'UN where
-  data Stack 'UN =
-    -- Note: uap <= ufp <= usp
+  data Stack 'UN
+    = -- Note: uap <= ufp <= usp
     US
     { uap :: !Int, -- arg pointer
       ufp :: !Int, -- frame pointer

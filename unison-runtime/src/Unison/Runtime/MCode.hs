@@ -30,6 +30,7 @@ module Unison.Runtime.MCode
     GRef (..),
     RRef,
     Ref,
+    FFRef,
     UPrim1 (..),
     UPrim2 (..),
     BPrim1 (..),
@@ -397,13 +398,18 @@ data MLit
   | MY !Reference
   deriving (Show, Eq, Ord)
 
-type Instr = GInstr CombIx
+type Instr = GInstr FFRef CombIx
 
-type RInstr = GInstr RComb
+type RInstr ff = GInstr ff (RComb ff)
+
+-- | Reference to a foreign function.
+newtype FFRef = FFRef Word64
+  deriving stock (Show)
+  deriving newtype (Eq, Ord, Num, Enum, Integral, Real)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
-data GInstr comb
+data GInstr ff comb
   = -- 1-argument unboxed primitive operations
     UPrim1
       !UPrim1 -- primitive instruction
@@ -426,7 +432,7 @@ data GInstr comb
     -- for very simple operations, hence the primops.
     ForeignCall
       !Bool -- catch exceptions
-      !Word64 -- FFI call
+      !ff -- FFI call
       !Args -- arguments
   | -- Set the value of a dynamic reference
     SetDyn
@@ -470,11 +476,11 @@ data GInstr comb
     TryForce !Int
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Section = GSection CombIx
+type Section = GSection FFRef CombIx
 
-type RSection = GSection RComb
+type RSection ff = GSection ff (RComb ff)
 
-data GSection comb
+data GSection ff comb
   = -- Apply a function to arguments. This is the 'slow path', and
     -- handles applying functions from arbitrary sources. This
     -- requires checks to determine what exactly should happen.
@@ -499,15 +505,15 @@ data GSection comb
   | -- Branch on the value in the unboxed data stack
     Match
       !Int -- index of unboxed item to match on
-      !(GBranch comb) -- branches
+      !(GBranch ff comb) -- branches
   | -- Yield control to the current continuation, with arguments
     Yield !Args -- values to yield
   | -- Prefix an instruction onto a section
-    Ins !(GInstr comb) !(GSection comb)
+    Ins !(GInstr ff comb) !(GSection ff comb)
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
-    Let !(GSection comb) !comb
+    Let !(GSection ff comb) !comb
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
@@ -518,18 +524,18 @@ data GSection comb
     DMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
-      !(GBranch comb) -- branches
+      !(GBranch ff comb) -- branches
   | -- Branch on a numeric type without dumping it to the stack
     NMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
-      !(GBranch comb) -- branches
+      !(GBranch ff comb) -- branches
   | -- Branch on a request representation without dumping the tag
     -- portion to the unboxed stack.
     RMatch
       !Int -- index of request item on the boxed stack
-      !(GSection comb) -- pure case
-      !(EnumMap Word64 (GBranch comb)) -- effect cases
+      !(GSection ff comb) -- pure case
+      !(EnumMap Word64 (GBranch ff comb)) -- effect cases
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 data CombIx
@@ -542,7 +548,7 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
-rCombRef :: RComb -> Reference
+rCombRef :: RComb ff -> Reference
 rCombRef (RComb cix _) = combRef cix
 
 data RefNums = RN
@@ -555,62 +561,62 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-type Comb = GComb CombIx
+type Comb = GComb FFRef CombIx
 
-data GComb comb
+data GComb ff comb
   = Lam
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
       !Int -- Maximum needed boxed frame size
-      !(GSection comb) -- Entry
+      !(GSection ff comb) -- Entry
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs = GCombs CombIx
+type Combs ff = GCombs ff CombIx
 
-type RCombs = GCombs RComb
+type RCombs ff = GCombs ff (RComb ff)
 
 -- | Extract the CombIx from an RComb.
-pattern RCombIx :: CombIx -> RComb
+pattern RCombIx :: CombIx -> RComb ff
 pattern RCombIx r <- (rCombIx -> r)
 
 {-# COMPLETE RCombIx #-}
 
 -- | Extract the Reference from an RComb.
-pattern RCombRef :: Reference -> RComb
+pattern RCombRef :: Reference -> RComb ff
 pattern RCombRef r <- (combRef . rCombIx -> r)
 
 {-# COMPLETE RCombRef #-}
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-data RComb = RComb
+data RComb ff = RComb
   { rCombIx :: !CombIx,
-    unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
+    unRComb :: (GComb ff (RComb ff {- Possibly recursive comb, keep it lazy or risk blowing up -}))
   }
 
 -- Eq and Ord instances on the CombIx to avoid infinite recursion when
 -- comparing self-recursive functions.
-instance Eq RComb where
+instance Eq (RComb ff) where
   RComb r1 _ == RComb r2 _ = r1 == r2
 
-instance Ord RComb where
+instance Ord (RComb ff) where
   compare (RComb r1 _) (RComb r2 _) = compare r1 r2
 
 -- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
-rCombToComb :: RComb -> Comb
+rCombToComb :: RComb FFRef -> Comb
 rCombToComb (RComb _ix c) = rCombIx <$> c
 
 -- | RCombs can be infinitely recursive so we show the CombIx instead.
-instance Show RComb where
+instance Show (RComb ff) where
   show (RComb ix _) = show ix
 
 -- | Map of combinators, parameterized by comb reference type
-type GCombs comb = EnumMap Word64 (GComb comb)
+type GCombs ff comb = EnumMap Word64 (GComb ff comb)
 
 -- | A reference to a combinator, parameterized by comb
 type Ref = GRef CombIx
 
-type RRef = GRef RComb
+type RRef ff = GRef (RComb ff)
 
 data GRef comb
   = Stk !Int -- stack reference to a closure
@@ -618,39 +624,39 @@ data GRef comb
   | Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Branch = GBranch CombIx
+type Branch = GBranch FFRef CombIx
 
-type RBranch = GBranch RComb
+type RBranch ff = GBranch (RComb ff)
 
-data GBranch comb
+data GBranch ff comb
   = -- if tag == n then t else f
     Test1
       !Word64
-      !(GSection comb)
-      !(GSection comb)
+      !(GSection ff comb)
+      !(GSection ff comb)
   | Test2
       !Word64
-      !(GSection comb) -- if tag == m then ...
+      !(GSection ff comb) -- if tag == m then ...
       !Word64
-      !(GSection comb) -- else if tag == n then ...
-      !(GSection comb) -- else ...
+      !(GSection ff comb) -- else if tag == n then ...
+      !(GSection ff comb) -- else ...
   | TestW
-      !(GSection comb)
-      !(EnumMap Word64 (GSection comb))
+      !(GSection ff comb)
+      !(EnumMap Word64 (GSection ff comb))
   | TestT
-      !(GSection comb)
-      !(M.Map Text (GSection comb))
+      !(GSection ff comb)
+      !(M.Map Text (GSection ff comb))
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 -- Convenience patterns for matches used in the algorithms below.
-pattern MatchW :: Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
+pattern MatchW :: Int -> (GSection ff comb) -> EnumMap Word64 (GSection ff comb) -> (GSection ff comb)
 pattern MatchW i d cs = Match i (TestW d cs)
 
-pattern MatchT :: Int -> (GSection comb) -> M.Map Text (GSection comb) -> (GSection comb)
+pattern MatchT :: Int -> (GSection ff comb) -> M.Map Text (GSection ff comb) -> (GSection ff comb)
 pattern MatchT i d cs = Match i (TestT d cs)
 
 pattern NMatchW ::
-  Maybe Reference -> Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
+  Maybe Reference -> Int -> (GSection ff comb) -> EnumMap Word64 (GSection ff comb) -> (GSection ff comb)
 pattern NMatchW r i d cs = NMatch r i (TestW d cs)
 
 -- Representation of the variable context available in the current
@@ -748,10 +754,10 @@ emitCombs rns grpr grpn (Rec grp ent) =
 resolveCombs ::
   -- Existing in-scope combs that might be referenced
   -- TODO: Do we ever actually need to pass this?
-  Maybe (EnumMap Word64 RCombs) ->
+  Maybe (EnumMap Word64 (RCombs ff)) ->
   -- Combinators which need their knots tied.
-  EnumMap Word64 Combs ->
-  EnumMap Word64 RCombs
+  EnumMap Word64 (Combs ff) ->
+  EnumMap Word64 (RCombs ff)
 resolveCombs mayExisting combs =
   -- Fixed point lookup;
   -- We make sure not to force resolved Combs or we'll loop forever.
