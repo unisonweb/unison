@@ -348,8 +348,8 @@ class MEM (b :: Mem) where
   asize :: Stack b -> SZ
 
 instance MEM 'UN where
-  data Stack 'UN
-    = -- Note: uap <= ufp <= usp
+  data Stack 'UN =
+    -- Note: uap <= ufp <= usp
     US
     { uap :: !Int, -- arg pointer
       ufp :: !Int, -- frame pointer
