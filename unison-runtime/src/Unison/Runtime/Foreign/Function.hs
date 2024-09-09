@@ -6,7 +6,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Runtime.Foreign.Function
-  ( ForeignFunc (..),
+  ( ForeignFunc,
+    GForeignFunc (..),
     ForeignConvention (..),
     mkForeign,
   )
@@ -34,6 +35,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF (Mem (..), SuperGroup, Value, internalBug)
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign.Function.Types (GForeignFunc (..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
@@ -53,22 +55,7 @@ import Unison.Util.Bytes (Bytes)
 import Unison.Util.RefPromise (Promise)
 import Unison.Util.Text (Text, pack, unpack)
 
--- Foreign functions operating on stacks
-data ForeignFunc where
-  FF ::
-    (Stack 'UN -> Stack 'BX -> Args -> IO a) ->
-    (Stack 'UN -> Stack 'BX -> r -> IO (Stack 'UN, Stack 'BX)) ->
-    (a -> IO r) ->
-    ForeignFunc
-
-instance Show ForeignFunc where
-  show _ = "ForeignFunc"
-
-instance Eq ForeignFunc where
-  _ == _ = internalBug "Eq ForeignFunc"
-
-instance Ord ForeignFunc where
-  compare _ _ = internalBug "Ord ForeignFunc"
+type ForeignFunc = GForeignFunc Stack
 
 class ForeignConvention a where
   readForeign ::
