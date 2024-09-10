@@ -98,13 +98,14 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
+import Unison.Runtime.Foreign.Function.Types (GForeignFunc (..), ffRef)
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
     Combs,
+    FFRef,
     GInstr (..),
     GSection (..),
-    RCombs,
     RefNums (..),
     combDeps,
     combTypes,
@@ -112,12 +113,12 @@ import Unison.Runtime.MCode
     emptyRNs,
     rCombIx,
     resolveCombs,
+    resolveFFs,
   )
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    MCombs,
     Tracer (..),
     apply0,
     baseCCache,
@@ -458,7 +459,7 @@ compileValue base =
     cpair (r, sg) = pair (rf r) (code sg)
 
 decompileCtx ::
-  EnumMap Word64 Reference -> EvalCtx -> Closure -> DecompResult Symbol
+  EnumMap Word64 Reference -> EvalCtx -> MClosure -> DecompResult Symbol
 decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
   where
     ib = intermedToBase ctx
@@ -800,7 +801,7 @@ prepareEvaluation ppe tm ctx = do
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
-watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
+watchHook :: IORef MClosure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm ::
@@ -1254,7 +1255,7 @@ tabulateErrors errs =
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns False debugText
+  CCache foreignFuncLookup False debugText
     <$> newTVarIO combs
     <*> newTVarIO (crs <> builtinTermBackref)
     <*> newTVarIO (trs <> builtinTypeBackref)
@@ -1280,10 +1281,17 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
+    foreignFuncLookup :: EnumMap FFRef MForeignFunc
+    foreignFuncLookup = retagFFs builtinForeigns
+
+    retagFFs :: EnumMap FFRef ForeignFunc -> EnumMap FFRef MForeignFunc
+    retagFFs = mapWithKey (\k (FF _ a b c) -> FF k a b c)
+
     combs :: EnumMap Word64 MCombs
     combs =
       let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
        in builtinCombs <> cs
+            & resolveFFs foreignFuncLookup
             & resolveCombs Nothing
 
 traceNeeded ::
@@ -1340,7 +1348,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx =
 standalone :: CCache -> Word64 -> IO StoredCache
 standalone cc init =
   buildSCache
-    <$> (readTVarIO (combs cc) >>= traceNeeded init >>= pure . unTieRCombs)
+    <$> (readTVarIO (combs cc) >>= traceNeeded init >>= pure . unTieMCombs)
     <*> readTVarIO (combRefs cc)
     <*> readTVarIO (tagRefs cc)
     <*> readTVarIO (freshTm cc)
@@ -1349,6 +1357,6 @@ standalone cc init =
     <*> readTVarIO (refTm cc)
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
-  where
-    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 Combs
-    unTieRCombs = fmap . fmap $ bimap _ rCombIx
+
+unTieMCombs :: EnumMap Word64 MCombs -> EnumMap Word64 Combs
+unTieMCombs = fmap . fmap $ bimap ffRef rCombIx

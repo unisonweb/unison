@@ -9,9 +9,16 @@
 module Unison.Runtime.Stack
   ( K (..),
     GClosure (.., DataC, PApV, CapV),
-    Closure,
-    RClosure,
     IxClosure,
+    -- TODO: Reconsider where these should live
+    MInstr,
+    MSection,
+    MComb,
+    MCombs,
+    MBranch,
+    MRef,
+    MForeignFunc,
+    MClosure,
     ForeignFunc,
     Callback (..),
     Augment (..),
@@ -66,6 +73,24 @@ import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)
 
+type MInstr = RInstr MForeignFunc
+
+type MSection = RSection MForeignFunc
+
+type MComb = RComb MForeignFunc
+
+type MCombs = RCombs MForeignFunc
+
+type MBranch = RBranch MForeignFunc
+
+type MRef = RRef MForeignFunc
+
+type MForeignFunc = GForeignFunc FFRef Stack
+
+type MClosure = GClosure MForeignFunc (RComb MForeignFunc)
+
+type IxClosure = GClosure FFRef CombIx
+
 newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
 
 instance Eq Callback where _ == _ = True
@@ -82,7 +107,7 @@ data K
       !Int -- pending unboxed args
       !Int -- pending boxed args
       !(EnumSet Word64)
-      !(EnumMap Word64 RClosure)
+      !(EnumMap Word64 MClosure)
       !K
   | -- save information about a frame for later resumption
     Push
@@ -90,18 +115,12 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !(RComb ForeignFunc) -- local continuation reference
+      !(RComb MForeignFunc) -- local continuation reference
       !K
   deriving (Eq, Ord)
 
 -- | The ref of Foreign Func is '()' until we pack them all together and determine their ordering.
 type ForeignFunc = GForeignFunc () Stack
-
-type RClosure = GClosure ForeignFunc (RComb ForeignFunc)
-
-type IxClosure = GClosure FFRef CombIx
-
-type Closure = RClosure
 
 data GClosure ff comb
   = PAp
@@ -131,7 +150,7 @@ traceK begin = dedup (begin, 1)
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: RClosure -> Maybe (Reference, Word64, [Int], [RClosure])
+splitData :: MClosure -> Maybe (Reference, Word64, [Int], [MClosure])
 splitData (Enum r t) = Just (r, t, [], [])
 splitData (DataU1 r t i) = Just (r, t, [i], [])
 splitData (DataU2 r t i j) = Just (r, t, [i, j], [])
@@ -158,15 +177,15 @@ useg ws = case L.fromList $ reverse ws of
 
 -- | Converts a boxed segment to a list of closures. The segments are stored
 -- backwards, so this reverses the contents.
-bsegToList :: Seg 'BX -> [RClosure]
+bsegToList :: Seg 'BX -> [MClosure]
 bsegToList = reverse . L.toList
 
 -- | Converts a list of closures back to a boxed segment. Segments are stored
 -- backwards, so this reverses the contents.
-bseg :: [RClosure] -> Seg 'BX
+bseg :: [MClosure] -> Seg 'BX
 bseg = L.fromList . reverse
 
-formData :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
+formData :: Reference -> Word64 -> [Int] -> [MClosure] -> MClosure
 formData r t [] [] = Enum r t
 formData r t [i] [] = DataU1 r t i
 formData r t [i, j] [] = DataU2 r t i j
@@ -183,19 +202,19 @@ frameDataSize = go 0 0
     go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
     go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
 
-pattern DataC :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
+pattern DataC :: Reference -> Word64 -> [Int] -> [MClosure] -> MClosure
 pattern DataC rf ct us bs <-
   (splitData -> Just (rf, ct, us, bs))
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: RComb ForeignFunc -> [Int] -> [RClosure] -> RClosure
+pattern PApV :: MComb -> [Int] -> [MClosure] -> MClosure
 pattern PApV ic us bs <-
   PAp ic (ints -> us) (bsegToList -> bs)
   where
     PApV ic us bs = PAp ic (useg us) (bseg bs)
 
-pattern CapV :: K -> Int -> Int -> [Int] -> [RClosure] -> RClosure
+pattern CapV :: K -> Int -> Int -> [Int] -> [MClosure] -> MClosure
 pattern CapV k ua ba us bs <-
   Captured k ua ba (ints -> us) (bsegToList -> bs)
   where
@@ -207,7 +226,7 @@ pattern CapV k ua ba us bs <-
 
 {-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole #-}
 
-marshalToForeign :: (HasCallStack) => RClosure -> Foreign
+marshalToForeign :: (HasCallStack) => MClosure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign c =
   error $ "marshalToForeign: unhandled closure: " ++ show c
@@ -220,7 +239,7 @@ type FP = Int
 
 type UA = MutableByteArray (PrimState IO)
 
-type BA = MutableArray (PrimState IO) RClosure
+type BA = MutableArray (PrimState IO) MClosure
 
 words :: Int -> Int
 words n = n `div` 8
@@ -532,16 +551,16 @@ peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
 peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffBi #-}
 
-peekOffS :: Stack 'BX -> Int -> IO (Seq RClosure)
+peekOffS :: Stack 'BX -> Int -> IO (Seq MClosure)
 peekOffS bstk i =
   unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffS #-}
 
-pokeS :: Stack 'BX -> Seq RClosure -> IO ()
+pokeS :: Stack 'BX -> Seq MClosure -> IO ()
 pokeS bstk s = poke bstk (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeS #-}
 
-pokeOffS :: Stack 'BX -> Int -> Seq RClosure -> IO ()
+pokeOffS :: Stack 'BX -> Int -> Seq MClosure -> IO ()
 pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeOffS #-}
 
@@ -574,10 +593,10 @@ instance MEM 'BX where
     { bap :: !Int,
       bfp :: !Int,
       bsp :: !Int,
-      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) RClosure)
+      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) MClosure)
     }
-  type Elem 'BX = RClosure
-  type Seg 'BX = Array RClosure
+  type Elem 'BX = MClosure
+  type Seg 'BX = Array MClosure
 
   alloc = BS (-1) (-1) (-1) <$> newArray 512 BlackHole
   {-# INLINE alloc #-}
@@ -716,7 +735,7 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
-closureTermRefs :: (Monoid m) => (Reference -> m) -> (RClosure -> m)
+closureTermRefs :: (Monoid m) => (Reference -> m) -> (MClosure -> m)
 closureTermRefs f (PAp (RComb (CIx r _ _) _) _ cs) =
   f r <> foldMap (closureTermRefs f) cs
 closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
@@ -727,7 +746,7 @@ closureTermRefs f (DataUB _ _ _ c) =
 closureTermRefs f (Captured k _ _ _ cs) =
   contTermRefs f k <> foldMap (closureTermRefs f) cs
 closureTermRefs f (Foreign fo)
-  | Just (cs :: Seq RClosure) <- maybeUnwrapForeign Ty.listRef fo =
+  | Just (cs :: Seq MClosure) <- maybeUnwrapForeign Ty.listRef fo =
       foldMap (closureTermRefs f) cs
 closureTermRefs _ _ = mempty
 

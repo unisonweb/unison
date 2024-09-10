@@ -1571,13 +1571,13 @@ demuxArgs as0 =
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
 
-combDeps :: Comb -> [Word64]
+combDeps :: GComb ff CombIx -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
 
-combTypes :: Comb -> [Word64]
+combTypes :: GComb ff CombIx -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
 
-sectionDeps :: Section -> [Word64]
+sectionDeps :: GSection ff CombIx -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
 sectionDeps (Call _ (CIx _ w _) _) = [w]
 sectionDeps (Match _ br) = branchDeps br
@@ -1591,7 +1591,7 @@ sectionDeps (Ins i s)
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []
 
-sectionTypes :: Section -> [Word64]
+sectionTypes :: GSection ff CombIx -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _) = sectionTypes s
 sectionTypes (Match _ br) = branchTypes br
@@ -1601,14 +1601,14 @@ sectionTypes (RMatch _ pu br) =
   sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
-instrTypes :: Instr -> [Word64]
+instrTypes :: GInstr ff CombIx -> [Word64]
 instrTypes (Pack _ w _) = [w `shiftR` 16]
 instrTypes (Reset ws) = setToList ws
 instrTypes (Capture w) = [w]
 instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
-branchDeps :: Branch -> [Word64]
+branchDeps :: GBranch ff CombIx -> [Word64]
 branchDeps (Test1 _ s1 d) = sectionDeps s1 ++ sectionDeps d
 branchDeps (Test2 _ s1 _ s2 d) =
   sectionDeps s1 ++ sectionDeps s2 ++ sectionDeps d
@@ -1617,7 +1617,7 @@ branchDeps (TestW d m) =
 branchDeps (TestT d m) =
   sectionDeps d ++ foldMap sectionDeps m
 
-branchTypes :: Branch -> [Word64]
+branchTypes :: GBranch ff CombIx -> [Word64]
 branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
 branchTypes (Test2 _ s1 _ s2 d) =
   sectionTypes s1 ++ sectionTypes s2 ++ sectionTypes d

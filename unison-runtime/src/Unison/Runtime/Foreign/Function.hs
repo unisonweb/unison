@@ -64,6 +64,8 @@ class ForeignConvention a where
 mkForeign ::
   (ForeignConvention a, ForeignConvention r) =>
   (a -> IO r) ->
+  -- This has to return a `ForeignFunc` instead of a `MForeignFunc`
+  -- because we won't know the FFRef to assign to it until we've gathered all the foreigns together.
   ForeignFunc
 mkForeign ev = FF () readArgs writeForeign ev
   where
@@ -438,23 +440,23 @@ instance ForeignConvention [Foreign] where
   readForeign = readForeignAs (fmap marshalToForeign)
   writeForeign = writeForeignAs (fmap Foreign)
 
-instance ForeignConvention (MVar RClosure) where
+instance ForeignConvention (MVar MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
 
-instance ForeignConvention (TVar RClosure) where
+instance ForeignConvention (TVar MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap tvarRef)
 
-instance ForeignConvention (IORef RClosure) where
+instance ForeignConvention (IORef MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap refRef)
 
-instance ForeignConvention (Ticket RClosure) where
+instance ForeignConvention (Ticket MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap ticketRef)
 
-instance ForeignConvention (Promise RClosure) where
+instance ForeignConvention (Promise MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap promiseRef)
 
@@ -470,7 +472,7 @@ instance ForeignConvention Foreign where
   readForeign = readForeignAs marshalToForeign
   writeForeign = writeForeignAs Foreign
 
-instance ForeignConvention (PA.MutableArray s RClosure) where
+instance ForeignConvention (PA.MutableArray s MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap marrayRef)
 
@@ -478,7 +480,7 @@ instance ForeignConvention (PA.MutableByteArray s) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mbytearrayRef)
 
-instance ForeignConvention (PA.Array RClosure) where
+instance ForeignConvention (PA.Array MClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap iarrayRef)
 
@@ -490,13 +492,13 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
-fromUnisonPair :: RClosure -> (a, b)
+fromUnisonPair :: MClosure -> (a, b)
 fromUnisonPair (DataC _ _ [] [x, DataC _ _ [] [y, _]]) =
   (unwrapForeignClosure x, unwrapForeignClosure y)
 fromUnisonPair _ = error "fromUnisonPair: invalid closure"
 
 toUnisonPair ::
-  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> RClosure
+  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> MClosure
 toUnisonPair (x, y) =
   DataC
     Ty.pairRef
@@ -507,7 +509,7 @@ toUnisonPair (x, y) =
     un = DataC Ty.unitRef 0 [] []
     wr z = Foreign $ wrapBuiltin z
 
-unwrapForeignClosure :: RClosure -> a
+unwrapForeignClosure :: MClosure -> a
 unwrapForeignClosure = unwrapForeign . marshalToForeign
 
 instance {-# OVERLAPPABLE #-} (BuiltinForeign a, BuiltinForeign b) => ForeignConvention [(a, b)] where

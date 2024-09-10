@@ -34,8 +34,8 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..), pattern RCombIx, pattern RCombRef)
 import Unison.Runtime.Stack
-  ( Closure,
-    GClosure (..),
+  ( GClosure (..),
+    MClosure,
     pattern DataC,
     pattern PApV,
   )
@@ -151,7 +151,7 @@ decompile ::
   (Var v) =>
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
-  Closure ->
+  MClosure ->
   DecompResult v
 decompile _ _ (DataC rf (maskTags -> ct) [] [])
   | rf == booleanRef = tag2bool ct
@@ -219,7 +219,7 @@ decompileForeign backref topTerms f
         _ -> l
   | Just l <- maybeUnwrapForeign typeLinkRef f =
       pure $ typeLink () l
-  | Just (a :: Array Closure) <- maybeUnwrapForeign iarrayRef f =
+  | Just (a :: Array MClosure) <- maybeUnwrapForeign iarrayRef f =
       app () (ref () iarrayFromListRef) . list ()
         <$> traverse (decompile backref topTerms) (toList a)
   | Just (a :: ByteArray) <- maybeUnwrapForeign ibytearrayRef f =
@@ -247,5 +247,5 @@ decompileBytes =
 decompileHashAlgorithm :: (Var v) => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
 
-unwrapSeq :: Foreign -> Maybe (Seq Closure)
+unwrapSeq :: Foreign -> Maybe (Seq MClosure)
 unwrapSeq = maybeUnwrapForeign listRef

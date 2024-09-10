@@ -62,18 +62,6 @@ import UnliftIO (IORef)
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
-type MInstr = RInstr ForeignFunc
-
-type MSection = RSection ForeignFunc
-
-type MComb = RComb ForeignFunc
-
-type MCombs = RCombs ForeignFunc
-
-type MBranch = RBranch ForeignFunc
-
-type MRef = RRef ForeignFunc
-
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
 -- completes. We track threads when running in a host process like UCM,
@@ -84,7 +72,9 @@ type ActiveThreads = Maybe (IORef (Set ThreadId))
 type Tag = Word64
 
 -- dynamic environment
-type DEnv = EnumMap Word64 Closure
+type DEnv = EnumMap Word64 MClosure
+
+type IxClosure = GClosure FFRef CombIx
 
 data Tracer
   = NoTrace
@@ -93,10 +83,10 @@ data Tracer
 
 -- code caching environment
 data CCache = CCache
-  { foreignFuncs :: EnumMap FFRef ForeignFunc,
+  { foreignFuncs :: EnumMap FFRef MForeignFunc,
     sandboxed :: Bool,
-    tracer :: Bool -> Closure -> Tracer,
-    combs :: TVar (EnumMap Word64 (RCombs ForeignFunc)),
+    tracer :: Bool -> MClosure -> Tracer,
+    combs :: TVar (EnumMap Word64 MCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
@@ -141,15 +131,18 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO baseSandboxInfo
   where
-    ffuncs :: EnumMap FFRef ForeignFunc
+    ffuncs :: EnumMap FFRef MForeignFunc
     ffuncs
-      | sandboxed = sandboxedForeigns
-      | otherwise = builtinForeigns
+      | sandboxed = retagFFs sandboxedForeigns
+      | otherwise = retagFFs builtinForeigns
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
+
+    retagFFs :: EnumMap FFRef ForeignFunc -> EnumMap FFRef MForeignFunc
+    retagFFs = mapWithKey (\k (FF _ a b c) -> FF k a b c)
 
     combs :: EnumMap Word64 MCombs
     combs =
@@ -184,7 +177,7 @@ eval0 !env !activeThreads !co = do
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
-  EnumMap Word64 (RCombs ForeignFunc) ->
+  EnumMap Word64 MCombs ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
   (DEnv, K -> K)
@@ -233,7 +226,7 @@ apply1 ::
   (Stack 'UN -> Stack 'BX -> IO ()) ->
   CCache ->
   ActiveThreads ->
-  Closure ->
+  MClosure ->
   IO ()
 apply1 callback env threadTracker clo = do
   ustk <- alloc
@@ -250,7 +243,7 @@ jump0 ::
   (Stack 'UN -> Stack 'BX -> IO ()) ->
   CCache ->
   ActiveThreads ->
-  Closure ->
+  MClosure ->
   IO ()
 jump0 !callback !env !activeThreads !clo = do
   ustk <- alloc
@@ -264,13 +257,13 @@ jump0 !callback !env !activeThreads !clo = do
   where
     k0 = CB (Hook callback)
 
-unitValue :: Closure
+unitValue :: MClosure
 unitValue = Enum Rf.unitRef unitTag
 
-lookupDenv :: Word64 -> DEnv -> Closure
+lookupDenv :: Word64 -> DEnv -> MClosure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
-buildLit :: Reference -> MLit -> Closure
+buildLit :: Reference -> MLit -> MClosure
 buildLit rf (MI i)
   | Just n <- M.lookup rf builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
@@ -596,7 +589,7 @@ encodeExn ustk bstk (Left exn) = do
           (Rf.threadKilledFailureRef, disp ie, unitValue)
       | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
-numValue :: Maybe Reference -> Closure -> IO Word64
+numValue :: Maybe Reference -> MClosure -> IO Word64
 numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
 numValue mr clo =
   die $
@@ -664,7 +657,7 @@ eval !_ !_ !_ !_activeThreads !_ !_ _ Exit = pure ()
 eval !_ !_ !_ !_activeThreads !_ !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
 
-forkEval :: CCache -> ActiveThreads -> Closure -> IO ThreadId
+forkEval :: CCache -> ActiveThreads -> MClosure -> IO ThreadId
 forkEval env activeThreads clo =
   do
     threadId <-
@@ -690,13 +683,13 @@ forkEval env activeThreads clo =
           UnliftIO.atomicModifyIORef' activeThreads (\ids -> (Set.delete myThreadId ids, ()))
 {-# INLINE forkEval #-}
 
-nestEval :: CCache -> ActiveThreads -> (Closure -> IO ()) -> Closure -> IO ()
+nestEval :: CCache -> ActiveThreads -> (MClosure -> IO ()) -> MClosure -> IO ()
 nestEval env activeThreads write clo = apply1 readBack env activeThreads clo
   where
     readBack _ bstk = peek bstk >>= write
 {-# INLINE nestEval #-}
 
-atomicEval :: CCache -> ActiveThreads -> (Closure -> IO ()) -> Closure -> IO ()
+atomicEval :: CCache -> ActiveThreads -> (MClosure -> IO ()) -> MClosure -> IO ()
 atomicEval env activeThreads write clo =
   atomically . unsafeIOToSTM $ nestEval env activeThreads write clo
 {-# INLINE atomicEval #-}
@@ -727,7 +720,7 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
-name :: Stack 'UN -> Stack 'BX -> Args -> Closure -> IO (Stack 'BX)
+name :: Stack 'UN -> Stack 'BX -> Args -> MClosure -> IO (Stack 'BX)
 name !ustk !bstk !args clo = case clo of
   PAp comb useg bseg -> do
     (useg, bseg) <- closeArgs I ustk bstk useg bseg args
@@ -747,7 +740,7 @@ apply ::
   K ->
   Bool ->
   Args ->
-  Closure ->
+  MClosure ->
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
   case unRComb comb of
@@ -791,7 +784,7 @@ jump ::
   Stack 'BX ->
   K ->
   Args ->
-  Closure ->
+  MClosure ->
   IO ()
 jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
   Captured sk0 ua ba useg bseg -> do
@@ -908,7 +901,7 @@ moveArgs !ustk !bstk (DArgN us bs) = do
   pure (ustk, bstk)
 {-# INLINE moveArgs #-}
 
-closureArgs :: Stack 'BX -> Args -> IO [Closure]
+closureArgs :: Stack 'BX -> Args -> IO [MClosure]
 closureArgs !_ ZArgs = pure []
 closureArgs !bstk (BArg1 i) = do
   x <- peekOff bstk i
@@ -926,7 +919,7 @@ closureArgs !_ _ =
 {-# INLINE closureArgs #-}
 
 buildData ::
-  Stack 'UN -> Stack 'BX -> Reference -> Tag -> Args -> IO Closure
+  Stack 'UN -> Stack 'BX -> Reference -> Tag -> Args -> IO MClosure
 buildData !_ !_ !r !t ZArgs = pure $ Enum r t
 buildData !ustk !_ !r !t (UArg1 i) = do
   x <- peekOff ustk i
@@ -987,7 +980,7 @@ dumpDataNoTag ::
   Maybe Reference ->
   Stack 'UN ->
   Stack 'BX ->
-  Closure ->
+  MClosure ->
   IO (Word64, Stack 'UN, Stack 'BX)
 dumpDataNoTag !_ !ustk !bstk (Enum _ t) = pure (t, ustk, bstk)
 dumpDataNoTag !_ !ustk !bstk (DataU1 _ t x) = do
@@ -1029,7 +1022,7 @@ dumpData ::
   Maybe Reference ->
   Stack 'UN ->
   Stack 'BX ->
-  Closure ->
+  MClosure ->
   IO (Stack 'UN, Stack 'BX)
 dumpData !_ !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
@@ -1896,7 +1889,7 @@ splitCont ::
   Stack 'BX ->
   K ->
   Word64 ->
-  IO (Closure, DEnv, Stack 'UN, Stack 'BX, K)
+  IO (MClosure, DEnv, Stack 'UN, Stack 'BX, K)
 splitCont !denv !ustk !bstk !k !p =
   walk denv uasz basz KE k
   where
@@ -1935,7 +1928,7 @@ discardCont denv ustk bstk k p =
     <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
-resolve :: CCache -> DEnv -> Stack 'BX -> MRef -> IO Closure
+resolve :: CCache -> DEnv -> Stack 'BX -> MRef -> IO MClosure
 resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
@@ -1987,7 +1980,7 @@ refLookup s m r
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
 decodeCacheArgument ::
-  Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
+  Sq.Seq MClosure -> IO [(Reference, SuperGroup Symbol)]
 decodeCacheArgument s = for (toList s) $ \case
   DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _) ->
     case unwrapForeign x of
@@ -1995,27 +1988,27 @@ decodeCacheArgument s = for (toList s) $ \case
       _ -> die "decodeCacheArgument: Con reference"
   _ -> die "decodeCacheArgument: unrecognized value"
 
-decodeSandboxArgument :: Sq.Seq Closure -> IO [Reference]
+decodeSandboxArgument :: Sq.Seq MClosure -> IO [Reference]
 decodeSandboxArgument s = fmap join . for (toList s) $ \case
   Foreign x -> case unwrapForeign x of
     Ref r -> pure [r]
     _ -> pure [] -- constructor
   _ -> die "decodeSandboxArgument: unrecognized value"
 
-encodeSandboxListResult :: [Reference] -> Sq.Seq Closure
+encodeSandboxListResult :: [Reference] -> Sq.Seq MClosure
 encodeSandboxListResult =
   Sq.fromList . fmap (Foreign . Wrap Rf.termLinkRef . Ref)
 
-encodeSandboxResult :: Either [Reference] [Reference] -> Closure
+encodeSandboxResult :: Either [Reference] [Reference] -> MClosure
 encodeSandboxResult (Left rfs) =
   encodeLeft . Foreign . Wrap Rf.listRef $ encodeSandboxListResult rfs
 encodeSandboxResult (Right rfs) =
   encodeRight . Foreign . Wrap Rf.listRef $ encodeSandboxListResult rfs
 
-encodeLeft :: Closure -> Closure
+encodeLeft :: MClosure -> MClosure
 encodeLeft = DataB1 Rf.eitherRef leftTag
 
-encodeRight :: Closure -> Closure
+encodeRight :: MClosure -> MClosure
 encodeRight = DataB1 Rf.eitherRef rightTag
 
 addRefs ::
@@ -2039,7 +2032,7 @@ addRefs vfrsh vfrom vto rs = do
 codeValidate ::
   [(Reference, SuperGroup Symbol)] ->
   CCache ->
-  IO (Maybe (Failure Closure))
+  IO (Maybe (Failure MClosure))
 codeValidate tml cc = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
@@ -2070,7 +2063,7 @@ sandboxList _ _ = pure []
 checkSandboxing ::
   CCache ->
   [Reference] ->
-  Closure ->
+  MClosure ->
   IO Bool
 checkSandboxing cc allowed0 c = do
   sands <- readTVarIO $ sandbox cc
@@ -2180,7 +2173,7 @@ cacheAdd l cc = do
     then [] <$ cacheAdd0 tys l' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
-reflectValue :: EnumMap Word64 Reference -> Closure -> IO ANF.Value
+reflectValue :: EnumMap Word64 Reference -> MClosure -> IO ANF.Value
 reflectValue rty = goV
   where
     err s = "reflectValue: cannot prepare value for serialization: " ++ s
@@ -2246,7 +2239,7 @@ reflectValue rty = goV
       | t == floatTag = pure $ ANF.Float (intToDouble v)
       | otherwise = die . err $ "unboxed data: " <> show (t, v)
 
-reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] RClosure)
+reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] MClosure)
 reifyValue cc val = do
   erc <-
     atomically $ do
@@ -2266,7 +2259,7 @@ reifyValue cc val = do
 reifyValue0 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
   ANF.Value ->
-  IO Closure
+  IO MClosure
 reifyValue0 (combs, rty, rtm) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
@@ -2340,7 +2333,7 @@ intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
 -- Universal comparison functions
 
-closureNum :: Closure -> Int
+closureNum :: MClosure -> Int
 closureNum PAp {} = 0
 closureNum DataC {} = 1
 closureNum Captured {} = 2
@@ -2349,8 +2342,8 @@ closureNum BlackHole {} = error "BlackHole"
 
 universalEq ::
   (Foreign -> Foreign -> Bool) ->
-  Closure ->
-  Closure ->
+  MClosure ->
+  MClosure ->
   Bool
 universalEq frn = eqc
   where
@@ -2388,7 +2381,7 @@ universalEq frn = eqc
         || (ct1 == intTag && ct2 == natTag)
         || (ct1 == natTag && ct2 == intTag)
 
-arrayEq :: (Closure -> Closure -> Bool) -> PA.Array Closure -> PA.Array Closure -> Bool
+arrayEq :: (MClosure -> MClosure -> Bool) -> PA.Array MClosure -> PA.Array MClosure -> Bool
 arrayEq eqc l r
   | PA.sizeofArray l /= PA.sizeofArray r = False
   | otherwise = go (PA.sizeofArray l - 1)
@@ -2481,8 +2474,8 @@ leftTag, rightTag :: Word64
 
 universalCompare ::
   (Foreign -> Foreign -> Ordering) ->
-  Closure ->
-  Closure ->
+  MClosure ->
+  MClosure ->
   Ordering
 universalCompare frn = cmpc False
   where
@@ -2522,9 +2515,9 @@ universalCompare frn = cmpc False
     cmpc _ c d = comparing closureNum c d
 
 arrayCmp ::
-  (Closure -> Closure -> Ordering) ->
-  PA.Array Closure ->
-  PA.Array Closure ->
+  (MClosure -> MClosure -> Ordering) ->
+  PA.Array MClosure ->
+  PA.Array MClosure ->
   Ordering
 arrayCmp cmpc l r =
   comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)

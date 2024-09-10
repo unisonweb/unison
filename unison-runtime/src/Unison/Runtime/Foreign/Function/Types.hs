@@ -7,6 +7,7 @@
 
 module Unison.Runtime.Foreign.Function.Types
   ( GForeignFunc (..),
+    ffRef,
   )
 where
 
