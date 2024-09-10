@@ -10,7 +10,7 @@ import Unison.Util.Pretty as P
 
 data RuntimeExn
   = PE CallStack (P.Pretty P.ColorText)
-  | BU [(Reference, Int)] Text MClosure
+  | BU [(Reference, Int)] Text Closure
   deriving (Show)
 
 instance Exception RuntimeExn

@@ -459,7 +459,7 @@ compileValue base =
     cpair (r, sg) = pair (rf r) (code sg)
 
 decompileCtx ::
-  EnumMap Word64 Reference -> EvalCtx -> MClosure -> DecompResult Symbol
+  EnumMap Word64 Reference -> EvalCtx -> Closure -> DecompResult Symbol
 decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
   where
     ib = intermedToBase ctx
@@ -801,7 +801,7 @@ prepareEvaluation ppe tm ctx = do
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
-watchHook :: IORef MClosure -> Stack 'UN -> Stack 'BX -> IO ()
+watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm ::

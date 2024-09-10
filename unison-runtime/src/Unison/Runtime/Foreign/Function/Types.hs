@@ -18,10 +18,10 @@ import Unison.Runtime.MCode
 data GForeignFunc ref stack where
   FF ::
     -- The foreign function number/ref
-    ref ->
-    (stack 'UN -> stack 'BX -> Args -> IO a) ->
-    (stack 'UN -> stack 'BX -> r -> IO (stack 'UN, stack 'BX)) ->
-    (a -> IO r) ->
+    !ref ->
+    !(stack 'UN -> stack 'BX -> Args -> IO a) ->
+    !(stack 'UN -> stack 'BX -> r -> IO (stack 'UN, stack 'BX)) ->
+    !(a -> IO r) ->
     GForeignFunc ref stack
 
 ffRef :: GForeignFunc ref stack -> ref

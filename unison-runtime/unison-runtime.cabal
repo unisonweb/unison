@@ -43,7 +43,6 @@ library
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
-      Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Args
       Unison.Runtime.MCode.Serialize
