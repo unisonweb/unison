@@ -1,14 +1,9 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Main (main) where
 
-import Data.Maybe (fromJust)
 import Data.Text qualified as Text
 import EasyTest
 import System.IO.CodePage (withCP65001)
 import Unison.Prelude
-import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as ShortHash
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer.Unison
 
@@ -221,16 +216,20 @@ test =
     ]
 
 t :: String -> [Lexeme] -> Test ()
-t s expected =
-  let actual0 = payload <$> preParse (lexer "ignored filename" s)
-      actual = take (length actual0 - 2) . drop 1 $ toList actual0
-   in scope s $
-        if actual == expected
-          then ok
-          else do
-            note $ "expected: " ++ show expected
-            note $ "actual  : " ++ show actual
-            crash "actual != expected"
+t s expected = case toList . preParse $ lexer filename s of
+  [token@(Token (Err _) _ _)] -> crash $ show token
+  tokened ->
+    let actual = payload <$> tokened
+        expected' = Open filename : expected <> pure Close
+     in scope s $
+          if actual == expected'
+            then ok
+            else do
+              note $ "expected: " ++ show expected'
+              note $ "actual  : " ++ show actual
+              crash "actual != expected"
+  where
+    filename = "test case"
 
 simpleSymbolyId :: Text -> Lexeme
 simpleSymbolyId =
@@ -239,6 +238,3 @@ simpleSymbolyId =
 simpleWordyId :: Text -> Lexeme
 simpleWordyId =
   WordyId . HQ'.unsafeParseText
-
-instance IsString ShortHash where
-  fromString = fromJust . ShortHash.fromText . Text.pack

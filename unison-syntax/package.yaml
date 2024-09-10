@@ -40,7 +40,6 @@ tests:
       - code-page
       - easytest
       - unison-syntax
-      - unison-core
       - unison-prelude
       - text
     main: Main.hs
