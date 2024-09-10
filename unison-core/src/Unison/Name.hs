@@ -354,22 +354,36 @@ preferShallowLibDepth = \case
   [x] -> Set.singleton (snd x)
   rs ->
     let byPriority = List.multimap (map (first minLibs) rs)
-        minLibs [] = NamePriorityOne
+        minLibs [] = NamePriorityOne ()
         minLibs ns = minimum (map classifyNamePriority ns)
-     in case Map.lookup NamePriorityOne byPriority <|> Map.lookup NamePriorityTwo byPriority of
+     in case Map.lookup (NamePriorityOne ()) byPriority <|> Map.lookup (NamePriorityTwo ()) byPriority of
           Nothing -> Set.fromList (map snd rs)
           Just rs -> Set.fromList rs
 
-data NamePriority
-  = NamePriorityOne -- highest priority: local names and direct dep names
-  | NamePriorityTwo -- lowest priority: indirect dep names
-  deriving stock (Eq, Ord)
+data NamePriority a
+  = NamePriorityOne !a -- highest priority: local names and direct dep names
+  | NamePriorityTwo !a -- lowest priority: indirect dep names
+  deriving stock (Eq, Functor, Ord)
 
-classifyNamePriority :: Name -> NamePriority
+instance (Monoid a) => Monoid (NamePriority a) where
+  mempty = NamePriorityTwo mempty
+
+instance (Semigroup a) => Semigroup (NamePriority a) where
+  NamePriorityOne x <> NamePriorityOne y = NamePriorityOne (x <> y)
+  NamePriorityOne x <> NamePriorityTwo _ = NamePriorityOne x
+  NamePriorityTwo _ <> NamePriorityOne y = NamePriorityOne y
+  NamePriorityTwo x <> NamePriorityTwo y = NamePriorityTwo (x <> y)
+
+unNamePriority :: NamePriority a -> a
+unNamePriority = \case
+  NamePriorityOne x -> x
+  NamePriorityTwo x -> x
+
+classifyNamePriority :: Name -> NamePriority ()
 classifyNamePriority name =
   case isIndirectDependency (List.NonEmpty.toList (segments name)) of
-    False -> NamePriorityOne
-    True -> NamePriorityTwo
+    False -> NamePriorityOne ()
+    True -> NamePriorityTwo ()
   where
     -- isIndirectDependency foo                   = False
     -- isIndirectDependency lib.bar.honk          = False
@@ -510,8 +524,13 @@ isUnqualified = \case
   Name Relative (_ :| []) -> True
   Name _ (_ :| _) -> False
 
--- Tries to shorten `fqn` to the smallest suffix that still unambiguously refers to the same name. Uses an efficient
--- logarithmic lookup in the provided relation.
+-- Tries to shorten `fqn` to the smallest suffix that still unambiguously refers to the same name.
+--
+-- Indirect dependency names don't cause ambiguity in the presence of one or more non-indirect-dependency names. For
+-- example, if there are two names "lib.base.List.map" and "lib.something.lib.base.Set.map", then "map" would
+-- unambiguously refer to "lib.base.List.map".
+--
+-- Uses an efficient logarithmic lookup in the provided relation.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
@@ -523,10 +542,20 @@ suffixifyByName fqn rel =
       where
         matchingNameCount :: Int
         matchingNameCount =
-          getSum (R.searchDomG (\_ _ -> Sum 1) (compareSuffix suffix) rel)
+          getSum (unNamePriority (R.searchDomG f (compareSuffix suffix) rel))
+          where
+            f name _refs =
+              case classifyNamePriority name of
+                NamePriorityOne () -> NamePriorityOne (Sum 1)
+                NamePriorityTwo () -> NamePriorityTwo (Sum 1)
 
--- Tries to shorten `fqn` to the smallest suffix that still refers the same references. Uses an efficient logarithmic
--- lookup in the provided relation. The returned `Name` may refer to multiple hashes if the original FQN did as well.
+-- Tries to shorten `fqn` to the smallest suffix that still refers the same references.
+--
+-- Like `suffixifyByName`, indirect dependency names don't cause ambiguity in the presence of one or more
+-- non-indirect-dependency names.
+--
+-- Uses an efficient logarithmic lookup in the provided relation. The returned `Name` may refer to multiple hashes if
+-- the original FQN did as well.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
@@ -539,11 +568,15 @@ suffixifyByHash fqn rel =
 
     isOk :: Name -> Bool
     isOk suffix =
-      Set.size refs == 1 || refs == allRefs
+      Set.size matchingRefs == 1 || matchingRefs == allRefs
       where
-        refs :: Set r
-        refs =
-          R.searchDom (compareSuffix suffix) rel
+        matchingRefs :: Set r
+        matchingRefs =
+          unNamePriority (R.searchDomG f (compareSuffix suffix) rel)
+          where
+            f :: Name -> Set r -> NamePriority (Set r)
+            f name refs =
+              refs <$ classifyNamePriority name
 
 -- | Returns the common prefix of two names as segments
 --
