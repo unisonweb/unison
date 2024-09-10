@@ -9,8 +9,6 @@
 module Unison.Runtime.Stack
   ( K (..),
     GClosure (.., DataC, PApV, CapV),
-    IxClosure,
-    -- TODO: Reconsider where these should live
     MInstr,
     MSection,
     MComb,
@@ -88,8 +86,6 @@ type MRef = RRef MForeignFunc
 type MForeignFunc = GForeignFunc FFRef Stack
 
 type Closure = GClosure MForeignFunc (RComb MForeignFunc)
-
-type IxClosure = GClosure FFRef CombIx
 
 newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
 

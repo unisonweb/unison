@@ -721,13 +721,16 @@ instance Bitraversable GBranch where
 -- Convenience patterns for matches used in the algorithms below.
 pattern MatchW :: Int -> (GSection ff comb) -> EnumMap Word64 (GSection ff comb) -> (GSection ff comb)
 pattern MatchW i d cs = Match i (TestW d cs)
+{-# INLINEABLE MatchW #-}
 
 pattern MatchT :: Int -> (GSection ff comb) -> M.Map Text (GSection ff comb) -> (GSection ff comb)
 pattern MatchT i d cs = Match i (TestT d cs)
+{-# INLINEABLE MatchT #-}
 
 pattern NMatchW ::
   Maybe Reference -> Int -> (GSection ff comb) -> EnumMap Word64 (GSection ff comb) -> (GSection ff comb)
 pattern NMatchW r i d cs = NMatch r i (TestW d cs)
+{-# INLINEABLE NMatchW #-}
 
 -- Representation of the variable context available in the current
 -- frame. This tracks tags that have been dumped to the stack for

@@ -74,8 +74,6 @@ type Tag = Word64
 -- dynamic environment
 type DEnv = EnumMap Word64 Closure
 
-type IxClosure = GClosure FFRef CombIx
-
 data Tracer
   = NoTrace
   | MsgTrace String String String
