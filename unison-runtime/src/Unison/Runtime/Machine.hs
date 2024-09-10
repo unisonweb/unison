@@ -23,7 +23,6 @@ import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
 import GHC.Conc as STM (unsafeIOToSTM)
-import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
@@ -85,7 +84,7 @@ data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
-    combs :: TVar (EnumMap Word64 Combs),
+    combs :: TVar (EnumMap Word64 RCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
@@ -137,10 +136,13 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
+    combs :: EnumMap Word64 RCombs
     combs =
-      mapWithKey
-        (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
-        numberedTermLookup
+      ( mapWithKey
+          (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
+          numberedTermLookup
+      )
+        & resolveCombs Nothing
 
 info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -156,26 +158,31 @@ stk'info s@(BS _ _ sp _) = do
   prn sp
 
 -- Entry point for evaluating a section
-eval0 :: CCache -> ActiveThreads -> Section -> IO ()
+eval0 :: CCache -> ActiveThreads -> RSection -> IO ()
 eval0 !env !activeThreads !co = do
   ustk <- alloc
   bstk <- alloc
+  cmbs <- readTVarIO $ combs env
   (denv, k) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
 topDEnv ::
+  EnumMap Word64 RCombs ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
   (DEnv, K -> K)
-topDEnv rfTy rfTm
+topDEnv combs rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy,
+    -- TODO: Should I special-case this raise ref and pass it down from the top rather than always looking it up?
     rcrf <- Builtin (DTx.pack "raise"),
     Just j <- M.lookup rcrf rfTm =
-      ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull),
-        Mark 0 0 (EC.setSingleton n) mempty
-      )
-topDEnv _ _ = (mempty, id)
+      let cix = (CIx rcrf j 0)
+          comb = rCombSection combs cix
+       in ( EC.mapSingleton n (PAp comb unull bnull),
+            Mark 0 0 (EC.setSingleton n) mempty
+          )
+topDEnv _ _ _ = (mempty, id)
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -192,13 +199,15 @@ apply0 !callback !env !threadTracker !i = do
   ustk <- alloc
   bstk <- alloc
   cmbrs <- readTVarIO $ combRefs env
+  cmbs <- readTVarIO $ combs env
   (denv, kf) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
     Nothing -> die "apply0: missing reference to entry point"
+  let entryComb = rCombSection cmbs (CIx r i 0)
   apply env denv threadTracker ustk bstk (kf k0) True ZArgs $
-    PAp (CIx r i 0) unull bnull
+    PAp entryComb unull bnull
   where
     k0 = maybe KE (CB . Hook) callback
 
@@ -230,8 +239,9 @@ jump0 ::
 jump0 !callback !env !activeThreads !clo = do
   ustk <- alloc
   bstk <- alloc
+  cmbs <- readTVarIO $ combs env
   (denv, kf) <-
-    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   bstk <- bump bstk
   poke bstk (Enum Rf.unitRef unitTag)
   jump env denv activeThreads ustk bstk (kf k0) (BArg1 0) clo
@@ -255,6 +265,7 @@ buildLit _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
 buildLit _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
 buildLit _ (MD _) = error "buildLit: double"
 
+-- | Execute an instruction
 exec ::
   CCache ->
   DEnv ->
@@ -263,7 +274,7 @@ exec ::
   Stack 'BX ->
   K ->
   Reference ->
-  Instr ->
+  RInstr ->
   IO (DEnv, Stack 'UN, Stack 'BX, K)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Info tx) = do
   info tx ustk
@@ -580,6 +591,7 @@ numValue mr clo =
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 
+-- | Evaluate a section
 eval ::
   CCache ->
   DEnv ->
@@ -588,7 +600,7 @@ eval ::
   Stack 'BX ->
   K ->
   Reference ->
-  Section ->
+  RSection ->
   IO ()
 eval !env !denv !activeThreads !ustk !bstk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi bstk i
@@ -624,9 +636,8 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
 eval !env !denv !activeThreads !ustk !bstk !k _ (App ck r args) =
   resolve env denv bstk r
     >>= apply env denv activeThreads ustk bstk k ck args
-eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck n args) =
-  combSection env (CIx dummyRef n 0)
-    >>= enter env denv activeThreads ustk bstk k ck args
+eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck rcomb args) =
+  enter env denv activeThreads ustk bstk k ck args rcomb
 eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
 eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix) = do
@@ -687,9 +698,9 @@ enter ::
   K ->
   Bool ->
   Args ->
-  Comb ->
+  RComb ->
   IO ()
-enter !env !denv !activeThreads !ustk !bstk !k !ck !args !comb = do
+enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
   ustk <- if ck then ensure ustk uf else pure ustk
   bstk <- if ck then ensure bstk bf else pure bstk
   (ustk, bstk) <- moveArgs ustk bstk args
@@ -699,7 +710,7 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !comb = do
   -- detecting saturated calls.
   eval env denv activeThreads ustk bstk k dummyRef entry
   where
-    Lam ua ba uf bf entry = comb
+    (RComb _ (Lam ua ba uf bf entry)) = rcomb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -726,7 +737,7 @@ apply ::
   Closure ->
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
-  combSection env comb >>= \case
+  case unRComb comb of
     Lam ua ba uf bf entry
       | ck || ua <= uac && ba <= bac -> do
           ustk <- ensure ustk uf
@@ -736,7 +747,7 @@ apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
           bstk <- dumpSeg bstk bseg A
           ustk <- acceptArgs ustk ua
           bstk <- acceptArgs bstk ba
-          eval env denv activeThreads ustk bstk k (combRef comb) entry
+          eval env denv activeThreads ustk bstk k (rCombRef comb) entry
       | otherwise -> do
           (useg, bseg) <- closeArgs C ustk bstk useg bseg args
           ustk <- discardFrame =<< frameArgs ustk
@@ -1826,23 +1837,23 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       ustk <- adjustArgs ustk ua
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
-    leap !denv (Push ufsz bfsz uasz basz cix k) = do
-      Lam _ _ uf bf nx <- combSection env cix
+    leap !denv (Push ufsz bfsz uasz basz rComb k) = do
+      let Lam _ _ uf bf nx = unRComb rComb
       ustk <- restoreFrame ustk ufsz uasz
       bstk <- restoreFrame bstk bfsz basz
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k (combRef cix) nx
+      eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
 
 selectTextBranch ::
-  Util.Text.Text -> Section -> M.Map Util.Text.Text Section -> Section
+  Util.Text.Text -> RSection -> M.Map Util.Text.Text RSection -> RSection
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# INLINE selectTextBranch #-}
 
-selectBranch :: Tag -> Branch -> Section
+selectBranch :: Tag -> RBranch -> RSection
 selectBranch t (Test1 u y n)
   | t == u = y
   | otherwise = n
@@ -1911,11 +1922,8 @@ discardCont denv ustk bstk k p =
     <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
-resolve :: CCache -> DEnv -> Stack 'BX -> Ref -> IO Closure
-resolve env _ _ (Env n i) =
-  readTVarIO (combRefs env) >>= \rs -> case EC.lookup n rs of
-    Just r -> pure $ PAp (CIx r n i) unull bnull
-    Nothing -> die $ "resolve: missing reference for comb: " ++ show n
+resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
+resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
@@ -1929,19 +1937,18 @@ unhandledErr fname env i =
   where
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
-combSection :: (HasCallStack) => CCache -> CombIx -> IO Comb
-combSection env (CIx _ n i) =
-  readTVarIO (combs env) >>= \cs -> case EC.lookup n cs of
+rCombSection :: EnumMap Word64 RCombs -> CombIx -> RComb
+rCombSection combs cix@(CIx r n i) =
+  case EC.lookup n combs of
     Just cmbs -> case EC.lookup i cmbs of
-      Just cmb -> pure cmb
-      Nothing ->
-        die $
-          "unknown section `"
-            ++ show i
-            ++ "` of combinator `"
-            ++ show n
-            ++ "`."
-    Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
+      Just cmb -> RComb cix cmb
+      Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`. Reference: " ++ show r
+    Nothing -> error $ "unknown combinator `" ++ show n ++ "`. Reference: " ++ show r
+
+resolveSection :: CCache -> Section -> IO RSection
+resolveSection cc section = do
+  rcombs <- readTVarIO (combs cc)
+  pure $ rCombSection rcombs <$> section
 
 dummyRef :: Reference
 dummyRef = Builtin (DTx.pack "dummy")
@@ -1954,6 +1961,9 @@ updateMap new0 r = do
   new <- evaluateSTM new0
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
+
+modifyMap :: TVar s -> (s -> s) -> STM s
+modifyMap r f = stateTVar r $ \old -> let new = f old in (new, new)
 
 refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
 refLookup s m r
@@ -2105,9 +2115,12 @@ cacheAdd0 ntys0 tml sands cc = atomically $ do
   rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
   -- check for missing references
   let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
       combinate n (r, g) = (n, emitCombs rns r n g)
   nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- updateMap (mapFromList $ zipWith combinate [ntm ..] rgs) (combs cc)
+  ncs <- modifyMap (combs cc) \oldCombs ->
+    let newCombs = resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs
+     in newCombs <> oldCombs
   nsn <- updateMap (M.fromList sands) (sandbox cc)
   pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
@@ -2163,8 +2176,8 @@ reflectValue rty = goV
 
     goIx (CIx r _ i) = ANF.GR r i
 
-    goV (PApV cix ua ba) =
-      ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+    goV (PApV rComb ua ba) =
+      ANF.Partial (goIx $ rCombIx rComb) (fromIntegral <$> ua) <$> traverse goV ba
     goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
@@ -2179,13 +2192,13 @@ reflectValue rty = goV
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
-    goK (Push uf bf ua ba cix k) =
+    goK (Push uf bf ua ba rComb k) =
       ANF.Push
         (fromIntegral uf)
         (fromIntegral bf)
         (fromIntegral ua)
         (fromIntegral ba)
-        (goIx cix)
+        (goIx $ rCombIx rComb)
         <$> goK k
 
     goF f
@@ -2218,16 +2231,17 @@ reflectValue rty = goV
       | t == floatTag = pure $ ANF.Float (intToDouble v)
       | otherwise = die . err $ "unboxed data: " <> show (t, v)
 
-reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
+reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] RClosure)
 reifyValue cc val = do
   erc <-
-    atomically $
-      readTVar (refTm cc) >>= \rtm ->
-        case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
-          [] ->
-            Right . (,rtm)
-              <$> addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          l -> pure (Left l)
+    atomically $ do
+      combs <- readTVar (combs cc)
+      rtm <- readTVar (refTm cc)
+      case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
+        [] -> do
+          newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
+          pure . Right $ (combs, newTy, rtm)
+        l -> pure (Left l)
   traverse (\rfs -> reifyValue0 rfs val) erc
   where
     f False r = (mempty, S.singleton r)
@@ -2235,10 +2249,10 @@ reifyValue cc val = do
     (tyLinks, tmLinks) = valueLinks f val
 
 reifyValue0 ::
-  (M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 RCombs, M.Map Reference Word64, M.Map Reference Word64) ->
   ANF.Value ->
   IO Closure
-reifyValue0 (rty, rtm) = goV
+reifyValue0 (combs, rty, rtm) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2247,7 +2261,10 @@ reifyValue0 (rty, rtm) = goV
     refTm r
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
-    goIx (ANF.GR r i) = refTm r <&> \n -> CIx r n i
+    goIx :: ANF.GroupRef -> IO RComb
+    goIx (ANF.GR r i) =
+      refTm r <&> \n ->
+        rCombSection combs (CIx r n i)
 
     goV (ANF.Partial gr ua ba) =
       pap <$> (goIx gr) <*> traverse goV ba
