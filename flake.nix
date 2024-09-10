@@ -35,6 +35,7 @@
         // {
         hpack = "0.35.2";
         ormolu = "0.7.2.0";
+        weeder = "2.8.0";
       };
       pkgs = import nixpkgs-haskellNix {
         inherit system;
