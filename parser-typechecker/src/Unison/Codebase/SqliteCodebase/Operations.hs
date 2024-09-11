@@ -9,24 +9,14 @@
 -- are unified with non-sqlite operations in the Codebase interface, like 'appendReflog'.
 module Unison.Codebase.SqliteCodebase.Operations where
 
-import Control.Comonad.Cofree qualified as Cofree
 import Data.Bitraversable (bitraverse)
 import Data.Either.Extra ()
-import Data.Functor.Compose (Compose (..))
-import Data.List qualified as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
-import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.UUID.V4 qualified as UUID
-import U.Codebase.Branch qualified as V2Branch
-import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
-import U.Codebase.Branch.Diff qualified as BranchDiff
-import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash), PatchHash)
-import U.Codebase.Projects qualified as Projects
+import U.Codebase.HashTags (BranchHash, CausalHash (unCausalHash))
 import U.Codebase.Reference qualified as C.Reference
-import U.Codebase.Referent qualified as C.Referent
-import U.Codebase.Sqlite.DbId (ObjectId)
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
@@ -41,7 +31,6 @@ import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
@@ -53,7 +42,6 @@ import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -130,35 +118,6 @@ data BufferEntry a = BufferEntry
     beWaitingDependents :: Set Hash
   }
   deriving (Eq, Show)
-
-prettyBufferEntry :: (Show a) => Hash -> BufferEntry a -> String
-prettyBufferEntry (h :: Hash) BufferEntry {..} =
-  "BufferEntry "
-    ++ show h
-    ++ "\n"
-    ++ "  { beComponentTargetSize = "
-    ++ show beComponentTargetSize
-    ++ "\n"
-    ++ "  , beComponent = "
-    ++ if Map.size beComponent < 2
-      then show $ Map.toList beComponent
-      else
-        mkString (Map.toList beComponent) (Just "\n      [ ") "      , " (Just "]\n")
-          ++ "  , beMissingDependencies ="
-          ++ if Set.size beMissingDependencies < 2
-            then show $ Set.toList beMissingDependencies
-            else
-              mkString (Set.toList beMissingDependencies) (Just "\n      [ ") "      , " (Just "]\n")
-                ++ "  , beWaitingDependents ="
-                ++ if Set.size beWaitingDependents < 2
-                  then show $ Set.toList beWaitingDependents
-                  else
-                    mkString (Set.toList beWaitingDependents) (Just "\n      [ ") "      , " (Just "]\n")
-                      ++ "  }"
-  where
-    mkString :: (Foldable f, Show a) => f a -> Maybe String -> String -> Maybe String -> String
-    mkString as start middle end =
-      fromMaybe "" start ++ List.intercalate middle (show <$> toList as) ++ fromMaybe "" end
 
 type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
@@ -341,16 +300,6 @@ tryFlushTermBuffer termBuffer =
           h
    in loop
 
-addDeclComponentTypeIndex :: ObjectId -> [[Type Symbol Ann]] -> Transaction ()
-addDeclComponentTypeIndex oId ctorss =
-  for_ (ctorss `zip` [0 ..]) \(ctors, i) ->
-    for_ (ctors `zip` [0 ..]) \(tp, j) -> do
-      let self = C.Referent.ConId (C.Reference.Id oId i) j
-          typeForIndexing = Hashing.typeToReference tp
-          typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
-      Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
-      Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
-
 putTypeDeclarationComponent ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->
@@ -442,24 +391,6 @@ branchExists h =
   Q.loadHashIdByHash (unCausalHash h) >>= \case
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
-
-getPatch :: PatchHash -> Transaction (Maybe Patch)
-getPatch h =
-  runMaybeT do
-    patchId <- MaybeT (Q.loadPatchObjectIdForPrimaryHash h)
-    patch <- lift (Ops.expectPatch patchId)
-    pure (Cv.patch2to1 patch)
-
--- | Put a patch into the codebase.
---
--- Note that 'putBranch' may also put patches.
-putPatch :: PatchHash -> Patch -> Transaction ()
-putPatch h p =
-  void $ Ops.savePatch v2HashHandle h (Cv.patch1to2 p)
-
--- | Check whether the given patch exists in the codebase.
-patchExists :: PatchHash -> Transaction Bool
-patchExists h = fmap isJust $ Q.loadPatchObjectIdForPrimaryHash h
 
 dependentsImpl :: Q.DependentsSelector -> Reference -> Transaction (Set Reference.Id)
 dependentsImpl selector r =
@@ -562,9 +493,6 @@ defnReferencesByPrefix ot (ShortHash.ShortHash prefix cycle _cid) = do
       >>= pure . Set.fromList
   pure $ Set.map Cv.referenceid2to1 refs
 
-termReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
-termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
-
 -- | Get the set of type declarations whose hash matches the given prefix.
 typeReferencesByPrefix :: ShortHash -> Transaction (Set Reference.Id)
 typeReferencesByPrefix = defnReferencesByPrefix OT.DeclComponent
@@ -594,16 +522,6 @@ causalHashesByPrefix sh = do
   -- refer to to specify a full namespace w/ history.
   -- but do we want to be able to refer to a namespace without its history?
   Ops.causalHashesByPrefix (Cv.sch1to2 sh)
-
--- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
-termExists, declExists :: Hash -> Transaction Bool
-termExists = fmap isJust . Q.loadObjectIdForPrimaryHash
-declExists = termExists
-
--- `before b1 b2` is undefined if `b2` not in the codebase
-before :: CausalHash -> CausalHash -> Transaction Bool
-before h1 h2 =
-  fromJust <$> Ops.before h1 h2
 
 -- | Construct a 'ScopedNames' which can produce names which are relative to the provided
 -- Path.
@@ -648,86 +566,6 @@ namesAtPath bh path = do
       case Name.stripReversedPrefix n reversedPathSegments of
         Nothing -> Nothing
         Just stripped -> Just (Name.makeRelative stripped, ref)
-
--- | Add an index for the provided branch hash if one doesn't already exist.
-ensureNameLookupForBranchHash ::
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  -- | An optional branch which we may already have an index for.
-  -- This should be a branch which is relatively similar to the branch we're creating a name
-  -- lookup for, e.g. a recent ancestor of the new branch. The more similar it is, the faster
-  -- the less work we'll need to do.
-  Maybe BranchHash ->
-  BranchHash ->
-  Sqlite.Transaction ()
-ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
-  Ops.checkBranchHashNameLookupExists toBranchHash >>= \case
-    True -> pure ()
-    False -> do
-      (fromBranch, mayExistingLookupBH) <- case mayFromBranchHash of
-        Nothing -> pure (V2Branch.empty, Nothing)
-        Just fromBH -> do
-          Ops.checkBranchHashNameLookupExists fromBH >>= \case
-            True -> (,Just fromBH) <$> Ops.expectBranchByBranchHash fromBH
-            False -> do
-              -- TODO: We can probably infer a good starting branch by crawling through
-              -- history looking for a Branch Hash we already have an index for.
-              pure (V2Branch.empty, Nothing)
-      toBranch <- Ops.expectBranchByBranchHash toBranchHash
-      depMounts <- Projects.inferDependencyMounts toBranch <&> fmap (first (coerce @_ @PathSegments . Path.toList))
-      let depMountPaths = (Path.fromList . coerce) . fst <$> depMounts
-      treeDiff <- ignoreDepMounts depMountPaths <$> BranchDiff.diffBranches fromBranch toBranch
-      let namePrefix = Nothing
-      Ops.buildNameLookupForBranchHash
-        mayExistingLookupBH
-        toBranchHash
-        ( \save -> do
-            BranchDiff.streamNameChanges namePrefix treeDiff \_prefix (BranchDiff.NameChanges {termNameAdds, termNameRemovals, typeNameAdds, typeNameRemovals}) -> do
-              termNameAddsWithCT <- do
-                for termNameAdds \(name, ref) -> do
-                  refWithCT <- addReferentCT ref
-                  pure $ toNamedRef (name, refWithCT)
-              save (termNameAddsWithCT, toNamedRef <$> termNameRemovals) (toNamedRef <$> typeNameAdds, toNamedRef <$> typeNameRemovals)
-        )
-      -- Ensure all of our dependencies have name lookups too.
-      for_ depMounts \(_path, depBranchHash) -> do
-        -- TODO: see if we can find a way to infer a good fromHash for dependencies
-        ensureNameLookupForBranchHash getDeclType Nothing depBranchHash
-      Ops.associateNameLookupMounts toBranchHash depMounts
-  where
-    alterTreeDiffAtPath :: (Functor m) => Path -> (TreeDiff m -> TreeDiff m) -> TreeDiff m -> TreeDiff m
-    alterTreeDiffAtPath path f (TreeDiff cfr) =
-      case path of
-        Path.Empty -> f (TreeDiff cfr)
-        (segment Path.:< rest) ->
-          let (a Cofree.:< (Compose rest')) = cfr
-           in TreeDiff (a Cofree.:< Compose (Map.adjust (fmap (coerce $ alterTreeDiffAtPath rest f)) segment rest'))
-    -- Delete portions of the diff which are covered by dependency mounts.
-    ignoreDepMounts :: (Applicative m) => [Path] -> TreeDiff m -> TreeDiff m
-    ignoreDepMounts depMounts treeDiff =
-      foldl' (\acc path -> alterTreeDiffAtPath path (const mempty) acc) treeDiff depMounts
-    toNamedRef :: (Name, ref) -> S.NamedRef ref
-    toNamedRef (name, ref) = S.NamedRef {reversedSegments = coerce $ Name.reverseSegments name, ref = ref}
-    addReferentCT :: C.Referent.Referent -> Transaction (C.Referent.Referent, Maybe C.Referent.ConstructorType)
-    addReferentCT referent = case referent of
-      C.Referent.Ref {} -> pure (referent, Nothing)
-      C.Referent.Con ref _conId -> do
-        ct <- getDeclType ref
-        pure (referent, Just $ Cv.constructorType1to2 ct)
-
--- | Regenerate the name lookup index for the given branch hash from scratch.
--- This shouldn't be necessary in normal operation, but it's useful to fix name lookups if
--- they somehow get corrupt, or during local testing and debugging.
-regenerateNameLookup ::
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  BranchHash ->
-  Sqlite.Transaction ()
-regenerateNameLookup getDeclType bh = do
-  Ops.checkBranchHashNameLookupExists bh >>= \case
-    True -> do
-      bhId <- Q.expectBranchHashId bh
-      Q.deleteNameLookup bhId
-      ensureNameLookupForBranchHash getDeclType Nothing bh
-    False -> ensureNameLookupForBranchHash getDeclType Nothing bh
 
 -- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
 --

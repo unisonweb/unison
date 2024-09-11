@@ -23,21 +23,6 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var as Var
 
--- testSNF s = ok
---   where
---   t0 = tm s
---   snf = toSuperNormal (const 0) t0
-
-simpleRefs :: Reference -> RTag
-simpleRefs r
-  | r == Ty.natRef = 0
-  | r == Ty.intRef = 1
-  | r == Ty.floatRef = 2
-  | r == Ty.booleanRef = 3
-  | r == Ty.textRef = 4
-  | r == Ty.charRef = 5
-  | otherwise = 100
-
 runANF :: (Var v) => ANFM v a -> a
 runANF m = evalState (runReaderT m Set.empty) (0, 1, [])
 
@@ -104,19 +89,6 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       FPrim _ -> error "FPrim"
       FCont _ -> error "denormalize FCont"
 denormalize (TFrc _) = error "denormalize TFrc"
-
-denormalizeRef :: RTag -> Reference
-denormalizeRef r
-  | 0 <- rawTag r = Ty.natRef
-  | 1 <- rawTag r = Ty.intRef
-  | 2 <- rawTag r = Ty.floatRef
-  | 3 <- rawTag r = Ty.booleanRef
-  | 4 <- rawTag r = Ty.textRef
-  | 5 <- rawTag r = Ty.charRef
-  | otherwise = error "denormalizeRef"
-
-backReference :: Word64 -> Reference
-backReference _ = error "backReference"
 
 denormalizeMatch ::
   (Var v) => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]

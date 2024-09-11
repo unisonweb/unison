@@ -1,25 +1,20 @@
 module Unison.Codebase.Editor.HandleInput.TermResolution
   ( lookupTermRefs,
     lookupTermRefWithType,
-    resolveCon,
-    resolveTerm,
-    resolveTermRef,
     resolveMainRef,
   )
 where
 
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans (liftIO)
-import Data.Maybe (catMaybes, fromJust)
-import Data.Set (fromList, toList)
+import Data.Maybe (catMaybes)
+import Data.Set (toList)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output (Output (..))
-import Unison.Codebase.Path (hqSplitFromName')
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.ConstructorReference
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -30,23 +25,13 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
-import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 
 lookupTerm :: HQ.HashQualified Name -> Names -> [Referent]
 lookupTerm hq parseNames = toList (Names.lookupHQTerm Names.IncludeSuffixes hq parseNames)
-
-lookupCon ::
-  HQ.HashQualified Name ->
-  Names ->
-  ([ConstructorReference], [Referent])
-lookupCon hq parseNames =
-  unzip . catMaybes . fmap extract $ lookupTerm hq parseNames
-  where
-    extract rt@(Con rf _) = Just (rf, rt)
-    extract _ = Nothing
 
 lookupTermRefs ::
   HQ.HashQualified Name -> Names -> ([Reference], [Referent])
@@ -71,45 +56,6 @@ lookupTermRefWithType codebase name = do
   where
     annot tm =
       fmap ((,) tm) <$> Codebase.getTypeOfTerm codebase tm
-
-resolveTerm :: HQ.HashQualified Name -> Cli Referent
-resolveTerm name = do
-  names <- Cli.currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  case lookupTerm name names of
-    [] -> Cli.returnEarly (TermNotFound $ fromJust parsed)
-      where
-        parsed = hqSplitFromName' <$> HQ.toName name
-    [rf] -> pure rf
-    rfs ->
-      Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfs))
-
-resolveCon :: HQ.HashQualified Name -> Cli ConstructorReference
-resolveCon name = do
-  names <- Cli.currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  case lookupCon name names of
-    ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
-      where
-        parsed = hqSplitFromName' <$> HQ.toName name
-    ([co], _) -> pure co
-    (_, rfts) ->
-      Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfts))
-
-resolveTermRef :: HQ.HashQualified Name -> Cli Reference
-resolveTermRef name = do
-  names <- Cli.currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  case lookupTermRefs name names of
-    ([], _) -> Cli.returnEarly (TermNotFound $ fromJust parsed)
-      where
-        parsed = hqSplitFromName' <$> HQ.toName name
-    ([rf], _) -> pure rf
-    (_, rfts) ->
-      Cli.returnEarly (TermAmbiguous suffixifiedPPE name (fromList rfts))
 
 resolveMainRef :: HQ.HashQualified Name -> Cli (Reference, PrettyPrintEnv)
 resolveMainRef main = do

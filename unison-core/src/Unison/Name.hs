@@ -13,13 +13,11 @@ module Unison.Name
     countSegments,
     isAbsolute,
     isRelative,
-    isPrefixOf,
     beginsWithSegment,
     endsWith,
     endsWithReverseSegments,
     endsWithSegments,
     stripReversedPrefix,
-    tryStripReversedPrefix,
     reverseSegments,
     segments,
     suffixes,
@@ -46,7 +44,6 @@ module Unison.Name
     suffixifyByHashName,
     sortByText,
     sortNamed,
-    sortNames,
     splits,
     suffixFrom,
 
@@ -200,36 +197,6 @@ stripReversedPrefix (Name p segs) suffix = do
   stripped <- List.stripSuffix suffix (toList segs)
   nonEmptyStripped <- List.NonEmpty.nonEmpty stripped
   pure $ Name p nonEmptyStripped
-
--- | Like 'stripReversedPrefix' but if the prefix doesn't match, or if it would strip the
--- entire name away just return the original name.
---
--- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
--- Name Relative (NameSegment {toText = "c"} :| [])
--- >>> tryStripReversedPrefix (fromReverseSegments ("y" :| ["x"])) ["b", "a"]
--- Name Relative (NameSegment {toText = "y"} :| [NameSegment {toText = "x"}])
---
--- >>> tryStripReversedPrefix (fromReverseSegments ("c" :| ["b", "a"])) ["b", "a"]
--- Name Relative (NameSegment {toText = "c"} :| [])
-tryStripReversedPrefix :: Name -> [NameSegment] -> Name
-tryStripReversedPrefix n s = fromMaybe n (stripReversedPrefix n s)
-
--- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
--- and the other is absolute.
---
--- >>> isPrefixOf "a.b" "a.b.c"
--- True
---
--- >>> isPrefixOf "a.b.c" "a.b.c"
--- True
---
--- >>> isPrefixOf ".a.b" "a.b.c"
--- False
---
--- /O(n)/, where /n/ is the number of name segments.
-isPrefixOf :: Name -> Name -> Bool
-isPrefixOf (Name p0 ss0) (Name p1 ss1) =
-  p0 == p1 && List.isPrefixOf (reverse (toList ss0)) (reverse (toList ss1))
 
 joinDot :: (HasCallStack) => Name -> Name -> Name
 joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
@@ -429,10 +396,6 @@ sortByText by as =
 sortNamed :: (Name -> Text) -> (a -> Name) -> [a] -> [a]
 sortNamed toText f =
   sortByText (toText . f)
-
-sortNames :: (Name -> Text) -> [Name] -> [Name]
-sortNames toText =
-  sortNamed toText id
 
 -- | Return all "splits" of a relative name, which pair a possibly-empty prefix of name segments with a suffix, such
 -- that the original name is equivalent to @prefix + suffix@.

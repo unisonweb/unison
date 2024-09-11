@@ -13,8 +13,6 @@ module Unison.Sqlite.Connection
     executeStatements,
 
     -- ** With results
-    queryStreamRow,
-    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -46,7 +44,6 @@ module Unison.Sqlite.Connection
     rollback,
 
     -- ** Savepoint
-    withSavepoint,
     withSavepointIO,
     savepoint,
     rollbackTo,
@@ -183,34 +180,6 @@ executeStatements conn@(Connection _ _ (Sqlite.Connection database _tempNameCoun
         }
 
 -- With results, without checks
-
-queryStreamRow :: (HasCallStack, Sqlite.FromRow a) => Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r
-queryStreamRow conn@(Connection _ _ conn0) sql@(Sql s params) callback =
-  run `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteQueryException
-      SqliteQueryExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          sql
-        }
-  where
-    run =
-      bracket (Sqlite.openStatement conn0 (coerce s)) Sqlite.closeStatement \statement -> do
-        Sqlite.bind statement params
-        callback (Sqlite.nextRow statement)
-
-queryStreamCol ::
-  forall a r.
-  (HasCallStack, Sqlite.FromField a) =>
-  Connection ->
-  Sql ->
-  (IO (Maybe a) -> IO r) ->
-  IO r
-queryStreamCol =
-  coerce
-    @(Connection -> Sql -> (IO (Maybe (Sqlite.Only a)) -> IO r) -> IO r)
-    @(Connection -> Sql -> (IO (Maybe a) -> IO r) -> IO r)
-    queryStreamRow
 
 queryListRow :: forall a. (Sqlite.FromRow a, HasCallStack) => Connection -> Sql -> IO [a]
 queryListRow conn@(Connection _ _ conn0) sql@(Sql s params) = do
@@ -389,12 +358,6 @@ rollback conn =
   execute conn [Sql.sql| ROLLBACK |]
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
-withSavepoint :: (MonadUnliftIO m) => Connection -> Text -> (m () -> m a) -> m a
-withSavepoint conn name action =
-  withRunInIO \runInIO ->
-    withSavepointIO conn name \rollback ->
-      runInIO (action (liftIO rollback))
-
 withSavepointIO :: Connection -> Text -> (IO () -> IO a) -> IO a
 withSavepointIO conn name action = do
   uninterruptibleMask \restore -> do

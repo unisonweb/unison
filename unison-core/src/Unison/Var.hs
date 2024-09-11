@@ -9,8 +9,6 @@ module Unison.Var
     inferInput,
     inferOther,
     inferOutput,
-    inferPatternBindE,
-    inferPatternBindV,
     inferPatternPureE,
     inferPatternPureV,
     inferTypeConstructor,
@@ -117,8 +115,6 @@ missingResult,
   inferAbility,
   inferPatternPureE,
   inferPatternPureV,
-  inferPatternBindE,
-  inferPatternBindV,
   inferTypeConstructor,
   inferTypeConstructorArg,
   inferOther ::
@@ -130,8 +126,6 @@ inferOutput = typed (Inference Output)
 inferAbility = typed (Inference Ability)
 inferPatternPureE = typed (Inference PatternPureE)
 inferPatternPureV = typed (Inference PatternPureV)
-inferPatternBindE = typed (Inference PatternBindE)
-inferPatternBindV = typed (Inference PatternBindV)
 inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)

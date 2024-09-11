@@ -5,7 +5,6 @@ module Unison.Syntax.TermPrinter
     prettyBlock',
     pretty',
     prettyBinding,
-    prettyBinding',
     prettyBindingWithoutTypeSignature,
     prettyDoc2,
     pretty0,
@@ -930,16 +929,6 @@ prettyBinding_ ::
   Pretty SyntaxText
 prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
-
-prettyBinding' ::
-  (Var v) =>
-  PrettyPrintEnv ->
-  Width ->
-  HQ.HashQualified Name ->
-  Term v a ->
-  ColorText
-prettyBinding' ppe width v t =
-  PP.render width . PP.syntaxToColor $ prettyBinding ppe v t
 
 prettyBinding0 ::
   (MonadPretty v m) =>

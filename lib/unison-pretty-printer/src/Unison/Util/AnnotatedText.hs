@@ -96,9 +96,6 @@ annotate' :: Maybe b -> AnnotatedText a -> AnnotatedText b
 annotate' a (AnnotatedText at) =
   AnnotatedText $ (\(Segment s _) -> Segment s a) <$> at
 
-deannotate :: AnnotatedText a -> AnnotatedText b
-deannotate = annotate' Nothing
-
 -- Replace the annotation (whether existing or no) with the given annotation
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =
@@ -108,28 +105,12 @@ annotateMaybe :: AnnotatedText (Maybe a) -> AnnotatedText a
 annotateMaybe (AnnotatedText segments) =
   AnnotatedText (fmap (\(Segment s a) -> Segment s (join a)) segments)
 
-trailingNewLine :: AnnotatedText a -> Bool
-trailingNewLine (AnnotatedText (init :|> (Segment s _))) =
-  case lastMay s of
-    Just '\n' -> True
-    Just _ -> False
-    _ -> trailingNewLine (AnnotatedText init)
-trailingNewLine _ = False
-
 markup :: AnnotatedExcerpt a -> Map Range a -> AnnotatedExcerpt a
 markup a r = a {annotations = r `Map.union` annotations a}
 
 -- renderTextUnstyled :: AnnotatedText a -> Rendered Void
 -- renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
 --   where go r (text, _) = r <> fromString text
-
-textLength :: AnnotatedText a -> Int
-textLength (AnnotatedText chunks) = foldl' go 0 chunks
-  where
-    go len (toPair -> (text, _a)) = len + length text
-
-textEmpty :: AnnotatedText a -> Bool
-textEmpty = (== 0) . textLength
 
 condensedExcerptToText :: Int -> AnnotatedExcerpt a -> AnnotatedText a
 condensedExcerptToText margin e =

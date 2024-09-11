@@ -5,7 +5,6 @@ module U.Codebase.Sqlite.Serialization
     decomposeDeclFormat,
     decomposePatchFormat,
     decomposeTermFormat,
-    decomposeWatchFormat,
     getBranchFormat,
     getLocalBranch,
     getDeclElement,
@@ -19,12 +18,10 @@ module U.Codebase.Sqlite.Serialization
     getTempPatchFormat,
     getTempTermFormat,
     getTermAndType,
-    getTypeFromTermAndType,
     getTermFormat,
     getWatchResultFormat,
     lookupDeclElement,
     lookupDeclElementNumConstructors,
-    lookupTermElement,
     lookupTermElementDiscardingTerm,
     lookupTermElementDiscardingType,
     putBranchFormat,
@@ -37,7 +34,6 @@ module U.Codebase.Sqlite.Serialization
     recomposeDeclFormat,
     recomposePatchFormat,
     recomposeTermFormat,
-    recomposeWatchFormat,
 
     -- * Exported for Share
     putTermAndType,
@@ -326,12 +322,6 @@ getTermComponent =
 getTermAndType :: (MonadGet m) => m (TermFormat.Term, TermFormat.Type)
 getTermAndType = (,) <$> getFramed getSingleTerm <*> getTermElementType
 
--- | Decode ONLY the type of a term-component element.
--- This is useful during sync and when we need the type of a term component element but don't
--- want to decode the whole term (which can be expensive).
-getTypeFromTermAndType :: (MonadGet m) => m (TermFormat.Type)
-getTypeFromTermAndType = skipFramed *> getTermElementType
-
 getSingleTerm :: (MonadGet m) => m TermFormat.Term
 getSingleTerm = getABT getSymbol getUnit getF
   where
@@ -407,12 +397,6 @@ getSingleTerm = getABT getSymbol getUnit getF
                 1 -> pure Term.PSnoc
                 2 -> pure Term.PConcat
                 tag -> unknownTag "SeqOp" tag
-
-lookupTermElement :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term, TermFormat.Type)
-lookupTermElement i =
-  getWord8 >>= \case
-    0 -> unsafeFramedArrayLookup (getTuple3 getLocalIds (getFramed getSingleTerm) getTermElementType) $ fromIntegral i
-    tag -> unknownTag "lookupTermElement" tag
 
 lookupTermElementDiscardingType :: (MonadGet m) => Reference.Pos -> m (LocalIds, TermFormat.Term)
 lookupTermElementDiscardingType i =
@@ -812,16 +796,6 @@ recomposeComponent :: (MonadPut m) => Vector (LocalIds, BS.ByteString) -> m ()
 recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putLocalIds localIds
   putByteString bytes
-
-decomposeWatchFormat :: (MonadGet m) => m TermFormat.SyncWatchResultFormat
-decomposeWatchFormat =
-  getWord8 >>= \case
-    0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
-    x -> unknownTag "decomposeWatchFormat" x
-
-recomposeWatchFormat :: (MonadPut m) => TermFormat.SyncWatchResultFormat -> m ()
-recomposeWatchFormat (TermFormat.SyncWatchResult wli bs) =
-  putWord8 0 *> putLocalIds wli *> putByteString bs
 
 decomposePatchFormat :: (MonadGet m) => m PatchFormat.SyncPatchFormat
 decomposePatchFormat =

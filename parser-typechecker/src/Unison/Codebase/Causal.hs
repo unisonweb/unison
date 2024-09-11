@@ -16,11 +16,9 @@ module Unison.Codebase.Causal
     threeWayMerge',
     squashMerge',
     lca,
-    stepDistinct,
     stepDistinctM,
     transform,
     unsafeMapHashPreserving,
-    before,
     beforeHash,
   )
 where
@@ -43,7 +41,6 @@ import Unison.Codebase.Causal.Type
         tails,
         valueHash
       ),
-    before,
     lca,
     predecessors,
     pattern Cons,
@@ -136,9 +133,6 @@ beforeHash maxDepth h c =
           let unseens = filter (\c -> c `Set.notMember` seen) cs
           State.modify' (<> Set.fromList cs)
           Monad.anyM (Reader.local (1 +) . go) unseens
-
-stepDistinct :: (Applicative m, Eq e, Hashing.ContentAddressable e) => (e -> e) -> Causal m e -> Causal m e
-stepDistinct f c = f (head c) `consDistinct` c
 
 stepDistinctM ::
   (Applicative m, Functor n, Eq e, Hashing.ContentAddressable e) =>

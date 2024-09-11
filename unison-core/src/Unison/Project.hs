@@ -10,7 +10,6 @@ module Unison.Project
     projectNameToUserProjectSlugs,
     prependUserSlugToProjectName,
     ProjectBranchName,
-    projectBranchNameUserSlug,
     ProjectBranchNameKind (..),
     classifyProjectBranchName,
     ProjectBranchNameOrLatestRelease (..),
@@ -281,19 +280,6 @@ classifyProjectBranchName (UnsafeProjectBranchName branchName) =
     Just (StructuredProjectBranchName'Release ver) -> ProjectBranchNameKind'Release ver
     Just (StructuredProjectBranchName'NothingSpecial _name) -> ProjectBranchNameKind'NothingSpecial
     Nothing -> error (reportBug "E800424" ("Invalid project branch name: " ++ Text.unpack branchName))
-
--- | Get the user slug at the beginning of a project branch name, if there is one.
---
--- >>> projectBranchNameUserSlug "@arya/topic"
--- Just "arya"
---
--- >>> projectBranchNameUserSlug "topic"
--- Nothing
-projectBranchNameUserSlug :: ProjectBranchName -> Maybe Text
-projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
-  if Text.head branchName == '@'
-    then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
-    else Nothing
 
 -- | A project branch name, or the latest release of its project.
 data ProjectBranchNameOrLatestRelease

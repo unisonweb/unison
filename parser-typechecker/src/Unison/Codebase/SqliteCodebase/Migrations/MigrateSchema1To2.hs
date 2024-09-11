@@ -16,7 +16,6 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
 import Data.Generics.Product
-import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -843,9 +842,6 @@ someRef_ = lens getter setter
       TermReference r -> r
       TypeReference r -> r
       ConstructorReference r _ -> r
-
-_TermReference :: Prism' (SomeReference ref) ref
-_TermReference = _Ctor @"TermReference"
 
 -- | This is only safe as long as you don't change the constructor of your SomeReference
 asTermReference_ :: Traversal' ref (SomeReference ref)

@@ -22,7 +22,6 @@ module Unison.Cli.Monad
     -- * Acquiring resources
     with,
     with_,
-    withE,
 
     -- * Short-circuiting
     label,
@@ -283,15 +282,6 @@ with_ :: (forall x. IO x -> IO x) -> Cli a -> Cli a
 with_ resourceK action =
   Cli \env k s ->
     resourceK (runCli env s action) >>= feed k
-
--- | A variant of 'with' for the variant of bracketing function that may return a Left rather than call the provided
--- continuation.
-withE :: (forall x. (a -> IO x) -> IO (Either e x)) -> (Either e a -> Cli b) -> Cli b
-withE resourceK action =
-  Cli \env k s ->
-    resourceK (\a -> runCli env s (action (Right a))) >>= \case
-      Left err -> runCli env s (action (Left err)) >>= feed k
-      Right result -> feed k result
 
 data X
   = forall a. X !Unique !LoopState a

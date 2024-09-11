@@ -73,7 +73,6 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.Helpers (bigproblem, note, tip)
-import Unison.CommandLine.InputPattern (InputPattern)
 import Unison.CommandLine.InputPatterns (makeExample')
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.ConstructorReference (GConstructorReference (..))
@@ -2340,16 +2339,6 @@ prettyTransportError = \case
     responseRequestId =
       fmap Text.decodeUtf8 . List.lookup "X-RequestId" . Foldable.toList @Seq . Servant.responseHeaders
 
-prettyEntityType :: Share.EntityType -> Pretty
-prettyEntityType = \case
-  Share.TermComponentType -> "term component"
-  Share.DeclComponentType -> "type component"
-  Share.PatchType -> "patch"
-  Share.PatchDiffType -> "patch diff"
-  Share.NamespaceType -> "namespace"
-  Share.NamespaceDiffType -> "namespace diff"
-  Share.CausalType -> "causal"
-
 invalidRepoInfo :: Text -> Share.RepoInfo -> Pretty
 invalidRepoInfo err repoInfo =
   P.lines
@@ -2373,23 +2362,6 @@ hashMismatchFromShare supplied computed =
       P.wrap $ "The hash computed by Share is: " <> prettyHash32 computed
     ]
 
-pushPublicNote :: InputPattern -> Text -> [Text] -> Pretty
-pushPublicNote cmd uname ys =
-  let msg =
-        mconcat
-          [ "Unison Share currently only supports sharing public code. ",
-            "This is done by hosting code in a public namespace under your handle.",
-            "It looks like you were trying to push directly to the" <> P.backticked (P.text uname),
-            "handle. Try nesting under `public` like so: "
-          ]
-      pushCommand = IP.makeExampleNoBackticks cmd [prettySharePath exPath]
-      exPath = Share.Path (uname NEList.:| "public" : ys)
-   in P.lines
-        [ P.wrap msg,
-          "",
-          P.indentN 4 pushCommand
-        ]
-
 needDependencies :: Share.NeedDependencies Hash32 -> Pretty
 needDependencies (Share.NeedDependencies hashes) =
   -- maybe todo: stuff in all the args to CheckAndSetPush
@@ -2411,32 +2383,9 @@ noReadPermissionForRepo :: Share.RepoInfo -> Pretty
 noReadPermissionForRepo repoInfo =
   P.wrap $ P.text "The server said you don't have permission to read" <> P.group (prettyRepoInfo repoInfo <> ".")
 
-noWritePermissionForPath :: Share.Path -> Pretty
-noWritePermissionForPath sharePath =
-  case Share.pathSegments sharePath of
-    _ NEList.:| "public" : _ -> P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettySharePath sharePath <> ".")
-    uname NEList.:| ys -> pushPublicNote IP.pushCreate uname ys
-
 noWritePermissionForRepo :: Share.RepoInfo -> Pretty
 noWritePermissionForRepo repoInfo =
   P.wrap $ P.text "The server said you don't have permission to write" <> P.group (prettyRepoInfo repoInfo <> ".")
-
-notFastForward :: Share.Path -> Pretty
-notFastForward path =
-  P.lines $
-    [ P.wrap $
-        "There are some changes at" <> prettySharePath path <> "that aren't in the history you pushed.",
-      "",
-      P.wrap $
-        "If you're sure you got the right paths, try"
-          <> pull
-          <> "to merge these changes locally, then"
-          <> push
-          <> "again."
-    ]
-  where
-    push = P.group . P.backticked . IP.patternName $ IP.push
-    pull = P.group . P.backticked . IP.patternName $ IP.pull
 
 shareProjectNotFound :: Text -> Pretty
 shareProjectNotFound projectShortHand =
@@ -3440,9 +3389,6 @@ watchPrinter src ppe ann kind term isHit =
                       $ TermPrinter.pretty ppe term
                   ]
           ]
-
-filestatusTip :: Pretty
-filestatusTip = tip "Use `help filestatus` to learn more."
 
 prettyDiff :: Names.Diff -> Pretty
 prettyDiff diff =

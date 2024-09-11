@@ -6,14 +6,9 @@ import Data.These (These (..))
 import Data.Void (Void)
 import EasyTest
 import Text.Megaparsec qualified as P
-import Unison.Codebase.Editor.RemoteRepo
-  ( ReadRemoteNamespace (..),
-  )
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..))
 import Unison.Codebase.Editor.UriParser qualified as UriParser
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ShortCausalHash (ShortCausalHash (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Project (ProjectBranchSpecifier (..))
 
 test :: Test ()
@@ -38,9 +33,6 @@ test =
         ]
     ]
 
-mkPath :: [Text] -> Path.Path
-mkPath = Path.fromList . fmap NameSegment
-
 branchR :: These Text Text -> ReadRemoteNamespace (These ProjectName ProjectBranchName)
 branchR =
   ReadShare'ProjectBranch . \case
@@ -54,9 +46,6 @@ branchW =
     This project -> This (UnsafeProjectName project)
     That branch -> That (UnsafeProjectBranchName branch)
     These project branch -> These (UnsafeProjectName project) (UnsafeProjectBranchName branch)
-
-sch :: Text -> Maybe ShortCausalHash
-sch = Just . ShortCausalHash
 
 -- | @parserTests name parser goodCases badCases@ tests @parser@ against each case in @goodCases@ and @badCases@,
 -- expecting success or failure, respectively.

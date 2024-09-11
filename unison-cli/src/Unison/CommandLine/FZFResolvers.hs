@@ -7,7 +7,6 @@ module Unison.CommandLine.FZFResolvers
     projectDependencyResolver,
     projectNameOptions,
     projectBranchOptions,
-    projectBranchOptionsWithinCurrentProject,
     fuzzySelectFromList,
     multiResolver,
     definitionResolver,
@@ -18,8 +17,6 @@ module Unison.CommandLine.FZFResolvers
     projectAndOrBranchArg,
     projectOrBranchResolver,
     projectBranchResolver,
-    projectBranchWithinCurrentProjectResolver,
-    projectNameResolver,
     fuzzySelectHeader,
   )
 where
@@ -154,12 +151,6 @@ projectOrBranchResolver = multiResolver [projectBranchOptions, namespaceOptions]
 projectBranchResolver :: FZFResolver
 projectBranchResolver = FZFResolver {getOptions = projectBranchOptions}
 
-projectBranchWithinCurrentProjectResolver :: FZFResolver
-projectBranchWithinCurrentProjectResolver = FZFResolver {getOptions = projectBranchOptionsWithinCurrentProject}
-
-projectNameResolver :: FZFResolver
-projectNameResolver = FZFResolver {getOptions = projectNameOptions}
-
 -- | All possible local project names
 -- E.g. '@unison/base'
 projectNameOptions :: OptionFetcher
@@ -172,13 +163,6 @@ projectBranchOptions :: OptionFetcher
 projectBranchOptions codebase _projCtx _searchBranch0 = do
   Codebase.runTransaction codebase Q.loadAllProjectBranchNamePairs
     <&> fmap (into @Text . fst)
-
--- | All possible local branch names within the current project.
--- E.g. '@unison/base/main'
-projectBranchOptionsWithinCurrentProject :: OptionFetcher
-projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
-  Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith (projCtx ^. #project . #projectId) Nothing)
-    <&> fmap (into @Text . snd)
 
 -- | Exported from here just so the debug command and actual implementation can use the same
 -- messaging.

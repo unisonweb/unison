@@ -14,7 +14,6 @@ module Unison.Codebase.Init
     VacuumStrategy (..),
     Pretty,
     createCodebase,
-    initCodebaseAndExit,
     withOpenOrCreateCodebase,
     withNewUcmCodebaseOrExit,
     withTemporaryUcmCodebase,
@@ -179,12 +178,6 @@ withNewUcmCodebaseOrExit cbInit verbosity debugName path lockOption action = do
     >>= \case
       Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
       Right result -> pure result
-
--- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
-initCodebaseAndExit :: (MonadIO m) => Init m Symbol Ann -> Verbosity -> DebugName -> Maybe CodebasePath -> CodebaseLockOption -> m ()
-initCodebaseAndExit i verbosity debugName mdir lockOption = do
-  codebaseDir <- Codebase.getCodebaseDir mdir
-  withNewUcmCodebaseOrExit i verbosity debugName codebaseDir lockOption (const $ pure ())
 
 withTemporaryUcmCodebase ::
   (MonadUnliftIO m) =>

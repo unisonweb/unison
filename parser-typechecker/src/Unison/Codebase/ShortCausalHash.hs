@@ -1,7 +1,5 @@
 module Unison.Codebase.ShortCausalHash
-  ( toString,
-    toHash,
-    fromHash,
+  ( fromHash,
     fromFullHash,
     fromText,
     ShortCausalHash (..),
@@ -18,12 +16,6 @@ import Unison.Prelude
 -- | Causal Hash Prefix
 newtype ShortCausalHash = ShortCausalHash {toText :: Text} -- base32hex characters
   deriving stock (Eq, Ord, Generic)
-
-toString :: ShortCausalHash -> String
-toString = Text.unpack . toText
-
-toHash :: (Coercible Hash.Hash h) => ShortCausalHash -> Maybe h
-toHash = fmap coerce . Hash.fromBase32HexText . toText
 
 fromHash :: Int -> CausalHash -> ShortCausalHash
 fromHash len =

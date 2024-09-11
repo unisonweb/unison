@@ -7,7 +7,6 @@ module Unison.Merge.TwoWay
     sequenceDefns,
     swap,
     twoWay,
-    unzipMap,
     who_,
   )
 where
@@ -79,18 +78,7 @@ twoWay :: (a -> a -> b) -> TwoWay a -> b
 twoWay f TwoWay {alice, bob} =
   f alice bob
 
--- | Unzip a @Map k (TwoWay v)@ into a @TwoWay (Map k v)@.
-unzipMap :: (Ord k) => Map k (TwoWay v) -> TwoWay (Map k v)
-unzipMap =
-  fromPair . unzipWith (\TwoWay {alice, bob} -> (alice, bob))
-
 who_ :: EitherWay x -> Lens' (TwoWay a) a
 who_ = \case
   Alice _ -> #alice
   Bob _ -> #bob
-
---
-
-fromPair :: (a, a) -> TwoWay a
-fromPair (alice, bob) =
-  TwoWay {alice, bob}

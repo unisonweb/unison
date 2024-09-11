@@ -3,8 +3,6 @@
 
 module U.Codebase.Sqlite.ProjectReflog
   ( Entry (..),
-    project_,
-    branch_,
     projectAndBranch_,
   )
 where
@@ -24,12 +22,6 @@ data Entry project branch causal = Entry
     reason :: Text
   }
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
-
-project_ :: Lens (Entry project branch causal) (Entry project' branch causal) project project'
-project_ = lens project (\e p -> e {project = p})
-
-branch_ :: Lens (Entry project branch causal) (Entry project branch' causal) branch branch'
-branch_ = lens branch (\e b -> e {branch = b})
 
 -- | Both Project and Branch Ids are required to load a branch, so this is often more useful.
 projectAndBranch_ :: Lens (Entry project branch causal) (Entry project' branch' causal) (project, branch) (project', branch')

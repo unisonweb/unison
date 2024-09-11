@@ -24,12 +24,7 @@ import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HashQualified (toText)
 import Unison.Syntax.Name qualified as Name (unsafeParseText)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
-import Unison.Util.AnnotatedText
-  ( AnnotatedText (..),
-    Segment (..),
-    annotate,
-    segment,
-  )
+import Unison.Util.AnnotatedText (AnnotatedText (..), Segment (..), segment)
 import Unison.Util.SyntaxText qualified as SyntaxText
 
 type SyntaxText = AnnotatedText Element
@@ -226,9 +221,6 @@ instance FromJSON Element where
       _ -> fail $ "Unknown tag: " <> tag
 
 deriving instance ToSchema Element
-
-syntax :: Element -> SyntaxText -> SyntaxText
-syntax = annotate
 
 firstReference :: SyntaxText -> Maybe UnisonHash
 firstReference (AnnotatedText segments) =

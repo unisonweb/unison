@@ -3,15 +3,11 @@
 -- | Small combinators that pretty-print small types in a canonical way for human consumption, such as hashes, file
 -- paths, and project names.
 module Unison.Cli.Pretty
-  ( displayBranchHash,
-    prettyAbsolute,
+  ( prettyAbsolute,
     prettyProjectPath,
     prettyBranchRelativePath,
     prettyBase32Hex#,
     prettyBase32Hex,
-    prettyBranchId,
-    prettyCausalHash,
-    prettyDeclPair,
     prettyDeclTriple,
     prettyFilePath,
     prettyHash,
@@ -44,8 +40,6 @@ module Unison.Cli.Pretty
     prettyURI,
     prettyUnisonFile,
     prettyWhichBranchEmpty,
-    prettyWriteRemoteNamespace,
-    shareOrigin,
     unsafePrettyTermResultSigFull',
     prettyTermDisplayObjects,
     prettyTypeDisplayObjects,
@@ -61,7 +55,6 @@ import Data.Time (UTCTime)
 import Data.Time.Format.Human (HumanTimeLocale (..), defaultHumanTimeLocale, humanReadableTimeI18N')
 import Network.URI (URI)
 import Network.URI qualified as URI
-import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
@@ -70,7 +63,6 @@ import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceOrTarget (..))
 import Unison.Cli.Share.Projects.Types qualified as Share
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
-import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.RemoteRepo
   ( ReadRemoteNamespace (..),
@@ -146,13 +138,6 @@ prettyReadRemoteNamespaceWith :: (a -> Text) -> ReadRemoteNamespace a -> Pretty
 prettyReadRemoteNamespaceWith printProject =
   P.group . P.blue . P.text . RemoteRepo.printReadRemoteNamespace printProject
 
-prettyWriteRemoteNamespace :: (ProjectAndBranch ProjectName ProjectBranchName) -> Pretty
-prettyWriteRemoteNamespace =
-  P.group . P.blue . P.text . RemoteRepo.printWriteRemoteNamespace
-
-shareOrigin :: Text
-shareOrigin = "https://share.unison-lang.org"
-
 prettyRepoInfo :: Share.RepoInfo -> Pretty
 prettyRepoInfo (Share.RepoInfo repoInfo) =
   P.blue (P.text repoInfo)
@@ -188,12 +173,6 @@ prettyNamespaceKey = \case
   Right (ProjectAndBranch project branch) ->
     prettyProjectAndBranchName (ProjectAndBranch (project ^. #name) (branch ^. #name))
 
-prettyBranchId :: Input.AbsBranchId -> Pretty
-prettyBranchId = \case
-  Input.BranchAtSCH sch -> prettySCH sch
-  Input.BranchAtPath absPath -> prettyAbsolute $ absPath
-  Input.BranchAtProjectPath pp -> prettyProjectPath pp
-
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
 
@@ -209,9 +188,6 @@ prettyProjectPath (PP.ProjectPath project branch path) =
 
 prettySCH :: (IsString s) => ShortCausalHash -> P.Pretty s
 prettySCH hash = P.group $ "#" <> P.text (SCH.toText hash)
-
-prettyCausalHash :: (IsString s) => CausalHash -> P.Pretty s
-prettyCausalHash hash = P.group $ "#" <> P.text (Hash.toBase32HexText . unCausalHash $ hash)
 
 prettyBase32Hex :: (IsString s) => Base32Hex -> P.Pretty s
 prettyBase32Hex = P.text . Base32Hex.toText
@@ -321,13 +297,6 @@ prettyDeclTriple (name, _, displayDecl) = case displayDecl of
   MissingObject _ -> mempty -- these need to be handled elsewhere
   UserObject decl -> P.syntaxToColor $ DeclPrinter.prettyDeclHeader name decl
 
-prettyDeclPair ::
-  (Var v) =>
-  PPE.PrettyPrintEnv ->
-  (Reference, DisplayObject () (DD.Decl v a)) ->
-  Pretty
-prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
-
 prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 prettyTermName ppe r =
   P.syntaxToColor $
@@ -343,10 +312,6 @@ prettyWhichBranchEmpty :: WhichBranchEmpty -> Pretty
 prettyWhichBranchEmpty = \case
   WhichBranchEmptyHash hash -> P.shown hash
   WhichBranchEmptyPath pp -> prettyProjectPath pp
-
--- | Displays a full, non-truncated Branch.CausalHash to a string, e.g. #abcdef
-displayBranchHash :: CausalHash -> Text
-displayBranchHash = ("#" <>) . Hash.toBase32HexText . unCausalHash
 
 prettyHumanReadableTime :: UTCTime -> UTCTime -> Pretty
 prettyHumanReadableTime now time =

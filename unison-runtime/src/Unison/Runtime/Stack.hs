@@ -25,22 +25,18 @@ module Unison.Runtime.Stack
     marshalToForeign,
     unull,
     bnull,
-    peekD,
     peekOffD,
     pokeD,
     pokeOffD,
-    peekN,
     peekOffN,
     pokeN,
     pokeOffN,
-    peekBi,
     peekOffBi,
     pokeBi,
     pokeOffBi,
     peekOffS,
     pokeS,
     pokeOffS,
-    frameView,
     uscount,
     bscount,
     closureTermRefs,
@@ -479,14 +475,6 @@ instance MEM 'UN where
   asize (US ap fp _ _) = fp - ap
   {-# INLINE asize #-}
 
-peekN :: Stack 'UN -> IO Word64
-peekN (US _ _ sp stk) = readByteArray stk sp
-{-# INLINE peekN #-}
-
-peekD :: Stack 'UN -> IO Double
-peekD (US _ _ sp stk) = readByteArray stk sp
-{-# INLINE peekD #-}
-
 peekOffN :: Stack 'UN -> Int -> IO Word64
 peekOffN (US _ _ sp stk) i = readByteArray stk (sp - i)
 {-# INLINE peekOffN #-}
@@ -518,10 +506,6 @@ pokeBi bstk x = poke bstk (Foreign $ wrapBuiltin x)
 pokeOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> b -> IO ()
 pokeOffBi bstk i x = pokeOff bstk i (Foreign $ wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
-
-peekBi :: (BuiltinForeign b) => Stack 'BX -> IO b
-peekBi bstk = unwrapForeign . marshalToForeign <$> peek bstk
-{-# INLINE peekBi #-}
 
 peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
 peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
@@ -686,24 +670,6 @@ instance MEM 'BX where
   {-# INLINE fsize #-}
 
   asize (BS ap fp _ _) = fp - ap
-
-frameView :: (MEM b) => (Show (Elem b)) => Stack b -> IO ()
-frameView stk = putStr "|" >> gof False 0
-  where
-    fsz = fsize stk
-    asz = asize stk
-    gof delim n
-      | n >= fsz = putStr "|" >> goa False 0
-      | otherwise = do
-          when delim $ putStr ","
-          putStr . show =<< peekOff stk n
-          gof True (n + 1)
-    goa delim n
-      | n >= asz = putStrLn "|.."
-      | otherwise = do
-          when delim $ putStr ","
-          putStr . show =<< peekOff stk (fsz + n)
-          goa True (n + 1)
 
 uscount :: Seg 'UN -> Int
 uscount seg = words $ sizeofByteArray seg

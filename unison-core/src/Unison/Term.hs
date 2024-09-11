@@ -234,9 +234,6 @@ patternMap f = go
       -- Safe since `Match` is only ctor that has embedded `Pattern ap` arg
       ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
-vmap :: (Ord v2) => (v -> v2) -> Term v a -> Term v2 a
-vmap f = ABT.vmap f . typeMap (ABT.vmap f)
-
 vtmap :: (Ord vt2) => (vt -> vt2) -> Term' vt v a -> Term' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
 
@@ -316,25 +313,8 @@ unannotate = go
       f' -> ABT.tm (unsafeCoerce f')
     go _ = error "unpossible"
 
-wrapV :: (Ord v) => Term v a -> Term (ABT.V v) a
-wrapV = vmap ABT.Bound
-
--- | All variables mentioned in the given term.
--- Includes both term and type variables, both free and bound.
-allVars :: (Ord v) => Term v a -> Set v
-allVars tm =
-  Set.fromList $
-    ABT.allVars tm ++ [v | tp <- allTypes tm, v <- ABT.allVars tp]
-  where
-    allTypes tm = case tm of
-      Ann' e tp -> tp : allTypes e
-      _ -> foldMap allTypes $ ABT.out tm
-
 freeVars :: Term' vt v a -> Set v
 freeVars = ABT.freeVars
-
-freeTypeVars :: (Ord vt) => Term' vt v a -> Set vt
-freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
 
 freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt [a]
 freeTypeVarAnnotations e = multimap $ go Set.empty e
@@ -556,13 +536,6 @@ pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' :: Term2 vt at ap v a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Apps' f args <- (unApps -> Just (f, args))
 
--- begin pretty-printer helper patterns
-pattern Ands' :: [Term2 vt at ap v a] -> Term2 vt at ap v a -> Term2 vt at ap v a
-pattern Ands' ands lastArg <- (unAnds -> Just (ands, lastArg))
-
-pattern Ors' :: [Term2 vt at ap v a] -> Term2 vt at ap v a -> Term2 vt at ap v a
-pattern Ors' ors lastArg <- (unOrs -> Just (ors, lastArg))
-
 pattern AppsPred' ::
   Term2 vt at ap v a ->
   [Term2 vt at ap v a] ->
@@ -574,21 +547,7 @@ pattern BinaryApp' ::
   Term2 vt at ap v a ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
-
-pattern BinaryApps' ::
-  [(Term2 vt at ap v a, Term2 vt at ap v a)] ->
-  Term2 vt at ap v a ->
-  Term2 vt at ap v a
-
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
-
-pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
-
-pattern BinaryAppsPred' ::
-  [(Term2 vt at ap v a, Term2 vt at ap v a)] ->
-  Term2 vt at ap v a ->
-  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
-pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 
 pattern BinaryAppPred' ::
   Term2 vt at ap v a ->
@@ -596,15 +555,6 @@ pattern BinaryAppPred' ::
   Term2 vt at ap v a ->
   (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern BinaryAppPred' f arg1 arg2 <- (unBinaryAppPred -> Just (f, arg1, arg2))
-
-pattern OverappliedBinaryAppPred' ::
-  Term2 vt at ap v a ->
-  Term2 vt at ap v a ->
-  Term2 vt at ap v a ->
-  [Term2 vt at ap v a] ->
-  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
-pattern OverappliedBinaryAppPred' f arg1 arg2 rest <-
-  (unOverappliedBinaryAppPred -> Just (f, arg1, arg2, rest))
 
 -- end pretty-printer helper patterns
 pattern Ann' ::
@@ -732,16 +682,10 @@ pattern LetRecNamedAnnotatedTop' ::
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
   (unLetRecNamedAnnotated -> Just (top, ann, bs, e))
 
-fresh :: (Var v) => Term0 v -> v -> v
-fresh = ABT.fresh
-
 -- some smart constructors
 
 var :: a -> v -> Term2 vt at ap v a
 var = ABT.annotatedVar
-
-var' :: (Var v) => Text -> Term0' vt v
-var' = var () . Var.named
 
 ref :: (Ord v) => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
@@ -785,19 +729,8 @@ text a = ABT.tm' a . Text
 char :: (Ord v) => a -> Char -> Term2 vt at ap v a
 char a = ABT.tm' a . Char
 
-watch :: (Var v, Semigroup a) => a -> String -> Term v a -> Term v a
-watch a note e =
-  apps' (builtin a "Debug.watch") [text a (Text.pack note), e]
-
-watchMaybe :: (Var v, Semigroup a) => Maybe String -> Term v a -> Term v a
-watchMaybe Nothing e = e
-watchMaybe (Just note) e = watch (ABT.annotation e) note e
-
 blank :: (Ord v) => a -> Term2 vt at ap v a
 blank a = ABT.tm' a (Blank B.Blank)
-
-placeholder :: (Ord v) => a -> String -> Term2 vt a ap v a
-placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
 resolve :: (Ord v) => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
@@ -810,10 +743,6 @@ constructor a ref = ABT.tm' a (Constructor ref)
 
 request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
-
--- todo: delete and rename app' to app
-app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
-app_ f arg = ABT.tm (App f arg)
 
 app :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 app a f arg = ABT.tm' a (App f arg)
@@ -852,9 +781,6 @@ apps' = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t)
 
 iff :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 iff a cond t f = ABT.tm' a (If cond t f)
-
-ann_ :: (Ord v) => Term0' vt v -> Type vt () -> Term0' vt v
-ann_ e t = ABT.tm (Ann e t)
 
 ann ::
   (Ord v) =>
@@ -969,15 +895,6 @@ letRec isTop blockAnn bindings e =
     body :: Term' vt v a
     body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
--- | Smart constructor for let rec blocks. Each binding in the block may
--- reference any other binding in the block in its body (including itself),
--- and the output expression may also reference any binding in the block.
-letRec_ :: (Ord v) => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
-letRec_ _ [] e = e
-letRec_ isTop bindings e = ABT.cycle (foldr (ABT.abs . fst) z bindings)
-  where
-    z = ABT.tm (LetRec isTop (map snd bindings) e)
-
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
@@ -1079,30 +996,6 @@ unLetRec (unLetRecNamed -> Just (isTop, bs, e)) =
     )
 unLetRec _ = Nothing
 
-unAnds ::
-  Term2 vt at ap v a ->
-  Maybe
-    ( [Term2 vt at ap v a],
-      Term2 vt at ap v a
-    )
-unAnds t = case t of
-  And' i o -> case unAnds i of
-    Just (as, xLast) -> Just (xLast : as, o)
-    Nothing -> Just ([i], o)
-  _ -> Nothing
-
-unOrs ::
-  Term2 vt at ap v a ->
-  Maybe
-    ( [Term2 vt at ap v a],
-      Term2 vt at ap v a
-    )
-unOrs t = case t of
-  Or' i o -> case unOrs i of
-    Just (as, xLast) -> Just (xLast : as, o)
-    Nothing -> Just ([i], o)
-  _ -> Nothing
-
 unApps ::
   Term2 vt at ap v a ->
   Maybe (Term2 vt at ap v a, [Term2 vt at ap v a])
@@ -1127,46 +1020,6 @@ unBinaryApp ::
     )
 unBinaryApp t = case unApps t of
   Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
-  _ -> Nothing
-
--- Special case for overapplied binary operators
-unOverappliedBinaryAppPred ::
-  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool) ->
-  Maybe
-    ( Term2 vt at ap v a,
-      Term2 vt at ap v a,
-      Term2 vt at ap v a,
-      [Term2 vt at ap v a]
-    )
-unOverappliedBinaryAppPred (t, pred) = case unApps t of
-  Just (f, arg1 : arg2 : rest) | pred f -> Just (f, arg1, arg2, rest)
-  _ -> Nothing
-
--- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
-unBinaryApps ::
-  Term2 vt at ap v a ->
-  Maybe
-    ( [(Term2 vt at ap v a, Term2 vt at ap v a)],
-      Term2 vt at ap v a
-    )
-unBinaryApps t = unBinaryAppsPred (t, const True)
-
--- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
-unBinaryAppsPred ::
-  ( Term2 vt at ap v a,
-    Term2 vt at ap v a -> Bool
-  ) ->
-  Maybe
-    ( [ ( Term2 vt at ap v a,
-          Term2 vt at ap v a
-        )
-      ],
-      Term2 vt at ap v a
-    )
-unBinaryAppsPred (t, pred) = case unBinaryAppPred (t, pred) of
-  Just (f, x, y) -> case unBinaryAppsPred (x, pred) of
-    Just (as, xLast) -> Just ((xLast, f) : as, y)
-    Nothing -> Just ([(x, f)], y)
   _ -> Nothing
 
 unBinaryAppPred ::
@@ -1341,16 +1194,6 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
         u (MatchCase pat g b) = MatchCase (Pattern.updateDependencies termUpdates pat) g b
     go f = f
 
--- | If the outermost term is a function application,
--- perform substitution of the argument into the body
-betaReduce :: (Var v) => Term0 v -> Term0 v
-betaReduce (App' (Lam' f) arg) = ABT.bind f arg
-betaReduce e = e
-
-betaNormalForm :: (Var v) => Term0 v -> Term0 v
-betaNormalForm (App' f a) = betaNormalForm (betaReduce (app () (betaNormalForm f) a))
-betaNormalForm e = e
-
 -- x -> f x => f
 etaNormalForm :: (Ord v) => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
@@ -1406,10 +1249,6 @@ fromReferent a = \case
   Referent.Con r ct -> case ct of
     CT.Data -> constructor a r
     CT.Effect -> request a r
-
--- Used to find matches of `@rewrite case` rules
-containsExpression :: (Var v, Var typeVar, Eq typeAnn) => Term2 typeVar typeAnn loc v a -> Term2 typeVar typeAnn loc v a -> Bool
-containsExpression = ABT.containsExpression
 
 -- Used to find matches of `@rewrite case` rules
 -- Returns `Nothing` if `pat` can't be interpreted as a `Pattern`

@@ -6,8 +6,6 @@ module U.Codebase.Sqlite.NameLookups
     ReversedPath (..),
     PathSegments (..),
     NamespaceText,
-    reversedNameToNamespaceText,
-    reversedNameToPathSegments,
     pathSegmentsToText,
     textToPathSegments,
   )
@@ -57,12 +55,3 @@ pathSegmentsToText (PathSegments txt) = Text.intercalate "." txt
 -- PathSegments ["base","data","List"]
 textToPathSegments :: Text -> PathSegments
 textToPathSegments txt = PathSegments $ Text.splitOn "." txt
-
--- |
--- >>> reversedSegmentsToNamespaceText (["List", "data", "base"])
--- "base.data.List"
-reversedNameToNamespaceText :: ReversedName -> NamespaceText
-reversedNameToNamespaceText (ReversedName txt) = Text.intercalate "." . reverse . toList $ txt
-
-reversedNameToPathSegments :: ReversedName -> PathSegments
-reversedNameToPathSegments (ReversedName revName) = PathSegments . reverse . toList $ revName

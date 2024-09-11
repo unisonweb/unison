@@ -48,9 +48,3 @@ instance Bifoldable LocalIds' where
 
 instance Bifunctor LocalIds' where
   bimap f g (LocalIds t d) = LocalIds (f <$> t) (g <$> d)
-
-t_ :: Traversal (LocalIds' t h) (LocalIds' t' h) t t'
-t_ f (LocalIds t d) = LocalIds <$> traverse f t <*> pure d
-
-h_ :: Traversal (LocalIds' t h) (LocalIds' t h') h h'
-h_ f (LocalIds t d) = LocalIds <$> pure t <*> traverse f d

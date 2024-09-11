@@ -6,7 +6,7 @@ import Data.Set (elems)
 import EasyTest
 import Text.Megaparsec.Error qualified as MPE
 import Unison.Parser.Ann qualified as P
-import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
+import Unison.Parsers (unsafeGetRightFrom)
 import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FileParser (file)
@@ -47,11 +47,6 @@ test1 =
           "pong x = ping (x - 1)"
         ]
     ]
-
-test2 :: Test ()
-test2 =
-  scope "test2" $
-    (io $ unsafeParseFileBuiltinsOnly "unison-src/test1.u") *> ok
 
 test :: Test ()
 test =

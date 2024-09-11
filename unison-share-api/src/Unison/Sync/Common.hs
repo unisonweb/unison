@@ -3,7 +3,6 @@ module Unison.Sync.Common
   ( expectEntity,
 
     -- * Type conversions
-    causalHashToHash32,
     hash32ToCausalHash,
     entityToTempEntity,
     tempEntityToEntity,
@@ -37,11 +36,6 @@ expectEntity hash = do
   syncEntity <- Q.expectEntity hash
   tempEntity <- Q.syncToTempEntity syncEntity
   pure (tempEntityToEntity tempEntity)
-
--- FIXME this isn't the right module  for this conversion
-causalHashToHash32 :: CausalHash -> Hash32
-causalHashToHash32 =
-  Hash32.fromHash . unCausalHash
 
 -- FIXME this isn't the right module  for this conversion
 hash32ToCausalHash :: Hash32 -> CausalHash

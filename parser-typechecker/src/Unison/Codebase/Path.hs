@@ -7,7 +7,6 @@ module Unison.Codebase.Path
     pattern AbsolutePath',
     absPath_,
     Relative (..),
-    relPath_,
     pattern RelativePath',
     Resolve (..),
     pattern Empty,
@@ -17,10 +16,8 @@ module Unison.Codebase.Path
     Unison.Codebase.Path.uncons,
     empty,
     isAbsolute,
-    isRelative,
     absoluteEmpty,
     absoluteEmpty',
-    relativeEmpty,
     relativeEmpty',
     currentPath,
     prefix,
@@ -37,7 +34,6 @@ module Unison.Codebase.Path
     Split,
     Split',
     HQSplit',
-    ancestors,
 
     -- * utilities
     longestPathPrefix,
@@ -54,7 +50,6 @@ module Unison.Codebase.Path
     fromName',
     fromPath',
     unsafeParseText,
-    unsafeParseText',
     toAbsoluteSplit,
     toSplit',
     toList,
@@ -66,7 +61,6 @@ module Unison.Codebase.Path
     relToText,
     unsplit,
     unsplit',
-    unsplitAbsolute,
     nameFromHQSplit,
     nameFromHQSplit',
     nameFromSplit',
@@ -76,10 +70,6 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Cons` instances
     cons,
-
-    -- * things that could be replaced with `Snoc` instances
-    snoc,
-    unsnoc,
   )
 where
 
@@ -129,9 +119,6 @@ absPath_ = lens unabsolute (\_ new -> Absolute new)
 -- Typically refers to a path from the current namespace.
 newtype Relative = Relative {unrelative :: Path} deriving (Eq, Ord)
 
-relPath_ :: Lens' Relative Path
-relPath_ = lens unrelative (\_ new -> Relative new)
-
 -- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 newtype Path' = Path' {unPath' :: Either Absolute Relative}
   deriving (Eq, Ord)
@@ -139,10 +126,6 @@ newtype Path' = Path' {unPath' :: Either Absolute Relative}
 isAbsolute :: Path' -> Bool
 isAbsolute (AbsolutePath' _) = True
 isAbsolute _ = False
-
-isRelative :: Path' -> Bool
-isRelative (RelativePath' _) = True
-isRelative _ = False
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath p = p == currentPath
@@ -177,10 +160,6 @@ unsplit' = \case
 
 unsplit :: Split -> Path
 unsplit (Path p, a) = Path (p :|> a)
-
-unsplitAbsolute :: (Absolute, NameSegment) -> Absolute
-unsplitAbsolute =
-  coerce unsplit
 
 nameFromHQSplit :: HQSplit -> HQ'.HashQualified Name
 nameFromHQSplit = nameFromHQSplit' . first (RelativePath' . Relative)
@@ -251,9 +230,6 @@ toAbsoluteSplit a (p, s) = (resolve a p, s)
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
 
-relativeEmpty :: Relative
-relativeEmpty = Relative empty
-
 relativeEmpty' :: Path'
 relativeEmpty' = RelativePath' (Relative empty)
 
@@ -271,9 +247,6 @@ toList = Foldable.toList . toSeq
 
 fromList :: [NameSegment] -> Path
 fromList = Path . Seq.fromList
-
-ancestors :: Absolute -> Seq Absolute
-ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
 hqSplitFromName' :: Name -> HQSplit'
 hqSplitFromName' = fmap HQ'.fromName . splitFromName'
@@ -325,12 +298,6 @@ singleton n = fromList [n]
 
 cons :: NameSegment -> Path -> Path
 cons = Lens.cons
-
-snoc :: Path -> NameSegment -> Path
-snoc = Lens.snoc
-
-unsnoc :: Path -> Maybe (Path, NameSegment)
-unsnoc = Lens.unsnoc
 
 uncons :: Path -> Maybe (NameSegment, Path)
 uncons = Lens.uncons
@@ -410,22 +377,6 @@ unsafeParseText :: Text -> Path
 unsafeParseText = \case
   "" -> empty
   text -> fromName (Name.unsafeParseText text)
-
--- | Construct a Path' from a text
---
--- >>> fromText' "a.b.c"
--- a.b.c
---
--- >>> fromText' ".a.b.c"
--- .a.b.c
---
--- >>> show $ fromText' ""
--- ""
-unsafeParseText' :: Text -> Path'
-unsafeParseText' = \case
-  "" -> RelativePath' (Relative mempty)
-  "." -> AbsolutePath' (Absolute mempty)
-  text -> fromName' (Name.unsafeParseText text)
 
 toText' :: Path' -> Text
 toText' path =

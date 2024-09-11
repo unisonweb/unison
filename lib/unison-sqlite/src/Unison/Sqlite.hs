@@ -19,9 +19,7 @@ module Unison.Sqlite
     Transaction,
     runTransaction,
     runTransactionWithRollback,
-    runReadOnlyTransaction,
     runWriteTransaction,
-    cacheTransaction,
     savepoint,
 
     -- ** Unsafe things
@@ -38,8 +36,6 @@ module Unison.Sqlite
 
     -- ** With results
     -- $query-naming-convention
-    queryStreamRow,
-    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -48,9 +44,7 @@ module Unison.Sqlite
     queryOneCol,
 
     -- *** With checks
-    queryListRowCheck,
     queryListColCheck,
-    queryMaybeRowCheck,
     queryMaybeColCheck,
     queryOneRowCheck,
     queryOneColCheck,
@@ -60,7 +54,6 @@ module Unison.Sqlite
 
     -- * Data version
     DataVersion (..),
-    getDataVersion,
 
     -- * Journal mode
     JournalMode (..),
@@ -72,7 +65,6 @@ module Unison.Sqlite
 
     -- * Exceptions
     SomeSqliteException (..),
-    isCantOpenException,
     SqliteConnectException,
     SqliteQueryException,
     SqliteExceptionReason,
@@ -106,14 +98,13 @@ import Unison.Sqlite.Connection
     vacuumInto,
     withConnection,
   )
-import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
+import Unison.Sqlite.DataVersion (DataVersion (..))
 import Unison.Sqlite.Exception
   ( SomeSqliteException (..),
     SomeSqliteExceptionReason (..),
     SqliteConnectException,
     SqliteExceptionReason,
     SqliteQueryException,
-    isCantOpenException,
   )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql, sql)

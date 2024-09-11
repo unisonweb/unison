@@ -20,7 +20,6 @@ library:
     - text-builder
     - transformers
     - unison-prelude
-    - unison-util-cache
     - unliftio
 
   source-dirs: src

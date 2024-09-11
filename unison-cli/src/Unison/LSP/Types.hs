@@ -5,18 +5,15 @@
 
 module Unison.LSP.Types where
 
-import Colog.Core hiding (Lens')
 import Control.Comonad.Cofree (Cofree)
 import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens hiding (List, (:<))
-import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
 import Data.IntervalMap.Lazy (IntervalMap)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Map qualified as Map
 import Ki qualified
-import Language.LSP.Logging qualified as LSP
 import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message (MessageDirection (..), MessageKind (..), Method, TMessage, TNotificationMessage, fromServerNot)
 import Language.LSP.Protocol.Types
@@ -37,7 +34,6 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Referent (Referent)
 import Unison.Result (Note)
-import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
@@ -50,19 +46,6 @@ import UnliftIO
 -- | A custom LSP monad wrapper so we can provide our own environment.
 newtype Lsp a = Lsp {runLspM :: ReaderT Env (LspM Config) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadUnliftIO, MonadReader Env, MonadLsp Config)
-
--- | Log an info message to the client's LSP log.
-logInfo :: Text -> Lsp ()
-logInfo msg = do
-  let LogAction log = LSP.defaultClientLogger
-  log (WithSeverity msg Info)
-
--- | Log an error message to the client's LSP log, this will be shown to the user in most LSP
--- implementations.
-logError :: Text -> Lsp ()
-logError msg = do
-  let LogAction log = LSP.defaultClientLogger
-  log (WithSeverity msg Error)
 
 -- | Environment for the Lsp monad.
 data Env = Env
@@ -175,10 +158,6 @@ defaultLSPConfig = Config {..}
     formattingWidth = 80
     maxCompletions = Just 100
 
--- | Lift a backend computation into the Lsp monad.
-lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
-lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
-
 sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
 sendNotification notif = do
   sendServerMessage <- asks (resSendMessage . lspContext)
@@ -224,6 +203,3 @@ includeEdits uri replacement ranges rca =
 
 getConfig :: Lsp Config
 getConfig = LSP.getConfig
-
-setConfig :: Config -> Lsp ()
-setConfig = LSP.setConfig

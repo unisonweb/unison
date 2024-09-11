@@ -1,6 +1,5 @@
 module Unison.Hashable
   ( accumulate',
-    hash,
     Accumulate (..),
     Token (..),
   )
@@ -41,9 +40,8 @@ class Accumulate h where
 accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
 accumulateToken = Hashed . accumulate'
 
-hash, accumulate' :: (Accumulate h, Hashable t) => t -> h
+accumulate' :: (Accumulate h, Hashable t) => t -> h
 accumulate' = accumulate . tokens
-hash = accumulate'
 
 -- | NOTE: This typeclass is distinct from 'Unison.Hashing.V2.Hashable', which is the
 -- content-based hashish class used for Unison types & terms.

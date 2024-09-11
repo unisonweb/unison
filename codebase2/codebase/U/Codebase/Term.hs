@@ -2,8 +2,6 @@ module U.Codebase.Term where
 
 import Control.Lens hiding (List)
 import Control.Monad.State
-import Control.Monad.Writer qualified as Writer
-import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference (Reference, Reference')
@@ -205,9 +203,6 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
     goCase (MatchCase p g b) = MatchCase <$> goPat p <*> pure g <*> pure b
     goPat = rmapPatternM ftext ftypeRef
 
-rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
-rmapPattern ft fr p = runIdentity . rmapPatternM (pure . ft) (pure . fr) $ p
-
 rmapPatternM :: (Applicative m) => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
 rmapPatternM ft fr = go
   where
@@ -226,35 +221,6 @@ rmapPatternM ft fr = go
       PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p
       PSequenceLiteral ps -> PSequenceLiteral <$> traverse go ps
       PSequenceOp p1 op p2 -> PSequenceOp <$> go p1 <*> pure op <*> go p2
-
-dependencies ::
-  (Ord termRef, Ord typeRef, Ord termLink, Ord typeLink, Ord v) =>
-  ABT.Term (F' text termRef typeRef termLink typeLink vt) v a ->
-  (Set termRef, Set typeRef, Set termLink, Set typeLink)
-dependencies =
-  Writer.execWriter . ABT.visit_ \case
-    Ref r -> termRef r
-    Constructor r _ -> typeRef r
-    Request r _ -> typeRef r
-    Match _ cases -> Foldable.for_ cases \case
-      MatchCase pat _guard _body -> go pat
-        where
-          go = \case
-            PConstructor r _i args -> typeRef r *> Foldable.traverse_ go args
-            PAs pat -> go pat
-            PEffectPure pat -> go pat
-            PEffectBind r _i args k -> typeRef r *> Foldable.traverse_ go args *> go k
-            PSequenceLiteral pats -> Foldable.traverse_ go pats
-            PSequenceOp l _op r -> go l *> go r
-            _ -> pure ()
-    TermLink r -> termLink r
-    TypeLink r -> typeLink r
-    _ -> pure ()
-  where
-    termRef r = Writer.tell (Set.singleton r, mempty, mempty, mempty)
-    typeRef r = Writer.tell (mempty, Set.singleton r, mempty, mempty)
-    termLink r = Writer.tell (mempty, mempty, Set.singleton r, mempty)
-    typeLink r = Writer.tell (mempty, mempty, mempty, Set.singleton r)
 
 -- | Given the pieces of a single term component,
 -- replaces all 'Nothing' self-referential hashes with a variable reference

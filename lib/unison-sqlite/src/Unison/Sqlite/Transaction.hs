@@ -3,9 +3,7 @@ module Unison.Sqlite.Transaction
     Transaction,
     runTransaction,
     runTransactionWithRollback,
-    runReadOnlyTransaction,
     runWriteTransaction,
-    cacheTransaction,
     savepoint,
 
     -- ** Unsafe things
@@ -20,8 +18,6 @@ module Unison.Sqlite.Transaction
     executeStatements,
 
     -- ** With results
-    queryStreamRow,
-    queryStreamCol,
     queryListRow,
     queryListCol,
     queryMaybeRow,
@@ -30,9 +26,7 @@ module Unison.Sqlite.Transaction
     queryOneCol,
 
     -- *** With checks
-    queryListRowCheck,
     queryListColCheck,
-    queryMaybeRowCheck,
     queryMaybeColCheck,
     queryOneRowCheck,
     queryOneColCheck,
@@ -55,9 +49,7 @@ import Unison.Sqlite.Connection (Connection (..))
 import Unison.Sqlite.Connection qualified as Connection
 import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql (Sql)
-import Unison.Util.Cache (Cache)
-import Unison.Util.Cache qualified as Cache
-import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
+import UnliftIO.Exception (catchAny, trySyncOrAsync, uninterruptibleMask)
 import Unsafe.Coerce (unsafeCoerce)
 
 newtype Transaction a
@@ -78,9 +70,6 @@ instance (Semigroup a) => Semigroup (Transaction a) where
 newtype TransactionWithMonadIO a
   = TransactionWithMonadIO (Transaction a)
   deriving newtype (Applicative, Functor, Monad)
-
-unTransactionWithMonadIO :: TransactionWithMonadIO a -> Transaction a
-unTransactionWithMonadIO (TransactionWithMonadIO m) = m
 
 instance MonadIO TransactionWithMonadIO where
   liftIO :: forall a. IO a -> TransactionWithMonadIO a
@@ -130,30 +119,6 @@ runTransactionWithRollback conn transaction = liftIO do
     Right x -> pure x
 {-# SPECIALIZE runTransactionWithRollback :: Connection -> ((forall void. a -> Transaction void) -> Transaction a) -> IO a #-}
 
--- | Run a transaction that is known to only perform reads.
---
--- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
--- BEGIN/COMMIT statements.
---
--- The transaction is never retried, so it is (more) safe to interleave arbitrary IO actions. If the transaction does
--- attempt a write and gets SQLITE_BUSY, it's your fault!
-runReadOnlyTransaction :: (MonadUnliftIO m, HasCallStack) => Connection -> ((forall x. Transaction x -> m x) -> m a) -> m a
-runReadOnlyTransaction conn f =
-  withRunInIO \runInIO ->
-    runReadOnlyTransaction_ conn (runInIO (f (\transaction -> liftIO (unsafeUnTransaction transaction conn))))
-{-# SPECIALIZE runReadOnlyTransaction :: Connection -> ((forall x. Transaction x -> IO x) -> IO a) -> IO a #-}
-
-runReadOnlyTransaction_ :: (HasCallStack) => Connection -> IO a -> IO a
-runReadOnlyTransaction_ conn action = do
-  bracketOnError_
-    (Connection.begin conn)
-    (ignoringExceptions (Connection.rollback conn))
-    ( do
-        result <- action
-        Connection.commit conn
-        pure result
-    )
-
 -- | Run a transaction that is known to perform at least one write.
 --
 -- The action is provided a function that peels off the 'Transaction' newtype without sending the corresponding
@@ -192,11 +157,6 @@ keepTryingToBeginImmediate restore conn =
 ignoringExceptions :: IO () -> IO ()
 ignoringExceptions action =
   action `catchAny` \_ -> pure ()
-
--- | Wrap a transaction with a cache; cache hits will not hit SQLite.
-cacheTransaction :: forall k v. Cache k v -> (k -> Transaction v) -> (k -> Transaction v)
-cacheTransaction cache f k =
-  unTransactionWithMonadIO (Cache.apply cache (TransactionWithMonadIO . f) k)
 
 -- | Perform an atomic sub-computation within a transaction; if it returns 'Left', it's rolled back.
 savepoint :: Transaction (Either a a) -> Transaction a
@@ -242,28 +202,6 @@ executeStatements s =
 
 -- With results, without checks
 
-queryStreamRow ::
-  (Sqlite.FromRow a, HasCallStack) =>
-  Sql ->
-  (Transaction (Maybe a) -> Transaction r) ->
-  Transaction r
-queryStreamRow sql callback =
-  Transaction \conn ->
-    Connection.queryStreamRow conn sql \next ->
-      unsafeUnTransaction (callback (unsafeIO next)) conn
-
-queryStreamCol ::
-  forall a r.
-  (Sqlite.FromField a, HasCallStack) =>
-  Sql ->
-  (Transaction (Maybe a) -> Transaction r) ->
-  Transaction r
-queryStreamCol =
-  coerce
-    @(Sql -> (Transaction (Maybe (Sqlite.Only a)) -> Transaction r) -> Transaction r)
-    @(Sql -> (Transaction (Maybe a) -> Transaction r) -> Transaction r)
-    queryStreamRow
-
 queryListRow :: (Sqlite.FromRow a, HasCallStack) => Sql -> Transaction [a]
 queryListRow s =
   Transaction \conn -> Connection.queryListRow conn s
@@ -290,14 +228,6 @@ queryOneCol s =
 
 -- With results, with parameters, with checks
 
-queryListRowCheck ::
-  (Sqlite.FromRow a, SqliteExceptionReason e, HasCallStack) =>
-  Sql ->
-  ([a] -> Either e r) ->
-  Transaction r
-queryListRowCheck sql check =
-  Transaction \conn -> Connection.queryListRowCheck conn sql check
-
 queryListColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e, HasCallStack) =>
   Sql ->
@@ -305,14 +235,6 @@ queryListColCheck ::
   Transaction r
 queryListColCheck sql check =
   Transaction \conn -> Connection.queryListColCheck conn sql check
-
-queryMaybeRowCheck ::
-  (Sqlite.FromRow a, SqliteExceptionReason e, HasCallStack) =>
-  Sql ->
-  (a -> Either e r) ->
-  Transaction (Maybe r)
-queryMaybeRowCheck s check =
-  Transaction \conn -> Connection.queryMaybeRowCheck conn s check
 
 queryMaybeColCheck ::
   (Sqlite.FromField a, SqliteExceptionReason e, HasCallStack) =>

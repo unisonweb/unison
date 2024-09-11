@@ -11,10 +11,6 @@ module Unison.Codebase.Editor.SlurpComponent
     -- ** Predicates
     isEmpty,
 
-    -- ** Set operations
-    difference,
-    intersection,
-
     -- ** Closure
     closeWithDependencies,
   )
@@ -44,20 +40,6 @@ isEmpty sc = Set.null sc.types && Set.null sc.terms && Set.null sc.ctors
 
 empty :: SlurpComponent
 empty = SlurpComponent {types = Set.empty, terms = Set.empty, ctors = Set.empty}
-
-difference :: SlurpComponent -> SlurpComponent -> SlurpComponent
-difference c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
-  where
-    types' = c1.types `Set.difference` c2.types
-    terms' = c1.terms `Set.difference` c2.terms
-    ctors' = c1.ctors `Set.difference` c2.ctors
-
-intersection :: SlurpComponent -> SlurpComponent -> SlurpComponent
-intersection c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
-  where
-    types' = c1.types `Set.intersection` c2.types
-    terms' = c1.terms `Set.intersection` c2.terms
-    ctors' = c1.ctors `Set.intersection` c2.ctors
 
 instance Semigroup SlurpComponent where
   c1 <> c2 =

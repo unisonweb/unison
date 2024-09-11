@@ -14,12 +14,6 @@ import Unison.Codebase.Init
 import Unison.Codebase.Init qualified as CI
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 
--- keep it off for CI, since the random temp dirs it generates show up in the
--- output, which causes the test output to change, and the "no change" check
--- to fail
-writeTranscriptOutput :: Bool
-writeTranscriptOutput = False
-
 test :: Test ()
 test =
   scope "Codebase.Init" $

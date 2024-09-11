@@ -11,10 +11,8 @@ module U.Util.Serialization where
 import Control.Applicative (liftA3)
 import Control.Monad (foldM, replicateM, replicateM_, when)
 import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
-import Data.ByteString (ByteString, readFile, writeFile)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.ByteString.Short (ShortByteString)
-import qualified Data.ByteString.Short as BSS
 import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, remaining, runGetS, skip)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
 import Data.Bytes.VarInt (VarInt (VarInt))
@@ -27,17 +25,11 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Text.Short (ShortText)
-import qualified Data.Text.Short as TS
-import qualified Data.Text.Short.Unsafe as TSU
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Data.Word (Word8)
 import Debug.Trace (traceM)
 import GHC.Word (Word64)
-import System.FilePath (takeDirectory)
-import UnliftIO (MonadIO, liftIO)
-import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
 
 type Get a = forall m. (MonadGet m) => m a
@@ -53,29 +45,8 @@ data Format a = Format
 debug :: Bool
 debug = False
 
-getFromBytes :: Get a -> ByteString -> Maybe a
-getFromBytes getA bytes =
-  case runGetS getA bytes of Left _ -> Nothing; Right a -> Just a
-
-getFromFile :: (MonadIO m) => Get a -> FilePath -> m (Maybe a)
-getFromFile getA file = do
-  b <- doesFileExist file
-  if b then getFromBytes getA <$> liftIO (readFile file) else pure Nothing
-
-getFromFile' :: (MonadIO m) => Get a -> FilePath -> m (Either String a)
-getFromFile' getA file = do
-  b <- doesFileExist file
-  if b
-    then runGetS getA <$> liftIO (readFile file)
-    else pure . Left $ "No such file: " ++ file
-
 putBytes :: Put a -> a -> ByteString
 putBytes put a = runPutS (put a)
-
-putWithParentDirs :: (MonadIO m) => Put a -> FilePath -> a -> m ()
-putWithParentDirs putA file a = do
-  createDirectoryIfMissing True (takeDirectory file)
-  liftIO . writeFile file $ putBytes putA a
 
 putVarInt :: (MonadPut m, Integral a, Bits a) => a -> m ()
 putVarInt n
@@ -111,28 +82,6 @@ getText = do
 
 skipText :: (MonadGet m) => m ()
 skipText = skip =<< getVarInt
-
-putShortText :: (MonadPut m) => ShortText -> m ()
-putShortText text = do
-  let sbs = TS.toShortByteString text
-  putVarInt $ BSS.length sbs
-  putShortByteString sbs
-
-getShortText :: (MonadGet m) => m ShortText
-getShortText = do
-  len <- getVarInt
-  sbs <- getShortByteString len
-  pure $ TSU.fromShortByteStringUnsafe sbs
-
--- | the `binary` package has a native version of this,
---  which may be more efficient by a constant factor
-putShortByteString :: (MonadPut m) => ShortByteString -> m ()
-putShortByteString = putByteString . BSS.fromShort
-
--- | the `binary` package has a native version of this,
---  which may be more efficient by a constant factor
-getShortByteString :: (MonadGet m) => Int -> m ShortByteString
-getShortByteString len = BSS.toShort <$> getByteString len
 
 putFoldable ::
   (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
@@ -228,18 +177,6 @@ getFramedArray getA = do
   offsets :: [Int] <- getList getVarInt
   let count = length offsets - 1
   Vector.replicateM count getA
-
--- | Look up a 0-based index in a framed array, O(num array elements),
---  because it reads the start indices for all elements first.
---  This could be skipped if the indices had a fixed size instead of varint
-lookupFramedArray :: (MonadGet m) => m a -> Int -> m (Maybe a)
-lookupFramedArray getA index = do
-  offsets <- getVector getVarInt
-  if index > Vector.length offsets - 1
-    then pure Nothing
-    else do
-      skip (Vector.unsafeIndex offsets index)
-      Just <$> getA
 
 lengthFramedArray :: (MonadGet m) => m Word64
 lengthFramedArray = (\offsetsLen -> offsetsLen - 1) <$> getVarInt

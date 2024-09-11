@@ -1,7 +1,5 @@
 module Unison.Result where
 
-import Control.Error.Util (note)
-import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Fail qualified as Fail
 import Control.Monad.Morph qualified as Morph
 import Control.Monad.Writer (MonadWriter (..), WriterT (..), runWriterT)
@@ -43,26 +41,8 @@ makeResult :: (Applicative m) => notes -> Maybe a -> ResultT notes m a
 makeResult notes value =
   MaybeT (WriterT (pure (value, notes)))
 
-isSuccess :: (Functor f) => ResultT note f a -> f Bool
-isSuccess = (isJust . fst <$>) . runResultT
-
-isFailure :: (Functor f) => ResultT note f a -> f Bool
-isFailure = (isNothing . fst <$>) . runResultT
-
-toMaybe :: (Functor f) => ResultT note f a -> f (Maybe a)
-toMaybe = (fst <$>) . runResultT
-
 runResultT :: ResultT notes f a -> f (Maybe a, notes)
 runResultT = runWriterT . runMaybeT
-
--- Returns the `Result` in the `f` functor.
-getResult :: (Functor f) => ResultT notes f a -> f (Result notes a)
-getResult r = uncurry (flip Result) <$> runResultT r
-
-toEither :: (Functor f) => ResultT notes f a -> ExceptT notes f a
-toEither r = ExceptT (go <$> runResultT r)
-  where
-    go (may, notes) = note notes may
 
 tell1 :: (Monad f) => note -> ResultT (Seq note) f ()
 tell1 = tell . pure

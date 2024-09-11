@@ -36,7 +36,6 @@ import Servant.Docs qualified as Docs
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags
-import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
@@ -126,12 +125,6 @@ instance Docs.ToCapture (Capture "fqn" (ExactName Name ShortHash)) where
     DocCapture
       "fqn"
       "The fully qualified name of a namespace with a hash, denoted by a '@'. E.g. base.List.map@abc"
-
-exactToHQ :: ExactName name ShortHash -> HQ.HashQualified name
-exactToHQ (ExactName {name, ref}) = HQ.HashQualified name ref
-
-exactToHQ' :: ExactName name ShortHash -> HQ'.HashQualified name
-exactToHQ' (ExactName {name, ref}) = HQ'.HashQualified name ref
 
 instance Bifunctor ExactName where
   bimap l r (ExactName a b) = ExactName (l a) (r b)
@@ -312,11 +305,6 @@ data UnisonRef
   | TermRef UnisonHash
   deriving (Eq, Ord, Show, Generic)
 
-unisonRefToText :: UnisonRef -> Text
-unisonRefToText = \case
-  TypeRef r -> r
-  TermRef r -> r
-
 data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
     termName :: HQ'.HashQualified Name,
@@ -419,18 +407,11 @@ mungeString = Text.encodeUtf8 . Text.Lazy.pack
 defaultWidth :: Width
 defaultWidth = 80
 
-discard :: (Applicative m) => a -> m ()
-discard = const $ pure ()
-
 mayDefaultWidth :: Maybe Width -> Width
 mayDefaultWidth = fromMaybe defaultWidth
 
 setCacheControl :: v -> APIHeaders v
 setCacheControl = addHeader @"Cache-Control" "public"
-
-branchToUnisonHash :: Branch.Branch m -> UnisonHash
-branchToUnisonHash b =
-  ("#" <>) . Hash.toBase32HexText . unCausalHash $ Branch.headHash b
 
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =

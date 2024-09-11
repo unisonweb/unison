@@ -81,8 +81,6 @@ tests:
     dependencies:
       - base
       - unison-pretty-printer
-      - raw-strings-qq
       - easytest
-      - containers
       - code-page
       - unison-syntax

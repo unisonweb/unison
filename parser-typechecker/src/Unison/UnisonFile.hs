@@ -31,7 +31,6 @@ module Unison.UnisonFile
     indexByReference,
     lookupDecl,
     nonEmpty,
-    termSignatureExternalLabeledDependencies,
     topLevelComponents,
     typecheckedUnisonFile,
     Unison.UnisonFile.rewrite,
@@ -54,8 +53,6 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
-import Unison.LabeledDependency (LabeledDependency)
-import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -63,9 +60,8 @@ import Unison.Referent qualified as Referent
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
-import Unison.Type qualified as Type
 import Unison.Typechecker.TypeLookup qualified as TL
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern TypecheckedUnisonFile, pattern UnisonFile)
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), pattern UnisonFile)
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
@@ -317,24 +313,6 @@ topLevelComponents ::
   [[(v, a, Term v a, Type v a)]]
 topLevelComponents file =
   topLevelComponents' file ++ [comp | (TestWatch, comp) <- watchComponents file]
-
--- External type references that appear in the types of the file's terms
-termSignatureExternalLabeledDependencies ::
-  (Ord v) => TypecheckedUnisonFile v a -> Set LabeledDependency
-termSignatureExternalLabeledDependencies
-  (TypecheckedUnisonFile dataDeclarations' effectDeclarations' _ _ hashTerms) =
-    Set.difference
-      ( Set.map LD.typeRef
-          . foldMap Type.dependencies
-          . fmap (\(_a, _r, _wk, _e, t) -> t)
-          . toList
-          $ hashTerms
-      )
-      -- exclude any references that are defined in this file
-      ( Set.fromList $
-          (map (LD.typeRef . fst) . toList) dataDeclarations'
-            <> (map (LD.typeRef . fst) . toList) effectDeclarations'
-      )
 
 -- Returns the dependencies of the `UnisonFile` input. Needed so we can
 -- load information about these dependencies before starting typechecking.

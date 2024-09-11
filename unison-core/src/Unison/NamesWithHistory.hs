@@ -5,16 +5,12 @@
 
 module Unison.NamesWithHistory
   ( diff,
-    push,
     lookupHQType,
-    lookupHQType',
     lookupHQTerm,
-    lookupHQTerm',
     lookupRelativeHQType,
     lookupRelativeHQType',
     lookupRelativeHQTerm,
     lookupRelativeHQTerm',
-    hasTermNamed,
     hasTypeNamed,
     typeName,
     termNamesByLength,
@@ -26,8 +22,6 @@ module Unison.NamesWithHistory
   )
 where
 
-import Data.List.Extra (nubOrd)
-import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType qualified as CT
@@ -42,7 +36,6 @@ import Unison.Prelude
 import Unison.Reference as Reference
 import Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
-import Unison.Util.List qualified as List
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
@@ -77,32 +70,6 @@ data Diff = Diff
   }
   deriving (Show)
 
-push :: Names -> Names -> Names
-push n0 ns = unionLeft0 n1 ns
-  where
-    n1 = suffixify0 n0
-    unionLeft0 :: Names -> Names -> Names
-    unionLeft0 n1 n2 = Names terms' types'
-      where
-        terms' = terms n1 <> R.subtractDom (R.dom $ terms n1) (terms n2)
-        types' = types n1 <> R.subtractDom (R.dom $ types n1) (types n2)
-    -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
-    -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
-    -- refers to a single definition is added as an alias
-    --
-    -- If `Names` were more like a `[Names]`, then `push` could just cons
-    -- onto the list and we could get rid of all this complex logic. The
-    -- complexity here is that we have to "bake the shadowing" into a single
-    -- Names, taking into account suffix-based name resolution.
-    suffixify0 :: Names -> Names
-    suffixify0 ns = ns <> suffixNs
-      where
-        suffixNs = Names (R.fromList uniqueTerms) (R.fromList uniqueTypes)
-        terms' = List.multimap [(n, ref) | (n0, ref) <- R.toList (terms ns), n <- Name.suffixes n0]
-        types' = List.multimap [(n, ref) | (n0, ref) <- R.toList (types ns), n <- Name.suffixes n0]
-        uniqueTerms = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList terms']
-        uniqueTypes = [(n, ref) | (n, nubOrd -> [ref]) <- Map.toList types']
-
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
 -- returning types with absolute names.
@@ -123,14 +90,6 @@ lookupRelativeHQType' searchType =
 lookupHQType :: SearchType -> HashQualified Name -> Names -> Set TypeReference
 lookupHQType searchType =
   lookupHQRef searchType Names.types Reference.isPrefixOf
-
--- | Find all types whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQType'.
-lookupHQType' :: SearchType -> HQ'.HashQualified Name -> Names -> Set TypeReference
-lookupHQType' searchType =
-  lookupHQType searchType . HQ'.toHQ
-
-hasTermNamed :: SearchType -> Name -> Names -> Bool
-hasTermNamed searchType n ns = not (Set.null $ lookupHQTerm searchType (HQ.NameOnly n) ns)
 
 hasTypeNamed :: SearchType -> Name -> Names -> Bool
 hasTypeNamed searchType n ns = not (Set.null $ lookupHQType searchType (HQ.NameOnly n) ns)
@@ -155,11 +114,6 @@ lookupRelativeHQTerm' searchType =
 lookupHQTerm :: SearchType -> HashQualified Name -> Names -> Set Referent
 lookupHQTerm searchType =
   lookupHQRef searchType Names.terms Referent.isPrefixOf
-
--- | Find all terms whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQTerm'.
-lookupHQTerm' :: SearchType -> HQ'.HashQualified Name -> Names -> Set Referent
-lookupHQTerm' searchType =
-  lookupHQTerm searchType . HQ'.toHQ
 
 -- Helper that unifies looking up a set of references/referents by a hash-qualified suffix.
 --

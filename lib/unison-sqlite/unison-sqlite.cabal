@@ -75,7 +75,6 @@ library
     , text-builder
     , transformers
     , unison-prelude
-    , unison-util-cache
     , unliftio
   default-language: Haskell2010
 

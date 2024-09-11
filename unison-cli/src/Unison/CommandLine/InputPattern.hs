@@ -12,12 +12,7 @@ module Unison.CommandLine.InputPattern
     FZFResolver (..),
     IsOptional (..),
     Visibility (..),
-
-    -- * Currently Unused
-    minArgs,
-    maxArgs,
     unionSuggestions,
-    suggestionFallbacks,
   )
 where
 
@@ -130,35 +125,6 @@ argInfo InputPattern {args, patternName} i = go (i, args)
 argType :: InputPattern -> Int -> Maybe ArgumentType
 argType ip i = snd <$> (argInfo ip i)
 
-minArgs :: InputPattern -> Int
-minArgs (InputPattern {args, patternName}) =
-  go (args ^.. folded . _2)
-  where
-    go [] = 0
-    go (Required : argTypes) = 1 + go argTypes
-    go [_] = 0
-    go _ =
-      error $
-        "Invalid args for InputPattern ("
-          <> show patternName
-          <> "): "
-          <> show args
-
-maxArgs :: InputPattern -> Maybe Int
-maxArgs (InputPattern {args, patternName}) = go argTypes
-  where
-    argTypes = args ^.. folded . _2
-    go [] = Just 0
-    go (Required : argTypes) = (1 +) <$> go argTypes
-    go [Optional] = Just 0
-    go [_] = Nothing
-    go _ =
-      error $
-        "Invalid args for InputPattern ("
-          <> show patternName
-          <> "): "
-          <> show argTypes
-
 -- | Union suggestions from all possible completions
 unionSuggestions ::
   forall m v a.
@@ -180,29 +146,3 @@ unionSuggestions suggesters inp codebase httpClient path = do
   suggesters & foldMapM \suggester ->
     suggester inp codebase httpClient path
       & fmap List.nubOrd
-
--- | Try the first completer, if it returns no suggestions, try the second, etc.
-suggestionFallbacks ::
-  forall m v a.
-  (MonadIO m) =>
-  [ ( String ->
-      Codebase m v a ->
-      AuthenticatedHttpClient ->
-      PP.ProjectPath ->
-      m [Line.Completion]
-    )
-  ] ->
-  ( String ->
-    Codebase m v a ->
-    AuthenticatedHttpClient ->
-    PP.ProjectPath ->
-    m [Line.Completion]
-  )
-suggestionFallbacks suggesters inp codebase httpClient path = go suggesters
-  where
-    go (s : rest) = do
-      suggestions <- s inp codebase httpClient path
-      if null suggestions
-        then go rest
-        else pure suggestions
-    go [] = pure []

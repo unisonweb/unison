@@ -155,11 +155,6 @@ allErrors =
       kindInferenceFailure
     ]
 
-topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
-topLevelComponent = do
-  defs <- Ex.topLevelComponent
-  pure $ TopLevelComponent defs
-
 redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
 redundantPattern = do
   ploc <- Ex.redundantPattern

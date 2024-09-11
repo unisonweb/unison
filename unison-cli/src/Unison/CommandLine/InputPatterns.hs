@@ -513,41 +513,6 @@ handleBranchIdArg =
       SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
       otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
--- | TODO: Maybe remove?
-_handleBranchIdOrProjectArg ::
-  I.Argument ->
-  Either (P.Pretty CT.ColorText) (These Input.BranchId (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
-_handleBranchIdOrProjectArg =
-  either
-    (\str -> maybe (Left $ expectedButActually' "a branch" str) pure $ branchIdOrProject str)
-    \case
-      SA.Namespace hash -> pure . This . BranchAtSCH $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . This . BranchAtPath $ Path.absoluteToPath' path
-      SA.Name name -> pure . This . BranchAtPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . This . BranchAtPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
-        pure . This . BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      SA.ProjectBranch pb -> pure $ That pb
-      otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
-  where
-    branchIdOrProject ::
-      String ->
-      Maybe
-        ( These
-            Input.BranchId
-            (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-        )
-    branchIdOrProject str =
-      let branchIdRes = Input.parseBranchId str
-          projectRes =
-            tryInto @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-              (Text.pack str)
-       in case (branchIdRes, projectRes) of
-            (Left _, Left _) -> Nothing
-            (Left _, Right pr) -> Just (That pr)
-            (Right bid, Left _) -> Just (This bid)
-            (Right bid, Right pr) -> Just (These bid pr)
-
 handleBranchId2Arg :: I.Argument -> Either (P.Pretty P.ColorText) Input.BranchId2
 handleBranchId2Arg =
   either

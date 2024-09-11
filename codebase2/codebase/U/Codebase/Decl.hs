@@ -55,15 +55,6 @@ vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
       constructorTypes = ABT.vmap f <$> constructorTypes
     }
 
-rmap :: (Ord v) => (r -> r') -> DeclR r v -> DeclR r' v
-rmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
-  DataDeclaration
-    { declType,
-      modifier,
-      bound,
-      constructorTypes = Type.rmap f <$> constructorTypes
-    }
-
 -- * Hashing stuff
 
 dependencies :: (Ord r, Ord v) => DeclR r v -> Set r

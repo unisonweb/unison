@@ -1,7 +1,6 @@
 -- | Utilities that have to do with constructing names objects.
 module Unison.Cli.NamesUtils
   ( currentNames,
-    currentProjectRootNames,
     projectBranchNames,
   )
 where
@@ -17,10 +16,6 @@ import Unison.Names (Names)
 currentNames :: Cli Names
 currentNames = do
   Branch.toNames <$> Cli.getCurrentBranch0
-
-currentProjectRootNames :: Cli Names
-currentProjectRootNames = do
-  Branch.toNames <$> Cli.getCurrentProjectRoot0
 
 projectBranchNames :: ProjectBranch -> Cli Names
 projectBranchNames pb = do

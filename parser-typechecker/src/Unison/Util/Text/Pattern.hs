@@ -195,11 +195,9 @@ compile (Replicate m n p) !err !success = case p of
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
       | otherwise = err acc t
 
-charInPred, charNotInPred :: [Char] -> Char -> Bool
+charInPred :: [Char] -> Char -> Bool
 charInPred [] = const False
 charInPred (c : chs) = let ok = charInPred chs in \ci -> ci == c || ok ci
-charNotInPred [] = const True
-charNotInPred (c : chs) = let ok = charNotInPred chs in (\ci -> ci /= c && ok ci)
 
 charPatternPred :: CharPattern -> Char -> Bool
 charPatternPred Any = const True

@@ -4,7 +4,6 @@
 
 module Unison.Test.Ucm
   ( initCodebase,
-    deleteCodebase,
     runTranscript,
     lowLevel,
     CodebaseFormat (..),
@@ -16,7 +15,6 @@ where
 
 import Control.Monad (when)
 import Data.Text qualified as Text
-import System.Directory (removeDirectoryRecursive)
 import System.IO.Temp qualified as Temp
 import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
@@ -58,9 +56,6 @@ initCodebase fmt = do
   case result of
     Left CreateCodebaseAlreadyExists -> fail $ P.toANSI 80 "Codebase already exists"
     Right _ -> pure $ Codebase tmp fmt
-
-deleteCodebase :: Codebase -> IO ()
-deleteCodebase (Codebase path _) = removeDirectoryRecursive path
 
 runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do

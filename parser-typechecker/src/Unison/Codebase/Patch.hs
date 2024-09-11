@@ -10,8 +10,6 @@ import Unison.Codebase.TermEdit (TermEdit, Typing (Same))
 import Unison.Codebase.TermEdit qualified as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Codebase.TypeEdit qualified as TypeEdit
-import Unison.LabeledDependency (LabeledDependency)
-import Unison.LabeledDependency qualified as LD
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Util.Relation (Relation)
@@ -44,32 +42,8 @@ diff new old =
       _removedTermEdits = R.difference (view termEdits old) (view termEdits new)
     }
 
-labeledDependencies :: Patch -> Set LabeledDependency
-labeledDependencies Patch {..} =
-  Set.map LD.termRef (R.dom _termEdits)
-    <> Set.fromList
-      (fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits))
-    <> Set.map LD.typeRef (R.dom _typeEdits)
-    <> Set.fromList
-      (fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
-
 empty :: Patch
 empty = Patch mempty mempty
-
-isEmpty :: Patch -> Bool
-isEmpty p = p == empty
-
-allReferences :: Patch -> Set Reference
-allReferences p = typeReferences p <> termReferences p
-  where
-    typeReferences p =
-      Set.fromList
-        [ r | (old, TypeEdit.Replace new) <- R.toList (_typeEdits p), r <- [old, new]
-        ]
-    termReferences p =
-      Set.fromList
-        [ r | (old, TermEdit.Replace new _) <- R.toList (_termEdits p), r <- [old, new]
-        ]
 
 -- | Returns the set of references which are the target of an arrow in the patch
 allReferenceTargets :: Patch -> Set Reference
@@ -115,10 +89,6 @@ updateType r edit p =
         TypeEdit.Deprecate -> (x, TypeEdit.Deprecate)
       f p = p
    in p {_typeEdits = edits'}
-
-conflicts :: Patch -> Patch
-conflicts Patch {..} =
-  Patch (R.filterManyDom _termEdits) (R.filterManyDom _typeEdits)
 
 instance Semigroup Patch where
   a <> b =

@@ -1,9 +1,5 @@
 module U.Codebase.Sqlite.Operations
   ( -- * branches
-    loadCausalHashAtPath,
-    expectCausalHashAtPath,
-    loadCausalBranchAtPath,
-    loadBranchAtPath,
     saveBranch,
     saveBranchV3,
     loadCausalBranchByCausalHash,
@@ -13,8 +9,6 @@ module U.Codebase.Sqlite.Operations
     expectBranchByBranchHashId,
     expectNamespaceStatsByHash,
     expectNamespaceStatsByHashId,
-    tryGetSquashResult,
-    saveSquashResult,
 
     -- * terms
     Q.saveTermComponent,
@@ -49,7 +43,6 @@ module U.Codebase.Sqlite.Operations
     -- * indexes
 
     -- ** nearest common ancestor
-    before,
     lca,
 
     -- ** prefix index
@@ -81,23 +74,12 @@ module U.Codebase.Sqlite.Operations
     NamesPerspective (..),
     termNamesForRefWithinNamespace,
     typeNamesForRefWithinNamespace,
-    termNamesBySuffix,
-    typeNamesBySuffix,
-    termRefsForExactName,
-    typeRefsForExactName,
-    recursiveTermNameSearch,
-    recursiveTypeNameSearch,
     checkBranchHashNameLookupExists,
-    buildNameLookupForBranchHash,
-    associateNameLookupMounts,
     longestMatchingTermNameForSuffixification,
     longestMatchingTypeNameForSuffixification,
-    deleteNameLookupsExceptFor,
-    fuzzySearchDefinitions,
     namesPerspectiveForRootAndPath,
 
     -- * Projects
-    expectProjectAndBranchNames,
     expectProjectBranchHead,
 
     -- * reflog
@@ -105,28 +87,19 @@ module U.Codebase.Sqlite.Operations
     getProjectReflog,
     getProjectBranchReflog,
     getGlobalReflog,
-    appendProjectReflog,
 
     -- * low-level stuff
     expectDbBranch,
-    saveDbBranch,
     saveDbBranchUnderHashId,
     expectDbPatch,
     saveDbPatch,
-    expectDbBranchByCausalHashId,
     namespaceStatsForDbBranch,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
     c2sReferentId,
-    diffPatch,
-    decodeTermElementWithType,
-    loadTermWithTypeByReference,
     Q.s2cTermWithType,
     Q.s2cDecl,
-    declReferencesByPrefix,
-    namespaceHashesByPrefix,
-    derivedDependencies,
 
     -- * internal stuff that probably need not be exported, but the 1->2 migration needs it
     BranchV (..),
@@ -138,13 +111,12 @@ import Control.Lens hiding (children)
 import Control.Monad.Extra qualified as Monad
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Foldable qualified as Foldable
-import Data.List.Extra qualified as List
 import Data.List.NonEmpty.Extra qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Merge.Lazy qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Tuple.Extra (uncurry3, (***))
+import Data.Tuple.Extra (uncurry3)
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Branch.Type qualified as C.Branch
 import U.Codebase.BranchV3 qualified as C.BranchV3
@@ -181,7 +153,7 @@ import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Patch.Diff qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S.Patch.Format
-import U.Codebase.Sqlite.Patch.Full qualified as S (LocalPatch, Patch, Patch' (..))
+import U.Codebase.Sqlite.Patch.Full qualified as S (Patch, Patch' (..))
 import U.Codebase.Sqlite.Patch.TermEdit qualified as S
 import U.Codebase.Sqlite.Patch.TermEdit qualified as S.TermEdit
 import U.Codebase.Sqlite.Patch.TypeEdit qualified as S
@@ -206,13 +178,11 @@ import U.Codebase.TypeEdit qualified as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import U.Util.Base32Hex qualified as Base32Hex
 import U.Util.Serialization qualified as S
-import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Hash qualified as H
 import Unison.Hash32 qualified as Hash32
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
-import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
+import Unison.ShortHash (ShortCausalHash (..))
 import Unison.Sqlite
 import Unison.Util.Defns (DefnsF)
 import Unison.Util.List qualified as List
@@ -238,53 +208,6 @@ expectValueHashByCausalHashId = loadValueHashById <=< Q.expectCausalValueHashId
   where
     loadValueHashById :: Db.BranchHashId -> Transaction BranchHash
     loadValueHashById = fmap BranchHash . Q.expectHash . Db.unBranchHashId
-
--- | Load the causal hash at the given path from the provided root, if Nothing, use the
--- codebase root.
-loadCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe CausalHash)
-loadCausalHashAtPath rootCausalHash =
-  let go :: Db.CausalHashId -> [NameSegment] -> MaybeT Transaction CausalHash
-      go hashId = \case
-        [] -> lift (Q.expectCausalHash hashId)
-        t : ts -> do
-          tid <- MaybeT (Q.loadTextId $ NameSegment.toUnescapedText t)
-          S.Branch {children} <- MaybeT (loadDbBranchByCausalHashId hashId)
-          (_, hashId') <- MaybeT (pure (Map.lookup tid children))
-          go hashId' ts
-   in \path -> do
-        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
-        runMaybeT (go hashId path)
-
--- | Expect the causal hash at the given path from the provided root, if Nothing, use the
--- codebase root.
-expectCausalHashAtPath :: CausalHash -> [NameSegment] -> Transaction CausalHash
-expectCausalHashAtPath rootCausalHash =
-  let go :: Db.CausalHashId -> [NameSegment] -> Transaction CausalHash
-      go hashId = \case
-        [] -> Q.expectCausalHash hashId
-        t : ts -> do
-          tid <- Q.expectTextId $ NameSegment.toUnescapedText t
-          S.Branch {children} <- expectDbBranchByCausalHashId hashId
-          let (_, hashId') = children Map.! tid
-          go hashId' ts
-   in \path -> do
-        hashId <- Q.expectCausalHashIdByCausalHash rootCausalHash
-        go hashId path
-
-loadCausalBranchAtPath ::
-  CausalHash ->
-  [NameSegment] ->
-  Transaction (Maybe (C.Branch.CausalBranch Transaction))
-loadCausalBranchAtPath rootCausalHash path =
-  loadCausalHashAtPath rootCausalHash path >>= \case
-    Nothing -> pure Nothing
-    Just causalHash -> Just <$> expectCausalBranchByCausalHash causalHash
-
-loadBranchAtPath :: CausalHash -> [NameSegment] -> Transaction (Maybe (C.Branch.Branch Transaction))
-loadBranchAtPath rootCausalHash path =
-  loadCausalBranchAtPath rootCausalHash path >>= \case
-    Nothing -> pure Nothing
-    Just causal -> Just <$> C.Causal.value causal
 
 -- * Reference transformations
 
@@ -330,11 +253,6 @@ s2cConstructorType :: S.ConstructorType -> C.ConstructorType
 s2cConstructorType = \case
   S.DataConstructor -> C.DataConstructor
   S.EffectConstructor -> C.EffectConstructor
-
-c2sConstructorType :: C.ConstructorType -> S.ConstructorType
-c2sConstructorType = \case
-  C.DataConstructor -> S.DataConstructor
-  C.EffectConstructor -> S.EffectConstructor
 
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId
@@ -395,25 +313,6 @@ c2sPatch (C.Branch.Patch termEdits typeEdits) =
       C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> c2sReference r
       C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
 
--- | produces a diff
--- diff = full - ref; full = diff + ref
-diffPatch :: S.LocalPatch -> S.LocalPatch -> S.LocalPatchDiff
-diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
-  (S.PatchDiff addTermEdits addTypeEdits removeTermEdits removeTypeEdits)
-  where
-    -- add: present in full. but absent in ref.
-    addTermEdits = Map.merge Map.preserveMissing Map.dropMissing addDiffSet fullTerms refTerms
-    addTypeEdits = Map.merge Map.preserveMissing Map.dropMissing addDiffSet fullTypes refTypes
-    -- remove: present in ref. but absent in full.
-    removeTermEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTerms refTerms
-    removeTypeEdits = Map.merge Map.dropMissing Map.preserveMissing removeDiffSet fullTypes refTypes
-    -- things that are present in full but absent in ref
-    addDiffSet,
-      removeDiffSet ::
-        (Ord k, Ord a) => Map.WhenMatched Identity k (Set a) (Set a) (Set a)
-    addDiffSet = Map.zipWithMatched (const Set.difference)
-    removeDiffSet = Map.zipWithMatched (const (flip Set.difference))
-
 getCycleLen :: H.Hash -> Transaction (Maybe Word64)
 getCycleLen h = do
   when debug $ traceM $ "\ngetCycleLen " ++ (Text.unpack . Base32Hex.toText $ H.toBase32Hex h)
@@ -447,13 +346,6 @@ loadTermComponent h = do
   oid <- MaybeT (Q.loadObjectIdForAnyHash h)
   S.Term.Term (S.Term.LocallyIndexedComponent elements) <- MaybeT (Q.loadTermObject oid decodeTermFormat)
   lift . traverse (uncurry3 Q.s2cTermWithType) $ Foldable.toList elements
-
-loadTermWithTypeByReference :: C.Reference.Id -> MaybeT Transaction (C.Term Symbol, C.Term.Type Symbol)
-loadTermWithTypeByReference (C.Reference.Id h i) = do
-  oid <- MaybeT (Q.loadObjectIdForPrimaryHash h)
-  -- retrieve and deserialize the blob
-  (localIds, term, typ) <- MaybeT (Q.loadTermObject oid (decodeTermElementWithType i))
-  lift (Q.s2cTermWithType localIds term typ)
 
 loadTermByReference :: C.Reference.Id -> MaybeT Transaction (C.Term Symbol)
 loadTermByReference r@(C.Reference.Id h i) = do
@@ -755,13 +647,6 @@ expectBranchByCausalHashId id = do
   boId <- Q.expectBranchObjectIdByCausalHashId id
   expectBranch boId
 
--- | Load a branch value given its causal hash id.
-loadDbBranchByCausalHashId :: Db.CausalHashId -> Transaction (Maybe S.DbBranch)
-loadDbBranchByCausalHashId causalHashId =
-  Q.loadBranchObjectIdByCausalHashId causalHashId >>= \case
-    Nothing -> pure Nothing
-    Just branchObjectId -> Just <$> expectDbBranch branchObjectId
-
 expectBranchByBranchHashId :: Db.BranchHashId -> Transaction (C.Branch.Branch Transaction)
 expectBranchByBranchHashId bhId = do
   boId <- Q.expectBranchObjectIdByBranchHashId bhId
@@ -771,12 +656,6 @@ expectBranchByBranchHash :: BranchHash -> Transaction (C.Branch.Branch Transacti
 expectBranchByBranchHash bh = do
   bhId <- Q.expectBranchHashId bh
   expectBranchByBranchHashId bhId
-
--- | Expect a branch value given its causal hash id.
-expectDbBranchByCausalHashId :: Db.CausalHashId -> Transaction S.DbBranch
-expectDbBranchByCausalHashId causalHashId = do
-  branchObjectId <- Q.expectBranchObjectIdByCausalHashId causalHashId
-  expectDbBranch branchObjectId
 
 expectDbBranch :: Db.BranchObjectId -> Transaction S.DbBranch
 expectDbBranch id =
@@ -884,20 +763,6 @@ expectDbBranch id =
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
 
--- | Save a 'S.DbBranch', given its hash (which the caller is expected to produce from the branch).
---
--- Note: long-standing question: should this package depend on the hashing package? (If so, we would only need to take
--- the DbBranch, and hash internally).
-saveDbBranch ::
-  HashHandle ->
-  BranchHash ->
-  C.Branch.NamespaceStats ->
-  DbBranchV ->
-  Transaction Db.BranchObjectId
-saveDbBranch hh hash stats branch = do
-  hashId <- Q.saveBranchHash hash
-  saveDbBranchUnderHashId hh hashId stats branch
-
 -- | Variant of 'saveDbBranch' that might be preferred by callers that already have a hash id, not a hash.
 saveDbBranchUnderHashId ::
   HashHandle ->
@@ -990,13 +855,6 @@ lca h1 h2 = runMaybeT do
   chId3 <- MaybeT $ Q.lca chId1 chId2
   lift (Q.expectCausalHash chId3)
 
-before :: CausalHash -> CausalHash -> Transaction (Maybe Bool)
-before h1 h2 = runMaybeT do
-  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
-  lift (Q.loadCausalHashIdByCausalHash h1) >>= \case
-    Just chId1 -> lift (Q.before chId1 chId2)
-    Nothing -> pure False
-
 -- * Searches
 
 termsHavingType :: C.Reference -> Transaction (Set C.Referent.Id)
@@ -1051,11 +909,6 @@ termReferencesByPrefix t w =
   componentReferencesByPrefix ObjectType.TermComponent t w
     >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
 
-declReferencesByPrefix :: Text -> Maybe Word64 -> Transaction [C.Reference.Id]
-declReferencesByPrefix t w =
-  componentReferencesByPrefix ObjectType.DeclComponent t w
-    >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
-
 termReferentsByPrefix :: Text -> Maybe Word64 -> Transaction [C.Referent.Id]
 termReferentsByPrefix b32prefix pos =
   fmap C.Referent.RefId <$> termReferencesByPrefix b32prefix pos
@@ -1088,12 +941,6 @@ declReferentsByPrefix b32prefix pos cid = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       (_localIds, decl) <- Q.expectDeclObject r (decodeDeclElement i)
       pure (C.Decl.declType decl, length (C.Decl.constructorTypes decl))
-
-namespaceHashesByPrefix :: ShortNamespaceHash -> Transaction (Set BranchHash)
-namespaceHashesByPrefix (ShortNamespaceHash b32prefix) = do
-  hashIds <- Q.namespaceHashIdByBase32Prefix b32prefix
-  hashes <- traverse (Q.expectHash . Db.unBranchHashId) hashIds
-  pure $ Set.fromList . map BranchHash $ hashes
 
 causalHashesByPrefix :: ShortCausalHash -> Transaction (Set CausalHash)
 causalHashesByPrefix (ShortCausalHash b32prefix) = do
@@ -1177,57 +1024,6 @@ dependentsOfComponent h = do
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependencyComponent oId
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
-
--- | returns empty set for unknown inputs; doesn't distinguish between term and decl
-derivedDependencies :: C.Reference.Id -> Transaction (Set C.Reference.Id)
-derivedDependencies cid = do
-  sid <- c2sReferenceId cid
-  sids <- Q.getDependencyIdsForDependent sid
-  cids <- traverse s2cReferenceId sids
-  pure $ Set.fromList cids
-
--- | Apply a set of name updates to an existing index.
-buildNameLookupForBranchHash ::
-  -- The existing name lookup index to copy before applying the diff.
-  -- If Nothing, run the diff against an empty index.
-  -- If Just, the name lookup must exist or an error will be thrown.
-  Maybe BranchHash ->
-  BranchHash ->
-  ( ( -- (add terms, remove terms)
-      ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Referent]) ->
-      --  (add types, remove types)
-      ([S.NamedRef C.Reference], [S.NamedRef C.Reference]) ->
-      Transaction ()
-    ) ->
-    Transaction ()
-  ) ->
-  Transaction ()
-buildNameLookupForBranchHash mayExistingBranchIndex newBranchHash callback = do
-  newBranchHashId <- Q.expectBranchHashId newBranchHash
-  Q.trackNewBranchHashNameLookup newBranchHashId
-  case mayExistingBranchIndex of
-    Nothing -> pure ()
-    Just existingBranchIndex -> do
-      unlessM (checkBranchHashNameLookupExists existingBranchIndex) $ error "buildNameLookupForBranchHash: existingBranchIndex was provided, but no index was found for that branch hash."
-      existingBranchHashId <- Q.expectBranchHashId existingBranchIndex
-      Q.copyScopedNameLookup existingBranchHashId newBranchHashId
-  callback \(newTermNames, removedTermNames) (newTypeNames, removedTypeNames) -> do
-    Q.removeScopedTermNames newBranchHashId ((fmap c2sTextReferent <$> removedTermNames))
-    Q.removeScopedTypeNames newBranchHashId ((fmap c2sTextReference <$> removedTypeNames))
-    Q.insertScopedTermNames newBranchHashId (fmap (c2sTextReferent *** fmap c2sConstructorType) <$> newTermNames)
-    Q.insertScopedTypeNames newBranchHashId (fmap c2sTextReference <$> newTypeNames)
-
--- | Save a list of (mount-path, branch hash) mounts for the provided name lookup index branch
--- hash.
---
--- E.g. associateNameLookupMounts #roothash [(["lib", "base"], #basehash)]
-associateNameLookupMounts :: BranchHash -> [(PathSegments, BranchHash)] -> Transaction ()
-associateNameLookupMounts rootBh dependencyMounts = do
-  rootBhId <- Q.expectBranchHashId rootBh
-  depMounts <- for dependencyMounts \(path, branchHash) -> do
-    branchHashId <- Q.expectBranchHashId branchHash
-    pure (path, branchHashId)
-  Q.associateNameLookupMounts rootBhId depMounts
 
 -- | Any time we need to lookup or search names we need to know what the scope of that search
 -- should be. This can be complicated to keep track of, so this is a helper type to make it
@@ -1348,28 +1144,6 @@ typeNamesForRefWithinNamespace NamesPerspective {nameLookupBranchHashId, pathToM
   Q.typeNamesForRefWithinNamespace nameLookupBranchHashId mempty (c2sTextReference ref) maySuffix
     <&> fmap (prefixReversedName pathToMountedNameLookup)
 
-termNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
-  Q.termNamesBySuffix nameLookupBranchHashId mempty suffix
-    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
-
-typeNamesBySuffix :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
-typeNamesBySuffix NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} suffix = do
-  Q.typeNamesBySuffix nameLookupBranchHashId mempty suffix
-    <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap s2cTextReference)
-
--- | Helper for findings refs by name within the correct mounted indexes.
-refsForExactName ::
-  (Db.BranchHashId -> S.ReversedName -> Transaction [S.NamedRef ref]) ->
-  NamesPerspective ->
-  S.ReversedName ->
-  Transaction [S.NamedRef ref]
-refsForExactName query NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} name = do
-  namedRefs <- query nameLookupBranchHashId name
-  pure $
-    namedRefs
-      <&> prefixNamedRef pathToMountedNameLookup
-
 -- | Requalifies a NamedRef to some namespace prefix.
 prefixNamedRef :: NameLookups.PathSegments -> S.NamedRef ref -> S.NamedRef ref
 prefixNamedRef prefix S.NamedRef {reversedSegments, ref} =
@@ -1379,15 +1153,6 @@ prefixNamedRef prefix S.NamedRef {reversedSegments, ref} =
 prefixReversedName :: PathSegments -> S.ReversedName -> S.ReversedName
 prefixReversedName (S.PathSegments prefix) (S.ReversedName reversedSegments) =
   S.ReversedName $ NonEmpty.appendl reversedSegments (reverse prefix)
-
-termRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef (C.Referent, Maybe C.ConstructorType)]
-termRefsForExactName namesPerspective reversedName = do
-  refsForExactName Q.termRefsForExactName namesPerspective reversedName
-    <&> fmap (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
-
-typeRefsForExactName :: NamesPerspective -> S.ReversedName -> Transaction [S.NamedRef C.Reference]
-typeRefsForExactName namesPerspective reversedName = do
-  refsForExactName Q.typeRefsForExactName namesPerspective reversedName <&> fmap (fmap s2cTextReference)
 
 -- | Get the name within the provided namespace that has the longest matching suffix
 -- with the provided name, but a different ref.
@@ -1408,38 +1173,6 @@ longestMatchingTypeNameForSuffixification :: NamesPerspective -> S.NamedRef C.Re
 longestMatchingTypeNameForSuffixification NamesPerspective {nameLookupBranchHashId, pathToMountedNameLookup} namedRef = do
   Q.longestMatchingTypeNameForSuffixification nameLookupBranchHashId mempty (c2sTextReference <$> namedRef)
     <&> fmap (prefixNamedRef pathToMountedNameLookup >>> fmap s2cTextReference)
-
--- | Searches all dependencies transitively looking for the provided ref within the
--- provided namespace.
--- Prefer 'termNamesForRefWithinNamespace' in most cases.
--- This is slower and only necessary when resolving the name of refs when you don't know which
--- dependency it may exist in.
---
--- Searching transitive dependencies is exponential so we want to replace this with a more
--- efficient approach as soon as possible.
---
--- Note: this returns the first name it finds by searching in order of:
--- Names in the current namespace, then names in the current namespace's dependencies, then
--- through the current namespace's dependencies' dependencies, etc.
-recursiveTermNameSearch :: NamesPerspective -> C.Referent -> Transaction (Maybe S.ReversedName)
-recursiveTermNameSearch NamesPerspective {nameLookupBranchHashId} r = do
-  Q.recursiveTermNameSearch nameLookupBranchHashId (c2sTextReferent r)
-
--- | Searches all dependencies transitively looking for the provided ref within the provided
--- namespace.
--- Prefer 'typeNamesForRefWithinNamespace' in most cases.
--- This is slower and only necessary when resolving the name of references when you don't know which
--- dependency it may exist in.
---
--- Searching transitive dependencies is exponential so we want to replace this with a more
--- efficient approach as soon as possible.
---
--- Note: this returns the first name it finds by searching in order of:
--- Names in the current namespace, then names in the current namespace's dependencies, then
--- through the current namespace's dependencies' dependencies, etc.
-recursiveTypeNameSearch :: NamesPerspective -> C.Reference -> Transaction (Maybe S.ReversedName)
-recursiveTypeNameSearch NamesPerspective {nameLookupBranchHashId} r = do
-  Q.recursiveTypeNameSearch nameLookupBranchHashId (c2sTextReference r)
 
 -- | Looks up statistics for a given branch, if none exist, we compute them and save them
 -- then return them.
@@ -1519,82 +1252,6 @@ hydrateProjectReflogEntry entry = do
               branch <- Q.expectProjectBranch projId branchId
               pure (proj, branch)
           )
-
-appendProjectReflog :: ProjectReflog.Entry Db.ProjectId Db.ProjectBranchId CausalHash -> Transaction ()
-appendProjectReflog entry = do
-  dbEntry <- traverse Q.saveCausalHash entry
-  Q.appendProjectBranchReflog dbEntry
-
--- | Delete any name lookup that's not in the provided list.
---
--- This can be used to garbage collect unreachable name lookups.
-deleteNameLookupsExceptFor :: Set BranchHash -> Transaction ()
-deleteNameLookupsExceptFor reachable = do
-  bhIds <- for (Set.toList reachable) Q.expectBranchHashId
-  Q.deleteNameLookupsExceptFor bhIds
-
--- | Get the causal hash which would be the result of squashing the provided branch hash.
--- Returns Nothing if we haven't computed it before.
-tryGetSquashResult :: BranchHash -> Transaction (Maybe CausalHash)
-tryGetSquashResult bh = do
-  bhId <- Q.expectBranchHashId bh
-  chId <- Q.tryGetSquashResult bhId
-  traverse Q.expectCausalHash chId
-
--- | Saves the result of a squash
-saveSquashResult :: BranchHash -> CausalHash -> Transaction ()
-saveSquashResult bh ch = do
-  bhId <- Q.expectBranchHashId bh
-  chId <- Q.saveCausalHash ch
-  Q.saveSquashResult bhId chId
-
--- | Search for term or type names which contain the provided list of segments in order.
--- Search is case insensitive.
-fuzzySearchDefinitions ::
-  Bool ->
-  NamesPerspective ->
-  -- | Will return at most n terms and n types; i.e. max number of results is 2n
-  Int ->
-  [Text] ->
-  Transaction ([S.NamedRef (C.Referent, Maybe C.ConstructorType)], [S.NamedRef C.Reference])
-fuzzySearchDefinitions includeDependencies NamesPerspective {nameLookupBranchHashId, relativePerspective} limit querySegments = do
-  termNames <-
-    Q.fuzzySearchTerms includeDependencies nameLookupBranchHashId limit relativePerspective querySegments
-      <&> fmap \termName ->
-        termName
-          & (fmap (bimap s2cTextReferent (fmap s2cConstructorType)))
-          & stripPrefixFromNamedRef relativePerspective
-  typeNames <-
-    Q.fuzzySearchTypes includeDependencies nameLookupBranchHashId limit relativePerspective querySegments
-      <&> fmap (fmap s2cTextReference)
-      <&> fmap \typeName ->
-        typeName
-          & stripPrefixFromNamedRef relativePerspective
-  pure (termNames, typeNames)
-
--- | Strips a prefix path from a named ref. No-op if the prefix doesn't match.
---
--- >>> stripPrefixFromNamedRef (PathSegments ["foo", "bar"]) (S.NamedRef (S.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
--- NamedRef {reversedSegments = ReversedName ("baz" :| []), ref = ()}
---
--- >>> stripPrefixFromNamedRef (PathSegments ["no", "match"]) (S.NamedRef (S.ReversedName ("baz" NonEmpty.:| ["bar", "foo"])) ())
--- NamedRef {reversedSegments = ReversedName ("baz" :| ["bar","foo"]), ref = ()}
-stripPrefixFromNamedRef :: PathSegments -> S.NamedRef r -> S.NamedRef r
-stripPrefixFromNamedRef (PathSegments prefix) namedRef =
-  let newReversedName =
-        S.reversedSegments namedRef
-          & \case
-            reversedName@(S.ReversedName (name NonEmpty.:| reversedPath)) ->
-              case List.stripSuffix (reverse prefix) reversedPath of
-                Nothing -> reversedName
-                Just strippedReversedPath -> S.ReversedName (name NonEmpty.:| strippedReversedPath)
-   in namedRef {S.reversedSegments = newReversedName}
-
-expectProjectAndBranchNames :: Db.ProjectId -> Db.ProjectBranchId -> Transaction (ProjectName, ProjectBranchName)
-expectProjectAndBranchNames projectId projectBranchId = do
-  Project {name = pName} <- Q.expectProject projectId
-  ProjectBranch {name = bName} <- Q.expectProjectBranch projectId projectBranchId
-  pure (pName, bName)
 
 expectProjectBranchHead :: Db.ProjectId -> Db.ProjectBranchId -> Transaction CausalHash
 expectProjectBranchHead projId projectBranchId = do

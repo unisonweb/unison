@@ -71,9 +71,6 @@ unsnoc t = (take (size t - 1) t,) <$> at (size t - 1) t
 unconsChunk :: Text -> Maybe (Chunk, Text)
 unconsChunk (Text r) = (\(a, b) -> (a, Text b)) <$> R.uncons r
 
-unsnocChunk :: Text -> Maybe (Text, Chunk)
-unsnocChunk (Text r) = (\(a, b) -> (Text a, b)) <$> R.unsnoc r
-
 at :: Int -> Text -> Maybe Char
 at n (Text t) = R.index n t
 

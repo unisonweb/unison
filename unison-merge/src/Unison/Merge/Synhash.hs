@@ -26,9 +26,7 @@
 -- "foo" would have the same syntactic hash. This indicates (to our merge algorithm) that this was an auto-propagated
 -- update.
 module Unison.Merge.Synhash
-  ( synhashType,
-    synhashTerm,
-    synhashBuiltinTerm,
+  ( synhashBuiltinTerm,
     synhashDerivedTerm,
     synhashBuiltinDecl,
     synhashDerivedDecl,
@@ -58,8 +56,6 @@ import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference' (..), TermReferenceId)
-import Unison.Reference qualified as V1
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
@@ -215,17 +211,6 @@ hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
   hashHQNameToken . PPE.termNameOrHashOnlyFq ppe
 
-synhashTerm ::
-  forall m v a.
-  (Monad m, Var v) =>
-  (TermReferenceId -> m (Term v a)) ->
-  PrettyPrintEnv ->
-  V1.TermReference ->
-  m Hash
-synhashTerm loadTerm ppe = \case
-  ReferenceBuiltin builtin -> pure (synhashBuiltinTerm builtin)
-  ReferenceDerived ref -> synhashDerivedTerm ppe <$> loadTerm ref
-
 hashTermFTokens :: (Var v) => PrettyPrintEnv -> Term.F v a a () -> [Token]
 hashTermFTokens ppe = \case
   Term.Int n -> [H.Tag 0, H.Int n]
@@ -253,13 +238,6 @@ hashTermFTokens ppe = \case
     H.Tag 18 : hashLengthToken cases : (cases >>= hashCaseTokens ppe)
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
-
--- | Syntactically hash a type, using reference names rather than hashes.
--- Two types will have the same syntactic hash if they would
--- print the the same way under the given pretty-print env.
-synhashType :: (Var v) => PrettyPrintEnv -> Type v a -> Hash
-synhashType ppe ty =
-  H.accumulate $ hashTypeTokens ppe [] ty
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go

@@ -59,10 +59,6 @@ tc_diff s expected = tc_diff_rtt True s expected 0
 tc :: String -> Test ()
 tc s = tc_diff s s
 
--- Use renderBroken to render the output to some maximum width.
-tc_breaks :: String -> PP.Width -> String -> Test ()
-tc_breaks s width expected = tc_diff_rtt True s expected width
-
 test :: Test ()
 test =
   scope "typeprinter" . tests $

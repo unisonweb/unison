@@ -19,20 +19,6 @@ import UnliftIO.MVar
 import UnliftIO.STM
 import UnliftIO.Timeout (timeout)
 
--- | Cancels an in-flight request
-cancelRequest :: (Int32 |? Text) -> Lsp ()
-cancelRequest lspId = do
-  cancelMapVar <- asks cancellationMapVar
-  cancel <- atomically $ do
-    cancellers <- readTVar cancelMapVar
-    let (mayCancel, newMap) = Map.updateLookupWithKey (\_k _io -> Nothing) lspId cancellers
-    case mayCancel of
-      Nothing -> pure (pure ())
-      Just cancel -> do
-        writeTVar cancelMapVar newMap
-        pure cancel
-  liftIO cancel
-
 withDebugging ::
   (Show (Msg.TRequestMessage message), Show (Msg.MessageResult message)) =>
   (Msg.TRequestMessage message -> (Either Msg.ResponseError (Msg.MessageResult message) -> Lsp ()) -> Lsp ()) ->

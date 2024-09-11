@@ -4,7 +4,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Share.Types
 
 data ShareCodeserver
@@ -37,10 +36,6 @@ printReadRemoteNamespace :: (a -> Text) -> ReadRemoteNamespace a -> Text
 printReadRemoteNamespace printProject = \case
   ReadShare'LooseCode ReadShareLooseCode {server, repo, path} -> displayShareCodeserver server repo path
   ReadShare'ProjectBranch project -> printProject project
-
--- | Render a 'WriteRemoteNamespace' as text.
-printWriteRemoteNamespace :: (ProjectAndBranch ProjectName ProjectBranchName) -> Text
-printWriteRemoteNamespace projectAndBranch = into @Text projectAndBranch
 
 maybePrintPath :: Path -> Text
 maybePrintPath path =

@@ -1,6 +1,5 @@
 module Unison.Builtin
   ( codeLookup,
-    constructorType,
     names,
     builtinDataDecls,
     builtinEffectDecls,
@@ -16,7 +15,6 @@ module Unison.Builtin
     typeOf,
     typeLookup,
     termRefTypes,
-    termRefTypeReferences,
   )
 where
 
@@ -89,11 +87,6 @@ typeLookup =
     (fmap (const Intrinsic) <$> termRefTypes)
     (Map.fromList $ map (first R.DerivedId . snd) builtinDataDecls)
     (Map.fromList $ map (first R.DerivedId . snd) builtinEffectDecls)
-
-constructorType :: R.Reference -> Maybe CT.ConstructorType
-constructorType r =
-  TL.constructorType typeLookup r
-    <|> Map.lookup r builtinConstructorType
 
 builtinDataDecls :: [(Symbol, (R.Id, DataDeclaration))]
 builtinDataDecls =
@@ -331,9 +324,6 @@ termRefTypes = foldl' go mempty builtinsSrc
       B r t -> Map.insert (R.Builtin r) t m
       D r t -> Map.insert (R.Builtin r) t m
       _ -> m
-
-termRefTypeReferences :: Map R.TermReference R.TypeReference
-termRefTypeReferences = H.typeToReference <$> termRefTypes
 
 typeOf :: a -> (Type -> a) -> R.Reference -> a
 typeOf a f r = maybe a f (Map.lookup r termRefTypes)

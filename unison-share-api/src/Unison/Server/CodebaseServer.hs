@@ -375,9 +375,6 @@ docsBS = mungeString . markdown $ docsWithIntros [intro] api
         (Text.unpack $ _infoTitle infoObject)
         (toList $ Text.unpack <$> _infoDescription infoObject)
 
-unisonAndDocsAPI :: Proxy UnisonAndDocsAPI
-unisonAndDocsAPI = Proxy
-
 api :: Proxy UnisonLocalAPI
 api = Proxy
 

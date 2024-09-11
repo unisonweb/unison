@@ -134,7 +134,7 @@ import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
+import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
@@ -771,7 +771,7 @@ loop e = do
                 names <- lift Cli.currentNames
                 let buildPPED uf tf =
                       let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
-                      in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
+                       in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
                 let formatWidth = 80
                 currentPath <- lift $ Cli.getCurrentPath
                 updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
@@ -1382,25 +1382,6 @@ confirmedCommand i = do
   loopState <- State.get
   pure $ Just i == (loopState ^. #lastInput)
 
--- return `name` and `name.<everything>...`
-_searchBranchPrefix :: Branch m -> Name -> [SearchResult]
-_searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
-  Nothing -> []
-  Just (init, last) -> case Branch.getAt init b of
-    Nothing -> []
-    Just b -> SR.fromNames . Names.prefix0 n $ names0
-      where
-        lastName = Name.fromSegment last
-        subnames =
-          Branch.toNames . Branch.head $
-            Branch.getAt' (Path.singleton last) b
-        rootnames =
-          Names.filter (== lastName)
-            . Branch.toNames
-            . set Branch.children mempty
-            $ Branch.head b
-        names0 = rootnames <> Names.prefix0 lastName subnames
-
 searchResultsFor :: Names -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
   [ SR.termSearchResult ns name ref
@@ -1475,7 +1456,7 @@ doCompile profile native output main = do
       outf
         | native = output
         | otherwise = output <> ".uc"
-      copts = Runtime.defaultCompileOpts { Runtime.profile = profile }
+      copts = Runtime.defaultCompileOpts {Runtime.profile = profile}
   whenJustM
     ( liftIO $
         Runtime.compileTo theRuntime copts codeLookup ppe ref outf

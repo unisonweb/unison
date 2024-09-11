@@ -16,7 +16,6 @@ module U.Codebase.Reference
     Id' (..),
     Pos,
     _ReferenceDerived,
-    _RReferenceReference,
     t_,
     h_,
     idH,
@@ -31,7 +30,7 @@ module U.Codebase.Reference
   )
 where
 
-import Control.Lens (Lens, Lens', Prism, Prism', Traversal, lens, preview, prism)
+import Control.Lens (Lens, Lens', Prism, Traversal, lens, preview, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Text qualified as Text
@@ -81,19 +80,6 @@ type TermReference' t h = Reference' t h
 
 -- | A term declaration reference.
 type TypeReference' t h = Reference' t h
-
-_RReferenceReference :: Prism' (Reference' t (Maybe h)) (Reference' t h)
-_RReferenceReference = prism embed project
-  where
-    embed = \case
-      ReferenceBuiltin x -> ReferenceBuiltin x
-      ReferenceDerived (Id h p) -> ReferenceDerived (Id (Just h) p)
-
-    project = \case
-      ReferenceBuiltin x -> Right (ReferenceBuiltin x)
-      ReferenceDerived (Id mh p) -> case mh of
-        Nothing -> Left (ReferenceDerived (Id mh p))
-        Just h -> Right (ReferenceDerived (Id h p))
 
 _ReferenceDerived :: Prism (Reference' t h) (Reference' t h') (Id' h) (Id' h')
 _ReferenceDerived = prism embed project

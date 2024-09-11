@@ -6,14 +6,9 @@ module Unison.PatternMatchCoverage.IntervalSet
     insert,
     delete,
     difference,
-    intersection,
     complement,
     null,
-    member,
-    extractSingleton,
     intersectIntervals,
-    map,
-    foldr,
     lookupMin,
     lookupMax,
   )
@@ -42,21 +37,6 @@ lookupMin = fmap fst . IntMap.lookupMin . unIntervalSet
 
 lookupMax :: IntervalSet -> Maybe Int
 lookupMax = fmap snd . IntMap.lookupMax . unIntervalSet
-
-member :: Int -> IntervalSet -> Bool
-member i is =
-  case splitLookupLE i is of
-    (_, m, _) -> case m of
-      Nothing -> False
-      Just (_, ub) -> i <= ub
-
-foldr :: (Int -> Int -> b -> b) -> b -> IntervalSet -> b
-foldr f z = IntMap.foldrWithKey f z . unIntervalSet
-
-map :: ((Int, Int) -> (Int, Int)) -> IntervalSet -> IntervalSet
-map f = IntervalSet . foldr phi IntMap.empty
-  where
-    phi k v b = let (k', v') = f (k, v) in IntMap.insert k' v' b
 
 -- | insert inclusive bounds interval into set
 insert :: (Int, Int) -> IntervalSet -> IntervalSet
@@ -116,17 +96,8 @@ complement (IntervalSet m) = fromAscList . (\xs -> Prelude.foldr phi z xs Nothin
         Nothing -> []
         Just x -> [x]
 
-intersection :: IntervalSet -> IntervalSet -> IntervalSet
-intersection a b = difference a (complement b)
-
 null :: IntervalSet -> Bool
 null = IntMap.null . unIntervalSet
-
-extractSingleton :: IntervalSet -> Maybe Int
-extractSingleton (IntervalSet m) = case IntMap.toList m of
-  [(lb, ub)]
-    | lb == ub -> Just lb
-  _ -> Nothing
 
 -- | add two integers, sticking to a bound if it would overflow
 safeAdd :: Int -> Int -> Int

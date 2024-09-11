@@ -11,8 +11,6 @@ module Unison.Syntax.TypePrinter
     prettySignaturesST,
     prettySignaturesCT,
     prettySignaturesCTCollapsed,
-    prettySignaturesAlt,
-    prettySignaturesAlt',
     runPretty,
   )
 where
@@ -213,36 +211,3 @@ prettySignaturesST ppe ts =
       t <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "
       pure $ (col <> t) `PP.orElse` (col <> PP.indentNAfterNewline 2 t)
-
--- todo: provide sample output in comment; different from prettySignatures'
-prettySignaturesAlt' ::
-  (Var v) =>
-  PrettyPrintEnv ->
-  [([HashQualified Name], Type v a)] ->
-  [Pretty ColorText]
-prettySignaturesAlt' ppe ts = runPretty ppe $
-  do
-    ts' <- traverse f ts
-    pure $ map PP.syntaxToColor $ PP.align ts'
-  where
-    f :: (MonadPretty v m) => ([HashQualified Name], Type v a) -> m (Pretty SyntaxText, Pretty SyntaxText)
-    f (names, typ) = do
-      typ' <- pretty0 Map.empty (-1) typ
-      let col = fmt S.TypeAscriptionColon ": "
-      pure
-        ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names,
-          (col <> typ') `PP.orElse` (col <> PP.indentNAfterNewline 2 typ')
-        )
-
--- prettySignatures'' :: Var v => [(Name, Type v a)] -> [Pretty ColorText]
--- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
-
-prettySignaturesAlt ::
-  (Var v) =>
-  PrettyPrintEnv ->
-  [([HashQualified Name], Type v a)] ->
-  Pretty ColorText
-prettySignaturesAlt ppe ts =
-  PP.lines
-    . map PP.group
-    $ prettySignaturesAlt' ppe ts
