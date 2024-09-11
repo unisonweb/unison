@@ -48,7 +48,7 @@
 
   (define-unison-builtin
     (builtin-Nat.drop m n)
-    (max 0 (- m n)))
+    (natural-max0 (- m n)))
 
   (define-unison-builtin
     (builtin-Nat.increment n)

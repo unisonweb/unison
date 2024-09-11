@@ -63,6 +63,7 @@
 
   clamp-integer
   clamp-natural
+  natural-max0
   wrap-natural
   bit64
   bit63
