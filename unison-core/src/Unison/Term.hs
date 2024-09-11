@@ -41,7 +41,6 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
-import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unsafe.Coerce (unsafeCoerce)
@@ -157,43 +156,37 @@ bindNames ::
   Names ->
   Term v a ->
   Names.ResolutionResult a (Term v a)
-bindNames unsafeVarToName nameToVar localVars ns term = do
+bindNames unsafeVarToName nameToVar localVars namespace term = do
   let freeTmVars = ABT.freeVarOccurrences localVars term
       freeTyVars =
         [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
         ]
-      localNames = map unsafeVarToName (Set.toList localVars)
 
-      okTm :: (v, a) -> Names.ResolutionResult a (Maybe (v, ResolvesTo Referent))
+      okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
       okTm (v, _) =
-        let exactNamespaceMatches = Names.lookupHQTerm Names.ExactName (HQ.NameOnly name) ns
-            suffixNamespaceMatches = Name.searchByRankedSuffix name (Names.terms ns)
-            localMatches =
-              Name.searchBySuffix name (Relation.fromList (map (\name -> (name, name)) localNames))
-         in case (Set.size exactNamespaceMatches, Set.size suffixNamespaceMatches, Set.size localMatches) of
-              (1, _, _) -> good (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
-              (n, _, _) | n > 1 -> leaveFreeForTdnr
-              (_, 0, 0) -> leaveFreeForTellingUserAboutExpectedType
-              (_, 1, 0) -> good (ResolvesToNamespace (Set.findMin suffixNamespaceMatches))
-              (_, 0, 1) -> good (ResolvesToLocal (Set.findMin localMatches))
-              _ -> leaveFreeForTdnr
+        case Set.size matches of
+          1 -> Just (v, Set.findMin matches)
+          0 -> Nothing -- not found: leave free for telling user about expected type
+          _ -> Nothing -- ambiguous: leave free for TDNR
         where
-          name = unsafeVarToName v
-          good = Right . Just . (v,)
-          leaveFreeForTdnr = Right Nothing
-          leaveFreeForTellingUserAboutExpectedType = Right Nothing
+          matches :: Set (ResolvesTo Referent)
+          matches =
+            Names.resolveName (Names.terms namespace) (Set.map unsafeVarToName localVars) (unsafeVarToName v)
 
       okTy :: (v, a) -> Names.ResolutionResult a (v, Type v a)
-      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes hqName ns of
-        rs
-          | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-          | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
-          | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous ns rs Set.empty)))
+      okTy (v, a) =
+        case Names.lookupHQType Names.IncludeSuffixes hqName namespace of
+          rs
+            | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
+            | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
+            | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous namespace rs Set.empty)))
         where
           hqName = HQ.NameOnly (unsafeVarToName v)
-  (namespaceTermResolutions, localTermResolutions) <-
-    partitionResolutions . catMaybes <$> validate okTm freeTmVars
-  let termSubsts =
+
+  let (namespaceTermResolutions, localTermResolutions) =
+        partitionResolutions (mapMaybe okTm freeTmVars)
+
+      termSubsts =
         [(v, fromReferent () ref) | (v, ref) <- namespaceTermResolutions]
           ++ [(v, var () (nameToVar name)) | (v, name) <- localTermResolutions]
   typeSubsts <- validate okTy freeTyVars
