@@ -61,6 +61,7 @@ import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
+import Data.Void (Void)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -456,7 +457,7 @@ data MLit
 
 type Instr = GInstr CombIx
 
-type RInstr = GInstr RComb
+type RInstr clos = GInstr (RComb clos)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -529,7 +530,7 @@ data GInstr comb
 
 type Section = GSection CombIx
 
-type RSection = GSection RComb
+type RSection clos = GSection (RComb clos)
 
 data GSection comb
   = -- Apply a function to arguments. This is the 'slow path', and
@@ -599,7 +600,7 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
-rCombRef :: RComb -> Reference
+rCombRef :: RComb clos -> Reference
 rCombRef (RComb cix _) = combRef cix
 
 data RefNums = RN
@@ -612,62 +613,64 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-type Comb = GComb CombIx
+type Comb = GComb Void CombIx
 
-data GComb comb
+data GComb clos comb
   = Lam
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
       !Int -- Maximum needed boxed frame size
       !(GSection comb) -- Entry
+  | -- A pre-evaluated comb, typically a pure top-level const
+    Cached clos
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs = GCombs CombIx
+type Combs clos = GCombs clos CombIx
 
-type RCombs = GCombs RComb
+type RCombs clos = GCombs clos (RComb clos)
 
 -- | Extract the CombIx from an RComb.
-pattern RCombIx :: CombIx -> RComb
+pattern RCombIx :: CombIx -> RComb clos
 pattern RCombIx r <- (rCombIx -> r)
 
 {-# COMPLETE RCombIx #-}
 
 -- | Extract the Reference from an RComb.
-pattern RCombRef :: Reference -> RComb
+pattern RCombRef :: Reference -> RComb clos
 pattern RCombRef r <- (combRef . rCombIx -> r)
 
 {-# COMPLETE RCombRef #-}
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-data RComb = RComb
+data RComb clos = RComb
   { rCombIx :: !CombIx,
-    unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
+    unRComb :: (GComb clos (RComb clos {- Possibly recursive comb, keep it lazy or risk blowing up -}))
   }
 
 -- Eq and Ord instances on the CombIx to avoid infinite recursion when
 -- comparing self-recursive functions.
-instance Eq RComb where
+instance Eq (RComb clos) where
   RComb r1 _ == RComb r2 _ = r1 == r2
 
-instance Ord RComb where
+instance Ord (RComb clos) where
   compare (RComb r1 _) (RComb r2 _) = compare r1 r2
 
 -- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
-rCombToComb :: RComb -> Comb
+rCombToComb :: RComb Void -> Comb
 rCombToComb (RComb _ix c) = rCombIx <$> c
 
 -- | RCombs can be infinitely recursive so we show the CombIx instead.
-instance Show RComb where
+instance Show (RComb clos) where
   show (RComb ix _) = show ix
 
 -- | Map of combinators, parameterized by comb reference type
-type GCombs comb = EnumMap Word64 (GComb comb)
+type GCombs clos comb = EnumMap Word64 (GComb clos comb)
 
 -- | A reference to a combinator, parameterized by comb
 type Ref = GRef CombIx
 
-type RRef = GRef RComb
+type RRef clos = GRef (RComb clos)
 
 data GRef comb
   = Stk !Int -- stack reference to a closure
@@ -677,7 +680,7 @@ data GRef comb
 
 type Branch = GBranch CombIx
 
-type RBranch = GBranch RComb
+type RBranch clos = GBranch (RComb clos)
 
 data GBranch comb
   = -- if tag == n then t else f
@@ -805,10 +808,10 @@ emitCombs rns grpr grpn (Rec grp ent) =
 resolveCombs ::
   -- Existing in-scope combs that might be referenced
   -- TODO: Do we ever actually need to pass this?
-  Maybe (EnumMap Word64 RCombs) ->
+  Maybe (EnumMap Word64 (RCombs clos)) ->
   -- Combinators which need their knots tied.
-  EnumMap Word64 Combs ->
-  EnumMap Word64 RCombs
+  EnumMap Word64 (Combs clos) ->
+  EnumMap Word64 (RCombs clos)
 resolveCombs mayExisting combs =
   -- Fixed point lookup;
   -- We make sure not to force resolved Combs or we'll loop forever.
@@ -1557,9 +1560,11 @@ demuxArgs as0 =
 
 combDeps :: Comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
+combDeps (Cached {}) = []
 
 combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
+combTypes (Cached {}) = []
 
 sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
@@ -1624,13 +1629,15 @@ prettyCombs w es =
     (mapToList es)
 
 prettyComb :: Word64 -> Word64 -> Comb -> ShowS
-prettyComb w i (Lam ua ba _ _ s) =
-  shows w
-    . showString ":"
-    . shows i
-    . shows [ua, ba]
-    . showString ":\n"
-    . prettySection 2 s
+prettyComb w i = \case
+  (Lam ua ba _ _ s) ->
+    shows w
+      . showString ":"
+      . shows i
+      . shows [ua, ba]
+      . showString ":\n"
+      . prettySection 2 s
+  (Cached {}) -> showString "<closure>"
 
 prettySection :: Int -> Section -> ShowS
 prettySection ind sec =
