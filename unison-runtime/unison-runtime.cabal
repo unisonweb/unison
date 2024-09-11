@@ -43,6 +43,7 @@ library
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Args
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
       Unison.Runtime.Serialize
