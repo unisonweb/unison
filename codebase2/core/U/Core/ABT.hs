@@ -1,5 +1,4 @@
--- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
-
+-- | Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 module U.Core.ABT where
 
 import Control.Lens (Lens', use, (.=))
