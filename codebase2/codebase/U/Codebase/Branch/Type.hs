@@ -2,7 +2,6 @@ module U.Codebase.Branch.Type
   ( Branch (..),
     CausalBranch,
     Patch (..),
-    MetadataType,
     MetadataValue,
     MdValues (..),
     NamespaceStats (..),
@@ -21,8 +20,6 @@ import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-
-type MetadataType = Reference
 
 type MetadataValue = Reference
 

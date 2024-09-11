@@ -32,8 +32,6 @@ type LocalReferenceH = Reference' LocalTextId LocalHashId
 
 type LocalReference = Reference' LocalTextId LocalDefnId
 
-type LocalId = Id' LocalDefnId
-
 type ReferenceH = Reference' TextId HashId
 
 type IdH = Id' HashId

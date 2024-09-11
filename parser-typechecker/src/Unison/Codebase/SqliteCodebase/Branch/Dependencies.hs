@@ -6,12 +6,9 @@
 module Unison.Codebase.SqliteCodebase.Branch.Dependencies where
 
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
-import U.Codebase.HashTags (CausalHash, PatchHash)
-import Unison.Codebase.Branch.Type as Branch
+import U.Codebase.HashTags (PatchHash)
 import Unison.Hash (Hash)
 import Unison.Prelude
-
-type Branches m = [(CausalHash, m (Branch m))]
 
 data Dependencies = Dependencies
   { patches :: Set PatchHash,

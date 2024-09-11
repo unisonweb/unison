@@ -3,7 +3,6 @@ module Unison.Util.Defns
     DefnsF,
     DefnsF2,
     DefnsF3,
-    DefnsF4,
     alignDefnsWith,
     defnsAreEmpty,
     zipDefnsWith,
@@ -48,9 +47,6 @@ type DefnsF2 f g terms types =
 
 type DefnsF3 f g h terms types =
   Defns (f (g (h terms))) (f (g (h types)))
-
-type DefnsF4 f g h i terms types =
-  Defns (f (g (h (i terms)))) (f (g (h (i types))))
 
 alignDefnsWith :: (Semialign f) => (These a b -> c) -> Defns (f a) (f b) -> f c
 alignDefnsWith f defns =

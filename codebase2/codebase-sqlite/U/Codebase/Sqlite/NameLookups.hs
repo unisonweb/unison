@@ -5,7 +5,6 @@ module U.Codebase.Sqlite.NameLookups
   ( ReversedName (..),
     ReversedPath (..),
     PathSegments (..),
-    NamespaceText,
     pathSegmentsToText,
     textToPathSegments,
   )
@@ -39,10 +38,6 @@ newtype PathSegments = PathSegments [Text]
 instance From PathSegments [Text]
 
 instance From [Text] PathSegments
-
--- | A namespace rendered as a path, no leading '.'
--- E.g. "base.data"
-type NamespaceText = Text
 
 -- |
 -- >>> pathSegmentsToText (PathSegments ["base", "data", "List"])

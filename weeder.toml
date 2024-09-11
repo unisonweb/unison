@@ -29,3 +29,4 @@ roots = [
     '''^Unison\.Syntax\.Lexer\.Unison\.debugFilePreParse$''',
 ]
 type-class-roots = true
+unused-types = true

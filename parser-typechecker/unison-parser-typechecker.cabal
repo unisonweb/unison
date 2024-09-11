@@ -32,7 +32,6 @@ library
       Unison.Codebase.Branch.BranchDiff
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
-      Unison.Codebase.Branch.Raw
       Unison.Codebase.Branch.Type
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
@@ -47,7 +46,6 @@ library
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
-      Unison.Codebase.Init.Type
       Unison.Codebase.IntegrityCheck
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
@@ -74,7 +72,6 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
-      Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type

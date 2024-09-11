@@ -36,12 +36,6 @@ type Get a = forall m. (MonadGet m) => m a
 
 type Put a = forall m. (MonadPut m) => a -> m ()
 
--- todo: do we use this?
-data Format a = Format
-  { get :: Get a,
-    put :: Put a
-  }
-
 debug :: Bool
 debug = False
 

@@ -6,7 +6,6 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0,
-    Raw,
     Star,
     NamespaceHash,
 
@@ -45,7 +44,6 @@ module Unison.Codebase.Branch
     stepEverywhere,
     batchUpdates,
     batchUpdatesM,
-    UpdateStrategy (..),
     addTermName,
     addTypeName,
     deleteTermName,
@@ -96,7 +94,6 @@ import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.These (These (..))
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
-import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0,
@@ -319,26 +316,6 @@ stepManyAt actions startBranch =
   where
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
-
-data UpdateStrategy
-  = -- | Compress all changes into a single causal cons.
-    -- The resulting branch will have at most one new causal cons at each branch.
-    --
-    -- Note that this does NOT allow updates to add histories at children.
-    -- E.g. if the root.editme branch has history: A -> B -> C
-    -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
-    -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
-    -- A 'snapshot' of the most recent state of the updated branch is appended to the existing history,
-    -- if the new state is equal to the existing state, no new history nodes are appended.
-    CompressHistory
-  | -- | Preserves any history changes made within the update.
-    --
-    -- Note that this allows you to clobber the history child branches if you want.
-    -- E.g. if the root.editme branch has history: A -> B -> C
-    -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
-    -- AllowRewritingHistory will result in a history for root.editme of: X -> Y -> Z.
-    -- The history of the updated branch is replaced entirely.
-    AllowRewritingHistory
 
 -- | Run a series of updates at specific locations.
 -- History is managed according to the 'UpdateStrategy'

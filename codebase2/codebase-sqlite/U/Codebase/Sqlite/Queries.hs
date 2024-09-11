@@ -242,8 +242,6 @@ module U.Codebase.Sqlite.Queries
     x2cDecl,
 
     -- * Types
-    NamespaceText,
-    TextPathSegments,
     JsonParseFailure (..),
   )
 where
@@ -366,8 +364,6 @@ import UnliftIO qualified
 
 debug :: Bool
 debug = False
-
-type TextPathSegments = [Text]
 
 -- * main squeeze
 

@@ -982,15 +982,6 @@ ImmutableByteArray.fromBytes bs = Scope.run do
 
 type Note = Result.Note Symbol Ann
 
-type TFile = UF.TypecheckedUnisonFile Symbol Ann
-
-type SynthResult =
-  Result.Result
-    (Seq Note)
-    (Either (UF.UnisonFile Symbol Ann) TFile)
-
-type EitherResult = Either String TFile
-
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =
   intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source

@@ -1,11 +1,8 @@
 module U.Codebase.Reference
   ( Reference,
-    RReference,
     TermReference,
-    TermRReference,
     TermReferenceId,
     TypeReference,
-    TypeRReference,
     TypeReferenceId,
     Reference' (..),
     TermReference',
@@ -44,20 +41,11 @@ import Unison.ShortHash qualified as SH
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
 
--- | A possibly-self (R = "recursive") reference.
-type RReference = Reference' Text (Maybe Hash)
-
 -- | A term reference.
 type TermReference = Reference
 
--- | A possibly-self term reference.
-type TermRReference = RReference
-
 -- | A type declaration reference.
 type TypeReference = Reference
-
--- | A possibly-self type declaration reference.
-type TypeRReference = RReference
 
 type Id = Id' Hash
 

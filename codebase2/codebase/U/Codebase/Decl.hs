@@ -60,8 +60,6 @@ vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
 dependencies :: (Ord r, Ord v) => DeclR r v -> Set r
 dependencies (DataDeclaration _ _ _ cts) = foldMap Type.dependencies cts
 
-data V v = Bound v | Ctor Int
-
 data F a
   = Type (Type.FD a)
   | LetRec [a] a
