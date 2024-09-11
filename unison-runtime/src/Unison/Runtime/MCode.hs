@@ -623,7 +623,7 @@ data GComb clos comb
       !Int -- Maximum needed boxed frame size
       !(GSection comb) -- Entry
   | -- A pre-evaluated comb, typically a pure top-level const
-    Cached clos
+    CachedClosure clos
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Combs clos = GCombs clos CombIx
@@ -1560,11 +1560,11 @@ demuxArgs as0 =
 
 combDeps :: Comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
-combDeps (Cached {}) = []
+combDeps (CachedClosure {}) = []
 
 combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
-combTypes (Cached {}) = []
+combTypes (CachedClosure {}) = []
 
 sectionDeps :: Section -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
@@ -1637,7 +1637,7 @@ prettyComb w i = \case
       . shows [ua, ba]
       . showString ":\n"
       . prettySection 2 s
-  (Cached {}) -> showString "<closure>"
+  (CachedClosure {}) -> showString "<closure>"
 
 prettySection :: Int -> Section -> ShowS
 prettySection ind sec =

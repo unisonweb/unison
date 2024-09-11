@@ -48,6 +48,7 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text as Text (isPrefixOf, pack, unpack)
+import Data.Void (absurd)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
 import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
@@ -117,6 +118,7 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    MCombs,
     Tracer (..),
     apply0,
     baseCCache,
@@ -1205,7 +1207,7 @@ runStandalone sc init =
 -- standalone bytecode.
 data StoredCache
   = SCache
-      (EnumMap Word64 Combs)
+      (EnumMap Word64 (Combs Void))
       (EnumMap Word64 Reference)
       (EnumMap Word64 Reference)
       Word64
@@ -1218,7 +1220,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb putCombIx)) cs
+  putEnumMap putNat (putEnumMap putNat (putComb absurd putCombIx)) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1231,7 +1233,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getCombIx))
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getClos getCombIx))
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1240,6 +1242,8 @@ getStoredCache =
     <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)
+  where
+    getClos = fail "getStoredCache: found unexpected serialized CachedClosure in StoredCache"
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -1286,7 +1290,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
-    combs :: EnumMap Word64 RCombs
+    combs :: EnumMap Word64 MCombs
     combs =
       let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
        in builtinCombs <> cs
@@ -1294,8 +1298,8 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
 
 traceNeeded ::
   Word64 ->
-  EnumMap Word64 RCombs ->
-  IO (EnumMap Word64 RCombs)
+  EnumMap Word64 MCombs ->
+  IO (EnumMap Word64 MCombs)
 traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
   where
     ks = keysSet numberedTermLookup
@@ -1306,7 +1310,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
-  EnumMap Word64 Combs ->
+  EnumMap Word64 (Combs Void) ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Word64 ->
@@ -1356,5 +1360,5 @@ standalone cc init =
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
   where
-    unTieRCombs :: EnumMap Word64 RCombs -> EnumMap Word64 Combs
+    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 (Combs Void)
     unTieRCombs = fmap . fmap . fmap $ rCombIx
