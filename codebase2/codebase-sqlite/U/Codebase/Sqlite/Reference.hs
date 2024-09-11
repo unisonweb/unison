@@ -50,9 +50,6 @@ referenceToRow = \case
   ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
   ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
 
-instance FromRow (Reference' TextId HashId) where
-  fromRow = referenceFromRow'
-
 instance FromRow (Reference) where
   fromRow = referenceFromRow'
 

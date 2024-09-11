@@ -17,7 +17,6 @@ import Data.OpenApi (ToParamSchema, ToSchema)
 import GHC.Generics ()
 import Servant
 import Servant.Docs
-import Servant.Docs qualified as Docs
 import U.Codebase.Sqlite.Project qualified as SqliteProject
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase (Codebase)
@@ -81,10 +80,6 @@ instance ToParam (QueryParam "prefix" PrefixFilter) where
       ["my-proj"]
       "Filter by project or branch prefix"
       Normal
-
-instance Docs.ToSample PrefixFilter where
-  toSamples _ =
-    singleSample $ PrefixFilter "my-proj"
 
 projectListingEndpoint ::
   Codebase IO Symbol Ann ->

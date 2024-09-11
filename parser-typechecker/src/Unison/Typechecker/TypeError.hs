@@ -116,8 +116,6 @@ data TypeInfo v loc = TopLevelComponent
   {definitions :: [(v, Type v loc, RedundantTypeAnnotation)]}
   deriving (Show)
 
-type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
-
 typeErrorFromNote ::
   (Ord loc, Show loc, Var v) => C.ErrorNote v loc -> TypeError v loc
 typeErrorFromNote n = case Ex.extract allErrors n of

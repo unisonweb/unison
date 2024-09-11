@@ -6,7 +6,6 @@ module Unison.DeclNameLookup
 where
 
 import Data.Map.Strict qualified as Map
-import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Unison.Name (Name)
 import Unison.Prelude
 
@@ -38,7 +37,6 @@ data DeclNameLookup = DeclNameLookup
     declToConstructors :: !(Map Name [Name])
   }
   deriving stock (Generic)
-  deriving (Semigroup) via (GenericSemigroupMonoid DeclNameLookup)
 
 expectDeclName :: (HasCallStack) => DeclNameLookup -> Name -> Name
 expectDeclName DeclNameLookup {constructorToDecl} x =

@@ -11,27 +11,12 @@ import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
 import Data.Map qualified as Map
-import Data.OpenApi
-  ( OpenApiType (..),
-    ToParamSchema (..),
-    ToSchema (..),
-  )
-import Data.OpenApi.Lens qualified as OpenApi
+import Data.OpenApi (ToParamSchema (..), ToSchema (..))
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text
 import Servant qualified
-import Servant.API
-  ( Capture,
-    FromHttpApiData (..),
-    Get,
-    Header,
-    Headers,
-    JSON,
-    QueryParam,
-    addHeader,
-  )
-import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
+import Servant.API (FromHttpApiData (..), Get, Header, Headers, JSON, addHeader)
 import Servant.Docs qualified as Docs
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
@@ -40,7 +25,6 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName)
 import Unison.Hash qualified as Hash
-import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
@@ -49,7 +33,6 @@ import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
-import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
 import Unison.Util.Pretty (Width (..))
 
@@ -62,10 +45,6 @@ type APIHeaders x =
 type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
-
-type NamespaceFQN = Text
-
-type Size = Int
 
 type UnisonName = Text
 
@@ -106,26 +85,6 @@ data ExactName name ref = ExactName
   }
   deriving stock (Show, Eq, Functor, Ord)
 
-instance ToParamSchema (ExactName Name ShortHash) where
-  toParamSchema _ =
-    mempty
-      & OpenApi.type_ ?~ OpenApiString
-      & OpenApi.example ?~ Aeson.String "base.List"
-
-instance ToParam (QueryParam "exact-name" (ExactName Name ShortHash)) where
-  toParam _ =
-    DocQueryParam
-      "exact-name"
-      []
-      "The fully qualified name of a namespace with a hash, denoted by a '@'. E.g. base.List.map@abc"
-      Normal
-
-instance Docs.ToCapture (Capture "fqn" (ExactName Name ShortHash)) where
-  toCapture _ =
-    DocCapture
-      "fqn"
-      "The fully qualified name of a namespace with a hash, denoted by a '@'. E.g. base.List.map@abc"
-
 instance Bifunctor ExactName where
   bimap l r (ExactName a b) = ExactName (l a) (r b)
 
@@ -134,18 +93,6 @@ instance Bifoldable ExactName where
 
 instance Bitraversable ExactName where
   bitraverse l r (ExactName a b) = ExactName <$> (l a) <*> (r b)
-
-instance FromHttpApiData (ExactName Name ShortHash) where
-  parseQueryParam txt =
-    -- # is special in URLs, so we use @ for hash qualification instead;
-    -- e.g. ".base.List.map@abc"
-    -- e.g. ".base.Nat@@Nat"
-    case HQ.parseText (Text.replace "@" "#" txt) of
-      Nothing -> Left "Invalid absolute name with Hash"
-      Just hq' -> case hq' of
-        HQ.NameOnly _ -> Left "A name and hash are required, but only a name was provided"
-        HQ.HashOnly _ -> Left "A name and hash are required, but only a hash was provided"
-        HQ.HashQualified name ref -> Right $ ExactName {name, ref}
 
 deriving via Bool instance FromHttpApiData Suffixify
 
@@ -419,33 +366,6 @@ v2CausalBranchToUnisonHash b =
 
 newtype ProjectBranchNameParam = ProjectBranchNameParam {unProjectBranchNameParam :: ProjectAndBranch ProjectName ProjectBranchName}
   deriving (Eq, Show, Generic)
-
-instance ToParamSchema ProjectBranchNameParam where
-  toParamSchema _ =
-    mempty
-      & OpenApi.type_ ?~ OpenApiString
-      & OpenApi.example ?~ Aeson.String "@unison%2Fbase%2Fmain"
-
--- | Parses URL escaped project and branch names, e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`
-instance FromHttpApiData ProjectBranchNameParam where
-  parseUrlPiece t =
-    case tryInto @(ProjectAndBranch ProjectName ProjectBranchName) t of
-      Left _ -> Left "Invalid project and branch name"
-      Right pab -> Right . ProjectBranchNameParam $ pab
-
-instance ToParam (QueryParam "project-and-branch" (ProjectBranchNameParam)) where
-  toParam _ =
-    DocQueryParam
-      "project_and_branch"
-      []
-      "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"
-      Normal
-
-instance Docs.ToCapture (Capture "project-and-branch" ProjectBranchNameParam) where
-  toCapture _ =
-    DocCapture
-      "project-and-branch"
-      "The name of a project and branch e.g. `@unison%2Fbase%2Fmain` or `@unison%2Fbase%2F@runarorama%2Fmain`"
 
 data TermDiffResponse = TermDiffResponse
   { project :: ProjectName,

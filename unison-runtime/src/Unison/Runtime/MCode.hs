@@ -28,7 +28,6 @@ module Unison.Runtime.MCode
     CombIx (..),
     GRef (..),
     RRef,
-    Ref,
     UPrim1 (..),
     UPrim2 (..),
     BPrim1 (..),
@@ -654,9 +653,6 @@ instance Show RComb where
 
 -- | Map of combinators, parameterized by comb reference type
 type GCombs comb = EnumMap Word64 (GComb comb)
-
--- | A reference to a combinator, parameterized by comb
-type Ref = GRef CombIx
 
 type RRef = GRef RComb
 

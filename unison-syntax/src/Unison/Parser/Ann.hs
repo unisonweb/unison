@@ -4,11 +4,8 @@
 
 module Unison.Parser.Ann where
 
-import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Void (absurd)
 import Unison.Lexer.Pos qualified as L
-import Unison.Prelude
 
 data Ann
   = -- Used for things like Builtins which don't have a source position.
@@ -96,12 +93,3 @@ instance (Annotated a) => Annotated [a] where
 
 instance (Annotated a) => Annotated (NonEmpty a) where
   ann = foldMap ann
-
-instance (Annotated a) => Annotated (Maybe a) where
-  ann = foldMap ann
-
-instance Annotated Void where
-  ann = absurd
-
-instance (Annotated a) => Annotated (Cofree f a) where
-  ann (a :< _) = ann a

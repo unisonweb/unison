@@ -83,7 +83,6 @@ import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
-import GHC.Exts qualified as GHC
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -101,13 +100,6 @@ import Unison.Util.List qualified as List
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
-
--- | Meant for use mostly in doc-tests where it's
--- sometimes convenient to specify paths as lists.
-instance GHC.IsList Path where
-  type Item Path = NameSegment
-  toList (Path segs) = Foldable.toList segs
-  fromList = Path . Seq.fromList
 
 -- | An absolute from the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord)
@@ -350,18 +342,6 @@ empty = Path mempty
 instance Show Path where
   show = Text.unpack . toText
 
-instance From Path Text where
-  from = toText
-
-instance From Absolute Text where
-  from = absToText
-
-instance From Relative Text where
-  from = relToText
-
-instance From Path' Text where
-  from = toText'
-
 -- | Note: This treats the path as relative.
 toText :: Path -> Text
 toText =
@@ -388,8 +368,6 @@ toText' path =
 
 {-# COMPLETE Empty, (:>) #-}
 
-deriving anyclass instance AsEmpty Path
-
 instance Cons Path Path NameSegment NameSegment where
   _Cons = prism (uncurry cons) uncons
     where
@@ -400,18 +378,6 @@ instance Cons Path Path NameSegment NameSegment where
         Path (hd :<| tl) -> Right (hd, Path tl)
         _ -> Left p
 
-instance Cons Path' Path' NameSegment NameSegment where
-  _Cons = prism (uncurry cons) uncons
-    where
-      cons :: NameSegment -> Path' -> Path'
-      cons ns (AbsolutePath' p) = AbsolutePath' (ns :< p)
-      cons ns (RelativePath' p) = RelativePath' (ns :< p)
-      uncons :: Path' -> Either Path' (NameSegment, Path')
-      uncons p = case p of
-        AbsolutePath' (ns :< tl) -> Right (ns, AbsolutePath' tl)
-        RelativePath' (ns :< tl) -> Right (ns, RelativePath' tl)
-        _ -> Left p
-
 instance Snoc Relative Relative NameSegment NameSegment where
   _Snoc = prism (uncurry snocRelative) $ \case
     Relative (Lens.unsnoc -> Just (s, a)) -> Right (Relative s, a)
@@ -419,26 +385,6 @@ instance Snoc Relative Relative NameSegment NameSegment where
     where
       snocRelative :: Relative -> NameSegment -> Relative
       snocRelative r n = Relative . (`Lens.snoc` n) $ unrelative r
-
-instance Cons Relative Relative NameSegment NameSegment where
-  _Cons = prism (uncurry cons) uncons
-    where
-      cons :: NameSegment -> Relative -> Relative
-      cons ns (Relative p) = Relative (ns :< p)
-      uncons :: Relative -> Either Relative (NameSegment, Relative)
-      uncons p = case p of
-        Relative (ns :< tl) -> Right (ns, Relative tl)
-        _ -> Left p
-
-instance Cons Absolute Absolute NameSegment NameSegment where
-  _Cons = prism (uncurry cons) uncons
-    where
-      cons :: NameSegment -> Absolute -> Absolute
-      cons ns (Absolute p) = Absolute (ns :< p)
-      uncons :: Absolute -> Either Absolute (NameSegment, Absolute)
-      uncons p = case p of
-        Absolute (ns :< tl) -> Right (ns, Absolute tl)
-        _ -> Left p
 
 instance Snoc Absolute Absolute NameSegment NameSegment where
   _Snoc = prism (uncurry snocAbsolute) $ \case
@@ -484,28 +430,11 @@ class Resolve l r o where
 instance Resolve Path Path Path where
   resolve (Path l) (Path r) = Path (l <> r)
 
-instance Resolve Relative Relative Relative where
-  resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
-
 instance Resolve Absolute Relative Absolute where
   resolve (Absolute l) (Relative r) = Absolute (resolve l r)
 
-instance Resolve Absolute Relative Path' where
-  resolve l r = AbsolutePath' (resolve l r)
-
 instance Resolve Absolute Path Absolute where
   resolve (Absolute l) r = Absolute (resolve l r)
-
-instance Resolve Path' Path' Path' where
-  resolve _ a@(AbsolutePath' {}) = a
-  resolve (AbsolutePath' a) (RelativePath' r) = AbsolutePath' (resolve a r)
-  resolve (RelativePath' r1) (RelativePath' r2) = RelativePath' (resolve r1 r2)
-
-instance Resolve Path' Split' Path' where
-  resolve l r = resolve l (unsplit' r)
-
-instance Resolve Path' Split' Split' where
-  resolve l (r, ns) = (resolve l r, ns)
 
 instance Resolve Absolute HQSplit HQSplitAbsolute where
   resolve l (r, hq) = (resolve l (Relative r), hq)

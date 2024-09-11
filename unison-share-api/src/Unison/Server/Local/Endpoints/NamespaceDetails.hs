@@ -6,7 +6,6 @@ module Unison.Server.Local.Endpoints.NamespaceDetails where
 
 import Data.Set qualified as Set
 import Servant (Capture, QueryParam, (:>))
-import Servant.Docs (DocCapture (..), ToCapture (..))
 import Servant.OpenApi ()
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -34,12 +33,6 @@ type NamespaceDetailsAPI =
     :> Capture "namespace" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet NamespaceDetails
-
-instance ToCapture (Capture "namespace" Text) where
-  toCapture _ =
-    DocCapture
-      "namespace"
-      "The fully qualified name of a namespace. The leading `.` is optional."
 
 namespaceDetails ::
   Rt.Runtime Symbol ->

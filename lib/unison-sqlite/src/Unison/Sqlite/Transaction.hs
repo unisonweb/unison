@@ -66,16 +66,6 @@ instance (Semigroup a) => Semigroup (Transaction a) where
   (<>) :: Transaction a -> Transaction a -> Transaction a
   (<>) = liftA2 (<>)
 
--- Internal newtype that equips Transaction with a MonadIO instance
-newtype TransactionWithMonadIO a
-  = TransactionWithMonadIO (Transaction a)
-  deriving newtype (Applicative, Functor, Monad)
-
-instance MonadIO TransactionWithMonadIO where
-  liftIO :: forall a. IO a -> TransactionWithMonadIO a
-  liftIO =
-    coerce @(IO a -> Transaction a) unsafeIO
-
 -- | Run a transaction on the given connection.
 runTransaction :: (MonadIO m, HasCallStack) => Connection -> Transaction a -> m a
 runTransaction conn (Transaction f) = liftIO do

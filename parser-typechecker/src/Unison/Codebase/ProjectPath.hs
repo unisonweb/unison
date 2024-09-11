@@ -56,10 +56,6 @@ instance From ProjectPathNames Text where
   from (ProjectPath proj branch (Path.Absolute path)) =
     into @Text (ProjectAndBranch proj branch) <> ":" <> Path.toText path
 
-instance From (ProjectPathG () ProjectBranchName) Text where
-  from (ProjectPath () branch (Path.Absolute path)) =
-    "/" <> into @Text branch <> ":" <> Path.toText path
-
 type ProjectPath = ProjectPathG Project ProjectBranch
 
 projectBranchRoot :: ProjectAndBranch Project ProjectBranch -> ProjectPath

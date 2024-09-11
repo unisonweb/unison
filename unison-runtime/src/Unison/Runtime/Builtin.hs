@@ -42,7 +42,6 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
-import Unison.Runtime.Builtin.Types
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -163,6 +162,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
+import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
@@ -2265,7 +2265,7 @@ type FDecl v =
 -- means that the sandboxing check will by default consider them
 -- disallowed.
 data Sandbox = Tracked | Untracked
-  deriving (Eq, Ord, Show, Read, Enum, Bounded)
+  deriving (Eq, Ord, Show, Read)
 
 bomb :: Data.Text.Text -> a -> IO r
 bomb name _ = die $ "attempted to use sandboxed operation: " ++ Data.Text.unpack name

@@ -362,17 +362,6 @@ projectAndBranchNamesParser2 = do
       branch <- projectBranchNameParser False
       pure (ProjectAndBranchNames'Unambiguous (That branch))
 
--- TODO this should go away in favor of ProjectAndBranchNames
-instance From (These ProjectName ProjectBranchName) Text where
-  from = \case
-    This project1 -> into @Text project1
-    That branch1 -> Text.Builder.run (Text.Builder.char '/' <> Text.Builder.text (into @Text branch1))
-    These project1 branch1 ->
-      Text.Builder.run $
-        Text.Builder.text (into @Text project1)
-          <> Text.Builder.char '/'
-          <> Text.Builder.text (into @Text branch1)
-
 instance TryFrom Text (These ProjectName ProjectBranchName) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe (projectAndBranchNamesParser ProjectBranchSpecifier'Name))
@@ -415,26 +404,9 @@ fullyQualifiedProjectAndBranchNamesParser = do
   branch <- projectBranchNameParser False
   pure (ProjectAndBranch project branch)
 
--- | @project/branch@ syntax, where the branch is optional.
-instance From (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) Text where
-  from = \case
-    ProjectAndBranch project Nothing -> into @Text project
-    ProjectAndBranch project (Just branch) ->
-      Text.Builder.run $
-        Text.Builder.text (into @Text project)
-          <> Text.Builder.char '/'
-          <> Text.Builder.text (into @Text branch)
-
 instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe (projectAndOptionalBranchParser ProjectBranchSpecifier'Name))
-
--- | Attempt to parse a project and branch name from a string where both are required.
-instance TryFrom Text (ProjectAndBranch ProjectName ProjectBranchName) where
-  tryFrom =
-    maybeTryFrom $ \txt -> do
-      ProjectAndBranch projectName mayBranchName <- Megaparsec.parseMaybe (projectAndOptionalBranchParser ProjectBranchSpecifier'Name) txt
-      ProjectAndBranch projectName <$> mayBranchName
 
 instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease)) where
   tryFrom =

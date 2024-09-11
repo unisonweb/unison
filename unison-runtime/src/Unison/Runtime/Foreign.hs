@@ -14,7 +14,6 @@ module Unison.Runtime.Foreign
     maybeUnwrapBuiltin,
     unwrapBuiltin,
     BuiltinForeign (..),
-    Tls (..),
     Failure (..),
   )
 where
@@ -252,8 +251,6 @@ instance BuiltinForeign X509.SignedCertificate where foreignRef = Tagged Ty.tlsS
 
 instance BuiltinForeign X509.PrivKey where foreignRef = Tagged Ty.tlsPrivateKeyRef
 
-instance BuiltinForeign FilePath where foreignRef = Tagged Ty.filePathRef
-
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
 
 instance BuiltinForeign (SuperGroup Symbol) where
@@ -266,8 +263,6 @@ instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
-
-newtype Tls = Tls TLS.Context
 
 data Failure a = Failure Reference Text a
 

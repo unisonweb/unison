@@ -11,7 +11,6 @@ module Unison.Runtime.Stack
     GClosure (.., DataC, PApV, CapV),
     Closure,
     RClosure,
-    IxClosure,
     Callback (..),
     Augment (..),
     Dump (..),
@@ -19,7 +18,6 @@ module Unison.Runtime.Stack
     Stack (..),
     Off,
     SZ,
-    FP,
     traceK,
     frameDataSize,
     marshalToForeign,
@@ -89,8 +87,6 @@ data K
   deriving (Eq, Ord)
 
 type RClosure = GClosure RComb
-
-type IxClosure = GClosure CombIx
 
 type Closure = GClosure RComb
 
@@ -206,8 +202,6 @@ marshalToForeign c =
 type Off = Int
 
 type SZ = Int
-
-type FP = Int
 
 type UA = MutableByteArray (PrimState IO)
 

@@ -47,9 +47,7 @@ library
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
       Unison.Runtime.Serialize
-      Unison.Runtime.SparseVector
       Unison.Runtime.Stack
-      Unison.Runtime.Vector
       Unison.Util.EnumContainers
   hs-source-dirs:
       src

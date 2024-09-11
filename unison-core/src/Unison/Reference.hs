@@ -14,7 +14,6 @@ module Unison.Reference
     Id' (..),
     Pos,
     CycleSize,
-    Size,
     TermReference,
     TermReferenceId,
     TypeReference,
@@ -109,8 +108,6 @@ showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.shortenTo numHashChars . toShortHash
 
 type Pos = Word64
-
-type Size = CycleSize
 
 type CycleSize = Word64
 

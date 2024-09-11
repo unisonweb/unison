@@ -146,7 +146,6 @@ throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql =
 
 data SomeSqliteExceptionReason
   = forall e. (SqliteExceptionReason e) => SomeSqliteExceptionReason e
-  deriving anyclass (SqliteExceptionReason)
 
 instance Show SomeSqliteExceptionReason where
   show (SomeSqliteExceptionReason x) = show x

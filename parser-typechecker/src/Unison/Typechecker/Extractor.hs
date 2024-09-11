@@ -19,8 +19,6 @@ type Extractor e a = MaybeT (Reader e) a
 
 type ErrorExtractor v loc a = Extractor (C.ErrorNote v loc) a
 
-type InfoExtractor v loc a = Extractor (C.InfoNote v loc) a
-
 type PathExtractor v loc a = Extractor (C.PathElement v loc) a
 
 type SubseqExtractor v loc a = SubseqExtractor' (C.ErrorNote v loc) a

@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | This module is the primary interface to the Unison typechecker
--- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 module Unison.Typechecker
   ( synthesize,
     synthesizeAndResolve,
@@ -11,7 +10,6 @@ module Unison.Typechecker
     Env (..),
     Notes (..),
     Resolution (..),
-    Name,
     NamedReference (..),
     Context.PatternMatchCoverageCheckAndKindInferenceSwitch (..),
   )
@@ -46,8 +44,6 @@ import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Util.List (uniqueBy)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-
-type Name = Text
 
 data Notes v loc = Notes
   { bugs :: Seq (Context.CompilerBug v loc),

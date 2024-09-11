@@ -15,7 +15,7 @@ where
 import Data.List.NonEmpty (NonEmpty, pattern (:|))
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Semialign (Semialign (alignWith), Unzip (unzipWith), Zip (zipWith))
+import Data.Semialign (Semialign (alignWith))
 import Data.These (These (..), these)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -37,19 +37,6 @@ instance Semialign Nametree where
   alignWith :: (These a b -> c) -> Nametree a -> Nametree b -> Nametree c
   alignWith f (Nametree x xs) (Nametree y ys) =
     Nametree (f (These x y)) (alignWith (these (fmap (f . This)) (fmap (f . That)) (alignWith f)) xs ys)
-
-instance Zip Nametree where
-  zipWith :: (a -> b -> c) -> Nametree a -> Nametree b -> Nametree c
-  zipWith f (Nametree x xs) (Nametree y ys) =
-    Nametree (f x y) (zipWith (zipWith f) xs ys)
-
-instance Unzip Nametree where
-  unzipWith :: (c -> (a, b)) -> Nametree c -> (Nametree a, Nametree b)
-  unzipWith f (Nametree x xs) =
-    (Nametree y ys, Nametree z zs)
-    where
-      (y, z) = f x
-      (ys, zs) = unzipWith (unzipWith f) xs
 
 -- | Traverse over a nametree, with access to the list of name segments (in reverse order) leading to each value.
 traverseNametreeWithName :: (Applicative f) => ([NameSegment] -> a -> f b) -> Nametree a -> f (Nametree b)

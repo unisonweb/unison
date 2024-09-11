@@ -1,7 +1,53 @@
+root-instances = [
+    # Allow “negative” instances, which are necessarily unused.
+    { instance = '''^\((.* )?TypeError .*\) => .*''' },
+    # Principled classes – even if we’re not using them, they have a single reasaonable implementation, and many of them
+    # can be derived.
+    #
+    # NB: These classes aren’t always in the module you might expect, but it’s the canonical one.
+    { class = '''^Data\.Bifoldable\.Bifoldable$''' },
+    { class = '''^Data\.Bifunctor\.Bifunctor$''' },
+    { class = '''^Data\.Bitraversable\.Bitraversable$''' },
+    { class = '''^Data\.Foldable\.Foldable$''' },
+    { class = '''^Data\.Functor\.Classes\.Eq1$''' },
+    { class = '''^Data\.Functor\.Classes\.Eq2$''' },
+    { class = '''^Data\.Functor\.Classes\.Ord1$''' },
+    { class = '''^Data\.Functor\.Classes\.Ord2$''' },
+    { class = '''^Data\.Functor\.Classes\.Read1$''' },
+    { class = '''^Data\.Functor\.Classes\.Read2$''' },
+    { class = '''^Data\.Functor\.Classes\.Show1$''' },
+    { class = '''^Data\.Functor\.Classes\.Show2$''' },
+    { class = '''^Data\.Traversable\.Traversable$''' },
+    { class = '''^GHC\.Base\.Functor$''' },
+    { class = '''^GHC\.Base\.Monoid$''' },
+    { class = '''^GHC\.Classes\.Eq$''' },
+    { class = '''^GHC\.Classes\.Ord$''' },
+    { class = '''^GHC\.Generics\.Generic$''' },
+    { class = '''^GHC\.Generics\.Generic1$''' },
+    { class = '''^GHC\.Read\.Read$''' },
+    { class = '''^GHC\.Show\.Show$''' },
+    { class = '''^GHC\Base\.Semigroup$''' },
+    # Not great classes, and we generally only use one of the pair, but since they should form a `Prism` or split
+    # epi/mono, it makes sense to define both when you define one (adding a generic round-tripping test for these
+    # instances should mean we can remove them from here, though).
+    { class = '''^Data\.Aeson\.Types\.FromJSON\.FromJSON$''' },
+    { class = '''^Data\.Aeson\.Types\.ToJSON\.ToJSON$''' },
+    # Avoid gaps in patterns of instances
+    { module = '''Unison.Runtime.Builtin''', instance = '''^Var v => Fresh \(v, v, v, v, v, v\)$''' },
+    { module = '''Unison.Runtime.Builtin''', instance = '''^Var v => Fresh \(v, v, v, v, v, v, v, v, v, v, v, v, v\)$''' },
+    # Usage hidden by syntax (e.g., Weeder can’t identify implicit usage of `Enum` from `..`, `IsString` from
+    # `OverloadedStrings`, or `Num` from numeric literals).
+    { module = "Suite", instance = '''^IsString ProjectBranchName$''' },
+    { module = "Suite", instance = '''^IsString ProjectName$''' },
+    { module = "U.Codebase.Sqlite.DbId", instance = '''^Num HashVersion$''' },
+    { module = "Unison.Runtime.ANF", instance = '''^Enum POp$''' },
+]
 roots = [
     '''^Main\.main$''',
-    '''^Paths_\.*''',
+    '''^Paths_[^\.]+\.[^\.]+$''',
     # Modules that have “independent” APIs (but should probably get tests and/or extracted to independent repos).
+    # It would be good to list these in `root-modules` instead, but it seems like that doesn’t currently work
+    # (ocharles/weeder#177).
     '''^EasyTest\.[^\.]+$''',
     '''^System\.Path\.[^\.]+$''',
     '''^Unison\.Util\.Alphabetical\.[^\.]+$''',
@@ -9,6 +55,7 @@ roots = [
     '''^Unison\.Util\.Bytes\.[^\.]+$''',
     '''^Unison\.Util\.ColorText\.[^\.]+$''',
     '''^Unison\.Util\.EnumContainers\.[^\.]+$''',
+    '''^Unison\.Util\.Lens\.[^\.]+$''',
     '''^Unison\.Util\.List\.[^\.]+$''',
     '''^Unison\.Util\.Logger\.[^\.]+$''',
     '''^Unison\.Util\.Map\.[^\.]+$''',
@@ -28,5 +75,5 @@ roots = [
     '''^Unison\.Runtime\.Debug\.[^\.]+$''',
     '''^Unison\.Syntax\.Lexer\.Unison\.debugFilePreParse$''',
 ]
-type-class-roots = true
+type-class-roots = false
 unused-types = true

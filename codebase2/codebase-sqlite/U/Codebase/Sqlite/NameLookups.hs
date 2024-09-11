@@ -17,8 +17,6 @@ import Unison.Prelude
 newtype ReversedName = ReversedName (NonEmpty Text)
   deriving stock (Eq, Ord, Show)
 
-instance From ReversedName (NonEmpty Text)
-
 instance From (NonEmpty Text) ReversedName
 
 instance From ReversedName [Text] where
@@ -26,10 +24,6 @@ instance From ReversedName [Text] where
 
 newtype ReversedPath = ReversedPath [Text]
   deriving (Eq, Ord, Show)
-
-instance From ReversedPath [Text]
-
-instance From [Text] ReversedPath
 
 newtype PathSegments = PathSegments [Text]
   deriving stock (Eq, Ord, Show)

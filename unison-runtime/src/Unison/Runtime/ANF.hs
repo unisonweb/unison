@@ -663,7 +663,7 @@ inlineAlias = ABT.visitPure $ \case
   Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
-data Mem = UN | BX deriving (Eq, Ord, Show, Enum)
+data Mem = UN | BX deriving (Eq, Ord, Show)
 
 -- Context entries with evaluation strategy
 data CTE v s
@@ -692,7 +692,6 @@ data ANormalF v e
 -- correspond to constructors.
 newtype RTag = RTag Word64
   deriving stock (Eq, Ord, Show, Read)
-  deriving newtype (EC.EnumKey)
 
 newtype CTag = CTag Word16
   deriving stock (Eq, Ord, Show, Read)
@@ -1123,7 +1122,7 @@ pattern TBinds ctx bd <-
 {-# COMPLETE TBinds #-}
 
 data SeqEnd = SLeft | SRight
-  deriving (Eq, Ord, Enum, Show)
+  deriving (Eq, Ord, Show)
 
 -- Note: MatchNumeric is a new form for matching directly on boxed
 -- numeric data. This leaves MatchIntegral around so that builtins can

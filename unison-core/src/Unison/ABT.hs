@@ -22,7 +22,6 @@ module Unison.ABT
     Subst (..),
 
     -- * Combinators & Traversals
-    unvar,
     freshenS,
     freshInBoth,
     freshenBothWrt,
@@ -153,13 +152,6 @@ baseFunctor_ f t =
 -- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
 
 data V v = Free v | Bound v deriving (Eq, Ord, Show, Functor)
-
-unvar :: V v -> v
-unvar (Free v) = v
-unvar (Bound v) = v
-
-instance (Var v) => Var (V v) where
-  freshIn s v = freshIn (Set.map unvar s) <$> v
 
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)

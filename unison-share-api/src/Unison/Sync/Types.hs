@@ -511,24 +511,12 @@ instance ToJSON GetCausalHashByPathRequest where
       [ "path" .= path
       ]
 
-instance FromJSON GetCausalHashByPathRequest where
-  parseJSON = Aeson.withObject "GetCausalHashByPathRequest" \obj -> do
-    path <- obj .: "path"
-    pure GetCausalHashByPathRequest {..}
-
 data GetCausalHashByPathResponse
   = GetCausalHashByPathSuccess (Maybe HashJWT)
   | GetCausalHashByPathNoReadPermission Path
   | GetCausalHashByPathUserNotFound
   | GetCausalHashByPathInvalidRepoInfo Text RepoInfo
   deriving stock (Show, Eq, Ord)
-
-instance ToJSON GetCausalHashByPathResponse where
-  toJSON = \case
-    GetCausalHashByPathSuccess hashJWT -> jsonUnion "success" hashJWT
-    GetCausalHashByPathNoReadPermission path -> jsonUnion "no_read_permission" path
-    GetCausalHashByPathUserNotFound -> jsonUnion "user_not_found" ()
-    GetCausalHashByPathInvalidRepoInfo msg repoInfo -> jsonUnion "invalid_repo_info" (msg, repoInfo)
 
 instance FromJSON GetCausalHashByPathResponse where
   parseJSON = Aeson.withObject "GetCausalHashByPathResponse" \obj -> do
@@ -555,16 +543,6 @@ instance ToJSON DownloadEntitiesRequest where
         "hashes" .= hashes
       ]
 
-instance FromJSON DownloadEntitiesRequest where
-  parseJSON = Aeson.withObject "DownloadEntitiesRequest" \obj -> do
-    repoInfo <-
-      obj .: "repo_info" <|> do
-        -- Back-compat by converting old 'repo_name' fields into the new 'repo_info' format.
-        repoName <- obj .: "repo_name"
-        pure . RepoInfo $ "@" <> repoName
-    hashes <- obj .: "hashes"
-    pure DownloadEntitiesRequest {..}
-
 data DownloadEntitiesResponse
   = DownloadEntitiesSuccess (NEMap Hash32 (Entity Text Hash32 HashJWT))
   | DownloadEntitiesFailure DownloadEntitiesError
@@ -579,15 +557,6 @@ data DownloadEntitiesError
     DownloadEntitiesProjectNotFound Text
   | DownloadEntitiesEntityValidationFailure EntityValidationError
   deriving stock (Eq, Show)
-
-instance ToJSON DownloadEntitiesResponse where
-  toJSON = \case
-    DownloadEntitiesSuccess entities -> jsonUnion "success" entities
-    DownloadEntitiesFailure (DownloadEntitiesNoReadPermission repoInfo) -> jsonUnion "no_read_permission" repoInfo
-    DownloadEntitiesFailure (DownloadEntitiesInvalidRepoInfo msg repoInfo) -> jsonUnion "invalid_repo_info" (msg, repoInfo)
-    DownloadEntitiesFailure (DownloadEntitiesUserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
-    DownloadEntitiesFailure (DownloadEntitiesProjectNotFound projectShorthand) -> jsonUnion "project_not_found" projectShorthand
-    DownloadEntitiesFailure (DownloadEntitiesEntityValidationFailure err) -> jsonUnion "entity_validation_failure" err
 
 instance FromJSON DownloadEntitiesResponse where
   parseJSON = Aeson.withObject "DownloadEntitiesResponse" \obj ->
@@ -606,14 +575,6 @@ data EntityValidationError
   | InvalidByteEncoding Hash32 EntityType Text {- decoding err msg -}
   | HashResolutionFailure Hash32
   deriving stock (Show, Eq, Ord)
-  deriving anyclass (Exception)
-
-instance ToJSON EntityValidationError where
-  toJSON = \case
-    EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
-    UnsupportedEntityType hash typ -> jsonUnion "unsupported_entity_type" (object ["hash" .= hash, "type" .= typ])
-    InvalidByteEncoding hash typ errMsg -> jsonUnion "invalid_byte_encoding" (object ["hash" .= hash, "type" .= typ, "error" .= errMsg])
-    HashResolutionFailure hash -> jsonUnion "hash_resolution_failure" hash
 
 instance FromJSON EntityValidationError where
   parseJSON = Aeson.withObject "EntityValidationError" \obj ->
@@ -649,16 +610,6 @@ instance ToJSON UploadEntitiesRequest where
         "entities" .= entities
       ]
 
-instance FromJSON UploadEntitiesRequest where
-  parseJSON = Aeson.withObject "UploadEntitiesRequest" \obj -> do
-    repoInfo <-
-      obj .: "repo_info" <|> do
-        -- Back-compat by converting old 'repo_name' fields into the new 'repo_info' format.
-        repoName <- obj .: "repo_name"
-        pure . RepoInfo $ "@" <> repoName
-    entities <- obj .: "entities"
-    pure UploadEntitiesRequest {..}
-
 data UploadEntitiesResponse
   = UploadEntitiesSuccess
   | UploadEntitiesFailure UploadEntitiesError
@@ -683,21 +634,6 @@ data HashMismatchForEntity = HashMismatchForEntity
   }
   deriving stock (Show, Eq, Ord)
 
-instance ToJSON UploadEntitiesResponse where
-  toJSON = \case
-    UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
-    UploadEntitiesFailure (UploadEntitiesError'EntityValidationFailure err) ->
-      jsonUnion "entity_validation_failure" err
-    UploadEntitiesFailure (UploadEntitiesError'HashMismatchForEntity mismatch) ->
-      jsonUnion "hash_mismatch_for_entity" mismatch
-    UploadEntitiesFailure (UploadEntitiesError'InvalidRepoInfo msg repoInfo) ->
-      jsonUnion "invalid_repo_info" (msg, repoInfo)
-    UploadEntitiesFailure (UploadEntitiesError'NeedDependencies nd) -> jsonUnion "need_dependencies" nd
-    UploadEntitiesFailure (UploadEntitiesError'NoWritePermission repoInfo) -> jsonUnion "no_write_permission" repoInfo
-    UploadEntitiesFailure (UploadEntitiesError'ProjectNotFound projectShorthand) ->
-      jsonUnion "project_not_found" projectShorthand
-    UploadEntitiesFailure (UploadEntitiesError'UserNotFound userHandle) -> jsonUnion "user_not_found" userHandle
-
 instance FromJSON UploadEntitiesResponse where
   parseJSON = Aeson.withObject "UploadEntitiesResponse" \obj ->
     obj .: "type" >>= Aeson.withText "type" \case
@@ -714,13 +650,6 @@ instance FromJSON UploadEntitiesResponse where
       "project_not_found" -> UploadEntitiesFailure . UploadEntitiesError'ProjectNotFound <$> obj .: "payload"
       t -> failText $ "Unexpected UploadEntitiesResponse type: " <> t
 
-instance ToJSON HashMismatchForEntity where
-  toJSON (HashMismatchForEntity supplied computed) =
-    object
-      [ "supplied" .= supplied,
-        "computed" .= computed
-      ]
-
 instance FromJSON HashMismatchForEntity where
   parseJSON =
     Aeson.withObject "HashMismatchForEntity" \obj ->
@@ -733,13 +662,6 @@ instance FromJSON HashMismatchForEntity where
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
 
-instance ToJSON InvalidParentage where
-  toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]
-
-instance FromJSON InvalidParentage where
-  parseJSON =
-    Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Common/shared error types
 
@@ -747,10 +669,6 @@ data NeedDependencies hash = NeedDependencies
   { missingDependencies :: NESet hash
   }
   deriving stock (Show, Eq, Ord)
-
-instance (ToJSON hash) => ToJSON (NeedDependencies hash) where
-  toJSON (NeedDependencies missingDependencies) =
-    object ["missing_dependencies" .= missingDependencies]
 
 instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
   parseJSON = Aeson.withObject "NeedDependencies" \obj -> do
@@ -762,10 +680,3 @@ instance (FromJSON hash, Ord hash) => FromJSON (NeedDependencies hash) where
 
 failText :: (MonadFail m) => Text -> m a
 failText = fail . Text.unpack
-
-jsonUnion :: (ToJSON a) => Text -> a -> Value
-jsonUnion typeName val =
-  Aeson.object
-    [ "type" .= String typeName,
-      "payload" .= val
-    ]

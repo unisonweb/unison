@@ -207,8 +207,6 @@ instance R.Index Chunk Char where
 instance R.Reverse Chunk where
   reverse (Chunk n t) = Chunk n (T.reverse t)
 
-instance R.Sized Text where size (Text t) = R.size t
-
 instance Show Text where
   show t = show (toText t)
 

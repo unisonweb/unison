@@ -17,7 +17,7 @@ import Unison.Util.Recursion
 type ConstructorId = Word64
 
 data DeclType = Data | Effect
-  deriving (Eq, Ord, Show, Enum)
+  deriving (Eq, Ord, Show)
 
 type Decl v = DeclR TypeRef v
 
