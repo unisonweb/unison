@@ -112,6 +112,7 @@ import Unison.Runtime.MCode
     emptyRNs,
     rCombIx,
     resolveCombs,
+    unTieRCombs,
   )
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
@@ -1357,8 +1358,3 @@ standalone cc init =
     <*> readTVarIO (refTm cc)
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
-  where
-    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 (GCombs Closure CombIx)
-    unTieRCombs m =
-      m
-        & (fmap . fmap . fmap) rCombIx

@@ -22,7 +22,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
-import Data.Void (absurd)
 import GHC.Conc as STM (unsafeIOToSTM)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
@@ -2143,24 +2142,40 @@ cacheAdd0 ntys0 tml sands cc = do
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
     pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
-  preEvalTopLevelConstants cc
+  preEvalTopLevelConstants cacheableRefs cc
   where
-    absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs Closure cix)
-    absurdCombs = fmap . fmap . first $ absurd
     toAdd = M.fromList tml
 
-preEvalTopLevelConstants :: CCache -> IO ()
-preEvalTopLevelConstants cc = do
+preEvalTopLevelConstants :: Set Reference -> CCache -> IO ()
+preEvalTopLevelConstants cacheableRefs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
   cmbs <- readTVarIO (combs cc)
-  for (EC.keys cmbs) \w -> do
+  for_ (EC.keys cmbs) \w -> do
     let hook _ustk bstk = do
           clos <- peek bstk
           atomically $ do
             -- TODO: Check that it's right to just insert the closure at comb position 0
             modifyTVar (combs cc) $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
-  pure ()
+  atomically $ modifyTVar (combs cc) reTieCombs
+  where
+    reTieCombs :: EnumMap Word64 (RCombs Closure) -> EnumMap Word64 (RCombs Closure)
+    reTieCombs combs =
+      combs
+        & (fmap . fmap . fmap) \case
+          -- For each combinator ref in all the source code, if it's in the set of pre-evaluated refs,
+          -- replace the combinator in the source with the pre-evaluated closure rather than the cyclic RComb.
+          rComb@(RComb cix@(CIx ref w i) _)
+            | Set.member ref cacheableRefs,
+              Just cachedClos <-
+                ( EC.lookup w combs
+                    >>= EC.lookup i
+                ) -> do RComb cix cachedClos
+            | otherwise -> rComb
+
+-- unTieRCombs combs
+--   & (fmap . fmap) _
+--   & resolveCombs Nothing
 
 expandSandbox ::
   Map Reference (Set Reference) ->

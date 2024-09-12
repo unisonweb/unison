@@ -42,6 +42,7 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
+    unTieRCombs,
     absurdCombs,
     emptyRNs,
     argsToLists,
@@ -820,7 +821,6 @@ emitCombs rns grpr grpn (Rec grp ent) =
 -- tying the knot recursively when necessary.
 resolveCombs ::
   -- Existing in-scope combs that might be referenced
-  -- TODO: Do we ever actually need to pass this?
   Maybe (EnumMap Word64 (RCombs clos)) ->
   -- Combinators which need their knots tied.
   EnumMap Word64 (GCombs clos CombIx) ->
@@ -847,6 +847,9 @@ resolveCombs mayExisting combs =
                         ++ show n
                         ++ "`."
    in resolved
+
+unTieRCombs :: EnumMap Word64 (RCombs clos) -> EnumMap Word64 (GCombs clos CombIx)
+unTieRCombs = (fmap . fmap . fmap) rCombIx
 
 absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs any cix)
 absurdCombs = fmap . fmap . first $ absurd
