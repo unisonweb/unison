@@ -29,6 +29,8 @@ bindNames ::
   Type v a ->
   Names.ResolutionResult a (Type v a)
 bindNames unsafeVarToName nameToVar localVars namespace =
+  -- type is bound here because the where-clause binds a data structure that we only want to compute once, then share
+  -- across all calls to `bindNames` with different types
   \ty ->
     let -- Identify the unresolved variables in the type: those whose names aren't an *exact* match for some locally-bound
         -- type.

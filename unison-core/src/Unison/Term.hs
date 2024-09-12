@@ -157,6 +157,8 @@ bindNames ::
   Term v a ->
   Names.ResolutionResult a (Term v a)
 bindNames unsafeVarToName nameToVar localVars namespace =
+  -- term is bound here because the where-clause binds a data structure that we only want to compute once, then share
+  -- across all calls to `bindNames` with different terms
   \term -> do
     let freeTmVars = ABT.freeVarOccurrences localVars term
         freeTyVars =
