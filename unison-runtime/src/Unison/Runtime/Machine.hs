@@ -12,6 +12,7 @@ module Unison.Runtime.Machine where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception
+import Control.Lens
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
@@ -87,6 +88,11 @@ type MInstr = RInstr Closure
 type MComb = RComb Closure
 
 type MRef = RRef Closure
+
+-- | Whether the evaluation of a given definition is cacheable or not.
+-- i.e. it's a top-level pure value.
+data Cacheability = Cacheable | Uncacheable
+  deriving stock (Eq, Show)
 
 data Tracer
   = NoTrace
@@ -2114,11 +2120,21 @@ evaluateSTM x = unsafeIOToSTM (evaluate x)
 
 cacheAdd0 ::
   S.Set Reference ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, SuperGroup Symbol, Cacheability)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
-cacheAdd0 ntys0 tml sands cc = do
+cacheAdd0 ntys0 termSuperGroups sands cc = do
+  let cacheableRefs =
+        termSuperGroups
+          & mapMaybe
+            ( \case
+                (ref, _gr, Cacheable) -> Just ref
+                (_ref, _gr, Uncacheable) -> Nothing
+            )
+          & Set.fromList
+  let toAdd = M.fromList (termSuperGroups <&> \(r, g, _) -> (r, g))
+
   atomically $ do
     have <- readTVar (intermed cc)
     let new = M.difference toAdd have
@@ -2143,8 +2159,6 @@ cacheAdd0 ntys0 tml sands cc = do
     -- we can pre-evaluate the top-level constants.
     pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   preEvalTopLevelConstants cacheableRefs cc
-  where
-    toAdd = M.fromList tml
 
 preEvalTopLevelConstants :: Set Reference -> CCache -> IO ()
 preEvalTopLevelConstants cacheableRefs cc = do
@@ -2212,8 +2226,12 @@ cacheAdd l cc = do
         | otherwise = Const (mempty, mempty)
       (missing, tys) = getConst $ (foldMap . foldMap) (foldGroupLinks f) l
       l' = filter (\(r, _) -> M.notMember r rtm) l
+      -- Terms added via cacheAdd will have already been eval'd and cached if possible when
+      -- they were originally loaded, so we
+      -- don't need to re-check for cacheability here as part of a dynamic cache add.
+      l'' = l' <&> (\(r, g) -> (r, g, Uncacheable))
   if S.null missing
-    then [] <$ cacheAdd0 tys l' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 reflectValue :: EnumMap Word64 Reference -> Closure -> IO ANF.Value

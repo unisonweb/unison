@@ -118,6 +118,7 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    Cacheability,
     MCombs,
     Tracer (..),
     apply0,
@@ -400,7 +401,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
+  IO (EvalCtx, [(Reference, SuperGroup Symbol, Cacheability)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -446,7 +447,8 @@ loadDeps cl ppe ctx tyrs tmrs = do
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
   out@(_, rgrp) <- loadCode cl ppe ctx tmrs
-  out <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
+  let superGroups = rgrp <&> \(r, sg, _) -> (r, sg)
+  out <$ cacheAdd0 tyAdd rgrp (expandSandbox sand superGroups) cc
 
 compileValue :: Reference -> [(Reference, SuperGroup Symbol)] -> Value
 compileValue base =
@@ -786,6 +788,7 @@ prepareEvaluation ::
   EvalCtx ->
   IO (EvalCtx, [(Reference, SuperGroup Symbol)], Reference)
 prepareEvaluation ppe tm ctx = do
+  -- TODO: Check whether we need to set cacheability here, I think probably not?
   missing <- cacheAdd rgrp (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
