@@ -92,6 +92,7 @@ test-suite syntax-tests
   main-is: Main.hs
   other-modules:
       Unison.Test.Doc
+      Unison.Test.Unison
   hs-source-dirs:
       test
   default-extensions:
