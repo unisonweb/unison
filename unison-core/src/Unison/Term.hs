@@ -156,44 +156,49 @@ bindNames ::
   Names ->
   Term v a ->
   Names.ResolutionResult a (Term v a)
-bindNames unsafeVarToName nameToVar localVars namespace term = do
-  let freeTmVars = ABT.freeVarOccurrences localVars term
-      freeTyVars =
-        [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
-        ]
+bindNames unsafeVarToName nameToVar localVars namespace =
+  \term -> do
+    let freeTmVars = ABT.freeVarOccurrences localVars term
+        freeTyVars =
+          [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
+          ]
 
-      okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
-      okTm (v, _) =
-        case Set.size matches of
-          1 -> Just (v, Set.findMin matches)
-          0 -> Nothing -- not found: leave free for telling user about expected type
-          _ -> Nothing -- ambiguous: leave free for TDNR
-        where
-          matches :: Set (ResolvesTo Referent)
-          matches =
-            Names.resolveName (Names.terms namespace) (Set.map unsafeVarToName localVars) (unsafeVarToName v)
+        okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
+        okTm (v, _) =
+          case Set.size matches of
+            1 -> Just (v, Set.findMin matches)
+            0 -> Nothing -- not found: leave free for telling user about expected type
+            _ -> Nothing -- ambiguous: leave free for TDNR
+          where
+            matches :: Set (ResolvesTo Referent)
+            matches =
+              resolveTermName (unsafeVarToName v)
 
-      okTy :: (v, a) -> Names.ResolutionResult a (v, Type v a)
-      okTy (v, a) =
-        case Names.lookupHQType Names.IncludeSuffixes hqName namespace of
-          rs
-            | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-            | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
-            | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous namespace rs Set.empty)))
-        where
-          hqName = HQ.NameOnly (unsafeVarToName v)
+        okTy :: (v, a) -> Names.ResolutionResult a (v, Type v a)
+        okTy (v, a) =
+          case Names.lookupHQType Names.IncludeSuffixes hqName namespace of
+            rs
+              | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
+              | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
+              | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous namespace rs Set.empty)))
+          where
+            hqName = HQ.NameOnly (unsafeVarToName v)
 
-  let (namespaceTermResolutions, localTermResolutions) =
-        partitionResolutions (mapMaybe okTm freeTmVars)
+    let (namespaceTermResolutions, localTermResolutions) =
+          partitionResolutions (mapMaybe okTm freeTmVars)
 
-      termSubsts =
-        [(v, fromReferent () ref) | (v, ref) <- namespaceTermResolutions]
-          ++ [(v, var () (nameToVar name)) | (v, name) <- localTermResolutions]
-  typeSubsts <- validate okTy freeTyVars
-  pure $
-    term
-      & ABT.substsInheritAnnotation termSubsts
-      & substTypeVars typeSubsts
+        termSubsts =
+          [(v, fromReferent () ref) | (v, ref) <- namespaceTermResolutions]
+            ++ [(v, var () (nameToVar name)) | (v, name) <- localTermResolutions]
+    typeSubsts <- validate okTy freeTyVars
+    pure $
+      term
+        & ABT.substsInheritAnnotation termSubsts
+        & substTypeVars typeSubsts
+  where
+    resolveTermName :: Name.Name -> Set (ResolvesTo Referent)
+    resolveTermName =
+      Names.resolveName (Names.terms namespace) (Set.map unsafeVarToName localVars)
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
