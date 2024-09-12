@@ -22,6 +22,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
+import Data.Void (absurd)
 import GHC.Conc as STM (unsafeIOToSTM)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
@@ -156,6 +157,7 @@ baseCCache sandboxed = do
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
           numberedTermLookup
       )
+        & absurdCombs
         & resolveCombs Nothing
 
 info :: (Show a) => String -> a -> IO ()
@@ -749,7 +751,7 @@ apply ::
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
   (PAp comb useg bseg) ->
     case unRComb comb of
-      CachedClosure clos -> zeroArgClosure clos
+      CachedClosure _cix clos -> zeroArgClosure clos
       Lam ua ba uf bf entry
         | ck || ua <= uac && ba <= bac -> do
             ustk <- ensure ustk uf
@@ -2117,30 +2119,34 @@ cacheAdd0 ::
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
-cacheAdd0 ntys0 tml sands cc = atomically $ do
-  have <- readTVar (intermed cc)
-  let new = M.difference toAdd have
-      sz = fromIntegral $ M.size new
-      rgs = M.toList new
-      rs = fst <$> rgs
-  int <- writeTVar (intermed cc) (have <> new)
-  rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
-  ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
-  rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
-  -- check for missing references
-  let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
-      combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
-      combinate n (r, g) = (n, emitCombs rns r n g)
-  nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
-  ncs <- modifyMap (combs cc) \oldCombs ->
-    let newCombs = resolveCombs (Just oldCombs) . mapFromList $ zipWith combinate [ntm ..] rgs
-     in newCombs <> oldCombs
-  nsn <- updateMap (M.fromList sands) (sandbox cc)
-  -- Now that the code cache is primed with everything we need,
-  -- we can pre-evaluate the top-level constants.
+cacheAdd0 ntys0 tml sands cc = do
+  atomically $ do
+    have <- readTVar (intermed cc)
+    let new = M.difference toAdd have
+        sz = fromIntegral $ M.size new
+        rgs = M.toList new
+        rs = fst <$> rgs
+    int <- writeTVar (intermed cc) (have <> new)
+    rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
+    ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
+    rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
+    -- check for missing references
+    let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+        combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
+        combinate n (r, g) = (n, emitCombs rns r n g)
+    nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
+    ncs <- modifyMap (combs cc) \oldCombs ->
+      let newCombs :: EnumMap Word64 MCombs
+          newCombs = resolveCombs (Just oldCombs) . absurdCombs . mapFromList $ zipWith combinate [ntm ..] rgs
+       in newCombs <> oldCombs
+    nsn <- updateMap (M.fromList sands) (sandbox cc)
+    -- Now that the code cache is primed with everything we need,
+    -- we can pre-evaluate the top-level constants.
+    pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   preEvalTopLevelConstants cc
-  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
+    absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs Closure cix)
+    absurdCombs = fmap . fmap . first $ absurd
     toAdd = M.fromList tml
 
 preEvalTopLevelConstants :: CCache -> IO ()
@@ -2151,7 +2157,8 @@ preEvalTopLevelConstants cc = do
     let hook _ustk bstk = do
           clos <- peek bstk
           atomically $ do
-            modifyTVar (combs cc) $ EC.mapInsert w (Cached clos)
+            -- TODO: Check that it's right to just insert the closure at comb position 0
+            modifyTVar (combs cc) $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
   pure ()
 

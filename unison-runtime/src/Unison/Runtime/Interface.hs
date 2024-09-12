@@ -48,7 +48,6 @@ import Data.Set as Set
   )
 import Data.Set qualified as Set
 import Data.Text as Text (isPrefixOf, pack, unpack)
-import Data.Void (absurd)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
 import GHC.Stack (callStack)
 import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
@@ -102,11 +101,11 @@ import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
-    Combs,
+    GCombs,
     GInstr (..),
     GSection (..),
-    RCombs,
     RefNums (..),
+    absurdCombs,
     combDeps,
     combTypes,
     emitComb,
@@ -136,6 +135,7 @@ import Unison.Runtime.Machine
 import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
+import Unison.Runtime.Stack.Serialize (getClosure, putClosure)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
@@ -1207,7 +1207,7 @@ runStandalone sc init =
 -- standalone bytecode.
 data StoredCache
   = SCache
-      (EnumMap Word64 (Combs Void))
+      (EnumMap Word64 (GCombs Closure CombIx))
       (EnumMap Word64 Reference)
       (EnumMap Word64 Reference)
       Word64
@@ -1220,7 +1220,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb absurd putCombIx)) cs
+  putEnumMap putNat (putEnumMap putNat (putComb putClosure putCombIx)) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1233,7 +1233,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getClos getCombIx))
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getClosure getCombIx))
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat
@@ -1242,8 +1242,6 @@ getStoredCache =
     <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)
-  where
-    getClos = fail "getStoredCache: found unexpected serialized CachedClosure in StoredCache"
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -1293,7 +1291,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty sbs) =
     combs :: EnumMap Word64 MCombs
     combs =
       let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
-       in builtinCombs <> cs
+       in absurdCombs builtinCombs <> cs
             & resolveCombs Nothing
 
 traceNeeded ::
@@ -1310,7 +1308,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
-  EnumMap Word64 (Combs Void) ->
+  EnumMap Word64 (GCombs Closure CombIx) ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Word64 ->
@@ -1360,5 +1358,7 @@ standalone cc init =
     <*> readTVarIO (refTy cc)
     <*> readTVarIO (sandbox cc)
   where
-    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 (Combs Void)
-    unTieRCombs = fmap . fmap . fmap $ rCombIx
+    unTieRCombs :: EnumMap Word64 MCombs -> EnumMap Word64 (GCombs Closure CombIx)
+    unTieRCombs m =
+      m
+        & (fmap . fmap . fmap) rCombIx

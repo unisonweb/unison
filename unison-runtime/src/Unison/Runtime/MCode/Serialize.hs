@@ -35,14 +35,14 @@ putComb :: (MonadPut m) => (clos -> m ()) -> (cix -> m ()) -> GComb clos cix -> 
 putComb putClos putCix = \case
   (Lam ua ba uf bf body) ->
     putTag LamT *> pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection putCix body
-  (CachedClosure clos) ->
-    putTag CachedClosureT *> putClos clos
+  (CachedClosure w clos) ->
+    putTag CachedClosureT *> pWord w *> putClos clos
 
 getComb :: (MonadGet m) => m clos -> m cix -> m (GComb clos cix)
 getComb gClos gCix =
   getTag >>= \case
     LamT -> Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection gCix
-    CachedClosureT -> CachedClosure <$> gClos
+    CachedClosureT -> CachedClosure <$> gWord <*> gClos
 
 data SectionT
   = AppT

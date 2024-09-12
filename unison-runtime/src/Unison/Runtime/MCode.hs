@@ -42,6 +42,7 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
+    absurdCombs,
     emptyRNs,
     argsToLists,
     combRef,
@@ -53,7 +54,9 @@ module Unison.Runtime.MCode
   )
 where
 
-import Data.Bifunctor (bimap, first)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor (Bifunctor, bimap, first)
+import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.Functor ((<&>))
@@ -61,7 +64,7 @@ import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -623,10 +626,20 @@ data GComb clos comb
       !Int -- Maximum needed boxed frame size
       !(GSection comb) -- Entry
   | -- A pre-evaluated comb, typically a pure top-level const
-    CachedClosure clos
+    CachedClosure !Word64 {- top level comb ix -} !clos
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs clos = GCombs clos CombIx
+instance Bifunctor GComb where
+  bimap = bimapDefault
+
+instance Bifoldable GComb where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable GComb where
+  bitraverse f _ (CachedClosure cix c) = CachedClosure cix <$> f c
+  bitraverse _ f (Lam u b uf bf s) = Lam u b uf bf <$> traverse f s
+
+type Combs = GCombs Void CombIx
 
 type RCombs clos = GCombs clos (RComb clos)
 
@@ -810,7 +823,7 @@ resolveCombs ::
   -- TODO: Do we ever actually need to pass this?
   Maybe (EnumMap Word64 (RCombs clos)) ->
   -- Combinators which need their knots tied.
-  EnumMap Word64 (Combs clos) ->
+  EnumMap Word64 (GCombs clos CombIx) ->
   EnumMap Word64 (RCombs clos)
 resolveCombs mayExisting combs =
   -- Fixed point lookup;
@@ -834,6 +847,9 @@ resolveCombs mayExisting combs =
                         ++ show n
                         ++ "`."
    in resolved
+
+absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs any cix)
+absurdCombs = fmap . fmap . first $ absurd
 
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the
@@ -1558,11 +1574,11 @@ demuxArgs as0 =
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
 
-combDeps :: Comb -> [Word64]
+combDeps :: GComb any CombIx -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
 combDeps (CachedClosure {}) = []
 
-combTypes :: Comb -> [Word64]
+combTypes :: GComb any CombIx -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
 combTypes (CachedClosure {}) = []
 
@@ -1637,7 +1653,6 @@ prettyComb w i = \case
       . shows [ua, ba]
       . showString ":\n"
       . prettySection 2 s
-  (CachedClosure {}) -> showString "<closure>"
 
 prettySection :: Int -> Section -> ShowS
 prettySection ind sec =
