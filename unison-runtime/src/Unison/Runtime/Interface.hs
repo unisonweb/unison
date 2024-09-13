@@ -71,6 +71,7 @@ import System.Process
     waitForProcess,
     withCreateProcess,
   )
+import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
@@ -118,7 +119,7 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    Cacheability,
+    Cacheability (..),
     MCombs,
     Tracer (..),
     apply0,
@@ -143,6 +144,7 @@ import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
+import Unison.Type qualified as Type
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -150,6 +152,8 @@ import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
 type Term v = Tm.Term v ()
+
+type Type v = Type.Type v ()
 
 data Remapping = Remap
   { remap :: Map.Map Reference Reference,
@@ -195,6 +199,17 @@ resolveTermRef cl r@(RF.DerivedId i) =
   getTerm cl i >>= \case
     Nothing -> die $ "Unknown term reference: " ++ show r
     Just tm -> pure tm
+
+resolveTermRefType ::
+  CodeLookup Symbol IO () ->
+  RF.Reference ->
+  IO (Type Symbol)
+resolveTermRefType _ b@(RF.Builtin _) =
+  die $ "Unknown builtin term reference: " ++ show b
+resolveTermRefType cl r@(RF.DerivedId i) =
+  getTypeOfTerm cl i >>= \case
+    Nothing -> die $ "Unknown term reference: " ++ show r
+    Just typ -> pure typ
 
 allocType ::
   EvalCtx ->
@@ -401,7 +416,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol, Cacheability)])
+  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -447,8 +462,21 @@ loadDeps cl ppe ctx tyrs tmrs = do
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
   out@(_, rgrp) <- loadCode cl ppe ctx tmrs
-  let superGroups = rgrp <&> \(r, sg, _) -> (r, sg)
-  out <$ cacheAdd0 tyAdd rgrp (expandSandbox sand superGroups) cc
+  crgrp <- traverse checkCacheability rgrp
+  out <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  where
+    checkCacheability :: (Reference, sprgrp) -> IO (Reference, sprgrp, Cacheability)
+    checkCacheability (r, sg) = do
+      typ <- resolveTermRefType cl r
+      if ABT.cata hasArrows typ
+        then pure (r, sg, Uncacheable)
+        else pure (r, sg, Cacheable)
+    hasArrows :: a -> ABT.ABT Type.F v Bool -> Bool
+    hasArrows _ = \case
+      ABT.Tm f -> case f of
+        Type.Arrow _ _ -> True
+        other -> or other
+      t -> or t
 
 compileValue :: Reference -> [(Reference, SuperGroup Symbol)] -> Value
 compileValue base =

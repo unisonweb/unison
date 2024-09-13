@@ -1,6 +1,5 @@
 module Unison.Codebase.CodeLookup where
 
-import Control.Arrow ((***))
 import Control.Monad.Morph (MFunctor (..))
 import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
@@ -16,7 +15,7 @@ import Unison.Var (Var)
 
 data CodeLookup v m a = CodeLookup
   { getTerm :: Reference.Id -> m (Maybe (Term v a)),
-    getTermAndType :: Reference.Id -> m (Maybe (Term v a, Type v a)),
+    getTypeOfTerm :: Reference.Id -> m (Maybe (Type v a)),
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
   }
 
@@ -28,7 +27,7 @@ instance (Ord v, Functor m) => Functor (CodeLookup v m) where
     where
       tm id = fmap (Term.amap f) <$> getTerm cl id
       ty id = fmap md <$> getTypeDeclaration cl id
-      tmTyp id = fmap (Term.amap f *** fmap f) <$> getTermAndType cl id
+      tmTyp id = (fmap . fmap) f <$> getTypeOfTerm cl id
       md (Left e) = Left (f <$> e)
       md (Right d) = Right (f <$> d)
 
@@ -39,8 +38,8 @@ instance (Monad m) => Semigroup (CodeLookup v m a) where
         o <- getTerm c1 id
         case o of Nothing -> getTerm c2 id; Just _ -> pure o
       tmTyp id = do
-        o <- getTermAndType c1 id
-        case o of Nothing -> getTermAndType c2 id; Just _ -> pure o
+        o <- getTypeOfTerm c1 id
+        case o of Nothing -> getTypeOfTerm c2 id; Just _ -> pure o
       ty id = do
         o <- getTypeDeclaration c1 id
         case o of Nothing -> getTypeDeclaration c2 id; Just _ -> pure o
