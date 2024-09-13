@@ -89,11 +89,6 @@ type MComb = RComb Closure
 
 type MRef = RRef Closure
 
--- | Whether the evaluation of a given definition is cacheable or not.
--- i.e. it's a top-level pure value.
-data Cacheability = Cacheable | Uncacheable
-  deriving stock (Eq, Show)
-
 data Tracer
   = NoTrace
   | MsgTrace String String String
@@ -366,7 +361,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
             Just sn <- EC.lookup w numberedTermLookup -> do
               poke ustk 1
               bstk <- bump bstk
-              bstk <$ pokeBi bstk (ANF.Rec [] sn)
+              bstk <$ pokeBi bstk (ANF.Rec [] sn ANF.Uncacheable)
           | otherwise -> bstk <$ poke ustk 0
         Just sg -> do
           poke ustk 1
@@ -2120,7 +2115,7 @@ evaluateSTM x = unsafeIOToSTM (evaluate x)
 
 cacheAdd0 ::
   S.Set Reference ->
-  [(Reference, SuperGroup Symbol, Cacheability)] ->
+  [(Reference, SuperGroup Symbol, ANF.Cacheability)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
@@ -2129,8 +2124,8 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
         termSuperGroups
           & mapMaybe
             ( \case
-                (ref, _gr, Cacheable) -> Just ref
-                (_ref, _gr, Uncacheable) -> Nothing
+                (ref, _gr, ANF.Cacheable) -> Just ref
+                (_ref, _gr, ANF.Uncacheable) -> Nothing
             )
           & Set.fromList
   let toAdd = M.fromList (termSuperGroups <&> \(r, g, _) -> (r, g))
@@ -2229,7 +2224,7 @@ cacheAdd l cc = do
       -- Terms added via cacheAdd will have already been eval'd and cached if possible when
       -- they were originally loaded, so we
       -- don't need to re-check for cacheability here as part of a dynamic cache add.
-      l'' = l' <&> (\(r, g) -> (r, g, Uncacheable))
+      l'' = l' <&> (\(r, g) -> (r, g, ANF.Uncacheable))
   if S.null missing
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing

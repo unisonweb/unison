@@ -312,10 +312,11 @@ putGroup ::
   EC.EnumMap FOp Text ->
   SuperGroup v ->
   m ()
-putGroup refrep fops (Rec bs e) =
+putGroup refrep fops (Rec bs e cacheable) =
   putLength n
     *> traverse_ (putComb refrep fops ctx) cs
     *> putComb refrep fops ctx e
+    *> putCacheability cacheable
   where
     n = length us
     (us, cs) = unzip bs
@@ -328,7 +329,18 @@ getGroup = do
       vs = getFresh <$> take l [0 ..]
       ctx = pushCtx vs []
   cs <- replicateM l (getComb ctx n)
-  Rec (zip vs cs) <$> getComb ctx n
+  Rec (zip vs cs) <$> getComb ctx n <*> getCacheability
+
+putCacheability :: (MonadPut m) => Cacheability -> m ()
+putCacheability c = putBool $ case c of
+  Cacheable -> True
+  Uncacheable -> False
+
+getCacheability :: (MonadGet m) => m Cacheability
+getCacheability =
+  getBool <&> \case
+    True -> Cacheable
+    False -> Uncacheable
 
 putComb ::
   (MonadPut m) =>

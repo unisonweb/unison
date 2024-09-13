@@ -809,7 +809,7 @@ emitCombs ::
   Word64 ->
   SuperGroup v ->
   EnumMap Word64 Comb
-emitCombs rns grpr grpn (Rec grp ent) =
+emitCombs rns grpr grpn (Rec grp ent _cacheable) =
   emitComb rns grpr grpn rec (0, ent) <> aux
   where
     (rvs, cmbs) = unzip grp

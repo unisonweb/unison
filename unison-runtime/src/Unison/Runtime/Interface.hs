@@ -79,6 +79,7 @@ import Unison.Codebase.Runtime (CompileOpts (..), Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
+import Unison.Debug qualified as Debug
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
@@ -119,7 +120,6 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    Cacheability (..),
     MCombs,
     Tracer (..),
     apply0,
@@ -199,17 +199,6 @@ resolveTermRef cl r@(RF.DerivedId i) =
   getTerm cl i >>= \case
     Nothing -> die $ "Unknown term reference: " ++ show r
     Just tm -> pure tm
-
-resolveTermRefType ::
-  CodeLookup Symbol IO () ->
-  RF.Reference ->
-  IO (Type Symbol)
-resolveTermRefType _ b@(RF.Builtin _) =
-  die $ "Unknown builtin term reference: " ++ show b
-resolveTermRefType cl r@(RF.DerivedId i) =
-  getTypeOfTerm cl i >>= \case
-    Nothing -> die $ "Unknown term reference: " ++ show r
-    Just typ -> pure typ
 
 allocType ::
   EvalCtx ->
@@ -467,10 +456,20 @@ loadDeps cl ppe ctx tyrs tmrs = do
   where
     checkCacheability :: (Reference, sprgrp) -> IO (Reference, sprgrp, Cacheability)
     checkCacheability (r, sg) = do
-      typ <- resolveTermRefType cl r
-      if ABT.cata hasArrows typ
-        then pure (r, sg, Uncacheable)
-        else pure (r, sg, Cacheable)
+      getTermType r >>= \case
+        Just typ | not (ABT.cata hasArrows typ) -> pure (r, sg, Cacheable)
+        _ -> pure (r, sg, Uncacheable)
+    getTermType :: Reference -> IO (Maybe (Type Symbol))
+    getTermType = \case
+      ref@(RF.DerivedId i) ->
+        getTypeOfTerm cl i >>= \case
+          Just t -> do
+            Debug.debugM Debug.Temp "Found type for: " ref
+            pure $ Just t
+          Nothing -> do
+            Debug.debugM Debug.Temp "NO type for: " ref
+            pure Nothing
+      RF.Builtin {} -> pure $ Nothing
     hasArrows :: a -> ABT.ABT Type.F v Bool -> Bool
     hasArrows _ = \case
       ABT.Tm f -> case f of
@@ -720,7 +719,7 @@ intermediateTerms ::
   (HasCallStack) =>
   PrettyPrintEnv ->
   EvalCtx ->
-  Map RF.Id (Symbol, Term Symbol) ->
+  Map RF.Id (Symbol, Term Symbol, Cacheability) ->
   ( Map.Map Symbol Reference,
     Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
@@ -731,7 +730,7 @@ intermediateTerms ppe ctx rtms =
       (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
         f ref =
-          superNormalize
+          superNormalize _cacheable
             . splitPatterns (dspec ctx)
             . addDefaultCases tmName
           where
@@ -771,9 +770,9 @@ normalizeTerm ctx tm =
 normalizeGroup ::
   EvalCtx ->
   Map Symbol Reference ->
-  [(Symbol, Term Symbol)] ->
+  [(Symbol, Term Symbol, Cacheability)] ->
   ( Map Symbol Reference,
-    Map Reference (Term Symbol),
+    Map Reference (Term Symbol, Cacheability),
     Map Reference (Term Symbol)
   )
 normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
@@ -816,7 +815,6 @@ prepareEvaluation ::
   EvalCtx ->
   IO (EvalCtx, [(Reference, SuperGroup Symbol)], Reference)
 prepareEvaluation ppe tm ctx = do
-  -- TODO: Check whether we need to set cacheability here, I think probably not?
   missing <- cacheAdd rgrp (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $

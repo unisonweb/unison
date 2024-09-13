@@ -36,6 +36,7 @@ module Unison.Runtime.ANF
     Direction (..),
     SuperNormal (..),
     SuperGroup (..),
+    Cacheability (..),
     POp (..),
     FOp,
     close,
@@ -80,7 +81,7 @@ module Unison.Runtime.ANF
 where
 
 import Control.Exception (throw)
-import Control.Lens (snoc, unsnoc)
+import Control.Lens (over, snoc, traversed, unsnoc, _2)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
@@ -402,7 +403,7 @@ freshFloat avoid (Var.freshIn avoid -> v0) =
 groupFloater ::
   (Var v, Monoid a) =>
   (Term v a -> FloatM v a (Term v a)) ->
-  [(v, Term v a)] ->
+  [(v, Term v a, Cacheability)] ->
   FloatM v a (Map v v)
 groupFloater rec vbs = do
   cvs <- gets (\(vs, _, _) -> vs)
@@ -556,8 +557,8 @@ floatGroup ::
   (Var v) =>
   (Monoid a) =>
   Map v Reference ->
-  [(v, Term v a)] ->
-  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
+  [(v, Term v a, Cacheability)] ->
+  ([(v, Id)], [(Reference, Term v a, Cacheability)], [(Reference, Term v a)])
 floatGroup orig grp = case runState go0 (Set.empty, [], []) of
   (_, st) -> case postFloat orig st of
     (_, subvs, tops, dcmp) -> (subvs, tops, dcmp)
@@ -601,9 +602,9 @@ lamLiftGroup ::
   (Var v) =>
   (Monoid a) =>
   Map v Reference ->
-  [(v, Term v a)] ->
-  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
-lamLiftGroup orig gr = floatGroup orig . (fmap . fmap) (close keep) $ gr
+  [(v, Term v a, Cacheability)] ->
+  ([(v, Id)], [(Reference, Term v a, Cacheability)], [(Reference, Term v a)])
+lamLiftGroup orig gr = floatGroup orig . (over (traversed . _2)) (close keep) $ gr
   where
     keep = Set.fromList $ map fst gr
 
@@ -1470,9 +1471,15 @@ type DNormal v = Directed () (ANormal v)
 data SuperNormal v = Lambda {conventions :: [Mem], bound :: ANormal v}
   deriving (Show, Eq)
 
+-- | Whether the evaluation of a given definition is cacheable or not.
+-- i.e. it's a top-level pure value.
+data Cacheability = Cacheable | Uncacheable
+  deriving stock (Eq, Show)
+
 data SuperGroup v = Rec
   { group :: [(v, SuperNormal v)],
-    entry :: SuperNormal v
+    entry :: SuperNormal v,
+    cacheable :: Cacheability
   }
   deriving (Show)
 
@@ -1496,7 +1503,7 @@ equivocate ::
   SuperGroup v ->
   SuperGroup v ->
   Either (SGEqv v) ()
-equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
+equivocate g0@(Rec bs0 e0 _c0) g1@(Rec bs1 e1 _c1)
   | length bs0 == length bs1 =
       traverse_ eqvSN (zip ns0 ns1) *> eqvSN (e0, e1)
   | otherwise = Left $ NumDefns g0 g1
@@ -1586,8 +1593,8 @@ bindDirection = traverse (const binder)
 record :: (Var v) => (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(fr, bnd, to) -> (fr, bnd, p : to)
 
-superNormalize :: (Var v) => Term v a -> SuperGroup v
-superNormalize tm = Rec l c
+superNormalize :: (Var v) => Cacheability -> Term v a -> SuperGroup v
+superNormalize cacheable tm = Rec l c cacheable
   where
     (bs, e)
       | LetRecNamed' bs e <- tm = (bs, e)
@@ -2004,8 +2011,8 @@ traverseGroupLinks ::
   (Bool -> Reference -> f Reference) ->
   SuperGroup v ->
   f (SuperGroup v)
-traverseGroupLinks f (Rec bs e) =
-  Rec <$> (traverse . traverse) (normalLinks f) bs <*> normalLinks f e
+traverseGroupLinks f (Rec bs e cacheable) =
+  Rec <$> (traverse . traverse) (normalLinks f) bs <*> normalLinks f e <*> pure cacheable
 
 foldGroupLinks ::
   (Monoid r, Var v) =>
@@ -2149,7 +2156,7 @@ indent :: Int -> ShowS
 indent ind = showString (replicate (ind * 2) ' ')
 
 prettyGroup :: (Var v) => String -> SuperGroup v -> ShowS
-prettyGroup s (Rec grp ent) =
+prettyGroup s (Rec grp ent _c) =
   showString ("let rec[" ++ s ++ "]\n")
     . foldr f id grp
     . showString "entry"
