@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Names
@@ -507,27 +508,28 @@ lenientToNametree names =
 -- determine what the name resolves to, per the usual suffix-matching rules (where local defnintions and direct
 -- dependencies are preferred to indirect dependencies).
 resolveName :: forall ref. (Ord ref) => Relation Name ref -> Set Name -> Name -> Set (ResolvesTo ref)
-resolveName namespace locals name
-  | Set.member name locals = Set.singleton (ResolvesToLocal name)
-  | Set.size exactNamespaceMatches == 1 = Set.mapMonotonic ResolvesToNamespace exactNamespaceMatches
-  | otherwise = localsPlusNamespaceSuffixMatches
+resolveName namespace locals =
+  \name ->
+    let exactNamespaceMatches :: Set ref
+        exactNamespaceMatches =
+          Relation.lookupDom name namespace
+        localsPlusNamespaceSuffixMatches :: Set (ResolvesTo ref)
+        localsPlusNamespaceSuffixMatches =
+          Name.searchByRankedSuffix name localsPlusNamespace
+     in if
+          | Set.member name locals -> Set.singleton (ResolvesToLocal name)
+          | Set.size exactNamespaceMatches == 1 -> Set.mapMonotonic ResolvesToNamespace exactNamespaceMatches
+          | otherwise -> localsPlusNamespaceSuffixMatches
   where
-    exactNamespaceMatches :: Set ref
-    exactNamespaceMatches =
-      Relation.lookupDom name namespace
-
-    localsPlusNamespaceSuffixMatches :: Set (ResolvesTo ref)
-    localsPlusNamespaceSuffixMatches =
-      Name.searchByRankedSuffix
-        name
-        ( shadowing1
-            ( List.foldl'
-                (\acc name -> Relation.insert name (ResolvesToLocal name) acc)
-                Relation.empty
-                (Set.toList locals)
-            )
-            ( Relation.map
-                (over _2 ResolvesToNamespace)
-                namespace
-            )
+    localsPlusNamespace :: Relation Name (ResolvesTo ref)
+    localsPlusNamespace =
+      shadowing1
+        ( List.foldl'
+            (\acc name -> Relation.insert name (ResolvesToLocal name) acc)
+            Relation.empty
+            (Set.toList locals)
+        )
+        ( Relation.map
+            (over _2 ResolvesToNamespace)
+            namespace
         )
