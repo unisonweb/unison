@@ -19,7 +19,8 @@ main =
 test :: Test ()
 test =
   scope "lexer" . tests $
-    [ t "1" [Numeric "1"],
+    [ t "" [],
+      t "1" [Numeric "1"],
       t "+1" [Numeric "+1"],
       t "-1" [Numeric "-1"],
       t "-1.0" [Numeric "-1.0"],

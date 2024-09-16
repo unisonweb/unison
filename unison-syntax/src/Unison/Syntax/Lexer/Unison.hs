@@ -77,6 +77,9 @@ data ParsingEnv = ParsingEnv
   }
   deriving (Show)
 
+initialEnv :: BlockName -> ParsingEnv
+initialEnv scope = ParsingEnv [] (Just scope) True
+
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
 data Err
@@ -196,7 +199,7 @@ token'' tok p = do
     pops p = do
       env <- S.get
       let l = layout env
-      if top l == column p && topContainsVirtualSemis l
+      if column p == top l && topContainsVirtualSemis l
         then pure [Token (Semi True) p p]
         else
           if column p > top l || topHasClosePair l
@@ -289,7 +292,7 @@ lexer scope rem =
       (P.EndOfInput) -> "end of input"
     customErrs es = [Err <$> e | P.ErrorCustom e <- toList es]
     toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-    env0 = ParsingEnv [] (Just scope) True
+    env0 = initialEnv scope
 
 -- | hacky postprocessing pass to do some cleanup of stuff that's annoying to
 -- fix without adding more state to the lexer:
@@ -422,15 +425,15 @@ doc2 = do
 
 lexemes' :: P () -> P [Token Lexeme]
 lexemes' eof =
-  -- NB: `postLex` requires the token stream to start with an `Open`, otherwise it can’t create a `T`, so this adds one,
-  --     runs `postLex`, then removes it.
+  -- NB: `postLex` requires the token stream to start with an `Open`, otherwise it can’t create a `BlockTree`, so this
+  --     adds one, runs `postLex`, then removes it.
   fmap (tail . postLex . (Token (Open "fake") mempty mempty :)) $
-    local (\env -> env {inLayout = True, opening = Just "DUMMY"}) do
+    local (const $ initialEnv "DUMMY") do
       p <- lexemes $ [] <$ eof
       -- deals with a final "unclosed" block at the end of `p`)
       unclosed <- takeWhile (("DUMMY" /=) . fst) . layout <$> S.get
-      let pos = end $ last p
-      pure $ p <> replicate (length unclosed) (Token Close pos pos)
+      finalPos <- posP
+      pure $ p <> replicate (length unclosed) (Token Close finalPos finalPos)
 
 -- | Consumes an entire Unison “module”.
 lexemes :: P [Token Lexeme] -> P [Token Lexeme]
