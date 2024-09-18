@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -133,6 +133,52 @@ library
     , unison-syntax
     , unison-util-bytes
     , unliftio
+    , vector
+  default-language: Haskell2010
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+  if flag(arraychecks)
+    cpp-options: -DARRAY_CHECK
+
+executable machine2
+  main-is: Main.hs
+  other-modules:
+      Paths_unison_runtime
+  hs-source-dirs:
+      exes
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -O0 -funbox-strict-fields -O2 -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
+  build-depends:
+      base
     , vector
   default-language: Haskell2010
   if flag(optimized)

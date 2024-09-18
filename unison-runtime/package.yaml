@@ -18,6 +18,14 @@ when:
   - condition: flag(arraychecks)
     cpp-options: -DARRAY_CHECK
 
+executables:
+  machine2:
+    source-dirs: exes 
+    main: Main.hs
+    ghc-options: -funbox-strict-fields -O2 -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
+    dependencies:
+      - base
+      - vector
 
 library:
   source-dirs: src
