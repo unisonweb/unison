@@ -2,7 +2,7 @@ module Main where
 
 import Data.Vector.Mutable qualified as V
 import Data.Vector.Primitive.Mutable qualified as UV
-import Data.Vector qualified as IV
+-- import Data.Vector qualified as IV
 import Data.Word (Word64, Word16)
 import System.CPUTime (getCPUTime)
 import Text.Printf
@@ -20,18 +20,18 @@ type Var = Word16
 Machine code representation.
 Uses a register-based VM with an infinite number of registers.
 -}
-data MCode
+data MCode ref
   = Nat !Word64                -- 42
-  | TailCall !Ref !Var !Var    -- foo x y
+  | TailCall ref !Var !Var    -- foo x y
   | NatIncrement !Var          -- increment x
   | NatDecrement !Var          -- decrement x
-  | If0 !Var !MCode !MCode     -- if cond then t else f
-  | Let !Var !MCode !MCode     -- let x = <expr> in body 
+  | If0 !Var !(MCode ref) !(MCode ref)     -- if cond then t else f
+  | Let !Var !(MCode ref) !(MCode ref)     -- let x = <expr> in body 
   | Print !Var                 -- printLine x
   -- | DynamicCall !Slot !Slot !Slot  
   deriving (Eq, Ord, Show)
 
-data Function = Function { code :: !MCode, arity :: !Int }
+data Function = Function { code :: !(MCode Function), arity :: !Int }
 
 -- currently unused
 data Value = Null | Closure [Word64] [Value] deriving (Eq,Ord,Show)
@@ -46,9 +46,9 @@ main = do
       rem' = decrement rem
       prog acc' rem'
   -}
-  let fn = If0 2 (Print 1) (Let 3 (NatIncrement 1) $ Let 4 (NatDecrement 2) $ TailCall 0 3 4)
-  let prog = Let 1 (Nat 0) (Let 2 (Nat countUpTo) (TailCall 0 1 2))
-  run (IV.fromList [Function fn 2]) prog
+  let fn = Function (If0 2 (Print 1) (Let 3 (NatIncrement 1) $ Let 4 (NatDecrement 2) $ TailCall fn 3 4)) 2
+  let prog = Let 1 (Nat 0) (Let 2 (Nat countUpTo) (TailCall fn 1 2))
+  run prog
 
 countUpTo :: Word64
 countUpTo = 1000 * 1000
@@ -63,8 +63,8 @@ time a = do
   printf "Ops / s (millions): %0.3f \n" (fromIntegral countUpTo * (1 / diff :: Double) / 1e6)
   return v
 
-run :: IV.Vector Function -> MCode -> IO ()
-run codes prog = do 
+run :: MCode Function -> IO ()
+run prog = do 
   let n = 1024
   boxed <- V.replicate n Null 
   unboxed <- UV.replicate n 0 
@@ -97,7 +97,7 @@ run codes prog = do
     call frame. You can grab all the local variables by slicing 
     from `framePtr - maxVar` to `framePtr`. 
     -}
-    go :: UV.IOVector Word64 -> V.IOVector Value -> Slot -> Var -> Slot -> MCode -> IO () 
+    go :: UV.IOVector Word64 -> V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO () 
     go unboxed boxed framePtr maxVar out prog = do
       -- stack <- UV.foldr (:) [] unboxed
       -- putStrLn ("stack:    " <> show stack)
@@ -121,7 +121,7 @@ run codes prog = do
           UV.write unboxed bslot bu
           V.write boxed aslot ab
           V.write boxed bslot bb
-          let mc = code (codes IV.! ref)
+          let mc = code ref 
           go unboxed boxed framePtr 2 out mc 
         NatIncrement a -> do
           au <- UV.read unboxed (framePtr - fromIntegral a)
