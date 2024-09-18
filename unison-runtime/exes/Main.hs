@@ -51,7 +51,7 @@ main = do
   run prog
 
 countUpTo :: Word64
-countUpTo = 1000 * 1000
+countUpTo = 1000 * 1000 * 1000
 
 time :: IO t -> IO t
 time a = do
@@ -98,7 +98,7 @@ run prog = do
     from `framePtr - maxVar` to `framePtr`. 
     -}
     go :: UV.IOVector Word64 -> V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO () 
-    go unboxed boxed framePtr maxVar out prog = do
+    go !unboxed !boxed !framePtr !maxVar !out !prog = do
       -- stack <- UV.foldr (:) [] unboxed
       -- putStrLn ("stack:    " <> show stack)
       -- putStrLn ("frame:    " <> show framePtr)
