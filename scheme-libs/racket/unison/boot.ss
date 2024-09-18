@@ -299,7 +299,7 @@
              [no-link-decl? #f]
              [trace? #f]
              [inline? #f]
-             [recursive? #t])
+             [recursive? #f])
             ([h hs])
     (values
       (or internal? (eq? h 'internal))
