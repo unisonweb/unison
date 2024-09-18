@@ -244,7 +244,9 @@
                 [args arg:stx])
     (if force-pure?
       (syntax/loc loc
-        (define name:fast name:impl))
+        ; note: for some reason this performs better than
+        ; (define name:fast name:impl)
+        (define (name:fast . args) (name:impl . args)))
 
       (syntax/loc loc
         (define (name:fast #:pure pure? . args)
