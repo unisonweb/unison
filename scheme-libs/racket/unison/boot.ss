@@ -258,12 +258,12 @@
               (name:impl #:pure pure? . args))))))))
 
 (define-for-syntax
-  (make-main loc recursive? name:stx ref:stx name:impl:stx n)
+  (make-main loc inline? name:stx ref:stx name:impl:stx n)
   (with-syntax ([name name:stx]
                 [name:impl name:impl:stx]
                 [gr ref:stx]
                 [n (datum->syntax loc n)])
-    (if recursive?
+    (if inline?
       (syntax/loc loc
         (define name
           (unison-curry #:inline n gr name:impl)))
@@ -358,7 +358,7 @@
                #:force-pure #t ; force-pure?
                loc name:fast:stx name:impl:stx arg:stx)]
        [impl (make-impl name:impl:stx arg:stx expr:stx)]
-       [main (make-main loc recursive? name:stx ref:stx name:impl:stx arity)]
+       [main (make-main loc inline? name:stx ref:stx name:impl:stx arity)]
        [(decls ...)
         (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
        [(traces ...)
