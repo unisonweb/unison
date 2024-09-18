@@ -411,16 +411,16 @@
   (syntax-case stx ()
     [(define-unison-builtin #:local n #:hints [h ...] . rest)
      (syntax/loc stx
-       (define-unison #:local n #:hints [internal gen-link h ...] . rest))]
+       (define-unison #:local n #:hints [inline internal gen-link h ...] . rest))]
     [(define-unison-builtin #:local n . rest)
      (syntax/loc stx
-       (define-unison #:local n #:hints [internal gen-link] . rest))]
+       (define-unison #:local n #:hints [inline internal gen-link] . rest))]
     [(define-unison-builtin #:hints [h ...] . rest)
      (syntax/loc stx
-       (define-unison #:hints [internal gen-link h ...] . rest))]
+       (define-unison #:hints [inline internal gen-link h ...] . rest))]
     [(define-unison-builtin . rest)
      (syntax/loc stx
-       (define-unison #:hints [internal gen-link] . rest))]))
+       (define-unison #:hints [inline internal gen-link] . rest))]))
 
 ; call-by-name bindings
 (define-syntax (name stx)
