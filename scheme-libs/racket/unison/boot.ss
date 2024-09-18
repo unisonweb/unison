@@ -359,8 +359,8 @@
                loc name:fast:stx name:impl:stx arg:stx)]
        [impl (make-impl name:impl:stx arg:stx expr:stx)]
        [main (make-main loc inline? name:stx ref:stx name:impl:stx arity)]
-       [(decls ...)
-        (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
+       ; [(decls ...)
+       ;  (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
        [(traces ...)
         (trace-decls trace? loc name:impl:stx)])
       (quasisyntax/loc loc
@@ -369,8 +369,7 @@
           #,(if (or recursive? inline?) #'(begin-encourage-inline impl) #'impl)
           traces ...
           #,(if (or recursive? inline?) #'(begin-encourage-inline fast) #'fast)
-          #,(if inline? #'(begin-encourage-inline main) #'main)
-          decls ...)))))
+          #,(if inline? #'(begin-encourage-inline main) #'main))))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
