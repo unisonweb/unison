@@ -355,10 +355,22 @@ preferShallowLibDepth = \case
   rs ->
     let byPriority = List.multimap (map (first minLibs) rs)
         minLibs [] = NamePriorityOne ()
-        minLibs ns = minimum (map classifyNamePriority ns)
+        minLibs ns = minimum (map (nameLocationPriority . classifyNameLocation) ns)
      in case Map.lookup (NamePriorityOne ()) byPriority <|> Map.lookup (NamePriorityTwo ()) byPriority of
           Nothing -> Set.fromList (map snd rs)
           Just rs -> Set.fromList rs
+
+data NameLocation
+  = NameLocation'Local -- outside lib
+  | NameLocation'DirectDep -- inside lib, but outside lib.*.lib
+  | NameLocation'IndirectDep -- inside lib.*.lib
+
+classifyNameLocation :: Name -> NameLocation
+classifyNameLocation name =
+  case segments name of
+    ((== NameSegment.libSegment) -> True) :| _ : ((== NameSegment.libSegment) -> True) : _ -> NameLocation'IndirectDep
+    ((== NameSegment.libSegment) -> True) :| _ -> NameLocation'DirectDep
+    _ -> NameLocation'Local
 
 data NamePriority a
   = NamePriorityOne !a -- highest priority: local names and direct dep names
@@ -379,18 +391,11 @@ unNamePriority = \case
   NamePriorityOne x -> x
   NamePriorityTwo x -> x
 
-classifyNamePriority :: Name -> NamePriority ()
-classifyNamePriority name =
-  case isIndirectDependency (List.NonEmpty.toList (segments name)) of
-    False -> NamePriorityOne ()
-    True -> NamePriorityTwo ()
-  where
-    -- isIndirectDependency foo                   = False
-    -- isIndirectDependency lib.bar.honk          = False
-    -- isIndirectDependency lib.baz.lib.qux.flonk = True
-    isIndirectDependency = \case
-      ((== NameSegment.libSegment) -> True) : _ : ((== NameSegment.libSegment) -> True) : _ -> True
-      _ -> False
+nameLocationPriority :: NameLocation -> NamePriority ()
+nameLocationPriority = \case
+  NameLocation'Local -> NamePriorityOne ()
+  NameLocation'DirectDep -> NamePriorityOne ()
+  NameLocation'IndirectDep -> NamePriorityTwo ()
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
@@ -544,8 +549,9 @@ suffixifyByName fqn rel =
         matchingNameCount =
           getSum (unNamePriority (R.searchDomG f (compareSuffix suffix) rel))
           where
+            f :: Name -> Set r -> NamePriority (Sum Int)
             f name _refs =
-              case classifyNamePriority name of
+              case nameLocationPriority (classifyNameLocation name) of
                 NamePriorityOne () -> NamePriorityOne (Sum 1)
                 NamePriorityTwo () -> NamePriorityTwo (Sum 1)
 
@@ -568,15 +574,23 @@ suffixifyByHash fqn rel =
 
     isOk :: Name -> Bool
     isOk suffix =
-      Set.size matchingRefs == 1 || matchingRefs == allRefs
+      numLocalNames == 0 && (Set.size matchingRefs == 1 || matchingRefs == allRefs)
       where
+        numLocalNames :: Int
         matchingRefs :: Set r
-        matchingRefs =
-          unNamePriority (R.searchDomG f (compareSuffix suffix) rel)
+        (getSum -> numLocalNames, unNamePriority -> matchingRefs) =
+          R.searchDomG f (compareSuffix suffix) rel
           where
-            f :: Name -> Set r -> NamePriority (Set r)
+            f :: Name -> Set r -> (Sum Int, NamePriority (Set r))
             f name refs =
-              refs <$ classifyNamePriority name
+              (numLocal, refs <$ nameLocationPriority location)
+              where
+                location = classifyNameLocation name
+                numLocal =
+                  case location of
+                    NameLocation'Local -> Sum 1
+                    NameLocation'DirectDep -> Sum 0
+                    NameLocation'IndirectDep -> Sum 0
 
 -- | Returns the common prefix of two names as segments
 --
