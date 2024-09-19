@@ -598,16 +598,22 @@ suffixifyByHashName fqn rel =
 
     isOk :: Name -> Bool
     isOk suffix =
-      numLocalNames == 0 && (Set.size matchingRefs == 1 || matchingRefs == allRefs)
+      (Set.size matchingRefs == 1 || matchingRefs == allRefs)
+        -- Don't use a suffix of 2+ aliases if any of then are non-local names
+        && case numLocalNames of
+          0 -> True
+          1 -> numNonLocalNames == 0
+          _ -> False
       where
         numLocalNames :: Int
+        numNonLocalNames :: Int
         matchingRefs :: Set r
-        (getSum -> numLocalNames, unNamePriority -> matchingRefs) =
+        (getSum -> numLocalNames, getSum -> numNonLocalNames, unNamePriority -> matchingRefs) =
           R.searchDomG f (compareSuffix suffix) rel
           where
-            f :: Name -> Set r -> (Sum Int, NamePriority (Set r))
+            f :: Name -> Set r -> (Sum Int, Sum Int, NamePriority (Set r))
             f name refs =
-              (numLocal, refs <$ nameLocationPriority location)
+              (numLocal, numNonLocal, refs <$ nameLocationPriority location)
               where
                 location = classifyNameLocation name
                 numLocal =
@@ -615,6 +621,11 @@ suffixifyByHashName fqn rel =
                     NameLocation'Local -> Sum 1
                     NameLocation'DirectDep -> Sum 0
                     NameLocation'IndirectDep -> Sum 0
+                numNonLocal =
+                  case location of
+                    NameLocation'Local -> Sum 0
+                    NameLocation'DirectDep -> Sum 1
+                    NameLocation'IndirectDep -> Sum 1
 
 -- | Returns the common prefix of two names as segments
 --
