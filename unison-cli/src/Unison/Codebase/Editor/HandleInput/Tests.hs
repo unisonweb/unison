@@ -20,7 +20,6 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
@@ -38,7 +37,9 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -91,7 +92,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let fqnPPE = PPED.unsuffixifiedPPE pped
   Cli.respondNumbered $
     TestResults
@@ -132,7 +133,7 @@ handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
   Cli.Env {runtime} <- ask
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames names (Set.singleton main)
@@ -165,7 +166,7 @@ handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase, runtime} <- ask
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   ioTestRefs <- findTermsOfTypes codebase False Path.empty (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of

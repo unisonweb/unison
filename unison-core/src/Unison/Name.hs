@@ -41,6 +41,7 @@ module Unison.Name
     searchBySuffix,
     suffixifyByName,
     suffixifyByHash,
+    suffixifyByHashName,
     sortByText,
     sortNamed,
     sortNames,
@@ -566,6 +567,29 @@ suffixifyByName fqn rel =
 -- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByHash fqn rel =
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  where
+    allRefs :: Set r
+    allRefs =
+      R.lookupDom fqn rel
+
+    isOk :: Name -> Bool
+    isOk suffix =
+      Set.size matchingRefs == 1 || matchingRefs == allRefs
+      where
+        matchingRefs :: Set r
+        matchingRefs =
+          unNamePriority (R.searchDomG f (compareSuffix suffix) rel)
+          where
+            f :: Name -> Set r -> NamePriority (Set r)
+            f name refs =
+              refs <$ nameLocationPriority (classifyNameLocation name)
+
+-- Like `suffixifyByHash`, but "keeps going" (i.e. keeps adding more segments, looking for the best name) if the current
+-- suffix could refer to a local definition (i.e. outside lib). This is because such definitions could end up being
+-- edited in a scratch file, where "suffixify by hash" doesn't work.
+suffixifyByHashName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
+suffixifyByHashName fqn rel =
   fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
     allRefs :: Set r
