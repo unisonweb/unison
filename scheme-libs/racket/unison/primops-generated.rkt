@@ -644,13 +644,13 @@
 ; This is the runtime loading version. It isn't necessary to generate
 ; code related definitions, because we already have the code values
 ; to add directly to the cache.
-(define (gen-code:runtime tl co)
+(define (gen-code:runtime arities tl co)
   (match tl
     [(unison-termlink-derived bs i)
      (define sg (unison-code-rep co))
      (define r (reflect-derived bs i))
      (define ln (decode-syntax (gen-link-def r)))
-     (define ds (chunked-list->list (gen-scheme r sg)))
+     (define ds (chunked-list->list (gen-scheme arities r sg)))
      (define dc (decode-term (gen-link-decl r)))
 
      (values ln dc (map decode-syntax ds))]
@@ -666,7 +666,7 @@
 ; This is the version for compiling to intermediate code. It generates
 ; code declarations that will recreate the code values in the
 ; compiled executable.
-(define (gen-code:intermed tl co)
+(define (gen-code:intermed arities tl co)
   (match tl
     [(unison-termlink-derived bs i)
      (define sg (unison-code-rep co))
@@ -675,7 +675,7 @@
      (define dc (decode-term (gen-link-decl r)))
      (define cv (decode-intermediate (gen-code-value r sg)))
      (define cd (gen-code-decl r))
-     (define ds (chunked-list->list (gen-scheme r sg)))
+     (define ds (chunked-list->list (gen-scheme arities r sg)))
 
      (values ln dc cv cd (map decode-syntax ds))]
     [else
@@ -690,10 +690,10 @@
 ; definition.
 ;
 ; This is the version for compiling to intermediate code.
-(define (gen-codes:runtime defs)
+(define (gen-codes:runtime arities defs)
   (for/lists (lndefs lndecs dfns)
              ([(tl co) defs])
-    (gen-code:runtime tl co)))
+    (gen-code:runtime arities tl co)))
 
 ; Given a list of termlink, code pairs, returns multiple lists
 ; of definitions and declarations. The lists are returned as
@@ -701,10 +701,10 @@
 ; definition.
 ;
 ; This is the version for compiling to intermediate code.
-(define (gen-codes:intermed defs)
+(define (gen-codes:intermed arities defs)
   (for/lists (lndefs lndecs codefs codecls dfns)
              ([(tl co) defs])
-      (gen-code:intermed tl co)))
+      (gen-code:intermed arities tl co)))
 
 (define (flatten ls)
   (cond
@@ -822,17 +822,17 @@
     (for/hash ([p (in-chunked-list dfns0)]
                #:when (need-code-loaded? (ufst p)))
       (splat-upair p)))
-  (define-values (tmlinks codes)
-    (for/lists (ts cs)
+  (define-values (tmlinks codes arities)
+    (for/lists (ts cs as)
                ([(tl co) udefs])
-               (values tl co)))
+               (values tl co (arity-tuple tl co))))
 
   (define pname (termlink->name primary))
   (define tylinks (typelink-deps codes))
 
   (define-values
     (lndefs lndecs codefs codecls dfns)
-    (gen-codes:intermed udefs))
+    (gen-codes:intermed (list->chunked-list arities) udefs))
 
   `((require unison/boot
              unison/data
@@ -915,6 +915,10 @@
       (group-term-dependencies
         (unison-code-rep co)))))
 
+; Extracts the main arity of a code value. Only the main entry
+; is called from other combinators.
+(define (code-arity co) (group-arity (unison-code-rep co)))
+
 ; This adds a synchronization barrier around code loading. It uses
 ; a lock associated with the namespace, so this it will also be safe
 ; with regard to concurrent instantiations of any modules that get
@@ -990,6 +994,11 @@
              [else #f]))
          deps))
 
+(define (arity-tuple tl co)
+  (unison-tuple
+    (termlink->reference tl)
+    (code-arity co)))
+
 ; Creates and adds a module for given module name and definitions.
 ;
 ; Passing #f for mname0 makes the procedure make up a fresh name.
@@ -1002,17 +1011,22 @@
 ; and given appropriate errors if we're missing code.
 (define (add-runtime-code-proc mname0 udefs)
   ; Unpack the map into component lists
-  (define-values (tmlinks codes depss)
-    (for/lists (ls cs ds)
+  (define-values (tmlinks codes arities depss)
+    (for/lists (ls cs as ds)
                ([(tl co) udefs])
-      (values tl co (code-dependencies co))))
+      (values
+        tl
+        co
+        (arity-tuple tl co)
+        (code-dependencies co))))
 
   (define tylinks (chunked-list->list (typelink-deps codes)))
   (define-values (ntylinks htylinks) (partition need-typelink? tylinks))
 
   (define hdeps (filter have-code-loaded? (flatten depss)))
 
-  (define-values (lndefs lndecs dfns) (gen-codes:runtime udefs))
+  (define-values (lndefs lndecs dfns)
+    (gen-codes:runtime (list->chunked-list arities) udefs))
   (define sdefs (append lndefs (append* dfns) lndecs))
   (define reqs (extra-requires htylinks hdeps))
   (define mname (or mname0 (generate-module-name tmlinks)))

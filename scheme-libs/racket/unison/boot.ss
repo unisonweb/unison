@@ -244,7 +244,9 @@
                 [args arg:stx])
     (if force-pure?
       (syntax/loc loc
-        (define name:fast name:impl))
+        ; note: for some reason this performs better than
+        ; (define name:fast name:impl)
+        (define (name:fast . args) (name:impl . args)))
 
       (syntax/loc loc
         (define (name:fast #:pure pure? . args)
@@ -256,12 +258,12 @@
               (name:impl #:pure pure? . args))))))))
 
 (define-for-syntax
-  (make-main loc recursive? name:stx ref:stx name:impl:stx n)
+  (make-main loc inline? name:stx ref:stx name:impl:stx n)
   (with-syntax ([name name:stx]
                 [name:impl name:impl:stx]
                 [gr ref:stx]
                 [n (datum->syntax loc n)])
-    (if recursive?
+    (if inline?
       (syntax/loc loc
         (define name
           (unison-curry #:inline n gr name:impl)))
@@ -297,7 +299,7 @@
              [no-link-decl? #f]
              [trace? #f]
              [inline? #f]
-             [recursive? #t])
+             [recursive? #f])
             ([h hs])
     (values
       (or internal? (eq? h 'internal))
@@ -356,9 +358,9 @@
                #:force-pure #t ; force-pure?
                loc name:fast:stx name:impl:stx arg:stx)]
        [impl (make-impl name:impl:stx arg:stx expr:stx)]
-       [main (make-main loc recursive? name:stx ref:stx name:impl:stx arity)]
-       [(decls ...)
-        (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
+       [main (make-main loc inline? name:stx ref:stx name:impl:stx arity)]
+       ; [(decls ...)
+       ;  (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
        [(traces ...)
         (trace-decls trace? loc name:impl:stx)])
       (quasisyntax/loc loc
@@ -367,8 +369,7 @@
           #,(if (or recursive? inline?) #'(begin-encourage-inline impl) #'impl)
           traces ...
           #,(if (or recursive? inline?) #'(begin-encourage-inline fast) #'fast)
-          #,(if inline? #'(begin-encourage-inline main) #'main)
-          decls ...)))))
+          #,(if inline? #'(begin-encourage-inline main) #'main))))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
@@ -410,16 +411,16 @@
   (syntax-case stx ()
     [(define-unison-builtin #:local n #:hints [h ...] . rest)
      (syntax/loc stx
-       (define-unison #:local n #:hints [internal gen-link h ...] . rest))]
+       (define-unison #:local n #:hints [inline internal gen-link h ...] . rest))]
     [(define-unison-builtin #:local n . rest)
      (syntax/loc stx
-       (define-unison #:local n #:hints [internal gen-link] . rest))]
+       (define-unison #:local n #:hints [inline internal gen-link] . rest))]
     [(define-unison-builtin #:hints [h ...] . rest)
      (syntax/loc stx
-       (define-unison #:hints [internal gen-link h ...] . rest))]
+       (define-unison #:hints [inline internal gen-link h ...] . rest))]
     [(define-unison-builtin . rest)
      (syntax/loc stx
-       (define-unison #:hints [internal gen-link] . rest))]))
+       (define-unison #:hints [inline internal gen-link] . rest))]))
 
 ; call-by-name bindings
 (define-syntax (name stx)
