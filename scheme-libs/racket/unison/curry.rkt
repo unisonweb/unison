@@ -12,18 +12,7 @@
   unison-curry-6
   unison-curry-7
   unison-curry-8
-  unison-curry-9
-  unison-curry-10
-  unison-curry-11
-  unison-curry-12
-  unison-curry-13
-  unison-curry-14
-  unison-curry-15
-  unison-curry-16
-  unison-curry-17
-  unison-curry-18
-  unison-curry-19
-  unison-curry-20)
+  unison-curry-9)
 
 (require racket/performance-hint
          racket/unsafe/undefined
@@ -80,19 +69,24 @@
 
 (define-for-syntax (in-partitions xs) (in-parts '() xs))
 
-(define-for-syntax (build-curry loc n)
+(define-for-syntax (build-curried loc n ref:stx fun:stx)
   (define xs:stx (generate-temporaries (map (const 'x) (range n))))
+
+  (curry-expr loc 2 ref:stx fun:stx '() xs:stx))
+
+(define-for-syntax (build-curry loc n)
   (define ref:stx (syntax/loc loc gr))
   (define fun:stx (syntax/loc loc f))
 
-  (with-syntax ([body (curry-expr loc 2 ref:stx fun:stx '() xs:stx)])
+  (with-syntax ([body (build-curried loc n ref:stx fun:stx)])
     (syntax/loc loc
       (lambda (gr f) body))))
 
 (define-syntax (make-curry stx)
   (syntax-case stx ()
-    [(make-curry n)
-     (build-curry stx (syntax->datum #'n))]))
+    [(make-curry n gr f)
+     (build-curried stx (syntax->datum #'n) #'gr #'f)]))
+     ; (build-curry stx (syntax->datum #'n))]))
 
 (begin-encourage-inline
   (define ((unison-curry-0 gr f) #:reflect [ref? unsafe-undefined] . rest)
@@ -102,35 +96,29 @@
         (apply (f) rest))
       (unison-closure gr f rest)))
 
-  (define unison-curry-1 (make-curry 1))
-  (define unison-curry-2 (make-curry 2))
-  (define unison-curry-3 (make-curry 3))
-  (define unison-curry-4 (make-curry 4))
-  (define unison-curry-5 (make-curry 5))
-  (define unison-curry-6 (make-curry 6))
-  (define unison-curry-7 (make-curry 7))
-  (define unison-curry-8 (make-curry 8))
-  (define unison-curry-9 (make-curry 9))
-  (define unison-curry-10 (make-curry 10))
-  (define unison-curry-11 (make-curry 11))
-  (define unison-curry-12 (make-curry 12))
-  (define unison-curry-13 (make-curry 13))
-  (define unison-curry-14 (make-curry 14))
-  (define unison-curry-15 (make-curry 15))
-  (define unison-curry-16 (make-curry 16))
-  (define unison-curry-17 (make-curry 17))
-  (define unison-curry-18 (make-curry 18))
-  (define unison-curry-19 (make-curry 19))
-  (define unison-curry-20 (make-curry 20)))
+  (define (unison-curry-1 gr f) (make-curry 1 gr f))
+  (define (unison-curry-2 gr f) (make-curry 2 gr f))
+  (define (unison-curry-3 gr f) (make-curry 3 gr f))
+  (define (unison-curry-4 gr f) (make-curry 4 gr f))
+  (define (unison-curry-5 gr f) (make-curry 5 gr f))
+  (define (unison-curry-6 gr f) (make-curry 6 gr f))
+  (define (unison-curry-7 gr f) (make-curry 7 gr f))
+  (define (unison-curry-8 gr f) (make-curry 8 gr f))
+  (define (unison-curry-9 gr f) (make-curry 9 gr f)))
 
 (define-syntax (unison-curry stx)
   (syntax-case stx ()
+    [(unison-curry #:inline n gr f)
+     (build-curried stx (syntax->datum #'n) #'gr #'f)]
     [(unison-curry n gr f)
-     (begin
-       (define m (syntax->datum #'n))
-       (define curry:stx (vsym #:pre "unison-curry-" m))
-       (with-syntax ([u-curry curry:stx])
-         (syntax/loc stx
-           (u-curry gr f))))]))
+     (let ([m (syntax->datum #'n)])
+       (cond
+         [(< m 10)
+          (define curry:stx (vsym #:pre "unison-curry-" m))
+          (with-syntax ([u-curry curry:stx])
+            (syntax/loc stx
+              (u-curry gr f)))]
+         [else
+          (build-curried stx m #'gr #'f)]))]))
 
 

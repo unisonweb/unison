@@ -3156,7 +3156,7 @@ declareForeigns = do
             $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
 
   declareForeign Untracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
-    \(src, off, len) ->
+    \(src :: PA.MutableArray PA.RealWorld Closure.RClosure, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 Closure.BlackHole
         else
@@ -3173,7 +3173,7 @@ declareForeigns = do
     pure . PA.sizeofByteArray
 
   declareForeign Tracked "IO.array" natToBox . mkForeign $
-    \n -> PA.newArray n Closure.BlackHole
+    \n -> PA.newArray n (Closure.BlackHole :: Closure.RClosure)
   declareForeign Tracked "IO.arrayOf" boxNatToBox . mkForeign $
     \(v :: Closure, n) -> PA.newArray n v
   declareForeign Tracked "IO.bytearray" natToBox . mkForeign $ PA.newByteArray
@@ -3185,7 +3185,7 @@ declareForeigns = do
       pure arr
 
   declareForeign Untracked "Scope.array" natToBox . mkForeign $
-    \n -> PA.newArray n Closure.BlackHole
+    \n -> PA.newArray n (Closure.BlackHole :: Closure.RClosure)
   declareForeign Untracked "Scope.arrayOf" boxNatToBox . mkForeign $
     \(v :: Closure, n) -> PA.newArray n v
   declareForeign Untracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray

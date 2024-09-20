@@ -63,6 +63,7 @@
 
   clamp-integer
   clamp-natural
+  natural-max0
   wrap-natural
   bit64
   bit63
@@ -254,13 +255,19 @@
               (vector . args)
               (name:impl #:pure pure? . args))))))))
 
-(define-for-syntax (make-main loc name:stx ref:stx name:impl:stx n)
+(define-for-syntax
+  (make-main loc recursive? name:stx ref:stx name:impl:stx n)
   (with-syntax ([name name:stx]
                 [name:impl name:impl:stx]
                 [gr ref:stx]
                 [n (datum->syntax loc n)])
-    (syntax/loc loc
-      (define name (unison-curry n gr name:impl)))))
+    (if recursive?
+      (syntax/loc loc
+        (define name
+          (unison-curry #:inline n gr name:impl)))
+      (syntax/loc loc
+        (define name
+          (unison-curry n gr name:impl))))))
 
 (define-for-syntax
   (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)
@@ -288,14 +295,18 @@
              [force-pure? #t]
              [gen-link? #f]
              [no-link-decl? #f]
-             [trace? #f])
+             [trace? #f]
+             [inline? #f]
+             [recursive? #t])
             ([h hs])
     (values
       (or internal? (eq? h 'internal))
       (or force-pure? (eq? h 'force-pure) (eq? h 'internal))
       (or gen-link? (eq? h 'gen-link))
       (or no-link-decl? (eq? h 'no-link-decl))
-      (or trace? (eq? h 'trace)))))
+      (or trace? (eq? h 'trace))
+      (or inline? (eq? h 'inline))
+      (or recursive? (eq? h 'recursive)))))
 
 (define-for-syntax
   (make-link-def gen-link? loc name:stx name:link:stx)
@@ -324,8 +335,13 @@
     #:local [lo 0]
     loc name:stx arg:stx expr:stx)
 
-  (define-values
-    (internal? force-pure? gen-link? no-link-decl? trace?)
+  (define-values (internal?
+                  force-pure?
+                  gen-link?
+                  no-link-decl?
+                  trace?
+                  inline?
+                  recursive?)
     (process-hints hints))
 
 
@@ -340,13 +356,19 @@
                #:force-pure #t ; force-pure?
                loc name:fast:stx name:impl:stx arg:stx)]
        [impl (make-impl name:impl:stx arg:stx expr:stx)]
-       [main (make-main loc name:stx ref:stx name:impl:stx arity)]
+       [main (make-main loc recursive? name:stx ref:stx name:impl:stx arity)]
        [(decls ...)
         (link-decl no-link-decl? loc name:stx name:fast:stx name:impl:stx)]
        [(traces ...)
         (trace-decls trace? loc name:impl:stx)])
-      (syntax/loc loc
-        (begin link ... impl traces ... fast main decls ...)))))
+      (quasisyntax/loc loc
+        (begin
+          link ...
+          #,(if (or recursive? inline?) #'(begin-encourage-inline impl) #'impl)
+          traces ...
+          #,(if (or recursive? inline?) #'(begin-encourage-inline fast) #'fast)
+          #,(if inline? #'(begin-encourage-inline main) #'main)
+          decls ...)))))
 
 ; Function definition supporting various unison features, like
 ; partial application and continuation serialization. See above for
@@ -386,9 +408,15 @@
 
 (define-syntax (define-unison-builtin stx)
   (syntax-case stx ()
+    [(define-unison-builtin #:local n #:hints [h ...] . rest)
+     (syntax/loc stx
+       (define-unison #:local n #:hints [internal gen-link h ...] . rest))]
     [(define-unison-builtin #:local n . rest)
      (syntax/loc stx
        (define-unison #:local n #:hints [internal gen-link] . rest))]
+    [(define-unison-builtin #:hints [h ...] . rest)
+     (syntax/loc stx
+       (define-unison #:hints [internal gen-link h ...] . rest))]
     [(define-unison-builtin . rest)
      (syntax/loc stx
        (define-unison #:hints [internal gen-link] . rest))]))
@@ -756,6 +784,15 @@
   (define (clamp-natural n)
     (if (fixnum? n) n
       (modulo n bit64)))
+
+  ; For natural arithmetic operations that can yield negatives, this
+  ; ensures that they are clamped back to 0.
+  ;
+  ; Note: (max 0 n) is apparently around 2-3x slower than this, hence
+  ; the custom operation. I've factored it out here in case something
+  ; even better is found, but this seems to match the performance of
+  ; the underlying operation.
+  (define (natural-max0 n) (if (>= n 0) n 0))
 
   ; module arithmetic appropriate for when a Nat operation my either
   ; have too large or a negative result.

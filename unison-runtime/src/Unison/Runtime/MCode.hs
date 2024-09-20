@@ -11,24 +11,41 @@ module Unison.Runtime.MCode
     Args (..),
     RefNums (..),
     MLit (..),
-    Instr (..),
-    Section (.., MatchT, MatchW),
-    Comb (..),
+    GInstr (..),
+    Instr,
+    RInstr,
+    GSection (.., MatchT, MatchW),
+    RSection,
+    Section,
+    GComb (..),
+    Comb,
+    RComb (..),
+    pattern RCombIx,
+    pattern RCombRef,
+    rCombToComb,
+    GCombs,
     Combs,
+    RCombs,
     CombIx (..),
-    Ref (..),
+    GRef (..),
+    RRef,
+    Ref,
     UPrim1 (..),
     UPrim2 (..),
     BPrim1 (..),
     BPrim2 (..),
-    Branch (..),
+    GBranch (..),
+    Branch,
+    RBranch,
     bcount,
     ucount,
     emitCombs,
     emitComb,
+    resolveCombs,
     emptyRNs,
     argsToLists,
     combRef,
+    rCombRef,
     combDeps,
     combTypes,
     prettyCombs,
@@ -39,6 +56,7 @@ where
 import Data.Bifunctor (bimap, first)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
+import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
@@ -435,9 +453,13 @@ data MLit
   | MY !Reference
   deriving (Show, Eq, Ord)
 
+type Instr = GInstr CombIx
+
+type RInstr = GInstr RComb
+
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
-data Instr
+data GInstr comb
   = -- 1-argument unboxed primitive operations
     UPrim1
       !UPrim1 -- primitive instruction
@@ -472,7 +494,7 @@ data Instr
     -- statically known function into a closure with arguments.
     -- No stack is necessary, because no nested evaluation happens,
     -- so the instruction directly takes a follow-up.
-    Name !Ref !Args
+    Name !(GRef comb) !Args
   | -- Dump some debugging information about the machine state to
     -- the screen.
     Info !String -- prefix for output
@@ -502,15 +524,19 @@ data Instr
     Seq !Args
   | -- Force a delayed expression, catching any runtime exceptions involved
     TryForce !Int
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-data Section
+type Section = GSection CombIx
+
+type RSection = GSection RComb
+
+data GSection comb
   = -- Apply a function to arguments. This is the 'slow path', and
     -- handles applying functions from arbitrary sources. This
     -- requires checks to determine what exactly should happen.
     App
       !Bool -- skip argument check for known calling convention
-      !Ref -- function to call
+      !(GRef comb) -- function to call
       !Args -- arguments
   | -- This is the 'fast path', for when we statically know we're
     -- making an exactly saturated call to a statically known
@@ -520,7 +546,7 @@ data Section
     -- sufficient for where we're jumping to.
     Call
       !Bool -- skip stack check
-      !Word64 -- global function reference
+      !comb -- global function reference
       !Args -- arguments
   | -- Jump to a captured continuation value.
     Jump
@@ -529,15 +555,15 @@ data Section
   | -- Branch on the value in the unboxed data stack
     Match
       !Int -- index of unboxed item to match on
-      !Branch -- branches
+      !(GBranch comb) -- branches
   | -- Yield control to the current continuation, with arguments
     Yield !Args -- values to yield
   | -- Prefix an instruction onto a section
-    Ins !Instr !Section
+    Ins !(GInstr comb) !(GSection comb)
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
-    Let !Section !CombIx
+    Let !(GSection comb) !comb
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
@@ -548,19 +574,19 @@ data Section
     DMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
-      !Branch -- branches
+      !(GBranch comb) -- branches
   | -- Branch on a numeric type without dumping it to the stack
     NMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
-      !Branch -- branches
+      !(GBranch comb) -- branches
   | -- Branch on a request representation without dumping the tag
     -- portion to the unboxed stack.
     RMatch
       !Int -- index of request item on the boxed stack
-      !Section -- pure case
-      !(EnumMap Word64 Branch) -- effect cases
-  deriving (Show, Eq, Ord)
+      !(GSection comb) -- pure case
+      !(EnumMap Word64 (GBranch comb)) -- effect cases
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 data CombIx
   = CIx
@@ -572,6 +598,9 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
+rCombRef :: RComb -> Reference
+rCombRef (RComb cix _) = combRef cix
+
 data RefNums = RN
   { dnum :: Reference -> Word64,
     cnum :: Reference -> Word64
@@ -582,54 +611,102 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-data Comb
+type Comb = GComb CombIx
+
+data GComb comb
   = Lam
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
       !Int -- Maximum needed boxed frame size
-      !Section -- Entry
-  deriving (Show, Eq, Ord)
+      !(GSection comb) -- Entry
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs = EnumMap Word64 Comb
+type Combs = GCombs CombIx
 
-data Ref
+type RCombs = GCombs RComb
+
+-- | Extract the CombIx from an RComb.
+pattern RCombIx :: CombIx -> RComb
+pattern RCombIx r <- (rCombIx -> r)
+
+{-# COMPLETE RCombIx #-}
+
+-- | Extract the Reference from an RComb.
+pattern RCombRef :: Reference -> RComb
+pattern RCombRef r <- (combRef . rCombIx -> r)
+
+{-# COMPLETE RCombRef #-}
+
+-- | The fixed point of a GComb where all references to a Comb are themselves Combs.
+data RComb = RComb
+  { rCombIx :: !CombIx,
+    unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
+  }
+
+-- Eq and Ord instances on the CombIx to avoid infinite recursion when
+-- comparing self-recursive functions.
+instance Eq RComb where
+  RComb r1 _ == RComb r2 _ = r1 == r2
+
+instance Ord RComb where
+  compare (RComb r1 _) (RComb r2 _) = compare r1 r2
+
+-- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
+rCombToComb :: RComb -> Comb
+rCombToComb (RComb _ix c) = rCombIx <$> c
+
+-- | RCombs can be infinitely recursive so we show the CombIx instead.
+instance Show RComb where
+  show (RComb ix _) = show ix
+
+-- | Map of combinators, parameterized by comb reference type
+type GCombs comb = EnumMap Word64 (GComb comb)
+
+-- | A reference to a combinator, parameterized by comb
+type Ref = GRef CombIx
+
+type RRef = GRef RComb
+
+data GRef comb
   = Stk !Int -- stack reference to a closure
-  | Env
-      !Word64 -- global environment reference to a combinator
-      !Word64 -- section
+  | Env !comb -- direct reference to comb, usually embedded as an RComb
   | Dyn !Word64 -- dynamic scope reference to a closure
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-data Branch
+type Branch = GBranch CombIx
+
+type RBranch = GBranch RComb
+
+data GBranch comb
   = -- if tag == n then t else f
     Test1
       !Word64
-      !Section
-      !Section
+      !(GSection comb)
+      !(GSection comb)
   | Test2
       !Word64
-      !Section -- if tag == m then ...
+      !(GSection comb) -- if tag == m then ...
       !Word64
-      !Section -- else if tag == n then ...
-      !Section -- else ...
+      !(GSection comb) -- else if tag == n then ...
+      !(GSection comb) -- else ...
   | TestW
-      !Section
-      !(EnumMap Word64 Section)
+      !(GSection comb)
+      !(EnumMap Word64 (GSection comb))
   | TestT
-      !Section
-      !(M.Map Text Section)
-  deriving (Show, Eq, Ord)
+      !(GSection comb)
+      !(M.Map Text (GSection comb))
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 -- Convenience patterns for matches used in the algorithms below.
-pattern MatchW :: Int -> Section -> EnumMap Word64 Section -> Section
+pattern MatchW :: Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
 pattern MatchW i d cs = Match i (TestW d cs)
 
-pattern MatchT :: Int -> Section -> M.Map Text Section -> Section
+pattern MatchT :: Int -> (GSection comb) -> M.Map Text (GSection comb) -> (GSection comb)
 pattern MatchT i d cs = Match i (TestT d cs)
 
 pattern NMatchW ::
-  Maybe Reference -> Int -> Section -> EnumMap Word64 Section -> Section
+  Maybe Reference -> Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
 pattern NMatchW r i d cs = NMatch r i (TestW d cs)
 
 -- Representation of the variable context available in the current
@@ -722,6 +799,38 @@ emitCombs rns grpr grpn (Rec grp ent) =
     rec = M.fromList $ zip rvs ixs
     aux = foldMap (emitComb rns grpr grpn rec) (zip ixs cmbs)
 
+-- | lazily replace all references to combinators with the combinators themselves,
+-- tying the knot recursively when necessary.
+resolveCombs ::
+  -- Existing in-scope combs that might be referenced
+  -- TODO: Do we ever actually need to pass this?
+  Maybe (EnumMap Word64 RCombs) ->
+  -- Combinators which need their knots tied.
+  EnumMap Word64 Combs ->
+  EnumMap Word64 RCombs
+resolveCombs mayExisting combs =
+  -- Fixed point lookup;
+  -- We make sure not to force resolved Combs or we'll loop forever.
+  let ~resolved =
+        combs
+          <&> (fmap . fmap) \(cix@(CIx _ n i)) ->
+            let cmbs = case mayExisting >>= EC.lookup n of
+                  Just cmbs -> cmbs
+                  Nothing ->
+                    case EC.lookup n resolved of
+                      Just cmbs -> cmbs
+                      Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
+             in case EC.lookup i cmbs of
+                  Just cmb -> RComb cix cmb
+                  Nothing ->
+                    error $
+                      "unknown section `"
+                        ++ show i
+                        ++ "` of combinator `"
+                        ++ show n
+                        ++ "`."
+   in resolved
+
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the
 -- point-wise maximum, so that combining values from different branches
@@ -811,24 +920,24 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
   where
     ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
-  emitClosures grpn rec ctx args $ \ctx as ->
-    Ins (Name (Env (cnum rns f) 0) as)
+  emitClosures grpr grpn rec ctx args $ \ctx as ->
+    Ins (Name (Env (CIx f (cnum rns f) 0)) as)
       <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
 emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
   | Just (i, BX) <- ctxResolve ctx v =
-      emitClosures grpn rec ctx args $ \ctx as ->
+      emitClosures grpr grpn rec ctx args $ \ctx as ->
         Ins (Name (Stk i) as)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | Just n <- rctxResolve rec v =
-      emitClosures grpn rec ctx args $ \ctx as ->
-        Ins (Name (Env grpn n) as)
+      emitClosures grpr grpn rec ctx args $ \ctx as ->
+        Ins (Name (Env (CIx grpr grpn n)) as)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
-emitSection _ _ grpn rec ctx (TVar v)
+emitSection _ grpr grpn rec ctx (TVar v)
   | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
   | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v =
-      countCtx ctx $ App False (Env grpn j) ZArgs
+      countCtx ctx $ App False (Env (CIx grpr grpn j)) ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
@@ -848,9 +957,9 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     $ DArgV i j
   where
     (i, j) = countBlock ctx
-emitSection rns _ grpn rec ctx (TApp f args) =
-  emitClosures grpn rec ctx args $ \ctx as ->
-    countCtx ctx $ emitFunction rns grpn rec ctx f as
+emitSection rns grpr grpn rec ctx (TApp f args) =
+  emitClosures grpr grpn rec ctx args $ \ctx as ->
+    countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
 emitSection _ _ _ _ ctx (TLit l) =
   c . countCtx ctx . Ins (emitLit l) . Yield $ litArg l
   where
@@ -945,31 +1054,32 @@ emitSection _ _ _ _ _ tm =
 emitFunction ::
   (Var v) =>
   RefNums ->
+  Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
   Ctx v -> -- local context
   Func v ->
   Args ->
   Section
-emitFunction _ grpn rec ctx (FVar v) as
+emitFunction _ grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
-      App False (Env grpn j) as
+      App False (Env (CIx grpr grpn j)) as
   | otherwise = emitSectionVErr v
-emitFunction rns _ _ _ (FComb r) as
+emitFunction rns _grpr _ _ _ (FComb r) as
   | otherwise -- slow path
     =
-      App False (Env n 0) as
+      App False (Env (CIx r n 0)) as
   where
     n = cnum rns r
-emitFunction rns _ _ _ (FCon r t) as =
+emitFunction rns _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
     $ BArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _ _ _ (FReq r e) as =
+emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
@@ -979,11 +1089,11 @@ emitFunction rns _ _ _ (FReq r e) as =
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-emitFunction _ _ _ ctx (FCont k) as
+emitFunction _ _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug $ "emitFunction: continuations are boxed"
-emitFunction _ _ _ _ (FPrim _) _ =
+emitFunction _ _grpr _ _ _ (FPrim _) _ =
   internalBug "emitFunction: impossible"
 
 countBlock :: Ctx v -> (Int, Int)
@@ -1389,20 +1499,21 @@ emitBLit l = BLit (ANF.litRef l) (litToMLit l)
 -- provided continuation.
 emitClosures ::
   (Var v) =>
+  Reference ->
   Word64 ->
   RCtx v ->
   Ctx v ->
   [v] ->
   (Ctx v -> Args -> Emit Section) ->
   Emit Section
-emitClosures grpn rec ctx args k =
+emitClosures grpr grpn rec ctx args k =
   allocate ctx args $ \ctx -> k ctx $ emitArgs grpn ctx args
   where
     allocate ctx [] k = k ctx
     allocate ctx (a : as) k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
-          Ins (Name (Env grpn n) ZArgs) <$> allocate (Var a BX ctx) as k
+          Ins (Name (Env (CIx grpr grpn n)) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 
@@ -1440,15 +1551,15 @@ combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: Section -> [Word64]
-sectionDeps (App _ (Env w _) _) = [w]
-sectionDeps (Call _ w _) = [w]
+sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
+sectionDeps (Call _ (CIx _ w _) _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
 sectionDeps (RMatch _ pu br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
-  | Name (Env w _) _ <- i = w : sectionDeps s
+  | Name (Env (CIx _ w _)) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
 sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
 sectionDeps _ = []

@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Names
@@ -50,9 +51,12 @@ module Unison.Names
     hashQualifyTermsRelation,
     fromTermsAndTypes,
     lenientToNametree,
+    resolveName,
   )
 where
 
+import Control.Lens (_2)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Semialign (alignWith)
 import Data.Set qualified as Set
@@ -68,6 +72,7 @@ import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.Names.ResolvesTo (ResolvesTo (..))
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -208,10 +213,11 @@ restrictReferences refs Names {..} = Names terms' types'
 -- e.g. @shadowing scratchFileNames codebaseNames@
 shadowing :: Names -> Names -> Names
 shadowing a b =
-  Names (shadowing a.terms b.terms) (shadowing a.types b.types)
-  where
-    shadowing xs ys =
-      Relation.fromMultimap (Map.unionWith (\x _ -> x) (Relation.domain xs) (Relation.domain ys))
+  Names (shadowing1 a.terms b.terms) (shadowing1 a.types b.types)
+
+shadowing1 :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
+shadowing1 xs ys =
+  Relation.fromMultimap (Map.unionWith (\x _ -> x) (Relation.domain xs) (Relation.domain ys))
 
 -- | TODO: get this from database. For now it's a constant.
 numHashChars :: Int
@@ -497,3 +503,33 @@ lenientToNametree names =
       -- The partial `Set.findMin` is fine here because Relation.domain only has non-empty Set values. A NESet would be
       -- better.
       unflattenNametree . Map.map Set.findMin . Relation.domain
+
+-- Given a namespace and locally-bound names that shadow it (i.e. from a Unison file that hasn't been typechecked yet),
+-- determine what the name resolves to, per the usual suffix-matching rules (where local defnintions and direct
+-- dependencies are preferred to indirect dependencies).
+resolveName :: forall ref. (Ord ref) => Relation Name ref -> Set Name -> Name -> Set (ResolvesTo ref)
+resolveName namespace locals =
+  \name ->
+    let exactNamespaceMatches :: Set ref
+        exactNamespaceMatches =
+          Relation.lookupDom name namespace
+        localsPlusNamespaceSuffixMatches :: Set (ResolvesTo ref)
+        localsPlusNamespaceSuffixMatches =
+          Name.searchByRankedSuffix name localsPlusNamespace
+     in if
+          | Set.member name locals -> Set.singleton (ResolvesToLocal name)
+          | Set.size exactNamespaceMatches == 1 -> Set.mapMonotonic ResolvesToNamespace exactNamespaceMatches
+          | otherwise -> localsPlusNamespaceSuffixMatches
+  where
+    localsPlusNamespace :: Relation Name (ResolvesTo ref)
+    localsPlusNamespace =
+      shadowing1
+        ( List.foldl'
+            (\acc name -> Relation.insert name (ResolvesToLocal name) acc)
+            Relation.empty
+            (Set.toList locals)
+        )
+        ( Relation.map
+            (over _2 ResolvesToNamespace)
+            namespace
+        )

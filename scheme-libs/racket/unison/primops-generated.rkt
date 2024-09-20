@@ -976,6 +976,20 @@
 
         (add-runtime-code-proc mname0 tdefs)])]))
 
+; Given a termlink and a list of dependencies for said link, tests
+; if the code is recursive. This is done by seeing if it references
+; any link with the same bytes. If it does, it must be (mututally)
+; recursive. The only way for two definitions to get the same parent
+; hash at this point is if they refer to one another.
+(define (detect-recursion link deps)
+  (define self (termlink-bytes link))
+  (ormap (lambda (other)
+           (match other
+             [(unison-termlink-derived other _)
+              (equal? self other)]
+             [else #f]))
+         deps))
+
 ; Creates and adds a module for given module name and definitions.
 ;
 ; Passing #f for mname0 makes the procedure make up a fresh name.

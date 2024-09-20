@@ -16,9 +16,10 @@ import Unison.Runtime.ANF
   )
 import Unison.Runtime.MCode
   ( Args (..),
-    Branch (..),
-    Instr (..),
-    Section (..),
+    GBranch (..),
+    GInstr (..),
+    GSection (..),
+    Section,
   )
 import Unison.Runtime.Machine
   ( CCache (..),
