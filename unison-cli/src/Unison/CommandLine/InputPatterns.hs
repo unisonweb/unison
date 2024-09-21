@@ -104,6 +104,7 @@ module Unison.CommandLine.InputPatterns
     saveExecuteResult,
     sfind,
     sfindReplace,
+    textfind,
     test,
     testAll,
     todo,
@@ -1079,6 +1080,28 @@ undo =
     []
     "`undo` reverts the most recent change to the codebase."
     (const $ pure Input.UndoI)
+
+textfind :: Bool -> InputPattern
+textfind allowLib =
+  InputPattern cmdName aliases I.Visible [("token", OnePlus, noCompletionsArg)] msg parse
+  where
+    (cmdName, aliases, alternate) = 
+      if allowLib then 
+        ("text.find.all", ["grep.all"], "Use `text.find` to exclude `lib` from search.")
+      else
+        ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
+    parse = \case
+      [] -> Left (P.text "Please supply at least one token.")
+      words -> pure $ Input.TextFindI allowLib (traceShowId [ e | Left e <- words ])
+    msg =
+      P.lines
+        [ P.wrap $
+            makeExample (textfind allowLib) ["token1", "token2"]
+              <> " finds terms with literals (text or numeric) containing both"
+              <> "`token1` and `word2`.",
+          "",
+          P.wrap alternate
+        ]
 
 sfind :: InputPattern
 sfind =
@@ -3442,6 +3465,8 @@ validInputs =
       findVerboseAll,
       sfind,
       sfindReplace,
+      textfind False,
+      textfind True,
       forkLocal,
       help,
       helpTopics,

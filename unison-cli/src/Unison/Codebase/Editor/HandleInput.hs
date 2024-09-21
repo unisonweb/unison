@@ -61,7 +61,7 @@ import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTe
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
-import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI)
+import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Global qualified as Global
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
@@ -620,6 +620,7 @@ loop e = do
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
             StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
+            TextFindI allowLib ws -> handleTextFindI allowLib ws
             LoadI maybePath -> handleLoad maybePath
             ClearI -> Cli.respond ClearScreen
             AddI requestedNames -> do
@@ -1041,6 +1042,7 @@ inputDescription input =
     ShowDefinitionI {} -> wat
     StructuredFindI {} -> wat
     StructuredFindReplaceI {} -> wat
+    TextFindI {} -> wat
     ShowRootReflogI {} -> pure "deprecated.root-reflog"
     ShowGlobalReflogI {} -> pure "reflog.global"
     ShowProjectReflogI mayProjName -> do

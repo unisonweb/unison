@@ -188,6 +188,7 @@ data Input
   | FindShallowI Path'
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | TextFindI Bool [String] -- TextFindI allowLib tokens
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowRootReflogI {- Deprecated -}
