@@ -148,6 +148,7 @@ import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Char (isSpace)
 import Data.These (These (..))
 import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
@@ -1092,16 +1093,34 @@ textfind allowLib =
         ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
     parse = \case
       [] -> Left (P.text "Please supply at least one token.")
-      words -> pure $ Input.TextFindI allowLib (traceShowId [ e | Left e <- words ])
+      words -> pure $ Input.TextFindI allowLib (untokenize $ [ e | Left e <- words ])
     msg =
       P.lines
         [ P.wrap $
-            makeExample (textfind allowLib) ["token1", "token2"]
-              <> " finds terms with literals (text or numeric) containing both"
-              <> "`token1` and `word2`.",
+            makeExample (textfind allowLib) ["token1", "\"99\"", "token2"]
+              <> " finds terms with literals (text or numeric) containing"
+              <> "`token1`, `99`, and `token2`.",
+          "",
+          P.wrap $ "Numeric literals must be quoted (ex: \"42\")" <>
+                   "but single words need not be quoted.",
           "",
           P.wrap alternate
         ]
+
+-- | Reinterprets `"` in the expected way, combining tokens until reaching 
+-- the closing quote. 
+-- Example: `untokenize ["\"uno", "dos\""]` becomes `["uno dos"]`.
+untokenize :: [String] -> [String]
+untokenize words = go (unwords words)
+  where
+  go words = case words of
+    [] -> []
+    '"' : quoted -> takeWhile (/= '"') quoted : go (drop 1 . dropWhile (/= '"') $ quoted)
+    unquoted -> case span ok unquoted of 
+      ("", rem) -> go (dropWhile isSpace rem)
+      (tok, rem) -> tok : go (dropWhile isSpace rem) 
+      where
+        ok ch = ch /= '"' && not (isSpace ch)
 
 sfind :: InputPattern
 sfind =

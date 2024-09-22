@@ -116,7 +116,7 @@ handleTextFindI allowLib tokens = do
   results0 <- traverse ok results
   let results = Alphabetical.sortAlphabetically [hq | (hq, True) <- results0]
   Cli.setNumberedArgs $ map SA.HashQualified results
-  Cli.respond (ListStructuredFind results) 
+  Cli.respond (ListTextFind allowLib results) 
   where
     tokensTxt = Text.pack <$> tokens
     containsTokens tm = 
