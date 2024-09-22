@@ -1449,11 +1449,12 @@ notifyUser dir = \case
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
   ListStructuredFind terms ->
     pure $ listFind False Nothing terms
-  ListTextFind True terms -> 
+  ListTextFind True terms ->
     pure $ listFind True Nothing terms
   ListTextFind False terms ->
     pure $ listFind False (Just tip) terms
-    where tip = (IP.makeExample (IP.textfind True) [] <> " will search `lib` as well.")
+    where
+      tip = (IP.makeExample (IP.textfind True) [] <> " will search `lib` as well.")
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
