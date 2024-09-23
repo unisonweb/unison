@@ -8,6 +8,7 @@ module Unison.PrettyPrintEnv.Names
     Suffixifier,
     dontSuffixify,
     suffixifyByHash,
+    suffixifyByHashName,
     suffixifyByName,
     suffixifyByHashWithUnhashedTermsInScope,
 
@@ -86,6 +87,13 @@ suffixifyByHash names =
   Suffixifier
     { suffixifyTerm = \name -> Name.suffixifyByHash name (Names.terms names),
       suffixifyType = \name -> Name.suffixifyByHash name (Names.types names)
+    }
+
+suffixifyByHashName :: Names -> Suffixifier
+suffixifyByHashName names =
+  Suffixifier
+    { suffixifyTerm = \name -> Name.suffixifyByHashName name (Names.terms names),
+      suffixifyType = \name -> Name.suffixifyByHashName name (Names.types names)
     }
 
 suffixifyByHashWithUnhashedTermsInScope :: Set Name -> Names -> Suffixifier

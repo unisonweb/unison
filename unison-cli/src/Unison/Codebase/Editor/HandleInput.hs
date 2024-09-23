@@ -37,7 +37,6 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils (getCurrentProjectBranch)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0)
@@ -134,8 +133,10 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -194,7 +195,7 @@ loop e = do
       let previewResponse sourceName sr uf = do
             names <- Cli.currentNames
             let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf names
-            filePPED <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
+            let filePPED = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (PPE.suffixifyByHash namesWithDefinitionsFromFile)
             let suffixifiedPPE = PPE.suffixifiedPPE filePPED
             Cli.respond $ Typechecked (Text.pack sourceName) suffixifiedPPE sr uf
        in Cli.time "InputPattern" case input of
@@ -373,7 +374,7 @@ loop e = do
             UiI path' -> openUI path'
             DocToMarkdownI docName -> do
               names <- Cli.currentNames
-              pped <- Cli.prettyPrintEnvDeclFromNames names
+              let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
               Cli.Env {codebase, runtime} <- ask
               docRefs <- Cli.runTransaction do
                 hqLength <- Codebase.hashLength
@@ -499,8 +500,8 @@ loop e = do
             NamesI global query -> do
               hqLength <- Cli.runTransaction Codebase.hashLength
               let searchNames names = do
-                    pped <- Cli.prettyPrintEnvDeclFromNames names
-                    let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
+                    let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+                        unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
                         terms = Names.lookupHQTerm Names.IncludeSuffixes query names
                         types = Names.lookupHQType Names.IncludeSuffixes query names
                         terms' :: [(Referent, [HQ'.HashQualified Name])]
@@ -595,12 +596,12 @@ loop e = do
                     case (null endangerments, insistence) of
                       (True, _) -> pure (Cli.respond Success)
                       (False, Force) -> do
-                        ppeDecl <- Cli.currentPrettyPrintEnvDecl
+                        let ppeDecl = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
                         pure do
                           Cli.respond Success
                           Cli.respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                       (False, Try) -> do
-                        ppeDecl <- Cli.currentPrettyPrintEnvDecl
+                        let ppeDecl = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
                         Cli.respondNumbered $ CantDeleteNamespace ppeDecl endangerments
                         Cli.returnEarlyWithoutOutput
                   parentPathAbs <- Cli.resolvePath parentPath
@@ -633,7 +634,9 @@ loop e = do
               Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
               pp <- Cli.getCurrentProjectPath
               Cli.stepAt description (pp, doSlurpAdds adds uf)
-              pped <- Cli.prettyPrintEnvDeclFromNames $ UF.addNamesFromTypeCheckedUnisonFile uf currentNames
+              let pped =
+                    let names = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
+                     in PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
               let suffixifiedPPE = PPED.suffixifiedPPE pped
               Cli.respond $ SlurpOutput input suffixifiedPPE sr
             SaveExecuteResultI resultName -> handleAddRun input resultName
@@ -765,7 +768,8 @@ loop e = do
                 tf <- lift Cli.getLatestTypecheckedFile
                 names <- lift Cli.currentNames
                 let buildPPED uf tf =
-                      Cli.prettyPrintEnvDeclFromNames $ (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                      let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                      in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
                 let formatWidth = 80
                 currentPath <- lift $ Cli.getCurrentPath
                 updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
@@ -1101,7 +1105,8 @@ handleFindI isVerbose fscope ws input = do
       let names = Branch.toNames (Branch.withoutLib branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
-      pped <- Cli.currentPrettyPrintEnvDecl
+      currentNames <- Cli.currentNames
+      let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (PPE.suffixifyByHash currentNames)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
       results <- searchBranch0 codebase branch0 names
       if (null results)
@@ -1123,7 +1128,8 @@ handleFindI isVerbose fscope ws input = do
       let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
-      pped <- Cli.currentPrettyPrintEnvDecl
+      currentNames <- Cli.currentNames
+      let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (PPE.suffixifyByHash currentNames)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
       results <- searchBranch0 codebase branch0 names
       respondResults codebase suffixifiedPPE (Just p) results
@@ -1131,7 +1137,7 @@ handleFindI isVerbose fscope ws input = do
       Global.forAllProjectBranches \(projAndBranchNames, _ids) branch -> do
         let branch0 = Branch.head branch
         let projectRootNames = Names.makeAbsolute . Branch.toNames $ branch0
-        pped <- Cli.prettyPrintEnvDeclFromNames projectRootNames
+        let pped = PPED.makePPED (PPE.hqNamer 10 projectRootNames) (PPE.suffixifyByHash projectRootNames)
         results <- searchBranch0 codebase branch0 projectRootNames
         when (not $ null results) do
           Cli.setNumberedArgs $ fmap (SA.SearchResult Nothing) results
@@ -1181,7 +1187,8 @@ handleDependencies hq = do
   Cli.Env {codebase} <- ask
   -- todo: add flag to handle transitive efficiently
   lds <- resolveHQToLabeledDependencies hq
-  pped <- Cli.currentPrettyPrintEnvDecl
+  names <- Cli.currentNames
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   when (null lds) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
@@ -1221,7 +1228,8 @@ handleDependents hq = do
   lds <- resolveHQToLabeledDependencies hq
   -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
   -- rather than the shortest possible unambiguous name.
-  pped <- Cli.currentPrettyPrintEnvDecl
+  names <- Cli.currentNames
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let fqppe = PPE.unsuffixifiedPPE pped
   let ppe = PPE.suffixifiedPPE pped
   when (null lds) do
@@ -1264,18 +1272,18 @@ handleShowDefinition outputLoc showDefinitionScope query = do
       root <- Cli.getCurrentProjectRoot
       let root0 = Branch.head root
       let names = Names.makeAbsolute $ Branch.toNames root0
-      pped <- Cli.prettyPrintEnvDeclFromNames names
+      let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
       pure (names, pped)
     (_, ShowDefinitionGlobal) -> do
       -- TODO: Maybe rewrite to be properly global
       root <- Cli.getCurrentProjectRoot
       let root0 = Branch.head root
       let names = Names.makeAbsolute $ Branch.toNames root0
-      pped <- Cli.prettyPrintEnvDeclFromNames names
+      let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
       pure (names, pped)
     (_, ShowDefinitionLocal) -> do
       currentNames <- Cli.currentNames
-      pped <- Cli.prettyPrintEnvDeclFromNames currentNames
+      let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
       pure (currentNames, pped)
   let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
   Backend.DefinitionResults terms types misses <- do
@@ -1283,6 +1291,12 @@ handleShowDefinition outputLoc showDefinitionScope query = do
     Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
   showDefinitions outputLoc pped terms types misses
   where
+    suffixify =
+      case outputLoc of
+        ConsoleLocation -> PPE.suffixifyByHash
+        FileLocation _ -> PPE.suffixifyByHashName
+        LatestFileLocation -> PPE.suffixifyByHashName
+
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
@@ -1316,7 +1330,7 @@ doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
   Cli.Env {codebase} <- ask
   loopState <- State.get
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
   let useCache = True
@@ -1343,6 +1357,12 @@ doDisplay outputLoc names tm = do
     liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
   Cli.respond $ DisplayRendered mayFP rendered
   where
+    suffixify =
+      case outputLoc of
+        ConsoleLocation -> PPE.suffixifyByHash
+        FileLocation _ -> PPE.suffixifyByHashName
+        LatestFileLocation -> PPE.suffixifyByHashName
+
     prependFile :: FilePath -> Text -> IO ()
     prependFile filePath txt = do
       exists <- Directory.doesFileExist filePath
@@ -1537,7 +1557,7 @@ checkDeletes typesTermsTuples doutput inputs = do
         DeleteOutput'NoDiff -> do
           Cli.respond Success
     else do
-      ppeDecl <- Cli.prettyPrintEnvDeclFromNames projectNames
+      let ppeDecl = PPED.makePPED (PPE.hqNamer 10 projectNames) (PPE.suffixifyByHash projectNames)
       let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
       Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
 
@@ -1601,11 +1621,11 @@ displayI outputLoc hq = do
         root <- Cli.getCurrentProjectRoot
         let root0 = Branch.head root
         let names = Names.makeAbsolute $ Branch.toNames root0
-        pped <- Cli.prettyPrintEnvDeclFromNames names
+        let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
         pure (names, pped)
       else do
         names <- Cli.currentNames
-        pped <- Cli.prettyPrintEnvDeclFromNames names
+        let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
         pure (names, pped)
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   let bias = maybeToList $ HQ.toName hq
@@ -1624,13 +1644,20 @@ displayI outputLoc hq = do
       doDisplay outputLoc names (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
-      filePPED <- Cli.prettyPrintEnvDeclFromNames namesWithDefinitionsFromFile
+      let filePPED = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (suffixify namesWithDefinitionsFromFile)
+
       let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
       (_, watches) <- evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile []
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
       doDisplay outputLoc ns tm
+  where
+    suffixify =
+      case outputLoc of
+        ConsoleLocation -> PPE.suffixifyByHash
+        FileLocation _ -> PPE.suffixifyByHashName
+        LatestFileLocation -> PPE.suffixifyByHashName
 
 docsI :: Name -> Cli ()
 docsI src = do
