@@ -1127,10 +1127,7 @@ renderContext env ctx@(C.Context es) =
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
-  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e)
-   in if length s > Settings.renderTermMaxLength
-        then fromString ("..." <> drop (length s - Settings.renderTermMaxLength) s)
-        else fromString s
+  fromString (Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e))
 
 renderPattern :: Env -> Pattern ann -> ColorText
 renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol]) e
