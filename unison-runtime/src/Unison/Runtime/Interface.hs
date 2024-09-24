@@ -74,7 +74,7 @@ import System.Process
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (Error, CompileOpts (..), Runtime (..))
+import Unison.Codebase.Runtime (CompileOpts (..), Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
@@ -954,8 +954,9 @@ nativeCompileCodes copts executable codes base path = do
       racoError (e :: IOException) =
         throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
       dargs = ["-G", srcPath]
-      pargs | profile copts = "--profile" : dargs
-            | otherwise = dargs
+      pargs
+        | profile copts = "--profile" : dargs
+        | otherwise = dargs
       p = ucrCompileProc executable pargs
       makeRacoCmd :: (FilePath -> [String] -> a) -> a
       makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
