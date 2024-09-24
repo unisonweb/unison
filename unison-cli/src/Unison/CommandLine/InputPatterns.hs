@@ -3004,18 +3004,21 @@ compileScheme =
         ]
     )
     $ \case
-      [main, file] ->
-        Input.CompileSchemeI False . Text.pack
-          <$> unsupportedStructuredArgument compileScheme "a file name" file
-          <*> handleHashQualifiedNameArg main
-      [main, file, profile] ->
-        mk
-          <$> unsupportedStructuredArgument compileScheme "profile" profile
-          <*> unsupportedStructuredArgument compileScheme "a file name" file
-          <*> handleHashQualifiedNameArg main
-        where
-          mk _ fn mn = Input.CompileSchemeI True (Text.pack fn) mn
+      [main, file] -> mkCompileScheme False file main
+      [main, file, prof] -> do
+        unsupportedStructuredArgument compileScheme "profile" prof >>=
+          \case
+            "profile" -> mkCompileScheme True file main
+            parg -> Left . P.text $
+              "I expected the third argument to be `profile`, but"
+                <> " instead recieved `" <> Text.pack parg <> "`."
       args -> wrongArgsLength "two or three arguments" args
+
+  where
+  mkCompileScheme pf fn mn =
+    Input.CompileSchemeI pf . Text.pack
+      <$> unsupportedStructuredArgument compileScheme "a file name" fn
+      <*> handleHashQualifiedNameArg mn
 
 
 createAuthor :: InputPattern
