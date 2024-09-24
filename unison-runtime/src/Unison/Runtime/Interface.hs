@@ -155,21 +155,33 @@ type Term v = Tm.Term v ()
 
 type Type v = Type.Type v ()
 
-data Remapping = Remap
-  { remap :: Map.Map Reference Reference,
-    backmap :: Map.Map Reference Reference
+-- Note that these annotations are suggestions at best, since in many places codebase refs, intermediate refs, and
+-- floated refs are all intermingled.
+type CodebaseReference = Reference
+
+-- Note that these annotations are suggestions at best, since in many places codebase refs, intermediate refs, and
+-- floated refs are all intermingled.
+type IntermediateReference = Reference
+
+-- Note that these annotations are suggestions at best, since in many places codebase refs, intermediate refs, and
+-- floated refs are all intermingled.
+type FloatedReference = Reference
+
+data Remapping from to = Remap
+  { remap :: Map.Map from to,
+    backmap :: Map.Map to from
   }
 
-instance Semigroup Remapping where
+instance (Ord from, Ord to) => Semigroup (Remapping from to) where
   Remap r1 b1 <> Remap r2 b2 = Remap (r1 <> r2) (b1 <> b2)
 
-instance Monoid Remapping where
+instance (Ord from, Ord to) => Monoid (Remapping from to) where
   mempty = Remap mempty mempty
 
 data EvalCtx = ECtx
   { dspec :: DataSpec,
-    floatRemap :: Remapping,
-    intermedRemap :: Remapping,
+    floatRemap :: Remapping CodebaseReference FloatedReference,
+    intermedRemap :: Remapping FloatedReference IntermediateReference,
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
     ccache :: CCache
   }
@@ -334,7 +346,7 @@ backrefAdd ::
 backrefAdd m ctx@ECtx {decompTm} =
   ctx {decompTm = m <> decompTm}
 
-remapAdd :: Map.Map Reference Reference -> Remapping -> Remapping
+remapAdd :: (Ord from, Ord to) => Map.Map from to -> Remapping from to -> Remapping from to
 remapAdd m Remap {remap, backmap} =
   Remap {remap = m <> remap, backmap = tm <> backmap}
   where
@@ -348,31 +360,31 @@ intermedRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 intermedRemapAdd m ctx@ECtx {intermedRemap} =
   ctx {intermedRemap = remapAdd m intermedRemap}
 
-baseToIntermed :: EvalCtx -> Reference -> Maybe Reference
+baseToIntermed :: EvalCtx -> CodebaseReference -> Maybe IntermediateReference
 baseToIntermed ctx r = do
   r <- Map.lookup r . remap $ floatRemap ctx
   Map.lookup r . remap $ intermedRemap ctx
 
 -- Runs references through the forward maps to get intermediate
 -- references. Works on both base and floated references.
-toIntermed :: EvalCtx -> Reference -> Reference
+toIntermed :: EvalCtx -> Reference -> IntermediateReference
 toIntermed ctx r
   | r <- Map.findWithDefault r r . remap $ floatRemap ctx,
     Just r <- Map.lookup r . remap $ intermedRemap ctx =
       r
 toIntermed _ r = r
 
-floatToIntermed :: EvalCtx -> Reference -> Maybe Reference
+floatToIntermed :: EvalCtx -> FloatedReference -> Maybe IntermediateReference
 floatToIntermed ctx r =
   Map.lookup r . remap $ intermedRemap ctx
 
-intermedToBase :: EvalCtx -> Reference -> Maybe Reference
+intermedToBase :: EvalCtx -> IntermediateReference -> Maybe CodebaseReference
 intermedToBase ctx r = do
   r <- Map.lookup r . backmap $ intermedRemap ctx
   Map.lookup r . backmap $ floatRemap ctx
 
 -- Runs references through the backmaps with defaults at all steps.
-backmapRef :: EvalCtx -> Reference -> Reference
+backmapRef :: EvalCtx -> Reference -> CodebaseReference
 backmapRef ctx r0 = r2
   where
     r1 = Map.findWithDefault r0 r0 . backmap $ intermedRemap ctx
@@ -838,9 +850,9 @@ watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
-  Remapping ->
-  Remapping ->
-  Map.Map Reference (Map.Map Word64 (Term Symbol)) ->
+  Remapping IntermediateReference CodebaseReference ->
+  Remapping FloatedReference IntermediateReference ->
+  Map.Map CodebaseReference (Map.Map Word64 (Term Symbol)) ->
   Word64 ->
   Word64 ->
   Maybe (Term Symbol)
