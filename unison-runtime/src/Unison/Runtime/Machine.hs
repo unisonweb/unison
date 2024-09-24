@@ -27,6 +27,7 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
+import Unison.Debug qualified as Debug
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
@@ -2168,28 +2169,21 @@ preEvalTopLevelConstants cacheableRefs cc = do
   let cacheableCombs =
         EC.mapToList cmbRefs
           & mapMaybe (\(w, ref) -> if ref `Set.member` cacheableRefs then Just w else Nothing)
+          & Set.fromList
   for_ cacheableCombs \w -> do
+    Debug.debugM Debug.Temp "Evaluating " w
     let hook _ustk bstk = do
           clos <- peek bstk
+          Debug.debugM Debug.Temp "Evaluated" ("Evaluated " ++ show w ++ " to " ++ show clos)
           atomically $ do
             -- TODO: Check that it's right to just insert the closure at comb position 0
             modifyTVar (combs cc) $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
-  atomically $ modifyTVar (combs cc) reTieCombs
-  where
-    reTieCombs :: EnumMap Word64 (RCombs Closure) -> EnumMap Word64 (RCombs Closure)
-    reTieCombs combs =
-      combs
-        & (fmap . fmap . fmap) \case
-          -- For each combinator ref in all the source code, if it's in the set of pre-evaluated refs,
-          -- replace the combinator in the source with the pre-evaluated closure rather than the cyclic RComb.
-          rComb@(RComb cix@(CIx ref w i) _)
-            | Set.member ref cacheableRefs,
-              Just cachedClos <-
-                ( EC.lookup w combs
-                    >>= EC.lookup i
-                ) -> do RComb cix cachedClos
-            | otherwise -> rComb
+
+  Debug.debugLogM Debug.Temp "Done pre-caching"
+  -- Rewrite all the inlined combinator references to point to the
+  -- new cached versions.
+  atomically $ modifyTVar (combs cc) (resolveCombs Nothing . unTieRCombs)
 
 expandSandbox ::
   Map Reference (Set Reference) ->
