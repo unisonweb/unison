@@ -361,7 +361,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
             Just sn <- EC.lookup w numberedTermLookup -> do
               poke ustk 1
               bstk <- bump bstk
-              bstk <$ pokeBi bstk (ANF.Rec [] sn ANF.Uncacheable)
+              bstk <$ pokeBi bstk (ANF.Rec [] sn)
           | otherwise -> bstk <$ poke ustk 0
         Just sg -> do
           poke ustk 1

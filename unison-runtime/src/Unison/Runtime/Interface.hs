@@ -79,7 +79,6 @@ import Unison.Codebase.Runtime (CompileOpts (..), Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
-import Unison.Debug qualified as Debug
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as RF
 import Unison.Parser.Ann (Ann (External))
@@ -462,25 +461,24 @@ loadDeps cl ppe ctx tyrs tmrs = do
       _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
-  out@(_, rgrp) <- loadCode cl ppe ctx tmrs
-  crgrp <- traverse checkCacheability rgrp
+  out@(ctx', rgrp) <- loadCode cl ppe ctx tmrs
+  crgrp <- traverse (checkCacheability ctx') rgrp
   out <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
   where
-    checkCacheability :: (Reference, sprgrp) -> IO (Reference, sprgrp, Cacheability)
-    checkCacheability (r, sg) = do
-      getTermType r >>= \case
+    checkCacheability :: EvalCtx -> (IntermediateReference, sprgrp) -> IO (IntermediateReference, sprgrp, Cacheability)
+    checkCacheability ctx (r, sg) = do
+      let codebaseRef = backmapRef ctx r
+      getTermType codebaseRef >>= \case
+        -- A term's result is cacheable iff it has no arrows in its type,
+        -- this is sufficient since top-level definitions can't have effects without a delay.
         Just typ | not (ABT.cata hasArrows typ) -> pure (r, sg, Cacheable)
         _ -> pure (r, sg, Uncacheable)
-    getTermType :: Reference -> IO (Maybe (Type Symbol))
+    getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
     getTermType = \case
-      ref@(RF.DerivedId i) ->
+      (RF.DerivedId i) ->
         getTypeOfTerm cl i >>= \case
-          Just t -> do
-            Debug.debugM Debug.Temp "Found type for: " ref
-            pure $ Just t
-          Nothing -> do
-            Debug.debugM Debug.Temp "NO type for: " ref
-            pure Nothing
+          Just t -> pure $ Just t
+          Nothing -> pure Nothing
       RF.Builtin {} -> pure $ Nothing
     hasArrows :: a -> ABT.ABT Type.F v Bool -> Bool
     hasArrows _ = \case
