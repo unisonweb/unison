@@ -2991,21 +2991,32 @@ compileScheme =
     "compile.native"
     []
     I.Hidden
-    [("definition to compile", Required, exactDefinitionTermQueryArg), ("output file", Required, filePathArg)]
+    [("definition to compile", Required, exactDefinitionTermQueryArg),
+     ("output file", Required, filePathArg),
+     ("profile", Optional, profileArg)]
     ( P.wrapColumn2
-        [ ( makeExample compileScheme ["main", "file"],
+        [ ( makeExample compileScheme ["main", "file", "profile"],
             "Creates stand alone executable via compilation to"
               <> "scheme. The created executable will have the effect"
-              <> "of running `!main`."
+              <> "of running `!main`. Providing `profile` as a third"
+              <> "argument will enable profiling."
           )
         ]
     )
     $ \case
       [main, file] ->
-        Input.CompileSchemeI . Text.pack
+        Input.CompileSchemeI False . Text.pack
           <$> unsupportedStructuredArgument compileScheme "a file name" file
           <*> handleHashQualifiedNameArg main
-      args -> wrongArgsLength "exactly two arguments" args
+      [main, file, profile] ->
+        mk
+          <$> unsupportedStructuredArgument compileScheme "profile" profile
+          <*> unsupportedStructuredArgument compileScheme "a file name" file
+          <*> handleHashQualifiedNameArg main
+        where
+          mk _ fn mn = Input.CompileSchemeI True (Text.pack fn) mn
+      args -> wrongArgsLength "two or three arguments" args
+
 
 createAuthor :: InputPattern
 createAuthor =
@@ -3644,6 +3655,15 @@ remoteNamespaceArg =
   ArgumentType
     { typeName = "remote-namespace",
       suggestions = \input _cb http _p -> sharePathCompletion http input,
+      fzfResolver = Nothing
+    }
+
+profileArg :: ArgumentType
+profileArg =
+  ArgumentType
+    { typeName = "profile",
+      suggestions = \_input _cb _http _p ->
+        pure [Line.simpleCompletion "profile"],
       fzfResolver = Nothing
     }
 

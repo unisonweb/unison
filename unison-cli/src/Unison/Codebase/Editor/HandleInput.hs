@@ -656,9 +656,10 @@ loop e = do
             TodoI -> handleTodo
             TestI testInput -> Tests.handleTest testInput
             ExecuteI main args -> handleRun False main args
-            MakeStandaloneI output main -> doCompile False output main
-            CompileSchemeI output main ->
-              doCompile True (Text.unpack output) main
+            MakeStandaloneI output main ->
+              doCompile False False output main
+            CompileSchemeI prof output main ->
+              doCompile prof True (Text.unpack output) main
             ExecuteSchemeI main args -> handleRun True main args
             IOTestI main -> Tests.handleIOTest main
             IOTestAllI -> Tests.handleAllIOTests
@@ -979,7 +980,8 @@ inputDescription input =
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
     ExecuteSchemeI nm args ->
       pure $ "run.native " <> Text.unwords (HQ.toText nm : fmap Text.pack args)
-    CompileSchemeI fi nm -> pure ("compile.native " <> HQ.toText nm <> " " <> fi)
+    CompileSchemeI pr fi nm ->
+      pure ("compile.native " <> HQ.toText nm <> " " <> fi <> if pr then " profile" else "")
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
@@ -1440,8 +1442,8 @@ searchBranchScored names0 score queries =
             pair qn =
               (\score -> (Just score, result)) <$> score qn (Name.toText name)
 
-doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
-doCompile native output main = do
+doCompile :: Bool -> Bool -> String -> HQ.HashQualified Name -> Cli ()
+doCompile profile native output main = do
   Cli.Env {codebase, runtime, nativeRuntime} <- ask
   let theRuntime
         | native = nativeRuntime
@@ -1451,9 +1453,10 @@ doCompile native output main = do
       outf
         | native = output
         | otherwise = output <> ".uc"
+      copts = Runtime.defaultCompileOpts { Runtime.profile = profile }
   whenJustM
     ( liftIO $
-        Runtime.compileTo theRuntime codeLookup ppe ref outf
+        Runtime.compileTo theRuntime copts codeLookup ppe ref outf
     )
     (Cli.returnEarly . EvaluationFailure)
 
