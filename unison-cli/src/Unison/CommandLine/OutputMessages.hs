@@ -1448,7 +1448,13 @@ notifyUser dir = \case
   ListDependencies ppe lds types terms ->
     pure $ listDependentsOrDependencies ppe "Dependencies" "dependencies" lds types terms
   ListStructuredFind terms ->
-    pure $ listStructuredFind terms
+    pure $ listFind False Nothing terms
+  ListTextFind True terms ->
+    pure $ listFind True Nothing terms
+  ListTextFind False terms ->
+    pure $ listFind False (Just tip) terms
+    where
+      tip = (IP.makeExample (IP.textfind True) [] <> " will search `lib` as well.")
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -3586,17 +3592,19 @@ endangeredDependentsTable ppeDecl m =
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
 
-listStructuredFind :: [HQ.HashQualified Name] -> Pretty
-listStructuredFind [] = "😶 I couldn't find any matches."
-listStructuredFind tms =
+listFind :: Bool -> Maybe Pretty -> [HQ.HashQualified Name] -> Pretty
+listFind _ Nothing [] = "😶 I couldn't find any matches."
+listFind _ (Just onMissing) [] = P.lines ["😶 I couldn't find any matches.", "", tip onMissing]
+listFind allowLib _ tms =
   P.callout "🔎" . P.lines $
-    [ "These definitions from the current namespace (excluding `lib`) have matches:",
+    [ "These definitions from the current namespace " <> parenthetical <> "have matches:",
       "",
       P.indentN 2 $ P.numberedList (pnames tms),
       "",
       tip (msg (length tms))
     ]
   where
+    parenthetical = if allowLib then "" else "(excluding `lib`) "
     pnames hqs = P.syntaxToColor . prettyHashQualified <$> hqs
     msg 1 = "Try " <> IP.makeExample IP.edit ["1"] <> " to bring this into your scratch file."
     msg n =

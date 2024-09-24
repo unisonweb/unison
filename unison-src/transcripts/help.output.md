@@ -778,6 +778,24 @@ scratch/main> help
   test.all
   `test.all` runs unit tests for the current branch (including the `lib` namespace).
   
+  text.find (or grep)
+  `text.find token1 "99" token2` finds terms with literals (text
+  or numeric) containing `token1`, `99`, and `token2`.
+  
+  Numeric literals must be quoted (ex: "42") but single words
+  need not be quoted.
+  
+  Use `text.find.all` to include search of `lib`.
+  
+  text.find.all (or grep.all)
+  `text.find.all token1 "99" token2` finds terms with literals
+  (text or numeric) containing `token1`, `99`, and `token2`.
+  
+  Numeric literals must be quoted (ex: "42") but single words
+  need not be quoted.
+  
+  Use `text.find` to exclude `lib` from search.
+  
   todo
   `todo` lists the current namespace's outstanding issues,
   including conflicted names, dependencies with missing names,

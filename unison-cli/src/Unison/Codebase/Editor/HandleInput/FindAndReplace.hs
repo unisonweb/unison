@@ -1,6 +1,7 @@
 module Unison.Codebase.Editor.HandleInput.FindAndReplace
   ( handleStructuredFindReplaceI,
     handleStructuredFindI,
+    handleTextFindI
   )
 where
 
@@ -28,6 +29,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -90,6 +92,47 @@ handleStructuredFindI rule = do
   let results = Alphabetical.sortAlphabetically [hq | (hq, True) <- results0]
   Cli.setNumberedArgs $ map SA.HashQualified results
   Cli.respond (ListStructuredFind results)
+
+handleTextFindI :: Bool -> [String] -> Cli ()
+handleTextFindI allowLib tokens = do
+  Cli.Env {codebase} <- ask
+  currentBranch <- Cli.getCurrentBranch0
+  hqLength <- Cli.runTransaction Codebase.hashLength
+  let names = Branch.toNames currentBranch
+  let ppe = PPED.makePPED (PPE.hqNamer hqLength names) (PPE.suffixifyByHash names)
+  let fqppe = PPED.unsuffixifiedPPE ppe
+  results :: [(HQ.HashQualified Name, Referent)] <- pure $ do
+    r <- Set.toList (Relation.ran $ Names.terms names)
+    Just hq <- [PPE.terms fqppe r]
+    fullName <- [HQ'.toName hq]
+    guard (allowLib || not (Name.beginsWithSegment fullName NameSegment.libSegment))
+    Referent.Ref _ <- pure r
+    Just shortName <- [PPE.terms (PPED.suffixifiedPPE ppe) r]
+    pure (HQ'.toHQ shortName, r)
+  let ok (hq, Referent.Ref (Reference.DerivedId r)) = do
+        oe <- Cli.runTransaction (Codebase.getTerm codebase r)
+        pure $ (hq, maybe False containsTokens oe)
+      ok (hq, _) = pure (hq, False)
+  results0 <- traverse ok results
+  let results = Alphabetical.sortAlphabetically [hq | (hq, True) <- results0]
+  Cli.setNumberedArgs $ map SA.HashQualified results
+  Cli.respond (ListTextFind allowLib results) 
+  where
+    tokensTxt = Text.pack <$> tokens
+    containsTokens tm = 
+      hasAll . join $ ABT.find txts tm
+      where 
+        hasAll txts = all (\tok -> any (\haystack -> Text.isInfixOf tok haystack) txts) tokensTxt 
+        txts (Term.Text' haystack) = ABT.Found [haystack]
+        txts (Term.Nat' haystack) = ABT.Found [Text.pack (show haystack)]
+        txts (Term.Int' haystack) = ABT.Found [Text.pack (show haystack)]
+        txts (Term.Float' haystack) = ABT.Found [Text.pack (show haystack)]
+        txts (Term.Char' haystack) = ABT.Found [Text.pack [haystack]]
+        txts (Term.Match' _ cases) = ABT.Found r
+          where r = join $ Pattern.foldMap' txtPattern . Term.matchPattern <$> cases
+        txts _ = ABT.Continue
+        txtPattern (Pattern.Text _ txt) = [txt]
+        txtPattern _ = []
 
 lookupRewrite ::
   (HQ.HashQualified Name -> Output) ->

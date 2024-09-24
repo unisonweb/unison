@@ -275,6 +275,7 @@ data Output
   | ListOfDefinitions FindScope PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | ListShallow (IO PPE.PrettyPrintEnv) [ShallowListEntry Symbol Ann]
   | ListStructuredFind [HQ.HashQualified Name]
+  | ListTextFind Bool [HQ.HashQualified Name] -- whether lib was included in the search
   | GlobalFindBranchResults (ProjectAndBranch ProjectName ProjectBranchName) PPE.PrettyPrintEnv ListDetailed [SearchResult' Symbol Ann]
   | -- ListStructuredFind patternMatchingUsages termBodyUsages
     -- show the result of add/update
@@ -552,6 +553,7 @@ isFailure o = case o of
   ListOfDefinitions _ _ _ ds -> null ds
   GlobalFindBranchResults _ _ _ _ -> False
   ListStructuredFind tms -> null tms
+  ListTextFind _ tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
   TypeErrors {} -> True
