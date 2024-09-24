@@ -719,7 +719,7 @@ intermediateTerms ::
   (HasCallStack) =>
   PrettyPrintEnv ->
   EvalCtx ->
-  Map RF.Id (Symbol, Term Symbol, Cacheability) ->
+  Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
     Map.Map Reference (SuperGroup Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
@@ -730,7 +730,7 @@ intermediateTerms ppe ctx rtms =
       (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
         f ref =
-          superNormalize _cacheable
+          superNormalize
             . splitPatterns (dspec ctx)
             . addDefaultCases tmName
           where
@@ -770,9 +770,9 @@ normalizeTerm ctx tm =
 normalizeGroup ::
   EvalCtx ->
   Map Symbol Reference ->
-  [(Symbol, Term Symbol, Cacheability)] ->
+  [(Symbol, Term Symbol)] ->
   ( Map Symbol Reference,
-    Map Reference (Term Symbol, Cacheability),
+    Map Reference (Term Symbol),
     Map Reference (Term Symbol)
   )
 normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
