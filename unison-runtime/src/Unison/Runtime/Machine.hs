@@ -756,7 +756,8 @@ apply ::
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
   (PAp comb useg bseg) ->
     case unRComb comb of
-      CachedClosure _cix clos -> zeroArgClosure clos
+      CachedClosure _cix clos -> do
+        zeroArgClosure clos
       Lam ua ba uf bf entry
         | ck || ua <= uac && ba <= bac -> do
             ustk <- ensure ustk uf
@@ -2163,8 +2164,11 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
 preEvalTopLevelConstants :: Set Reference -> CCache -> IO ()
 preEvalTopLevelConstants cacheableRefs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
-  cmbs <- readTVarIO (combs cc)
-  for_ (EC.keys cmbs) \w -> do
+  cmbRefs <- readTVarIO (combRefs cc)
+  let cacheableCombs =
+        EC.mapToList cmbRefs
+          & mapMaybe (\(w, ref) -> if ref `Set.member` cacheableRefs then Just w else Nothing)
+  for_ cacheableCombs \w -> do
     let hook _ustk bstk = do
           clos <- peek bstk
           atomically $ do
@@ -2186,10 +2190,6 @@ preEvalTopLevelConstants cacheableRefs cc = do
                     >>= EC.lookup i
                 ) -> do RComb cix cachedClos
             | otherwise -> rComb
-
--- unTieRCombs combs
---   & (fmap . fmap) _
---   & resolveCombs Nothing
 
 expandSandbox ::
   Map Reference (Set Reference) ->
