@@ -330,17 +330,6 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
-putCacheability :: (MonadPut m) => Cacheability -> m ()
-putCacheability c = putBool $ case c of
-  Cacheable -> True
-  Uncacheable -> False
-
-getCacheability :: (MonadGet m) => m Cacheability
-getCacheability =
-  getBool <&> \case
-    True -> Cacheable
-    False -> Uncacheable
-
 putComb ::
   (MonadPut m) =>
   (Var v) =>

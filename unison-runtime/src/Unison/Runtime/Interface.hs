@@ -119,6 +119,7 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
+    Cacheability (..),
     MCombs,
     Tracer (..),
     apply0,

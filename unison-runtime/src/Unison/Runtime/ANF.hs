@@ -36,7 +36,6 @@ module Unison.Runtime.ANF
     Direction (..),
     SuperNormal (..),
     SuperGroup (..),
-    Cacheability (..),
     POp (..),
     FOp,
     close,
@@ -81,7 +80,7 @@ module Unison.Runtime.ANF
 where
 
 import Control.Exception (throw)
-import Control.Lens (snoc, traversed, unsnoc, _2)
+import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
@@ -604,7 +603,7 @@ lamLiftGroup ::
   Map v Reference ->
   [(v, Term v a)] ->
   ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
-lamLiftGroup orig gr = floatGroup orig . (over (traversed . _2)) (close keep) $ gr
+lamLiftGroup orig gr = floatGroup orig . (fmap . fmap) (close keep) $ gr
   where
     keep = Set.fromList $ map fst gr
 
@@ -1470,11 +1469,6 @@ type DNormal v = Directed () (ANormal v)
 -- Should be a completely closed term
 data SuperNormal v = Lambda {conventions :: [Mem], bound :: ANormal v}
   deriving (Show, Eq)
-
--- | Whether the evaluation of a given definition is cacheable or not.
--- i.e. it's a top-level pure value.
-data Cacheability = Cacheable | Uncacheable
-  deriving stock (Eq, Show)
 
 data SuperGroup v = Rec
   { group :: [(v, SuperNormal v)],
