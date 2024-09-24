@@ -2991,9 +2991,10 @@ compileScheme =
     "compile.native"
     []
     I.Hidden
-    [("definition to compile", Required, exactDefinitionTermQueryArg),
-     ("output file", Required, filePathArg),
-     ("profile", Optional, profileArg)]
+    [ ("definition to compile", Required, exactDefinitionTermQueryArg),
+      ("output file", Required, filePathArg),
+      ("profile", Optional, profileArg)
+    ]
     ( P.wrapColumn2
         [ ( makeExample compileScheme ["main", "file", "profile"],
             "Creates stand alone executable via compilation to"
@@ -3006,20 +3007,21 @@ compileScheme =
     $ \case
       [main, file] -> mkCompileScheme False file main
       [main, file, prof] -> do
-        unsupportedStructuredArgument compileScheme "profile" prof >>=
-          \case
+        unsupportedStructuredArgument compileScheme "profile" prof
+          >>= \case
             "profile" -> mkCompileScheme True file main
-            parg -> Left . P.text $
-              "I expected the third argument to be `profile`, but"
-                <> " instead recieved `" <> Text.pack parg <> "`."
+            parg ->
+              Left . P.text $
+                "I expected the third argument to be `profile`, but"
+                  <> " instead recieved `"
+                  <> Text.pack parg
+                  <> "`."
       args -> wrongArgsLength "two or three arguments" args
-
   where
-  mkCompileScheme pf fn mn =
-    Input.CompileSchemeI pf . Text.pack
-      <$> unsupportedStructuredArgument compileScheme "a file name" fn
-      <*> handleHashQualifiedNameArg mn
-
+    mkCompileScheme pf fn mn =
+      Input.CompileSchemeI pf . Text.pack
+        <$> unsupportedStructuredArgument compileScheme "a file name" fn
+        <*> handleHashQualifiedNameArg mn
 
 createAuthor :: InputPattern
 createAuthor =
