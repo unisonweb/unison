@@ -4,8 +4,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
--- TODO: Fix up all the uni-patterns
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Unison.Runtime.Machine where
 
@@ -320,7 +318,9 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 MISS i)
   | sandboxed env = die "attempted to use sandboxed operation: isMissing"
   | otherwise = do
       clink <- peekOff bstk i
-      let Ref link = unwrapForeign $ marshalToForeign clink
+      let link = case unwrapForeign $ marshalToForeign clink of
+            Ref r -> r
+            _ -> error "exec:BPrim1:MISS: Expected Ref"
       m <- readTVarIO (intermed env)
       ustk <- bump ustk
       if (link `M.member` m) then poke ustk 1 else poke ustk 0
@@ -358,7 +358,9 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
   | sandboxed env = die "attempted to use sandboxed operation: lookup"
   | otherwise = do
       clink <- peekOff bstk i
-      let Ref link = unwrapForeign $ marshalToForeign clink
+      let link = case unwrapForeign $ marshalToForeign clink of
+            Ref r -> r
+            _ -> error "exec:BPrim1:LKUP: Expected Ref"
       m <- readTVarIO (intermed env)
       ustk <- bump ustk
       bstk <- case M.lookup link m of
@@ -718,17 +720,22 @@ enter ::
   Args ->
   MComb ->
   IO ()
-enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
-  ustk <- if ck then ensure ustk uf else pure ustk
-  bstk <- if ck then ensure bstk bf else pure bstk
-  (ustk, bstk) <- moveArgs ustk bstk args
-  ustk <- acceptArgs ustk ua
-  bstk <- acceptArgs bstk ba
-  -- TODO: start putting references in `Call` if we ever start
-  -- detecting saturated calls.
-  eval env denv activeThreads ustk bstk k dummyRef entry
-  where
-    (RComb _ (Lam ua ba uf bf entry)) = rcomb
+enter !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
+  (RComb _ (Lam ua ba uf bf entry)) -> do
+    ustk <- if ck then ensure ustk uf else pure ustk
+    bstk <- if ck then ensure bstk bf else pure bstk
+    (ustk, bstk) <- moveArgs ustk bstk args
+    ustk <- acceptArgs ustk ua
+    bstk <- acceptArgs bstk ba
+    -- TODO: start putting references in `Call` if we ever start
+    -- detecting saturated calls.
+    eval env denv activeThreads ustk bstk k dummyRef entry
+  (RComb _ (CachedClosure _cix clos)) -> do
+    ustk <- discardFrame ustk
+    bstk <- discardFrame bstk
+    bstk <- bump bstk
+    poke bstk clos
+    yield env denv activeThreads ustk bstk k
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -1861,12 +1868,15 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
     leap !denv (Push ufsz bfsz uasz basz rComb k) = do
-      let Lam _ _ uf bf nx = unRComb rComb
-      ustk <- restoreFrame ustk ufsz uasz
-      bstk <- restoreFrame bstk bfsz basz
-      ustk <- ensure ustk uf
-      bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
+      case unRComb rComb of
+        Lam _ _ uf bf nx -> do
+          ustk <- restoreFrame ustk ufsz uasz
+          bstk <- restoreFrame bstk bfsz basz
+          ustk <- ensure ustk uf
+          bstk <- ensure bstk bf
+          eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
+        CachedClosure _w clo -> do
+          _
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
