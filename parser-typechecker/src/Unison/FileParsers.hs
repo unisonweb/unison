@@ -93,7 +93,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
         Typechecker.Env
           { ambientAbilities = ambientAbilities,
             typeLookup = tl,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let tm = UF.typecheckingTerm uf
@@ -137,7 +138,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
         Typechecker.Env
           { ambientAbilities,
             typeLookup = tl,
-            termsByShortname
+            termsByShortname,
+            topLevelComponents = Map.empty
           }
 
 synthesizeFile ::

@@ -21,11 +21,9 @@ where
 
 import Control.Lens
 import Control.Monad.Fail (fail)
-import Control.Monad.State (StateT, get, modify)
+import Control.Monad.State (StateT, get, modify, execState, State)
 import Control.Monad.Writer
 import Data.Foldable
-import Data.Foldable qualified as Foldable
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty qualified as NESeq (toSeq)
@@ -92,7 +90,8 @@ data Env v loc = Env
     -- - Left means a term in the file (for which we don't have a type before typechecking)
     -- - Right means a term/constructor in the namespace, or a constructor in the file (for which we do have a type
     --   before typechecking)
-    termsByShortname :: Map Name.Name [Either Name.Name (NamedReference v loc)]
+    termsByShortname :: Map Name.Name [Either Name.Name (NamedReference v loc)],
+    topLevelComponents :: Map Name.Name (NamedReference v loc)
   }
   deriving stock (Generic)
 
@@ -213,37 +212,29 @@ typeDirectedNameResolution ::
   Env v loc ->
   TDNR f v loc (Type v loc)
 typeDirectedNameResolution ppe oldNotes oldType env = do
+  -- Add typed components (local definitions) to the TDNR environment.
+  let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
   -- Resolve blanks in the notes and generate some resolutions
   resolutions <-
-    liftResult . traverse resolveNote . toList $
+    liftResult . traverse (resolveNote tdnrEnv) . toList $
       infos oldNotes
   case catMaybes resolutions of
     [] -> pure oldType
     resolutions -> do
       substituted <- traverse substSuggestion resolutions
       case or substituted of
-        True -> synthesizeAndResolve ppe env
+        True -> synthesizeAndResolve ppe tdnrEnv
         False -> do
           -- The type hasn't changed
           liftResult $ suggest resolutions
           pure oldType
   where
-    topLevelComponents :: Map Name.Name (NamedReference v loc)
-    topLevelComponents =
-        List.foldl'
-          ( \acc0 -> \case
-              Context.TopLevelComponent vtts ->
-                List.foldl'
-                  ( \acc (v, typ, _) ->
-                      let name = Name.unsafeParseVar (Var.reset v)
-                       in Map.insert name (NamedReference name typ (Context.ReplacementVar v)) acc
-                  )
-                  acc0
-                  vtts
-              _ -> acc0
-          )
-          Map.empty
-          (Foldable.toList @Seq (infos oldNotes))
+    addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
+    addTypedComponent (Context.TopLevelComponent vtts) =
+      for_ vtts \(v, typ, _) ->
+        let name = Name.unsafeParseVar (Var.reset v)
+        in #topLevelComponents %= Map.insert name (NamedReference name typ (Context.ReplacementVar v))
+    addTypedComponent _ = pure ()
 
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
     suggest =
@@ -306,16 +297,17 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
 
     -- Returns Nothing for irrelevant notes
     resolveNote ::
+      Env v loc ->
       Context.InfoNote v loc ->
       Result (Notes v loc) (Maybe (Resolution v loc))
-    resolveNote = \case
+    resolveNote env = \case
       Context.SolvedBlank (B.Resolve loc str) v it -> do
         let shortname = Name.unsafeParseText (Text.pack str)
             matches =
               env.termsByShortname
                 & Map.findWithDefault [] shortname
                 & mapMaybe \case
-                  Left longname -> Map.lookup longname topLevelComponents
+                  Left longname -> Map.lookup longname env.topLevelComponents
                   Right namedRef -> Just namedRef
         suggestions <- wither (resolve it) matches
         pure $
