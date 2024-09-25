@@ -140,27 +140,28 @@
 ; Uses racket pretty printing machinery to instead generate a file
 ; containing the given code, and which executes the main definition on
 ; loading. This file can then be built with `raco exe`.
-(define (write-module srcf main-ref icode)
+(define (write-module prof srcf main-ref icode)
   (call-with-output-file
     srcf
     (lambda (port)
       (parameterize ([print-as-expression #t])
         (display "#lang racket/base\n\n" port)
 
-        (for ([expr (build-intermediate-module #:profile #f main-ref icode)])
+        (for ([expr (build-intermediate-module #:profile prof main-ref icode)])
           (pretty-print expr port 1)
           (newline port))
         (newline port)))
     #:exists 'replace))
 
 ; Decodes input and writes a module to the specified file.
-(define (do-generate srcf)
+(define (do-generate prof srcf)
   (define-values (icode main-ref) (decode-input (current-input-port)))
-  (write-module srcf main-ref icode))
+  (write-module prof srcf main-ref icode))
 
 (define generate-to (make-parameter #f))
 (define show-version (make-parameter #f))
 (define use-port-num (make-parameter #f))
+(define enable-profiling (make-parameter #f))
 
 (define (handle-command-line)
   (command-line
@@ -177,6 +178,10 @@
        file
        "generate code to <file>"
        (generate-to file)]
+    #:once-each
+    [("--profile")
+     "enable profiling"
+     (enable-profiling #t)]
     #:args remaining
     (list->vector remaining)))
 
@@ -185,7 +190,7 @@
     (current-command-line-arguments sub-args))
   (cond
     [(show-version) (displayln "unison-runtime version 0.0.11")]
-    [(generate-to) (do-generate (generate-to))]
+    [(generate-to) (do-generate (enable-profiling) (generate-to))]
     [(use-port-num)
      (match (string->number (use-port-num))
        [port

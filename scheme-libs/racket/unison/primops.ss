@@ -49,6 +49,8 @@
   builtin-Float.max:termlink
   builtin-Float.min
   builtin-Float.min:termlink
+  builtin-Float.sqrt
+  builtin-Float.sqrt:termlink
   builtin-Float.tan
   builtin-Float.tan:termlink
   builtin-Float.tanh
