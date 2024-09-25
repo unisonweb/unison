@@ -72618,7 +72618,8 @@ test.deprecated.internals.v1.Test.forAll' maxSize domain property =
         (c, i) ->
           if property c then finished (Expected s)
           else
-            label.deprecated ("test case " ++ Nat.toText i) (finished Failed))
+            v1.Test.label.deprecated
+              ("test case " ++ Nat.toText i) (finished Failed))
       (List.indexed xs)
   List.foldBalanced id Test.both proved
     <| (match domain with
@@ -73011,7 +73012,7 @@ test.deprecated.Test.both = cases
 test.deprecated.Test.both.doc : Doc
 test.deprecated.Test.both.doc =
   use Nat + ==
-  use label deprecated
+  use deprecated.Test.label deprecated
   {{
   Combines two tests into a single test that passes if both tests pass and
   fails if either test fails. Also concatenates the results the two tests into
@@ -73059,12 +73060,12 @@ test.deprecated.Test.fail.doc =
   # Example
   
     ```
-    deprecated.run (label.deprecated "Bad" Test.fail)
+    deprecated.run (deprecated.Test.label.deprecated "Bad" Test.fail)
     ```
   }}
 
 test.deprecated.Test.failWith : Text -> Test
-test.deprecated.Test.failWith m = label.deprecated m Test.fail
+test.deprecated.Test.failWith m = deprecated.Test.label.deprecated m Test.fail
 
 test.deprecated.Test.failWith.doc : Doc
 test.deprecated.Test.failWith.doc =
@@ -73102,7 +73103,8 @@ test.deprecated.Test.label.deprecated.doc =
   # Example
   
     ```
-    deprecated.run (label.deprecated "My test" (check' (1 == 1)))
+    deprecated.run
+      (deprecated.Test.label.deprecated "My test" (check' (1 == 1)))
     ```
   }}
 
@@ -73127,7 +73129,7 @@ test.deprecated.Test.ok.doc =
   }}
 
 test.deprecated.Test.okWith : Text -> Test
-test.deprecated.Test.okWith m = label.deprecated m Test.ok
+test.deprecated.Test.okWith m = deprecated.Test.label.deprecated m Test.ok
 
 test.deprecated.Test.okWith.doc : Doc
 test.deprecated.Test.okWith.doc =
@@ -73196,7 +73198,7 @@ test.deprecated.Test.proved.doc =
   }}
 
 test.deprecated.Test.provedWith : Text -> Test
-test.deprecated.Test.provedWith m = label.deprecated m proved
+test.deprecated.Test.provedWith m = deprecated.Test.label.deprecated m proved
 
 test.deprecated.Test.provedWith.doc : Doc
 test.deprecated.Test.provedWith.doc =
@@ -73211,7 +73213,7 @@ test.deprecated.Test.provedWith.doc =
       let
         optionals = [Some true, Some false, None]
         if List.map (Optional.filter id) optionals === [Some true, None, None] then
-          provedWith "Optional.filter works on all inputs"
+          deprecated.Test.provedWith "Optional.filter works on all inputs"
         else failWith "Optional.filter failed on some inputs"
     ```
   }}
@@ -83319,12 +83321,13 @@ Body.decodeChunkedBody expectTrailers =
   else (body, Headers.empty)
 
 Body.decodeNonChunkedBody : Headers ->{Decode} Body
-Body.decodeNonChunkedBody headers = match contentLength.get headers with
-  Some byteCount ->
-    use Nat ==
-    bs = if byteCount == 0 then Bytes.empty else nextBytes byteCount
-    Body bs
-  None           -> Body.empty
+Body.decodeNonChunkedBody headers =
+  match standard.contentLength.get headers with
+    Some byteCount ->
+      use Nat ==
+      bs = if byteCount == 0 then Bytes.empty else nextBytes byteCount
+      Body bs
+    None           -> Body.empty
 
 Body.decompressBody : Headers -> Body -> Either Text Body
 Body.decompressBody headers = cases
@@ -83335,7 +83338,7 @@ Body.decompressBody headers = cases
       encodings = getCommaDelimitedValues "Content-Encoding" headers
       decode : Text -> Bytes ->{Throw Text} Bytes
       decode encoding bytes =
-        match Map.get encoding standardContentDecoders with
+        match Map.get encoding Body.standardContentDecoders with
           None   -> throw ("Unknown content encoding: " ++ encoding)
           Some f -> Either.toThrow (f bytes)
       toEither do List.foldRight decode bs encodings |> Body
@@ -83368,10 +83371,10 @@ Body.toBytes = cases Body bs -> bs
 client.Config.default : client.Config
 client.Config.default = client.Config.Config None
 
-client.Config.proxyPresence : client.Config -> ProxyPresence
+client.Config.proxyPresence : client.Config -> client.proxy.ProxyPresence
 client.Config.proxyPresence cfg = match client.Config.proxy cfg with
-  None   -> NoProxy
-  Some _ -> Proxy
+  None   -> client.proxy.ProxyPresence.NoProxy
+  Some _ -> client.proxy.ProxyPresence.Proxy
 
 client.examples.query : '{IO, Exception} HttpResponse
 client.examples.query _ =
@@ -83477,7 +83480,9 @@ client.Http.configuredHandler.connectViaProxy.impl
   onException (_ -> Socket.close sock) do
     tryEval do
       tcpConnection = socket sock
-      Connection.send tcpConnection (HttpRequest.encode NoProxy connectReq)
+      Connection.send
+        tcpConnection
+        (HttpRequest.encode client.proxy.ProxyPresence.NoProxy connectReq)
       connectResponse =
         HttpResponse.fromStream true (receiveByteStream tcpConnection)
       if HttpResponse.isSuccess connectResponse then
@@ -83498,9 +83503,11 @@ client.Http.configuredHandler.http cfg = cases
         (origHeaders ->
           orElse (orElse (forURI uri) origHeaders) (userAgent "unison-http"))
         origReq
-    proxyPresence = match client.Config.proxy cfg with
-      Some _ | URI.scheme uri === Scheme.http -> Proxy
-      _      -> NoProxy
+    proxyPresence =
+      match client.Config.proxy cfg with
+        Some _| URI.scheme uri === Scheme.http  ->
+          client.proxy.ProxyPresence.Proxy
+        _ -> client.proxy.ProxyPresence.NoProxy
     reqPayload = HttpRequest.encode proxyPresence req
     emit reqPayload
     HttpResponse.decode (method === HEAD)
@@ -83746,7 +83753,9 @@ test> client.proxy.connectRequest.tests.example1 =
       auth = Authority None host (Some port)
       proxy.Config.Config auth
     connectReq = connectRequest proxy origReq
-    requestText = HttpRequest.encode NoProxy connectReq |> fromUtf8
+    requestText =
+      HttpRequest.encode client.proxy.ProxyPresence.NoProxy connectReq
+        |> fromUtf8
     expectedRequestText =
       "CONNECT www.unison-lang.org:443 HTTP/1.1\r\n"
         ++ "Host: www.unison-lang.org:443\r\n"
@@ -83964,7 +83973,7 @@ client.up.base.IO.net.Connection.receiveByteStream :
 client.up.base.IO.net.Connection.receiveByteStream connection =
   receiveBytes = do
     use Nat ==
-    chunk = Connection.receive connection
+    chunk = base.IO.net.Connection.receive connection
     if Bytes.size chunk == 0 then ()
     else
       emit chunk
@@ -84166,7 +84175,7 @@ Headers.HttpDate.fromOffsetDateTime.doc =
 
 Headers.HttpDate.parse.localDate : Text ->{Abort} LocalDate
 Headers.HttpDate.parse.localDate text =
-  match Optional.toAbort (Pattern.run rfc7231Date text) with
+  match Optional.toAbort (Pattern.run HttpDate.patterns.rfc7231Date text) with
     ([weekday, day, month, year], _) ->
       use Int + <
       use Optional toAbort
@@ -84197,9 +84206,9 @@ Headers.HttpDate.parse.localDateTime text =
   match Optional.toAbort
     (Pattern.run
       (Pattern.join
-        [ Pattern.capture rfc7231Date
+        [ Pattern.capture HttpDate.patterns.rfc7231Date
         , Pattern.some space
-        , Pattern.capture rfc7231Time
+        , Pattern.capture HttpDate.patterns.rfc7231Time
         ])
       text) with
     ([dt, tm], _) -> LocalDateTime (localDate dt) (localTime tm)
@@ -84207,7 +84216,7 @@ Headers.HttpDate.parse.localDateTime text =
 
 Headers.HttpDate.parse.localTime : Text ->{Abort} LocalTime
 Headers.HttpDate.parse.localTime text =
-  match Optional.toAbort (Pattern.run rfc7231Time text) with
+  match Optional.toAbort (Pattern.run HttpDate.patterns.rfc7231Time text) with
     ([hour, minute, second], _) ->
       LocalTime
         (Optional.toAbort (Nat.fromText hour))
@@ -84260,7 +84269,7 @@ Headers.HttpDate.patterns.asctimeFormat.doc =
   # Example
   
     ```
-    Pattern.run asctimeFormat "Sun Nov  6 08:49:37 1994"
+    Pattern.run HttpDate.patterns.asctimeFormat "Sun Nov  6 08:49:37 1994"
     ```
     
     See
@@ -84268,7 +84277,8 @@ Headers.HttpDate.patterns.asctimeFormat.doc =
   }}
 
 test> Headers.HttpDate.patterns.asctimeFormat.test =
-  parsed = Pattern.run asctimeFormat "Sun Nov  6 08:49:37 1994"
+  parsed =
+    Pattern.run HttpDate.patterns.asctimeFormat "Sun Nov  6 08:49:37 1994"
   check (parsed === Some (["Sun", "Nov", "6", "08", "49", "37", "1994"], ""))
 
 Headers.HttpDate.patterns.rfc7231Date : Pattern Text
@@ -84288,10 +84298,14 @@ Headers.HttpDate.patterns.rfc7231Date =
 Headers.HttpDate.patterns.rfc7231DateTime : Pattern Text
 Headers.HttpDate.patterns.rfc7231DateTime =
   Pattern.join
-    [rfc7231Date, Pattern.some (patterns.char whitespace), rfc7231Time]
+    [ HttpDate.patterns.rfc7231Date
+    , Pattern.some (patterns.char whitespace)
+    , HttpDate.patterns.rfc7231Time
+    ]
 
 Headers.HttpDate.patterns.rfc7231DateTime.doc : Doc
 Headers.HttpDate.patterns.rfc7231DateTime.doc =
+  use HttpDate.patterns rfc7231DateTime
   use Pattern run
   {{
   A {type Pattern} for the RFC 7231 date/time format.
@@ -84316,12 +84330,16 @@ Headers.HttpDate.patterns.rfc7231DateTime.doc =
   }}
 
 test> Headers.HttpDate.patterns.rfc7231DateTime.test850 =
-  parsed = Pattern.run rfc7231DateTime "Sunday, 06-Nov-94 08:49:37 GMT"
+  parsed =
+    Pattern.run
+      HttpDate.patterns.rfc7231DateTime "Sunday, 06-Nov-94 08:49:37 GMT"
   check
     (parsed === Some (["Sunday", "06", "Nov", "94", "08", "49", "37"], " GMT"))
 
 test> Headers.HttpDate.patterns.rfc7231DateTime.testIMF =
-  parsed = Pattern.run rfc7231DateTime "Wed, 12 Oct 2022 18:32:45 GMT"
+  parsed =
+    Pattern.run
+      HttpDate.patterns.rfc7231DateTime "Wed, 12 Oct 2022 18:32:45 GMT"
   check
     (parsed === Some (["Wed", "12", "Oct", "2022", "18", "32", "45"], " GMT"))
 
@@ -84677,7 +84695,7 @@ HttpRequest.doc =
        ```
   }}
 
-HttpRequest.encode : ProxyPresence -> HttpRequest -> Bytes
+HttpRequest.encode : proxy.ProxyPresence -> HttpRequest -> Bytes
 HttpRequest.encode proxyPresence req =
   use Bytes ++
   headers = HttpRequest.encodeNoBody proxyPresence req
@@ -84718,7 +84736,10 @@ HttpRequest.encode.proxyRequestLineText = cases
       ++ Version.toText version
 
 HttpRequest.encodeChunked :
-  ProxyPresence -> HttpRequest -> '{Stream Bytes} Headers ->{Stream Bytes} ()
+  proxy.ProxyPresence
+  -> HttpRequest
+  -> '{Stream Bytes} Headers
+  ->{Stream Bytes} ()
 HttpRequest.encodeChunked proxyPresence request body =
   request' = HttpRequest.addHeader "Transfer-Encoding" "chunked" request
   emit (HttpRequest.encodeNoBody proxyPresence request')
@@ -84746,7 +84767,8 @@ test> HttpRequest.encodeChunked.tests.withoutTrailers =
       emit (toUtf8 "Sincerely,\n  me")
       Headers.empty
     head = HttpRequest.post (parseOrBug "http://google.com") Body.empty
-    requestStream = do HttpRequest.encodeChunked NoProxy head bodyStream
+    requestStream =
+      do HttpRequest.encodeChunked proxy.ProxyPresence.NoProxy head bodyStream
     encodedRequest = Stream.fold (++) Bytes.empty requestStream |> fromUtf8
     expected =
       Text.join
@@ -84791,7 +84813,8 @@ test> HttpRequest.encodeChunked.tests.withTrailers =
       HttpRequest.post (parseOrBug "http://google.com") Body.empty
         |> addHeader "Trailer" "Expires"
         |> addHeader "Trailer" "Client-Timing"
-    requestStream = do HttpRequest.encodeChunked NoProxy head bodyStream
+    requestStream =
+      do HttpRequest.encodeChunked proxy.ProxyPresence.NoProxy head bodyStream
     encodedRequest = Stream.fold (++) Bytes.empty requestStream
     expected =
       toUtf8
@@ -84820,16 +84843,17 @@ test> HttpRequest.encodeChunked.tests.withTrailers =
              ]
     test.ensureEqual encodedRequest expected
 
-HttpRequest.encodeNoBody : ProxyPresence -> HttpRequest -> Bytes
+HttpRequest.encodeNoBody : proxy.ProxyPresence -> HttpRequest -> Bytes
 HttpRequest.encodeNoBody proxyPresence req =
   use Bytes ++
   use Headers orElse
   use fromList impl
   (HttpRequest method version uri headers body) = req
-  headers' = orElse (forURI uri) (contentLength body) |> orElse headers
+  headers' =
+    orElse (forURI uri) (standard.contentLength body) |> orElse headers
   requestLine = match proxyPresence with
-    Proxy   -> proxyRequestLineText req |> Text.toUtf8
-    NoProxy -> nonProxyRequestLine req
+    proxy.ProxyPresence.Proxy   -> proxyRequestLineText req |> Text.toUtf8
+    proxy.ProxyPresence.NoProxy -> nonProxyRequestLine req
   requestLine ++ 0xs0d0a ++ asBytes headers' ++ 0xs0d0a
 
 HttpRequest.encodeNoBody.doc : Doc
@@ -85194,7 +85218,8 @@ test> HttpRequest.tests.roundTrip =
     normalizeDecoded =
       uri.modify (scheme.set Scheme.http >> authority.set None)
     decoded =
-      HttpRequest.fromBytes (HttpRequest.encode NoProxy origReq)
+      HttpRequest.fromBytes
+        (HttpRequest.encode proxy.ProxyPresence.NoProxy origReq)
         |> normalizeDecoded
     ensuring do normalizedOrig == decoded
 
@@ -85418,7 +85443,7 @@ HttpResponse.encodeNoBody = cases
     use fromList impl
     headers' =
       if Headers.contains "Content-Length" headers then headers
-      else Headers.union headers (contentLength body)
+      else Headers.union headers (standard.contentLength body)
     statusLine =
       Version.toText version Text.++ " " Text.++ Nat.toText code Text.++ " "
         Text.++ reason
@@ -85547,7 +85572,8 @@ HttpResponse.notFound =
 
 HttpResponse.ok : Body -> HttpResponse
 HttpResponse.ok body =
-  HttpResponse (Status 200 "OK") Version.http11 (contentLength body) body
+  HttpResponse
+    (Status 200 "OK") Version.http11 (standard.contentLength body) body
 
 HttpResponse.pattern.reason : IPattern Capture Text
 HttpResponse.pattern.reason =
@@ -85578,7 +85604,7 @@ test> HttpResponse.pattern.statusLine.testReasonIsOptional =
 HttpResponse.setBody : Body -> HttpResponse -> HttpResponse
 HttpResponse.setBody body = cases
   HttpResponse s v h _ ->
-    cl = contentLength body
+    cl = standard.contentLength body
     HttpResponse s v (Headers.union cl h) body
 
 HttpResponse.status : HttpResponse -> HttpResponse.Status
@@ -86639,7 +86665,7 @@ server.WebSocketHandler.sync.doc.example1 = do
 
 tests.checkHttpRequestRoundTrip : HttpRequest ->{Exception, Each} ()
 tests.checkHttpRequestRoundTrip req =
-  bs = HttpRequest.encode NoProxy req
+  bs = HttpRequest.encode proxy.ProxyPresence.NoProxy req
   decodedReq = HttpRequest.fromBytes bs
   normalizedReq =
     (HttpRequest method version (URI scheme _ path query fragment) headers body)
@@ -86774,22 +86800,24 @@ tests.exampleResponse : Bytes
 tests.exampleResponse =
   0xs485454502f312e3120323030204f4b0d0a436f6e6e656374696f6e3a204b6565702d416c6976650d0a436f6e74656e742d4c616e67756167653a20656e5f55530d0a436f6e74656e742d4c656e6774683a20323236320d0a436f6e74656e742d547970653a20746578742f68746d6c3b20636861727365743d7574662d380d0a446174653a205468752c203135204a756e20323032332030323a33373a313920474d540d0a4b6565702d416c6976653a2074696d656f75743d31300d0a4c6173742d4d6f6469666965643a2053756e2c203236204d617220323032332030383a35343a303520474d540d0a4163636570742d456e636f64696e673a20677a69702c206465666c6174652c206964656e746974790d0a5365727665723a20435550532f322e34204950502f322e310d0a582d4672616d652d4f7074696f6e733a2044454e590d0a436f6e74656e742d53656375726974792d506f6c6963793a206672616d652d616e636573746f727320276e6f6e65270d0a0d0a3c21444f43545950452048544d4c3e0a3c68746d6c3e0a20203c686561643e0a202020203c6c696e6b2072656c3d227374796c6573686565742220687265663d222f637570732e6373732220747970653d22746578742f637373223e0a202020203c6c696e6b2072656c3d2273686f72746375742069636f6e2220687265663d222f6170706c652d746f7563682d69636f6e2e706e672220747970653d22696d6167652f706e67223e0a202020203c6d65746120636861727365743d227574662d38223e0a202020203c6d65746120687474702d65717569763d22436f6e74656e742d547970652220636f6e74656e743d22746578742f68746d6c3b20636861727365743d7574662d38223e0a202020203c6d65746120687474702d65717569763d22582d55412d436f6d70617469626c652220636f6e74656e743d2249453d39223e0a202020203c6d657461206e616d653d2276696577706f72742220636f6e74656e743d2277696474683d6465766963652d7769647468223e0a202020203c7469746c653e486f6d65202d204355505320322e342e323c2f7469746c653e0a20203c2f686561643e0a20203c626f64793e0a202020203c64697620636c6173733d22637570732d686561646572223e0a2020202020203c756c3e0a093c6c693e3c6120687265663d2268747470733a2f2f6f70656e7072696e74696e672e6769746875622e696f2f637570732f22207461726765743d225f626c616e6b223e4f70656e5072696e74696e6720435550533c2f613e3c2f6c693e0a093c6c693e3c6120636c6173733d226163746976652220687265663d222f223e486f6d653c2f613e3c2f6c693e0a093c6c693e3c6120687265663d222f61646d696e223e41646d696e697374726174696f6e3c2f613e3c2f6c693e0a093c6c693e3c6120687265663d222f636c61737365732f223e436c61737365733c2f613e3c2f6c693e0a093c6c693e3c6120687265663d222f68656c702f223e48656c703c2f613e3c2f6c693e0a093c6c693e3c6120687265663d222f6a6f62732f223e4a6f62733c2f613e3c2f6c693e0a093c6c693e3c6120687265663d222f7072696e746572732f223e5072696e746572733c2f613e3c2f6c693e0a2020202020203c2f756c3e0a202020203c2f6469763e0a202020203c64697620636c6173733d22637570732d626f6479223e0a2020202020203c64697620636c6173733d22726f77223e0a093c68313e4f70656e5072696e74696e67204355505320322e342e323c2f68313e0a093c703e546865207374616e64617264732d62617365642c206f70656e20736f75726365207072696e74696e672073797374656d20646576656c6f706564206279203c6120636c6173733d226a756d626f6c696e6b2220687265663d2268747470733a2f2f6f70656e7072696e74696e672e6769746875622e696f2f22207461726765743d225f626c616e6b223e4f70656e5072696e74696e673c2f613e20666f72204c696e7578c2ae20616e64206f7468657220556e6978c2ae2d6c696b65206f7065726174696e672073797374656d732e20435550532075736573203c6120687265663d2268747470733a2f2f7777772e7077672e6f72672f6970702f657665727977686572652e68746d6c22207461726765743d225f626c616e6b223e4950502045766572797768657265e284a23c2f613e20746f20737570706f7274207072696e74696e6720746f206c6f63616c20616e64206e6574776f726b207072696e746572732e3c2f703e0a2020202020203c2f6469763e0a2020202020203c64697620636c6173733d22726f77223e0a093c64697620636c6173733d22746869726473223e0a0920203c68323e4355505320666f722055736572733c2f68323e0a0920203c703e3c6120687265663d2268656c702f6f766572766965772e68746d6c223e4f76657276696577206f6620435550533c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f6f7074696f6e732e68746d6c223e436f6d6d616e642d4c696e65205072696e74696e6720616e64204f7074696f6e733c2f613e3c2f703e0a093c2f6469763e0a093c64697620636c6173733d22746869726473223e0a0920203c68323e4355505320666f722041646d696e6973747261746f72733c2f68323e0a0920203c703e3c6120687265663d2268656c702f61646d696e2e68746d6c223e416464696e67205072696e7465727320616e6420436c61737365733c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f706f6c69636965732e68746d6c223e4d616e6167696e67204f7065726174696f6e20506f6c69636965733c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f6e6574776f726b2e68746d6c223e5573696e67204e6574776f726b205072696e746572733c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f6669726577616c6c732e68746d6c223e4669726577616c6c733c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f6d616e2d63757073642e636f6e662e68746d6c223e63757073642e636f6e66205265666572656e63653c2f613e3c2f703e0a093c2f6469763e0a093c64697620636c6173733d22746869726473223e0a0920203c68323e4355505320666f7220446576656c6f706572733c2f68323e0a0920203c703e3c6120687265663d2268656c702f63757073706d2e68746d6c223e435550532050726f6772616d6d696e67204d616e75616c3c2f613e3c2f703e0a0920203c703e3c6120687265663d2268656c702f6170692d66696c7465722e68746d6c223e46696c74657220616e64204261636b656e642050726f6772616d6d696e673c2f613e3c2f703e0a093c2f6469763e0a2020202020203c2f6469763e0a202020203c2f6469763e0a202020203c64697620636c6173733d22637570732d666f6f746572223e436f707972696768742026636f70793b20323032312d32303232204f70656e5072696e74696e672e20416c6c207269676874732072657365727665642e3c2f6469763e0a20203c2f626f64793e0a3c2f68746d6c3e0a
 
-test> tests.testChunkedRequestRoundTrip = verifyAndIgnore do
-  use Text toUtf8
-  req = HttpRequest.get (parseOrBug "http://google.com")
-  req' = HttpRequest.body.set (Body (toUtf8 "hello, world!")) req
-  trailer = do
-    emit (toUtf8 "blah blah")
-    Headers.empty
-  stream = do HttpRequest.encodeChunked NoProxy req' trailer
-  ignore (HttpRequest.fromStream stream)
+test> tests.testChunkedRequestRoundTrip = 
+  verifyAndIgnore do
+    use Text toUtf8
+    req = HttpRequest.get (parseOrBug "http://google.com")
+    req' = HttpRequest.body.set (Body (toUtf8 "hello, world!")) req
+    trailer = do
+      emit (toUtf8 "blah blah")
+      Headers.empty
+    stream =
+      do HttpRequest.encodeChunked proxy.ProxyPresence.NoProxy req' trailer
+    ignore (HttpRequest.fromStream stream)
 
 test> tests.testChunkedRequestRoundTripNoTrailers = verifyAndIgnore do
   req = HttpRequest.get (parseOrBug "http://google.com")
   trailer = do
     emit (Text.toUtf8 "blah blah")
     Headers.empty
-  stream = do HttpRequest.encodeChunked NoProxy req trailer
+  stream = do HttpRequest.encodeChunked proxy.ProxyPresence.NoProxy req trailer
   ignore (HttpRequest.fromStream stream)
 
 test> tests.testChunkedRequestRoundTripWithTrailers = 
@@ -86806,7 +86834,8 @@ test> tests.testChunkedRequestRoundTripWithTrailers =
           [ ("Expires", "Wed, 21 Oct 2015 07:28:00 GMT")
           , ("Client-Timing", "cache;desc=\"Cache Read\";dur=23.2")
           ]
-    stream = do HttpRequest.encodeChunked NoProxy req trailer
+    stream =
+      do HttpRequest.encodeChunked proxy.ProxyPresence.NoProxy req trailer
     ignore (HttpRequest.fromStream stream)
 
 test> tests.testChunkedResponseRoundTrip = verifyAndIgnore do

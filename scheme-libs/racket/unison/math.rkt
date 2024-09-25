@@ -19,6 +19,8 @@
   builtin-Float.max:termlink
   builtin-Float.min
   builtin-Float.min:termlink
+  builtin-Float.sqrt
+  builtin-Float.sqrt:termlink
   builtin-Float.tan
   builtin-Float.tan:termlink
   builtin-Float.tanh
@@ -129,6 +131,9 @@
 
 (define-unison-builtin
   (builtin-Float.pow n m) (expt n m))
+
+(define-unison-builtin
+  (builtin-Float.sqrt x) (sqrt x))
 
 (define (EXPF n) (exp n))
 (define ABSF abs)

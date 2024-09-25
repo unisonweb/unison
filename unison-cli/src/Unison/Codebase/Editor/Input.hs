@@ -175,8 +175,8 @@ data Input
     MakeStandaloneI String (HQ.HashQualified Name)
   | -- execute an IO thunk using scheme
     ExecuteSchemeI (HQ.HashQualified Name) [String]
-  | -- compile to a scheme file
-    CompileSchemeI Text (HQ.HashQualified Name)
+  | -- compile to a scheme file; profiling flag
+    CompileSchemeI Bool Text (HQ.HashQualified Name)
   | TestI TestInput
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions.
@@ -188,6 +188,7 @@ data Input
   | FindShallowI Path'
   | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
   | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | TextFindI Bool [String] -- TextFindI allowLib tokens
   | -- Show provided definitions.
     ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
   | ShowRootReflogI {- Deprecated -}

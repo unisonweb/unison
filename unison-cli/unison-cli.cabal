@@ -40,7 +40,6 @@ library
       Unison.Cli.MonadUtils
       Unison.Cli.NamesUtils
       Unison.Cli.Pretty
-      Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
       Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects

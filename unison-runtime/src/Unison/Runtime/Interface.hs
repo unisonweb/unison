@@ -74,7 +74,7 @@ import System.Process
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (Error, Runtime (..))
+import Unison.Codebase.Runtime (CompileOpts (..), Error, Runtime (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
@@ -637,27 +637,29 @@ racoErrMsg c = \case
 nativeCompile ::
   FilePath ->
   IORef EvalCtx ->
+  CompileOpts ->
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Reference ->
   FilePath ->
   IO (Maybe Error)
-nativeCompile executable ctxVar cl ppe base path = tryM $ do
+nativeCompile executable ctxVar copts cl ppe base path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl base
   (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
   Just ibase <- pure $ baseToIntermed ctx base
-  nativeCompileCodes executable codes ibase path
+  nativeCompileCodes copts executable codes ibase path
 
 interpCompile ::
   Text ->
   IORef EvalCtx ->
+  CompileOpts ->
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Reference ->
   FilePath ->
   IO (Maybe Error)
-interpCompile version ctxVar cl ppe rf path = tryM $ do
+interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl rf
   (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
@@ -927,12 +929,13 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
     `UnliftIO.catch` ucrError
 
 nativeCompileCodes ::
+  CompileOpts ->
   FilePath ->
   [(Reference, SuperGroup Symbol)] ->
   Reference ->
   FilePath ->
   IO ()
-nativeCompileCodes executable codes base path = do
+nativeCompileCodes copts executable codes base path = do
   ensureRuntimeExists executable
   ensureRacoExists
   genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
@@ -950,7 +953,11 @@ nativeCompileCodes executable codes base path = do
         throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
       racoError (e :: IOException) =
         throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
-      p = ucrCompileProc executable ["-G", srcPath]
+      dargs = ["-G", srcPath]
+      pargs
+        | profile copts = "--profile" : dargs
+        | otherwise = dargs
+      p = ucrCompileProc executable pargs
       makeRacoCmd :: (FilePath -> [String] -> a) -> a
       makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
   withCreateProcess p callout

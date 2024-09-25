@@ -17,7 +17,6 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -71,7 +70,7 @@ loadUnisonFile sourceName text = do
   unisonFile <- withFile currentNames sourceName text
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
   let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let ppe = PPE.suffixifiedPPE pped
   Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
 
