@@ -103,8 +103,13 @@ data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
+    -- The Combs from the original MCode before any optimizations.
+    -- These are used when we convert down to an SCache
+    srcCombs :: TVar (EnumMap Word64 Combs),
     combs :: TVar (EnumMap Word64 MCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
+    -- Combs which we're allowed to cache after evaluating
+    cacheableCombs :: TVar (EnumSet Word64),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
@@ -138,8 +143,10 @@ refNumTy' cc r = M.lookup r <$> refNumsTy cc
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
   CCache ffuncs sandboxed noTrace
-    <$> newTVarIO combs
+    <$> newTVarIO srcCombs
+    <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
+    <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
     <*> newTVarIO fty
@@ -148,6 +155,7 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeNumbering
     <*> newTVarIO baseSandboxInfo
   where
+    cacheableCombs = mempty
     ffuncs | sandboxed = sandboxedForeigns | otherwise = builtinForeigns
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
@@ -155,12 +163,15 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
-    combs :: EnumMap Word64 MCombs
-    combs =
+    srcCombs :: EnumMap Word64 Combs
+    srcCombs =
       ( mapWithKey
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
           numberedTermLookup
       )
+    combs :: EnumMap Word64 MCombs
+    combs =
+      srcCombs
         & absurdCombs
         & resolveCombs Nothing
 
