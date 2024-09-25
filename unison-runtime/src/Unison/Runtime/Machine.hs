@@ -1886,8 +1886,8 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
           ustk <- ensure ustk uf
           bstk <- ensure bstk bf
           eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
-        CachedClosure _w clo -> do
-          _
+        CachedClosure _w _clo -> do
+          error "TODO: Get help from Dan"
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
@@ -2148,22 +2148,13 @@ cacheAdd0 ::
   CCache ->
   IO ()
 cacheAdd0 ntys0 termSuperGroups sands cc = do
-  let cacheableRefs =
-        termSuperGroups
-          & mapMaybe
-            ( \case
-                (ref, _gr, Cacheable) -> Just ref
-                (_ref, _gr, Uncacheable) -> Nothing
-            )
-          & Set.fromList
   let toAdd = M.fromList (termSuperGroups <&> \(r, g, _) -> (r, g))
-
-  atomically $ do
+  newCacheableCombs <- atomically $ do
     have <- readTVar (intermed cc)
     let new = M.difference toAdd have
-        sz = fromIntegral $ M.size new
-        rgs = M.toList new
-        rs = fst <$> rgs
+    let sz = fromIntegral $ M.size new
+    let rgs = M.toList new
+    let rs = fst <$> rgs
     int <- writeTVar (intermed cc) (have <> new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
@@ -2172,26 +2163,32 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     let rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n, emitCombs rns r n g)
-    nrs <- updateMap (mapFromList $ zip [ntm ..] rs) (combRefs cc)
+    let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
+    let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
+    let newCacheableCombs =
+          termSuperGroups
+            & mapMaybe
+              ( \case
+                  (ref, _, Cacheable) -> M.lookup ref combIdFromRefMap
+                  _ -> Nothing
+              )
+            & EC.setFromList
+    newCombRefs <- updateMap combRefUpdates (combRefs cc)
     ncs <- modifyMap (combs cc) \oldCombs ->
       let newCombs :: EnumMap Word64 MCombs
           newCombs = resolveCombs (Just oldCombs) . absurdCombs . mapFromList $ zipWith combinate [ntm ..] rgs
        in newCombs <> oldCombs
     nsn <- updateMap (M.fromList sands) (sandbox cc)
+    ncc <- updateMap (newCacheableCombs) (cacheableCombs cc)
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
-    pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
-  preEvalTopLevelConstants cacheableRefs cc
+    pure $ int `seq` rtm `seq` newCombRefs `seq` ncs `seq` nsn `seq` ncc `seq` newCacheableCombs
+  preEvalTopLevelConstants newCacheableCombs cc
 
-preEvalTopLevelConstants :: Set Reference -> CCache -> IO ()
-preEvalTopLevelConstants cacheableRefs cc = do
+preEvalTopLevelConstants :: EnumSet Word64 -> CCache -> IO ()
+preEvalTopLevelConstants cacheableCombs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
-  cmbRefs <- readTVarIO (combRefs cc)
-  let cacheableCombs =
-        EC.mapToList cmbRefs
-          & mapMaybe (\(w, ref) -> if ref `Set.member` cacheableRefs then Just w else Nothing)
-          & Set.fromList
-  for_ cacheableCombs \w -> do
+  for_ (EC.setToList cacheableCombs) \w -> do
     Debug.debugM Debug.Temp "Evaluating " w
     let hook _ustk bstk = do
           clos <- peek bstk

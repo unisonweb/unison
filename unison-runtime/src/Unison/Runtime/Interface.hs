@@ -108,6 +108,7 @@ import Unison.Runtime.MCode
     GSection (..),
     RCombs,
     RefNums (..),
+    absurdCombs,
     combDeps,
     combTypes,
     emitComb,
@@ -126,6 +127,7 @@ import Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    preEvalTopLevelConstants,
     refLookup,
     refNumTm,
     refNumsTm,
@@ -1302,19 +1304,22 @@ tabulateErrors errs =
       : (listErrors errs)
 
 restoreCache :: StoredCache -> IO CCache
-restoreCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) =
-  CCache builtinForeigns False debugText
-    <$> newTVarIO srcCombs
-    <*> newTVarIO combs
-    <*> newTVarIO (crs <> builtinTermBackref)
-    <*> newTVarIO cacheableCombs
-    <*> newTVarIO (trs <> builtinTypeBackref)
-    <*> newTVarIO ftm
-    <*> newTVarIO fty
-    <*> newTVarIO int
-    <*> newTVarIO (rtm <> builtinTermNumbering)
-    <*> newTVarIO (rty <> builtinTypeNumbering)
-    <*> newTVarIO (sbs <> baseSandboxInfo)
+restoreCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
+  cc <-
+    CCache builtinForeigns False debugText
+      <$> newTVarIO srcCombs
+      <*> newTVarIO combs
+      <*> newTVarIO (crs <> builtinTermBackref)
+      <*> newTVarIO cacheableCombs
+      <*> newTVarIO (trs <> builtinTypeBackref)
+      <*> newTVarIO ftm
+      <*> newTVarIO fty
+      <*> newTVarIO int
+      <*> newTVarIO (rtm <> builtinTermNumbering)
+      <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO (sbs <> baseSandboxInfo)
+  preEvalTopLevelConstants cacheableCombs cc
+  pure cc
   where
     decom =
       decompile
@@ -1338,6 +1343,7 @@ restoreCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) =
     combs :: EnumMap Word64 (RCombs Closure)
     combs =
       srcCombs
+        & absurdCombs
         & resolveCombs Nothing
 
 traceNeeded ::
