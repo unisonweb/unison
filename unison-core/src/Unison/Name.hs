@@ -39,6 +39,8 @@ module Unison.Name
     preferShallowLibDepth,
     searchByRankedSuffix,
     searchBySuffix,
+    filterBySuffix,
+    filterByRankedSuffix,
     suffixifyByName,
     suffixifyByHash,
     suffixifyByHashName,
@@ -335,6 +337,13 @@ searchBySuffix suffix rel =
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 
+-- | Like 'searchBySuffix', but also keeps the names around.
+filterBySuffix :: (Ord r) => Name -> R.Relation Name r -> R.Relation Name r
+filterBySuffix suffix rel =
+  case Map.lookup suffix (R.domain rel) of
+    Just refs -> R.fromManyRan suffix refs
+    Nothing -> R.searchDomG R.fromManyRan (compareSuffix suffix) rel
+
 -- Like `searchBySuffix`, but prefers local (outside `lib`) and direct (one `lib` deep) names to indirect (two or more
 -- `lib` deep) names.
 searchByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
@@ -346,6 +355,19 @@ searchByRankedSuffix suffix rel =
           let ok name = compareSuffix suffix name == EQ
               withNames = map (\r -> (filter ok (toList (R.lookupRan r rel)), r)) (toList rs)
            in preferShallowLibDepth withNames
+
+-- | Like 'searchByRankedSuffix', but also keeps the names around.
+filterByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> R.Relation Name r
+filterByRankedSuffix suffix rel =
+  let matches = filterBySuffix suffix rel
+      highestNamePriority = foldMap prio (R.dom matches)
+      keep (name, _) = prio name <= highestNamePriority
+   in -- Keep only names that are at or less than the highest name priority. This effectively throws out all indirect
+      -- dependencies (NamePriorityTwo) if there are any direct dependencies (NamePriorityOne) or local definitions
+      -- (also NamePriorityOne).
+      R.filter keep matches
+  where
+    prio = nameLocationPriority . classifyNameLocation
 
 -- | precondition: input list is deduped, and so is the Name list in
 -- the tuple

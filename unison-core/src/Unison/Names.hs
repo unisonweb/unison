@@ -40,6 +40,7 @@ module Unison.Names
     termsNamed,
     typesNamed,
     shadowing,
+    shadowing1,
     namesForReference,
     namesForReferent,
     shadowTerms,
@@ -52,6 +53,7 @@ module Unison.Names
     fromTermsAndTypes,
     lenientToNametree,
     resolveName,
+    resolveNameIncludingNames,
   )
 where
 
@@ -507,7 +509,7 @@ lenientToNametree names =
 -- Given a namespace and locally-bound names that shadow it (i.e. from a Unison file that hasn't been typechecked yet),
 -- determine what the name resolves to, per the usual suffix-matching rules (where local defnintions and direct
 -- dependencies are preferred to indirect dependencies).
-resolveName :: forall ref. (Ord ref) => Relation Name ref -> Set Name -> Name -> Set (ResolvesTo ref)
+resolveName :: forall ref. (Ord ref, Show ref) => Relation Name ref -> Set Name -> Name -> Set (ResolvesTo ref)
 resolveName namespace locals =
   \name ->
     let exactNamespaceMatches :: Set ref
@@ -519,6 +521,40 @@ resolveName namespace locals =
      in if
           | Set.member name locals -> Set.singleton (ResolvesToLocal name)
           | Set.size exactNamespaceMatches == 1 -> Set.mapMonotonic ResolvesToNamespace exactNamespaceMatches
+          | otherwise -> localsPlusNamespaceSuffixMatches
+  where
+    localsPlusNamespace :: Relation Name (ResolvesTo ref)
+    localsPlusNamespace =
+      shadowing1
+        ( List.foldl'
+            (\acc name -> Relation.insert name (ResolvesToLocal name) acc)
+            Relation.empty
+            (Set.toList locals)
+        )
+        ( Relation.map
+            (over _2 ResolvesToNamespace)
+            namespace
+        )
+
+-- | Like 'resolveName', but include the names in the output.
+resolveNameIncludingNames ::
+  forall ref.
+  (Ord ref, Show ref) =>
+  Relation Name ref ->
+  Set Name ->
+  Name ->
+  Relation Name (ResolvesTo ref)
+resolveNameIncludingNames namespace locals =
+  \name ->
+    let exactNamespaceMatches :: Set ref
+        exactNamespaceMatches =
+          Relation.lookupDom name namespace
+        localsPlusNamespaceSuffixMatches :: Relation Name (ResolvesTo ref)
+        localsPlusNamespaceSuffixMatches =
+          Name.filterByRankedSuffix name localsPlusNamespace
+     in if
+          | Set.member name locals -> Relation.singleton name (ResolvesToLocal name)
+          | Set.size exactNamespaceMatches == 1 -> Relation.singleton name (ResolvesToNamespace (Set.findMin exactNamespaceMatches))
           | otherwise -> localsPlusNamespaceSuffixMatches
   where
     localsPlusNamespace :: Relation Name (ResolvesTo ref)
