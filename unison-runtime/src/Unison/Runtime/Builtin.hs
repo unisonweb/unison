@@ -42,6 +42,7 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
+import Unison.Runtime.Builtin.Types
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -154,7 +155,6 @@ import System.Process as SYS
   )
 import System.X509 qualified as X
 import Unison.ABT.Normalized hiding (TTm)
-import Unison.Builtin qualified as Ty (builtinTypes)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
@@ -3619,14 +3619,6 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
 
-typeReferences :: [(Reference, Word64)]
-typeReferences = zip rs [1 ..]
-  where
-    rs =
-      [r | (_, r) <- Ty.builtinTypes]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinDataDecls]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
-
 foreignDeclResults ::
   Bool -> (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
 foreignDeclResults sanitize =
@@ -3646,14 +3638,6 @@ builtinTermNumbering =
 builtinTermBackref :: EnumMap Word64 Reference
 builtinTermBackref =
   mapFromList . zip [1 ..] . Map.keys $ builtinLookup
-
-builtinTypeNumbering :: Map Reference Word64
-builtinTypeNumbering = Map.fromList typeReferences
-
-builtinTypeBackref :: EnumMap Word64 Reference
-builtinTypeBackref = mapFromList $ swap <$> typeReferences
-  where
-    swap (x, y) = (y, x)
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
 builtinForeigns | (_, _, m) <- foreignDeclResults False = snd <$> m
