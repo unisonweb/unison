@@ -1,37 +1,35 @@
-name: unison-core
+name: unison-util-recursion
 github: unisonweb/unison
+copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
 
-library:
-  source-dirs: .
-  when:
-    - condition: false
-      other-modules: Paths_unison_core
+ghc-options: -Wall
 
 dependencies:
   - base
-  - containers
-  - lens
-  - mtl
-  - recover-rtti
-  - rfc5051
-  - text
-  - unison-hash
-  - unison-prelude
-  - unison-util-recursion
+  - free
+
+library:
+  source-dirs: src
+  when:
+    - condition: false
+      other-modules: Paths_unison_util_recursion
 
 default-extensions:
   - ApplicativeDo
   - BangPatterns
   - BlockArguments
   - DeriveAnyClass
+  - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
+  - FunctionalDependencies
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - LambdaCase
@@ -39,10 +37,10 @@ default-extensions:
   - NamedFieldPuns
   - OverloadedStrings
   - PatternSynonyms
-  - QuantifiedConstraints
   - RankNTypes
   - ScopedTypeVariables
   - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

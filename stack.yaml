@@ -34,6 +34,7 @@ packages:
   - lib/unison-util-bytes
   - lib/unison-util-cache
   - lib/unison-util-file-embed
+  - lib/unison-util-recursion
   - lib/unison-util-relation
   - lib/unison-util-rope
   - parser-typechecker
