@@ -33,7 +33,7 @@ library
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
-      Unison.Runtime.Builtin.TypeNumbering
+      Unison.Runtime.Builtin.Types
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile

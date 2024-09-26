@@ -91,7 +91,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
-import Unison.Runtime.Builtin.TypeNumbering (builtinTypeNumbering)
+import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
