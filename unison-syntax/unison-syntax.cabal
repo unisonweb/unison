@@ -90,6 +90,8 @@ library
 test-suite syntax-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
+  other-modules:
+      Unison.Test.Doc
   hs-source-dirs:
       test
   default-extensions:
@@ -127,7 +129,10 @@ test-suite syntax-tests
       base
     , code-page
     , easytest
+    , megaparsec
     , text
+    , unison-core1
     , unison-prelude
     , unison-syntax
+    , unison-util-recursion
   default-language: Haskell2010

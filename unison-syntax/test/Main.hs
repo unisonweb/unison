@@ -6,10 +6,10 @@ import System.IO.CodePage (withCP65001)
 import Unison.Prelude
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer.Unison
+import Unison.Test.Doc qualified as Doc
 
 main :: IO ()
-main =
-  withCP65001 (run test)
+main = withCP65001 . run $ tests [test, Doc.test]
 
 test :: Test ()
 test =
