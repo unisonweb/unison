@@ -91,6 +91,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.Builtin.TypeNumbering (builtinTypeNumbering)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -511,7 +512,7 @@ data GInstr comb
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Push a particular value directly onto the boxed stack
-    BLit !Reference !MLit
+    BLit !Reference !Word64 {- packed type tag for the ref -} !MLit
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
   | -- Put a delimiter on the continuation
@@ -1487,8 +1488,18 @@ doubleToInt :: Double -> Int
 doubleToInt d = indexByteArray (byteArrayFromList [d]) 0
 
 emitBLit :: ANF.Lit -> Instr
-emitBLit l@(ANF.F d) = BLit (ANF.litRef l) (MI $ doubleToInt d)
-emitBLit l = BLit (ANF.litRef l) (litToMLit l)
+emitBLit l = case l of
+  (ANF.F d) -> BLit lRef builtinTypeTag (MI $ doubleToInt d)
+  _ -> BLit lRef builtinTypeTag (litToMLit l)
+  where
+    lRef = ANF.litRef l
+    builtinTypeTag :: Word64
+    builtinTypeTag =
+      case M.lookup (ANF.litRef l) builtinTypeNumbering of
+        Nothing -> error "emitBLit: unknown builtin type reference"
+        Just n ->
+          let rt = toEnum (fromIntegral n)
+           in (packTags rt 0)
 
 -- Emits some fix-up code for calling functions. Some of the
 -- variables in scope come from the top-level let rec, but these

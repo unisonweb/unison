@@ -254,16 +254,12 @@ unitValue = Enum Rf.unitRef unitTag
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
-buildLit :: Reference -> MLit -> Closure
-buildLit rf (MI i)
-  | Just n <- M.lookup rf builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      DataU1 rf (packTags rt 0) i
-  | otherwise = error "buildLit: unknown reference"
-buildLit _ (MT t) = Foreign (Wrap Rf.textRef t)
-buildLit _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
-buildLit _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
-buildLit _ (MD _) = error "buildLit: double"
+buildLit :: Reference -> Word64 -> MLit -> Closure
+buildLit rf tt (MI i) = DataU1 rf tt i
+buildLit _ _ (MT t) = Foreign (Wrap Rf.textRef t)
+buildLit _ _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
+buildLit _ _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
+buildLit _ _ (MD _) = error "buildLit: double"
 
 -- | Execute an instruction
 exec ::
@@ -504,9 +500,9 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Lit (MY r)) = do
   bstk <- bump bstk
   poke bstk (Foreign (Wrap Rf.typeLinkRef r))
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k _ (BLit rf l) = do
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (BLit rf tt l) = do
   bstk <- bump bstk
-  poke bstk $ buildLit rf l
+  poke bstk $ buildLit rf tt l
   pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Reset ps) = do
   (ustk, ua) <- saveArgs ustk

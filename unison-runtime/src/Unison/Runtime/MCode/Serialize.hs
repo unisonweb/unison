@@ -183,7 +183,7 @@ putInstr pCix = \case
   (Pack r w a) -> putTag PackT *> putReference r *> pWord w *> putArgs a
   (Unpack mr i) -> putTag UnpackT *> putMaybe mr putReference *> pInt i
   (Lit l) -> putTag LitT *> putLit l
-  (BLit r l) -> putTag BLitT *> putReference r *> putLit l
+  (BLit r tt l) -> putTag BLitT *> putReference r *> putNat tt *> putLit l
   (Print i) -> putTag PrintT *> pInt i
   (Reset s) -> putTag ResetT *> putEnumSet pWord s
   (Fork i) -> putTag ForkT *> pInt i
@@ -206,7 +206,7 @@ getInstr gCix =
     PackT -> Pack <$> getReference <*> gWord <*> getArgs
     UnpackT -> Unpack <$> getMaybe getReference <*> gInt
     LitT -> Lit <$> getLit
-    BLitT -> BLit <$> getReference <*> getLit
+    BLitT -> BLit <$> getReference <*> getNat <*> getLit
     PrintT -> Print <$> gInt
     ResetT -> Reset <$> getEnumSet gWord
     ForkT -> Fork <$> gInt

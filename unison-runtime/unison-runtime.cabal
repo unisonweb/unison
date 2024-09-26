@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,6 +33,7 @@ library
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
+      Unison.Runtime.Builtin.TypeNumbering
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile

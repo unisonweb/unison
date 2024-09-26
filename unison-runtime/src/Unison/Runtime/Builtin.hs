@@ -42,6 +42,7 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
 import Data.Bits (shiftL, shiftR, (.|.))
+import Unison.Runtime.Builtin.TypeNumbering
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -3619,14 +3620,6 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
 
-typeReferences :: [(Reference, Word64)]
-typeReferences = zip rs [1 ..]
-  where
-    rs =
-      [r | (_, r) <- Ty.builtinTypes]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinDataDecls]
-        ++ [DerivedId i | (_, i, _) <- Ty.builtinEffectDecls]
-
 foreignDeclResults ::
   Bool -> (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 (Data.Text.Text, ForeignFunc))
 foreignDeclResults sanitize =
@@ -3646,9 +3639,6 @@ builtinTermNumbering =
 builtinTermBackref :: EnumMap Word64 Reference
 builtinTermBackref =
   mapFromList . zip [1 ..] . Map.keys $ builtinLookup
-
-builtinTypeNumbering :: Map Reference Word64
-builtinTypeNumbering = Map.fromList typeReferences
 
 builtinTypeBackref :: EnumMap Word64 Reference
 builtinTypeBackref = mapFromList $ swap <$> typeReferences
