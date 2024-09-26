@@ -138,6 +138,7 @@ import Unison.Runtime.Machine
 import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
+import Unison.Runtime.Stack.Serialize (getClosure, putClosure)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
@@ -1243,11 +1244,14 @@ runStandalone :: StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
 runStandalone sc init =
   restoreCache sc >>= executeMainComb init
 
+-- Storable closure
+type SClosure = GClosure CombIx
+
 -- | A version of the Code Cache designed to be serialized to disk as
 -- standalone bytecode.
 data StoredCache
   = SCache
-      (EnumMap Word64 Combs)
+      (EnumMap Word64 (GCombs SClosure CombIx))
       (EnumMap Word64 Reference)
       (EnumSet Word64)
       (EnumMap Word64 Reference)
@@ -1261,7 +1265,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb putCombIx)) cs
+  putEnumMap putNat (putEnumMap putNat (putComb putClosure putCombIx)) cs
   putEnumMap putNat putReference crs
   putEnumSet putNat cacheableCombs
   putEnumMap putNat putReference trs
@@ -1275,7 +1279,7 @@ putStoredCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getCombIx))
+    <$> getEnumMap getNat (getEnumMap getNat (getComb getClosure getCombIx))
     <*> getEnumMap getNat getReference
     <*> getEnumSet getNat
     <*> getEnumMap getNat getReference
@@ -1360,7 +1364,7 @@ traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init
       | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
 
 buildSCache ::
-  EnumMap Word64 (GCombs Void CombIx) ->
+  EnumMap Word64 (GCombs Closure CombIx) ->
   EnumMap Word64 Reference ->
   EnumSet Word64 ->
   EnumMap Word64 Reference ->

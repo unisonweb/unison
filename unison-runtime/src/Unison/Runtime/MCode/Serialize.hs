@@ -15,7 +15,6 @@ import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Primitive.PrimArray
-import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
 import Unison.Runtime.MCode hiding (MatchT)
@@ -32,14 +31,20 @@ instance Tag CombT where
   word2tag 1 = pure CachedClosureT
   word2tag n = unknownTag "CombT" n
 
-putComb :: (MonadPut m) => (cix -> m ()) -> GComb Void cix -> m ()
-putComb putCix = \case
+putComb :: (MonadPut m) => (clos -> m ()) -> (cix -> m ()) -> GComb clos cix -> m ()
+putComb putClos putCix = \case
   (Lam ua ba uf bf body) ->
     putTag LamT *> pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection putCix body
+  (CachedClosure w c) ->
+    putTag CachedClosureT *> putNat w *> putClos c
 
-getComb :: (MonadGet m) => m cix -> m (GComb clos cix)
-getComb gCix =
-  Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection gCix
+getComb :: (MonadGet m) => m clos -> m cix -> m (GComb clos cix)
+getComb gClos gCix =
+  getTag >>= \case
+    LamT ->
+      Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection gCix
+    CachedClosureT ->
+      CachedClosure <$> getNat <*> gClos
 
 data SectionT
   = AppT
