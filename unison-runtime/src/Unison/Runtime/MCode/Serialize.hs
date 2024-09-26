@@ -25,8 +25,8 @@ putComb :: (MonadPut m) => (cix -> m ()) -> GComb cix -> m ()
 putComb putCix (Lam ua ba uf bf body) =
   pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection putCix body
 
-getComb :: (MonadGet m) => m cix -> m (GComb cix)
-getComb gCix = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> (getSection gCix)
+getComb :: (MonadGet m) => m Comb
+getComb = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
 
 data SectionT
   = AppT
@@ -72,13 +72,13 @@ instance Tag SectionT where
 
 putSection :: (MonadPut m) => (cix -> m ()) -> GSection cix -> m ()
 putSection pCix = \case
-  App b r a -> putTag AppT *> serialize b *> putRef pCix r *> putArgs a
-  Call b cix a -> putTag CallT *> serialize b *> pCix cix *> putArgs a
+  App b r a -> putTag AppT *> serialize b *> putRef r *> putArgs a
+  Call b cix _comb a -> putTag CallT *> serialize b *> putCombIx cix *> putArgs a
   Jump i a -> putTag JumpT *> pInt i *> putArgs a
   Match i b -> putTag MatchT *> pInt i *> putBranch pCix b
   Yield a -> putTag YieldT *> putArgs a
   Ins i s -> putTag InsT *> putInstr pCix i *> putSection pCix s
-  Let s ci -> putTag LetT *> putSection pCix s *> pCix ci
+  Let s ci _comb -> putTag LetT *> putSection pCix s *> putCombIx ci
   Die s -> putTag DieT *> serialize s
   Exit -> putTag ExitT
   DMatch mr i b -> putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch pCix b
@@ -89,15 +89,15 @@ putSection pCix = \case
       *> putSection pCix pu
       *> putEnumMap pWord (putBranch pCix) bs
 
-getSection :: (MonadGet m) => m cix -> m (GSection cix)
-getSection gCix =
+getSection :: (MonadGet m) => m Section
+getSection =
   getTag >>= \case
-    AppT -> App <$> deserialize <*> getRef gCix <*> getArgs
-    CallT -> Call <$> deserialize <*> gCix <*> getArgs
+    AppT -> App <$> deserialize <*> getRef <*> getArgs
+    CallT -> Call <$> deserialize <*> getCombIx <*> pure () <*> getArgs
     JumpT -> Jump <$> gInt <*> getArgs
-    MatchT -> Match <$> gInt <*> getBranch gCix
+    MatchT -> Match <$> gInt <*> getBranch
     YieldT -> Yield <$> getArgs
-    InsT -> Ins <$> getInstr gCix <*> getSection gCix
+    InsT -> Ins <$> getInstr <*> getSection
     LetT -> Let <$> getSection gCix <*> gCix
     DieT -> Die <$> deserialize
     ExitT -> pure Exit
@@ -178,7 +178,7 @@ putInstr pCix = \case
   (ForeignCall b w a) -> putTag ForeignCallT *> serialize b *> pWord w *> putArgs a
   (SetDyn w i) -> putTag SetDynT *> pWord w *> pInt i
   (Capture w) -> putTag CaptureT *> pWord w
-  (Name r a) -> putTag NameT *> putRef pCix r *> putArgs a
+  (Name r a) -> putTag NameT *> putRef r *> putArgs a
   (Info s) -> putTag InfoT *> serialize s
   (Pack r w a) -> putTag PackT *> putReference r *> pWord w *> putArgs a
   (Unpack mr i) -> putTag UnpackT *> putMaybe mr putReference *> pInt i
@@ -191,8 +191,8 @@ putInstr pCix = \case
   (Seq a) -> putTag SeqT *> putArgs a
   (TryForce i) -> putTag TryForceT *> pInt i
 
-getInstr :: (MonadGet m) => m cix -> m (GInstr cix)
-getInstr gCix =
+getInstr :: (MonadGet m) => m Instr
+getInstr =
   getTag >>= \case
     UPrim1T -> UPrim1 <$> getTag <*> gInt
     UPrim2T -> UPrim2 <$> getTag <*> gInt <*> gInt
@@ -201,7 +201,7 @@ getInstr gCix =
     ForeignCallT -> ForeignCall <$> deserialize <*> gWord <*> getArgs
     SetDynT -> SetDyn <$> gWord <*> gInt
     CaptureT -> Capture <$> gWord
-    NameT -> Name <$> getRef gCix <*> getArgs
+    NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> deserialize
     PackT -> Pack <$> getReference <*> gWord <*> getArgs
     UnpackT -> Unpack <$> getMaybe getReference <*> gInt
@@ -305,16 +305,16 @@ instance Tag RefT where
   word2tag 2 = pure DynT
   word2tag n = unknownTag "RefT" n
 
-putRef :: (MonadPut m) => (cix -> m ()) -> GRef cix -> m ()
-putRef _pCix (Stk i) = putTag StkT *> pInt i
-putRef pCix (Env cix) = putTag EnvT *> pCix cix
-putRef _pCix (Dyn i) = putTag DynT *> pWord i
+putRef :: (MonadPut m) => GRef cix -> m ()
+putRef (Stk i) = putTag StkT *> pInt i
+putRef (Env cix _) = putTag EnvT *> putCombIx cix
+putRef (Dyn i) = putTag DynT *> pWord i
 
-getRef :: (MonadGet m) => m cix -> m (GRef cix)
-getRef gCix =
+getRef :: (MonadGet m) => m Ref
+getRef =
   getTag >>= \case
     StkT -> Stk <$> gInt
-    EnvT -> Env <$> gCix
+    EnvT -> Env <$> getCombIx <*> pure ()
     DynT -> Dyn <$> gWord
 
 putCombIx :: (MonadPut m) => CombIx -> m ()
@@ -384,19 +384,19 @@ putBranch pCix (TestW d m) =
 putBranch pCix (TestT d m) =
   putTag TestTT *> putSection pCix d *> putMap (putText . Util.Text.toText) (putSection pCix) m
 
-getBranch :: (MonadGet m) => m cix -> m (GBranch cix)
-getBranch gCix =
+getBranch :: (MonadGet m) => m Branch
+getBranch =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection gCix <*> getSection gCix
+    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
     Test2T ->
       Test2
         <$> gWord
-        <*> getSection gCix
+        <*> getSection
         <*> gWord
-        <*> getSection gCix
-        <*> getSection gCix
-    TestWT -> TestW <$> getSection gCix <*> getEnumMap gWord (getSection gCix)
-    TestTT -> TestT <$> getSection gCix <*> getMap (Util.Text.fromText <$> getText) (getSection gCix)
+        <*> getSection
+        <*> getSection
+    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
+    TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
 
 gInt :: (MonadGet m) => m Int
 gInt = unVarInt <$> deserialize

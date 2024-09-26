@@ -100,7 +100,7 @@ type Closure = GClosure RComb
 
 data GClosure comb
   = PAp
-      !comb
+      {- Lazy! Might be cyclic -} comb
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
       !(Seg 'BX) -- boxed args
@@ -348,8 +348,8 @@ class MEM (b :: Mem) where
   asize :: Stack b -> SZ
 
 instance MEM 'UN where
-  data Stack 'UN =
-    -- Note: uap <= ufp <= usp
+  data Stack 'UN
+    = -- Note: uap <= ufp <= usp
     US
     { uap :: !Int, -- arg pointer
       ufp :: !Int, -- frame pointer

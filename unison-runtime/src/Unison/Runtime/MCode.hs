@@ -22,7 +22,6 @@ module Unison.Runtime.MCode
     RComb (..),
     pattern RCombIx,
     pattern RCombRef,
-    rCombToComb,
     GCombs,
     Combs,
     RCombs,
@@ -454,7 +453,7 @@ data MLit
   | MY !Reference
   deriving (Show, Eq, Ord)
 
-type Instr = GInstr CombIx
+type Instr = GInstr ()
 
 type RInstr = GInstr RComb
 
@@ -527,7 +526,7 @@ data GInstr comb
     TryForce !Int
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Section = GSection CombIx
+type Section = GSection ()
 
 type RSection = GSection RComb
 
@@ -547,7 +546,8 @@ data GSection comb
     -- sufficient for where we're jumping to.
     Call
       !Bool -- skip stack check
-      !comb -- global function reference
+      !CombIx
+      {- Lazy! Might be cyclic -} comb
       !Args -- arguments
   | -- Jump to a captured continuation value.
     Jump
@@ -564,7 +564,7 @@ data GSection comb
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
-    Let !(GSection comb) !comb
+    Let !(GSection comb) !CombIx {- Lazy! Might be cyclic -} comb
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
@@ -612,7 +612,7 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-type Comb = GComb CombIx
+type Comb = GComb ()
 
 data GComb comb
   = Lam
@@ -653,10 +653,6 @@ instance Eq RComb where
 instance Ord RComb where
   compare (RComb r1 _) (RComb r2 _) = compare r1 r2
 
--- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
-rCombToComb :: RComb -> Comb
-rCombToComb (RComb _ix c) = rCombIx <$> c
-
 -- | RCombs can be infinitely recursive so we show the CombIx instead.
 instance Show RComb where
   show (RComb ix _) = show ix
@@ -665,17 +661,17 @@ instance Show RComb where
 type GCombs comb = EnumMap Word64 (GComb comb)
 
 -- | A reference to a combinator, parameterized by comb
-type Ref = GRef CombIx
+type Ref = GRef ()
 
 type RRef = GRef RComb
 
 data GRef comb
   = Stk !Int -- stack reference to a closure
-  | Env !comb -- direct reference to comb, usually embedded as an RComb
+  | Env !CombIx {- Lazy! Might be cyclic -} comb
   | Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Branch = GBranch CombIx
+type Branch = GBranch ()
 
 type RBranch = GBranch RComb
 
@@ -922,7 +918,7 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
     ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
-    Ins (Name (Env (CIx f (cnum rns f) 0)) as)
+    Ins (Name (Env (CIx f (cnum rns f) 0) ()) as)
       <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
 emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
   | Just (i, BX) <- ctxResolve ctx v =
@@ -931,14 +927,14 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | Just n <- rctxResolve rec v =
       emitClosures grpr grpn rec ctx args $ \ctx as ->
-        Ins (Name (Env (CIx grpr grpn n)) as)
+        Ins (Name (Env (CIx grpr grpn n) ()) as)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
   | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
   | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v =
-      countCtx ctx $ App False (Env (CIx grpr grpn j)) ZArgs
+      countCtx ctx $ App False (Env (CIx grpr grpn j) ()) ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
@@ -1066,12 +1062,12 @@ emitFunction _ grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
-      App False (Env (CIx grpr grpn j)) as
+      App False (Env (CIx grpr grpn j) ()) as
   | otherwise = emitSectionVErr v
 emitFunction rns _grpr _ _ _ (FComb r) as
   | otherwise -- slow path
     =
-      App False (Env (CIx r n 0)) as
+      App False (Env (CIx r n 0) ()) as
   where
     n = cnum rns r
 emitFunction rns _grpr _ _ _ (FCon r t) as =
@@ -1174,7 +1170,7 @@ emitLet rns grpr grpn rec d vcs ctx bnd
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
-    f s w = Let s (CIx grpr grpn w)
+    f s w = Let s (CIx grpr grpn w) ()
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1524,7 +1520,7 @@ emitClosures grpr grpn rec ctx args k =
     allocate ctx (a : as) k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
-          Ins (Name (Env (CIx grpr grpn n)) ZArgs) <$> allocate (Var a BX ctx) as k
+          Ins (Name (Env (CIx grpr grpn n) ()) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 
@@ -1561,23 +1557,23 @@ combDeps (Lam _ _ _ _ s) = sectionDeps s
 combTypes :: Comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
 
-sectionDeps :: Section -> [Word64]
-sectionDeps (App _ (Env (CIx _ w _)) _) = [w]
-sectionDeps (Call _ (CIx _ w _) _) = [w]
+sectionDeps :: GSection comb -> [Word64]
+sectionDeps (App _ (Env (CIx _ w _) _) _) = [w]
+sectionDeps (Call _ (CIx _ w _) _ _) = [w]
 sectionDeps (Match _ br) = branchDeps br
 sectionDeps (DMatch _ _ br) = branchDeps br
 sectionDeps (RMatch _ pu br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
-  | Name (Env (CIx _ w _)) _ <- i = w : sectionDeps s
+  | Name (Env (CIx _ w _) _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
-sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
+sectionDeps (Let s (CIx _ w _) _) = w : sectionDeps s
 sectionDeps _ = []
 
 sectionTypes :: Section -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
-sectionTypes (Let s _) = sectionTypes s
+sectionTypes (Let s _ _) = sectionTypes s
 sectionTypes (Match _ br) = branchTypes br
 sectionTypes (DMatch _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
@@ -1592,7 +1588,7 @@ instrTypes (Capture w) = [w]
 instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
-branchDeps :: Branch -> [Word64]
+branchDeps :: GBranch comb -> [Word64]
 branchDeps (Test1 _ s1 d) = sectionDeps s1 ++ sectionDeps d
 branchDeps (Test2 _ s1 _ s2 d) =
   sectionDeps s1 ++ sectionDeps s2 ++ sectionDeps d
@@ -1632,7 +1628,7 @@ prettyComb w i (Lam ua ba _ _ s) =
     . showString ":\n"
     . prettySection 2 s
 
-prettySection :: Int -> Section -> ShowS
+prettySection :: (Show comb) => Int -> GSection comb -> ShowS
 prettySection ind sec =
   indent ind . case sec of
     App _ r as ->
@@ -1640,7 +1636,7 @@ prettySection ind sec =
         . showsPrec 12 r
         . showString " "
         . prettyArgs as
-    Call _ i as ->
+    Call _ i _ as ->
       showString "Call " . shows i . showString " " . prettyArgs as
     Jump i as ->
       showString "Jump " . shows i . showString " " . prettyArgs as
@@ -1652,7 +1648,7 @@ prettySection ind sec =
     Yield as -> showString "Yield " . prettyArgs as
     Ins i nx ->
       prettyIns i . showString "\n" . prettySection ind nx
-    Let s n ->
+    Let s n _ ->
       showString "Let\n"
         . prettySection (ind + 2) s
         . showString "\n"
@@ -1691,7 +1687,7 @@ prettyIx (CIx _ c s) =
     . shows s
     . showString "]"
 
-prettyBranches :: Int -> Branch -> ShowS
+prettyBranches :: (Show comb) => Int -> GBranch comb -> ShowS
 prettyBranches ind bs =
   case bs of
     Test1 i e df -> pdf df . picase i e
@@ -1721,7 +1717,7 @@ un = ('U' :)
 bx :: ShowS
 bx = ('B' :)
 
-prettyIns :: Instr -> ShowS
+prettyIns :: (Show comb) => GInstr comb -> ShowS
 prettyIns (Pack r i as) =
   showString "Pack "
     . showsPrec 10 r
