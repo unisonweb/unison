@@ -1999,9 +1999,6 @@ updateMap new0 r = do
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
 
-modifyMap :: TVar s -> (s -> s) -> STM s
-modifyMap r f = stateTVar r $ \old -> let new = f old in (new, new)
-
 refLookup :: String -> M.Map Reference Word64 -> Reference -> Word64
 refLookup s m r
   | Just w <- M.lookup r m = w
@@ -2142,7 +2139,7 @@ cacheAdd0 ::
   IO ()
 cacheAdd0 ntys0 termSuperGroups sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> \(r, g, _) -> (r, g))
-  newCacheableCombs <- atomically $ do
+  (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
     let new = M.difference toAdd have
     let sz = fromIntegral $ M.size new
@@ -2167,34 +2164,41 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
               )
             & EC.setFromList
     newCombRefs <- updateMap combRefUpdates (combRefs cc)
-    ncs <- modifyMap (combs cc) \oldCombs ->
-      let newCombs :: EnumMap Word64 MCombs
-          newCombs = resolveCombs (Just oldCombs) . absurdCombs . mapFromList $ zipWith combinate [ntm ..] rgs
-       in newCombs <> oldCombs
+    (unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+      let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
+          unresolvedNewCombs = absurdCombs . mapFromList $ zipWith combinate [ntm ..] rgs
+          (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
+            EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
+              if EC.member w newCacheableCombs
+                then (EC.mapSingleton w gcombs, mempty)
+                else (mempty, EC.mapSingleton w gcombs)
+          newCombs :: EnumMap Word64 MCombs
+          newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
+          updatedCombs = newCombs <> oldCombs
+       in ((unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
     nsn <- updateMap (M.fromList sands) (sandbox cc)
-    ncc <- updateMap (newCacheableCombs) (cacheableCombs cc)
+    ncc <- updateMap newCacheableCombs (cacheableCombs cc)
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
-    pure $ int `seq` rtm `seq` newCombRefs `seq` ncs `seq` nsn `seq` ncc `seq` newCacheableCombs
-  preEvalTopLevelConstants newCacheableCombs cc
+    pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
+  preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
-preEvalTopLevelConstants :: EnumSet Word64 -> CCache -> IO ()
-preEvalTopLevelConstants cacheableCombs cc = do
+preEvalTopLevelConstants :: (EnumMap Word64 (GCombs Closure CombIx)) -> (EnumMap Word64 (GCombs Closure CombIx)) -> CCache -> IO ()
+preEvalTopLevelConstants cacheableCombs newCombs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
-  for_ (EC.setToList cacheableCombs) \w -> do
+  for_ (EC.mapToList cacheableCombs) \(w, _) -> do
     Debug.debugM Debug.Temp "Evaluating " w
     let hook _ustk bstk = do
           clos <- peek bstk
           Debug.debugM Debug.Temp "Evaluated" ("Evaluated " ++ show w ++ " to " ++ show clos)
           atomically $ do
-            -- TODO: Check that it's right to just insert the closure at comb position 0
             modifyTVar (combs cc) $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
 
   Debug.debugLogM Debug.Temp "Done pre-caching"
   -- Rewrite all the inlined combinator references to point to the
   -- new cached versions.
-  atomically $ modifyTVar (combs cc) (resolveCombs Nothing . _)
+  atomically $ modifyTVar (combs cc) (\existingCombs -> (resolveCombs (Just existingCombs) (cacheableCombs <> newCombs)))
 
 expandSandbox ::
   Map Reference (Set Reference) ->

@@ -126,7 +126,6 @@ import Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
-    preEvalTopLevelConstants,
     refLookup,
     refNumTm,
     refNumsTm,
@@ -1317,7 +1316,6 @@ restoreCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
       <*> newTVarIO (sbs <> baseSandboxInfo)
-  preEvalTopLevelConstants cacheableCombs cc
   pure cc
   where
     decom =
