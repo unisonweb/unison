@@ -15,6 +15,7 @@ module Unison.Util.EnumContainers
     keysSet,
     restrictKeys,
     withoutKeys,
+    mapDifference,
     member,
     lookup,
     lookupWithDefault,
@@ -117,6 +118,9 @@ restrictKeys (EM m) (ES s) = EM $ IM.restrictKeys m s
 
 withoutKeys :: (EnumKey k) => EnumMap k a -> EnumSet k -> EnumMap k a
 withoutKeys (EM m) (ES s) = EM $ IM.withoutKeys m s
+
+mapDifference :: (EnumKey k) => EnumMap k a -> EnumMap k b -> EnumMap k a
+mapDifference (EM l) (EM r) = EM $ IM.difference l r
 
 member :: (EnumKey k) => k -> EnumSet k -> Bool
 member e (ES s) = IS.member (keyToInt e) s

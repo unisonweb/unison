@@ -2186,19 +2186,22 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
 preEvalTopLevelConstants :: (EnumMap Word64 (GCombs Closure CombIx)) -> (EnumMap Word64 (GCombs Closure CombIx)) -> CCache -> IO ()
 preEvalTopLevelConstants cacheableCombs newCombs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
+  evaluatedCacheableCombsVar <- newTVarIO mempty
   for_ (EC.mapToList cacheableCombs) \(w, _) -> do
     Debug.debugM Debug.Temp "Evaluating " w
     let hook _ustk bstk = do
           clos <- peek bstk
           Debug.debugM Debug.Temp "Evaluated" ("Evaluated " ++ show w ++ " to " ++ show clos)
           atomically $ do
-            modifyTVar (combs cc) $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
+            modifyTVar evaluatedCacheableCombsVar $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
 
+  evaluatedCacheableCombs <- readTVarIO evaluatedCacheableCombsVar
   Debug.debugLogM Debug.Temp "Done pre-caching"
+  let allNew = evaluatedCacheableCombs <> newCombs
   -- Rewrite all the inlined combinator references to point to the
   -- new cached versions.
-  atomically $ modifyTVar (combs cc) (\existingCombs -> (resolveCombs (Just existingCombs) (cacheableCombs <> newCombs)))
+  atomically $ modifyTVar (combs cc) (\existingCombs -> (resolveCombs (Just $ EC.mapDifference existingCombs allNew) allNew) <> existingCombs)
 
 expandSandbox ::
   Map Reference (Set Reference) ->
