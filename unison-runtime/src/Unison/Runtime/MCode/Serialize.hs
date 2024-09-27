@@ -15,6 +15,7 @@ import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Primitive.PrimArray
+import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
 import Unison.Runtime.MCode hiding (MatchT)
@@ -38,13 +39,12 @@ putComb pClos = \case
   (CachedClosure w c) ->
     putTag CachedClosureT *> putNat w *> pClos c
 
-getComb :: (MonadGet m) => m clos -> m (GComb clos CombIx)
-getComb gClos =
+getComb :: (MonadGet m) => m (GComb Void CombIx)
+getComb =
   getTag >>= \case
     LamT ->
       Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
-    CachedClosureT ->
-      CachedClosure <$> getNat <*> gClos
+    CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
 
 data SectionT
   = AppT

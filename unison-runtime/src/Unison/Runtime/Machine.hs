@@ -78,6 +78,8 @@ type DEnv = EnumMap Word64 Closure
 
 type MCombs = RCombs Closure
 
+type Combs = GCombs Void CombIx
+
 type MSection = RSection Closure
 
 type MBranch = RBranch Closure
@@ -103,6 +105,8 @@ data CCache = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc,
     sandboxed :: Bool,
     tracer :: Bool -> Closure -> Tracer,
+    -- Combinators in their original form, where they're easier to serialize into SCache
+    srcCombs :: TVar (EnumMap Word64 Combs),
     combs :: TVar (EnumMap Word64 MCombs),
     combRefs :: TVar (EnumMap Word64 Reference),
     -- Combs which we're allowed to cache after evaluating
@@ -140,7 +144,8 @@ refNumTy' cc r = M.lookup r <$> refNumsTy cc
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
   CCache ffuncs sandboxed noTrace
-    <$> newTVarIO combs
+    <$> newTVarIO srcCombs
+    <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
     <*> newTVarIO cacheableCombs
     <*> newTVarIO builtinTypeBackref
@@ -159,11 +164,14 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
-    combs :: EnumMap Word64 MCombs
-    combs =
+    srcCombs :: EnumMap Word64 Combs
+    srcCombs =
       numberedTermLookup
         & mapWithKey
           (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
+    combs :: EnumMap Word64 MCombs
+    combs =
+      srcCombs
         & absurdCombs
         & resolveCombs Nothing
 
