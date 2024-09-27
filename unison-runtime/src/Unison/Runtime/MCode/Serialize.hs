@@ -21,12 +21,30 @@ import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 
-putComb :: (MonadPut m) => GComb cix -> m ()
-putComb (Lam ua ba uf bf body) =
-  pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection body
+data CombT = LamT | CachedClosureT
 
-getComb :: (MonadGet m) => m Comb
-getComb = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
+instance Tag CombT where
+  tag2word LamT = 0
+  tag2word CachedClosureT = 1
+
+  word2tag 0 = pure LamT
+  word2tag 1 = pure CachedClosureT
+  word2tag n = unknownTag "CombT" n
+
+putComb :: (MonadPut m) => (clos -> m ()) -> GComb clos comb -> m ()
+putComb pClos = \case
+  (Lam ua ba uf bf body) ->
+    putTag LamT *> pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection body
+  (CachedClosure w c) ->
+    putTag CachedClosureT *> putNat w *> pClos c
+
+getComb :: (MonadGet m) => m clos -> m (GComb clos CombIx)
+getComb gClos =
+  getTag >>= \case
+    LamT ->
+      Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
+    CachedClosureT ->
+      CachedClosure <$> getNat <*> gClos
 
 data SectionT
   = AppT

@@ -21,7 +21,6 @@ module Unison.Runtime.MCode
     Comb,
     RComb (..),
     GCombs,
-    Combs,
     RCombs,
     CombIx (..),
     GRef (..),
@@ -39,6 +38,8 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
+    unTieRCombs,
+    absurdCombs,
     emptyRNs,
     argsToLists,
     combRef,
@@ -49,7 +50,9 @@ module Unison.Runtime.MCode
   )
 where
 
-import Data.Bifunctor (bimap, first)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor (Bifunctor, bimap, first)
+import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.Functor ((<&>))
@@ -57,6 +60,7 @@ import Data.List (partition)
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
+import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -452,7 +456,7 @@ data MLit
 
 type Instr = GInstr CombIx
 
-type RInstr = GInstr RComb
+type RInstr clos = GInstr (RComb clos)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
@@ -525,7 +529,7 @@ data GInstr comb
 
 type Section = GSection CombIx
 
-type RSection = GSection RComb
+type RSection clos = GSection (RComb clos)
 
 data GSection comb
   = -- Apply a function to arguments. This is the 'slow path', and
@@ -606,36 +610,46 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-type Comb = GComb CombIx
+type Comb = GComb Void CombIx
 
-data GComb comb
+data GComb clos comb
   = Lam
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
       !Int -- Maximum needed boxed frame size
       !(GSection comb) -- Entry
+  | -- A pre-evaluated comb, typically a pure top-level const
+    CachedClosure !Word64 {- top level comb ix -} !clos
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Combs = GCombs CombIx
+instance Bifunctor GComb where
+  bimap = bimapDefault
 
-type RCombs = GCombs RComb
+instance Bifoldable GComb where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable GComb where
+  bitraverse f _ (CachedClosure cix c) = CachedClosure cix <$> f c
+  bitraverse _ f (Lam u b uf bf s) = Lam u b uf bf <$> traverse f s
+
+type RCombs clos = GCombs clos (RComb clos)
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-newtype RComb = RComb
-  { unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
+newtype RComb clos = RComb
+  { unRComb :: (GComb clos (RComb clos {- Possibly recursive comb, keep it lazy or risk blowing up -}))
   }
 
-instance Show RComb where
+instance Show (RComb clos) where
   show _ = "<RCOMB>"
 
 -- | Map of combinators, parameterized by comb reference type
-type GCombs comb = EnumMap Word64 (GComb comb)
+type GCombs clos comb = EnumMap Word64 (GComb clos comb)
 
 -- | A reference to a combinator, parameterized by comb
 type Ref = GRef CombIx
 
-type RRef = GRef RComb
+type RRef clos = GRef (RComb clos)
 
 data GRef comb
   = Stk !Int -- stack reference to a closure
@@ -645,7 +659,7 @@ data GRef comb
 
 type Branch = GBranch CombIx
 
-type RBranch = GBranch RComb
+type RBranch clos = GBranch (RComb clos)
 
 data GBranch comb
   = -- if tag == n then t else f
@@ -772,11 +786,10 @@ emitCombs rns grpr grpn (Rec grp ent) =
 -- tying the knot recursively when necessary.
 resolveCombs ::
   -- Existing in-scope combs that might be referenced
-  -- TODO: Do we ever actually need to pass this?
-  Maybe (EnumMap Word64 RCombs) ->
+  Maybe (EnumMap Word64 (RCombs clos)) ->
   -- Combinators which need their knots tied.
-  EnumMap Word64 Combs ->
-  EnumMap Word64 RCombs
+  EnumMap Word64 (GCombs clos CombIx) ->
+  EnumMap Word64 (RCombs clos)
 resolveCombs mayExisting combs =
   -- Fixed point lookup;
   -- We make sure not to force resolved Combs or we'll loop forever.
@@ -799,6 +812,12 @@ resolveCombs mayExisting combs =
                         ++ show n
                         ++ "`."
    in resolved
+
+unTieRCombs :: EnumMap Word64 (RCombs clos) -> EnumMap Word64 (GCombs clos ())
+unTieRCombs = (fmap . fmap . fmap) (const ())
+
+absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs any cix)
+absurdCombs = fmap . fmap . first $ absurd
 
 -- Type for aggregating the necessary stack frame size. First field is
 -- unboxed size, second is boxed. The Applicative instance takes the
@@ -1531,11 +1550,13 @@ demuxArgs as0 =
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
 
-combDeps :: GComb any -> [Word64]
+combDeps :: GComb clos comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
+combDeps (CachedClosure {}) = []
 
-combTypes :: GComb comb -> [Word64]
+combTypes :: GComb any comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
+combTypes (CachedClosure {}) = []
 
 sectionDeps :: GSection comb -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _) _) _) = [w]
@@ -1600,13 +1621,14 @@ prettyCombs w es =
     (mapToList es)
 
 prettyComb :: Word64 -> Word64 -> Comb -> ShowS
-prettyComb w i (Lam ua ba _ _ s) =
-  shows w
-    . showString ":"
-    . shows i
-    . shows [ua, ba]
-    . showString ":\n"
-    . prettySection 2 s
+prettyComb w i = \case
+  (Lam ua ba _ _ s) ->
+    shows w
+      . showString ":"
+      . shows i
+      . shows [ua, ba]
+      . showString ":\n"
+      . prettySection 2 s
 
 prettySection :: (Show comb) => Int -> GSection comb -> ShowS
 prettySection ind sec =

@@ -34,8 +34,7 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
-  ( Closure,
-    GClosure (..),
+  ( Closure (..),
     pattern DataC,
     pattern PApV,
   )
@@ -153,33 +152,34 @@ decompile ::
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Closure ->
   DecompResult v
-decompile _ _ (DataC rf (maskTags -> ct) [] [])
-  | rf == booleanRef = tag2bool ct
-decompile _ _ (DataC rf (maskTags -> ct) [i] []) =
-  decompileUnboxed rf ct i
-decompile backref topTerms (DataC rf _ [] [b])
-  | rf == anyRef =
-      app () (builtin () "Any.Any") <$> decompile backref topTerms b
-decompile backref topTerms (DataC rf (maskTags -> ct) [] bs) =
-  apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
-decompile backref topTerms (PApV (CIx rf rt k) _ [] bs)
-  | rf == Builtin "jumpCont" = err Cont $ bug "<Continuation>"
-  | Builtin nm <- rf =
-      apps' (builtin () nm) <$> traverse (decompile backref topTerms) bs
-  | Just t <- topTerms rt k =
-      Term.etaReduceEtaVars . substitute t
-        <$> traverse (decompile backref topTerms) bs
-  | k > 0,
-    Just _ <- topTerms rt 0 =
-      err (UnkLocal rf k) $ bug "<Unknown>"
-  | otherwise = err (UnkComb rf) $ ref () rf
-decompile _ _ (PAp (CIx rf _ _) _ _ _) =
-  err (BadPAp rf) $ bug "<Unknown>"
-decompile _ _ (DataC rf _ _ _) = err (BadData rf) $ bug "<Data>"
-decompile _ _ BlackHole = err Exn $ bug "<Exception>"
-decompile _ _ (Captured {}) = err Cont $ bug "<Continuation>"
-decompile backref topTerms (Foreign f) =
-  decompileForeign backref topTerms f
+decompile backref topTerms = \case
+  DataC rf (maskTags -> ct) [] []
+    | rf == booleanRef -> tag2bool ct
+  DataC rf (maskTags -> ct) [i] [] ->
+    decompileUnboxed rf ct i
+  (DataC rf _ [] [b])
+    | rf == anyRef ->
+        app () (builtin () "Any.Any") <$> decompile backref topTerms b
+  (DataC rf (maskTags -> ct) [] bs) ->
+    apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
+  (PApV (CIx rf rt k) _ [] bs)
+    | rf == Builtin "jumpCont" -> err Cont $ bug "<Continuation>"
+    | Builtin nm <- rf ->
+        apps' (builtin () nm) <$> traverse (decompile backref topTerms) bs
+    | Just t <- topTerms rt k ->
+        Term.etaReduceEtaVars . substitute t
+          <$> traverse (decompile backref topTerms) bs
+    | k > 0,
+      Just _ <- topTerms rt 0 ->
+        err (UnkLocal rf k) $ bug "<Unknown>"
+    | otherwise -> err (UnkComb rf) $ ref () rf
+  (PAp (CIx rf _ _) _ _ _) ->
+    err (BadPAp rf) $ bug "<Unknown>"
+  (DataC rf _ _ _) -> err (BadData rf) $ bug "<Data>"
+  BlackHole -> err Exn $ bug "<Exception>"
+  (Captured {}) -> err Cont $ bug "<Continuation>"
+  (Foreign f) ->
+    decompileForeign backref topTerms f
 
 tag2bool :: (Var v) => Word64 -> DecompResult v
 tag2bool 0 = pure (boolean () False)
