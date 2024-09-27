@@ -632,14 +632,14 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
 eval !env !denv !activeThreads !ustk !bstk !k _ (App ck r args) =
   resolve env denv bstk r
     >>= apply env denv activeThreads ustk bstk k ck args
-eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck rcomb args) =
+eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck _combIx rcomb args) =
   enter env denv activeThreads ustk bstk k ck args rcomb
 eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
-eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Let nw _combIx comb) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz cix k) r nw
+  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz comb k) r nw
 eval !env !denv !activeThreads !ustk !bstk !k r (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k r i
   eval env denv activeThreads ustk bstk k r nx
@@ -1919,7 +1919,7 @@ discardCont denv ustk bstk k p =
 {-# INLINE discardCont #-}
 
 resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
-resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
+resolve _ _ _ (Env _cix rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo

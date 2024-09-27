@@ -453,7 +453,7 @@ data MLit
   | MY !Reference
   deriving (Show, Eq, Ord)
 
-type Instr = GInstr ()
+type Instr = GInstr CombIx
 
 type RInstr = GInstr RComb
 
@@ -526,7 +526,7 @@ data GInstr comb
     TryForce !Int
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Section = GSection ()
+type Section = GSection CombIx
 
 type RSection = GSection RComb
 
@@ -612,7 +612,7 @@ emptyRNs = RN mt mt
   where
     mt _ = internalBug "RefNums: empty"
 
-type Comb = GComb ()
+type Comb = GComb CombIx
 
 data GComb comb
   = Lam
@@ -661,7 +661,7 @@ instance Show RComb where
 type GCombs comb = EnumMap Word64 (GComb comb)
 
 -- | A reference to a combinator, parameterized by comb
-type Ref = GRef ()
+type Ref = GRef CombIx
 
 type RRef = GRef RComb
 
@@ -671,7 +671,7 @@ data GRef comb
   | Dyn !Word64 -- dynamic scope reference to a closure
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-type Branch = GBranch ()
+type Branch = GBranch CombIx
 
 type RBranch = GBranch RComb
 
@@ -918,8 +918,9 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
     ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
-    Ins (Name (Env (CIx f (cnum rns f) 0) ()) as)
-      <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
+    let cix = (CIx f (cnum rns f) 0)
+     in Ins (Name (Env cix cix) as)
+          <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
 emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
   | Just (i, BX) <- ctxResolve ctx v =
       emitClosures grpr grpn rec ctx args $ \ctx as ->
@@ -927,14 +928,16 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
           <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | Just n <- rctxResolve rec v =
       emitClosures grpr grpn rec ctx args $ \ctx as ->
-        Ins (Name (Env (CIx grpr grpn n) ()) as)
-          <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
+        let cix = (CIx grpr grpn n)
+         in Ins (Name (Env cix cix) as)
+              <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
   | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
   | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v =
-      countCtx ctx $ App False (Env (CIx grpr grpn j) ()) ZArgs
+      let cix = (CIx grpr grpn j)
+       in countCtx ctx $ App False (Env cix cix) ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
@@ -1062,12 +1065,14 @@ emitFunction _ grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
-      App False (Env (CIx grpr grpn j) ()) as
+      let cix = CIx grpr grpn j
+       in App False (Env cix cix) as
   | otherwise = emitSectionVErr v
 emitFunction rns _grpr _ _ _ (FComb r) as
   | otherwise -- slow path
     =
-      App False (Env (CIx r n 0) ()) as
+      let cix = CIx r n 0
+       in App False (Env cix cix) as
   where
     n = cnum rns r
 emitFunction rns _grpr _ _ _ (FCon r t) as =
@@ -1170,7 +1175,9 @@ emitLet rns grpr grpn rec d vcs ctx bnd
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
-    f s w = Let s (CIx grpr grpn w) ()
+    f s w =
+      let cix = (CIx grpr grpn w)
+       in Let s cix cix
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1520,7 +1527,8 @@ emitClosures grpr grpn rec ctx args k =
     allocate ctx (a : as) k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
-          Ins (Name (Env (CIx grpr grpn n) ()) ZArgs) <$> allocate (Var a BX ctx) as k
+          let cix = (CIx grpr grpn n)
+           in Ins (Name (Env cix cix) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 

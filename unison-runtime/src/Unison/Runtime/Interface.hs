@@ -1006,7 +1006,7 @@ executeMainComb ::
   CCache ->
   IO (Either (Pretty ColorText) ())
 executeMainComb init cc = do
-  rSection <- resolveSection cc $ Ins (Pack RF.unitRef 0 ZArgs) $ Call True init (BArg1 0)
+  rSection <- resolveSection cc $ Ins (Pack RF.unitRef 0 ZArgs) $ Call True init init (BArg1 0)
   result <-
     UnliftIO.try . eval0 cc Nothing $ rSection
   case result of
@@ -1218,7 +1218,7 @@ data StoredCache
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
 putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
-  putEnumMap putNat (putEnumMap putNat (putComb putCombIx)) cs
+  putEnumMap putNat (putEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
   putNat ftm
@@ -1231,7 +1231,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =
   SCache
-    <$> getEnumMap getNat (getEnumMap getNat (getComb getCombIx))
+    <$> getEnumMap getNat (getEnumMap getNat getComb)
     <*> getEnumMap getNat getReference
     <*> getEnumMap getNat getReference
     <*> getNat

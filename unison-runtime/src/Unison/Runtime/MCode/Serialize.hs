@@ -21,9 +21,9 @@ import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 
-putComb :: (MonadPut m) => (cix -> m ()) -> GComb cix -> m ()
-putComb putCix (Lam ua ba uf bf body) =
-  pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection putCix body
+putComb :: (MonadPut m) => GComb cix -> m ()
+putComb (Lam ua ba uf bf body) =
+  pInt ua *> pInt ba *> pInt uf *> pInt bf *> putSection body
 
 getComb :: (MonadGet m) => m Comb
 getComb = Lam <$> gInt <*> gInt <*> gInt <*> gInt <*> getSection
@@ -70,41 +70,48 @@ instance Tag SectionT where
   word2tag 11 = pure RMatchT
   word2tag i = unknownTag "SectionT" i
 
-putSection :: (MonadPut m) => (cix -> m ()) -> GSection cix -> m ()
-putSection pCix = \case
+putSection :: (MonadPut m) => GSection cix -> m ()
+putSection = \case
   App b r a -> putTag AppT *> serialize b *> putRef r *> putArgs a
   Call b cix _comb a -> putTag CallT *> serialize b *> putCombIx cix *> putArgs a
   Jump i a -> putTag JumpT *> pInt i *> putArgs a
-  Match i b -> putTag MatchT *> pInt i *> putBranch pCix b
+  Match i b -> putTag MatchT *> pInt i *> putBranch b
   Yield a -> putTag YieldT *> putArgs a
-  Ins i s -> putTag InsT *> putInstr pCix i *> putSection pCix s
-  Let s ci _comb -> putTag LetT *> putSection pCix s *> putCombIx ci
+  Ins i s -> putTag InsT *> putInstr i *> putSection s
+  Let s ci _comb -> putTag LetT *> putSection s *> putCombIx ci
   Die s -> putTag DieT *> serialize s
   Exit -> putTag ExitT
-  DMatch mr i b -> putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch pCix b
-  NMatch mr i b -> putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch pCix b
+  DMatch mr i b -> putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
+  NMatch mr i b -> putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
   RMatch i pu bs ->
     putTag RMatchT
       *> pInt i
-      *> putSection pCix pu
-      *> putEnumMap pWord (putBranch pCix) bs
+      *> putSection pu
+      *> putEnumMap pWord putBranch bs
 
 getSection :: (MonadGet m) => m Section
 getSection =
   getTag >>= \case
     AppT -> App <$> deserialize <*> getRef <*> getArgs
-    CallT -> Call <$> deserialize <*> getCombIx <*> pure () <*> getArgs
+    CallT -> do
+      skipCheck <- deserialize
+      cix <- getCombIx
+      args <- getArgs
+      pure $ Call skipCheck cix cix args
     JumpT -> Jump <$> gInt <*> getArgs
     MatchT -> Match <$> gInt <*> getBranch
     YieldT -> Yield <$> getArgs
     InsT -> Ins <$> getInstr <*> getSection
-    LetT -> Let <$> getSection gCix <*> gCix
+    LetT -> do
+      s <- getSection
+      cix <- getCombIx
+      pure $ Let s cix cix
     DieT -> Die <$> deserialize
     ExitT -> pure Exit
-    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch gCix
-    NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch gCix
+    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
+    NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
     RMatchT ->
-      RMatch <$> gInt <*> getSection gCix <*> getEnumMap gWord (getBranch gCix)
+      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
 
 data InstrT
   = UPrim1T
@@ -169,8 +176,8 @@ instance Tag InstrT where
   word2tag 18 = pure BLitT
   word2tag n = unknownTag "InstrT" n
 
-putInstr :: (MonadPut m) => (cix -> m ()) -> GInstr cix -> m ()
-putInstr pCix = \case
+putInstr :: (MonadPut m) => GInstr cix -> m ()
+putInstr = \case
   (UPrim1 up i) -> putTag UPrim1T *> putTag up *> pInt i
   (UPrim2 up i j) -> putTag UPrim2T *> putTag up *> pInt i *> pInt j
   (BPrim1 bp i) -> putTag BPrim1T *> putTag bp *> pInt i
@@ -314,7 +321,9 @@ getRef :: (MonadGet m) => m Ref
 getRef =
   getTag >>= \case
     StkT -> Stk <$> gInt
-    EnvT -> Env <$> getCombIx <*> pure ()
+    EnvT -> do
+      cix <- getCombIx
+      pure $ Env cix cix
     DynT -> Dyn <$> gWord
 
 putCombIx :: (MonadPut m) => CombIx -> m ()
@@ -369,20 +378,20 @@ instance Tag BranchT where
   word2tag 3 = pure TestTT
   word2tag n = unknownTag "BranchT" n
 
-putBranch :: (MonadPut m) => (cix -> m ()) -> GBranch cix -> m ()
-putBranch pCix (Test1 w s d) =
-  putTag Test1T *> pWord w *> putSection pCix s *> putSection pCix d
-putBranch pCix (Test2 a sa b sb d) =
+putBranch :: (MonadPut m) => GBranch cix -> m ()
+putBranch (Test1 w s d) =
+  putTag Test1T *> pWord w *> putSection s *> putSection d
+putBranch (Test2 a sa b sb d) =
   putTag Test2T
     *> pWord a
-    *> putSection pCix sa
+    *> putSection sa
     *> pWord b
-    *> putSection pCix sb
-    *> putSection pCix d
-putBranch pCix (TestW d m) =
-  putTag TestWT *> putSection pCix d *> putEnumMap pWord (putSection pCix) m
-putBranch pCix (TestT d m) =
-  putTag TestTT *> putSection pCix d *> putMap (putText . Util.Text.toText) (putSection pCix) m
+    *> putSection sb
+    *> putSection d
+putBranch (TestW d m) =
+  putTag TestWT *> putSection d *> putEnumMap pWord putSection m
+putBranch (TestT d m) =
+  putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
 
 getBranch :: (MonadGet m) => m Branch
 getBranch =
