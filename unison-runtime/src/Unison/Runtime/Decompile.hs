@@ -32,7 +32,7 @@ import Unison.Runtime.Foreign
     maybeUnwrapForeign,
   )
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
-import Unison.Runtime.MCode (CombIx (..), pattern RCombIx, pattern RCombRef)
+import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
   ( Closure,
     GClosure (..),
@@ -162,7 +162,7 @@ decompile backref topTerms (DataC rf _ [] [b])
       app () (builtin () "Any.Any") <$> decompile backref topTerms b
 decompile backref topTerms (DataC rf (maskTags -> ct) [] bs) =
   apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
-decompile backref topTerms (PApV (RCombIx (CIx rf rt k)) [] bs)
+decompile backref topTerms (PApV (CIx rf rt k) _ [] bs)
   | rf == Builtin "jumpCont" = err Cont $ bug "<Continuation>"
   | Builtin nm <- rf =
       apps' (builtin () nm) <$> traverse (decompile backref topTerms) bs
@@ -173,7 +173,7 @@ decompile backref topTerms (PApV (RCombIx (CIx rf rt k)) [] bs)
     Just _ <- topTerms rt 0 =
       err (UnkLocal rf k) $ bug "<Unknown>"
   | otherwise = err (UnkComb rf) $ ref () rf
-decompile _ _ (PAp (RCombRef rf) _ _) =
+decompile _ _ (PAp (CIx rf _ _) _ _ _) =
   err (BadPAp rf) $ bug "<Unknown>"
 decompile _ _ (DataC rf _ _ _) = err (BadData rf) $ bug "<Data>"
 decompile _ _ BlackHole = err Exn $ bug "<Exception>"

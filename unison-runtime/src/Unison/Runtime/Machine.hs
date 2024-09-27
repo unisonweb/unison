@@ -179,7 +179,7 @@ topDEnv combs rfTy rfTm
     Just j <- M.lookup rcrf rfTm =
       let cix = (CIx rcrf j 0)
           comb = rCombSection combs cix
-       in ( EC.mapSingleton n (PAp comb unull bnull),
+       in ( EC.mapSingleton n (PAp cix comb unull bnull),
             Mark 0 0 (EC.setSingleton n) mempty
           )
 topDEnv _ _ _ = (mempty, id)
@@ -205,9 +205,10 @@ apply0 !callback !env !threadTracker !i = do
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
     Nothing -> die "apply0: missing reference to entry point"
-  let entryComb = rCombSection cmbs (CIx r i 0)
+  let entryCix = (CIx r i 0)
+  let entryComb = rCombSection cmbs entryCix
   apply env denv threadTracker ustk bstk (kf k0) True ZArgs $
-    PAp entryComb unull bnull
+    PAp entryCix entryComb unull bnull
   where
     k0 = maybe KE (CB . Hook) callback
 
@@ -636,10 +637,10 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck _combIx rcomb args) =
   enter env denv activeThreads ustk bstk k ck args rcomb
 eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
-eval !env !denv !activeThreads !ustk !bstk !k r (Let nw _combIx comb) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix comb) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz comb k) r nw
+  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz cix comb k) r nw
 eval !env !denv !activeThreads !ustk !bstk !k r (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k r i
   eval env denv activeThreads ustk bstk k r nx
@@ -706,16 +707,16 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args !rcomb = do
   -- detecting saturated calls.
   eval env denv activeThreads ustk bstk k dummyRef entry
   where
-    (RComb _ (Lam ua ba uf bf entry)) = rcomb
+    (RComb (Lam ua ba uf bf entry)) = rcomb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
 name :: Stack 'UN -> Stack 'BX -> Args -> Closure -> IO (Stack 'BX)
 name !ustk !bstk !args clo = case clo of
-  PAp comb useg bseg -> do
+  PAp cix comb useg bseg -> do
     (useg, bseg) <- closeArgs I ustk bstk useg bseg args
     bstk <- bump bstk
-    poke bstk $ PAp comb useg bseg
+    poke bstk $ PAp cix comb useg bseg
     pure bstk
   _ -> die $ "naming non-function: " ++ show clo
 {-# INLINE name #-}
@@ -732,7 +733,7 @@ apply ::
   Args ->
   Closure ->
   IO ()
-apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
+apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp cix@(CIx combRef _ _) comb useg bseg) =
   case unRComb comb of
     Lam ua ba uf bf entry
       | ck || ua <= uac && ba <= bac -> do
@@ -743,13 +744,13 @@ apply !env !denv !activeThreads !ustk !bstk !k !ck !args (PAp comb useg bseg) =
           bstk <- dumpSeg bstk bseg A
           ustk <- acceptArgs ustk ua
           bstk <- acceptArgs bstk ba
-          eval env denv activeThreads ustk bstk k (rCombRef comb) entry
+          eval env denv activeThreads ustk bstk k combRef entry
       | otherwise -> do
           (useg, bseg) <- closeArgs C ustk bstk useg bseg args
           ustk <- discardFrame =<< frameArgs ustk
           bstk <- discardFrame =<< frameArgs bstk
           bstk <- bump bstk
-          poke bstk $ PAp comb useg bseg
+          poke bstk $ PAp cix comb useg bseg
           yield env denv activeThreads ustk bstk k
   where
     uac = asize ustk + ucount args + uscount useg
@@ -797,8 +798,8 @@ jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
     -- pending, and the result stacks need to be adjusted. Hence the 3 results.
     adjust (Mark ua ba rs denv k) =
       (0, 0, Mark (ua + asize ustk) (ba + asize bstk) rs denv k)
-    adjust (Push un bn ua ba cix k) =
-      (0, 0, Push un bn (ua + asize ustk) (ba + asize bstk) cix k)
+    adjust (Push un bn ua ba cix rcomb k) =
+      (0, 0, Push un bn (ua + asize ustk) (ba + asize bstk) cix rcomb k)
     adjust k = (asize ustk, asize bstk, k)
 {-# INLINE jump #-}
 
@@ -818,8 +819,8 @@ repush !env !activeThreads !ustk !bstk = go
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    go !denv (Push un bn ua ba nx sk) !k =
-      go denv sk $ Push un bn ua ba nx k
+    go !denv (Push un bn ua ba cix rcomb sk) !k =
+      go denv sk $ Push un bn ua ba cix rcomb k
     go !_ (CB _) !_ = die "repush: impossible"
 {-# INLINE repush #-}
 
@@ -1833,13 +1834,13 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       ustk <- adjustArgs ustk ua
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
-    leap !denv (Push ufsz bfsz uasz basz rComb k) = do
+    leap !denv (Push ufsz bfsz uasz basz (CIx ref _ _) rComb k) = do
       let Lam _ _ uf bf nx = unRComb rComb
       ustk <- restoreFrame ustk ufsz uasz
       bstk <- restoreFrame bstk bfsz basz
       ustk <- ensure ustk uf
       bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k (rCombRef rComb) nx
+      eval env denv activeThreads ustk bstk k ref nx
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
@@ -1895,8 +1896,8 @@ splitCont !denv !ustk !bstk !k !p =
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    walk !denv !usz !bsz !ck (Push un bn ua ba br k) =
-      walk denv (usz + un + ua) (bsz + bn + ba) (Push un bn ua ba br ck) k
+    walk !denv !usz !bsz !ck (Push un bn ua ba br brComb k) =
+      walk denv (usz + un + ua) (bsz + bn + ba) (Push un bn ua ba br brComb ck) k
 
     finish !denv !usz !bsz !ua !ba !ck !k = do
       (useg, ustk) <- grab ustk usz
@@ -1919,7 +1920,7 @@ discardCont denv ustk bstk k p =
 {-# INLINE discardCont #-}
 
 resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
-resolve _ _ _ (Env _cix rComb) = pure $ PAp rComb unull bnull
+resolve _ _ _ (Env cix rComb) = pure $ PAp cix rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
@@ -1934,10 +1935,10 @@ unhandledErr fname env i =
     bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
 
 rCombSection :: EnumMap Word64 RCombs -> CombIx -> RComb
-rCombSection combs cix@(CIx r n i) =
+rCombSection combs (CIx r n i) =
   case EC.lookup n combs of
     Just cmbs -> case EC.lookup i cmbs of
-      Just cmb -> RComb cix cmb
+      Just cmb -> RComb cmb
       Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`. Reference: " ++ show r
     Nothing -> error $ "unknown combinator `" ++ show n ++ "`. Reference: " ++ show r
 
@@ -2172,8 +2173,8 @@ reflectValue rty = goV
 
     goIx (CIx r _ i) = ANF.GR r i
 
-    goV (PApV rComb ua ba) =
-      ANF.Partial (goIx $ rCombIx rComb) (fromIntegral <$> ua) <$> traverse goV ba
+    goV (PApV cix _rComb ua ba) =
+      ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
     goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
@@ -2188,13 +2189,13 @@ reflectValue rty = goV
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
-    goK (Push uf bf ua ba rComb k) =
+    goK (Push uf bf ua ba cix _rComb k) =
       ANF.Push
         (fromIntegral uf)
         (fromIntegral bf)
         (fromIntegral ua)
         (fromIntegral ba)
-        (goIx $ rCombIx rComb)
+        (goIx cix)
         <$> goK k
 
     goF f
@@ -2257,15 +2258,18 @@ reifyValue0 (combs, rty, rtm) = goV
     refTm r
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
-    goIx :: ANF.GroupRef -> IO RComb
+    goIx :: ANF.GroupRef -> IO (CombIx, RComb)
     goIx (ANF.GR r i) =
       refTm r <&> \n ->
-        rCombSection combs (CIx r n i)
+        let cix = (CIx r n i)
+         in (cix, rCombSection combs cix)
 
-    goV (ANF.Partial gr ua ba) =
-      pap <$> (goIx gr) <*> traverse goV ba
+    goV (ANF.Partial gr ua ba) = do
+      (cix, rcomb) <- goIx gr
+      clos <- traverse goV ba
+      pure $ pap cix rcomb clos
       where
-        pap i = PApV i (fromIntegral <$> ua)
+        pap cix i = PApV cix i (fromIntegral <$> ua)
     goV (ANF.Data r t0 us bs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       DataC r t (fromIntegral <$> us) <$> traverse goV bs
@@ -2287,14 +2291,16 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         mrk ps de k =
           Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
-    goK (ANF.Push uf bf ua ba gr k) =
+    goK (ANF.Push uf bf ua ba gr k) = do
+      (cix, rcomb) <- goIx gr
       Push
         (fromIntegral uf)
         (fromIntegral bf)
         (fromIntegral ua)
         (fromIntegral ba)
-        <$> (goIx gr)
-        <*> goK k
+        cix
+        rcomb
+        <$> goK k
 
     goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
     goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l
@@ -2342,8 +2348,8 @@ universalEq frn = eqc
       ct1 == ct2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
-    eqc (PApV i1 us1 bs1) (PApV i2 us2 bs2) =
-      i1 == i2
+    eqc (PApV cix1 _ us1 bs1) (PApV cix2 _ us2 bs2) =
+      cix1 == cix2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
     eqc (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =
@@ -2481,8 +2487,8 @@ universalCompare frn = cmpc False
         -- when comparing corresponding `Any` values, which have
         -- existentials inside check that type references match
         <> cmpl (cmpc $ tyEq || rf1 == Rf.anyRef) bs1 bs2
-    cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2) =
-      compare i1 i2
+    cmpc tyEq (PApV cix1 _ us1 bs1) (PApV cix2 _ us2 bs2) =
+      compare cix1 cix2
         <> cmpl compare us1 us2
         <> cmpl (cmpc tyEq) bs1 bs2
     cmpc _ (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =

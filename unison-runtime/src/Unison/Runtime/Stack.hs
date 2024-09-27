@@ -50,6 +50,7 @@ where
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_)
+import Data.Functor (($>))
 import Data.Kind qualified as Kind
 import Data.Sequence (Seq)
 import Data.Word
@@ -88,9 +89,32 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !RComb -- local continuation reference
+      !CombIx
+      RComb -- local continuation reference
       !K
-  deriving (Eq, Ord)
+
+instance Eq K where
+  KE == KE = True
+  (CB cb) == (CB cb') = cb == cb'
+  (Mark ua ba ps m k) == (Mark ua' ba' ps' m' k') =
+    ua == ua' && ba == ba' && ps == ps' && m == m' && k == k'
+  (Push uf bf ua ba ci _comb k) == (Push uf' bf' ua' ba' ci' _comb' k') =
+    uf == uf' && bf == bf' && ua == ua' && ba == ba' && ci == ci' && k == k'
+  _ == _ = False
+
+instance Ord K where
+  compare KE KE = EQ
+  compare (CB cb) (CB cb') = compare cb cb'
+  compare (Mark ua ba ps m k) (Mark ua' ba' ps' m' k') =
+    compare (ua, ba, ps, m, k) (ua', ba', ps', m', k')
+  compare (Push uf bf ua ba ci _comb k) (Push uf' bf' ua' ba' ci' _comb' k') =
+    compare (uf, bf, ua, ba, ci, k) (uf', bf', ua', ba', ci', k')
+  compare KE _ = LT
+  compare _ KE = GT
+  compare (CB _) _ = LT
+  compare _ (CB _) = GT
+  compare (Mark _ _ _ _ _) _ = LT
+  compare _ (Mark _ _ _ _ _) = GT
 
 type RClosure = GClosure RComb
 
@@ -100,6 +124,7 @@ type Closure = GClosure RComb
 
 data GClosure comb
   = PAp
+      !CombIx
       {- Lazy! Might be cyclic -} comb
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
@@ -115,13 +140,20 @@ data GClosure comb
     Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
   | Foreign !Foreign
   | BlackHole
-  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+  deriving stock (Show, Functor, Foldable, Traversable)
+
+instance Eq (GClosure comb) where
+  -- This is safe because the embedded CombIx will break disputes
+  a == b = (a $> ()) == (b $> ())
+
+instance Ord (GClosure comb) where
+  compare a b = compare (a $> ()) (b $> ())
 
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
     dedup p (Mark _ _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ _ _ (RComb (CIx r _ _) _) k)
+    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) _ k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
@@ -176,7 +208,7 @@ frameDataSize = go 0 0
     go usz bsz KE = (usz, bsz)
     go usz bsz (CB _) = (usz, bsz)
     go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
-    go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
+    go usz bsz (Push uf bf ua ba _ _ k) = go (usz + uf + ua) (bsz + bf + ba) k
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
 pattern DataC rf ct us bs <-
@@ -184,11 +216,11 @@ pattern DataC rf ct us bs <-
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: RComb -> [Int] -> [RClosure] -> RClosure
-pattern PApV ic us bs <-
-  PAp ic (ints -> us) (bsegToList -> bs)
+pattern PApV :: CombIx -> RComb -> [Int] -> [RClosure] -> RClosure
+pattern PApV cix rcomb us bs <-
+  PAp cix rcomb (ints -> us) (bsegToList -> bs)
   where
-    PApV ic us bs = PAp ic (useg us) (bseg bs)
+    PApV cix rcomb us bs = PAp cix rcomb (useg us) (bseg bs)
 
 pattern CapV :: K -> Int -> Int -> [Int] -> [RClosure] -> RClosure
 pattern CapV k ua ba us bs <-
@@ -559,7 +591,7 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba ci k) =
+      go com (Push uf bf ua ba ci _rcomb k) =
         com ++ show (uf, bf, ua, ba, ci) ++ go "," k
       go com (Mark ua ba ps _ k) =
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
@@ -712,7 +744,7 @@ bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
 closureTermRefs :: (Monoid m) => (Reference -> m) -> (RClosure -> m)
-closureTermRefs f (PAp (RComb (CIx r _ _) _) _ cs) =
+closureTermRefs f (PAp (CIx r _ _) _ _ cs) =
   f r <> foldMap (closureTermRefs f) cs
 closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
 closureTermRefs f (DataB2 _ _ c1 c2) =
@@ -729,6 +761,6 @@ closureTermRefs _ _ = mempty
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (RComb (CIx r _ _) _) k) =
+contTermRefs f (Push _ _ _ _ (CIx r _ _) _ k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty

@@ -20,8 +20,6 @@ module Unison.Runtime.MCode
     GComb (..),
     Comb,
     RComb (..),
-    pattern RCombIx,
-    pattern RCombRef,
     GCombs,
     Combs,
     RCombs,
@@ -44,7 +42,6 @@ module Unison.Runtime.MCode
     emptyRNs,
     argsToLists,
     combRef,
-    rCombRef,
     combDeps,
     combTypes,
     prettyCombs,
@@ -599,9 +596,6 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
-rCombRef :: RComb -> Reference
-rCombRef (RComb cix _) = combRef cix
-
 data RefNums = RN
   { dnum :: Reference -> Word64,
     cnum :: Reference -> Word64
@@ -627,35 +621,13 @@ type Combs = GCombs CombIx
 
 type RCombs = GCombs RComb
 
--- | Extract the CombIx from an RComb.
-pattern RCombIx :: CombIx -> RComb
-pattern RCombIx r <- (rCombIx -> r)
-
-{-# COMPLETE RCombIx #-}
-
--- | Extract the Reference from an RComb.
-pattern RCombRef :: Reference -> RComb
-pattern RCombRef r <- (combRef . rCombIx -> r)
-
-{-# COMPLETE RCombRef #-}
-
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-data RComb = RComb
-  { rCombIx :: !CombIx,
-    unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
+newtype RComb = RComb
+  { unRComb :: (GComb RComb {- Possibly recursive comb, keep it lazy or risk blowing up -})
   }
 
--- Eq and Ord instances on the CombIx to avoid infinite recursion when
--- comparing self-recursive functions.
-instance Eq RComb where
-  RComb r1 _ == RComb r2 _ = r1 == r2
-
-instance Ord RComb where
-  compare (RComb r1 _) (RComb r2 _) = compare r1 r2
-
--- | RCombs can be infinitely recursive so we show the CombIx instead.
 instance Show RComb where
-  show (RComb ix _) = show ix
+  show _ = "<RCOMB>"
 
 -- | Map of combinators, parameterized by comb reference type
 type GCombs comb = EnumMap Word64 (GComb comb)
@@ -810,7 +782,7 @@ resolveCombs mayExisting combs =
   -- We make sure not to force resolved Combs or we'll loop forever.
   let ~resolved =
         combs
-          <&> (fmap . fmap) \(cix@(CIx _ n i)) ->
+          <&> (fmap . fmap) \(CIx _ n i) ->
             let cmbs = case mayExisting >>= EC.lookup n of
                   Just cmbs -> cmbs
                   Nothing ->
@@ -818,7 +790,7 @@ resolveCombs mayExisting combs =
                       Just cmbs -> cmbs
                       Nothing -> error $ "unknown combinator `" ++ show n ++ "`."
              in case EC.lookup i cmbs of
-                  Just cmb -> RComb cix cmb
+                  Just cmb -> RComb cmb
                   Nothing ->
                     error $
                       "unknown section `"
@@ -1559,10 +1531,10 @@ demuxArgs as0 =
     -- TODO: handle ranges
     (us, bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
 
-combDeps :: Comb -> [Word64]
+combDeps :: GComb any -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
 
-combTypes :: Comb -> [Word64]
+combTypes :: GComb comb -> [Word64]
 combTypes (Lam _ _ _ _ s) = sectionTypes s
 
 sectionDeps :: GSection comb -> [Word64]
@@ -1579,7 +1551,7 @@ sectionDeps (Ins i s)
 sectionDeps (Let s (CIx _ w _) _) = w : sectionDeps s
 sectionDeps _ = []
 
-sectionTypes :: Section -> [Word64]
+sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _ _) = sectionTypes s
 sectionTypes (Match _ br) = branchTypes br
@@ -1589,7 +1561,7 @@ sectionTypes (RMatch _ pu br) =
   sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
-instrTypes :: Instr -> [Word64]
+instrTypes :: GInstr comb -> [Word64]
 instrTypes (Pack _ w _) = [w `shiftR` 16]
 instrTypes (Reset ws) = setToList ws
 instrTypes (Capture w) = [w]
@@ -1605,7 +1577,7 @@ branchDeps (TestW d m) =
 branchDeps (TestT d m) =
   sectionDeps d ++ foldMap sectionDeps m
 
-branchTypes :: Branch -> [Word64]
+branchTypes :: GBranch comb -> [Word64]
 branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
 branchTypes (Test2 _ s1 _ s2 d) =
   sectionTypes s1 ++ sectionTypes s2 ++ sectionTypes d
