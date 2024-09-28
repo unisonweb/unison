@@ -2172,7 +2172,7 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
               )
             & EC.setFromList
     newCombRefs <- updateMap combRefUpdates (combRefs cc)
-    (unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+    (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
       let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs = absurdCombs . mapFromList $ zipWith combinate [ntm ..] rgs
           (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
@@ -2183,12 +2183,13 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
           newCombs :: EnumMap Word64 MCombs
           newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
           updatedCombs = newCombs <> oldCombs
-       in ((unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
+       in ((unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
+    nsc <- updateMap unresolvedNewCombs (srcCombs cc)
     nsn <- updateMap (M.fromList sands) (sandbox cc)
     ncc <- updateMap newCacheableCombs (cacheableCombs cc)
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
-    pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
+    pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
   preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
 preEvalTopLevelConstants :: (EnumMap Word64 (GCombs Closure CombIx)) -> (EnumMap Word64 (GCombs Closure CombIx)) -> CCache -> IO ()

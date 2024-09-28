@@ -128,6 +128,7 @@ import Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    preEvalTopLevelConstants,
     refLookup,
     refNumTm,
     refNumsTm,
@@ -1318,6 +1319,17 @@ restoreCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
       <*> newTVarIO (sbs <> baseSandboxInfo)
+  let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
+        srcCombs
+          & absurdCombs
+          & EC.mapToList
+          & foldMap
+            ( \(k, v) ->
+                if k `member` cacheableCombs
+                  then (EC.mapSingleton k v, mempty)
+                  else (mempty, EC.mapSingleton k v)
+            )
+  preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
   pure cc
   where
     decom =
