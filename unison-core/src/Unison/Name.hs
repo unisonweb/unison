@@ -575,7 +575,7 @@ suffixifyByHash fqn rel =
 
     isOk :: Name -> Bool
     isOk suffix =
-      Set.size matchingRefs == 1 || matchingRefs == allRefs
+      matchingRefs == allRefs
       where
         matchingRefs :: Set r
         matchingRefs =
@@ -598,7 +598,7 @@ suffixifyByHashName fqn rel =
 
     isOk :: Name -> Bool
     isOk suffix =
-      (Set.size matchingRefs == 1 || matchingRefs == allRefs)
+      matchingRefs == allRefs
         -- Don't use a suffix of 2+ aliases if any of then are non-local names
         && case numLocalNames of
           0 -> True
