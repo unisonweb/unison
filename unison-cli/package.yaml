@@ -97,6 +97,7 @@ library:
     - unison-sqlite
     - unison-syntax
     - unison-util-base32hex
+    - unison-util-recursion
     - unison-util-relation
     - uuid
     - vector
@@ -127,6 +128,7 @@ tests:
       - unison-parser-typechecker
       - unison-pretty-printer
       - unison-syntax
+      - unison-util-recursion
     main: Main.hs
     source-dirs: tests
 

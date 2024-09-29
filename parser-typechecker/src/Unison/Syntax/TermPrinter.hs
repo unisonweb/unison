@@ -7,6 +7,7 @@ module Unison.Syntax.TermPrinter
     prettyBinding,
     prettyBinding',
     prettyBindingWithoutTypeSignature,
+    prettyDoc2,
     pretty0,
     runPretty,
     prettyPattern,

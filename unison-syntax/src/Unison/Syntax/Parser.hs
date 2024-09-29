@@ -435,7 +435,8 @@ string = queryToken getString
     getString _ = Nothing
 
 doc ::
-  (Ord v) => P v m (L.Token (Doc.UntitledSection (Doc.Tree (ReferenceType, HQ'.HashQualified Name) [L.Token L.Lexeme])))
+  (Ord v) =>
+  P v m (L.Token (Doc.UntitledSection (Doc.Tree (L.Token (ReferenceType, HQ'.HashQualified Name)) [L.Token L.Lexeme])))
 doc = queryToken \case
   L.Doc d -> pure d
   _ -> Nothing
