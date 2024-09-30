@@ -166,7 +166,8 @@ synthesizeForce tl typeOfFunc = do
         Typechecker.Env
           { ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
             typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
   case Result.runResultT
     ( Typechecker.synthesize
