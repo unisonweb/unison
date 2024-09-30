@@ -3281,7 +3281,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                                       f
                                                                         x
                                                                         Nat.+ sqr
-                                                                                1)))))
+                                                                          1)))))
                                                       , Lit
                                                           ()
                                                           (Right
