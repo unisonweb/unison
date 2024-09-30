@@ -564,6 +564,12 @@ data GSection comb
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
+    --
+    -- The stored CombIx is a combinator that contains the second
+    -- section, which can be used to reconstruct structures that
+    -- throw away the section, like serializable continuation values.
+    -- Code generation will emit the section as its own combinator,
+    -- but also include it directly here.
     Let !(GSection comb) -- binding
         !CombIx          -- body section refrence
         !Int             -- unboxed stack safety
