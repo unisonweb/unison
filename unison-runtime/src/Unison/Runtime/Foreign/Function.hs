@@ -124,7 +124,7 @@ instance ForeignConvention Char where
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
-instance (GClosure comb ~ Elem 'BX) => ForeignConvention (GClosure comb) where
+instance ForeignConvention Closure where
   readForeign us (i : bs) _ bstk = (us,bs,) <$> peekOff bstk i
   readForeign _ [] _ _ = foreignCCError "Closure"
   writeForeign ustk bstk c = do
@@ -441,7 +441,7 @@ instance ForeignConvention BufferMode where
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
-instance (GClosure comb ~ Elem 'BX) => ForeignConvention [GClosure comb] where
+instance ForeignConvention [Closure] where
   readForeign us (i : bs) _ bstk =
     (us,bs,) . toList <$> peekOffS bstk i
   readForeign _ _ _ _ = foreignCCError "[Closure]"
@@ -453,23 +453,23 @@ instance ForeignConvention [Foreign] where
   readForeign = readForeignAs (fmap marshalToForeign)
   writeForeign = writeForeignAs (fmap Foreign)
 
-instance ForeignConvention (MVar RClosure) where
+instance ForeignConvention (MVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
 
-instance ForeignConvention (TVar RClosure) where
+instance ForeignConvention (TVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap tvarRef)
 
-instance ForeignConvention (IORef RClosure) where
+instance ForeignConvention (IORef Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap refRef)
 
-instance ForeignConvention (Ticket RClosure) where
+instance ForeignConvention (Ticket Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap ticketRef)
 
-instance ForeignConvention (Promise RClosure) where
+instance ForeignConvention (Promise Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap promiseRef)
 
@@ -485,7 +485,7 @@ instance ForeignConvention Foreign where
   readForeign = readForeignAs marshalToForeign
   writeForeign = writeForeignAs Foreign
 
-instance ForeignConvention (PA.MutableArray s RClosure) where
+instance ForeignConvention (PA.MutableArray s Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap marrayRef)
 
@@ -493,7 +493,7 @@ instance ForeignConvention (PA.MutableByteArray s) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap mbytearrayRef)
 
-instance ForeignConvention (PA.Array RClosure) where
+instance ForeignConvention (PA.Array Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap iarrayRef)
 
@@ -505,13 +505,13 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
-fromUnisonPair :: RClosure -> (a, b)
+fromUnisonPair :: Closure -> (a, b)
 fromUnisonPair (DataC _ _ [] [x, DataC _ _ [] [y, _]]) =
   (unwrapForeignClosure x, unwrapForeignClosure y)
 fromUnisonPair _ = error "fromUnisonPair: invalid closure"
 
 toUnisonPair ::
-  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> RClosure
+  (BuiltinForeign a, BuiltinForeign b) => (a, b) -> Closure
 toUnisonPair (x, y) =
   DataC
     Ty.pairRef
@@ -522,7 +522,7 @@ toUnisonPair (x, y) =
     un = DataC Ty.unitRef 0 [] []
     wr z = Foreign $ wrapBuiltin z
 
-unwrapForeignClosure :: RClosure -> a
+unwrapForeignClosure :: Closure -> a
 unwrapForeignClosure = unwrapForeign . marshalToForeign
 
 instance {-# OVERLAPPABLE #-} (BuiltinForeign a, BuiltinForeign b) => ForeignConvention [(a, b)] where
