@@ -1,7 +1,6 @@
 module Main where
 
 import Data.Vector.Mutable qualified as V
-import Data.Vector.Primitive.Mutable qualified as UV
 -- import Data.Vector qualified as IV
 import Data.Word (Word16, Word64)
 import System.CPUTime (getCPUTime)
@@ -18,20 +17,23 @@ Machine code representation.
 Uses a register-based VM with an infinite number of registers.
 -}
 data MCode ref
-  = Nat !Word64 -- 42
+  = NatLit !Word64 -- 42
   | TailCall ref !Var !Var -- foo x y
   | NatIncrement !Var -- increment x
   | NatDecrement !Var -- decrement x
   | If0 !Var !(MCode ref) !(MCode ref) -- if cond then t else f
   | Let !Var !(MCode ref) !(MCode ref) -- let x = <expr> in body
   | Print !Var -- printLine x
-  deriving (-- | DynamicCall !Slot !Slot !Slot
-            Eq, Ord, Show)
+  deriving
+    ( -- | DynamicCall !Slot !Slot !Slot
+      Eq,
+      Ord,
+      Show
+    )
 
 data Function = Function {code :: !(MCode Function), arity :: !Int}
 
--- currently unused
-data Value = Null | Closure [Word64] [Value] deriving (Eq, Ord, Show)
+data Value = Null | Nat {-# UNPACK #-} !Word64 | Closure ![Word64] ![Value] deriving (Eq, Ord, Show)
 
 main :: IO ()
 main = do
@@ -44,7 +46,7 @@ main = do
       prog acc' rem'
   -}
   let fn = Function (If0 2 (Print 1) (Let 3 (NatIncrement 1) $ Let 4 (NatDecrement 2) $ TailCall fn 3 4)) 2
-  let prog = Let 1 (Nat 0) (Let 2 (Nat countUpTo) (TailCall fn 1 2))
+  let prog = Let 1 (NatLit 0) (Let 2 (NatLit countUpTo) (TailCall fn 1 2))
   run prog
 
 countUpTo :: Word64
@@ -64,8 +66,7 @@ run :: MCode Function -> IO ()
 run prog = do
   let n = 1024
   boxed <- V.replicate n Null
-  unboxed <- UV.replicate n 0
-  time $ go unboxed boxed (n - 1) 0 (n - 1) prog
+  time $ go boxed (n - 1) 0 (n - 1) prog
   pure ()
   where
     {-
@@ -87,15 +88,15 @@ run prog = do
     Local variable declarations with `Let` should be of strictly
     increasing number within a branch of the function.
 
-    So `Let 10 (Nat 42) (Let 3 (Nat 16) body)` is no good, since
+    So `Let 10 (NatLit 42) (Let 3 (NatLit 16) body)` is no good, since
     it declares variable `10` before variable `3`.
 
     maxVar is the maximum local variable declared in the current
     call frame. You can grab all the local variables by slicing
     from `framePtr - maxVar` to `framePtr`.
     -}
-    go :: UV.IOVector Word64 -> V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
-    go !unboxed !boxed !framePtr !maxVar !out !prog = do
+    go :: V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
+    go !boxed !framePtr !maxVar !out !prog = do
       -- stack <- UV.foldr (:) [] unboxed
       -- putStrLn ("stack:    " <> show stack)
       -- putStrLn ("frame:    " <> show framePtr)
@@ -104,42 +105,34 @@ run prog = do
       -- putStrLn ("rem:      " <> show prog)
       -- putStrLn ""
       case prog of
-        Nat n -> do
-          UV.write unboxed out n
-          V.write boxed out Null
-        TailCall ref a b -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          ab <- V.read boxed (framePtr - fromIntegral a)
-          bu <- UV.read unboxed (framePtr - fromIntegral b)
-          bb <- V.read boxed (framePtr - fromIntegral b)
+        NatLit n -> do
+          V.write boxed out (Nat n)
+        TailCall ref aInd bInd -> do
+          ab <- V.read boxed (framePtr - fromIntegral aInd)
+          bb <- V.read boxed (framePtr - fromIntegral bInd)
           let aslot = framePtr - 1
           let bslot = framePtr - 2
-          UV.write unboxed aslot au
-          UV.write unboxed bslot bu
           V.write boxed aslot ab
           V.write boxed bslot bb
           let mc = code ref
-          go unboxed boxed framePtr 2 out mc
-        NatIncrement a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          UV.write unboxed out (au + 1)
-          V.write boxed out Null
-        NatDecrement a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          UV.write unboxed out (au - 1)
-          V.write boxed out Null
+          go boxed framePtr 2 out mc
+        NatIncrement i -> do
+          Nat n <- V.read boxed (framePtr - fromIntegral i)
+          V.write boxed out (Nat $ n + 1)
+        NatDecrement i -> do
+          Nat n <- V.read boxed (framePtr - fromIntegral i)
+          V.write boxed out (Nat $ n - 1)
         If0 a t f -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
+          Nat au <- V.read boxed (framePtr - fromIntegral a)
           if au == 0
-            then go unboxed boxed framePtr maxVar out t
-            else go unboxed boxed framePtr maxVar out f
+            then go boxed framePtr maxVar out t
+            else go boxed framePtr maxVar out f
         Let var a b -> do
-          go unboxed boxed framePtr var (framePtr - fromIntegral var) a
-          go unboxed boxed framePtr var out b
+          go boxed framePtr var (framePtr - fromIntegral var) a
+          go boxed framePtr var out b
         -- we assume that `Let` slots are assigned in increasing order
         -- otherwise we'd do:
         -- go unboxed boxed framePtr (max out maxVar) b
-        Print a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          ab <- V.read boxed (framePtr - fromIntegral a)
-          putStrLn (show (au, ab))
+        Print i -> do
+          a <- V.read boxed (framePtr - fromIntegral i)
+          putStrLn (show a)
