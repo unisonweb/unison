@@ -1,9 +1,11 @@
 module Main where
 
-import Data.Vector.Mutable qualified as V
-import Data.Vector.Primitive.Mutable qualified as UV
--- import Data.Vector qualified as IV
+import Control.Monad.Primitive (PrimMonad (..))
+import Data.Primitive.PrimArray
+import Data.Primitive.PrimArray qualified as P
 import Data.Word (Word16, Word64)
+import GHC.IOArray (IOArray)
+import GHC.IOArray qualified as A
 import System.CPUTime (getCPUTime)
 import Text.Printf
 
@@ -12,6 +14,10 @@ type Slot = Int
 
 -- | A local variable reference, relative to the current stack frame
 type Var = Word16
+
+type PArr = MutablePrimArray (PrimState IO)
+
+type Arr = IOArray Int
 
 {-
 Machine code representation.
@@ -25,8 +31,12 @@ data MCode ref
   | If0 !Var !(MCode ref) !(MCode ref) -- if cond then t else f
   | Let !Var !(MCode ref) !(MCode ref) -- let x = <expr> in body
   | Print !Var -- printLine x
-  deriving (-- | DynamicCall !Slot !Slot !Slot
-            Eq, Ord, Show)
+  deriving
+    ( -- | DynamicCall !Slot !Slot !Slot
+      Eq,
+      Ord,
+      Show
+    )
 
 data Function = Function {code :: !(MCode Function), arity :: !Int}
 
@@ -63,8 +73,8 @@ time a = do
 run :: MCode Function -> IO ()
 run prog = do
   let n = 1024
-  boxed <- V.replicate n Null
-  unboxed <- UV.replicate n 0
+  boxed <- A.newIOArray (0, n) Null
+  unboxed <- P.newPrimArray n
   time $ go unboxed boxed (n - 1) 0 (n - 1) prog
   pure ()
   where
@@ -94,7 +104,7 @@ run prog = do
     call frame. You can grab all the local variables by slicing
     from `framePtr - maxVar` to `framePtr`.
     -}
-    go :: UV.IOVector Word64 -> V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
+    go :: PArr Word64 -> Arr Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
     go !unboxed !boxed !framePtr !maxVar !out !prog = do
       -- stack <- UV.foldr (:) [] unboxed
       -- putStrLn ("stack:    " <> show stack)
@@ -105,31 +115,31 @@ run prog = do
       -- putStrLn ""
       case prog of
         Nat n -> do
-          UV.write unboxed out n
-          V.write boxed out Null
+          P.writePrimArray unboxed out n
+          A.writeIOArray boxed out Null
         TailCall ref a b -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          ab <- V.read boxed (framePtr - fromIntegral a)
-          bu <- UV.read unboxed (framePtr - fromIntegral b)
-          bb <- V.read boxed (framePtr - fromIntegral b)
+          au <- P.readPrimArray unboxed (framePtr - fromIntegral a)
+          ab <- A.readIOArray boxed (framePtr - fromIntegral a)
+          bu <- P.readPrimArray unboxed (framePtr - fromIntegral b)
+          bb <- A.readIOArray boxed (framePtr - fromIntegral b)
           let aslot = framePtr - 1
           let bslot = framePtr - 2
-          UV.write unboxed aslot au
-          UV.write unboxed bslot bu
-          V.write boxed aslot ab
-          V.write boxed bslot bb
+          P.writePrimArray unboxed aslot au
+          P.writePrimArray unboxed bslot bu
+          A.writeIOArray boxed aslot ab
+          A.writeIOArray boxed bslot bb
           let mc = code ref
           go unboxed boxed framePtr 2 out mc
         NatIncrement a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          UV.write unboxed out (au + 1)
-          V.write boxed out Null
+          au <- P.readPrimArray unboxed (framePtr - fromIntegral a)
+          P.writePrimArray unboxed out (au + 1)
+          A.writeIOArray boxed out Null
         NatDecrement a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          UV.write unboxed out (au - 1)
-          V.write boxed out Null
+          au <- P.readPrimArray unboxed (framePtr - fromIntegral a)
+          P.writePrimArray unboxed out (au - 1)
+          A.writeIOArray boxed out Null
         If0 a t f -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
+          au <- P.readPrimArray unboxed (framePtr - fromIntegral a)
           if au == 0
             then go unboxed boxed framePtr maxVar out t
             else go unboxed boxed framePtr maxVar out f
@@ -140,6 +150,6 @@ run prog = do
         -- otherwise we'd do:
         -- go unboxed boxed framePtr (max out maxVar) b
         Print a -> do
-          au <- UV.read unboxed (framePtr - fromIntegral a)
-          ab <- V.read boxed (framePtr - fromIntegral a)
+          au <- P.readPrimArray unboxed (framePtr - fromIntegral a)
+          ab <- A.readIOArray boxed (framePtr - fromIntegral a)
           putStrLn (show (au, ab))
