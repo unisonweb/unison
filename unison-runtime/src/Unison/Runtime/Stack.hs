@@ -104,8 +104,10 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !CombIx
-      (RComb Closure) -- local continuation reference
+      !CombIx -- resumption section reference
+      !Int -- unboxed stack guard
+      !Int -- boxed stack guard
+      !(RSection Closure) -- resumption section
       !K
 
 instance Eq K where
@@ -113,7 +115,7 @@ instance Eq K where
   (CB cb) == (CB cb') = cb == cb'
   (Mark ua ba ps m k) == (Mark ua' ba' ps' m' k') =
     ua == ua' && ba == ba' && ps == ps' && m == m' && k == k'
-  (Push uf bf ua ba ci _comb k) == (Push uf' bf' ua' ba' ci' _comb' k') =
+  (Push uf bf ua ba ci _ _ _sect k) == (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
     uf == uf' && bf == bf' && ua == ua' && ba == ba' && ci == ci' && k == k'
   _ == _ = False
 
@@ -122,7 +124,7 @@ instance Ord K where
   compare (CB cb) (CB cb') = compare cb cb'
   compare (Mark ua ba ps m k) (Mark ua' ba' ps' m' k') =
     compare (ua, ba, ps, m, k) (ua', ba', ps', m', k')
-  compare (Push uf bf ua ba ci _comb k) (Push uf' bf' ua' ba' ci' _comb' k') =
+  compare (Push uf bf ua ba ci _ _ _sect k) (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
     compare (uf, bf, ua, ba, ci, k) (uf', bf', ua', ba', ci', k')
   compare KE _ = LT
   compare _ KE = GT
@@ -195,7 +197,7 @@ traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
     dedup p (Mark _ _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) _ k)
+    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) _ _ _ k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
@@ -251,7 +253,8 @@ frameDataSize = go 0 0
     go usz bsz KE = (usz, bsz)
     go usz bsz (CB _) = (usz, bsz)
     go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
-    go usz bsz (Push uf bf ua ba _ _ k) = go (usz + uf + ua) (bsz + bf + ba) k
+    go usz bsz (Push uf bf ua ba _ _ _ _ k) =
+      go (usz + uf + ua) (bsz + bf + ba) k
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
@@ -634,7 +637,7 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba ci _rcomb k) =
+      go com (Push uf bf ua ba ci _un _bx _rsect k) =
         com ++ show (uf, bf, ua, ba, ci) ++ go "," k
       go com (Mark ua ba ps _ k) =
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
@@ -805,6 +808,6 @@ closureTermRefs f = \case
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (CIx r _ _) _ k) =
+contTermRefs f (Push _ _ _ _ (CIx r _ _) _ _ b k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty

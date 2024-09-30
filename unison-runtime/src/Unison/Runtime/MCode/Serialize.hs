@@ -96,7 +96,13 @@ putSection = \case
   Match i b -> putTag MatchT *> pInt i *> putBranch b
   Yield a -> putTag YieldT *> putArgs a
   Ins i s -> putTag InsT *> putInstr i *> putSection s
-  Let s ci _comb -> putTag LetT *> putSection s *> putCombIx ci
+  Let s ci uf bf bd ->
+    putTag LetT
+      *> putSection s
+      *> putCombIx ci
+      *> pInt uf
+      *> pInt bf
+      *> putSection bd
   Die s -> putTag DieT *> serialize s
   Exit -> putTag ExitT
   DMatch mr i b -> putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
@@ -120,10 +126,8 @@ getSection =
     MatchT -> Match <$> gInt <*> getBranch
     YieldT -> Yield <$> getArgs
     InsT -> Ins <$> getInstr <*> getSection
-    LetT -> do
-      s <- getSection
-      cix <- getCombIx
-      pure $ Let s cix cix
+    LetT ->
+      Let <$> getSection <*> getCombIx <*> gInt <*> gInt <*> getSection
     DieT -> Die <$> deserialize
     ExitT -> pure Exit
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch

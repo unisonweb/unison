@@ -672,10 +672,12 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Call ck _combIx rcomb args) =
   enter env denv activeThreads ustk bstk k ck args rcomb
 eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
   peekOff bstk i >>= jump env denv activeThreads ustk bstk k args
-eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix comb) = do
+eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix uf bf sect) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv activeThreads ustk bstk (Push ufsz bfsz uasz basz cix comb k) r nw
+  eval env denv activeThreads ustk bstk
+    (Push ufsz bfsz uasz basz cix uf bf sect k)
+    r nw
 eval !env !denv !activeThreads !ustk !bstk !k r (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k r i
   eval env denv activeThreads ustk bstk k r nx
@@ -843,8 +845,8 @@ jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
     -- pending, and the result stacks need to be adjusted. Hence the 3 results.
     adjust (Mark ua ba rs denv k) =
       (0, 0, Mark (ua + asize ustk) (ba + asize bstk) rs denv k)
-    adjust (Push un bn ua ba cix rcomb k) =
-      (0, 0, Push un bn (ua + asize ustk) (ba + asize bstk) cix rcomb k)
+    adjust (Push un bn ua ba cix uf bf rsect k) =
+      (0, 0, Push un bn (ua + asize ustk) (ba + asize bstk) cix uf bf rsect k)
     adjust k = (asize ustk, asize bstk, k)
 {-# INLINE jump #-}
 
@@ -864,8 +866,8 @@ repush !env !activeThreads !ustk !bstk = go
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    go !denv (Push un bn ua ba cix rcomb sk) !k =
-      go denv sk $ Push un bn ua ba cix rcomb k
+    go !denv (Push un bn ua ba cix uf bf rsect sk) !k =
+      go denv sk $ Push un bn ua ba cix uf bf rsect k
     go !_ (CB _) !_ = die "repush: impossible"
 {-# INLINE repush #-}
 
@@ -1879,16 +1881,12 @@ yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
       ustk <- adjustArgs ustk ua
       bstk <- adjustArgs bstk ba
       apply env denv activeThreads ustk bstk k False (BArg1 0) clo
-    leap !denv (Push ufsz bfsz uasz basz (CIx ref _ _) rComb k) = do
-      case unRComb rComb of
-        Lam _ _ uf bf nx -> do
-          ustk <- restoreFrame ustk ufsz uasz
-          bstk <- restoreFrame bstk bfsz basz
-          ustk <- ensure ustk uf
-          bstk <- ensure bstk bf
-          eval env denv activeThreads ustk bstk k ref nx
-        CachedClosure _w _clo -> do
-          error "TODO: Get help from Dan"
+    leap !denv (Push ufsz bfsz uasz basz (CIx ref _ _) uf bf nx k) = do
+      ustk <- restoreFrame ustk ufsz uasz
+      bstk <- restoreFrame bstk bfsz basz
+      ustk <- ensure ustk uf
+      bstk <- ensure bstk bf
+      eval env denv activeThreads ustk bstk k ref nx
     leap _ (CB (Hook f)) = f ustk bstk
     leap _ KE = pure ()
 {-# INLINE yield #-}
@@ -1944,8 +1942,9 @@ splitCont !denv !ustk !bstk !k !p =
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    walk !denv !usz !bsz !ck (Push un bn ua ba br brComb k) =
-      walk denv (usz + un + ua) (bsz + bn + ba) (Push un bn ua ba br brComb ck) k
+    walk !denv !usz !bsz !ck (Push un bn ua ba br up bp brSect k) =
+      walk denv (usz + un + ua) (bsz + bn + ba)
+        (Push un bn ua ba br up bp brSect ck) k
 
     finish !denv !usz !bsz !ua !ba !ck !k = do
       (useg, ustk) <- grab ustk usz
@@ -2282,7 +2281,7 @@ reflectValue rty = goV
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
-    goK (Push uf bf ua ba cix _rComb k) =
+    goK (Push uf bf ua ba cix _ _ _rsect k) =
       ANF.Push
         (fromIntegral uf)
         (fromIntegral bf)
@@ -2384,16 +2383,22 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         mrk ps de k =
           Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
-    goK (ANF.Push uf bf ua ba gr k) = do
-      (cix, rcomb) <- goIx gr
-      Push
-        (fromIntegral uf)
-        (fromIntegral bf)
-        (fromIntegral ua)
-        (fromIntegral ba)
-        cix
-        rcomb
-        <$> goK k
+    goK (ANF.Push uf bf ua ba gr k) = goIx gr >>= \case
+      (cix, RComb (Lam _ _ un bx sect)) ->
+        Push
+          (fromIntegral uf)
+          (fromIntegral bf)
+          (fromIntegral ua)
+          (fromIntegral ba)
+          cix
+          un
+          bx
+          sect
+          <$> goK k
+      (CIx r _ _ , _) ->
+        die . err $
+          "tried to reify a continuation with a cached value resumption"
+            ++ show r
 
     goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
     goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l

@@ -564,7 +564,11 @@ data GSection comb
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
-    Let !(GSection comb) !CombIx {- Lazy! Might be cyclic -} comb
+    Let !(GSection comb) -- binding
+        !CombIx          -- body section refrence
+        !Int             -- unboxed stack safety
+        !Int             -- boxed stack safety
+        !(GSection comb) -- body code
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
@@ -846,12 +850,13 @@ onCount f (EM e) = EM $ fmap f <$> e
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
 
-record :: Ctx v -> Word16 -> Emit Section -> Emit Word64
+record :: Ctx v -> Word16 -> Emit Section -> Emit (Word64, Comb)
 record ctx l (EM es) = EM $ \c ->
   let (m, C u b s) = es c
       (au, ab) = countCtx0 0 0 ctx
       n = letIndex l c
-   in (EC.mapInsert n (Lam au ab u b s) m, C u b n)
+      comb = Lam au ab u b s
+   in (EC.mapInsert n comb m, C u b (n, comb))
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
 recordTop vs l (EM e) = EM $ \c ->
@@ -1162,9 +1167,9 @@ emitLet rns grpr grpn rec d vcs ctx bnd
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
-    f s w =
+    f s (w , Lam _ _ un bx bd) =
       let cix = (CIx grpr grpn w)
-       in Let s cix cix
+       in Let s cix un bx bd
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1565,12 +1570,13 @@ sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
   | Name (Env (CIx _ w _) _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
-sectionDeps (Let s (CIx _ w _) _) = w : sectionDeps s
+sectionDeps (Let s (CIx _ w _) _ _ b) =
+  w : sectionDeps s ++ sectionDeps b
 sectionDeps _ = []
 
 sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
-sectionTypes (Let s _ _) = sectionTypes s
+sectionTypes (Let s _ _ _ b) = sectionTypes s ++ sectionTypes b
 sectionTypes (Match _ br) = branchTypes br
 sectionTypes (DMatch _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
@@ -1646,12 +1652,12 @@ prettySection ind sec =
     Yield as -> showString "Yield " . prettyArgs as
     Ins i nx ->
       prettyIns i . showString "\n" . prettySection ind nx
-    Let s n _ ->
+    Let s _ _ _ b ->
       showString "Let\n"
         . prettySection (ind + 2) s
         . showString "\n"
         . indent ind
-        . prettyIx n
+        . prettySection ind b
     Die s -> showString $ "Die " ++ s
     Exit -> showString "Exit"
     DMatch _ i bs ->
