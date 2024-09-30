@@ -570,11 +570,12 @@ data GSection comb
     -- throw away the section, like serializable continuation values.
     -- Code generation will emit the section as its own combinator,
     -- but also include it directly here.
-    Let !(GSection comb) -- binding
-        !CombIx          -- body section refrence
-        !Int             -- unboxed stack safety
-        !Int             -- boxed stack safety
-        !(GSection comb) -- body code
+    Let
+      !(GSection comb) -- binding
+      !CombIx -- body section refrence
+      !Int -- unboxed stack safety
+      !Int -- boxed stack safety
+      !(GSection comb) -- body code
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
@@ -1173,7 +1174,7 @@ emitLet rns grpr grpn rec d vcs ctx bnd
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
-    f s (w , Lam _ _ un bx bd) =
+    f s (w, Lam _ _ un bx bd) =
       let cix = (CIx grpr grpn w)
        in Let s cix un bx bd
 
