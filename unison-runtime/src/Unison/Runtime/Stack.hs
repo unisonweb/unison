@@ -131,8 +131,7 @@ instance Ord K where
   compare (Mark _ _ _ _ _) _ = LT
   compare _ (Mark _ _ _ _ _) = GT
 
-newtype Closure
-  = Closure {unClosure :: (GClosure (RComb Closure))}
+newtype Closure = Closure {unClosure :: (GClosure (RComb Closure))}
   deriving stock (Show, Eq, Ord)
 
 type IxClosure = GClosure CombIx
@@ -424,8 +423,8 @@ class MEM (b :: Mem) where
   asize :: Stack b -> SZ
 
 instance MEM 'UN where
-  data Stack 'UN
-    = -- Note: uap <= ufp <= usp
+  data Stack 'UN =
+    -- Note: uap <= ufp <= usp
     US
     { uap :: !Int, -- arg pointer
       ufp :: !Int, -- frame pointer
