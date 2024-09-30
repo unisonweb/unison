@@ -104,6 +104,9 @@ cradle:
     - path: "unison-runtime/tests"
       component: "unison-runtime:test:runtime-tests"
 
+    - path: "unison-runtime/exes"
+      component: "unison-runtime:exe:machine2"
+
     - path: "unison-cli/src"
       component: "unison-cli:lib"
 
