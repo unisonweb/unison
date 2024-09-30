@@ -464,7 +464,7 @@ stripNamePrefix (Name p0 ss0) (Name p1 ss1) = do
   s : ss <- List.stripPrefix (reverse (toList ss0)) (reverse (toList ss1))
   pure (Name Relative (List.NonEmpty.reverse (s :| ss)))
 
--- | Return all relative suffixes of a name, in descending-length order. The returned list will always be non-empty.
+-- | Return all relative suffixes of a name, in ascending-length order. The returned list will always be non-empty.
 --
 -- >>> suffixes "a.b.c"
 -- ["a.b.c", "a.b", "c"]
@@ -472,13 +472,7 @@ stripNamePrefix (Name p0 ss0) (Name p1 ss1) = do
 -- >>> suffixes ".a.b.c"
 -- ["a.b.c", "a.b", "c"]
 suffixes :: Name -> [Name]
-suffixes =
-  reverse . suffixes'
-
--- Like `suffixes`, but returns names in ascending-length order. Currently unexported, as it's only used in the
--- implementation of `shortestUniqueSuffix`.
-suffixes' :: Name -> [Name]
-suffixes' (Name _ ss0) = do
+suffixes (Name _ ss0) = do
   ss <- List.NonEmpty.tail (List.NonEmpty.inits ss0)
   -- fromList is safe here because all elements of `tail . inits` are non-empty
   pure (Name Relative (List.NonEmpty.fromList ss))
@@ -541,7 +535,7 @@ isUnqualified = \case
 -- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByName fqn rel =
-  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  fromMaybe fqn (List.find isOk (suffixes fqn))
   where
     isOk :: Name -> Bool
     isOk suffix = matchingNameCount == 1
@@ -567,7 +561,7 @@ suffixifyByName fqn rel =
 -- NB: Only works if the `Ord` instance for `Name` orders based on `Name.reverseSegments`.
 suffixifyByHash :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByHash fqn rel =
-  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  fromMaybe fqn (List.find isOk (suffixes fqn))
   where
     allRefs :: Set r
     allRefs =
@@ -590,7 +584,7 @@ suffixifyByHash fqn rel =
 -- edited in a scratch file, where "suffixify by hash" doesn't work.
 suffixifyByHashName :: forall r. (Ord r) => Name -> R.Relation Name r -> Name
 suffixifyByHashName fqn rel =
-  fromMaybe fqn (List.find isOk (suffixes' fqn))
+  fromMaybe fqn (List.find isOk (suffixes fqn))
   where
     allRefs :: Set r
     allRefs =
