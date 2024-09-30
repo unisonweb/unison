@@ -38,7 +38,6 @@ module Unison.Runtime.MCode
     emitCombs,
     emitComb,
     resolveCombs,
-    unTieRCombs,
     absurdCombs,
     emptyRNs,
     argsToLists,
@@ -812,9 +811,6 @@ resolveCombs mayExisting combs =
                         ++ show n
                         ++ "`."
    in resolved
-
-unTieRCombs :: EnumMap Word64 (RCombs clos) -> EnumMap Word64 (GCombs clos ())
-unTieRCombs = (fmap . fmap . fmap) (const ())
 
 absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs any cix)
 absurdCombs = fmap . fmap . first $ absurd
