@@ -808,6 +808,6 @@ closureTermRefs f = \case
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (CIx r _ _) _ _ b k) =
+contTermRefs f (Push _ _ _ _ (CIx r _ _) _ _ _ k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty
