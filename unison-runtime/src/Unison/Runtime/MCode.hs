@@ -1689,14 +1689,6 @@ prettySection ind sec =
             . showString " ->\n"
             . prettyBranches (ind + 1) e
 
-prettyIx :: CombIx -> ShowS
-prettyIx (CIx _ c s) =
-  showString "Resume["
-    . shows c
-    . showString ","
-    . shows s
-    . showString "]"
-
 prettyBranches :: (Show comb) => Int -> GBranch comb -> ShowS
 prettyBranches ind bs =
   case bs of
