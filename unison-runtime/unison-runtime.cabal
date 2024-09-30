@@ -179,7 +179,6 @@ executable machine2
   ghc-options: -Wall -O0 -funbox-strict-fields -O2 -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1 -T" -optP-Wno-nonportable-include-path
   build-depends:
       base
-    , vector
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

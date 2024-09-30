@@ -1,8 +1,8 @@
 module Main where
 
-import Data.Vector.Mutable qualified as V
--- import Data.Vector qualified as IV
 import Data.Word (Word16, Word64)
+import GHC.IOArray (IOArray)
+import GHC.IOArray qualified as A
 import System.CPUTime (getCPUTime)
 import Text.Printf
 
@@ -11,6 +11,8 @@ type Slot = Int
 
 -- | A local variable reference, relative to the current stack frame
 type Var = Word16
+
+type Arr = IOArray Slot
 
 {-
 Machine code representation.
@@ -65,7 +67,7 @@ time a = do
 run :: MCode Function -> IO ()
 run prog = do
   let n = 1024
-  boxed <- V.replicate n Null
+  boxed <- A.newIOArray (0, n) Null
   time $ go boxed (n - 1) 0 (n - 1) prog
   pure ()
   where
@@ -95,7 +97,7 @@ run prog = do
     call frame. You can grab all the local variables by slicing
     from `framePtr - maxVar` to `framePtr`.
     -}
-    go :: V.IOVector Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
+    go :: Arr Value -> Slot -> Var -> Slot -> MCode Function -> IO ()
     go !boxed !framePtr !maxVar !out !prog = do
       -- stack <- UV.foldr (:) [] unboxed
       -- putStrLn ("stack:    " <> show stack)
@@ -106,24 +108,24 @@ run prog = do
       -- putStrLn ""
       case prog of
         NatLit n -> do
-          V.write boxed out (Nat n)
+          A.writeIOArray boxed out (Nat n)
         TailCall ref aInd bInd -> do
-          ab <- V.read boxed (framePtr - fromIntegral aInd)
-          bb <- V.read boxed (framePtr - fromIntegral bInd)
+          ab <- A.readIOArray boxed (framePtr - fromIntegral aInd)
+          bb <- A.readIOArray boxed (framePtr - fromIntegral bInd)
           let aslot = framePtr - 1
           let bslot = framePtr - 2
-          V.write boxed aslot ab
-          V.write boxed bslot bb
+          A.writeIOArray boxed aslot ab
+          A.writeIOArray boxed bslot bb
           let mc = code ref
           go boxed framePtr 2 out mc
         NatIncrement i -> do
-          Nat n <- V.read boxed (framePtr - fromIntegral i)
-          V.write boxed out (Nat $ n + 1)
+          Nat n <- A.readIOArray boxed (framePtr - fromIntegral i)
+          A.writeIOArray boxed out (Nat $ n + 1)
         NatDecrement i -> do
-          Nat n <- V.read boxed (framePtr - fromIntegral i)
-          V.write boxed out (Nat $ n - 1)
+          Nat n <- A.readIOArray boxed (framePtr - fromIntegral i)
+          A.writeIOArray boxed out (Nat $ n - 1)
         If0 a t f -> do
-          Nat au <- V.read boxed (framePtr - fromIntegral a)
+          Nat au <- A.readIOArray boxed (framePtr - fromIntegral a)
           if au == 0
             then go boxed framePtr maxVar out t
             else go boxed framePtr maxVar out f
@@ -134,5 +136,5 @@ run prog = do
         -- otherwise we'd do:
         -- go unboxed boxed framePtr (max out maxVar) b
         Print i -> do
-          a <- V.read boxed (framePtr - fromIntegral i)
+          a <- A.readIOArray boxed (framePtr - fromIntegral i)
           putStrLn (show a)
