@@ -107,7 +107,6 @@ library
       Unison.PatternMatchCoverage.Constraint
       Unison.PatternMatchCoverage.Desugar
       Unison.PatternMatchCoverage.EffectHandler
-      Unison.PatternMatchCoverage.Fix
       Unison.PatternMatchCoverage.GrdTree
       Unison.PatternMatchCoverage.IntervalSet
       Unison.PatternMatchCoverage.ListPat
@@ -248,6 +247,7 @@ library
     , unison-util-base32hex
     , unison-util-bytes
     , unison-util-cache
+    , unison-util-recursion
     , unison-util-relation
     , unison-util-rope
     , unison-util-serialization

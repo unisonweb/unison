@@ -42,6 +42,7 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Defns (Defns (..))
+import Unison.Util.Recursion
 import Unison.Var qualified as Var
 
 handleRun :: Bool -> HQ.HashQualified Name -> [String] -> Cli ()
@@ -165,7 +166,8 @@ synthesizeForce tl typeOfFunc = do
         Typechecker.Env
           { ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
             typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
   case Result.runResultT
     ( Typechecker.synthesize
@@ -200,7 +202,7 @@ stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () ->
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
       refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
-      alg () = \case
+      alg (ABT.Term' _ () abt) = case abt of
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x
         ABT.Abs v x -> ABT.abs v x
@@ -208,7 +210,7 @@ stripUnisonFileReferences unisonFile term =
           Term.Ref ref
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
-   in ABT.cata alg term
+   in cata alg term
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"
