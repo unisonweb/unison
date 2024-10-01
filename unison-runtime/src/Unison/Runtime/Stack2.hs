@@ -348,7 +348,7 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
           && srcBstk == dstBstk
       boff
         | overwrite = sz - 1
-        | otherwise = cp0 + sz
+        | otherwise = dstSp + sz
       unboxed = do
         buf <-
           if overwrite
@@ -377,62 +377,17 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
         loop $ sz - 1
 
         when overwrite $
-          copyMutableArray cop (cp0 + 1) buf 0 sz
-{-# INLINE argOnto #-}
-
-uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
-uargOnto stk sp cop cp0 (ArgN v) = do
-  buf <-
-    if overwrite
-      then newByteArray $ bytes sz
-      else pure cop
-  let loop i
-        | i < 0 = return ()
-        | otherwise = do
-            (x :: Int) <- readByteArray stk (sp - indexPrimArray v i)
-            writeByteArray buf (boff - i) x
-            loop $ i - 1
-  loop $ sz - 1
-  when overwrite $
-    copyMutableByteArray cop (bytes $ cp + 1) buf 0 (bytes sz)
-  pure cp
-  where
-    cp = cp0 + sz
-    sz = sizeofPrimArray v
-    overwrite = sameMutableByteArray stk cop
-    boff | overwrite = sz - 1 | otherwise = cp0 + sz
-uargOnto stk sp cop cp0 (ArgR i l) = do
-  moveByteArray cop cbp stk sbp (bytes l)
-  pure $ cp0 + l
-  where
-    cbp = bytes $ cp0 + 1
-    sbp = bytes $ sp - i - l + 1
-
-bargOnto :: BA -> Off -> BA -> Off -> Args' -> IO Int
-bargOnto stk sp cop cp0 (ArgN v) = do
-  buf <-
-    if overwrite
-      then newArray sz $ BlackHole
-      else pure cop
-  let loop i
-        | i < 0 = return ()
-        | otherwise = do
-            x <- readArray stk $ sp - indexPrimArray v i
-            writeArray buf (boff - i) x
-            loop $ i - 1
-  loop $ sz - 1
-
-  when overwrite $
-    copyMutableArray cop (cp0 + 1) buf 0 sz
-  pure cp
-  where
-    cp = cp0 + sz
-    sz = sizeofPrimArray v
-    overwrite = stk == cop
-    boff | overwrite = sz - 1 | otherwise = cp0 + sz
-bargOnto stk sp cop cp0 (ArgR i l) = do
-  copyMutableArray cop (cp0 + 1) stk (sp - i - l + 1) l
-  pure $ cp0 + l
+          copyMutableArray dstBstk (dstSp + 1) buf 0 sz
+  ArgR i l -> do
+    unboxed
+    boxed
+    pure cp
+    where
+      cp = dstSp + l
+      unboxed = do
+        copyByteArray dstUstk cp srcUstk (srcSp - i - l + 1) l
+      boxed = do
+        copyMutableArray dstBstk cp srcBstk (srcSp - i - l + 1) l
 
 data Dump = A | F Int Int | S
 
@@ -605,6 +560,10 @@ prepareArgs (Stack ap fp sp ustk bstk) = \case
     sp <- argOnto stk sp stk fp args
     pure $ Stack ap sp sp ustk bstk
 {-# INLINE prepareArgs #-}
+
+-- acceptArgs :: Stack -> Int -> IO Stack
+-- acceptArgs (Stack ap fp sp ustk bstk) n = pure $ Stack ap (fp - n) sp ustk bstk
+-- {-# INLINE acceptArgs #-}
 
 class MEM (b :: Mem) where
   acceptArgs :: Stack b -> Int -> IO (Stack b)
