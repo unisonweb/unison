@@ -40,11 +40,13 @@ library
       Unison.Runtime.Exception
       Unison.Runtime.Foreign
       Unison.Runtime.Foreign.Function
+      Unison.Runtime.Foreign.Function2
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MCode2
       Unison.Runtime.Pattern
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
