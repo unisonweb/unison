@@ -12,6 +12,7 @@ scratch/main> ls
   nothing to show
 
 ```
+
 ``` ucm
 scratch/main> find.verbose
 
@@ -29,6 +30,7 @@ scratch/main> find.verbose
   namespace.
 
 ```
+
 ``` ucm
 scratch/main> find mynamespace
 
@@ -46,6 +48,7 @@ scratch/main> find mynamespace
   namespace.
 
 ```
+
 ## history
 
 The history of the namespace should be empty.
@@ -61,6 +64,7 @@ scratch/main> history mynamespace
   □ 1. #sg60bvjo91 (start of history)
 
 ```
+
 Add and then delete a term to add some history to a deleted namespace.
 
 ``` unison
@@ -78,6 +82,7 @@ scratch/main> fork stuff deleted
   Done.
 
 ```
+
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
 ``` ucm
@@ -100,6 +105,7 @@ scratch/main> history deleted
   □ 1. #q2dq4tsno1 (start of history)
 
 ```
+
 ## move.namespace
 
 ``` unison

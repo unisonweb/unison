@@ -6,6 +6,7 @@ scratch/main> builtins.merge lib.builtins
   Done.
 
 ```
+
 Example uses of the `names` command and output
 
 ``` unison
@@ -19,7 +20,6 @@ somewhere.y = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -35,6 +35,7 @@ somewhere.y = 2
       somewhere.z       : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -47,6 +48,7 @@ scratch/main> add
     somewhere.z       : Nat
 
 ```
+
 `names` searches relative to the current path.
 
 ``` ucm
@@ -75,6 +77,7 @@ scratch/main> names .some.place.x
   Names:  some.otherplace.y some.place.x somewhere.z
 
 ```
+
 `debug.names.global` searches from the root, and absolutely qualifies results
 
 ``` ucm

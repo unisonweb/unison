@@ -10,13 +10,11 @@ a =
   b = 24
 ```
 
-
-
 🛑
 
 The transcript failed due to an error in the stanza above. The error is:
 
-
+``` 
   The last element of a block must be an expression, but this is
   a definition:
   
@@ -24,4 +22,4 @@ The transcript failed due to an error in the stanza above. The error is:
   
   Try adding an expression at the end of the block.
   It should be of type Nat.
-
+```

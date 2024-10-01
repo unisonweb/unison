@@ -18,6 +18,7 @@ scratch/main> delete.namespace no_dependencies
   Done.
 
 ```
+
 Deleting a namespace with external dependencies should fail and list all dependents.
 
 ``` ucm
@@ -39,6 +40,7 @@ scratch/main> delete.namespace dependencies
   without names, use delete.namespace.force
 
 ```
+
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
 
 ``` ucm
@@ -59,6 +61,7 @@ scratch/main> delete.namespace.force dependencies
                4. dependents.usage2
 
 ```
+
 I should be able to view an affected dependency by number
 
 ``` ucm
@@ -70,6 +73,7 @@ scratch/main> view 2
     #gjmq673r1v * #dcgdua2lj6
 
 ```
+
 Deleting the root namespace should require confirmation if not forced.
 
 ``` ucm
@@ -98,6 +102,7 @@ scratch/main> history .
   □ 1. #sg60bvjo91 (start of history)
 
 ```
+
 Deleting the root namespace shouldn't require confirmation if forced.
 
 ``` ucm

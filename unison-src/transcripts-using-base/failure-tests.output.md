@@ -19,7 +19,6 @@ test2 = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -32,6 +31,7 @@ test2 = do
       test2 : '{IO, Exception} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -41,6 +41,7 @@ scratch/main> add
     test2 : '{IO, Exception} [Result]
 
 ```
+
 ``` ucm
 scratch/main> io.test test1
 
@@ -57,6 +58,7 @@ scratch/main> io.test test1
     ##raise
 
 ```
+
 ``` ucm
 scratch/main> io.test test2
 

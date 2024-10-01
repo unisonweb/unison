@@ -63,7 +63,6 @@ serialTests = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -80,6 +79,7 @@ serialTests = do
       shuffle        : Nat -> [a] -> [a]
 
 ```
+
 ``` ucm
 scratch/main> add
 

@@ -8,7 +8,6 @@ hangExample =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -20,6 +19,7 @@ hangExample =
       hangExample : Boolean
 
 ```
+
 ``` ucm
 scratch/main> add
 

@@ -9,7 +9,6 @@ bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,6 +26,7 @@ bar = a.x.x.x.x + c.y.y.y.y
       lib.old.foo : Nat
 
 ```
+
 ``` ucm
 myproject/main> add
 
@@ -41,6 +41,7 @@ myproject/main> add
     lib.old.foo : Nat
 
 ```
+
 ``` ucm
 myproject/main> upgrade old new
 
@@ -61,6 +62,7 @@ myproject/main> upgrade old new
   to delete the temporary branch and switch back to main.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 bar : Nat
 bar =
@@ -77,4 +79,3 @@ d.y.y.y.y =
   use Nat +
   foo + 10
 ```
-

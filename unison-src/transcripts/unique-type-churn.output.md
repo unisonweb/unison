@@ -9,7 +9,6 @@ unique type C = C B
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,6 +22,7 @@ unique type C = C B
       type C
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -33,6 +33,7 @@ scratch/main> add
     type C
 
 ```
+
 ``` unison
 unique type A = A
 
@@ -41,13 +42,13 @@ unique type C = C B
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
 ```
+
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
 
 ``` ucm
@@ -62,12 +63,12 @@ scratch/main> names A
   Names:  A.A
 
 ```
+
 ``` unison
 unique type A = A ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -80,6 +81,7 @@ unique type A = A ()
       type A
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -99,12 +101,12 @@ scratch/main> names A
   Names:  A.A
 
 ```
+
 ``` unison
 unique type A = A
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -117,6 +119,7 @@ unique type A = A
       type A
 
 ```
+
 Note that `A` is back to its original hash.
 
 ``` ucm

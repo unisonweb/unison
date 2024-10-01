@@ -12,6 +12,7 @@ scratch/main> view Exception Failure
     = Failure Type Text Any
 
 ```
+
 Here's a sample program just to verify that the typechecker allows `run` to throw exceptions:
 
 ``` unison
@@ -25,7 +26,6 @@ mytest _ = [Ok "Great"]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -38,6 +38,7 @@ mytest _ = [Ok "Great"]
       mytest : '{IO, Exception} [Result]
 
 ```
+
 ``` ucm
 scratch/main> run main
 
@@ -61,6 +62,7 @@ scratch/main> io.test mytest
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 Now a test to show the handling of uncaught exceptions:
 
 ``` unison
@@ -74,7 +76,6 @@ unique type RuntimeError =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -88,6 +89,7 @@ unique type RuntimeError =
       main2 : '{Exception} r
 
 ```
+
 ``` ucm
 scratch/main> run main2
 

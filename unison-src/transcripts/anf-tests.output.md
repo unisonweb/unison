@@ -26,7 +26,6 @@ foo _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -45,6 +44,7 @@ foo _ =
            5
 
 ```
+
 ``` ucm
 scratch/main> add
 

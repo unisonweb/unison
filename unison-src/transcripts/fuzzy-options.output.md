@@ -7,8 +7,8 @@ If an argument is required but doesn't have a fuzzy resolver, the command should
 scratch/main> move.term
 
 `move.term foo bar` renames `foo` to `bar`.
-
 ```
+
 If a fuzzy resolver doesn't have any options available it should print a message instead of
 opening an empty fuzzy-select.
 
@@ -18,8 +18,8 @@ scratch/empty> view
 ⚠️
 
 Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
-
 ```
+
 ``` unison
 optionOne = 1
 
@@ -43,6 +43,7 @@ scratch/main> debug.fuzzy-options view _
     * nested.optionTwo
 
 ```
+
 Namespace args
 
 ``` ucm
@@ -57,6 +58,7 @@ scratch/main> debug.fuzzy-options find-in _
     * nested
 
 ```
+
 Project Branch args
 
 ``` ucm

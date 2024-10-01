@@ -41,6 +41,7 @@ scratch/main> history
   □ 1. #g97lh1m2v7 (start of history)
 
 ```
+
 ``` ucm
 scratch/main> ls .root.at.path
 
@@ -56,6 +57,7 @@ scratch/main> history .root.at.path
   □ 1. #08a6hgi6s4 (start of history)
 
 ```
+
 I should be able to move a sub namespace *over* the root.
 
 ``` ucm
@@ -85,6 +87,7 @@ scratch/main> history
   □ 1. #08a6hgi6s4 (start of history)
 
 ```
+
 ``` ucm
 -- should be empty
 scratch/main> ls .root.at.path
@@ -101,6 +104,7 @@ scratch/main> history .root.at.path
   □ 1. #sg60bvjo91 (start of history)
 
 ```
+
 ## Happy path
 
 Create a namespace and add some history to it
@@ -111,7 +115,6 @@ unique type a.T = T
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -124,6 +127,7 @@ unique type a.T = T
       a.termInA : Nat
 
 ```
+
 ``` ucm
 scratch/happy> add
 
@@ -133,13 +137,13 @@ scratch/happy> add
     a.termInA : Nat
 
 ```
+
 ``` unison
 a.termInA = 2
 unique type a.T = T1 | T2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -153,6 +157,7 @@ unique type a.T = T1 | T2
       a.termInA : Nat
 
 ```
+
 ``` ucm
 scratch/happy> update
 
@@ -162,6 +167,7 @@ scratch/happy> update
   Done.
 
 ```
+
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
 
 ``` ucm
@@ -193,6 +199,7 @@ scratch/happy> history b
   □ 2. #avlnmh0erc (start of history)
 
 ```
+
 ## Namespace history
 
 Create some namespaces and add some history to them
@@ -203,7 +210,6 @@ b.termInB = 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -216,6 +222,7 @@ b.termInB = 10
       b.termInB : Nat
 
 ```
+
 ``` ucm
 scratch/history> add
 
@@ -225,13 +232,13 @@ scratch/history> add
     b.termInB : Nat
 
 ```
+
 ``` unison
 a.termInA = 2
 b.termInB = 11
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -245,6 +252,7 @@ b.termInB = 11
       b.termInB : Nat
 
 ```
+
 ``` ucm
 scratch/history> update
 
@@ -254,6 +262,7 @@ scratch/history> update
   Done.
 
 ```
+
 Deleting a namespace should not leave behind any history,
 if we move another to that location we expect the history to simply be the history
 of the moved namespace.
@@ -292,6 +301,7 @@ scratch/history> history a
   □ 1. #sg60bvjo91 (start of history)
 
 ```
+
 ## Moving over an existing branch
 
 Create some namespace and add some history to them
@@ -302,7 +312,6 @@ b.termInB = 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -315,6 +324,7 @@ b.termInB = 10
       b.termInB : Nat
 
 ```
+
 ``` ucm
 scratch/existing> add
 
@@ -324,13 +334,13 @@ scratch/existing> add
     b.termInB : Nat
 
 ```
+
 ``` unison
 a.termInA = 2
 b.termInB = 11
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -344,6 +354,7 @@ b.termInB = 11
       b.termInB : Nat
 
 ```
+
 ``` ucm
 scratch/existing> update
 

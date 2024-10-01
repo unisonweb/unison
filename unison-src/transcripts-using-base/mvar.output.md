@@ -51,7 +51,6 @@ testMvars _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -64,6 +63,7 @@ testMvars _ =
       testMvars : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

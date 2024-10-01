@@ -6,7 +6,6 @@ x =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -22,12 +21,12 @@ x =
   * identifier (ex: abba1, snake_case, .foo.bar#xyz, .foo.++#xyz, or 🌻)
 
 ```
+
 ``` unison
 namespace.blah = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -58,12 +57,12 @@ namespace.blah = 1
   * use
 
 ```
+
 ``` unison
 x = 1 ]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found a closing ']' here without a matching '['.
@@ -72,12 +71,12 @@ x = 1 ]
   
 
 ```
+
 ``` unison
 x = a.#abc
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -106,12 +105,12 @@ x = a.#abc
   * typeLink
 
 ```
+
 ``` unison
 x = "hi
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -126,12 +125,12 @@ x = "hi
   * literal character
 
 ```
+
 ``` unison
 y : a
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:

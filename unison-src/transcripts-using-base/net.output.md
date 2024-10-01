@@ -93,7 +93,6 @@ testDefaultPort _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -107,6 +106,7 @@ testDefaultPort _ =
       testExplicitHost : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -129,6 +129,7 @@ scratch/main> io.test testDefaultPort
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 This example demonstrates connecting a TCP client socket to a TCP server socket. A thread is started for both client and server. The server socket asks for any availalbe port (by passing "0" as the port number). The server thread then queries for the actual assigned port number, and puts that into an MVar which the client thread can read. The client thread then reads a string from the server and reports it back to the main thread via a different MVar.
 
 ``` unison
@@ -181,7 +182,6 @@ testTcpConnect = 'let
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -195,6 +195,7 @@ testTcpConnect = 'let
       testTcpConnect : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

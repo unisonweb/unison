@@ -146,6 +146,7 @@ scratch/main> display term.doc
       message
 
 ```
+
 ``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=term
 {
@@ -941,4 +942,3 @@ GET /api/projects/scratch/branches/main/getDefinition?names=term
     "typeDefinitions": {}
 }
 ```
-

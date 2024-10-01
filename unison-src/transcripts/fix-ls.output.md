@@ -4,6 +4,7 @@ test-ls/main> builtins.merge
   Done.
 
 ```
+
 ``` unison
 foo.bar.add x y = x Int.+ y
 
@@ -11,7 +12,6 @@ foo.bar.subtract x y = x Int.- y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +24,7 @@ foo.bar.subtract x y = x Int.- y
       foo.bar.subtract : Int -> Int -> Int
 
 ```
+
 ``` ucm
 test-ls/main> add
 

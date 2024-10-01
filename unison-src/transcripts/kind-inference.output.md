@@ -7,7 +7,6 @@ unique type T a = T a (a Nat)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -16,6 +15,7 @@ unique type T a = T a (a Nat)
     a doesn't expect an argument; however, it is applied to Nat.
 
 ```
+
 conflicting constraints on the kind of `a` in a sum
 
 ``` unison
@@ -25,7 +25,6 @@ unique type T a
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -34,6 +33,7 @@ unique type T a
     a doesn't expect an argument; however, it is applied to Nat.
 
 ```
+
 ## Kinds are inferred by decl component
 
 Successfully infer `a` in `Ping a` to be of kind `* -> *` by
@@ -45,7 +45,6 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -58,6 +57,7 @@ unique type Pong = Pong (Ping Optional)
       type Pong
 
 ```
+
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
 `a` to `*`, whereas `Pong` restricts `a` to `* -> *`.
 
@@ -67,7 +67,6 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -77,6 +76,7 @@ unique type Pong = Pong (Ping Optional)
     it is applied to a which has kind: Type -> Type.
 
 ```
+
 Successful example between mutually recursive type and ability
 
 ``` unison
@@ -86,7 +86,6 @@ unique ability Pong a where
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -99,6 +98,7 @@ unique ability Pong a where
       ability Pong a
 
 ```
+
 Catch conflict between mutually recursive type and ability
 
 ``` unison
@@ -108,7 +108,6 @@ unique ability Pong a where
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -118,6 +117,7 @@ unique ability Pong a where
     applied to Optional which has kind: Type -> Type.
 
 ```
+
 Consistent instantiation of `T`'s `a` parameter in `S`
 
 ``` unison
@@ -127,7 +127,6 @@ unique type S = S (T Nat)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -140,6 +139,7 @@ unique type S = S (T Nat)
       type T a
 
 ```
+
 Delay kind defaulting until all components are processed. Here `S`
 constrains the kind of `T`'s `a` parameter, although `S` is not in
 the same component as `T`.
@@ -151,7 +151,6 @@ unique type S = S (T Optional)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -164,6 +163,7 @@ unique type S = S (T Optional)
       type T a
 
 ```
+
 Catch invalid instantiation of `T`'s `a` parameter in `S`
 
 ``` unison
@@ -173,7 +173,6 @@ unique type S = S (T Optional)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -183,6 +182,7 @@ unique type S = S (T Optional)
     to Optional which has kind: Type -> Type.
 
 ```
+
 ## Checking annotations
 
 Catch kind error in type annotation
@@ -193,7 +193,6 @@ test = 0
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -203,6 +202,7 @@ test = 0
     Nat.
 
 ```
+
 Catch kind error in annotation example 2
 
 ``` unison
@@ -211,7 +211,6 @@ test _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -221,6 +220,7 @@ test _ = ()
     it is applied to Optional which has kind: Type -> Type.
 
 ```
+
 Catch kind error in annotation example 3
 
 ``` unison
@@ -231,7 +231,6 @@ test _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -241,6 +240,7 @@ test _ = ()
     applied to Nat which has kind: Type.
 
 ```
+
 Catch kind error in scoped type variable annotation
 
 ``` unison
@@ -255,7 +255,6 @@ test _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -265,6 +264,7 @@ test _ =
     applied to a which has kind: Type -> Type.
 
 ```
+
 ## Effect/type mismatch
 
 Effects appearing where types are expected
@@ -278,7 +278,6 @@ test _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -288,6 +287,7 @@ test _ = ()
     it is applied to Foo which has kind: Ability.
 
 ```
+
 Types appearing where effects are expected
 
 ``` unison
@@ -296,7 +296,6 @@ test _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -307,6 +306,7 @@ test _ = ()
     kind Ability.
 
 ```
+
 ## Cyclic kinds
 
 ``` unison
@@ -314,7 +314,6 @@ unique type T a = T (a a)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -325,12 +324,12 @@ unique type T a = T (a a)
     is the kind of a.
 
 ```
+
 ``` unison
 unique type T a b = T (a b) (b a)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -341,13 +340,13 @@ unique type T a b = T (a b) (b a)
     k = (k -> Type) -> Type where k is the kind of b.
 
 ```
+
 ``` unison
 unique type Ping a = Ping (a Pong)
 unique type Pong a = Pong (a Ping)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind

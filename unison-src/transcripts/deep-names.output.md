@@ -40,6 +40,7 @@ scratch/app1> delete.namespace http
   Done.
 
 ```
+
 As such, we see two copies of `a` and two copies of `x` via these direct dependencies.
 
 ``` ucm
@@ -56,6 +57,7 @@ scratch/app1> names x
   Names:  lib.http_v3.x lib.http_v4.x
 
 ```
+
 Our `app2` project includes the `http` library twice as direct dependencies, and once as an indirect dependency via `webutil`.
 It also includes the `text` library twice as indirect dependencies via `webutil`
 
@@ -89,6 +91,7 @@ scratch/app2> delete.namespace text
   Done.
 
 ```
+
 Now we see two copies of `x` via direct dependencies on `http`, and one copy of `a` via indirect dependency on `text` via `webutil`.
 We see neither the second indirect copy of `a` nor the indirect copy of `x` via webutil because we already have names for them.
 

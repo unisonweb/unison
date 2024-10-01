@@ -11,6 +11,7 @@ project/main> ls
   2. lib/ (643 terms, 92 types)
 
 ```
+
 It won't create a conflicted name, though.
 
 ``` ucm
@@ -21,6 +22,7 @@ project/main> alias.type lib.builtins.Int Foo
   A type by that name already exists.
 
 ```
+
 ``` ucm
 project/main> ls
 
@@ -28,6 +30,7 @@ project/main> ls
   2. lib/ (643 terms, 92 types)
 
 ```
+
 You can use `debug.alias.type.force` for that.
 
 ``` ucm

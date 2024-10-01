@@ -6,7 +6,6 @@ mything = lib.old.foo + 100
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +20,7 @@ mything = lib.old.foo + 100
       mything     : Nat
 
 ```
+
 ``` ucm
 myproject/main> update
 

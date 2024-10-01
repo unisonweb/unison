@@ -11,6 +11,7 @@ module Unison.Codebase.Transcript
     pattern CMarkCodeBlock,
     Stanza,
     ProcessedBlock (..),
+    CMark.Node,
   )
 where
 
@@ -30,14 +31,17 @@ data UcmLine
   = UcmCommand UcmContext Text
   | -- | Text does not include the '--' prefix.
     UcmComment Text
+  deriving (Eq, Show)
 
 -- | Where a command is run: a project branch (myproject/mybranch>).
 data UcmContext
   = UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
+  deriving (Eq, Show)
 
 data APIRequest
   = GetRequest Text
   | APIComment Text
+  deriving (Eq, Show)
 
 pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node
 pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info body) []
@@ -48,3 +52,4 @@ data ProcessedBlock
   = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
   | API [APIRequest]
+  deriving (Eq, Show)

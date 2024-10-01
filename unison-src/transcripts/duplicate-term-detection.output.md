@@ -8,7 +8,6 @@ x = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -19,6 +18,7 @@ x = 2
   
 
 ```
+
 Equivalent duplicate terms should be detected:
 
 ``` unison
@@ -27,7 +27,6 @@ x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -38,6 +37,7 @@ x = 1
   
 
 ```
+
 Duplicates from record accessors/setters should be detected
 
 ``` unison
@@ -48,7 +48,6 @@ Record.x.modify = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -72,6 +71,7 @@ Record.x.modify = 2
   
 
 ```
+
 Duplicate terms and constructors should be detected:
 
 ``` unison
@@ -86,7 +86,6 @@ AnAbility.thing = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️

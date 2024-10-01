@@ -9,12 +9,12 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 type Namespace.Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -26,6 +26,7 @@ type Namespace.Foo = Bar
       type Namespace.Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -34,13 +35,13 @@ scratch/main> add
     type Namespace.Foo
 
 ```
+
 ``` unison
 type File.Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   
@@ -58,13 +59,13 @@ type UsesFoo = UsesFoo Foo
   
 
 ```
+
 ``` unison
 type File.Foo = Baz
 type UsesFoo = UsesFoo Namespace.Foo File.Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -77,10 +78,12 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
       type UsesFoo
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 
 ```
+
 # Example 2
 
 We have a namespace type named `Foo` and a file type named `File.Foo`. A reference to the type `Foo` is not ambiguous:
@@ -92,12 +95,12 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 type Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -109,6 +112,7 @@ type Foo = Bar
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -117,13 +121,13 @@ scratch/main> add
     type Foo
 
 ```
+
 ``` unison
 type File.Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -136,6 +140,7 @@ type UsesFoo = UsesFoo Foo
       type UsesFoo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -149,10 +154,12 @@ scratch/main> view UsesFoo
   type UsesFoo = UsesFoo Foo
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 
 ```
+
 # Example 3
 
 We have a namespace type named `Namespace.Foo` and a file type named `Foo`. A reference to the type `Foo` is not ambiguous:
@@ -164,12 +171,12 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 type Namespace.Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -181,6 +188,7 @@ type Namespace.Foo = Bar
       type Namespace.Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -189,13 +197,13 @@ scratch/main> add
     type Namespace.Foo
 
 ```
+
 ``` unison
 type Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -208,6 +216,7 @@ type UsesFoo = UsesFoo Foo
       type UsesFoo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -221,10 +230,12 @@ scratch/main> view UsesFoo
   type UsesFoo = UsesFoo Foo
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 
 ```
+
 # Example 4
 
 We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
@@ -236,13 +247,13 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 ns.foo : Nat
 ns.foo = 42
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -254,6 +265,7 @@ ns.foo = 42
       ns.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -262,6 +274,7 @@ scratch/main> add
     ns.foo : Nat
 
 ```
+
 ``` unison
 file.foo : Text
 file.foo = "foo"
@@ -271,7 +284,6 @@ bar = foo ++ "bar"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -284,10 +296,12 @@ bar = foo ++ "bar"
       file.foo : Text
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 
 ```
+
 # Example 4
 
 We have a namespace term `ns.foo : Nat` and a file term `file.foo : Text`. A reference to the term `foo` is ambiguous,
@@ -299,13 +313,13 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 ns.foo : Nat
 ns.foo = 42
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -317,6 +331,7 @@ ns.foo = 42
       ns.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -325,6 +340,7 @@ scratch/main> add
     ns.foo : Nat
 
 ```
+
 ``` unison
 file.foo : Text
 file.foo = "foo"
@@ -334,7 +350,6 @@ bar = foo + 42
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -347,10 +362,12 @@ bar = foo + 42
       file.foo : Text
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 
 ```
+
 # Example 4
 
 We have a namespace term `ns.foo : Nat` and a file term `file.foo : Nat`. A reference to the term `foo` is ambiguous.
@@ -362,13 +379,13 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 ns.foo : Nat
 ns.foo = 42
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -380,6 +397,7 @@ ns.foo = 42
       ns.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -388,6 +406,7 @@ scratch/main> add
     ns.foo : Nat
 
 ```
+
 ``` unison
 file.foo : Nat
 file.foo = 43
@@ -397,7 +416,6 @@ bar = foo + 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I couldn't figure out what foo refers to here:
@@ -413,6 +431,7 @@ bar = foo + 10
   ns.foo : Nat
 
 ```
+
 ``` unison
 file.foo : Nat
 file.foo = 43
@@ -422,7 +441,6 @@ bar = file.foo + ns.foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -435,6 +453,7 @@ bar = file.foo + ns.foo
       file.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -451,6 +470,7 @@ scratch/main> view bar
     file.foo + ns.foo
 
 ```
+
 ``` ucm
 scratch/main> project.delete scratch
 

@@ -4,7 +4,6 @@ unique type Baz = Qux Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,6 +16,7 @@ unique type Baz = Qux Foo
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -26,12 +26,12 @@ scratch/main> add
     type Foo
 
 ```
+
 ``` unison
 unique type Foo a = Bar Nat a
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -44,6 +44,7 @@ unique type Foo a = Bar Nat a
       type Foo a
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -57,6 +58,7 @@ scratch/main> update
   `update` again.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 type Foo a = Bar Nat a
 
@@ -66,4 +68,3 @@ type Foo a = Bar Nat a
 type Baz = Qux Foo
 
 ```
-

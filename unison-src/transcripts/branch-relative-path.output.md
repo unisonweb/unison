@@ -4,7 +4,6 @@ foo.bar = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,6 +16,7 @@ foo.bar = 1
       foo.bar : ##Nat
 
 ```
+
 ``` ucm
 p0/main> add
 
@@ -26,13 +26,13 @@ p0/main> add
     foo.bar : ##Nat
 
 ```
+
 ``` unison
 bonk = 5
 donk.bonk = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,6 +47,7 @@ donk.bonk = 1
         (also named foo.bar)
 
 ```
+
 ``` ucm
 p1/main> add
 

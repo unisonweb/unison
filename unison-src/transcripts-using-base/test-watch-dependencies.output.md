@@ -16,7 +16,6 @@ test> mytest = checks [x + 1 == 1001]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -40,6 +39,7 @@ test> mytest = checks [x + 1 == 1001]
     ✅ Passed Passed
 
 ```
+
 We expect this 'add' to fail because the test is blocked by the update to `x`.
 
 ``` ucm
@@ -54,6 +54,7 @@ scratch/main> add
     Tip: Use `help filestatus` to learn more.
 
 ```
+
 -----
 
 ``` unison
@@ -62,7 +63,6 @@ test> useY = checks [y + 1 == 43]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -82,6 +82,7 @@ test> useY = checks [y + 1 == 43]
     ✅ Passed Passed
 
 ```
+
 This should correctly identify `y` as a dependency and add that too.
 
 ``` ucm

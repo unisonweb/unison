@@ -54,4 +54,3 @@ GET /api/projects/project-one/branches?prefix=branch-t
     }
 ]
 ```
-

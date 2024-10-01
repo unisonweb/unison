@@ -7,7 +7,6 @@ someterm = 18
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ someterm = 18
       someterm : Nat
 
 ```
+
 ``` ucm
 foo/main> add
 
@@ -41,6 +41,7 @@ foo/main> branch topic
        `switch /main` then `merge /topic`.
 
 ```
+
 Now, the demo. When unambiguous, `switch` switches to either a project or a branch in the current project. A branch in
 the current project can be preceded by a forward slash (which makes it unambiguous). A project can be followed by a
 forward slash (which makes it unambiguous).
@@ -57,6 +58,7 @@ foo/main> switch /topic
 foo/main> switch bar/
 
 ```
+
 It's an error to try to switch to something ambiguous.
 
 ``` ucm
@@ -71,6 +73,7 @@ foo/main> switch bar
   Tip: use `switch 1` or `switch 2` to pick one of these.
 
 ```
+
 It's an error to try to switch to something that doesn't exist, of course.
 
 ``` ucm
@@ -79,6 +82,7 @@ scratch/main> switch foo/no-such-branch
   foo/no-such-branch does not exist.
 
 ```
+
 ``` ucm
 scratch/main> switch no-such-project
 
@@ -86,6 +90,7 @@ scratch/main> switch no-such-project
   exists.
 
 ```
+
 ``` ucm
 foo/main> switch no-such-project-or-branch
 

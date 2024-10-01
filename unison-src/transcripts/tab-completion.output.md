@@ -23,6 +23,7 @@ scratch/main> debug.tab-complete delete.
    delete.verbose
 
 ```
+
 ## Tab complete terms & types
 
 ``` unison
@@ -35,7 +36,6 @@ unique type subnamespace.AType = A | B
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -51,6 +51,7 @@ unique type subnamespace.AType = A | B
       subnamespace2.thing        : ##Nat
 
 ```
+
 ``` ucm
 -- Should tab complete namespaces since they may contain terms/types
 scratch/main> debug.tab-complete view sub
@@ -89,6 +90,7 @@ scratch/main> debug.tab-complete view subnamespace.someOther
   * subnamespace.someOtherName
 
 ```
+
 ``` unison
 absolute.term = "absolute"
 ```
@@ -106,6 +108,7 @@ scratch/main> debug.tab-complete view .absolute.te
   * .absolute.term
 
 ```
+
 ## Tab complete namespaces
 
 ``` ucm
@@ -141,6 +144,7 @@ scratch/main> debug.tab-complete io.test subnamespace.
   * subnamespace.someOtherName
 
 ```
+
 Tab Complete Delete Subcommands
 
 ``` unison
@@ -150,7 +154,6 @@ add b = b
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -163,6 +166,7 @@ add b = b
       add : a -> a
 
 ```
+
 ``` ucm
 scratch/main> update.old
 
@@ -181,6 +185,7 @@ scratch/main> debug.tab-complete delete.term add
   * add
 
 ```
+
 ## Tab complete projects and branches
 
 ``` ucm
@@ -200,6 +205,7 @@ myproject/main> debug.tab-complete project.rename my
    myproject
 
 ```
+
 Commands which complete namespaces OR branches should list both
 
 ``` unison
@@ -207,7 +213,6 @@ mybranchsubnamespace.term = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -219,6 +224,7 @@ mybranchsubnamespace.term = 1
       mybranchsubnamespace.term : ##Nat
 
 ```
+
 ``` ucm
 myproject/main> add
 

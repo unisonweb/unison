@@ -6,6 +6,7 @@ scratch/main> builtins.merge lib.builtins
   Done.
 
 ```
+
 ``` unison
 const a b = a
 external.mynat = 1

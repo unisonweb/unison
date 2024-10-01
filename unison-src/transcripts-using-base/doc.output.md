@@ -29,7 +29,6 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -46,6 +45,7 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
       time.DayOfWeek.doc    : Doc2
 
 ```
+
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
 
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
@@ -66,6 +66,7 @@ scratch/main> docs DayOfWeek
       type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 
 ```
+
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
 
 ## Syntax guide
@@ -95,11 +96,12 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
       sqr                 : Nat -> Nat
 
 ```
+
 Now we can review different portions of the guide.
 we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
-``` ucm
+```` ucm
 scratch/main> view basicFormatting
 
   basicFormatting : Doc2
@@ -545,10 +547,11 @@ scratch/main> display otherElements
                           rendered table.
   Some text   More text   Zounds!
 
-```
+````
+
 Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
-``` ucm
+```` ucm
 scratch/main> view doc.guide
 
   doc.guide : Doc2
@@ -767,6 +770,6 @@ scratch/main> display doc.guide
                             rendered table.
     Some text   More text   Zounds!
 
-```
-🌻 THE END
+````
 
+🌻 THE END

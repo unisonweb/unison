@@ -5,7 +5,6 @@ thingy = lib.old.foo + 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ thingy = lib.old.foo + 10
       thingy      : Nat
 
 ```
+
 ``` ucm
 proj/main> add
 
@@ -29,6 +29,7 @@ proj/main> add
     thingy      : Nat
 
 ```
+
 Test tab completion and fzf options of upgrade command.
 
 ``` ucm
@@ -51,6 +52,7 @@ proj/main> debug.fuzzy-options upgrade old _
     * old
 
 ```
+
 ``` ucm
 proj/main> upgrade old new
 

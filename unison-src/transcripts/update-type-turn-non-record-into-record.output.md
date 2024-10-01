@@ -3,7 +3,6 @@ unique type Foo = Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -15,6 +14,7 @@ unique type Foo = Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -23,12 +23,12 @@ scratch/main> add
     type Foo
 
 ```
+
 ``` unison
 unique type Foo = { bar : Nat }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,6 +47,7 @@ unique type Foo = { bar : Nat }
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 

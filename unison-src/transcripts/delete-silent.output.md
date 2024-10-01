@@ -7,6 +7,7 @@ scratch/main> delete foo
     foo
 
 ```
+
 ``` unison
 foo = 1
 structural type Foo = Foo ()

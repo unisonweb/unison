@@ -6,7 +6,6 @@ incrFoo = cases Bar n -> Bar (n+1)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ incrFoo = cases Bar n -> Bar (n+1)
       incrFoo : Foo -> Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -28,12 +28,12 @@ scratch/main> add
     incrFoo : Foo -> Foo
 
 ```
+
 ``` unison
 unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -46,6 +46,7 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -59,6 +60,7 @@ scratch/main> update
   `update` again.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 type Foo = Bar Nat Nat
 
@@ -69,4 +71,3 @@ incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n Nat.+ 1)
 
 ```
-

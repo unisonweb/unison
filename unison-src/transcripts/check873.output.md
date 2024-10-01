@@ -5,7 +5,6 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,6 +16,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
       - : Nat -> Nat -> Int
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -25,12 +25,12 @@ scratch/main> add
     - : Nat -> Nat -> Int
 
 ```
+
 ``` unison
 baz x = x - 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

@@ -5,7 +5,6 @@ thingy = lib.old.foo + 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ thingy = lib.old.foo + 10
       thingy      : Nat
 
 ```
+
 ``` ucm
 proj/main> add
 
@@ -29,6 +29,7 @@ proj/main> add
     thingy      : Nat
 
 ```
+
 ``` ucm
 proj/main> upgrade old new
 
@@ -49,6 +50,7 @@ proj/main> upgrade old new
   to delete the temporary branch and switch back to main.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 thingy : Nat
 thingy =
@@ -63,7 +65,6 @@ thingy = foo + +10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -76,6 +77,7 @@ thingy = foo + +10
       thingy : Int
 
 ```
+
 ``` ucm
 proj/upgrade-old-to-new> update
 

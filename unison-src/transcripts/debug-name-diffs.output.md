@@ -10,7 +10,6 @@ structural type a.b.Baz = Boo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,6 +26,7 @@ structural type a.b.Baz = Boo
       a.x.three : ##Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 

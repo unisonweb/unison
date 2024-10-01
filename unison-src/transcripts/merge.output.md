@@ -24,6 +24,7 @@ scratch/main> help merge.commit
     * delete.branch /merge-topic-into-main
 
 ```
+
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
 contains both additions.
 
@@ -59,6 +60,7 @@ scratch/alice> view foo bar
   foo = "alices foo"
 
 ```
+
 ## Basic merge: two identical adds
 
 If Alice and Bob also happen to add the same definition, that's not a conflict.
@@ -96,6 +98,7 @@ scratch/alice> view foo bar
   foo = "alice and bobs foo"
 
 ```
+
 ## Simple update propagation
 
 Updates that occur in one branch are propagated to the other. In this example, Alice updates `foo`, while Bob adds a new dependent `bar` of the original `foo`. When Bob's branch is merged into Alice's, her update to `foo` is propagated to his `bar`.
@@ -127,6 +130,7 @@ scratch/bob> display bar
   "old foo - old foo"
 
 ```
+
 Merge result:
 
 ``` ucm
@@ -149,6 +153,7 @@ scratch/alice> display bar
   "old foo - old foo"
 
 ```
+
 ## Update propagation with common dependent
 
 We classify something as an update if its "syntactic hash"—not its normal Unison hash—differs from the original definition. This allows us to cleanly merge unconflicted updates that were individually propagated to a common dependent.
@@ -181,6 +186,7 @@ scratch/alice> display foo
   "foo - alices bar - old baz"
 
 ```
+
 Bob's updates:
 
 ``` unison
@@ -194,6 +200,7 @@ scratch/bob> display foo
   "foo - old bar - bobs baz"
 
 ```
+
 Merge result:
 
 ``` ucm
@@ -219,6 +226,7 @@ scratch/alice> display foo
   "foo - alices bar - bobs baz"
 
 ```
+
 ## Propagating an update to an update
 
 Of course, it's also possible for Alice's update to propagate to one of Bob's updates. In this example, `foo` depends on `bar` which depends on `baz`. Alice updates `baz`, propagating to `bar` and `foo`, while Bob updates `bar` (to something that still depends on `foo`), propagating to `baz`. The merged result will have Alice's update to `foo` incorporated into Bob's updated `bar`, and both updates will propagate to `baz`.
@@ -242,6 +250,7 @@ scratch/main> display foo
   "old foo - old bar - old baz"
 
 ```
+
 Alice's updates:
 
 ``` unison
@@ -255,6 +264,7 @@ scratch/alice> display foo
   "old foo - old bar - alices baz"
 
 ```
+
 Bob's updates:
 
 ``` unison
@@ -268,6 +278,7 @@ scratch/bob> display foo
   "old foo - bobs bar - old baz"
 
 ```
+
 Merge result:
 
 ``` ucm
@@ -295,6 +306,7 @@ scratch/alice> display foo
   "old foo - bobs bar - alices baz"
 
 ```
+
 ## Update + delete isn't (currently) a conflict
 
 We don't currently consider "update + delete" a conflict like Git does. In this situation, the delete is just ignored, allowing the update to proceed.
@@ -321,6 +333,7 @@ scratch/bob> delete.term foo
   Done.
 
 ```
+
 Merge result:
 
 ``` ucm
@@ -334,6 +347,7 @@ scratch/alice> view foo
   foo = "alices foo"
 
 ```
+
 In a future version, we'd like to give the user a warning at least.
 
 ## Library dependencies don't create merge conflicts
@@ -391,6 +405,7 @@ scratch/alice> view foo bar baz
   lib.bothSame.bar = 18
 
 ```
+
 ## No-op merge (Bob = Alice)
 
 If Bob is equals Alice, then merging Bob into Alice looks like this.
@@ -417,6 +432,7 @@ scratch/alice> merge /bob
   scratch/alice was already up-to-date with scratch/bob.
 
 ```
+
 ## No-op merge (Bob \< Alice)
 
 If Bob is behind Alice, then merging Bob into Alice looks like this.
@@ -437,6 +453,7 @@ scratch/main> branch bob
        `switch /main` then `merge /bob`.
 
 ```
+
 Alice's addition:
 
 ``` unison
@@ -458,6 +475,7 @@ scratch/alice> merge /bob
   scratch/alice was already up-to-date with scratch/bob.
 
 ```
+
 ## Fast-forward merge (Bob \> Alice)
 
 If Bob is ahead of Alice, then merging Bob into Alice looks like this.
@@ -478,6 +496,7 @@ scratch/main> branch bob
        `switch /main` then `merge /bob`.
 
 ```
+
 Bob's addition:
 
 ``` unison
@@ -497,6 +516,7 @@ scratch/alice> merge /bob
   I fast-forward merged scratch/bob into scratch/alice.
 
 ```
+
 ## No-op merge: merge empty namespace into empty namespace
 
 ``` ucm
@@ -514,6 +534,7 @@ scratch/main> merge /topic
   scratch/main was already up-to-date with scratch/topic.
 
 ```
+
 ## Merge failure: someone deleted something
 
 If either Alice or Bob delete something, so long as the other person didn't update it (in which case we ignore the delete, as explained above), then the delete goes through.
@@ -537,6 +558,7 @@ scratch/alice> delete.term foo
   Done.
 
 ```
+
 Bob's new code that depends on `foo`:
 
 ``` unison
@@ -570,6 +592,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 bar : Text
 bar =
@@ -625,6 +648,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 bar : Text
 bar =
@@ -691,6 +715,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 foo : Text
@@ -720,6 +745,7 @@ scratch/merge-bob-into-alice> view bar baz
   baz = "bobs baz"
 
 ```
+
 ## Merge failure: simple type conflict
 
 Ditto for types; if the hashes don't match, it's a conflict. In this example, Alice and Bob do different things to the same constructor. However, any explicit changes to the same type will result in a conflict, including changes that could concievably be merged (e.g. Alice and Bob both add a new constructor, or edit different constructors).
@@ -762,6 +788,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = MkFoo Nat Nat
@@ -795,6 +822,7 @@ scratch/bob> move.term Foo.Qux Foo.BobQux
   Done.
 
 ```
+
 ``` ucm
 scratch/alice> merge /bob
 
@@ -815,6 +843,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = Baz Nat Nat | Qux Text
@@ -842,6 +871,7 @@ scratch/alice> move.term Foo.Baz Foo.Alice
   Done.
 
 ```
+
 Bob's rename:
 
 ``` ucm
@@ -850,6 +880,7 @@ scratch/bob> move.term Foo.Qux Foo.Bob
   Done.
 
 ```
+
 ``` ucm
 scratch/alice> merge bob
 
@@ -870,6 +901,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = Qux Text | Alice Nat
@@ -917,6 +949,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 my.cool.thing : Nat
@@ -952,6 +985,7 @@ scratch/bob> delete.term Foo.Bar
   Done.
 
 ```
+
 ``` unison
 unique type Foo = Bar Nat Nat
 ```
@@ -978,6 +1012,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 Foo.Bar : Nat
@@ -1019,6 +1054,7 @@ scratch/alice> view Foo.Bar.Baz Foo.Bar.Qux Foo.Bar.Hello
   Foo.Bar.Qux = 200
 
 ```
+
 Bob, meanwhile, first deletes the term, then sort of deletes the type and re-adds it under another name, but one constructor's fully qualified names doesn't actually change. The other constructor reuses the name of the deleted term.
 
 ``` ucm
@@ -1027,6 +1063,7 @@ scratch/bob> view Foo.Bar
   type Foo.Bar = Baz Nat | Hello Nat Nat
 
 ```
+
 At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
 
 Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
@@ -1051,6 +1088,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 Foo.Bar.Baz : Nat
@@ -1111,6 +1149,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo
@@ -1179,6 +1218,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 foo : Text
@@ -1198,7 +1238,6 @@ foo = "alice and bobs foo"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1211,6 +1250,7 @@ foo = "alice and bobs foo"
       foo : Text
 
 ```
+
 ``` ucm
 scratch/merge-bob-into-alice> update
 
@@ -1237,6 +1277,7 @@ scratch/alice> branches
   3.   main     
 
 ```
+
 ## `merge.commit` example (failure)
 
 `merge.commit` can only be run on a "merge branch".
@@ -1250,12 +1291,14 @@ scratch/main> branch topic
        `switch /main` then `merge /topic`.
 
 ```
+
 ``` ucm
 scratch/topic> merge.commit
 
   It doesn't look like there's a merge in progress.
 
 ```
+
 ## Precondition violations
 
 There are a number of conditions under which we can't perform a merge, and the user will have to fix up the namespace(s) manually before attempting to merge again.
@@ -1312,6 +1355,7 @@ scratch/alice> merge /bob
   and then try merging again.
 
 ```
+
 ### Conflict involving builtin
 
 We don't have a way of rendering a builtin in a scratch file, where users resolve merge conflicts. Thus, if there is a
@@ -1327,6 +1371,7 @@ scratch/alice> alias.type lib.builtins.Nat MyNat
   Done.
 
 ```
+
 Bob's branch:
 
 ``` unison
@@ -1347,6 +1392,7 @@ scratch/alice> merge /bob
   neither of them a builtin, and then try the merge again.
 
 ```
+
 ### Constructor alias
 
 Each naming of a decl may not have more than one name for each constructor, within the decl's namespace.
@@ -1363,6 +1409,7 @@ scratch/alice> alias.term Foo.Bar Foo.some.other.Alias
   Done.
 
 ```
+
 Bob's branch:
 
 ``` unison
@@ -1385,6 +1432,7 @@ scratch/alice> merge /bob
   try merging again.
 
 ```
+
 ### Missing constructor name
 
 Each naming of a decl must have a name for each constructor, within the decl's namespace.
@@ -1401,6 +1449,7 @@ scratch/alice> delete.term Foo.Bar
   Done.
 
 ```
+
 Bob's branch:
 
 ``` unison
@@ -1421,6 +1470,7 @@ scratch/alice> merge /bob
   each unnamed constructor, and then try the merge again.
 
 ```
+
 ### Nested decl alias
 
 A decl cannot be aliased within the namespace of another of its aliased.
@@ -1440,6 +1490,7 @@ scratch/alice> names A
   Names: A A.inner.X
 
 ```
+
 Bob's branch:
 
 ``` unison
@@ -1456,6 +1507,7 @@ scratch/alice> merge /bob
   then try merging again.
 
 ```
+
 ### Stray constructor alias
 
 Constructors may only exist within the corresponding decl's namespace.
@@ -1474,6 +1526,7 @@ scratch/alice> alias.term Foo.Bar AliasOutsideFooNamespace
   Done.
 
 ```
+
 Bob's branch:
 
 ``` ucm
@@ -1484,6 +1537,7 @@ scratch/bob> add
     bob : Nat
 
 ```
+
 ``` ucm
 scratch/alice> merge bob
 
@@ -1497,6 +1551,7 @@ scratch/alice> merge bob
   simply `delete` it. Then try the merge again.
 
 ```
+
 ### Term or type in `lib`
 
 By convention, `lib` can only namespaces; each of these represents a library dependencies. Individual terms and types are not allowed at the top level of `lib`.
@@ -1527,6 +1582,7 @@ scratch/alice> merge /bob
   Please move or remove it and then try merging again.
 
 ```
+
 ## LCA precondition violations
 
 The LCA is not subject to most precondition violations, which is good, because the user can't easily manipulate it\!
@@ -1541,7 +1597,6 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1553,6 +1608,7 @@ structural type Foo = Bar Nat | Baz Nat Nat
       structural type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -1565,6 +1621,7 @@ scratch/main> delete.term Foo.Baz
   Done.
 
 ```
+
 Alice's branch:
 
 ``` ucm
@@ -1584,13 +1641,13 @@ scratch/alice> delete.term Foo.Bar
   Done.
 
 ```
+
 ``` unison
 alice : Nat
 alice = 100
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1602,6 +1659,7 @@ alice = 100
       alice : Nat
 
 ```
+
 ``` ucm
 scratch/alice> add
 
@@ -1610,6 +1668,7 @@ scratch/alice> add
     alice : Nat
 
 ```
+
 Bob's branch:
 
 ``` ucm
@@ -1629,13 +1688,13 @@ scratch/bob> delete.term Foo.Bar
   Done.
 
 ```
+
 ``` unison
 bob : Nat
 bob = 101
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1647,6 +1706,7 @@ bob = 101
       bob : Nat
 
 ```
+
 ``` ucm
 scratch/bob> add
 
@@ -1655,6 +1715,7 @@ scratch/bob> add
     bob : Nat
 
 ```
+
 Now we merge:
 
 ``` ucm
@@ -1663,6 +1724,7 @@ scratch/alice> merge /bob
   I merged scratch/bob into scratch/alice.
 
 ```
+
 ## Regression tests
 
 ### Delete one alias and update the other
@@ -1673,7 +1735,6 @@ bar = 17
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1686,6 +1747,7 @@ bar = 17
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -1706,12 +1768,12 @@ scratch/alice> delete.term bar
   Done.
 
 ```
+
 ``` unison
 foo = 18
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1724,6 +1786,7 @@ foo = 18
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/alice> update
 
@@ -1740,12 +1803,12 @@ scratch/main> branch bob
        `switch /main` then `merge /bob`.
 
 ```
+
 ``` unison
 bob = 101
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1757,6 +1820,7 @@ bob = 101
       bob : Nat
 
 ```
+
 ``` ucm
 scratch/bob> add
 
@@ -1765,12 +1829,14 @@ scratch/bob> add
     bob : Nat
 
 ```
+
 ``` ucm
 scratch/alice> merge /bob
 
   I merged scratch/bob into scratch/alice.
 
 ```
+
 ### Delete a constructor
 
 ``` unison
@@ -1778,7 +1844,6 @@ type Foo = Bar | Baz
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1790,6 +1855,7 @@ type Foo = Bar | Baz
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -1805,12 +1871,12 @@ scratch/main> branch topic
        `switch /main` then `merge /topic`.
 
 ```
+
 ``` unison
 boop = "boop"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1822,6 +1888,7 @@ boop = "boop"
       boop : Text
 
 ```
+
 ``` ucm
 scratch/topic> add
 
@@ -1830,12 +1897,12 @@ scratch/topic> add
     boop : Text
 
 ```
+
 ``` unison
 type Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1848,6 +1915,7 @@ type Foo = Bar
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -1857,6 +1925,7 @@ scratch/main> update
   Done.
 
 ```
+
 ``` ucm
 scratch/main> merge topic
 
@@ -1867,6 +1936,7 @@ scratch/main> view Foo
   type Foo = Bar
 
 ```
+
 ### Dependent that doesn't need to be in the file
 
 This test demonstrates a bug.
@@ -1885,7 +1955,6 @@ baz = "lca"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1899,6 +1968,7 @@ baz = "lca"
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/alice> add
 
@@ -1916,6 +1986,7 @@ scratch/alice> branch bob
        `switch /alice` then `merge /bob`.
 
 ```
+
 On Bob, we update `baz` to "bob".
 
 ``` unison
@@ -1924,7 +1995,6 @@ baz = "bob"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1937,6 +2007,7 @@ baz = "bob"
       baz : Text
 
 ```
+
 ``` ucm
 scratch/bob> update
 
@@ -1946,6 +2017,7 @@ scratch/bob> update
   Done.
 
 ```
+
 On Alice, we update `baz` to "alice" (conflict), but also update `foo` (unconflicted), which propagates to `bar`.
 
 ``` unison
@@ -1957,7 +2029,6 @@ baz = "alice"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1971,6 +2042,7 @@ baz = "alice"
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/alice> update
 
@@ -1984,6 +2056,7 @@ scratch/alice> update
   Done.
 
 ```
+
 When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
 the underlying namespace.
 
@@ -2007,6 +2080,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 baz : Text
@@ -2040,7 +2114,6 @@ a = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2052,6 +2125,7 @@ a = 1
       a : ##Nat
 
 ```
+
 ``` ucm
 scratch/alice> add
 
@@ -2060,12 +2134,12 @@ scratch/alice> add
     a : ##Nat
 
 ```
+
 ``` unison
 b = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2077,6 +2151,7 @@ b = 2
       b : ##Nat
 
 ```
+
 ``` ucm
 scratch/alice> add
 
@@ -2085,18 +2160,19 @@ scratch/alice> add
     b : ##Nat
 
 ```
+
 ``` unison
 b = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
 ```
+
 ``` ucm
 scratch/bob> add
 
@@ -2105,12 +2181,12 @@ scratch/bob> add
     b : ##Nat
 
 ```
+
 ``` unison
 a = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2122,6 +2198,7 @@ a = 1
       a : ##Nat
 
 ```
+
 ``` ucm
 scratch/bob> add
 
@@ -2130,19 +2207,20 @@ scratch/bob> add
     a : ##Nat
 
 ```
+
 ``` unison
 a = 1
 b = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
 ```
+
 ``` ucm
 scratch/carol> add
 
@@ -2176,6 +2254,7 @@ scratch/carol> history
   3. #dm4u1eokg1
 
 ```
+
 ### Variables named `_`
 
 This test demonstrates a change in syntactic hashing that fixed a bug due to auto-generated variable names for ignored
@@ -2195,7 +2274,6 @@ bar =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2209,6 +2287,7 @@ bar =
       ignore : a -> ()
 
 ```
+
 ``` ucm
 scratch/alice> add
 
@@ -2226,6 +2305,7 @@ scratch/alice> branch bob
        `switch /alice` then `merge /bob`.
 
 ```
+
 ``` unison
 bar : Nat
 bar =
@@ -2234,7 +2314,6 @@ bar =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2247,6 +2326,7 @@ bar =
       bar : Nat
 
 ```
+
 ``` ucm
 scratch/bob> update
 
@@ -2256,6 +2336,7 @@ scratch/bob> update
   Done.
 
 ```
+
 Previously, this update to `foo` would also cause a "real update" on `bar`, its dependent. Now it doesn't, so the merge
 will succeed.
 
@@ -2265,7 +2346,6 @@ foo = 19
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2278,6 +2358,7 @@ foo = 19
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/alice> update
 
@@ -2291,12 +2372,14 @@ scratch/alice> update
   Done.
 
 ```
+
 ``` ucm
 scratch/alice> merge /bob
 
   I merged scratch/bob into scratch/alice.
 
 ```
+
 ### Unique type GUID reuse
 
 Previously, a merge branch would not include any dependents in the namespace, but that resulted in dependent unique
@@ -2308,7 +2391,6 @@ type Bar = MkBar Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -2321,6 +2403,7 @@ type Bar = MkBar Foo
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -2352,6 +2435,7 @@ scratch/bob> move.term Foo.Lca Foo.Bob
   Done.
 
 ```
+
 ``` ucm
 scratch/alice> merge /bob
 
@@ -2372,6 +2456,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo
@@ -2391,19 +2476,20 @@ type Bar
 
 ``` ucm
 ```
+
 ``` unison
 type Foo = Merged
 type Bar = MkBar Foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
   file has been previously added to the codebase.
 
 ```
+
 ``` ucm
 scratch/merge-bob-into-alice> update
 

@@ -12,6 +12,7 @@ scratch/main> view Record1
   type Record1 = { a : Text }
 
 ```
+
 ## Record with 2 fields
 
 ``` unison
@@ -24,6 +25,7 @@ scratch/main> view Record2
   type Record2 = { a : Text, b : Int }
 
 ```
+
 ## Record with 3 fields
 
 ``` unison
@@ -36,6 +38,7 @@ scratch/main> view Record3
   type Record3 = { a : Text, b : Int, c : Nat }
 
 ```
+
 ## Record with many fields
 
 ``` unison
@@ -63,6 +66,7 @@ scratch/main> view Record4
         g : [Nat] }
 
 ```
+
 ## Record with many many fields
 
 ``` unison
@@ -118,6 +122,7 @@ scratch/main> view Record5
         twenty : [[[[[[[[[[[[[[[[[[[[Nat]]]]]]]]]]]]]]]]]]]] }
 
 ```
+
 ## Record with user-defined type fields
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
@@ -137,6 +142,7 @@ scratch/main> view RecordWithUserType
     = { a : Text, b : Record4, c : UserType }
 
 ```
+
 ## Syntax
 
 Trailing commas are allowed.
@@ -149,7 +155,6 @@ unique type Record5 =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

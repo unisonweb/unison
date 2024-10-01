@@ -18,7 +18,6 @@ unique type Foo = { bar : Nat, baz : Nat }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -44,6 +43,7 @@ unique type Foo = { bar : Nat, baz : Nat }
       toplevel              : Text
 
 ```
+
 ``` ucm
 project/main> add
 
@@ -66,6 +66,7 @@ project/main> add
     toplevel              : Text
 
 ```
+
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ``` ucm
@@ -79,6 +80,7 @@ project/main> edit.namespace
   definitions currently in this namespace.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 type Foo = { bar : Nat, baz : Nat }
 
@@ -121,6 +123,7 @@ project/main> edit.namespace nested simple
   definitions currently in this namespace.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 nested.cycle.ping : Nat -> Nat
 nested.cycle.ping n =
@@ -144,4 +147,3 @@ simple.x = 10
 simple.y : Nat
 simple.y = 20
 ```
-

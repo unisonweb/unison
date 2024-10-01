@@ -10,7 +10,6 @@ Here's a *README*!
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +23,7 @@ Here's a *README*!
       nested.names.x.doc  : Doc2
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -34,6 +34,7 @@ scratch/main> add
     nested.names.x.doc  : Doc2
 
 ```
+
 ``` api
 --  Should find names by suffix
 GET /api/projects/scratch/branches/main/namespaces/nested.names
@@ -79,4 +80,3 @@ GET /api/projects/scratch/branches/main/namespaces/nested.names
     }
 }
 ```
-

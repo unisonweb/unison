@@ -8,7 +8,6 @@ joey.yaml.zz = 45
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,6 +22,7 @@ joey.yaml.zz = 45
       ross.httpClient.y   : ##Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -34,6 +34,7 @@ scratch/main> add
     ross.httpClient.y   : ##Nat
 
 ```
+
 ``` api
 --  Namespace segment prefix search
 GET /api/projects/scratch/branches/main/find?query=http
@@ -253,4 +254,3 @@ GET /api/projects/scratch/branches/main/find?query=joey.http
     ]
 ]
 ```
-

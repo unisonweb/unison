@@ -4,6 +4,7 @@ scratch/main> builtins.merge
   Done.
 
 ```
+
 ``` unison
 foo : Nat
 foo = 5
@@ -13,7 +14,6 @@ bar = 5
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -26,6 +26,7 @@ bar = 5
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -35,6 +36,7 @@ scratch/main> add
     foo : Nat
 
 ```
+
 ``` unison
 foo : Nat
 foo = 6
@@ -44,7 +46,6 @@ bar = 7
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -60,6 +61,7 @@ bar = 7
         (The old definition is also named bar.)
 
 ```
+
 ``` ucm
 scratch/main> update
 

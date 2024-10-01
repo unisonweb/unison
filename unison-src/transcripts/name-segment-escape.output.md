@@ -16,6 +16,7 @@ scratch/main> view `=`
     `=`
 
 ```
+
 You can also use backticks to expand the set of valid symbols in a symboly name segment to include these three: `.()`
 
 This allows you to spell `.` or `()` as name segments (which historically have appeared in the namespace).

@@ -3,7 +3,6 @@ unique type Foo = Bar Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -15,6 +14,7 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -27,6 +27,7 @@ scratch/main> delete.term Foo.Bar
   Done.
 
 ```
+
 Now we've set up a situation where the original constructor missing.
 
 ``` unison
@@ -34,7 +35,6 @@ unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,6 +47,7 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> view Foo
 

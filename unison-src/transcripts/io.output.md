@@ -48,7 +48,6 @@ testCreateRename _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -60,6 +59,7 @@ testCreateRename _ =
       testCreateRename : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -84,6 +84,7 @@ scratch/main> io.test testCreateRename
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Opening / Closing files
 
 Tests:
@@ -132,7 +133,6 @@ testOpenClose _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -144,6 +144,7 @@ testOpenClose _ =
       testOpenClose : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -167,6 +168,7 @@ scratch/main> io.test testOpenClose
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Reading files with getSomeBytes
 
 Tests:
@@ -224,7 +226,6 @@ testGetSomeBytes _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -236,6 +237,7 @@ testGetSomeBytes _ =
       testGetSomeBytes : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -261,6 +263,7 @@ scratch/main> io.test testGetSomeBytes
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Seeking in open files
 
 Tests:
@@ -333,7 +336,6 @@ testAppend _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -346,6 +348,7 @@ testAppend _ =
       testSeek   : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -381,6 +384,7 @@ scratch/main> io.test testAppend
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### SystemTime
 
 ``` unison
@@ -394,7 +398,6 @@ testSystemTime _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -406,6 +409,7 @@ testSystemTime _ =
       testSystemTime : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -424,6 +428,7 @@ scratch/main> io.test testSystemTime
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Get temp directory
 
 ``` unison
@@ -455,6 +460,7 @@ scratch/main> io.test testGetTempDirectory
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Get current directory
 
 ``` unison
@@ -486,6 +492,7 @@ scratch/main> io.test testGetCurrentDirectory
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Get directory contents
 
 ``` unison
@@ -519,6 +526,7 @@ scratch/main> io.test testDirContents
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Read environment variables
 
 ``` unison
@@ -552,6 +560,7 @@ scratch/main> io.test testGetEnv
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ### Read command line args
 
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
@@ -611,6 +620,7 @@ scratch/main> run runMeWithTwoArgs foo bar
   ()
 
 ```
+
 Calling our examples with the wrong number of args will error.
 
 ``` ucm
@@ -626,6 +636,7 @@ scratch/main> run runMeWithNoArgs foo
     ##raise
 
 ```
+
 ``` ucm
 scratch/main> run runMeWithOneArg
 
@@ -639,6 +650,7 @@ scratch/main> run runMeWithOneArg
     ##raise
 
 ```
+
 ``` ucm
 scratch/main> run runMeWithOneArg foo bar
 
@@ -653,6 +665,7 @@ scratch/main> run runMeWithOneArg foo bar
     ##raise
 
 ```
+
 ``` ucm
 scratch/main> run runMeWithTwoArgs
 
@@ -666,6 +679,7 @@ scratch/main> run runMeWithTwoArgs
     ##raise
 
 ```
+
 ### Get the time zone
 
 ``` unison
@@ -687,6 +701,7 @@ scratch/main> run testTimeZone
   ()
 
 ```
+
 ### Get some random bytes
 
 ``` unison

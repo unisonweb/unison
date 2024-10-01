@@ -364,7 +364,6 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -392,6 +391,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
     ✅ Passed Passed
 
 ```
+
 ## Sandboxing functions
 
 ``` unison
@@ -416,7 +416,6 @@ openFile]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -455,6 +454,7 @@ openFile]
     ✅ Passed Passed
 
 ```
+
 ``` unison
 openFilesIO = do
   checks
@@ -469,7 +469,6 @@ openFilesIO = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -481,6 +480,7 @@ openFilesIO = do
       openFilesIO : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -499,6 +499,7 @@ scratch/main> io.test openFilesIO
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ## Universal hash functions
 
 Just exercises the function
@@ -509,7 +510,6 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -532,6 +532,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
     ✅ Passed Passed
 
 ```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.

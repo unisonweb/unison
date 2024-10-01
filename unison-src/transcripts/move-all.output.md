@@ -12,7 +12,6 @@ unique type Foo.T = T
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,6 +26,7 @@ unique type Foo.T = T
       Foo.termInA : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -38,13 +38,13 @@ scratch/main> add
     Foo.termInA : Nat
 
 ```
+
 ``` unison
 Foo.termInA = 2
 unique type Foo.T = T1 | T2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -59,6 +59,7 @@ unique type Foo.T = T1 | T2
         (also named Foo)
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -68,6 +69,7 @@ scratch/main> update
   Done.
 
 ```
+
 Should be able to move the term, type, and namespace, including its types, terms, and sub-namespaces.
 
 ``` ucm
@@ -107,6 +109,7 @@ scratch/main> history Bar
   □ 2. #c5cggiaumo (start of history)
 
 ```
+
 ## Happy Path - Just term
 
 ``` unison
@@ -114,7 +117,6 @@ bonk = 5
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -126,6 +128,7 @@ bonk = 5
       bonk : Nat
 
 ```
+
 ``` ucm
 z/main> builtins.merge
 
@@ -147,6 +150,7 @@ z/main> ls
   2. zonk     (Nat)
 
 ```
+
 ## Happy Path - Just namespace
 
 ``` unison
@@ -154,7 +158,6 @@ bonk.zonk = 5
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -167,6 +170,7 @@ bonk.zonk = 5
         (also named zonk)
 
 ```
+
 ``` ucm
 a/main> builtins.merge
 
@@ -193,6 +197,7 @@ a/main> view zonk.zonk
   zonk.zonk = 5
 
 ```
+
 ## Sad Path - No term, type, or namespace named src
 
 ``` ucm

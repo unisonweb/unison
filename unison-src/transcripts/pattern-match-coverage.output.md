@@ -11,7 +11,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -25,6 +24,7 @@ test = cases
     * C
 
 ```
+
 ``` unison
 unique type T = A | B
 
@@ -37,7 +37,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -52,6 +51,7 @@ test = cases
    * (B, Some B)
 
 ```
+
 ## redundant patterns
 
 ``` unison
@@ -66,7 +66,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -74,6 +73,7 @@ test = cases
     
 
 ```
+
 ``` unison
 unique type T = A | B
 
@@ -87,7 +87,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -95,6 +94,7 @@ test = cases
     
 
 ```
+
 # Uninhabited patterns
 
 match is complete without covering uninhabited patterns
@@ -109,7 +109,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -122,6 +121,7 @@ test = cases
       test : Optional (Optional V) -> ()
 
 ```
+
 uninhabited patterns are reported as redundant
 
 ``` unison
@@ -133,7 +133,6 @@ test0 = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -141,6 +140,7 @@ test0 = cases
     
 
 ```
+
 ``` unison
 unique type V =
 
@@ -152,7 +152,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -160,6 +159,7 @@ test = cases
     
 
 ```
+
 # Guards
 
 ## Incomplete patterns due to guards should be reported
@@ -171,7 +171,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -183,6 +182,7 @@ test = cases
    * ()
 
 ```
+
 ``` unison
 test : Optional Nat -> Nat
 test = cases
@@ -192,7 +192,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -206,6 +205,7 @@ test = cases
    * Some _
 
 ```
+
 ## Complete patterns with guards should be accepted
 
 ``` unison
@@ -218,7 +218,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -230,6 +229,7 @@ test = cases
       test : Optional Nat -> Nat
 
 ```
+
 # Pattern instantiation depth
 
 Uncovered patterns are only instantiated as deeply as necessary to
@@ -245,7 +245,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -258,6 +257,7 @@ test = cases
    * Some (Some _)
 
 ```
+
 ``` unison
 unique type T = A | B | C
 
@@ -269,7 +269,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -285,6 +284,7 @@ test = cases
     * Some (Some C)
 
 ```
+
 # Literals
 
 ## Non-exhaustive
@@ -298,7 +298,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -310,6 +309,7 @@ test = cases
    * _
 
 ```
+
 Boolean
 
 ``` unison
@@ -319,7 +319,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -331,6 +330,7 @@ test = cases
    * false
 
 ```
+
 ## Exhaustive
 
 Nat
@@ -343,7 +343,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -355,6 +354,7 @@ test = cases
       test : Nat -> ()
 
 ```
+
 Boolean
 
 ``` unison
@@ -365,7 +365,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -377,6 +376,7 @@ test = cases
       test : Boolean -> ()
 
 ```
+
 # Redundant
 
 Nat
@@ -390,7 +390,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -398,6 +397,7 @@ test = cases
     
 
 ```
+
 Boolean
 
 ``` unison
@@ -409,7 +409,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -417,6 +416,7 @@ test = cases
     
 
 ```
+
 # Sequences
 
 ## Exhaustive
@@ -429,7 +429,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -441,6 +440,7 @@ test = cases
       test : [()] -> ()
 
 ```
+
 ## Non-exhaustive
 
 ``` unison
@@ -450,7 +450,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -462,6 +461,7 @@ test = cases
    * (() +: _)
 
 ```
+
 ``` unison
 test : [()] -> ()
 test = cases
@@ -469,7 +469,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -481,6 +480,7 @@ test = cases
    * []
 
 ```
+
 ``` unison
 test : [()] -> ()
 test = cases
@@ -488,7 +488,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -500,6 +499,7 @@ test = cases
    * []
 
 ```
+
 ``` unison
 test : [()] -> ()
 test = cases
@@ -508,7 +508,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -521,6 +520,7 @@ test = cases
    * (() +: [])
 
 ```
+
 ``` unison
 test : [()] -> ()
 test = cases
@@ -529,7 +529,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -542,6 +541,7 @@ test = cases
    * (() +: (() +: _))
 
 ```
+
 ## Uninhabited
 
 `Cons` is not expected since `V` is uninhabited
@@ -555,7 +555,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -568,6 +567,7 @@ test = cases
       test : [V] -> ()
 
 ```
+
 ## Length restrictions can equate cons and nil patterns
 
 Here the first pattern matches lists of length two or greater, the
@@ -587,7 +587,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -599,6 +598,7 @@ test = cases
       test : [Boolean] -> ()
 
 ```
+
 This is the same idea as above but shows that fourth match is redundant.
 
 ``` unison
@@ -612,7 +612,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -620,6 +619,7 @@ test = cases
     
 
 ```
+
 This is another similar example. The first pattern matches lists of
 length 5 or greater. The second matches lists of length 4 or greater where the
 first and third element are true. The third matches lists of length 4
@@ -637,7 +637,6 @@ test = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -645,6 +644,7 @@ test = cases
     
 
 ```
+
 # bugfix: Sufficient data decl map
 
 ``` unison
@@ -656,7 +656,6 @@ unit2t = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -669,6 +668,7 @@ unit2t = cases
       unit2t : 'T
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -678,6 +678,7 @@ scratch/main> add
     unit2t : 'T
 
 ```
+
 Pattern coverage checking needs the data decl map to contain all
 transitive type dependencies of the scrutinee type. We do this
 before typechecking begins in a roundabout way: fetching all
@@ -693,7 +694,6 @@ witht = match unit2t () with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -705,6 +705,7 @@ witht = match unit2t () with
       witht : ()
 
 ```
+
 ``` unison
 unique type V =
 
@@ -713,7 +714,6 @@ evil = bug ""
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -726,6 +726,7 @@ evil = bug ""
       evil : 'V
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -735,6 +736,7 @@ scratch/main> add
     evil : 'V
 
 ```
+
 ``` unison
 withV : Unit
 withV = match evil () with
@@ -742,7 +744,6 @@ withV = match evil () with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -750,12 +751,12 @@ withV = match evil () with
     
 
 ```
+
 ``` unison
 unique type SomeType = A
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -767,6 +768,7 @@ unique type SomeType = A
       type SomeType
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -775,6 +777,7 @@ scratch/main> add
     type SomeType
 
 ```
+
 ``` unison
 unique type R = R SomeType
 
@@ -783,7 +786,6 @@ get x = match x with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -796,12 +798,12 @@ get x = match x with
       get : R -> SomeType
 
 ```
+
 ``` unison
 unique type R = { someType : SomeType }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -816,6 +818,7 @@ unique type R = { someType : SomeType }
       R.someType.set    : SomeType -> R -> R
 
 ```
+
 # Ability handlers
 
 ## Exhaustive ability handlers are accepted
@@ -832,7 +835,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -845,6 +847,7 @@ result f = handle !f with cases
       result : '{e, Abort} a ->{e} a
 
 ```
+
 ``` unison
 structural ability Abort where
   abort : {Abort} a
@@ -859,7 +862,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -877,6 +879,7 @@ result f = handle !f with cases
       type T
 
 ```
+
 ``` unison
 structural ability Abort where
   abort : {Abort} a
@@ -890,7 +893,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -903,6 +905,7 @@ result f =
       result : '{e, Abort} V ->{e} V
 
 ```
+
 ``` unison
 structural ability Abort where
   abort : {Abort} a
@@ -920,7 +923,6 @@ handleMulti c =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -934,6 +936,7 @@ handleMulti c =
       handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
 
 ```
+
 ## Non-exhaustive ability handlers are rejected
 
 ``` unison
@@ -948,7 +951,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -962,6 +964,7 @@ result f = handle !f with cases
     * { abortWithMessage _ -> _ }
 
 ```
+
 ``` unison
 structural ability Abort where
   abort : {Abort} a
@@ -975,7 +978,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -988,6 +990,7 @@ result f = handle !f with cases
    * { B }
 
 ```
+
 ``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
@@ -1001,7 +1004,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1014,6 +1016,7 @@ result f = handle !f with cases
    * { give B -> _ }
 
 ```
+
 ``` unison
 structural ability Abort where
   abort : {Abort} a
@@ -1031,7 +1034,6 @@ handleMulti c =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1044,6 +1046,7 @@ handleMulti c =
    * { abort -> _ }
 
 ```
+
 ## Redundant handler cases are rejected
 
 ``` unison
@@ -1060,7 +1063,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1068,6 +1070,7 @@ result f = handle !f with cases
     
 
 ```
+
 ## Exhaustive ability reinterpretations are accepted
 
 ``` unison
@@ -1084,7 +1087,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1097,6 +1099,7 @@ result f = handle !f with cases
       result : '{e, Abort} a ->{e, Abort} a
 
 ```
+
 ``` unison
 structural ability Abort a where
   abort : {Abort a} r
@@ -1112,7 +1115,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1125,6 +1127,7 @@ result f =
       result : '{e, Abort V} a ->{e, Abort V} a
 
 ```
+
 ## Non-exhaustive ability reinterpretations are rejected
 
 ``` unison
@@ -1140,7 +1143,6 @@ result f = handle !f with cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1153,6 +1155,7 @@ result f = handle !f with cases
    * { abort -> _ }
 
 ```
+
 ## Hacky workaround for uninhabited abilities
 
 Although all of the constructors of an ability might be uninhabited,
@@ -1180,7 +1183,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1194,6 +1196,7 @@ result f =
     * { give2 _ -> _ }
 
 ```
+
 ``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
@@ -1209,7 +1212,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1222,6 +1224,7 @@ result f =
       result : '{e, Give V} r ->{e} r
 
 ```
+
 ``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
@@ -1237,7 +1240,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1250,6 +1252,7 @@ result f =
       result : '{e, Give V} r ->{e} r
 
 ```
+
 ``` unison
 unique ability Give a where
   give : a -> {Give a} Unit
@@ -1266,7 +1269,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1274,6 +1276,7 @@ result f =
     
 
 ```
+
 ``` unison
 unique ability GiveA a where
   giveA : a -> {GiveA a} Unit
@@ -1296,7 +1299,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1304,6 +1306,7 @@ result f =
     
 
 ```
+
 ``` unison
 unique ability GiveA a where
   giveA : a -> {GiveA a} Unit
@@ -1324,7 +1327,6 @@ result f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

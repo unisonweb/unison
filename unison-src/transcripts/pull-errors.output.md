@@ -21,7 +21,6 @@ Sorry, I wasn’t sure how to process your request:
   merging into the top level of a local project branch.
 
 You can run `help pull` for more information on using `pull`.
-
 test/main> pull @aryairani/test-almost-empty/main a
 
   I think you want to merge @aryairani/test-almost-empty/main
@@ -39,5 +38,4 @@ Sorry, I wasn’t sure how to process your request:
   merging into the top level of a local project branch.
 
 You can run `help pull` for more information on using `pull`.
-
 ```

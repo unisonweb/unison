@@ -7,7 +7,6 @@ x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ x = 1
       x : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -27,6 +27,7 @@ scratch/main> add
     x : Nat
 
 ```
+
 Update `x`, and add a new `y` which depends on the update
 
 ``` unison
@@ -35,7 +36,6 @@ y = x + 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,6 +52,7 @@ y = x + 1
       x : Nat
 
 ```
+
 Try to add only the new `y`. This should fail because it requires an update to `x`, but we only ran an 'add'.
 
 ``` ucm

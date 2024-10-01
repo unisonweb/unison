@@ -16,6 +16,7 @@ scratch/main> add
     a     : ##Text
 
 ```
+
 Here is an update which should not affect `X`:
 
 ``` unison
@@ -31,6 +32,7 @@ scratch/main> update
   Done.
 
 ```
+
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
 
 ``` ucm
@@ -44,6 +46,7 @@ scratch/main> history X
   □ 1. #das1se4g2i (start of history)
 
 ```
+
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 
 ``` ucm

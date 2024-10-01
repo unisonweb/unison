@@ -30,7 +30,6 @@ mkTestCase = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -48,6 +47,7 @@ mkTestCase = do
       products   : ([Nat], [Nat], [Nat]) -> Text
 
 ```
+
 ``` ucm
 scratch/main> add
 

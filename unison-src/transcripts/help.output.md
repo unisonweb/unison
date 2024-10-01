@@ -1012,5 +1012,5 @@ scratch/main> help-topic testcache
   definitions it depends on has changed.
 
 ```
-We should add a command to show help for hidden commands also.
 
+We should add a command to show help for hidden commands also.

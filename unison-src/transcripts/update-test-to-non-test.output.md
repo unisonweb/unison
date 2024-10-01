@@ -4,12 +4,12 @@ scratch/main> builtins.merge
   Done.
 
 ```
+
 ``` unison
 test> foo = []
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,6 +27,7 @@ test> foo = []
     
 
 ```
+
 After adding the test `foo`, we expect `view` to render it like a test. (Bug: It doesn't.)
 
 ``` ucm
@@ -42,12 +43,12 @@ scratch/main> view foo
   foo = []
 
 ```
+
 ``` unison
 foo = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -60,6 +61,7 @@ foo = 1
       foo : Nat
 
 ```
+
 After updating `foo` to not be a test, we expect `view` to not render it like a test.
 
 ``` ucm

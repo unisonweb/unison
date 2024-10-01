@@ -10,7 +10,6 @@ foo = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,6 +22,7 @@ foo = cases
       foo : Foo -> Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -32,13 +32,13 @@ scratch/main> add
     foo : Foo -> Nat
 
 ```
+
 ``` unison
 unique type Foo
   = Bar Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -51,6 +51,7 @@ unique type Foo
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -64,6 +65,7 @@ scratch/main> update
   `update` again.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 type Foo = Bar Nat
 
@@ -76,4 +78,3 @@ foo = cases
   Baz n m -> n Nat.+ m
 
 ```
-

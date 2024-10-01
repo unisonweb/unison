@@ -8,8 +8,6 @@ and surface a helpful message.
 myVal = 3
 ```
 
-
-
 🛑
 
 The transcript was expecting an error in the stanza above, but did not encounter one.

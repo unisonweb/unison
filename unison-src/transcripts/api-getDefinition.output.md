@@ -512,4 +512,3 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo
     "typeDefinitions": {}
 }
 ```
-

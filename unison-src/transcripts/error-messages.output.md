@@ -11,7 +11,6 @@ x = 1. -- missing some digits after the decimal
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -22,12 +21,12 @@ x = 1. -- missing some digits after the decimal
   or `1.1e37`.
 
 ```
+
 ``` unison
 x = 1e -- missing an exponent
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -38,12 +37,12 @@ x = 1e -- missing an exponent
   `1e37`.
 
 ```
+
 ``` unison
 x = 1e- -- missing an exponent
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -54,12 +53,12 @@ x = 1e- -- missing an exponent
   `1e-37`.
 
 ```
+
 ``` unison
 x = 1E+ -- missing an exponent
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -70,6 +69,7 @@ x = 1E+ -- missing an exponent
   `1e+37`.
 
 ```
+
 ### Hex, octal, binary, and bytes literals
 
 ``` unison
@@ -77,7 +77,6 @@ x = 0xoogabooga -- invalid hex chars
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -88,12 +87,12 @@ x = 0xoogabooga -- invalid hex chars
   0123456789abcdefABCDEF) after the 0x.
 
 ```
+
 ``` unison
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -104,12 +103,12 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
   the 0o.
 
 ```
+
 ``` unison
 x = 0b3201 -- 3 and 2 are not valid binary chars
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -120,12 +119,12 @@ x = 0b3201 -- 3 and 2 are not valid binary chars
   0b.
 
 ```
+
 ``` unison
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This bytes literal isn't valid syntax: 0xsf
@@ -136,12 +135,12 @@ x = 0xsf -- odd number of hex chars in a bytes literal
   of 0123456789abcdefABCDEF) after the 0xs.
 
 ```
+
 ``` unison
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This bytes literal isn't valid syntax: 0xsnotvalidhexchars
@@ -152,6 +151,7 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
   of 0123456789abcdefABCDEF) after the 0xs.
 
 ```
+
 ### Layout errors
 
 ``` unison
@@ -159,7 +159,6 @@ foo = else -- not matching if
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found a closing 'else' here without a matching 'then'.
@@ -168,12 +167,12 @@ foo = else -- not matching if
   
 
 ```
+
 ``` unison
 foo = then -- unclosed
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found a closing 'then' here without a matching 'if'.
@@ -182,12 +181,12 @@ foo = then -- unclosed
   
 
 ```
+
 ``` unison
 foo = with -- unclosed
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found a closing 'with' here without a matching 'handle' or 'match'.
@@ -196,6 +195,7 @@ foo = with -- unclosed
   
 
 ```
+
 ### Matching
 
 ``` unison
@@ -204,7 +204,6 @@ foo = match 1 with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -215,13 +214,13 @@ foo = match 1 with
    * _
 
 ```
+
 ``` unison
 foo = match 1 with
   2 -- no right-hand-side
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -236,6 +235,7 @@ foo = match 1 with
   * pattern guard
 
 ```
+
 ``` unison
 -- Mismatched arities
 foo = cases
@@ -244,7 +244,6 @@ foo = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
     😶
@@ -257,6 +256,7 @@ foo = cases
     
 
 ```
+
 ``` unison
 -- Missing a '->'
 x = match Some a with
@@ -267,7 +267,6 @@ x = match Some a with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -285,6 +284,7 @@ x = match Some a with
   * true
 
 ```
+
 ``` unison
 -- Missing patterns
 x = match Some a with
@@ -294,7 +294,6 @@ x = match Some a with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -309,6 +308,7 @@ x = match Some a with
   * newline or semicolon
 
 ```
+
 ``` unison
 -- Guards following an unguarded case
 x = match Some a with
@@ -317,7 +317,6 @@ x = match Some a with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -332,6 +331,7 @@ x = match Some a with
   * newline or semicolon
 
 ```
+
 ### Watches
 
 ``` unison
@@ -340,7 +340,6 @@ x = match Some a with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I expected a non-empty watch expression and not just ">"
@@ -349,6 +348,7 @@ x = match Some a with
   
 
 ```
+
 ### Keywords
 
 ``` unison
@@ -356,7 +356,6 @@ use.keyword.in.namespace = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   The identifier `namespace` used here is a reserved keyword: 
@@ -367,13 +366,13 @@ use.keyword.in.namespace = 1
   or wrapping it in backticks (like `namespace` ).
 
 ```
+
 ``` unison
 -- reserved operator
 a ! b = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   This looks like the start of an expression here 

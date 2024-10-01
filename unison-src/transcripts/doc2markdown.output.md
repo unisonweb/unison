@@ -81,7 +81,7 @@ Table
 }}
 ```
 
-``` ucm
+```` ucm
 scratch/main> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
@@ -156,7 +156,8 @@ scratch/main> debug.doc-to-markdown fulldoc
   
   
 
-```
+````
+
 You can add docs to a term or type with a top-level doc literal above the binding:
 
 ``` unison
@@ -175,7 +176,6 @@ structural type MyStructuralType = MyStructuralType
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

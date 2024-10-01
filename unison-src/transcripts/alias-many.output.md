@@ -62,5 +62,5 @@ scratch/main> find-in mylib
   
 
 ```
-Thanks, `alias.many`\!
 
+Thanks, `alias.many`\!

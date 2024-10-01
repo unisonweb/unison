@@ -8,7 +8,6 @@ bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -25,6 +24,7 @@ bar = a.x.x.x.x + c.y.y.y.y
       foo       : Nat
 
 ```
+
 ``` ucm
 myproject/main> add
 
@@ -38,12 +38,12 @@ myproject/main> add
     foo       : Nat
 
 ```
+
 ``` unison
 foo = +30
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -56,6 +56,7 @@ foo = +30
       foo : Int
 
 ```
+
 ``` ucm
 myproject/main> update
 
@@ -69,6 +70,7 @@ myproject/main> update
   `update` again.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 foo = +30
 
@@ -91,4 +93,3 @@ d.y.y.y.y =
   foo + 10
 
 ```
-

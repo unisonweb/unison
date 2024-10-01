@@ -28,7 +28,6 @@ main = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -43,6 +42,7 @@ main = do
       resume : Request {g, Break} x -> x
 
 ```
+
 ``` ucm
 scratch/main> add
 

@@ -6,7 +6,6 @@ makeFoo n = Bar (n+10)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ makeFoo n = Bar (n+10)
       makeFoo : Nat -> Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -28,6 +28,7 @@ scratch/main> add
     makeFoo : Nat -> Foo
 
 ```
+
 ``` unison
 unique type Foo = internal.Bar Nat
 
@@ -36,7 +37,6 @@ Foo.Bar n = internal.Bar n
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -50,6 +50,7 @@ Foo.Bar n = internal.Bar n
       Foo.Bar : Nat -> Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 

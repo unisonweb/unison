@@ -29,7 +29,6 @@ body k out v =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -44,6 +43,7 @@ body k out v =
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -55,6 +55,7 @@ scratch/main> add
     loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
+
 Test case.
 
 ``` unison
@@ -91,7 +92,6 @@ tests = '(map spawn nats)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -106,6 +106,7 @@ tests = '(map spawn nats)
       tests   : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

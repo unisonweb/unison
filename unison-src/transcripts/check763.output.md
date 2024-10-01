@@ -6,7 +6,6 @@ Regression test for https://github.com/unisonweb/unison/issues/763
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -18,6 +17,7 @@ Regression test for https://github.com/unisonweb/unison/issues/763
       +-+ : Nat -> Nat -> Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 

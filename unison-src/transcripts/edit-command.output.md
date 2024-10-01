@@ -4,6 +4,7 @@ scratch/main> builtins.merge
   Done.
 
 ```
+
 ``` unison
 ---
 title: /private/tmp/scratch.u
@@ -17,7 +18,6 @@ mytest = [Ok "ok"]
 ```
 
 ``` ucm
-
   Loading changes detected in /private/tmp/scratch.u.
 
   I found and typechecked these definitions in
@@ -31,6 +31,7 @@ mytest = [Ok "ok"]
       mytest : [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -59,6 +60,7 @@ scratch/main> edit mytest
   definitions currently in this namespace.
 
 ```
+
 ``` unison :added-by-ucm /private/tmp/scratch.u
 bar : Nat
 bar = 456

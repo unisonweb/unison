@@ -7,7 +7,6 @@
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅
@@ -29,12 +28,12 @@
     #qe5e1lcfn8
 
 ```
+
 ``` unison
 > bug "there's a bug in my code"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅
@@ -56,6 +55,7 @@
     #m67hcdcoda
 
 ```
+
 ## Todo
 
 `todo` is useful if you want to come back to a piece of code later but you want your project to compile.
@@ -65,7 +65,6 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -77,6 +76,7 @@ complicatedMathStuff x = todo "Come back and to something with x here"
       complicatedMathStuff : x -> r
 
 ```
+
 ## Bug
 
 `bug` is used to indicate that a particular branch is not expected to execute.
@@ -88,7 +88,6 @@ test = match true with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

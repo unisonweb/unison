@@ -826,4 +826,3 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?
     "tag": "Data"
 }
 ```
-

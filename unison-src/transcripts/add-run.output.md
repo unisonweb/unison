@@ -14,7 +14,6 @@ is2even = '(even 2)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -28,6 +27,7 @@ is2even = '(even 2)
       odd     : Nat -> Boolean
 
 ```
+
 it errors if there isn't a previous run
 
 ``` ucm
@@ -39,12 +39,14 @@ scratch/main> add.run foo
   something before attempting to save it.
 
 ```
+
 ``` ucm
 scratch/main> run is2even
 
   true
 
 ```
+
 it errors if the desired result name conflicts with a name in the
 unison file
 
@@ -57,6 +59,7 @@ scratch/main> add.run is2even
   name conflicts with a name in the scratch file.
 
 ```
+
 otherwise, the result is successfully persisted
 
 ``` ucm
@@ -67,6 +70,7 @@ scratch/main> add.run foo.bar.baz
     foo.bar.baz : Boolean
 
 ```
+
 ``` ucm
 scratch/main> view foo.bar.baz
 
@@ -74,6 +78,7 @@ scratch/main> view foo.bar.baz
   foo.bar.baz = true
 
 ```
+
 ## It resolves references within the unison file
 
 ``` unison
@@ -88,7 +93,6 @@ main _ = y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -102,6 +106,7 @@ main _ = y
       z    : Nat -> Nat
 
 ```
+
 ``` ucm
 scratch/main> run main
 
@@ -115,6 +120,7 @@ scratch/main> add.run result
     z      : Nat -> Nat
 
 ```
+
 ## It resolves references within the codebase
 
 ``` unison
@@ -123,7 +129,6 @@ inc x = x + 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -135,6 +140,7 @@ inc x = x + 1
       inc : Nat -> Nat
 
 ```
+
 ``` ucm
 scratch/main> add inc
 
@@ -143,13 +149,13 @@ scratch/main> add inc
     inc : Nat -> Nat
 
 ```
+
 ``` unison
 main : '(Nat -> Nat)
 main _ x = inc x
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -161,6 +167,7 @@ main _ x = inc x
       main : '(Nat -> Nat)
 
 ```
+
 ``` ucm
 scratch/main> run main
 
@@ -178,6 +185,7 @@ scratch/main> view natfoo
   natfoo = inc
 
 ```
+
 ## It captures scratch file dependencies at run time
 
 ``` unison
@@ -187,7 +195,6 @@ main = 'y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -201,18 +208,19 @@ main = 'y
       y    : Nat
 
 ```
+
 ``` ucm
 scratch/main> run main
 
   2
 
 ```
+
 ``` unison
 x = 50
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -224,6 +232,7 @@ x = 50
       x : Nat
 
 ```
+
 this saves 2 to xres, rather than 100
 
 ``` ucm
@@ -239,6 +248,7 @@ scratch/main> view xres
   xres = 2
 
 ```
+
 ## It fails with a message if add cannot complete cleanly
 
 ``` unison
@@ -246,7 +256,6 @@ main = '5
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -258,6 +267,7 @@ main = '5
       main : 'Nat
 
 ```
+
 ``` ucm
 scratch/main> run main
 
@@ -273,6 +283,7 @@ scratch/main> add.run xres
     Tip: Use `help filestatus` to learn more.
 
 ```
+
 ## It works with absolute names
 
 ``` unison
@@ -280,7 +291,6 @@ main = '5
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -292,6 +302,7 @@ main = '5
       main : 'Nat
 
 ```
+
 ``` ucm
 scratch/main> run main
 

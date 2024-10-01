@@ -152,7 +152,6 @@ swapped name link =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -198,6 +197,7 @@ swapped name link =
                        ->{Throw Text} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -240,6 +240,7 @@ scratch/main> add
                      ->{Throw Text} ()
 
 ```
+
 ``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
@@ -316,7 +317,6 @@ badLoad _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -338,6 +338,7 @@ badLoad _ =
       zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
 ```
+
 This simply runs some functions to make sure there isn't a crash. Once
 we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
@@ -392,6 +393,7 @@ scratch/main> io.test badLoad
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ``` unison
 codeTests : '{io2.IO} [Result]
 codeTests =
@@ -429,7 +431,6 @@ codeTests =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -441,6 +442,7 @@ codeTests =
       codeTests : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -488,6 +490,7 @@ scratch/main> io.test codeTests
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ``` unison
 validateTest : Link.Term ->{IO} Result
 validateTest l = match Code.lookup l with
@@ -515,7 +518,6 @@ vtests _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -528,6 +530,7 @@ vtests _ =
       vtests       : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

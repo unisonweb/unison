@@ -12,6 +12,7 @@ diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
   Done.
 
 ```
+
 ``` unison
 term =
   _ = "Here's some text"
@@ -35,7 +36,6 @@ take n s =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -50,6 +50,7 @@ take n s =
       term : Nat
 
 ```
+
 ``` ucm
 diffs/main> add
 
@@ -68,6 +69,7 @@ diffs/main> branch.create new
        `switch /main` then `merge /new`.
 
 ```
+
 ``` unison
 term =
   _ = "Here's some different text"
@@ -93,7 +95,6 @@ take n s =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -110,6 +111,7 @@ take n s =
       term : Nat
 
 ```
+
 ``` ucm
 diffs/new> update
 
@@ -119,6 +121,7 @@ diffs/new> update
   Done.
 
 ```
+
 Diff terms
 
 ``` api
@@ -3599,4 +3602,3 @@ GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Ty
     "project": "diffs"
 }
 ```
-

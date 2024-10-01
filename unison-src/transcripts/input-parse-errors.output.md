@@ -22,7 +22,6 @@ Sorry, I wasn’t sure how to process your request:
   
 
 You can run `help add` for more information on using `add`.
-
 scratch/main> ls
 
   1. lib/ (469 terms, 74 types)
@@ -42,6 +41,7 @@ scratch/main> add 2
   ⊡ Ignored previously added definitions: x
 
 ```
+
 todo:
 
 ``` haskell
@@ -72,8 +72,8 @@ Sorry, I wasn’t sure how to process your request:
 
 You can run `help update` for more information on using
 `update`.
-
 ```
+
 aliasTerm
 
 ``` 
@@ -204,4 +204,3 @@ view,
 viewGlobal,
 viewReflog
 ```
-

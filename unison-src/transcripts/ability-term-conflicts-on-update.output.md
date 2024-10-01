@@ -11,7 +11,6 @@ unique ability Channels where
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,6 +22,7 @@ unique ability Channels where
       ability Channels
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -31,6 +31,7 @@ scratch/main> add
     ability Channels
 
 ```
+
 Now we update the ability, changing the name of the constructor, *but*, we simultaneously
 add a new top-level term with the same name as the constructor which is being
 removed from Channels.
@@ -47,7 +48,6 @@ thing _ = send 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -65,6 +65,7 @@ thing _ = send 1
       ability Channels
 
 ```
+
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
 ``` ucm
@@ -89,6 +90,7 @@ scratch/main> update.old patch thing
     ability Channels
 
 ```
+
 If however, `Channels.send` and `thing` *depend* on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
 
 ``` unison
@@ -103,7 +105,6 @@ thing _ = send 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -119,6 +120,7 @@ thing _ = send 1
       thing         : '{Channels} ()
 
 ```
+
 These updates should succeed since `Channels` is a dependency.
 
 ``` ucm
@@ -150,6 +152,7 @@ scratch/main> update.old.preview patch thing
       thing         : '{Channels} ()
 
 ```
+
 We should also be able to successfully update the whole thing.
 
 ``` ucm
@@ -163,6 +166,7 @@ scratch/main> update.old
     thing         : '{Channels} ()
 
 ```
+
 # Constructor-term conflict
 
 ``` unison
@@ -170,7 +174,6 @@ X.x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -182,6 +185,7 @@ X.x = 1
       X.x : Nat
 
 ```
+
 ``` ucm
 scratch/main2> add
 
@@ -190,13 +194,13 @@ scratch/main2> add
     X.x : Nat
 
 ```
+
 ``` unison
 structural ability X where
   x : ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -212,6 +216,7 @@ structural ability X where
       Tip: Use `help filestatus` to learn more.
 
 ```
+
 This should fail with a ctor/term conflict.
 
 ``` ucm

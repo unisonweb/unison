@@ -14,6 +14,7 @@ scratch/main> view lib.builtins.Doc
     | Join [lib.builtins.Doc]
 
 ```
+
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
 
 ``` unison
@@ -27,7 +28,6 @@ Can link to definitions like @List.drop or @List
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -39,6 +39,7 @@ Can link to definitions like @List.drop or @List
       doc1 : Doc
 
 ```
+
 Syntax:
 
 `[:` starts a documentation block; `:]` finishes it. Within the block:
@@ -59,7 +60,6 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -72,6 +72,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
       List.take.ex2 : [Nat]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -81,6 +82,7 @@ scratch/main> add
     List.take.ex2 : [Nat]
 
 ```
+
 And now let's write our docs and reference these examples:
 
 ``` unison
@@ -101,7 +103,6 @@ List.take.doc = [:
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -113,6 +114,7 @@ List.take.doc = [:
       List.take.doc : Doc
 
 ```
+
 Let's add it to the codebase.
 
 ``` ucm
@@ -123,6 +125,7 @@ scratch/main> add
     List.take.doc : Doc
 
 ```
+
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ``` ucm
@@ -148,6 +151,7 @@ scratch/main> docs List.take
   
 
 ```
+
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ``` ucm

@@ -3,7 +3,6 @@ def = "first value"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -15,6 +14,7 @@ def = "first value"
       def : Text
 
 ```
+
 ``` unison
 def = "second value"
 ```
@@ -71,6 +71,7 @@ scratch/main> history
   □ 2. #4bigcpnl7t (start of history)
 
 ```
+
 Can reset to a value from reflog by number.
 
 ``` ucm
@@ -120,6 +121,7 @@ scratch/main> history
   □ 3. #4bigcpnl7t (start of history)
 
 ```
+
 # reset branch
 
 ``` ucm
@@ -133,6 +135,7 @@ foo/main> history
   □ 1. #sg60bvjo91 (start of history)
 
 ```
+
 ``` unison
 a = 5
 ```
@@ -164,6 +167,7 @@ foo/empty> history
   □ 1. #5l94rduvel (start of history)
 
 ```
+
 ## second argument is always interpreted as a branch
 
 ``` unison

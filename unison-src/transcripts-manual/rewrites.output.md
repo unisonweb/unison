@@ -48,6 +48,7 @@ scratch/main> rewrite eitherToOptional
   The rewritten file has been added to the top of scratch.u
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): ex1
@@ -134,6 +135,7 @@ scratch/main> view ex1 Either.mapRight rule1
       term a -> f a ==> f
 
 ```
+
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
 ``` unison
@@ -166,6 +168,7 @@ scratch/main> rewrite woot1to2
   The rewritten file has been added to the top of scratch.u
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): wootEx
@@ -201,6 +204,7 @@ scratch/main> view wootEx
     blah2
 
 ```
+
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
 ``` unison
@@ -243,6 +247,7 @@ scratch/main> view foo1 foo2 sameFileEx
     foo2
 
 ```
+
 ## Capture avoidance
 
 ``` unison
@@ -275,6 +280,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): sameFileEx
@@ -318,6 +324,7 @@ scratch/main> load
     * You have a typo in the name
 
 ```
+
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
 ``` unison
@@ -340,6 +347,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): bar2
@@ -375,6 +383,7 @@ scratch/main> load
     * You have a typo in the name
 
 ```
+
 ## Structural find
 
 ``` unison

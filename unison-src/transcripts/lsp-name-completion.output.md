@@ -28,6 +28,7 @@ scratch/main> debug.lsp-name-completion foldMap
   foldMap         lib.dep.lib.transitive.foldMap   #0o01gvr3fi
 
 ```
+
 Should still find the term which has a matching hash to a better name if the better name doesn't match.
 
 ``` ucm

@@ -11,7 +11,6 @@ foo.test2 = [Ok "test2"]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +23,7 @@ foo.test2 = [Ok "test2"]
       test1     : [Result]
 
 ```
+
 ``` ucm
 scratch/main> test
 
@@ -47,6 +47,7 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 Tests should be cached if unchanged.
 
 ``` ucm
@@ -62,6 +63,7 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ``` unison
@@ -70,7 +72,6 @@ lib.dep.testInLib = [Ok "testInLib"]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -82,6 +83,7 @@ lib.dep.testInLib = [Ok "testInLib"]
       lib.dep.testInLib : [Result]
 
 ```
+
 ``` ucm
 scratch/main> test
 
@@ -119,6 +121,7 @@ scratch/main> test.all
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 `test` WILL run tests within `lib` if specified explicitly.
 
 ``` ucm
@@ -133,6 +136,7 @@ scratch/main> test lib.dep
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 `test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
 
 ``` ucm

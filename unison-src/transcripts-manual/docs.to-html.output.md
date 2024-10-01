@@ -4,6 +4,7 @@ test-html-docs/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 {{A doc directly in the namespace.}}
 some.ns.direct = 1
@@ -16,7 +17,6 @@ some.outside = 3
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -33,6 +33,7 @@ some.outside = 3
       some.outside.doc                 : Doc2
 
 ```
+
 ``` ucm
 test-html-docs/main> add
 

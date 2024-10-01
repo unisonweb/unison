@@ -1,6 +1,6 @@
 We can display the guide before and after adding it to the codebase:
 
-``` ucm
+```` ucm
 scratch/main> display doc.guide
 
   # Unison computable documentation
@@ -410,7 +410,8 @@ scratch/main> display doc.guide
                             rendered table.
     Some text   More text   Zounds!
 
-```
+````
+
 But we can't display this due to a decompilation problem.
 
 ``` unison
@@ -418,7 +419,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -430,7 +430,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       rendered : Annotated () (Either SpecialForm ConsoleText)
 
 ```
-``` ucm
+
+```` ucm
 scratch/main> display rendered
 
   # Unison computable documentation
@@ -841,7 +842,8 @@ scratch/main> undo
   
     1. rendered : Annotated () (Either SpecialForm ConsoleText)
 
-```
+````
+
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.
 
 ``` unison
@@ -850,8 +852,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 > rendered
 ```
 
-``` ucm
-
+```` ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -4520,4 +4521,4 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           ]))))
               ])
 
-```
+````

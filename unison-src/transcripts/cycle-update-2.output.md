@@ -9,7 +9,6 @@ pong _ = !ping + 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -22,6 +21,7 @@ pong _ = !ping + 2
       pong : 'Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -31,13 +31,13 @@ scratch/main> add
     pong : 'Nat
 
 ```
+
 ``` unison
 ping : 'Nat
 ping _ = 3
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -50,6 +50,7 @@ ping _ = 3
       ping : 'Nat
 
 ```
+
 ``` ucm
 scratch/main> update
 

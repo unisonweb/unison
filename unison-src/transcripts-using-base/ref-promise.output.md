@@ -19,7 +19,6 @@ casTest = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -31,6 +30,7 @@ casTest = do
       casTest : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -50,6 +50,7 @@ scratch/main> io.test casTest
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 Promise is a simple one-shot awaitable condition.
 
 ``` unison
@@ -81,7 +82,6 @@ promiseConcurrentTest = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -94,6 +94,7 @@ promiseConcurrentTest = do
       promiseSequentialTest : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -124,6 +125,7 @@ scratch/main> io.test promiseConcurrentTest
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 CAS can be used to write an atomic update function.
 
 ``` unison
@@ -135,7 +137,6 @@ atomicUpdate ref f =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -147,6 +148,7 @@ atomicUpdate ref f =
       atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -155,6 +157,7 @@ scratch/main> add
     atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
 ```
+
 Promise can be used to write an operation that spawns N concurrent
 tasks and collects their results
 
@@ -174,7 +177,6 @@ spawnN n fa =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -186,6 +188,7 @@ spawnN n fa =
       spawnN : Nat -> '{IO} a ->{IO} [a]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -194,6 +197,7 @@ scratch/main> add
     spawnN : Nat -> '{IO} a ->{IO} [a]
 
 ```
+
 We can use these primitives to write a more interesting example, where
 multiple threads repeatedly update an atomic counter, we check that
 the value of the counter is correct after all threads are done.
@@ -223,7 +227,6 @@ fullTest = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -235,6 +238,7 @@ fullTest = do
       fullTest : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

@@ -15,6 +15,7 @@ scratch/main> help grep
   Use `text.find.all` to include search of `lib`.
 
 ```
+
 ``` ucm
 scratch/main> help text.find.all
 
@@ -28,6 +29,7 @@ scratch/main> help text.find.all
   Use `text.find` to exclude `lib` from search.
 
 ```
+
 Here's an example:
 
 ``` unison
@@ -48,7 +50,6 @@ lib.bar = 3
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -65,6 +66,7 @@ lib.bar = 3
       qux     : Nat
 
 ```
+
 ``` ucm
 scratch/main> grep hi
 
@@ -136,6 +138,7 @@ scratch/main> view 1
     _       -> 0
 
 ```
+
 ``` ucm
 scratch/main> grep quaffle
 
@@ -188,6 +191,7 @@ scratch/main> view 1
     _       -> 0
 
 ```
+
 Now some failed searches:
 
 ``` ucm
@@ -198,6 +202,7 @@ scratch/main> grep lsdkfjlskdjfsd
   Tip: `text.find.all` will search `lib` as well.
 
 ```
+
 Notice it gives the tip about `text.find.all`. But not here:
 
 ``` ucm

@@ -32,7 +32,6 @@ lit2 = """"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -85,6 +84,7 @@ lit2 = """"
              "This is a raw text literal, indented.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\""
 
 ```
+
 ``` ucm
 scratch/main> add
 

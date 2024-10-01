@@ -11,6 +11,7 @@ scratch/main> builtins.mergeio lib.builtins
   Done.
 
 ```
+
 ``` unison
 namespace foo
 
@@ -19,7 +20,6 @@ baz = 17
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -31,6 +31,7 @@ baz = 17
       foo.baz : Nat
 
 ```
+
 2.  Free variables whose names exactly match bindings in the file are rewritten to refer to the prefixed binder instead.
     That is, a term like `factorial = ... factorial ...` is rewritten to `foo.factorial = ... foo.factorial ...`.
 
@@ -47,7 +48,6 @@ longer.evil.factorial n = n
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -60,6 +60,7 @@ longer.evil.factorial n = n
       foo.longer.evil.factorial : Int -> Int
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -79,6 +80,7 @@ scratch/main> view factorial
   foo.longer.evil.factorial n = n
 
 ```
+
 Note that in the above example, we do not want the existence of a `namespace foo` directive to determine whether the
 reference to the name `factorial` within the body of `factorial` is a recursive reference (good, behavior without
 namespace directive, exact-name-match-wins semantics) or an ambiguous reference (bad, as would be the case if the
@@ -93,7 +95,6 @@ type longer.foo.Baz = { qux : Nat }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -111,6 +112,7 @@ type longer.foo.Baz = { qux : Nat }
       longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -123,6 +125,7 @@ scratch/main> add
     longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
 
 ```
+
 ``` unison
 namespace foo
 
@@ -142,7 +145,6 @@ hasTypeLink =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -164,6 +166,7 @@ hasTypeLink =
       foo.refersToQux    : foo.Baz -> Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 

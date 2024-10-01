@@ -17,6 +17,7 @@ scratch/main> add
     mynamespace.foo.test : [Result]
 
 ```
+
 if we change the type of the dependency, the test should show in the scratch file as a test watch.
 
 ``` unison
@@ -24,7 +25,6 @@ foo n = "hello, world!"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -37,6 +37,7 @@ foo n = "hello, world!"
       foo : n -> Text
 
 ```
+
 ``` ucm
 scratch/main> update
 
@@ -50,6 +51,7 @@ scratch/main> update
   `update` again.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 foo n = "hello, world!"
 
@@ -61,4 +63,3 @@ test> mynamespace.foo.test =
   if foo n == 2 then [Ok "passed"] else [Fail "wat"]
 
 ```
-

@@ -3,7 +3,6 @@ unique type Foo = { bar : Nat }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -18,6 +17,7 @@ unique type Foo = { bar : Nat }
       Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 

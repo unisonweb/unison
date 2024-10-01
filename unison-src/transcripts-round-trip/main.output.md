@@ -5,7 +5,6 @@ x = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,6 +16,7 @@ x = ()
       x : ()
 
 ```
+
 So we can see the pretty-printed output:
 
 ``` ucm
@@ -30,6 +30,7 @@ scratch/a1> edit 1-1000
   definitions currently in this namespace.
 
 ```
+
 ````` unison :added-by-ucm scratch.u
 structural ability Abort where abort : {Abort} a
 
@@ -816,6 +817,7 @@ scratch/main> diff.namespace /a1: /a2:
   The namespaces are identical.
 
 ```
+
 Now check that definitions in 'reparses.u' at least parse on round trip:
 
 This just makes 'roundtrip.u' the latest scratch file.
@@ -835,6 +837,7 @@ scratch/a3> edit 1-5000
   definitions currently in this namespace.
 
 ```
+
 ```` unison :added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
@@ -869,6 +872,7 @@ scratch/main> diff.namespace /a3_new: /a3:
     2. sloppyDocEval : Doc2
 
 ```
+
 ## Other regression tests not covered by above
 
 ### Builtins should appear commented out in the edit command
@@ -896,7 +900,7 @@ scratch/regressions> load
   I loaded scratch.u and didn't find anything.
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 -- builtin plus : ##Nat -> ##Nat -> ##Nat
 ```
-

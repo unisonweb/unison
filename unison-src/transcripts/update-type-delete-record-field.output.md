@@ -3,7 +3,6 @@ unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +20,7 @@ unique type Foo = { bar : Nat, baz : Int }
       Foo.baz.set    : Int -> Foo -> Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -35,12 +35,12 @@ scratch/main> add
     Foo.baz.set    : Int -> Foo -> Foo
 
 ```
+
 ``` unison
 unique type Foo = { bar : Nat }
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -56,6 +56,7 @@ unique type Foo = { bar : Nat }
       Foo.bar.set    : Nat -> Foo -> Foo
 
 ```
+
 We want the field accessors to go away; but for now they are here, causing the update to fail.
 
 ``` ucm
@@ -103,6 +104,7 @@ scratch/main> find.verbose
   
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 type Foo = { bar : Nat }
 
@@ -119,4 +121,3 @@ Foo.baz.set : Int -> Foo -> Foo
 Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
 
 ```
-

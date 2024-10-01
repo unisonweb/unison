@@ -12,7 +12,6 @@ main _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -26,6 +25,7 @@ main _ =
       main : '{IO, Exception} [Result]
 
 ```
+
 ``` ucm
 scratch/main> find unsafe.coerceAbilities
 

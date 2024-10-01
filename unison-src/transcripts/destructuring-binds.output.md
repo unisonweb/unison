@@ -15,7 +15,6 @@ ex1 tup =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -28,6 +27,7 @@ ex1 tup =
       ex1 : (a, b, (Nat, Nat)) -> Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -48,6 +48,7 @@ scratch/main> view ex0 ex1
   ex1 = cases (a, b, (c, d)) -> c Nat.+ d
 
 ```
+
 Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pretty-printer currently prefers the `cases` syntax if definition can be printed using either destructuring bind or `cases`.
 
 A destructuring bind is just syntax for a single branch pattern match. Notice that Unison detects this function as an alias of `ex1`:
@@ -59,7 +60,6 @@ ex2 tup = match tup with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -72,6 +72,7 @@ ex2 tup = match tup with
         (also named ex1)
 
 ```
+
 ## Corner cases
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:
@@ -83,7 +84,6 @@ ex4 =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I couldn't figure out what a refers to here:
@@ -102,6 +102,7 @@ ex4 =
     * You have a typo in the name
 
 ```
+
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
 
 ``` unison
@@ -117,7 +118,6 @@ ex5a _ = match (99 + 1, "hi") with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -130,6 +130,7 @@ ex5a _ = match (99 + 1, "hi") with
       ex5a : 'Text
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -151,6 +152,7 @@ scratch/main> view ex5 ex5a
     _         -> "impossible"
 
 ```
+
 Notice how it prints both an ordinary match.
 
 Also, for clarity, the pretty-printer shows a single-branch match if the match shadows free variables of the scrutinee, for example:

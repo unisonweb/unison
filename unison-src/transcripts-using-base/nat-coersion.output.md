@@ -33,7 +33,6 @@ test = 'let
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -49,6 +48,7 @@ test = 'let
                 ->{Stream Result} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 

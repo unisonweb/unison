@@ -17,7 +17,6 @@ testBasicFork = 'let
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -30,6 +29,7 @@ testBasicFork = 'let
       testBasicFork : '{IO} [Result]
 
 ```
+
 See if we can get another thread to stuff a value into a MVar
 
 ``` unison
@@ -57,7 +57,6 @@ testBasicMultiThreadMVar = 'let
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -70,6 +69,7 @@ testBasicMultiThreadMVar = 'let
       thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -89,6 +89,7 @@ scratch/main> io.test testBasicMultiThreadMVar
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ``` unison
 sendingThread: Nat -> MVar Nat -> '{io2.IO}()
 sendingThread toSend mv = 'let
@@ -128,7 +129,6 @@ testTwoThreads = 'let
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -143,6 +143,7 @@ testTwoThreads = 'let
       testTwoThreads  : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

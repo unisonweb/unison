@@ -39,6 +39,7 @@ scratch/main> io.test ioTest
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 `io.test` doesn't cache results
 
 ``` ucm
@@ -53,6 +54,7 @@ scratch/main> io.test ioAndExceptionTest
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 `io.test.all` will run all matching tests except those in the `lib` namespace.
 
 ``` ucm

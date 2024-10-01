@@ -5,7 +5,6 @@ This should render as `Bytes.fromList [1,2,3,4]`, not `##Bytes.fromSequence [1,2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅

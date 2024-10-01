@@ -12,6 +12,7 @@ scratch/main> ls
   nothing to show
 
 ```
+
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:
 
 ``` ucm
@@ -24,6 +25,7 @@ scratch/main> ls lib
   1. builtins/ (469 terms, 74 types)
 
 ```
+
 And for a limited time, you can get even more builtin goodies:
 
 ``` ucm
@@ -37,5 +39,5 @@ scratch/main> ls lib
   2. builtinsio/ (643 terms, 92 types)
 
 ```
-More typically, you'd start out by pulling `base`.
 
+More typically, you'd start out by pulling `base`.

@@ -29,6 +29,7 @@ scratch/main> debug.file
   outside.d#ukd7tu6kds
 
 ```
+
 This will help me make progress in some situations when UCM is being deficient or broken.
 
 ### `dependents` / `dependencies`
@@ -113,5 +114,5 @@ scratch/main> dependents d
        the above list.
 
 ```
-We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.
 
+We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

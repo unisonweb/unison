@@ -10,7 +10,6 @@ fooToInt _ = +42
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,6 +22,7 @@ fooToInt _ = +42
       fooToInt : Foo -> Int
 
 ```
+
 And then we add it.
 
 ``` ucm
@@ -52,6 +52,7 @@ scratch/main> view fooToInt
   fooToInt _ = +42
 
 ```
+
 Then if we change the type `Foo`...
 
 ``` unison
@@ -59,7 +60,6 @@ unique type Foo = Foo | Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -72,6 +72,7 @@ unique type Foo = Foo | Bar
       type Foo
 
 ```
+
 and update the codebase to use the new type `Foo`...
 
 ``` ucm
@@ -82,6 +83,7 @@ scratch/main> update.old
     type Foo
 
 ```
+
 ... it should automatically propagate the type to `fooToInt`.
 
 ``` ucm
@@ -91,6 +93,7 @@ scratch/main> view fooToInt
   fooToInt _ = +42
 
 ```
+
 ### Preserving user type variables
 
 We make a term that has a dependency on another term and also a non-redundant
@@ -105,7 +108,6 @@ preserve.otherTerm y = someTerm y
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -118,6 +120,7 @@ preserve.otherTerm y = someTerm y
       preserve.someTerm  : Optional foo -> Optional foo
 
 ```
+
 Add that to the codebase:
 
 ``` ucm
@@ -129,6 +132,7 @@ scratch/main> add
     preserve.someTerm  : Optional foo -> Optional foo
 
 ```
+
 Let's now edit the dependency:
 
 ``` unison
@@ -137,7 +141,6 @@ preserve.someTerm _ = None
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -150,6 +153,7 @@ preserve.someTerm _ = None
       preserve.someTerm : Optional x -> Optional x
 
 ```
+
 Update...
 
 ``` ucm
@@ -160,6 +164,7 @@ scratch/main> update.old
     preserve.someTerm : Optional x -> Optional x
 
 ```
+
 Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 

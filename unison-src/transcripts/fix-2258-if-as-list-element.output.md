@@ -59,4 +59,3 @@ fst = cases (x,_) -> x
       cases x, y -> x Nat.+ y
     ]
 ```
-

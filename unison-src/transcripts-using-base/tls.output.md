@@ -28,7 +28,6 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -42,6 +41,7 @@ what_should_work _ = this_should_work ++ this_should_not_work
       what_should_work     : ∀ _. _ -> [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -63,6 +63,7 @@ scratch/main> io.test what_should_work
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 Test handshaking a client/server a local TCP connection using our
 self-signed cert.
 
@@ -218,7 +219,6 @@ testCNReject _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -237,6 +237,7 @@ testCNReject _ =
       testConnectSelfSigned : '{IO} [Result]
 
 ```
+
 ``` ucm
 scratch/main> add
 

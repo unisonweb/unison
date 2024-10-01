@@ -10,7 +10,6 @@ f id = (id 1, id "hi")
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,6 +28,7 @@ f id = (id 1, id "hi")
           (1, "hi")
 
 ```
+
 Another example, involving abilities. Here the ability-polymorphic function is instantiated with two different ability lists, `{}` and `{IO}`:
 
 ``` unison
@@ -39,7 +39,6 @@ f id _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -51,6 +50,7 @@ f id _ =
       f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
 
 ```
+
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
 
 ``` unison
@@ -67,7 +67,6 @@ Functor.blah = cases Functor f ->
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -82,6 +81,7 @@ Functor.blah = cases Functor f ->
                      -> (∀ a b. (a -> b) -> f a -> f b)
 
 ```
+
 This example is similar, but involves abilities:
 
 ``` unison
@@ -111,7 +111,6 @@ Loc.transform2 nt = cases Loc f ->
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -131,6 +130,7 @@ Loc.transform2 nt = cases Loc f ->
                        -> Loc
 
 ```
+
 ## Types with polymorphic fields
 
 ``` unison

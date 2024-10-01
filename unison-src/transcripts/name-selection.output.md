@@ -29,6 +29,7 @@ scratch/main> view a.a
     b + 1
 
 ```
+
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
 ``` unison
@@ -80,6 +81,7 @@ scratch/main> debug.alias.term.force a2.d a3.d
   Done.
 
 ```
+
 At this point, `a3` is conflicted for symbols `c` and `d`, so those are deprioritized.
 The original `a2` namespace has an unconflicted definition for `c` and `d`, but since there are multiple 'c's in scope,
 `a2.c` is chosen because although the suffixified version has fewer segments, its fully-qualified name has the fewest segments.
@@ -114,6 +116,7 @@ scratch/main> view a b c d
     c#dcgdua2lj6 + 10
 
 ```
+
 ## Name biasing
 
 ``` unison
@@ -126,7 +129,6 @@ a = 10
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -140,6 +142,7 @@ a = 10
       deeply.nested.term : Nat
 
 ```
+
 ``` ucm
 scratch/biasing> add
 
@@ -160,6 +163,7 @@ scratch/biasing> view deeply.nested.term
     num + 1
 
 ```
+
 Add another term with `num` suffix to force longer suffixification of `deeply.nested.num`
 
 ``` unison
@@ -167,7 +171,6 @@ other.num = 20
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -179,6 +182,7 @@ other.num = 20
       other.num : Nat
 
 ```
+
 ``` ucm
 scratch/biasing> add
 

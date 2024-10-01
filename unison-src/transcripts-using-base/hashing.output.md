@@ -39,6 +39,7 @@ scratch/main> ls builtin.Bytes
   32. zlib/                 (2 terms)
 
 ```
+
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
 ## API overview
@@ -75,7 +76,6 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -117,6 +117,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
            "abd0e845a5544ced19b1c05df18a05c10b252a355957b18b99b33970d5217de6"
 
 ```
+
 And here's the full API:
 
 ``` ucm
@@ -153,6 +154,7 @@ scratch/main> find-in builtin.crypto
   
 
 ```
+
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
 
 ``` unison
@@ -160,7 +162,6 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅
@@ -175,6 +176,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
           0xs1259de8ec2c8b925dce24f591ed5cc1d1a5dc01cf88cf8f2343fc9728e124af4
 
 ```
+
 ## Hashing tests
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_\(hash_function\))) for the various hashing algorithms:
@@ -347,6 +349,7 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 ```
+
 ## HMAC tests
 
 These test vectors are taken from [RFC 4231](https://tools.ietf.org/html/rfc4231#section-4.3).
@@ -379,7 +382,6 @@ test> hmac_sha2_512.tests.ex2 =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -418,6 +420,7 @@ test> hmac_sha2_512.tests.ex2 =
     ✅ Passed Passed
 
 ```
+
 ## MD5 tests
 
 Test vectors here pulled from [Wikipedia's writeup](https://en.wikipedia.org/wiki/MD5).
@@ -442,7 +445,6 @@ test> md5.tests.ex3 =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -473,6 +475,7 @@ test> md5.tests.ex3 =
     ✅ Passed Passed
 
 ```
+
 ``` ucm
 scratch/main> test
 

@@ -3,12 +3,7 @@ module Unison.Codebase.Transcript.Parser
   ( -- * printing
     formatAPIRequest,
     formatUcmLine,
-    formatStanza,
-    formatNode,
-    formatProcessedBlock,
-
-    -- * conversion
-    processedBlockToNode,
+    formatStanzas,
 
     -- * parsing
     stanzas,
@@ -41,14 +36,9 @@ formatUcmLine = \case
   where
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
-formatStanza :: Stanza -> Text
-formatStanza = either formatNode formatProcessedBlock
-
-formatNode :: CMark.Node -> Text
-formatNode = (<> "\n") . CMark.nodeToCommonmark [] Nothing
-
-formatProcessedBlock :: ProcessedBlock -> Text
-formatProcessedBlock = formatNode . processedBlockToNode
+formatStanzas :: [Stanza] -> Text
+formatStanzas =
+  CMark.nodeToCommonmark [] Nothing . CMark.Node Nothing CMark.DOCUMENT . fmap (either id processedBlockToNode)
 
 processedBlockToNode :: ProcessedBlock -> CMark.Node
 processedBlockToNode = \case

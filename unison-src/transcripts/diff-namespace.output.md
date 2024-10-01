@@ -12,6 +12,7 @@ scratch/b1> add
     x                   : Nat
 
 ```
+
 ``` unison
 x = 23
 fslkdjflskdjflksjdf = 23
@@ -32,6 +33,7 @@ scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
   Done.
 
 ```
+
 ``` ucm
 scratch/main> diff.namespace /b1: /b2:
 
@@ -50,6 +52,7 @@ scratch/main> diff.namespace /b1: /b2:
                                          8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
 
 ```
+
 Things we want to test:
 
   - Diffing identical namespaces
@@ -101,6 +104,7 @@ scratch/ns1> branch /ns2
        `switch /ns1` then `merge /ns2`.
 
 ```
+
 Here's what we've done so far:
 
 ``` ucm
@@ -111,12 +115,14 @@ scratch/main> diff.namespace .nothing /ns1:
   The namespace scratch/main:.nothing is empty. Was there a typo?
 
 ```
+
 ``` ucm
 scratch/main> diff.namespace /ns1: /ns2:
 
   The namespaces are identical.
 
 ```
+
 ``` unison
 junk = "asldkfjasldkfj"
 ```
@@ -137,6 +143,7 @@ scratch/ns1> delete.term junk
   Done.
 
 ```
+
 ``` unison
 fromJust = 99
 b = 999999999
@@ -300,6 +307,7 @@ scratch/main> diff.namespace /ns3: /ns2:
                     3. fromJust' (removed)
 
 ```
+
 ``` unison
 bdependent = "banana"
 ```
@@ -327,6 +335,7 @@ scratch/main> diff.namespace /ns2: /ns3:
                  5. yoohoo (removed)
 
 ```
+
 ## Two different auto-propagated changes creating a name conflict
 
 Currently, the auto-propagated name-conflicted definitions are not explicitly
@@ -363,6 +372,7 @@ scratch/nsx> branch /nsz
        `switch /nsx` then `merge /nsz`.
 
 ```
+
 ``` unison
 a = 444
 ```
@@ -380,6 +390,7 @@ scratch/nsy> update
   Done.
 
 ```
+
 ``` unison
 a = 555
 ```
@@ -412,6 +423,7 @@ scratch/nsw> debug.alias.term.force .forconflicts .b
   Done.
 
 ```
+
 ``` ucm
 scratch/main> diff.namespace /nsx: /nsw:
 
@@ -452,6 +464,7 @@ scratch/nsw> view b
     a#mdl4vqtu00 + 1
 
 ```
+
 ## Should be able to diff a namespace hash from history.
 
 ``` unison
@@ -459,7 +472,6 @@ x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -471,6 +483,7 @@ x = 1
       x : Nat
 
 ```
+
 ``` ucm
 scratch/hashdiff> add
 
@@ -479,12 +492,12 @@ scratch/hashdiff> add
     x : ##Nat
 
 ```
+
 ``` unison
 y = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -496,6 +509,7 @@ y = 2
       y : ##Nat
 
 ```
+
 ``` ucm
 scratch/hashdiff> add
 
@@ -523,6 +537,7 @@ scratch/hashdiff> diff.namespace 2 1
     1. y : ##Nat
 
 ```
+
 ## 
 
 Updates:  -- 1 to 1
@@ -569,4 +584,3 @@ Resolved name conflicts: -- updates where LHS had multiple hashes and RHS has on
   - \[x\] removing one of multiple aliases appears in removes + moves + copies section
   - \[x\] some overlapping cases between Moves and Copies^
   - \[x\] Maybe don't list the type signature twice for aliases?
-

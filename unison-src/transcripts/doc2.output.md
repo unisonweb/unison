@@ -113,6 +113,7 @@ Format it to check that everything pretty-prints in a valid way.
 scratch/main> debug.format
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
@@ -214,4 +215,3 @@ fulldoc =
        sentence.
   }}
 ```
-

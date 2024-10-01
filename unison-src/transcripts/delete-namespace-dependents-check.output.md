@@ -11,7 +11,6 @@ dependent = dependency + 99
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +23,7 @@ dependent = dependency + 99
       sub.dependency : Nat
 
 ```
+
 ``` ucm
 myproject/main> add
 

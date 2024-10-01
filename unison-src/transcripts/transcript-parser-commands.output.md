@@ -7,7 +7,6 @@ x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ x = 1
       x : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -27,6 +27,7 @@ scratch/main> add
     x : Nat
 
 ```
+
 ``` unison
 ---
 title: :scratch.u
@@ -44,6 +45,7 @@ scratch/main> delete foo
     foo
 
 ```
+
 ``` ucm
 scratch/main> delete lineToken.call
 
@@ -53,6 +55,7 @@ scratch/main> delete lineToken.call
     lineToken.call
 
 ```
+
 However handling of blocks of other languages should be supported.
 
 ``` python
@@ -66,4 +69,3 @@ some C++ code
 ``` c9search
 some cloud9 code
 ```
-

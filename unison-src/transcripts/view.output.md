@@ -22,6 +22,7 @@ scratch/main> view .b.thing
   .b.thing = "b"
 
 ```
+
 TODO: swap this back to a 'ucm' block when view.global is re-implemented
 
 ``` 
@@ -30,4 +31,3 @@ scratch/other> view.global thing
 -- Should support branch relative paths
 scratch/other> view /main:a.thing
 ```
-

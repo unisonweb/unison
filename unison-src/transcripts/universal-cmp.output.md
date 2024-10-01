@@ -11,7 +11,6 @@ threadEyeDeez _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +23,7 @@ threadEyeDeez _ =
       threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -37,6 +37,7 @@ scratch/main> run threadEyeDeez
   (false, true)
 
 ```
+
 ``` unison
 > typeLink A == typeLink A
 > typeLink Text == typeLink Text
@@ -45,7 +46,6 @@ scratch/main> run threadEyeDeez
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅

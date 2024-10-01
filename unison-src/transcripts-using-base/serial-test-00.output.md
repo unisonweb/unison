@@ -68,7 +68,6 @@ mkTestCase = do
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -94,6 +93,7 @@ mkTestCase = do
       tree3      : Tree Text
 
 ```
+
 ``` ucm
 scratch/main> add
 

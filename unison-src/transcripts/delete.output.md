@@ -14,6 +14,7 @@ scratch/main> delete.verbose foo
     foo
 
 ```
+
 Now for some easy cases. Deleting an unambiguous term, then deleting an
 unambiguous type.
 
@@ -58,6 +59,7 @@ scratch/main> delete.verbose Foo.Foo
        this change.
 
 ```
+
 How about an ambiguous term?
 
 ``` unison
@@ -78,6 +80,7 @@ scratch/main> debug.alias.term.force a.bar a.foo
   Done.
 
 ```
+
 A delete should remove both versions of the term.
 
 ``` ucm
@@ -101,6 +104,7 @@ scratch/main> ls a
   1. bar (Nat)
 
 ```
+
 Let's repeat all that on a type, for completeness.
 
 ``` unison
@@ -147,6 +151,7 @@ scratch/main> delete.verbose a.Foo.Foo
        this change.
 
 ```
+
 Finally, let's try to delete a term and a type with the same name.
 
 ``` unison
@@ -173,6 +178,7 @@ scratch/main> delete.verbose foo
        this change.
 
 ```
+
 We want to be able to delete multiple terms at once
 
 ``` unison
@@ -202,6 +208,7 @@ scratch/main> delete.verbose a b c
        this change.
 
 ```
+
 We can delete terms and types in the same invocation of delete
 
 ``` unison
@@ -245,6 +252,7 @@ scratch/main> delete.verbose Foo.Foo
        this change.
 
 ```
+
 We can delete a type and its constructors
 
 ``` unison
@@ -274,6 +282,7 @@ scratch/main> delete.verbose Foo Foo.Foo
        this change.
 
 ```
+
 You should not be able to delete terms which are referenced by other terms
 
 ``` unison
@@ -307,6 +316,7 @@ scratch/main> delete.verbose a b c
   a            2. d
 
 ```
+
 But you should be able to delete all terms which reference each other in a single command
 
 ``` unison
@@ -339,6 +349,7 @@ scratch/main> delete.verbose e f g h
        this change.
 
 ```
+
 You should be able to delete a type and all the functions that reference it in a single command
 
 ``` unison
@@ -369,6 +380,7 @@ scratch/main> delete.verbose Foo Foo.Foo incrementFoo
        this change.
 
 ```
+
 If you mess up on one of the names of your command, delete short circuits
 
 ``` unison
@@ -396,6 +408,7 @@ scratch/main> delete.verbose e f gg
     gg
 
 ```
+
 Cyclical terms which are guarded by a lambda are allowed to be deleted
 
 ``` unison

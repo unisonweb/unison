@@ -87,6 +87,7 @@ with a strike-through block~
 scratch/main> debug.format
 
 ```
+
 ``` unison :added-by-ucm scratch.u
 x.doc =
   {{
@@ -172,7 +173,6 @@ brokenDoc = {{ hello }} + 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I couldn't figure out what + refers to here:
@@ -199,6 +199,7 @@ brokenDoc = {{ hello }} + 1
   (Nat.+) : Nat -> Nat -> Nat
 
 ```
+
 ``` ucm
 scratch/main> debug.format
 

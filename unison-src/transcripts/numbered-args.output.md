@@ -12,7 +12,6 @@ corge = "corge"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,6 +28,7 @@ corge = "corge"
       qux   : Text
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -42,6 +42,7 @@ scratch/main> add
     qux   : Text
 
 ```
+
 We can get the list of things in the namespace, and UCM will give us a numbered
 list:
 
@@ -58,6 +59,7 @@ scratch/main> find
   
 
 ```
+
 We can ask to `view` the second element of this list:
 
 ``` ucm
@@ -78,6 +80,7 @@ scratch/main> view 2
   baz = "baz"
 
 ```
+
 And we can `view` multiple elements by separating with spaces:
 
 ``` ucm
@@ -104,6 +107,7 @@ scratch/main> view 2 3 5
   quux = "quux"
 
 ```
+
 We can also ask for a range:
 
 ``` ucm
@@ -130,6 +134,7 @@ scratch/main> view 2-4
   foo = "foo"
 
 ```
+
 And we can ask for multiple ranges and use mix of ranges and numbers:
 
 ``` ucm

@@ -10,6 +10,7 @@ scratch/main> builtins.merge lib.builtins
   Done.
 
 ```
+
 First we define differing types with the same name in different namespaces:
 
 ``` unison
@@ -21,7 +22,6 @@ two.ambiguousTerm = "term two"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -36,6 +36,7 @@ two.ambiguousTerm = "term two"
       two.ambiguousTerm : Text
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -47,6 +48,7 @@ scratch/main> add
     two.ambiguousTerm : Text
 
 ```
+
 ## Tests
 
 Now we introduce code which isn't sufficiently qualified.
@@ -72,7 +74,6 @@ separateAmbiguousTypeUsage _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   
@@ -99,6 +100,7 @@ separateAmbiguousTypeUsage _ = ()
   
 
 ```
+
 Currently, ambiguous terms are caught and handled by type directed name resolution,
 but expect it to eventually be handled by the above machinery.
 
@@ -107,7 +109,6 @@ useAmbiguousTerm = ambiguousTerm
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I couldn't figure out what ambiguousTerm refers to here:

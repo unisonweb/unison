@@ -5,7 +5,6 @@ x = 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,6 +16,7 @@ x = 1
       x : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -25,12 +25,12 @@ scratch/main> add
     x : Nat
 
 ```
+
 ``` unison
 y = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -42,6 +42,7 @@ y = 2
       y : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -69,6 +70,7 @@ newproject/main> alias.type lib.builtins.Nat MyNat
   Done.
 
 ```
+
 Should see reflog entries from the current branch
 
 ``` ucm
@@ -88,6 +90,7 @@ scratch/main> reflog
   4.   scratch/main   #sg60bvjo91   Project Created
 
 ```
+
 Should see reflog entries from the current project
 
 ``` ucm
@@ -109,6 +112,7 @@ scratch/main> project.reflog
   6.   scratch/main    #sg60bvjo91   Project Created
 
 ```
+
 Should see reflog entries from all projects
 
 ``` ucm

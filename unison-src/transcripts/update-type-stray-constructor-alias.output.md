@@ -3,7 +3,6 @@ unique type Foo = Bar Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -15,6 +14,7 @@ unique type Foo = Bar Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -27,12 +27,12 @@ scratch/main> alias.term Foo.Bar Stray.BarAlias
   Done.
 
 ```
+
 ``` unison
 unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -45,6 +45,7 @@ unique type Foo = Bar Nat Nat
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> update
 

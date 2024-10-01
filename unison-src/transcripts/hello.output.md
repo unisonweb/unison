@@ -30,7 +30,6 @@ x = 42
 ```
 
 ``` ucm
-
   Loading changes detected in myfile.u.
 
   I found and typechecked these definitions in myfile.u. If you
@@ -42,6 +41,7 @@ x = 42
       x : Nat
 
 ```
+
 Let's go ahead and add that to the codebase, then make sure it's there:
 
 ``` ucm
@@ -57,6 +57,7 @@ scratch/main> view x
   x = 42
 
 ```
+
 If `view` returned no results, the transcript would fail at this point.
 
 ## Hiding output
@@ -81,7 +82,6 @@ hmm = "Not, in fact, a number"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found a value  of type:  Text

@@ -11,6 +11,7 @@ scratch/main> find Utf8
   
 
 ```
+
 ascii characters are encoded as single bytes (in the range 0-127).
 
 ``` unison
@@ -22,7 +23,6 @@ ascii = "ABCDE"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -42,6 +42,7 @@ ascii = "ABCDE"
           0xs4142434445
 
 ```
+
 non-ascii characters are encoded as multiple bytes.
 
 ``` unison
@@ -52,7 +53,6 @@ greek = "ΑΒΓΔΕ"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -71,6 +71,7 @@ greek = "ΑΒΓΔΕ"
           0xsce91ce92ce93ce94ce95
 
 ```
+
 We can check that encoding and then decoding should give us back the same `Text` we started with
 
 ``` unison
@@ -87,7 +88,6 @@ test> greekTest = checkRoundTrip greek
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -108,6 +108,7 @@ test> greekTest = checkRoundTrip greek
     ✅ Passed Passed
 
 ```
+
 If we try to decode an invalid set of bytes, we get back `Text` explaining the decoding error:
 
 ``` unison
@@ -122,7 +123,6 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

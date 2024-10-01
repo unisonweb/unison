@@ -54,7 +54,6 @@ testABunchOfNats _ =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -75,6 +74,7 @@ testABunchOfNats _ =
       testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 

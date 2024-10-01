@@ -12,6 +12,7 @@ foo/main> branch topic
 foo/topic> delete.branch /topic
 
 ```
+
 A branch need not be preceded by a forward slash.
 
 ``` ucm
@@ -25,6 +26,7 @@ foo/main> branch topic
 foo/topic> delete.branch topic
 
 ```
+
 You can precede the branch name by a project name.
 
 ``` ucm
@@ -38,12 +40,14 @@ foo/main> branch topic
 scratch/main> delete.branch foo/topic
 
 ```
+
 You can delete the only branch in a project.
 
 ``` ucm
 foo/main> delete.branch /main
 
 ```
+
 You can delete the last branch in the project, a new one will be created.
 
 ``` ucm
@@ -56,6 +60,7 @@ scratch/main> branches
   2.   main2    
 
 ```
+
 If the the last branch isn't /main, then /main will be created.
 
 ``` ucm

@@ -84,6 +84,7 @@ scratch/main> history
   □ 2. #ms9lggs2rg (start of history)
 
 ```
+
 -----
 
 It should not be affected by changes on other branches.
@@ -179,6 +180,7 @@ scratch/branch1> history
   □ 2. #ms9lggs2rg (start of history)
 
 ```
+
 -----
 
 Undo should be a no-op on a newly created branch

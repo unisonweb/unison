@@ -8,7 +8,6 @@ lib.foo = 100
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +20,7 @@ lib.foo = 100
       lib.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -30,12 +30,12 @@ scratch/main> add
     lib.foo : Nat
 
 ```
+
 ``` unison
 foo = 200
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -49,6 +49,7 @@ foo = 200
         (The old definition is also named lib.foo.)
 
 ```
+
 ``` ucm
 scratch/main> update
 

@@ -8,7 +8,6 @@ temp = 2
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +20,7 @@ temp = 2
       x    : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -38,12 +38,12 @@ scratch/main> delete.term temp
   Done.
 
 ```
+
 ``` unison
 x = 3
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -56,6 +56,7 @@ x = 3
       x : Nat
 
 ```
+
 ``` ucm
 scratch/main> update
 

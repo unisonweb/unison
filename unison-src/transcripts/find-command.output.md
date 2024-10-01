@@ -34,6 +34,7 @@ scratch/main> view 1
   cat.foo = 4
 
 ```
+
 ``` ucm
 scratch/main> find-in cat foo
 
@@ -57,6 +58,7 @@ scratch/main> view 1
   cat.lib.foo = 5
 
 ```
+
 Finding within a namespace
 
 ``` ucm
@@ -80,6 +82,7 @@ scratch/main> find-in somewhere bar
   
 
 ```
+
 ``` ucm
 scratch/main> find baz
 

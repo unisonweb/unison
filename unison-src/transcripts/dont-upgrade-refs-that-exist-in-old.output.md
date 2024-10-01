@@ -9,7 +9,6 @@ mything = lib.old.foo + lib.old.foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,6 +23,7 @@ mything = lib.old.foo + lib.old.foo
       mything       : Nat
 
 ```
+
 ``` ucm
 foo/main> add
 

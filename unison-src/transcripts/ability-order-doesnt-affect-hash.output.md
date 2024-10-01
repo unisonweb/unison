@@ -15,7 +15,6 @@ term2 _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -30,6 +29,7 @@ term2 _ = ()
       term2 : '{Bar, Foo} ()
 
 ```
+
 ``` ucm
 scratch/main> add
 

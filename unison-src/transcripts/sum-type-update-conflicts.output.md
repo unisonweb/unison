@@ -9,7 +9,6 @@ structural type X = x
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -22,6 +21,7 @@ structural type X = x
         (also named lib.builtins.Unit)
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -31,6 +31,7 @@ scratch/main> add
       (also named lib.builtins.Unit)
 
 ```
+
 Now we update the type, changing the name of the constructors, *but*, we simultaneously
 add a new top-level term with the same name as the old constructor.
 
@@ -44,7 +45,6 @@ dependsOnX = Text.size X.x
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -63,6 +63,7 @@ dependsOnX = Text.size X.x
         (The old definition is also named lib.builtins.Unit.)
 
 ```
+
 This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 

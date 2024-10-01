@@ -11,7 +11,6 @@ Stream.send _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -24,6 +23,7 @@ Stream.send _ = ()
   
 
 ```
+
 Term and type constructor collisions should cause a parse error.
 
 ``` unison
@@ -34,7 +34,6 @@ X.x _ = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -47,6 +46,7 @@ X.x _ = ()
   
 
 ```
+
 Ability and type constructor collisions should cause a parse error.
 
 ``` unison
@@ -56,7 +56,6 @@ structural ability X where
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found two types called X:
@@ -67,6 +66,7 @@ structural ability X where
   
 
 ```
+
 Field accessors and terms with the same name should cause a parse error.
 
 ``` unison
@@ -77,7 +77,6 @@ X.x = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ❗️
@@ -101,6 +100,7 @@ X.x = ()
   
 
 ```
+
 Types and terms with the same name are allowed.
 
 ``` unison
@@ -110,7 +110,6 @@ X = ()
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -124,6 +123,7 @@ X = ()
       X : ()
 
 ```
+
 ``` ucm
 scratch/main> add
 

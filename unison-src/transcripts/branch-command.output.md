@@ -18,6 +18,7 @@ scratch/main> add
     someterm : Nat
 
 ```
+
 Now, the `branch` demo:
 
 `branch` can create a branch from a different branch in the same project, from a different branch in a different
@@ -149,6 +150,7 @@ scratch/main> branch.empty foo/empty4
   Tip: Use `merge /somebranch` to initialize this branch.
 
 ```
+
 The `branch` command can create branches named `releases/drafts/*` (because why not).
 
 ``` ucm
@@ -163,6 +165,7 @@ foo/main> branch releases/drafts/1.2.3
 foo/main> switch /releases/drafts/1.2.3
 
 ```
+
 The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
 
 ``` ucm

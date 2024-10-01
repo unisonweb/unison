@@ -5,7 +5,6 @@
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅

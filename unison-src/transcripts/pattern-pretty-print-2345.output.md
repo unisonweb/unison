@@ -60,7 +60,6 @@ doc = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -86,6 +85,7 @@ doc = cases
       tremulous : (Nat, Nat) -> ()
 
 ```
+
 ``` ucm
 scratch/main> add
 

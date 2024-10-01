@@ -8,6 +8,7 @@ scratch/main> todo
   You have no pending todo items. Good work! ✅
 
 ```
+
 # Dependents of `todo`
 
 The `todo` command shows local (outside `lib`) terms that directly call `todo`.
@@ -21,7 +22,6 @@ bar = foo + foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -34,6 +34,7 @@ bar = foo + foo
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -49,6 +50,7 @@ scratch/main> todo
     1. foo
 
 ```
+
 # Direct dependencies without names
 
 The `todo` command shows hashes of direct dependencies of local (outside `lib`) definitions that don't have names in
@@ -60,7 +62,6 @@ baz = foo.bar + foo.bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -73,6 +74,7 @@ baz = foo.bar + foo.bar
       foo.bar : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -100,6 +102,7 @@ scratch/main> todo
     1. #1jujb8oelv
 
 ```
+
 # Conflicted names
 
 The `todo` command shows conflicted names.
@@ -110,7 +113,6 @@ bar = 17
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -123,6 +125,7 @@ bar = 17
       foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -148,6 +151,7 @@ scratch/main> todo
        conflicts.
 
 ```
+
 # Definitions in lib
 
 The `todo` command complains about terms and types directly in `lib`.
@@ -157,7 +161,6 @@ lib.foo = 16
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -169,6 +172,7 @@ lib.foo = 16
       lib.foo : Nat
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -183,6 +187,7 @@ scratch/main> todo
   representing library dependencies. Please move or remove it.
 
 ```
+
 # Constructor aliases
 
 The `todo` command complains about constructor aliases.
@@ -192,7 +197,6 @@ type Foo = One
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -204,6 +208,7 @@ type Foo = One
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -225,6 +230,7 @@ scratch/main> todo
   Please delete all but one name for each constructor.
 
 ```
+
 # Missing constructor names
 
 The `todo` command complains about missing constructor names.
@@ -234,7 +240,6 @@ type Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -246,6 +251,7 @@ type Foo = Bar
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -268,6 +274,7 @@ scratch/main> todo
   to each unnamed constructor.
 
 ```
+
 # Nested decl aliases
 
 The `todo` command complains about nested decl aliases.
@@ -278,7 +285,6 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -291,6 +297,7 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
       structural type Foo.inner.Bar a
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -308,6 +315,7 @@ scratch/main> todo
     2. Foo.inner.Bar
 
 ```
+
 # Stray constructors
 
 The `todo` command complains about stray constructors.
@@ -317,7 +325,6 @@ type Foo = Bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -329,6 +336,7 @@ type Foo = Bar
       type Foo
 
 ```
+
 ``` ucm
 scratch/main> add
 

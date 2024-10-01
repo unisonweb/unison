@@ -7,7 +7,6 @@ someterm = 18
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,6 +18,7 @@ someterm = 18
       someterm : Nat
 
 ```
+
 ``` ucm
 foo/main> add
 
@@ -27,6 +27,7 @@ foo/main> add
     someterm : Nat
 
 ```
+
 Now, the `release.draft` demo:
 
 `release.draft` accepts a single semver argument.
@@ -49,6 +50,7 @@ foo/main> release.draft 1.2.3
        `switch /releases/drafts/1.2.3`.
 
 ```
+
 It's an error to try to create a `releases/drafts/x.y.z` branch that already exists.
 
 ``` ucm

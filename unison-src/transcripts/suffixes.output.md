@@ -33,6 +33,7 @@ scratch/main> find take
   
 
 ```
+
 The `view` and `display` commands also benefit from this:
 
 ``` ucm
@@ -45,6 +46,7 @@ scratch/main> display bar.a
   +99
 
 ```
+
 In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name is still shown for each search result though.
 
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
@@ -57,6 +59,7 @@ scratch/main> find : Nat -> [a] -> [a]
   
 
 ```
+
 ## Preferring names not in `lib.*.lib.*`
 
 Suffix-based resolution prefers names that are not in an indirect dependency.
@@ -69,7 +72,6 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -84,6 +86,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
       lib.distributed.lib.baz.qux  : Text
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -95,12 +98,12 @@ scratch/main> add
     lib.distributed.lib.baz.qux  : Text
 
 ```
+
 ``` unison
 > abra.cadabra
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I couldn't figure out what abra.cadabra refers to here:
@@ -117,12 +120,12 @@ scratch/main> add
   distributed.abra.cadabra : Text
 
 ```
+
 ``` unison
 > baz.qux
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅
@@ -137,6 +140,7 @@ scratch/main> add
           "direct dependency 2"
 
 ```
+
 ``` ucm
 scratch/main> view abra.cadabra
 
@@ -152,6 +156,7 @@ scratch/main> view baz.qux
   lib.distributed.baz.qux = "direct dependency 2"
 
 ```
+
 Note that we can always still view indirect dependencies by using more name segments:
 
 ``` ucm

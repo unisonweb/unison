@@ -8,13 +8,11 @@ and surface a helpful message.
 g 3
 ```
 
-
-
 🛑
 
 The transcript failed due to an error in the stanza above. The error is:
 
-
+``` 
   This looks like the start of an expression here 
   
       1 | g 3
@@ -28,4 +26,4 @@ The transcript failed due to an error in the stanza above. The error is:
     - An `ability` declaration, like unique ability Foo where ...
     - A `type` declaration, like structural type Optional a = None | Some a
   
-
+```

@@ -9,7 +9,6 @@ isEmpty x = match x with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +20,7 @@ isEmpty x = match x with
       isEmpty : [t] -> Boolean
 
 ```
+
 Here's the same function written using `cases` syntax:
 
 ``` unison
@@ -30,7 +30,6 @@ isEmpty2 = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -43,6 +42,7 @@ isEmpty2 = cases
         (also named isEmpty)
 
 ```
+
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
 ``` ucm
@@ -54,6 +54,7 @@ scratch/main> view isEmpty
     _  -> false
 
 ```
+
 it shows the definition using `cases` syntax opportunistically, even though the code was originally written without that syntax.
 
 ## Multi-argument cases
@@ -78,6 +79,7 @@ scratch/main> add
     merge : [a] -> [a] -> [a]
 
 ```
+
 And here's a version using `cases`. The patterns are separated by commas:
 
 ``` unison
@@ -91,7 +93,6 @@ merge2 = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -104,6 +105,7 @@ merge2 = cases
         (also named merge)
 
 ```
+
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ``` ucm
@@ -118,6 +120,7 @@ scratch/main> view merge
       else h2 +: merge (h +: t) t2
 
 ```
+
 it again shows the definition using the multi-argument `cases` syntax opportunistically, even though the code was originally written without that syntax.
 
 Here's another example:
@@ -140,7 +143,6 @@ blorf = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -169,6 +171,7 @@ blorf = cases
            F
 
 ```
+
 ## Patterns with multiple guards
 
 ``` unison
@@ -181,7 +184,6 @@ merge3 = cases
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -193,6 +195,7 @@ merge3 = cases
       merge3 : [a] -> [a] -> [a]
 
 ```
+
 ``` ucm
 scratch/main> add
 
@@ -211,6 +214,7 @@ scratch/main> view merge3
       | otherwise -> h2 +: merge3 (h +: t) t2
 
 ```
+
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.
 
 ``` unison
@@ -223,7 +227,6 @@ merge4 a b = match (a,b) with
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

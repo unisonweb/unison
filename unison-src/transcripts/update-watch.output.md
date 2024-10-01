@@ -3,7 +3,6 @@
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   ✅
@@ -18,6 +17,7 @@
           1
 
 ```
+
 ``` ucm
 scratch/main> update
 

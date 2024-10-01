@@ -10,7 +10,6 @@ foo n =
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -22,6 +21,7 @@ foo n =
       foo : Nat -> Nat
 
 ```
+
 ``` ucm
 scratch/main> view foo
 
@@ -32,6 +32,7 @@ scratch/main> view foo
     n + 1
 
 ```
+
 Note that `@` and `:]` must be escaped within docs.
 
 ``` unison
@@ -39,7 +40,6 @@ escaping = [: Docs look [: like \@this \:] :]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -51,6 +51,7 @@ escaping = [: Docs look [: like \@this \:] :]
       escaping : Doc
 
 ```
+
 ``` ucm
 scratch/main> view escaping
 
@@ -58,6 +59,7 @@ scratch/main> view escaping
   escaping = [: Docs look [: like \@this \:] :]
 
 ```
+
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
 
 ``` unison
@@ -71,7 +73,6 @@ commented = [:
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -83,6 +84,7 @@ commented = [:
       commented : Doc
 
 ```
+
 ``` ucm
 scratch/main> view commented
 
@@ -94,6 +96,7 @@ scratch/main> view commented
      :]
 
 ```
+
 ### Indenting, and paragraph reflow
 
 Handling of indenting in docs between the parser and pretty-printer is a bit fiddly.
@@ -106,7 +109,6 @@ doc1 = [:   hi   :]
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -118,6 +120,7 @@ doc1 = [:   hi   :]
       doc1 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc1
 
@@ -125,6 +128,7 @@ scratch/main> view doc1
   doc1 = [: hi :]
 
 ```
+
 ``` unison
 -- Lines (apart from the first line, i.e. the bit between the [: and the
 -- first newline) are unindented until at least one of
@@ -138,7 +142,6 @@ doc2 = [: hello
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -150,6 +153,7 @@ doc2 = [: hello
       doc2 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc2
 
@@ -161,6 +165,7 @@ scratch/main> view doc2
     and the rest. :]
 
 ```
+
 ``` unison
 doc3 = [: When Unison identifies a paragraph, it removes any newlines from it before storing it, and then reflows the paragraph text to fit the display window on display/view/edit.
 
@@ -177,7 +182,6 @@ Note that because of the special treatment of the first line mentioned above, wh
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -189,6 +193,7 @@ Note that because of the special treatment of the first line mentioned above, wh
       doc3 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc3
 
@@ -215,6 +220,7 @@ scratch/main> view doc3
     :]
 
 ```
+
 ``` unison
 doc4 = [: Here's another example of some paragraphs.
 
@@ -224,7 +230,6 @@ doc4 = [: Here's another example of some paragraphs.
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -236,6 +241,7 @@ doc4 = [: Here's another example of some paragraphs.
       doc4 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc4
 
@@ -248,6 +254,7 @@ scratch/main> view doc4
       - Apart from this one. :]
 
 ```
+
 ``` unison
 -- The special treatment of the first line does mean that the following
 -- is pretty-printed not so prettily.  To fix that we'd need to get the
@@ -259,7 +266,6 @@ doc5 = [:   - foo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -271,6 +277,7 @@ doc5 = [:   - foo
       doc5 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc5
 
@@ -281,6 +288,7 @@ scratch/main> view doc5
     and the rest. :]
 
 ```
+
 ``` unison
 -- You can do the following to avoid that problem.
 doc6 = [:
@@ -291,7 +299,6 @@ doc6 = [:
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -303,6 +310,7 @@ doc6 = [:
       doc6 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view doc6
 
@@ -314,6 +322,7 @@ scratch/main> view doc6
      :]
 
 ```
+
 ### More testing
 
 ``` unison
@@ -324,7 +333,6 @@ expr = foo 1
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -337,6 +345,7 @@ expr = foo 1
       expr  : Nat
 
 ```
+
 ``` ucm
 scratch/main> view empty
 
@@ -344,6 +353,7 @@ scratch/main> view empty
   empty = [:  :]
 
 ```
+
 ``` unison
 test1 = [:
 The internal logic starts to get hairy when you use the \@ features, for example referencing a name like @List.take.  Internally, the text between each such usage is its own blob (blob ends here --> @List.take), so paragraph reflow has to be aware of multiple blobs to do paragraph reflow (or, more accurately, to do the normalization step where newlines with a paragraph are removed.)
@@ -385,7 +395,6 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -397,6 +406,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
       test1 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view test1
 
@@ -460,6 +470,7 @@ scratch/main> view test1
     :]
 
 ```
+
 ``` unison
 -- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
 reg1363 = [: `@List.take foo` bar
@@ -467,7 +478,6 @@ reg1363 = [: `@List.take foo` bar
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -479,6 +489,7 @@ reg1363 = [: `@List.take foo` bar
       reg1363 : Doc
 
 ```
+
 ``` ucm
 scratch/main> view reg1363
 
@@ -486,6 +497,7 @@ scratch/main> view reg1363
   reg1363 = [: `@List.take foo` bar baz :]
 
 ```
+
 ``` unison
 -- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
 -- whose output spans multiple lines.
@@ -497,7 +509,6 @@ test2 = [:
 ```
 
 ``` ucm
-
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -509,6 +520,7 @@ test2 = [:
       test2 : Doc
 
 ```
+
 View is fine.
 
 ``` ucm
@@ -521,6 +533,7 @@ scratch/main> view test2
      :]
 
 ```
+
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 
 ``` ucm
