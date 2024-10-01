@@ -295,27 +295,92 @@ type UA = MutableByteArray (PrimState IO)
 
 type BA = MutableArray (PrimState IO) Closure
 
+type Arrs = (UA, BA)
+
 words :: Int -> Int
 words n = n `div` 8
 
 bytes :: Int -> Int
 bytes n = n * 8
 
+argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
+argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
+  Arg1 i -> do
+    unboxed
+    boxed
+    pure cp
+    where
+      cp = dstSp + 1
+      unboxed = do
+        (x :: Int) <- readByteArray srcUstk (srcSp - i)
+        writeByteArray dstUstk cp x
+      boxed = do
+        x <- readArray srcBstk (srcSp - i)
+        writeArray dstBstk cp x
+  Arg2 i j -> do
+    unboxed
+    boxed
+    pure cp
+    where
+      cp = dstSp + 2
+      unboxed = do
+        (x :: Int) <- readByteArray srcUstk (srcSp - i)
+        (y :: Int) <- readByteArray srcUstk (srcSp - j)
+        writeByteArray dstUstk cp x
+        writeByteArray dstUstk (cp - 1) y
+      boxed = do
+        x <- readArray srcBstk (srcSp - i)
+        y <- readArray srcBstk (srcSp - j)
+        writeArray dstBstk cp x
+        writeArray dstBstk (cp - 1) y
+  ArgN v -> do
+    -- May be worth testing whether it's faster to combine both unboxed and boxed iterations into one loop, but I'd
+    -- guess it's actually better to keep them separate so we're not thrashing between arrays in the cache.
+    unboxed
+    boxed
+    pure cp
+    where
+      cp = dstSp + sz
+      sz = sizeofPrimArray v
+      overwrite =
+        -- We probably only need one of these checks, but it's probably basically free.
+        srcUstk == dstUstk
+          && srcBstk == dstBstk
+      boff
+        | overwrite = sz - 1
+        | otherwise = cp0 + sz
+      unboxed = do
+        buf <-
+          if overwrite
+            then newByteArray $ bytes sz
+            else pure cop
+        let loop i
+              | i < 0 = return ()
+              | otherwise = do
+                  (x :: Int) <- readByteArray ustk (sp - indexPrimArray v i)
+                  writeByteArray buf (boff - i) x
+                  loop $ i - 1
+        loop $ sz - 1
+        when overwrite $
+          copyMutableByteArray cop (bytes $ cp + 1) buf 0 (bytes sz)
+      boxed = do
+        buf <-
+          if overwrite
+            then newArray sz $ BlackHole
+            else pure cop
+        let loop i
+              | i < 0 = return ()
+              | otherwise = do
+                  x <- readArray stk $ sp - indexPrimArray v i
+                  writeArray buf (boff - i) x
+                  loop $ i - 1
+        loop $ sz - 1
+
+        when overwrite $
+          copyMutableArray cop (cp0 + 1) buf 0 sz
+{-# INLINE argOnto #-}
+
 uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
-uargOnto stk sp cop cp0 (Arg1 i) = do
-  (x :: Int) <- readByteArray stk (sp - i)
-  writeByteArray cop cp x
-  pure cp
-  where
-    cp = cp0 + 1
-uargOnto stk sp cop cp0 (Arg2 i j) = do
-  (x :: Int) <- readByteArray stk (sp - i)
-  (y :: Int) <- readByteArray stk (sp - j)
-  writeByteArray cop cp x
-  writeByteArray cop (cp - 1) y
-  pure cp
-  where
-    cp = cp0 + 2
 uargOnto stk sp cop cp0 (ArgN v) = do
   buf <-
     if overwrite
@@ -344,20 +409,6 @@ uargOnto stk sp cop cp0 (ArgR i l) = do
     sbp = bytes $ sp - i - l + 1
 
 bargOnto :: BA -> Off -> BA -> Off -> Args' -> IO Int
-bargOnto stk sp cop cp0 (Arg1 i) = do
-  x <- readArray stk (sp - i)
-  writeArray cop cp x
-  pure cp
-  where
-    cp = cp0 + 1
-bargOnto stk sp cop cp0 (Arg2 i j) = do
-  x <- readArray stk (sp - i)
-  y <- readArray stk (sp - j)
-  writeArray cop cp x
-  writeArray cop (cp - 1) y
-  pure cp
-  where
-    cp = cp0 + 2
 bargOnto stk sp cop cp0 (ArgN v) = do
   buf <-
     if overwrite
@@ -529,12 +580,33 @@ duplicate (Stack ap fp sp ustk bstk) = do
       cloneMutableArray bstk 0 (sizeofMutableArray bstk)
 {-# INLINE duplicate #-}
 
+discardFrame :: Stack -> IO Stack
+discardFrame (Stack ap fp _ ustk bstk) = pure $ Stack ap fp fp ustk bstk
+{-# INLINE discardFrame #-}
+
+saveFrame :: Stack -> IO (Stack, SZ, SZ)
+saveFrame (Stack ap fp sp ustk bstk) = pure (Stack sp sp sp ustk bstk, sp - fp, fp - ap)
+{-# INLINE saveFrame #-}
+
+saveArgs :: Stack -> IO (Stack, SZ)
+saveArgs (Stack ap fp sp ustk bstk) = pure (Stack fp fp sp ustk bstk, fp - ap)
+{-# INLINE saveArgs #-}
+
+restoreFrame :: Stack -> SZ -> SZ -> IO Stack
+restoreFrame (Stack ap _ sp ustk bstk) fsz asz = pure $ Stack (ap + asz) (sp + fsz) sp ustk bstk
+{-# INLINE restoreFrame #-}
+
+prepareArgs :: Stack -> Args' -> IO Stack
+prepareArgs (Stack ap fp sp ustk bstk) = \case
+  ArgR i l
+    | fp + l + i == sp ->
+        pure $ Stack ap (sp - i) (sp - i) ustk bstk
+  args -> do
+    sp <- argOnto stk sp stk fp args
+    pure $ Stack ap sp sp ustk bstk
+{-# INLINE prepareArgs #-}
+
 class MEM (b :: Mem) where
-  discardFrame :: Stack b -> IO (Stack b)
-  saveFrame :: Stack b -> IO (Stack b, SZ, SZ)
-  saveArgs :: Stack b -> IO (Stack b, SZ)
-  restoreFrame :: Stack b -> SZ -> SZ -> IO (Stack b)
-  prepareArgs :: Stack b -> Args' -> IO (Stack b)
   acceptArgs :: Stack b -> Int -> IO (Stack b)
   frameArgs :: Stack b -> IO (Stack b)
   augSeg :: Augment -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
@@ -544,21 +616,6 @@ class MEM (b :: Mem) where
   asize :: Stack b -> SZ
 
 instance MEM 'UN where
-  discardFrame (US ap fp _ stk) = pure $ US ap fp fp stk
-  {-# INLINE discardFrame #-}
-
-  saveFrame (US ap fp sp stk) = pure (US sp sp sp stk, sp - fp, fp - ap)
-  {-# INLINE saveFrame #-}
-
-  saveArgs (US ap fp sp stk) = pure (US fp fp sp stk, fp - ap)
-  {-# INLINE saveArgs #-}
-
-  restoreFrame (US _ fp0 sp stk) fsz asz = pure $ US ap fp sp stk
-    where
-      fp = fp0 - fsz
-      ap = fp - asz
-  {-# INLINE restoreFrame #-}
-
   prepareArgs (US ap fp sp stk) (ArgR i l)
     | fp + l + i == sp = pure $ US ap (sp - i) (sp - i) stk
   prepareArgs (US ap fp sp stk) args = do
@@ -700,21 +757,6 @@ instance Show K where
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
 
 instance MEM 'BX where
-  discardFrame (BS ap fp _ stk) = pure $ BS ap fp fp stk
-  {-# INLINE discardFrame #-}
-
-  saveFrame (BS ap fp sp stk) = pure (BS sp sp sp stk, sp - fp, fp - ap)
-  {-# INLINE saveFrame #-}
-
-  saveArgs (BS ap fp sp stk) = pure (BS fp fp sp stk, fp - ap)
-  {-# INLINE saveArgs #-}
-
-  restoreFrame (BS _ fp0 sp stk) fsz asz = pure $ BS ap fp sp stk
-    where
-      fp = fp0 - fsz
-      ap = fp - asz
-  {-# INLINE restoreFrame #-}
-
   prepareArgs (BS ap fp sp stk) (ArgR i l)
     | fp + i + l == sp = pure $ BS ap (sp - i) (sp - i) stk
   prepareArgs (BS ap fp sp stk) args = do
