@@ -605,6 +605,8 @@ fixity = do
     (%) = Nat.mod
     ($) = (Nat.+)
     c = 1 * (2 + 3) * 4
+    plus = 1 Nat.+ 2 Nat.+ 3
+    plus2 = 1 Nat.+ (2 Nat.+ 3)
     d = true && let false || true
     z = true || false && true
     e = 1 + 2 >= (3 + 4)
