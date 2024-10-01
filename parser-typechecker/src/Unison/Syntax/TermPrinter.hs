@@ -559,11 +559,8 @@ pretty0
                         stuff lhs =
                           [control "signature"]
                             <> [fmt S.Var (PP.text (Var.name v)) | v <- vs]
-                            <> if null vs
-                              then []
-                              else
-                                [fmt S.TypeOperator "."]
-                                  <> [lhs, arr]
+                            <> (if null vs then [] else [fmt S.TypeOperator "."])
+                            <> [lhs, arr]
                     go tm = goNormal Application tm
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
