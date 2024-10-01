@@ -20,7 +20,6 @@ import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
 import Data.List qualified as List
-import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
@@ -39,7 +38,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -2170,7 +2168,9 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
 --   1. Form the set of all local variables used anywhere in the term
 --   2. When picking a name for a term, see if it is contained in this set.
 --      If yes: use a minimally qualified name which is longer than the suffixed name,
---              but doesn't conflict with any local vars.
+--              but doesn't conflict with any local vars. If even the fully-qualified
+--              name conflicts with any local vars, make it absolute. (This relies on
+--              disallowing absolute names for local variables).
 --      If no: use the suffixed name for the term
 --
 -- The algorithm does the same for type references in signatures.
@@ -2194,25 +2194,19 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
     tweak :: Set Name -> (HQ'.HashQualified Name, HQ'.HashQualified Name) -> (HQ'.HashQualified Name, HQ'.HashQualified Name)
-    tweak used (fullName, HQ'.NameOnly suffixedName)
+    tweak used (HQ'.NameOnly fullName, HQ'.NameOnly suffixedName)
       | Set.member suffixedName used =
-          let revFQNSegments :: NEL.NonEmpty NameSegment
-              revFQNSegments = Name.reverseSegments (HQ'.toName fullName)
-              minimallySuffixed :: HQ'.HashQualified Name
-              minimallySuffixed =
-                revFQNSegments
-                  -- Get all suffixes (it's inits instead of tails because name segments are in reverse order)
-                  & NEL.inits
-                  -- Drop the empty 'init'
-                  & NEL.tail
-                  & mapMaybe (fmap Name.fromReverseSegments . NEL.nonEmpty) -- Convert back into names
+          let resuffixifiedName :: Name
+              resuffixifiedName =
+                fullName
+                  & Name.suffixes
                   -- Drop the suffixes that we know are shorter than the suffixified name
                   & List.drop (Name.countSegments suffixedName)
-                  -- Drop the suffixes that are equal to local variables
-                  & filter ((\n -> n `Set.notMember` used))
-                  & listToMaybe
-                  & maybe fullName HQ'.NameOnly
-           in (fullName, minimallySuffixed)
+                  -- Find the first (shortest) suffix that isn't in the used set
+                  & find (\n -> n `Set.notMember` used)
+                  -- If there isn't one, use the absolut-ified full name
+                  & fromMaybe (Name.makeAbsolute fullName)
+           in (HQ'.NameOnly fullName, HQ'.NameOnly resuffixifiedName)
     tweak _ p = p
     varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name
