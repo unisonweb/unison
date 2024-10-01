@@ -561,74 +561,87 @@ prepareArgs (Stack ap fp sp ustk bstk) = \case
     pure $ Stack ap sp sp ustk bstk
 {-# INLINE prepareArgs #-}
 
--- acceptArgs :: Stack -> Int -> IO Stack
--- acceptArgs (Stack ap fp sp ustk bstk) n = pure $ Stack ap (fp - n) sp ustk bstk
--- {-# INLINE acceptArgs #-}
+acceptArgs :: Stack -> Int -> IO Stack
+acceptArgs (Stack ap fp sp ustk bstk) n = pure $ Stack ap (fp - n) sp ustk bstk
+{-# INLINE acceptArgs #-}
 
-class MEM (b :: Mem) where
-  acceptArgs :: Stack b -> Int -> IO (Stack b)
-  frameArgs :: Stack b -> IO (Stack b)
-  augSeg :: Augment -> Stack b -> Seg b -> Maybe Args' -> IO (Seg b)
-  dumpSeg :: Stack b -> Seg b -> Dump -> IO (Stack b)
-  adjustArgs :: Stack b -> SZ -> IO (Stack b)
-  fsize :: Stack b -> SZ
-  asize :: Stack b -> SZ
+frameArgs :: Stack -> IO Stack
+frameArgs (Stack ap _ sp ustk bstk) = pure $ Stack ap ap sp ustk bstk
+{-# INLINE frameArgs #-}
 
-instance MEM 'UN where
-  prepareArgs (US ap fp sp stk) (ArgR i l)
-    | fp + l + i == sp = pure $ US ap (sp - i) (sp - i) stk
-  prepareArgs (US ap fp sp stk) args = do
-    sp <- uargOnto stk sp stk fp args
-    pure $ US ap sp sp stk
-  {-# INLINE prepareArgs #-}
+augSeg :: Augment -> Stack -> Seg -> Maybe Args' -> IO Seg
+augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
+  useg' <- unboxedSeg
+  bseg' <- boxedSeg
+  pure (useg', bseg')
+  where
+    unboxedSeg = do
+      cop <- newByteArray $ ssz + psz + asz
+      copyByteArray cop soff seg 0 ssz
+      copyMutableByteArray cop 0 stk (bytes $ ap + 1) psz
+      for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
+      unsafeFreezeByteArray cop
+      where
+        ssz = sizeofByteArray seg
+        pix | I <- mode = 0 | otherwise = fp - ap
+        (poff, soff)
+          | K <- mode = (ssz, 0)
+          | otherwise = (0, psz + asz)
+        psz = bytes pix
+        asz = case margs of
+          Nothing -> 0
+          Just (Arg1 _) -> 8
+          Just (Arg2 _ _) -> 16
+          Just (ArgN v) -> bytes $ sizeofPrimArray v
+          Just (ArgR _ l) -> bytes l
+    boxedSeg = do
+      cop <- newArray (ssz + psz + asz) BlackHole
+      copyArray cop soff seg 0 ssz
+      copyMutableArray cop poff stk (ap + 1) psz
+      for_ margs $ bargOnto stk sp cop (poff + psz - 1)
+      unsafeFreezeArray cop
+      where
+        ssz = sizeofArray seg
+        psz | I <- mode = 0 | otherwise = fp - ap
+        (poff, soff)
+          | K <- mode = (ssz, 0)
+          | otherwise = (0, psz + asz)
+        asz = case margs of
+          Nothing -> 0
+          Just (Arg1 _) -> 1
+          Just (Arg2 _ _) -> 2
+          Just (ArgN v) -> sizeofPrimArray v
+          Just (ArgR _ l) -> l
+{-# INLINE augSeg #-}
 
-  acceptArgs (US ap fp sp stk) n = pure $ US ap (fp - n) sp stk
-  {-# INLINE acceptArgs #-}
+dumpSeg :: Stack -> Seg -> Dump -> IO Stack
+dumpSeg (Stack ap fp sp ustk bstk) (useg, bseg) mode = do
+  dumpUSeg
+  dumpBSeg
+  pure $ Stack ap' fp' sp' ustk bstk
+  where
+    sp' = sp + sz
+    fp' = dumpFP fp sz mode
+    ap' = dumpAP ap fp sz mode
+    dumpUSeg = do
+      let ssz = sizeofByteArray useg
+      copyByteArray ustk bsp useg 0 ssz
+    dumpBSeg = do
+      let sz = sizeofArray bseg
+      copyArray bstk (sp + 1) bseg 0 sz
+{-# INLINE dumpSeg #-}
 
-  frameArgs (US ap _ sp stk) = pure $ US ap ap sp stk
-  {-# INLINE frameArgs #-}
+adjustArgs :: Stack -> SZ -> IO Stack
+adjustArgs (Stack ap fp sp ustk bstk) sz = pure $ Stack (ap - sz) fp sp ustk bstk
+{-# INLINE adjustArgs #-}
 
-  augSeg mode (US ap fp sp stk) seg margs = do
-    cop <- newByteArray $ ssz + psz + asz
-    copyByteArray cop soff seg 0 ssz
-    copyMutableByteArray cop 0 stk (bytes $ ap + 1) psz
-    for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
-    unsafeFreezeByteArray cop
-    where
-      ssz = sizeofByteArray seg
-      pix | I <- mode = 0 | otherwise = fp - ap
-      (poff, soff)
-        | K <- mode = (ssz, 0)
-        | otherwise = (0, psz + asz)
-      psz = bytes pix
-      asz = case margs of
-        Nothing -> 0
-        Just (Arg1 _) -> 8
-        Just (Arg2 _ _) -> 16
-        Just (ArgN v) -> bytes $ sizeofPrimArray v
-        Just (ArgR _ l) -> bytes l
-  {-# INLINE augSeg #-}
+fsize :: Stack -> SZ
+fsize (Stack _ fp sp _ _) = sp - fp
+{-# INLINE fsize #-}
 
-  dumpSeg (US ap fp sp stk) seg mode = do
-    copyByteArray stk bsp seg 0 ssz
-    pure $ US ap' fp' sp' stk
-    where
-      bsp = bytes $ sp + 1
-      ssz = sizeofByteArray seg
-      sz = words ssz
-      sp' = sp + sz
-      fp' = dumpFP fp sz mode
-      ap' = dumpAP ap fp sz mode
-  {-# INLINE dumpSeg #-}
-
-  adjustArgs (US ap fp sp stk) sz = pure $ US (ap - sz) fp sp stk
-  {-# INLINE adjustArgs #-}
-
-  fsize (US _ fp sp _) = sp - fp
-  {-# INLINE fsize #-}
-
-  asize (US ap fp _ _) = fp - ap
-  {-# INLINE asize #-}
+asize :: Stack -> SZ
+asize (Stack ap fp _ _ _) = fp - ap
+{-# INLINE asize #-}
 
 peekN :: Stack 'UN -> IO Word64
 peekN (US _ _ sp stk) = readByteArray stk sp
@@ -714,58 +727,6 @@ instance Show K where
         com ++ show (uf, bf, ua, ba, ci) ++ go "," k
       go com (Mark ua ba ps _ k) =
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
-
-instance MEM 'BX where
-  prepareArgs (BS ap fp sp stk) (ArgR i l)
-    | fp + i + l == sp = pure $ BS ap (sp - i) (sp - i) stk
-  prepareArgs (BS ap fp sp stk) args = do
-    sp <- bargOnto stk sp stk fp args
-    pure $ BS ap sp sp stk
-  {-# INLINE prepareArgs #-}
-
-  acceptArgs (BS ap fp sp stk) n = pure $ BS ap (fp - n) sp stk
-  {-# INLINE acceptArgs #-}
-
-  frameArgs (BS ap _ sp stk) = pure $ BS ap ap sp stk
-  {-# INLINE frameArgs #-}
-
-  augSeg mode (BS ap fp sp stk) seg margs = do
-    cop <- newArray (ssz + psz + asz) BlackHole
-    copyArray cop soff seg 0 ssz
-    copyMutableArray cop poff stk (ap + 1) psz
-    for_ margs $ bargOnto stk sp cop (poff + psz - 1)
-    unsafeFreezeArray cop
-    where
-      ssz = sizeofArray seg
-      psz | I <- mode = 0 | otherwise = fp - ap
-      (poff, soff)
-        | K <- mode = (ssz, 0)
-        | otherwise = (0, psz + asz)
-      asz = case margs of
-        Nothing -> 0
-        Just (Arg1 _) -> 1
-        Just (Arg2 _ _) -> 2
-        Just (ArgN v) -> sizeofPrimArray v
-        Just (ArgR _ l) -> l
-  {-# INLINE augSeg #-}
-
-  dumpSeg (BS ap fp sp stk) seg mode = do
-    copyArray stk (sp + 1) seg 0 sz
-    pure $ BS ap' fp' sp' stk
-    where
-      sz = sizeofArray seg
-      sp' = sp + sz
-      fp' = dumpFP fp sz mode
-      ap' = dumpAP ap fp sz mode
-  {-# INLINE dumpSeg #-}
-
-  adjustArgs (BS ap fp sp stk) sz = pure $ BS (ap - sz) fp sp stk
-  {-# INLINE adjustArgs #-}
-
-  fsize (BS _ fp sp _) = sp - fp
-  {-# INLINE fsize #-}
-
-  asize (BS ap fp _ _) = fp - ap
 
 frameView :: (MEM b) => (Show (Elem b)) => Stack b -> IO ()
 frameView stk = putStr "|" >> gof False 0
