@@ -56,6 +56,7 @@ import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
+import Data.Vector.Unboxed qualified as UV
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -258,15 +259,49 @@ data Args'
   deriving (Show)
 
 data Args
-  = Args [Int]
-  | --  TODO: What do I do with this?
-    DArgV !Int !Int
+  = ZArgs
+  | UArg1 !Int
+  | UArg2 !Int !Int
+  | BArg1 !Int
+  | BArg2 !Int !Int
+  | DArg2 !Mem !Int {- first arg and type -} !Mem !Int {- second arg and type -}
+  | UArgR !Int !Int
+  | BArgR !Int !Int
+  | DArgN !(UV.Vector (Mem, Int))
+  | BArgN !(PrimArray Int)
+  | UArgN !(PrimArray Int)
+  | DArgV !Int !Int
   deriving (Show, Eq, Ord)
 
-argsToLists :: Args -> [Int]
+-- | TODO: come back and try to remove this wrapper
+-- once everything is compiling and running.
+data ArgT = UArg | BArg
+  deriving (Show, Eq, Ord)
+
+argsToLists :: Args -> ([ArgT], [Int])
 argsToLists = \case
-  (Args v) -> v
-  DArgV {} -> error "argsToLists: DArgV"
+  ZArgs -> []
+  UArg1 i -> ([UArg], [i])
+  UArg2 i j -> ([UArg, UArg], [i, j])
+  BArg1 i -> ([BArg], [i])
+  BArg2 i j -> ([BArg, BArg], [i, j])
+  UArgR i l -> (replicate l UArg, take l [i ..])
+  BArgR i l -> (replicate l BArg, take l [i ..])
+  DArgN args -> bimap UV.toList UV.toList . UV.unzip $ args
+
+-- argsToLists ZArgs = ([], [])
+-- argsToLists (UArg1 i) = ([i], [])
+-- argsToLists (UArg2 i j) = ([i, j], [])
+-- argsToLists (BArg1 i) = ([], [i])
+-- argsToLists (BArg2 i j) = ([], [i, j])
+-- argsToLists (DArg2 i j) = ([i], [j])
+-- argsToLists (UArgR i l) = (take l [i ..], [])
+-- argsToLists (BArgR i l) = ([], take l [i ..])
+-- argsToLists (DArgR ui ul bi bl) = (take ul [ui ..], take bl [bi ..])
+-- argsToLists (BArgN bs) = ([], primArrayToList bs)
+-- argsToLists (UArgN us) = (primArrayToList us, [])
+-- argsToLists (DArgN us bs) = (primArrayToList us, primArrayToList bs)
+-- argsToLists (DArgV _ _) = internalBug "argsToLists: DArgV"
 
 data UPrim1
   = -- integral
@@ -892,11 +927,11 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
               <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
-  | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ Args [i]
-  | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ Args [i]
+  | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
+  | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
   | Just j <- rctxResolve rec v =
       let cix = (CIx grpr grpn j)
-       in countCtx ctx $ App False (Env cix cix) $ Args []
+       in countCtx ctx $ App False (Env cix cix) $ ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
@@ -928,7 +963,7 @@ emitSection _ _ _ _ ctx (TLit l) =
       | ANF.LY {} <- l = addCount 0 1
       | otherwise = addCount 1 0
 emitSection _ _ _ _ ctx (TBLit l) =
-  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ Args [0]
+  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ BArg1 0
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
@@ -1001,7 +1036,7 @@ emitSection rns grpr grpn rec ctx (TShift r v e) =
     <$> emitSection rns grpr grpn rec (Var v BX ctx) e
 emitSection _ _ _ _ ctx (TFrc v)
   | Just (i, BX) <- ctxResolve ctx v =
-      countCtx ctx $ App False (Stk i) (Args [])
+      countCtx ctx $ App False (Stk i) ZArgs
   | Just _ <- ctxResolve ctx v =
       internalBug $
         "emitSection: values to be forced must be boxed: " ++ show v
@@ -1037,7 +1072,7 @@ emitFunction rns _grpr _ _ _ (FComb r) as
 emitFunction rns _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
-    $ Args [0]
+    $ BArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _grpr _ _ _ (FReq r e) as =
@@ -1046,7 +1081,7 @@ emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- more than 2^16 types.
   Ins (Pack r (packTags rt e) as)
     . App True (Dyn a)
-    $ Args [0]
+    $ BArg1 0
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
@@ -1088,10 +1123,10 @@ emitFunctionVErr v =
     "emitFunction: could not resolve function variable: " ++ show v
 
 litArg :: ANF.Lit -> Args
-litArg ANF.T {} = Args [0]
-litArg ANF.LM {} = Args [0]
-litArg ANF.LY {} = Args [0]
-litArg _ = Args [0]
+litArg ANF.T {} = BArg1 0
+litArg ANF.LM {} = BArg1 0
+litArg ANF.LY {} = BArg1 0
+litArg _ = UArg1 0
 
 -- Emit machine code for a let expression. Some expressions do not
 -- require a machine code Let, which uses more complicated stack
@@ -1272,19 +1307,19 @@ emitPOp ANF.DBTX = emitBP1 DBTX
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
-  Args [i] -> Fork i
+  BArg1 i -> Fork i
   _ -> internalBug "fork takes exactly one boxed argument"
 emitPOp ANF.ATOM = \case
-  Args [i] -> Atomically i
+  BArg1 i -> Atomically i
   _ -> internalBug "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
-  Args [i] -> Print i
+  BArg1 i -> Print i
   _ -> internalBug "print takes exactly one boxed argument"
 emitPOp ANF.INFO = \case
-  Args [] -> Info "debug"
+  ZArgs -> Info "debug"
   _ -> internalBug "info takes no arguments"
 emitPOp ANF.TFRC = \case
-  Args [i] -> TryForce i
+  BArg1 i -> TryForce i
   _ -> internalBug "tryEval takes exactly one boxed argument"
 
 -- handled in emitSection because Die is not an instruction
@@ -1299,28 +1334,31 @@ emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 -- Helper functions for packing the variable argument representation
 -- into the indexes stored in prim op instructions
 emitP1 :: UPrim1 -> Args -> Instr
-emitP1 p (Args [i]) = UPrim1 p i
+emitP1 p (UArg1 i) = UPrim1 p i
 emitP1 p a =
   internalBug $
     "wrong number of args for unary unboxed primop: "
       ++ show (p, a)
 
 emitP2 :: UPrim2 -> Args -> Instr
-emitP2 p (Args [i, j]) = UPrim2 p i j
+emitP2 p (UArg2 i j) = UPrim2 p i j
 emitP2 p a =
   internalBug $
     "wrong number of args for binary unboxed primop: "
       ++ show (p, a)
 
 emitBP1 :: BPrim1 -> Args -> Instr
-emitBP1 p (Args [i]) = BPrim1 p i
+emitBP1 p (UArg1 i) = BPrim1 p i
+emitBP1 p (BArg1 i) = BPrim1 p i
 emitBP1 p a =
   internalBug $
     "wrong number of args for unary boxed primop: "
       ++ show (p, a)
 
 emitBP2 :: BPrim2 -> Args -> Instr
-emitBP2 p (Args [i, j]) = BPrim2 p i j
+emitBP2 p (UArg2 i j) = BPrim2 p i j
+emitBP2 p (BArg2 i j) = BPrim2 p i j
+emitBP2 p (DArg2 _ i _ j) = BPrim2 p i j
 emitBP2 p a =
   internalBug $
     "wrong number of args for binary boxed primop: "
@@ -1484,7 +1522,7 @@ emitClosures grpr grpn rec ctx args k =
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
           let cix = (CIx grpr grpn n)
-           in Ins (Name (Env cix cix) (Args [])) <$> allocate (Var a BX ctx) as k
+           in Ins (Name (Env cix cix) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
           internalBug $ "emitClosures: unknown reference: " ++ show a
 
@@ -1502,7 +1540,16 @@ emitArgs grpn ctx args
 -- Turns a list of stack positions and calling conventions into the
 -- argument format expected in the machine code.
 demuxArgs :: [(Int, Mem)] -> Args
-demuxArgs as0 = Args (fst <$> as0)
+demuxArgs = \case
+  [] -> ZArgs
+  [(i, UN)] -> UArg1 i
+  [(i, BX)] -> BArg1 i
+  [(i, UN), (j, UN)] -> UArg2 i j
+  [(i, BX), (j, BX)] -> BArg2 i j
+  args
+    | all ((== BX) . snd) args -> BArgN $ primArrayFromList (fst <$> args)
+    | all ((== UN) . snd) args -> UArgN $ primArrayFromList (fst <$> args)
+    | otherwise -> DArgN $ _
 
 combDeps :: GComb clos comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s

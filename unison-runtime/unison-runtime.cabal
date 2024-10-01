@@ -44,6 +44,7 @@ library
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
+      Unison.Runtime.Machine2
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.MCode2
@@ -139,6 +140,7 @@ library
     , unison-util-recursion
     , unliftio
     , vector
+    , vector-th-unbox
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

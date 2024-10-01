@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.Machine where
+module Unison.Runtime.Machine2 where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
@@ -48,9 +48,9 @@ import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
-import Unison.Runtime.Foreign.Function
-import Unison.Runtime.MCode
-import Unison.Runtime.Stack
+import Unison.Runtime.Foreign.Function2
+import Unison.Runtime.MCode2
+import Unison.Runtime.Stack2
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
@@ -181,11 +181,11 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
-stk'info :: Stack 'BX -> IO ()
-stk'info s@(BS _ _ sp _) = do
+stk'info :: Stack -> IO ()
+stk'info s@(Stack _ _ sp _ _) = do
   let prn i
         | i < 0 = return ()
-        | otherwise = peekOff s i >>= print >> prn (i - 1)
+        | otherwise = bpeekOff s i >>= print >> prn (i - 1)
   prn sp
 
 -- Entry point for evaluating a section
@@ -508,6 +508,9 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Pack r t args) = do
   clo <- buildData ustk bstk r t args
   bstk <- bump bstk
   poke bstk clo
+  pure (denv, ustk, bstk, k)
+exec !_ !denv !_activeThreads !ustk !bstk !k _ (Unpack r i) = do
+  (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Print i) = do
   t <- peekOffBi bstk i
@@ -1058,6 +1061,60 @@ dumpDataNoTag !mr !_ !_ clo =
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpDataNoTag #-}
+
+dumpData ::
+  Maybe Reference ->
+  Stack 'UN ->
+  Stack 'BX ->
+  Closure ->
+  IO (Stack 'UN, Stack 'BX)
+dumpData !_ !ustk !bstk (Enum _ t) = do
+  ustk <- bump ustk
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataU1 _ t x) = do
+  ustk <- bumpn ustk 2
+  pokeOff ustk 1 x
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataU2 _ t x y) = do
+  ustk <- bumpn ustk 3
+  pokeOff ustk 2 y
+  pokeOff ustk 1 x
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataB1 _ t x) = do
+  ustk <- bump ustk
+  bstk <- bump bstk
+  poke bstk x
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataB2 _ t x y) = do
+  ustk <- bump ustk
+  bstk <- bumpn bstk 2
+  pokeOff bstk 1 y
+  poke bstk x
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataUB _ t x y) = do
+  ustk <- bumpn ustk 2
+  bstk <- bump bstk
+  pokeOff ustk 1 x
+  poke bstk y
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !_ !ustk !bstk (DataG _ t us bs) = do
+  ustk <- dumpSeg ustk us S
+  bstk <- dumpSeg bstk bs S
+  ustk <- bump ustk
+  pokeN ustk $ maskTags t
+  pure (ustk, bstk)
+dumpData !mr !_ !_ clo =
+  die $
+    "dumpData: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
+{-# INLINE dumpData #-}
 
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the

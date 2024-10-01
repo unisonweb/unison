@@ -75,6 +75,7 @@ library:
     - unison-util-recursion
     - unliftio
     - vector
+    - vector-th-unbox
     - crypton-x509
     - crypton-x509-store
     - crypton-x509-system
