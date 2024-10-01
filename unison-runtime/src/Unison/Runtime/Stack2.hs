@@ -31,7 +31,6 @@ module Unison.Runtime.Stack2
     Augment (..),
     Dump (..),
     Stack (..),
-    argOnto,
     Off,
     SZ,
     FP,
@@ -70,6 +69,21 @@ module Unison.Runtime.Stack2
     bpokeOff,
     bump,
     bumpn,
+    grab,
+    ensure,
+    duplicate,
+    discardFrame,
+    saveFrame,
+    saveArgs,
+    restoreFrame,
+    prepareArgs,
+    acceptArgs,
+    frameArgs,
+    augSeg,
+    dumpSeg,
+    adjustArgs,
+    fsize,
+    asize,
   )
 where
 
@@ -302,102 +316,191 @@ type UA = MutableByteArray (PrimState IO)
 
 type BA = MutableArray (PrimState IO) Closure
 
-type Arrs = (UA, BA)
-
 words :: Int -> Int
 words n = n `div` 8
 
 bytes :: Int -> Int
 bytes n = n * 8
 
-argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
-argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
-  Arg1 i -> do
-    unboxed
-    boxed
-    pure cp
-    where
-      cp = dstSp + 1
-      unboxed = do
-        (x :: Int) <- readByteArray srcUstk (srcSp - i)
-        writeByteArray dstUstk cp x
-      boxed = do
-        x <- readArray srcBstk (srcSp - i)
-        writeArray dstBstk cp x
-  Arg2 i j -> do
-    unboxed
-    boxed
-    pure cp
-    where
-      cp = dstSp + 2
-      unboxed = do
-        (x :: Int) <- readByteArray srcUstk (srcSp - i)
-        (y :: Int) <- readByteArray srcUstk (srcSp - j)
-        writeByteArray dstUstk cp x
-        writeByteArray dstUstk (cp - 1) y
-      boxed = do
-        x <- readArray srcBstk (srcSp - i)
-        y <- readArray srcBstk (srcSp - j)
-        writeArray dstBstk cp x
-        writeArray dstBstk (cp - 1) y
-  ArgN v -> do
-    -- May be worth testing whether it's faster to combine both unboxed and boxed iterations into one loop, but I'd
-    -- guess it's actually better to keep them separate so we're not thrashing between arrays in the cache.
-    unboxed
-    boxed
-    pure cp
-    where
-      cp = dstSp + sz
-      sz = sizeofPrimArray v
-      overwrite =
-        -- We probably only need one of these checks, but it's probably basically free.
-        srcUstk == dstUstk
-          && srcBstk == dstBstk
-      boff
-        | overwrite = sz - 1
-        | otherwise = dstSp + sz
-      unboxed = do
-        buf <-
-          if overwrite
-            then newByteArray $ bytes sz
-            else pure dstUstk
-        let loop i
-              | i < 0 = return ()
-              | otherwise = do
-                  (x :: Int) <- readByteArray srcUstk (srcSp - indexPrimArray v i)
-                  writeByteArray buf (boff - i) x
-                  loop $ i - 1
-        loop $ sz - 1
-        when overwrite $
-          copyMutableByteArray dstUstk (bytes $ cp + 1) buf 0 (bytes sz)
-      boxed = do
-        buf <-
-          if overwrite
-            then newArray sz $ BlackHole
-            else pure dstBstk
-        let loop i
-              | i < 0 = return ()
-              | otherwise = do
-                  x <- readArray srcBstk $ srcSp - indexPrimArray v i
-                  writeArray buf (boff - i) x
-                  loop $ i - 1
-        loop $ sz - 1
+type Arrs = (UA, BA)
 
-        when overwrite $
-          copyMutableArray dstBstk (dstSp + 1) buf 0 sz
-  ArgR i l -> do
-    unboxed
-    boxed
-    pure cp
-    where
-      cp = dstSp + l
-      unboxed = do
-        moveByteArray dstUstk cbp srcUstk sbp (bytes l)
-        where
-          cbp = bytes $ cp
-          sbp = bytes $ srcSp - i - l + 1
-      boxed = do
-        copyMutableArray dstBstk cp srcBstk (srcSp - i - l + 1) l
+argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
+argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
+  -- Both new cp's should be the same, so we can just return one.
+  _cp <- uargOnto srcUstk srcSp dstUstk dstSp args
+  cp <- bargOnto srcBstk srcSp dstBstk dstSp args
+  pure cp
+
+-- argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
+-- argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
+--   Arg1 i -> do
+--     unboxed
+--     boxed
+--     pure cp
+--     where
+--       cp = dstSp + 1
+--       unboxed = do
+--         (x :: Int) <- readByteArray srcUstk (srcSp - i)
+--         writeByteArray dstUstk cp x
+--       boxed = do
+--         x <- readArray srcBstk (srcSp - i)
+--         writeArray dstBstk cp x
+--   Arg2 i j -> do
+--     unboxed
+--     boxed
+--     pure cp
+--     where
+--       cp = dstSp + 2
+--       unboxed = do
+--         (x :: Int) <- readByteArray srcUstk (srcSp - i)
+--         (y :: Int) <- readByteArray srcUstk (srcSp - j)
+--         writeByteArray dstUstk cp x
+--         writeByteArray dstUstk (cp - 1) y
+--       boxed = do
+--         x <- readArray srcBstk (srcSp - i)
+--         y <- readArray srcBstk (srcSp - j)
+--         writeArray dstBstk cp x
+--         writeArray dstBstk (cp - 1) y
+--   ArgN v -> do
+--     -- May be worth testing whether it's faster to combine both unboxed and boxed iterations into one loop, but I'd
+--     -- guess it's actually better to keep them separate so we're not thrashing between arrays in the cache.
+--     unboxed
+--     boxed
+--     pure cp
+--     where
+--       cp = dstSp + sz
+--       sz = sizeofPrimArray v
+--       overwrite =
+--         -- We probably only need one of these checks, but it's probably basically free.
+--         srcUstk == dstUstk
+--           && srcBstk == dstBstk
+--       boff
+--         | overwrite = sz - 1
+--         | otherwise = dstSp + sz
+--       unboxed = do
+--         buf <-
+--           if overwrite
+--             then newByteArray $ bytes sz
+--             else pure dstUstk
+--         let loop i
+--               | i < 0 = return ()
+--               | otherwise = do
+--                   (x :: Int) <- readByteArray srcUstk (srcSp - indexPrimArray v i)
+--                   writeByteArray buf (boff - i) x
+--                   loop $ i - 1
+--         loop $ sz - 1
+--         when overwrite $
+--           copyMutableByteArray dstUstk (bytes $ cp + 1) buf 0 (bytes sz)
+--       boxed = do
+--         buf <-
+--           if overwrite
+--             then newArray sz $ BlackHole
+--             else pure dstBstk
+--         let loop i
+--               | i < 0 = return ()
+--               | otherwise = do
+--                   x <- readArray srcBstk $ srcSp - indexPrimArray v i
+--                   writeArray buf (boff - i) x
+--                   loop $ i - 1
+--         loop $ sz - 1
+
+--         when overwrite $
+--           copyMutableArray dstBstk (dstSp + 1) buf 0 sz
+--   ArgR i l -> do
+--     unboxed
+--     boxed
+--     pure cp
+--     where
+--       cp = dstSp + l
+--       unboxed = do
+--         moveByteArray dstUstk cbp srcUstk sbp (bytes l)
+--         where
+--           cbp = bytes $ cp
+--           sbp = bytes $ srcSp - i - l + 1
+--       boxed = do
+--         copyMutableArray dstBstk cp srcBstk (srcSp - i - l + 1) l
+
+uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
+uargOnto stk sp cop cp0 (Arg1 i) = do
+  (x :: Int) <- readByteArray stk (sp - i)
+  writeByteArray cop cp x
+  pure cp
+  where
+    cp = cp0 + 1
+uargOnto stk sp cop cp0 (Arg2 i j) = do
+  (x :: Int) <- readByteArray stk (sp - i)
+  (y :: Int) <- readByteArray stk (sp - j)
+  writeByteArray cop cp x
+  writeByteArray cop (cp - 1) y
+  pure cp
+  where
+    cp = cp0 + 2
+uargOnto stk sp cop cp0 (ArgN v) = do
+  buf <-
+    if overwrite
+      then newByteArray $ bytes sz
+      else pure cop
+  let loop i
+        | i < 0 = return ()
+        | otherwise = do
+            (x :: Int) <- readByteArray stk (sp - indexPrimArray v i)
+            writeByteArray buf (boff - i) x
+            loop $ i - 1
+  loop $ sz - 1
+  when overwrite $
+    copyMutableByteArray cop (bytes $ cp + 1) buf 0 (bytes sz)
+  pure cp
+  where
+    cp = cp0 + sz
+    sz = sizeofPrimArray v
+    overwrite = sameMutableByteArray stk cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
+uargOnto stk sp cop cp0 (ArgR i l) = do
+  moveByteArray cop cbp stk sbp (bytes l)
+  pure $ cp0 + l
+  where
+    cbp = bytes $ cp0 + 1
+    sbp = bytes $ sp - i - l + 1
+
+bargOnto :: BA -> Off -> BA -> Off -> Args' -> IO Int
+bargOnto stk sp cop cp0 (Arg1 i) = do
+  x <- readArray stk (sp - i)
+  writeArray cop cp x
+  pure cp
+  where
+    cp = cp0 + 1
+bargOnto stk sp cop cp0 (Arg2 i j) = do
+  x <- readArray stk (sp - i)
+  y <- readArray stk (sp - j)
+  writeArray cop cp x
+  writeArray cop (cp - 1) y
+  pure cp
+  where
+    cp = cp0 + 2
+bargOnto stk sp cop cp0 (ArgN v) = do
+  buf <-
+    if overwrite
+      then newArray sz $ BlackHole
+      else pure cop
+  let loop i
+        | i < 0 = return ()
+        | otherwise = do
+            x <- readArray stk $ sp - indexPrimArray v i
+            writeArray buf (boff - i) x
+            loop $ i - 1
+  loop $ sz - 1
+
+  when overwrite $
+    copyMutableArray cop (cp0 + 1) buf 0 sz
+  pure cp
+  where
+    cp = cp0 + sz
+    sz = sizeofPrimArray v
+    overwrite = stk == cop
+    boff | overwrite = sz - 1 | otherwise = cp0 + sz
+bargOnto stk sp cop cp0 (ArgR i l) = do
+  copyMutableArray cop (cp0 + 1) stk (sp - i - l + 1) l
+  pure $ cp0 + l
 
 data Dump = A | F Int Int | S
 
@@ -447,18 +550,34 @@ alloc = do
 {-# INLINE alloc #-}
 
 peek :: Stack -> IO Elem
-peek (Stack _ _ sp ustk bstk) = do
-  u <- readByteArray ustk sp
-  b <- readArray bstk sp
+peek stk = do
+  u <- upeek stk
+  b <- bpeek stk
   pure (u, b)
 {-# INLINE peek #-}
 
+bpeek :: Stack -> IO BElem
+bpeek (Stack _ _ sp _ bstk) = readArray bstk sp
+{-# INLINE bpeek #-}
+
+upeek :: Stack -> IO UElem
+upeek (Stack _ _ sp ustk _) = readByteArray ustk sp
+{-# INLINE upeek #-}
+
 peekOff :: Stack -> Off -> IO Elem
-peekOff (Stack _ _ sp ustk bstk) i = do
-  u <- readByteArray ustk (sp - i)
-  b <- readArray bstk (sp - i)
+peekOff stk i = do
+  u <- upeekOff stk i
+  b <- bpeekOff stk i
   pure (u, b)
 {-# INLINE peekOff #-}
+
+bpeekOff :: Stack -> Off -> IO BElem
+bpeekOff (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
+{-# INLINE bpeekOff #-}
+
+upeekOff :: Stack -> Off -> IO UElem
+upeekOff (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
+{-# INLINE upeekOff #-}
 
 poke :: Stack -> Elem -> IO ()
 poke (Stack _ _ sp ustk bstk) (u, b) = do
@@ -498,8 +617,8 @@ grab (Stack _ fp sp ustk bstk) sze = do
         bfp = bytes $ fp + 1
         fsz = bytes $ sp - fp
     bgrab = do
-      seg <- unsafeFreezeArray =<< cloneMutableArray bstk (fp + 1 - sz) sz
-      copyMutableArray bstk (fp + 1 - sz) bstk (fp + 1) fsz
+      seg <- unsafeFreezeArray =<< cloneMutableArray bstk (fp + 1 - sze) sze
+      copyMutableArray bstk (fp + 1 - sze) bstk (fp + 1) fsz
       pure seg
       where
         fsz = sp - fp
@@ -512,24 +631,24 @@ ensure (Stack ap fp sp ustk bstk) sze = do
   pure $ Stack ap fp sp ustk bstk
   where
     ensureUStk
-      | sze <= 0 || bytes (sp + sze + 1) < ssz = pure stki
+      | sze <= 0 || bytes (sp + sze + 1) < ssz = pure ustk
       | otherwise = do
-          stk' <- resizeMutableByteArray stk (ssz + ext)
-          pure $ US ap fp sp stk'
+          ustk' <- resizeMutableByteArray ustk (ssz + ext)
+          pure $ ustk'
       where
-        ssz = sizeofMutableByteArray stk
+        ssz = sizeofMutableByteArray ustk
         ext
           | bytes sze > 10240 = bytes sze + 4096
           | otherwise = 10240
     ensureBStk
-      | sze <= 0 = pure stki
-      | sp + sze + 1 < ssz = pure stki
+      | sze <= 0 = pure bstk
+      | sp + sze + 1 < ssz = pure bstk
       | otherwise = do
-          stk' <- newArray (ssz + ext) BlackHole
-          copyMutableArray stk' 0 stk 0 (sp + 1)
-          pure $ BS ap fp sp stk'
+          bstk' <- newArray (ssz + ext) BlackHole
+          copyMutableArray bstk' 0 bstk 0 (sp + 1)
+          pure bstk'
       where
-        ssz = sizeofMutableArray stk
+        ssz = sizeofMutableArray bstk
         ext
           | sze > 1280 = sze + 512
           | otherwise = 1280
@@ -553,6 +672,7 @@ duplicate (Stack ap fp sp ustk bstk) = do
       let sz = sizeofMutableByteArray ustk
       b <- newByteArray sz
       copyMutableByteArray b 0 ustk 0 sz
+      pure b
     dupBStk = do
       cloneMutableArray bstk 0 (sizeofMutableArray bstk)
 {-# INLINE duplicate #-}
@@ -579,7 +699,7 @@ prepareArgs (Stack ap fp sp ustk bstk) = \case
     | fp + l + i == sp ->
         pure $ Stack ap (sp - i) (sp - i) ustk bstk
   args -> do
-    sp <- argOnto stk sp stk fp args
+    sp <- argOnto (ustk, bstk) sp (ustk, bstk) fp args
     pure $ Stack ap sp sp ustk bstk
 {-# INLINE prepareArgs #-}
 
@@ -599,12 +719,12 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
   where
     unboxedSeg = do
       cop <- newByteArray $ ssz + psz + asz
-      copyByteArray cop soff seg 0 ssz
-      copyMutableByteArray cop 0 stk (bytes $ ap + 1) psz
-      for_ margs $ uargOnto stk sp cop (words poff + pix - 1)
+      copyByteArray cop soff useg 0 ssz
+      copyMutableByteArray cop 0 ustk (bytes $ ap + 1) psz
+      for_ margs $ uargOnto ustk sp cop (words poff + pix - 1)
       unsafeFreezeByteArray cop
       where
-        ssz = sizeofByteArray seg
+        ssz = sizeofByteArray useg
         pix | I <- mode = 0 | otherwise = fp - ap
         (poff, soff)
           | K <- mode = (ssz, 0)
@@ -618,12 +738,12 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
           Just (ArgR _ l) -> bytes l
     boxedSeg = do
       cop <- newArray (ssz + psz + asz) BlackHole
-      copyArray cop soff seg 0 ssz
-      copyMutableArray cop poff stk (ap + 1) psz
-      for_ margs $ bargOnto stk sp cop (poff + psz - 1)
+      copyArray cop soff bseg 0 ssz
+      copyMutableArray cop poff bstk (ap + 1) psz
+      for_ margs $ bargOnto bstk sp cop (poff + psz - 1)
       unsafeFreezeArray cop
       where
-        ssz = sizeofArray seg
+        ssz = sizeofArray bseg
         psz | I <- mode = 0 | otherwise = fp - ap
         (poff, soff)
           | K <- mode = (ssz, 0)
@@ -642,14 +762,15 @@ dumpSeg (Stack ap fp sp ustk bstk) (useg, bseg) mode = do
   dumpBSeg
   pure $ Stack ap' fp' sp' ustk bstk
   where
+    sz = sizeofArray bseg
     sp' = sp + sz
     fp' = dumpFP fp sz mode
     ap' = dumpAP ap fp sz mode
     dumpUSeg = do
       let ssz = sizeofByteArray useg
+      let bsp = bytes $ sp + 1
       copyByteArray ustk bsp useg 0 ssz
     dumpBSeg = do
-      let sz = sizeofArray bseg
       copyArray bstk (sp + 1) bseg 0 sz
 {-# INLINE dumpSeg #-}
 
@@ -768,15 +889,15 @@ bscount seg = sizeofArray seg
 
 closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f = \case
-  PAp (CIx r _ _) _ cs ->
-    f r <> foldMap (closureTermRefs f) cs
+  PAp (CIx r _ _) _ (_useg, bseg) ->
+    f r <> foldMap (closureTermRefs f) bseg
   (DataB1 _ _ c) -> closureTermRefs f c
   (DataB2 _ _ c1 c2) ->
     closureTermRefs f c1 <> closureTermRefs f c2
   (DataUB _ _ _ c) ->
     closureTermRefs f c
-  (Captured k _ _ cs) ->
-    contTermRefs f k <> foldMap (closureTermRefs f) cs
+  (Captured k _ _ (_useg, bseg)) ->
+    contTermRefs f k <> foldMap (closureTermRefs f) bseg
   (Foreign fo)
     | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo ->
         foldMap (closureTermRefs f) cs
