@@ -30,8 +30,8 @@ module Unison.Runtime.Stack2
     Callback (..),
     Augment (..),
     Dump (..),
-    MEM (..),
     Stack (..),
+    argOnto,
     Off,
     SZ,
     FP,
@@ -59,6 +59,17 @@ module Unison.Runtime.Stack2
     uscount,
     bscount,
     closureTermRefs,
+    dumpAP,
+    dumpFP,
+    alloc,
+    peek,
+    peekOff,
+    poke,
+    pokeOff,
+    bpoke,
+    bpokeOff,
+    bump,
+    bumpn,
   )
 where
 
@@ -66,13 +77,11 @@ import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_)
 import Data.Functor (($>))
-import Data.Kind qualified as Kind
 import Data.Sequence (Seq)
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import GHC.Stack (HasCallStack)
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF as ANF (Mem (..))
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
@@ -80,7 +89,7 @@ import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)
 
-newtype Callback = Hook (Stack 'UN -> Stack 'BX -> IO ())
+newtype Callback = Hook (Stack -> IO ())
 
 instance Eq Callback where _ == _ = True
 
@@ -142,18 +151,16 @@ data GClosure comb
   = GPAp
       !CombIx
       {- Lazy! Might be cyclic -} comb
-      {-# UNPACK #-} !(Seg 'UN) -- unboxed args
-      {-  unpack  -}
-      !(Seg 'BX) -- boxed args
+      {-# UNPACK #-} !Seg -- args
   | GEnum !Reference !Word64
   | GDataU1 !Reference !Word64 !Int
   | GDataU2 !Reference !Word64 !Int !Int
   | GDataB1 !Reference !Word64 !(GClosure comb)
   | GDataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
   | GDataUB !Reference !Word64 !Int !(GClosure comb)
-  | GDataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
+  | GDataG !Reference !Word64 {-# UNPACK #-} !Seg
   | -- code cont, u/b arg size, u/b data stacks
-    GCaptured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
+    GCaptured !K !Int !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
   | GBlackHole
   deriving stock (Show, Functor, Foldable, Traversable)
@@ -165,7 +172,7 @@ instance Eq (GClosure comb) where
 instance Ord (GClosure comb) where
   compare a b = compare (a $> ()) (b $> ())
 
-pattern PAp cix comb segUn segBx = Closure (GPAp cix comb segUn segBx)
+pattern PAp cix comb seg = Closure (GPAp cix comb seg)
 
 pattern Enum r t = Closure (GEnum r t)
 
@@ -185,9 +192,9 @@ pattern DataUB r t i y <- Closure (GDataUB r t i (Closure -> y))
   where
     DataUB r t i y = Closure (GDataUB r t i (unClosure y))
 
-pattern DataG r t us bs = Closure (GDataG r t us bs)
+pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern Captured k ua ba us bs = Closure (GCaptured k ua ba us bs)
+pattern Captured k ua ba seg = Closure (GCaptured k ua ba seg)
 
 pattern Foreign x = Closure (GForeign x)
 
@@ -210,7 +217,7 @@ splitData = \case
   (DataB1 r t x) -> Just (r, t, [], [x])
   (DataB2 r t x y) -> Just (r, t, [], [x, y])
   (DataUB r t i y) -> Just (r, t, [i], [y])
-  (DataG r t us bs) -> Just (r, t, ints us, bsegToList bs)
+  (DataG r t (useg, bseg)) -> Just (r, t, ints useg, bsegToList bseg)
   _ -> Nothing
 
 -- | Converts an unboxed segment to a list of integers for a more interchangeable
@@ -224,18 +231,18 @@ ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
 -- | Converts a list of integers representing an unboxed segment back into the
 -- appropriate segment. Segments are stored backwards in the runtime, so this
 -- reverses the list.
-useg :: [Int] -> Seg 'UN
+useg :: [Int] -> USeg
 useg ws = case L.fromList $ reverse ws of
   PrimArray ba -> ByteArray ba
 
 -- | Converts a boxed segment to a list of closures. The segments are stored
 -- backwards, so this reverses the contents.
-bsegToList :: Seg 'BX -> [Closure]
+bsegToList :: BSeg -> [Closure]
 bsegToList = reverse . L.toList
 
 -- | Converts a list of closures back to a boxed segment. Segments are stored
 -- backwards, so this reverses the contents.
-bseg :: [Closure] -> Seg 'BX
+bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
 formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
@@ -245,7 +252,7 @@ formData r t [i, j] [] = DataU2 r t i j
 formData r t [] [x] = DataB1 r t x
 formData r t [] [x, y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
-formData r t us bs = DataG r t (useg us) (bseg bs)
+formData r t us bs = DataG r t (useg us, bseg bs)
 
 frameDataSize :: K -> (Int, Int)
 frameDataSize = go 0 0
@@ -264,15 +271,15 @@ pattern DataC rf ct us bs <-
 
 pattern PApV :: CombIx -> RComb Closure -> [Int] -> [Closure] -> Closure
 pattern PApV cix rcomb us bs <-
-  PAp cix rcomb (ints -> us) (bsegToList -> bs)
+  PAp cix rcomb ((ints -> us), (bsegToList -> bs))
   where
-    PApV cix rcomb us bs = PAp cix rcomb (useg us) (bseg bs)
+    PApV cix rcomb us bs = PAp cix rcomb (useg us, bseg bs)
 
 pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
 pattern CapV k ua ba us bs <-
-  Captured k ua ba (ints -> us) (bsegToList -> bs)
+  Captured k ua ba ((ints -> us), (bsegToList -> bs))
   where
-    CapV k ua ba us bs = Captured k ua ba (useg us) (bseg bs)
+    CapV k ua ba us bs = Captured k ua ba (useg us, bseg bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
@@ -353,25 +360,25 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
         buf <-
           if overwrite
             then newByteArray $ bytes sz
-            else pure cop
+            else pure dstUstk
         let loop i
               | i < 0 = return ()
               | otherwise = do
-                  (x :: Int) <- readByteArray ustk (sp - indexPrimArray v i)
+                  (x :: Int) <- readByteArray srcUstk (srcSp - indexPrimArray v i)
                   writeByteArray buf (boff - i) x
                   loop $ i - 1
         loop $ sz - 1
         when overwrite $
-          copyMutableByteArray cop (bytes $ cp + 1) buf 0 (bytes sz)
+          copyMutableByteArray dstUstk (bytes $ cp + 1) buf 0 (bytes sz)
       boxed = do
         buf <-
           if overwrite
             then newArray sz $ BlackHole
-            else pure cop
+            else pure dstBstk
         let loop i
               | i < 0 = return ()
               | otherwise = do
-                  x <- readArray stk $ sp - indexPrimArray v i
+                  x <- readArray srcBstk $ srcSp - indexPrimArray v i
                   writeArray buf (boff - i) x
                   loop $ i - 1
         loop $ sz - 1
@@ -385,7 +392,10 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp = \case
     where
       cp = dstSp + l
       unboxed = do
-        copyByteArray dstUstk cp srcUstk (srcSp - i - l + 1) l
+        moveByteArray dstUstk cbp srcUstk sbp (bytes l)
+        where
+          cbp = bytes $ cp
+          sbp = bytes $ srcSp - i - l + 1
       boxed = do
         copyMutableArray dstBstk cp srcBstk (srcSp - i - l + 1) l
 
@@ -412,6 +422,10 @@ data Stack
     ustk :: {-# UNPACK #-} !(MutableByteArray (PrimState IO)),
     bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) Closure)
   }
+
+instance Show Stack where
+  show (Stack ap fp sp _ _) =
+    "Stack " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
 
 type UElem = Int
 
@@ -452,11 +466,19 @@ poke (Stack _ _ sp ustk bstk) (u, b) = do
   writeArray bstk sp b
 {-# INLINE poke #-}
 
+bpoke :: Stack -> BElem -> IO ()
+bpoke (Stack _ _ sp _ bstk) b = writeArray bstk sp b
+{-# INLINE bpoke #-}
+
 pokeOff :: Stack -> Off -> Elem -> IO ()
-pokeOff (Stack _ _ _ ustk bstk) i (u, b) = do
+pokeOff (Stack _ _ sp ustk bstk) i (u, b) = do
   writeByteArray ustk (sp - i) u
   writeArray bstk (sp - i) b
 {-# INLINE pokeOff #-}
+
+bpokeOff :: Stack -> Off -> BElem -> IO ()
+bpokeOff (Stack _ _ sp _ bstk) i b = writeArray bstk (sp - i) b
+{-# INLINE bpokeOff #-}
 
 -- | Eats up arguments
 grab :: Stack -> SZ -> IO (Seg, Stack)
@@ -467,17 +489,17 @@ grab (Stack _ fp sp ustk bstk) sze = do
   where
     ugrab = do
       mut <- newByteArray bsz
-      copyMutableByteArray mut 0 stk (bfp - bsz) bsz
+      copyMutableByteArray mut 0 ustk (bfp - bsz) bsz
       seg <- unsafeFreezeByteArray mut
-      moveByteArray stk (bfp - bsz) stk bfp fsz
+      moveByteArray ustk (bfp - bsz) ustk bfp fsz
       pure seg
       where
         bsz = bytes sze
         bfp = bytes $ fp + 1
         fsz = bytes $ sp - fp
     bgrab = do
-      seg <- unsafeFreezeArray =<< cloneMutableArray stk (fp + 1 - sz) sz
-      copyMutableArray stk (fp + 1 - sz) stk (fp + 1) fsz
+      seg <- unsafeFreezeArray =<< cloneMutableArray bstk (fp + 1 - sz) sz
+      copyMutableArray bstk (fp + 1 - sz) bstk (fp + 1) fsz
       pure seg
       where
         fsz = sp - fp
@@ -643,80 +665,72 @@ asize :: Stack -> SZ
 asize (Stack ap fp _ _ _) = fp - ap
 {-# INLINE asize #-}
 
-peekN :: Stack 'UN -> IO Word64
-peekN (US _ _ sp stk) = readByteArray stk sp
+peekN :: Stack -> IO Word64
+peekN (Stack _ _ sp ustk _) = readByteArray ustk sp
 {-# INLINE peekN #-}
 
-peekD :: Stack 'UN -> IO Double
-peekD (US _ _ sp stk) = readByteArray stk sp
+peekD :: Stack -> IO Double
+peekD (Stack _ _ sp ustk _) = readByteArray ustk sp
 {-# INLINE peekD #-}
 
-peekOffN :: Stack 'UN -> Int -> IO Word64
-peekOffN (US _ _ sp stk) i = readByteArray stk (sp - i)
+peekOffN :: Stack -> Int -> IO Word64
+peekOffN (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 {-# INLINE peekOffN #-}
 
-peekOffD :: Stack 'UN -> Int -> IO Double
-peekOffD (US _ _ sp stk) i = readByteArray stk (sp - i)
+peekOffD :: Stack -> Int -> IO Double
+peekOffD (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 {-# INLINE peekOffD #-}
 
-pokeN :: Stack 'UN -> Word64 -> IO ()
-pokeN (US _ _ sp stk) n = writeByteArray stk sp n
+pokeN :: Stack -> Word64 -> IO ()
+pokeN (Stack _ _ sp ustk _) n = writeByteArray ustk sp n
 {-# INLINE pokeN #-}
 
-pokeD :: Stack 'UN -> Double -> IO ()
-pokeD (US _ _ sp stk) d = writeByteArray stk sp d
+pokeD :: Stack -> Double -> IO ()
+pokeD (Stack _ _ sp ustk _) d = writeByteArray ustk sp d
 {-# INLINE pokeD #-}
 
-pokeOffN :: Stack 'UN -> Int -> Word64 -> IO ()
-pokeOffN (US _ _ sp stk) i n = writeByteArray stk (sp - i) n
+pokeOffN :: Stack -> Int -> Word64 -> IO ()
+pokeOffN (Stack _ _ sp ustk _) i n = writeByteArray ustk (sp - i) n
 {-# INLINE pokeOffN #-}
 
-pokeOffD :: Stack 'UN -> Int -> Double -> IO ()
-pokeOffD (US _ _ sp stk) i d = writeByteArray stk (sp - i) d
+pokeOffD :: Stack -> Int -> Double -> IO ()
+pokeOffD (Stack _ _ sp ustk _) i d = writeByteArray ustk (sp - i) d
 {-# INLINE pokeOffD #-}
 
-pokeBi :: (BuiltinForeign b) => Stack 'BX -> b -> IO ()
-pokeBi bstk x = poke bstk (Foreign $ wrapBuiltin x)
+pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
+pokeBi stk x = bpoke stk (Foreign $ wrapBuiltin x)
 {-# INLINE pokeBi #-}
 
-pokeOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> b -> IO ()
-pokeOffBi bstk i x = pokeOff bstk i (Foreign $ wrapBuiltin x)
+pokeOffBi :: (BuiltinForeign b) => Stack -> Int -> b -> IO ()
+pokeOffBi stk i x = bpokeOff stk i (Foreign $ wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
 
-peekBi :: (BuiltinForeign b) => Stack 'BX -> IO b
-peekBi bstk = unwrapForeign . marshalToForeign <$> peek bstk
+peekBi :: (BuiltinForeign b) => Stack -> IO b
+peekBi stk = unwrapForeign . marshalToForeign <$> bpeek stk
 {-# INLINE peekBi #-}
 
-peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
-peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
+peekOffBi :: (BuiltinForeign b) => Stack -> Int -> IO b
+peekOffBi stk i = unwrapForeign . marshalToForeign <$> bpeekOff stk i
 {-# INLINE peekOffBi #-}
 
-peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
-peekOffS bstk i =
-  unwrapForeign . marshalToForeign <$> peekOff bstk i
+peekOffS :: Stack -> Int -> IO (Seq Closure)
+peekOffS stk i =
+  unwrapForeign . marshalToForeign <$> bpeekOff stk i
 {-# INLINE peekOffS #-}
 
-pokeS :: Stack 'BX -> Seq Closure -> IO ()
-pokeS bstk s = poke bstk (Foreign $ Wrap Ty.listRef s)
+pokeS :: Stack -> Seq Closure -> IO ()
+pokeS stk s = bpoke stk (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeS #-}
 
-pokeOffS :: Stack 'BX -> Int -> Seq Closure -> IO ()
-pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.listRef s)
+pokeOffS :: Stack -> Int -> Seq Closure -> IO ()
+pokeOffS stk i s = bpokeOff stk i (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeOffS #-}
 
-unull :: Seg 'UN
+unull :: USeg
 unull = byteArrayFromListN 0 ([] :: [Int])
 
-bnull :: Seg 'BX
+bnull :: BSeg
 bnull = fromListN 0 []
-
-instance Show (Stack 'BX) where
-  show (BS ap fp sp _) =
-    "BS " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
-
-instance Show (Stack 'UN) where
-  show (US ap fp sp _) =
-    "US " ++ show ap ++ " " ++ show fp ++ " " ++ show sp
 
 instance Show K where
   show k = "[" ++ go "" k
@@ -728,7 +742,7 @@ instance Show K where
       go com (Mark ua ba ps _ k) =
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
 
-frameView :: (MEM b) => (Show (Elem b)) => Stack b -> IO ()
+frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
   where
     fsz = fsize stk
@@ -746,22 +760,22 @@ frameView stk = putStr "|" >> gof False 0
           putStr . show =<< peekOff stk (fsz + n)
           goa True (n + 1)
 
-uscount :: Seg 'UN -> Int
+uscount :: USeg -> Int
 uscount seg = words $ sizeofByteArray seg
 
-bscount :: Seg 'BX -> Int
+bscount :: BSeg -> Int
 bscount seg = sizeofArray seg
 
 closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f = \case
-  PAp (CIx r _ _) _ _ cs ->
+  PAp (CIx r _ _) _ cs ->
     f r <> foldMap (closureTermRefs f) cs
   (DataB1 _ _ c) -> closureTermRefs f c
   (DataB2 _ _ c1 c2) ->
     closureTermRefs f c1 <> closureTermRefs f c2
   (DataUB _ _ _ c) ->
     closureTermRefs f c
-  (Captured k _ _ _ cs) ->
+  (Captured k _ _ cs) ->
     contTermRefs f k <> foldMap (closureTermRefs f) cs
   (Foreign fo)
     | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo ->
