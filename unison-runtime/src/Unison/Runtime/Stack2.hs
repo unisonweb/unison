@@ -62,11 +62,17 @@ module Unison.Runtime.Stack2
     dumpFP,
     alloc,
     peek,
+    upeek,
+    bpeek,
     peekOff,
+    upeekOff,
+    bpeekOff,
     poke,
     pokeOff,
     bpoke,
     bpokeOff,
+    upoke,
+    upokeOff,
     bump,
     bumpn,
     grab,
@@ -585,6 +591,17 @@ poke (Stack _ _ sp ustk bstk) (u, b) = do
   writeArray bstk sp b
 {-# INLINE poke #-}
 
+-- | Store an unboxed value and null out the boxed stack at that location, both so we know there's no value there,
+-- and so garbage collection can clean up any value that was referenced there.
+upoke :: Stack -> UElem -> IO ()
+upoke stk@(Stack _ _ sp ustk _) u = do
+  bpoke stk BlackHole
+  writeByteArray ustk sp u
+{-# INLINE upoke #-}
+
+-- | Store a boxed value.
+-- We don't bother nulling out the unboxed stack,
+-- it's extra work and there's nothing to garbage collect.
 bpoke :: Stack -> BElem -> IO ()
 bpoke (Stack _ _ sp _ bstk) b = writeArray bstk sp b
 {-# INLINE bpoke #-}
@@ -594,6 +611,12 @@ pokeOff (Stack _ _ sp ustk bstk) i (u, b) = do
   writeByteArray ustk (sp - i) u
   writeArray bstk (sp - i) b
 {-# INLINE pokeOff #-}
+
+upokeOff :: Stack -> Off -> UElem -> IO ()
+upokeOff stk i u = do
+  bpokeOff stk i BlackHole
+  writeByteArray (ustk stk) (sp stk - i) u
+{-# INLINE upokeOff #-}
 
 bpokeOff :: Stack -> Off -> BElem -> IO ()
 bpokeOff (Stack _ _ sp _ bstk) i b = writeArray bstk (sp - i) b
