@@ -215,13 +215,13 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
             -- NB: This uses a `CMarkCodeBlock` instead of `Unison`, because `Unison` doesn’t yet support the
             --     `:added-by-ucm` token. This should change with #5199.
             Q.undequeue inputQueue (Left $ CMarkCodeBlock Nothing ("unison :added-by-ucm " <> fp) contents, Nothing)
-        awaitInput
+        Cli.returnEarlyWithoutOutput
 
       processUcmLine p =
         case p of
           UcmComment {} -> do
             liftIO . outputUcm $ Transcript.formatUcmLine p
-            awaitInput
+            Cli.returnEarlyWithoutOutput
           UcmCommand context lineTxt -> do
             curPath <- Cli.getCurrentProjectPath
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
@@ -256,7 +256,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                 pure $ Right switchCommand
               Nothing -> do
                 case words . Text.unpack $ lineTxt of
-                  [] -> awaitInput
+                  [] -> Cli.returnEarlyWithoutOutput
                   args -> do
                     liftIO . outputUcm $ Transcript.formatUcmLine p <> "\n"
                     numberedArgs <- use #numberedArgs
@@ -271,11 +271,11 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                             liftIO (readIORef allowErrors) >>= \case
                               True -> do
                                 liftIO . outputUcm . Text.pack $ Pretty.toPlain terminalWidth msg
-                                awaitInput
+                                Cli.returnEarlyWithoutOutput
                               False -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
                         )
                         -- No input received from this line, try again.
-                        (maybe awaitInput $ pure . Right . snd)
+                        (maybe Cli.returnEarlyWithoutOutput $ pure . Right . snd)
 
       startProcessedBlock block = case block of
         Unison hide errOk filename txt -> do
@@ -287,21 +287,20 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           atomically . Q.enqueue cmdQueue $ Nothing
           let sourceName = fromMaybe "scratch.u" filename
           liftIO $ updateVirtualFile sourceName txt
-          pure $ Left (UnisonFileChanged sourceName txt)
+          pure . Left $ UnisonFileChanged sourceName txt
         API apiRequests -> do
-          liftIO $ do
-            contents <- traverse apiRequest apiRequests
+          liftIO $
             -- NB: This uses a `CMarkCodeBlock` instead of `API`, because `API` can’t yet contain API responses. This
             --     should change with #5199.
-            output . Left . CMarkCodeBlock Nothing "api" . Text.unlines $ fold contents
-          awaitInput
+            output . Left . CMarkCodeBlock Nothing "api" . Text.unlines . fold =<< traverse apiRequest apiRequests
+          Cli.returnEarlyWithoutOutput
         Ucm hide errOk cmds -> do
           liftIO (writeIORef hidden hide)
           liftIO (writeIORef allowErrors errOk)
           liftIO (writeIORef hasErrors False)
           traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
           atomically . Q.enqueue cmdQueue $ Nothing
-          awaitInput
+          Cli.returnEarlyWithoutOutput
 
       showStatus alwaysShow indicator msg = unless (not alwaysShow && Verbosity.isSilent verbosity) do
         clearCurrentLine
@@ -321,7 +320,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         either
           ( \node -> do
               liftIO . output $ Left node
-              awaitInput
+              Cli.returnEarlyWithoutOutput
           )
           ( \block -> do
               liftIO . writeIORef mBlock $ pure block
@@ -435,15 +434,12 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
   let loop :: Cli.LoopState -> IO (Seq Stanza)
       loop s0 = do
         Cli.runCli env s0 awaitInput >>= \case
-          (Cli.Success input, s1) -> do
-            let next s =
-                  loop case input of
-                    Left _ -> s
-                    Right inp -> s & #lastInput ?~ inp
-            Cli.runCli env s1 (HandleInput.loop input) >>= \case
-              (Cli.Success (), s2) -> next s2
-              (Cli.Continue, s2) -> next s2
-              (Cli.HaltRepl, _) -> onHalt
+          (Cli.Success input, s1) ->
+            let next s = loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
+             in Cli.runCli env s1 (HandleInput.loop input) >>= \case
+                  (Cli.Success (), s2) -> next s2
+                  (Cli.Continue, s2) -> next s2
+                  (Cli.HaltRepl, _) -> onHalt
           (Cli.Continue, s1) -> loop s1
           (Cli.HaltRepl, _) -> onHalt
         where
