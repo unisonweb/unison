@@ -91,7 +91,16 @@ jobs:
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
-        run: echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+        run: |
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+          case "$RUNNER_ARCH" in
+            X86) racket_arch=x86 ;;
+            X64) racket_arch=x64 ;;
+            ARM) racket_arch=arm32 ;;
+            ARM64) racket_arch=arm64 ;;
+            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
+          esac
+          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
       - name: download racket `unison` source
         uses: actions/checkout@v4
         with:
@@ -107,7 +116,7 @@ jobs:
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
       - uses: Bogdanp/setup-racket@v1.11
         with:
-          architecture: "x64"
+          architecture: ${{ env.racket_arch }}
           distribution: "full"
           variant: "CS"
           version: ${{env.racket_version}}
@@ -156,9 +165,19 @@ jobs:
           # This isn't right because unison.zip is going to include different dates each time.
           # Maybe we can unpack it and hash the contents.
           key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
+      - name: set up environment
+        run: |
+          case "$RUNNER_ARCH" in
+            X86) racket_arch=x86 ;;
+            X64) racket_arch=x64 ;;
+            ARM) racket_arch=arm32 ;;
+            ARM64) racket_arch=arm64 ;;
+            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
+          esac
+          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
       - uses: Bogdanp/setup-racket@v1.11
         with:
-          architecture: "x64"
+          architecture: ${{ env.racket_arch }}
           distribution: "full"
           variant: "CS"
           version: ${{env.racket_version}}
