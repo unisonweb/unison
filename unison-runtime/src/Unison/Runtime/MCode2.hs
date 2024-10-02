@@ -56,7 +56,7 @@ import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
-import Data.Vector.Unboxed qualified as UV
+import Data.Primitive.PrimArray qualified as PA
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -260,33 +260,22 @@ data Args'
 
 data Args
   = ZArgs
-  | UArg1 !Int
-  | UArg2 !Int !Int
-  | BArg1 !Int
-  | BArg2 !Int !Int
-  | DArg2 !Mem !Int {- first arg and type -} !Mem !Int {- second arg and type -}
-  | UArgR !Int !Int
-  | BArgR !Int !Int
-  | DArgN !(UV.Vector (Int, Mem))
-  | BArgN !(PrimArray Int)
-  | UArgN !(PrimArray Int)
-  | DArgV !Int !Int
+  | VArg1 !Int
+  | VArg2 !Int !Int
+  | VArgR !Int !Int
+  | VArgN {-# UNPACK #-} !(PrimArray Int)
+  | -- TODO: What do I do with this?
+    VArgV !Int !Int
   deriving (Show, Eq, Ord)
 
-argsToLists :: Args -> ([Int], [Mem])
+argsToLists :: Args -> [Int]
 argsToLists = \case
-  ZArgs -> ([], [])
-  UArg1 i -> ([i], [UN])
-  UArg2 i j -> ([i, j], [UN, UN])
-  BArg1 i -> ([i], [BX])
-  BArg2 i j -> ([i, j], [BX, BX])
-  UArgR i l -> (take l [i ..], replicate l UN)
-  BArgR i l -> (take l [i ..], replicate l BX)
-  DArg2 it i jt j -> ([i, j], [it, jt])
-  DArgN args -> bimap UV.toList UV.toList . UV.unzip $ args
-  BArgN bs -> unzip $ (,BX) <$> primArrayToList bs
-  UArgN us -> unzip $ (,UN) <$> primArrayToList us
-  DArgV _ _ -> internalBug "argsToLists: DArgV"
+  ZArgs -> []
+  VArg1 i -> [i]
+  VArg2 i j -> [i, j]
+  VArgR i l -> take l [i ..]
+  VArgN us -> primArrayToList us
+  VArgV _ _ -> internalBug "argsToLists: DArgV"
 
 data UPrim1
   = -- integral
@@ -912,8 +901,7 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
               <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
-  | Just (i, BX) <- ctxResolve ctx v = countCtx ctx . Yield $ BArg1 i
-  | Just (i, UN) <- ctxResolve ctx v = countCtx ctx . Yield $ UArg1 i
+  | Just (i, _) <- ctxResolve ctx v = countCtx ctx . Yield $ VArg1 i
   | Just j <- rctxResolve rec v =
       let cix = (CIx grpr grpn j)
        in countCtx ctx $ App False (Env cix cix) $ ZArgs
@@ -925,7 +913,7 @@ emitSection _ _ grpn _ ctx (TPrm p args) =
     . countCtx ctx
     . Ins (emitPOp p $ emitArgs grpn ctx args)
     . Yield
-    $ DArgV i j
+    $ VArgV i j
   where
     (i, j) = countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
@@ -933,7 +921,7 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     . countCtx ctx
     . Ins (emitFOp p $ emitArgs grpn ctx args)
     . Yield
-    $ DArgV i j
+    $ VArgV i j
   where
     (i, j) = countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
@@ -948,7 +936,7 @@ emitSection _ _ _ _ ctx (TLit l) =
       | ANF.LY {} <- l = addCount 0 1
       | otherwise = addCount 1 0
 emitSection _ _ _ _ ctx (TBLit l) =
-  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ BArg1 0
+  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ VArg1 0
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
@@ -1057,7 +1045,7 @@ emitFunction rns _grpr _ _ _ (FComb r) as
 emitFunction rns _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
-    $ BArg1 0
+    $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _grpr _ _ _ (FReq r e) as =
@@ -1066,7 +1054,7 @@ emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- more than 2^16 types.
   Ins (Pack r (packTags rt e) as)
     . App True (Dyn a)
-    $ BArg1 0
+    $ VArg1 0
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
@@ -1107,11 +1095,12 @@ emitFunctionVErr v =
   internalBug $
     "emitFunction: could not resolve function variable: " ++ show v
 
+-- | TODO: Can remove this
 litArg :: ANF.Lit -> Args
-litArg ANF.T {} = BArg1 0
-litArg ANF.LM {} = BArg1 0
-litArg ANF.LY {} = BArg1 0
-litArg _ = UArg1 0
+litArg ANF.T {} = VArg1 0
+litArg ANF.LM {} = VArg1 0
+litArg ANF.LY {} = VArg1 0
+litArg _ = VArg1 0
 
 -- Emit machine code for a let expression. Some expressions do not
 -- require a machine code Let, which uses more complicated stack
@@ -1292,19 +1281,19 @@ emitPOp ANF.DBTX = emitBP1 DBTX
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
-  BArg1 i -> Fork i
+  VArg1 i -> Fork i
   _ -> internalBug "fork takes exactly one boxed argument"
 emitPOp ANF.ATOM = \case
-  BArg1 i -> Atomically i
+  VArg1 i -> Atomically i
   _ -> internalBug "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
-  BArg1 i -> Print i
+  VArg1 i -> Print i
   _ -> internalBug "print takes exactly one boxed argument"
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
   _ -> internalBug "info takes no arguments"
 emitPOp ANF.TFRC = \case
-  BArg1 i -> TryForce i
+  VArg1 i -> TryForce i
   _ -> internalBug "tryEval takes exactly one boxed argument"
 
 -- handled in emitSection because Die is not an instruction
@@ -1319,31 +1308,28 @@ emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 -- Helper functions for packing the variable argument representation
 -- into the indexes stored in prim op instructions
 emitP1 :: UPrim1 -> Args -> Instr
-emitP1 p (UArg1 i) = UPrim1 p i
+emitP1 p (VArg1 i) = UPrim1 p i
 emitP1 p a =
   internalBug $
     "wrong number of args for unary unboxed primop: "
       ++ show (p, a)
 
 emitP2 :: UPrim2 -> Args -> Instr
-emitP2 p (UArg2 i j) = UPrim2 p i j
+emitP2 p (VArg2 i j) = UPrim2 p i j
 emitP2 p a =
   internalBug $
     "wrong number of args for binary unboxed primop: "
       ++ show (p, a)
 
 emitBP1 :: BPrim1 -> Args -> Instr
-emitBP1 p (UArg1 i) = BPrim1 p i
-emitBP1 p (BArg1 i) = BPrim1 p i
+emitBP1 p (VArg1 i) = BPrim1 p i
 emitBP1 p a =
   internalBug $
     "wrong number of args for unary boxed primop: "
       ++ show (p, a)
 
 emitBP2 :: BPrim2 -> Args -> Instr
-emitBP2 p (UArg2 i j) = BPrim2 p i j
-emitBP2 p (BArg2 i j) = BPrim2 p i j
-emitBP2 p (DArg2 _ i _ j) = BPrim2 p i j
+emitBP2 p (VArg2 i j) = BPrim2 p i j
 emitBP2 p a =
   internalBug $
     "wrong number of args for binary boxed primop: "
@@ -1527,14 +1513,9 @@ emitArgs grpn ctx args
 demuxArgs :: [(Int, Mem)] -> Args
 demuxArgs = \case
   [] -> ZArgs
-  [(i, UN)] -> UArg1 i
-  [(i, BX)] -> BArg1 i
-  [(i, UN), (j, UN)] -> UArg2 i j
-  [(i, BX), (j, BX)] -> BArg2 i j
-  args
-    | all ((== BX) . snd) args -> BArgN $ primArrayFromList (fst <$> args)
-    | all ((== UN) . snd) args -> UArgN $ primArrayFromList (fst <$> args)
-    | otherwise -> DArgN $ UV.fromList args
+  [(i, _)] -> VArg1 i
+  [(i, _), (j, _)] -> VArg2 i j
+  args -> VArgN $ PA.primArrayFromList (fst <$> args)
 
 combDeps :: GComb clos comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s

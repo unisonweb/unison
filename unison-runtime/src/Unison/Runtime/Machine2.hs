@@ -221,7 +221,7 @@ topDEnv _ _ _ = (mempty, id)
 -- This is the entry point actually used in the interactive
 -- environment currently.
 apply0 ::
-  Maybe (Stack 'UN -> Stack 'BX -> IO ()) ->
+  Maybe (Stack -> IO ()) ->
   CCache ->
   ActiveThreads ->
   Word64 ->
@@ -246,7 +246,7 @@ apply0 !callback !env !threadTracker !i = do
 -- Apply helper currently used for forking. Creates the new stacks
 -- necessary to evaluate a closure with the provided information.
 apply1 ::
-  (Stack 'UN -> Stack 'BX -> IO ()) ->
+  (Stack -> IO ()) ->
   CCache ->
   ActiveThreads ->
   Closure ->
@@ -263,7 +263,7 @@ apply1 callback env threadTracker clo = do
 -- The continuation must be from an evaluation context expecting a
 -- unit value.
 jump0 ::
-  (Stack 'UN -> Stack 'BX -> IO ()) ->
+  (Stack -> IO ()) ->
   CCache ->
   ActiveThreads ->
   Closure ->
@@ -298,12 +298,11 @@ exec ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Reference ->
   MInstr ->
-  IO (DEnv, Stack 'UN, Stack 'BX, K)
+  IO (DEnv, Stack, K)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Info tx) = do
   info tx ustk
   info tx bstk
@@ -583,10 +582,9 @@ exec !env !denv !activeThreads !ustk !bstk !k _ (TryForce i)
 {-# INLINE exec #-}
 
 encodeExn ::
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   Either SomeException () ->
-  IO (Stack 'BX)
+  IO Stack
 encodeExn ustk bstk (Right _) = bstk <$ poke ustk 1
 encodeExn ustk bstk (Left exn) = do
   bstk <- bumpn bstk 2
@@ -628,8 +626,7 @@ eval ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Reference ->
   MSection ->
@@ -658,7 +655,7 @@ eval !env !denv !activeThreads !ustk !bstk !k r (RMatch i pu br) = do
         | otherwise -> unhandledErr "eval" env e
 eval !env !denv !activeThreads !ustk !bstk !k _ (Yield args)
   | asize ustk + asize bstk > 0,
-    BArg1 i <- args =
+    VArg1 i <- args =
       peekOff bstk i >>= apply env denv activeThreads ustk bstk k False ZArgs
   | otherwise = do
       (ustk, bstk) <- moveArgs ustk bstk args
@@ -701,8 +698,8 @@ forkEval env activeThreads clo =
     trackThread threadId
     pure threadId
   where
-    err :: Stack 'UN -> Stack 'BX -> IO ()
-    err _ _ = pure ()
+    err :: Stack -> IO ()
+    err _ = pure ()
     trackThread :: ThreadId -> IO ()
     trackThread threadID = do
       case activeThreads of
@@ -733,8 +730,7 @@ enter ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Bool ->
   Args ->
@@ -759,9 +755,9 @@ enter !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
-name :: Stack 'UN -> Stack 'BX -> Args -> Closure -> IO (Stack 'BX)
+name :: Stack -> Args -> Closure -> IO Stack
 name !ustk !bstk !args clo = case clo of
-  PAp cix comb useg bseg -> do
+  PAp cix comb seg -> do
     (useg, bseg) <- closeArgs I ustk bstk useg bseg args
     bstk <- bump bstk
     poke bstk $ PAp cix comb useg bseg
@@ -774,15 +770,14 @@ apply ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Bool ->
   Args ->
   Closure ->
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
-  (PAp cix@(CIx combRef _ _) comb useg bseg) ->
+  (PAp cix@(CIx combRef _ _) comb seg) ->
     case unRComb comb of
       CachedClosure _cix clos -> do
         zeroArgClosure clos
@@ -824,14 +819,13 @@ jump ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Args ->
   Closure ->
   IO ()
 jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
-  Captured sk0 ua ba useg bseg -> do
+  Captured sk0 ua ba seg -> do
     let (up, bp, sk) = adjust sk0
     (useg, bseg) <- closeArgs K ustk bstk useg bseg args
     ustk <- discardFrame ustk
@@ -859,8 +853,7 @@ jump !env !denv !activeThreads !ustk !bstk !k !args clo = case clo of
 repush ::
   CCache ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   DEnv ->
   K ->
   K ->
@@ -878,15 +871,14 @@ repush !env !activeThreads !ustk !bstk = go
 {-# INLINE repush #-}
 
 moveArgs ::
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   Args ->
-  IO (Stack 'UN, Stack 'BX)
+  IO Stack
 moveArgs !ustk !bstk ZArgs = do
   ustk <- discardFrame ustk
   bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArgV i j) = do
+moveArgs !ustk !bstk (VArgV i j) = do
   ustk <-
     if ul > 0
       then prepareArgs ustk (ArgR 0 ul)
@@ -899,107 +891,100 @@ moveArgs !ustk !bstk (DArgV i j) = do
   where
     ul = fsize ustk - i
     bl = fsize bstk - j
-moveArgs !ustk !bstk (UArg1 i) = do
+moveArgs !ustk !bstk (VArg1 i) = do
   ustk <- prepareArgs ustk (Arg1 i)
   bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk (UArg2 i j) = do
+moveArgs !ustk !bstk (VArg2 i j) = do
   ustk <- prepareArgs ustk (Arg2 i j)
   bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk (UArgR i l) = do
+moveArgs !ustk !bstk (VArgR i l) = do
   ustk <- prepareArgs ustk (ArgR i l)
   bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArg1 i) = do
+moveArgs !ustk !bstk (VArg1 i) = do
   ustk <- discardFrame ustk
   bstk <- prepareArgs bstk (Arg1 i)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArg2 i j) = do
+moveArgs !ustk !bstk (VArg2 i j) = do
   ustk <- discardFrame ustk
   bstk <- prepareArgs bstk (Arg2 i j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArgR i l) = do
+moveArgs !ustk !bstk (VArgR i l) = do
   ustk <- discardFrame ustk
   bstk <- prepareArgs bstk (ArgR i l)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArg2 i j) = do
+moveArgs !ustk !bstk (VArg2 i j) = do
   ustk <- prepareArgs ustk (Arg1 i)
   bstk <- prepareArgs bstk (Arg1 j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (UArgN as) = do
+moveArgs !ustk !bstk (VArgN as) = do
   ustk <- prepareArgs ustk (ArgN as)
   bstk <- discardFrame bstk
   pure (ustk, bstk)
-moveArgs !ustk !bstk (BArgN as) = do
+moveArgs !ustk !bstk (VArgN as) = do
   ustk <- discardFrame ustk
   bstk <- prepareArgs bstk (ArgN as)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArgN us bs) = do
+moveArgs !ustk !bstk (VArgN as) = do
   ustk <- prepareArgs ustk (ArgN us)
   bstk <- prepareArgs bstk (ArgN bs)
   pure (ustk, bstk)
 {-# INLINE moveArgs #-}
 
-closureArgs :: Stack 'BX -> Args -> IO [Closure]
+closureArgs :: Stack -> Args -> IO [Closure]
 closureArgs !_ ZArgs = pure []
-closureArgs !bstk (BArg1 i) = do
+closureArgs !bstk (VArg1 i) = do
   x <- peekOff bstk i
   pure [x]
-closureArgs !bstk (BArg2 i j) = do
+closureArgs !bstk (VArg2 i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   pure [x, y]
-closureArgs !bstk (BArgR i l) =
+closureArgs !bstk (VArgR i l) =
   for (take l [i ..]) (peekOff bstk)
-closureArgs !bstk (BArgN bs) =
+closureArgs !bstk (VArgN bs) =
   for (PA.primArrayToList bs) (peekOff bstk)
 closureArgs !_ _ =
   error "closure arguments can only be boxed."
 {-# INLINE closureArgs #-}
 
 buildData ::
-  Stack 'UN -> Stack 'BX -> Reference -> Tag -> Args -> IO Closure
+  Stack -> Reference -> Tag -> Args -> IO Closure
 buildData !_ !_ !r !t ZArgs = pure $ Enum r t
-buildData !ustk !_ !r !t (UArg1 i) = do
+buildData !ustk !_ !r !t (VArg1 i) = do
   x <- peekOff ustk i
   pure $ DataU1 r t x
-buildData !ustk !_ !r !t (UArg2 i j) = do
+buildData !ustk !_ !r !t (VArg2 i j) = do
   x <- peekOff ustk i
   y <- peekOff ustk j
   pure $ DataU2 r t x y
-buildData !_ !bstk !r !t (BArg1 i) = do
+buildData !_ !bstk !r !t (VArg1 i) = do
   x <- peekOff bstk i
   pure $ DataB1 r t x
-buildData !_ !bstk !r !t (BArg2 i j) = do
+buildData !_ !bstk !r !t (VArg2 i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   pure $ DataB2 r t x y
-buildData !ustk !bstk !r !t (DArg2 i j) = do
+buildData !ustk !bstk !r !t (VArg2 i j) = do
   x <- peekOff ustk i
   y <- peekOff bstk j
   pure $ DataUB r t x y
-buildData !ustk !_ !r !t (UArgR i l) = do
+buildData !ustk !_ !r !t (VArgR i l) = do
   useg <- augSeg I ustk unull (Just $ ArgR i l)
   pure $ DataG r t useg bnull
-buildData !_ !bstk !r !t (BArgR i l) = do
+buildData !_ !bstk !r !t (VArgR i l) = do
   bseg <- augSeg I bstk bnull (Just $ ArgR i l)
   pure $ DataG r t unull bseg
-buildData !ustk !bstk !r !t (DArgR ui ul bi bl) = do
-  useg <- augSeg I ustk unull (Just $ ArgR ui ul)
-  bseg <- augSeg I bstk bnull (Just $ ArgR bi bl)
-  pure $ DataG r t useg bseg
-buildData !ustk !_ !r !t (UArgN as) = do
+buildData !ustk !_ !r !t (VArgN as) = do
   useg <- augSeg I ustk unull (Just $ ArgN as)
   pure $ DataG r t useg bnull
-buildData !_ !bstk !r !t (BArgN as) = do
-  bseg <- augSeg I bstk bnull (Just $ ArgN as)
-  pure $ DataG r t unull bseg
-buildData !ustk !bstk !r !t (DArgN us bs) = do
+buildData !ustk !bstk !r !t (VArgN as) = do
   useg <- augSeg I ustk unull (Just $ ArgN us)
   bseg <- augSeg I bstk bnull (Just $ ArgN bs)
   pure $ DataG r t useg bseg
-buildData !ustk !bstk !r !t (DArgV ui bi) = do
+buildData !ustk !bstk !r !t (VArgV ui bi) = do
   useg <-
     if ul > 0
       then augSeg I ustk unull (Just $ ArgR 0 ul)
@@ -1018,10 +1003,9 @@ buildData !ustk !bstk !r !t (DArgV ui bi) = do
 -- Instead, the tag is returned for direct case analysis.
 dumpDataNoTag ::
   Maybe Reference ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   Closure ->
-  IO (Word64, Stack 'UN, Stack 'BX)
+  IO (Word64, Stack)
 dumpDataNoTag !_ !ustk !bstk (Enum _ t) = pure (t, ustk, bstk)
 dumpDataNoTag !_ !ustk !bstk (DataU1 _ t x) = do
   ustk <- bump ustk
@@ -1047,7 +1031,7 @@ dumpDataNoTag !_ !ustk !bstk (DataUB _ t x y) = do
   poke ustk x
   poke bstk y
   pure (t, ustk, bstk)
-dumpDataNoTag !_ !ustk !bstk (DataG _ t us bs) = do
+dumpDataNoTag !_ !ustk !bstk (DataG _ t seg) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   pure (t, ustk, bstk)
@@ -1060,10 +1044,9 @@ dumpDataNoTag !mr !_ !_ clo =
 
 dumpData ::
   Maybe Reference ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   Closure ->
-  IO (Stack 'UN, Stack 'BX)
+  IO Stack
 dumpData !_ !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
   pokeN ustk $ maskTags t
@@ -1099,7 +1082,7 @@ dumpData !_ !ustk !bstk (DataUB _ t x y) = do
   poke bstk y
   pokeN ustk $ maskTags t
   pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataG _ t us bs) = do
+dumpData !_ !ustk !bstk (DataG _ t seg) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
@@ -1118,31 +1101,25 @@ dumpData !mr !_ !_ clo =
 -- only grab a certain number of arguments.
 closeArgs ::
   Augment ->
-  Stack 'UN ->
-  Stack 'BX ->
-  Seg 'UN ->
-  Seg 'BX ->
+  Stack ->
+  Seg ->
   Args ->
-  IO (Seg 'UN, Seg 'BX)
-closeArgs mode !ustk !bstk !useg !bseg args =
-  (,)
-    <$> augSeg mode ustk useg uargs
-    <*> augSeg mode bstk bseg bargs
+  IO Seg
+closeArgs mode !bstk !(useg, bseg) args = augSeg mode stk seg args
   where
     (uargs, bargs) = case args of
+      -- TODO:
       ZArgs -> (Nothing, Nothing)
-      UArg1 i -> (Just $ Arg1 i, Nothing)
-      BArg1 i -> (Nothing, Just $ Arg1 i)
-      UArg2 i j -> (Just $ Arg2 i j, Nothing)
-      BArg2 i j -> (Nothing, Just $ Arg2 i j)
-      UArgR i l -> (Just $ ArgR i l, Nothing)
-      BArgR i l -> (Nothing, Just $ ArgR i l)
-      DArg2 i j -> (Just $ Arg1 i, Just $ Arg1 j)
-      DArgR ui ul bi bl -> (Just $ ArgR ui ul, Just $ ArgR bi bl)
-      UArgN as -> (Just $ ArgN as, Nothing)
-      BArgN as -> (Nothing, Just $ ArgN as)
-      DArgN us bs -> (Just $ ArgN us, Just $ ArgN bs)
-      DArgV ui bi -> (ua, ba)
+      VArg1 i -> (Just $ Arg1 i, Nothing)
+      VArg1 i -> (Nothing, Just $ Arg1 i)
+      VArg2 i j -> (Just $ Arg2 i j, Nothing)
+      VArg2 i j -> (Nothing, Just $ Arg2 i j)
+      VArgR i l -> (Just $ ArgR i l, Nothing)
+      VArgR i l -> (Nothing, Just $ ArgR i l)
+      VArg2 i j -> (Just $ Arg1 i, Just $ Arg1 j)
+      VArgN as -> (Just $ ArgN as, Nothing)
+      VArgN as -> (Nothing, Just $ ArgN as)
+      VArgV ui bi -> (ua, ba)
         where
           ua
             | ul > 0 = Just $ ArgR 0 ul
@@ -1153,14 +1130,14 @@ closeArgs mode !ustk !bstk !useg !bseg args =
           ul = fsize ustk - ui
           bl = fsize bstk - bi
 
-peekForeign :: Stack 'BX -> Int -> IO a
+peekForeign :: Stack -> Int -> IO a
 peekForeign bstk i =
-  peekOff bstk i >>= \case
+  bpeekOff bstk i >>= \case
     Foreign x -> pure $ unwrapForeign x
     _ -> die "bad foreign argument"
 {-# INLINE peekForeign #-}
 
-uprim1 :: Stack 'UN -> UPrim1 -> Int -> IO (Stack 'UN)
+uprim1 :: Stack -> UPrim1 -> Int -> IO Stack
 uprim1 !ustk DECI !i = do
   m <- peekOff ustk i
   ustk <- bump ustk
@@ -1313,7 +1290,7 @@ uprim1 !ustk COMN !i = do
   pure ustk
 {-# INLINE uprim1 #-}
 
-uprim2 :: Stack 'UN -> UPrim2 -> Int -> Int -> IO (Stack 'UN)
+uprim2 :: Stack -> UPrim2 -> Int -> Int -> IO Stack
 uprim2 !ustk ADDI !i !j = do
   m <- peekOff ustk i
   n <- peekOff ustk j
@@ -1485,11 +1462,10 @@ uprim2 !ustk XORN !i !j = do
 {-# INLINE uprim2 #-}
 
 bprim1 ::
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   BPrim1 ->
   Int ->
-  IO (Stack 'UN, Stack 'BX)
+  IO Stack
 bprim1 !ustk !bstk SIZT i = do
   t <- peekOffBi bstk i
   ustk <- bump ustk
@@ -1661,12 +1637,11 @@ bprim1 !ustk !bstk SDBL _ = pure (ustk, bstk)
 {-# INLINE bprim1 #-}
 
 bprim2 ::
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   BPrim2 ->
   Int ->
   Int ->
-  IO (Stack 'UN, Stack 'BX)
+  IO Stack
 bprim2 !ustk !bstk EQLU i j = do
   x <- peekOff bstk i
   y <- peekOff bstk j
@@ -1870,8 +1845,7 @@ yield ::
   CCache ->
   DEnv ->
   ActiveThreads ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   IO ()
 yield !env !denv !activeThreads !ustk !bstk !k = leap denv k
@@ -1924,11 +1898,10 @@ selectBranch _ (TestT {}) = error "impossible"
 -- region, so those are restored in the `finish` function.
 splitCont ::
   DEnv ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Word64 ->
-  IO (Closure, DEnv, Stack 'UN, Stack 'BX, K)
+  IO (Closure, DEnv, Stack, K)
 splitCont !denv !ustk !bstk !k !p =
   walk denv uasz basz KE k
   where
@@ -1962,17 +1935,16 @@ splitCont !denv !ustk !bstk !k !p =
 
 discardCont ::
   DEnv ->
-  Stack 'UN ->
-  Stack 'BX ->
+  Stack ->
   K ->
   Word64 ->
-  IO (DEnv, Stack 'UN, Stack 'BX, K)
+  IO (DEnv, Stack, K)
 discardCont denv ustk bstk k p =
   splitCont denv ustk bstk k p
     <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
 {-# INLINE discardCont #-}
 
-resolve :: CCache -> DEnv -> Stack 'BX -> MRef -> IO Closure
+resolve :: CCache -> DEnv -> Stack -> MRef -> IO Closure
 resolve _ _ _ (Env cix rComb) = pure $ PAp cix rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
