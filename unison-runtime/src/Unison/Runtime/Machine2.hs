@@ -927,10 +927,6 @@ moveArgs !ustk !bstk (DArg2 i j) = do
   ustk <- prepareArgs ustk (Arg1 i)
   bstk <- prepareArgs bstk (Arg1 j)
   pure (ustk, bstk)
-moveArgs !ustk !bstk (DArgR ui ul bi bl) = do
-  ustk <- prepareArgs ustk (ArgR ui ul)
-  bstk <- prepareArgs bstk (ArgR bi bl)
-  pure (ustk, bstk)
 moveArgs !ustk !bstk (UArgN as) = do
   ustk <- prepareArgs ustk (ArgN as)
   bstk <- discardFrame bstk

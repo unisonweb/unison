@@ -267,41 +267,26 @@ data Args
   | DArg2 !Mem !Int {- first arg and type -} !Mem !Int {- second arg and type -}
   | UArgR !Int !Int
   | BArgR !Int !Int
-  | DArgN !(UV.Vector (Mem, Int))
+  | DArgN !(UV.Vector (Int, Mem))
   | BArgN !(PrimArray Int)
   | UArgN !(PrimArray Int)
   | DArgV !Int !Int
   deriving (Show, Eq, Ord)
 
--- | TODO: come back and try to remove this wrapper
--- once everything is compiling and running.
-data ArgT = UArg | BArg
-  deriving (Show, Eq, Ord)
-
-argsToLists :: Args -> ([ArgT], [Int])
+argsToLists :: Args -> ([Int], [Mem])
 argsToLists = \case
-  ZArgs -> []
-  UArg1 i -> ([UArg], [i])
-  UArg2 i j -> ([UArg, UArg], [i, j])
-  BArg1 i -> ([BArg], [i])
-  BArg2 i j -> ([BArg, BArg], [i, j])
-  UArgR i l -> (replicate l UArg, take l [i ..])
-  BArgR i l -> (replicate l BArg, take l [i ..])
+  ZArgs -> ([], [])
+  UArg1 i -> ([i], [UN])
+  UArg2 i j -> ([i, j], [UN, UN])
+  BArg1 i -> ([i], [BX])
+  BArg2 i j -> ([i, j], [BX, BX])
+  UArgR i l -> (take l [i ..], replicate l UN)
+  BArgR i l -> (take l [i ..], replicate l BX)
+  DArg2 it i jt j -> ([i, j], [it, jt])
   DArgN args -> bimap UV.toList UV.toList . UV.unzip $ args
-
--- argsToLists ZArgs = ([], [])
--- argsToLists (UArg1 i) = ([i], [])
--- argsToLists (UArg2 i j) = ([i, j], [])
--- argsToLists (BArg1 i) = ([], [i])
--- argsToLists (BArg2 i j) = ([], [i, j])
--- argsToLists (DArg2 i j) = ([i], [j])
--- argsToLists (UArgR i l) = (take l [i ..], [])
--- argsToLists (BArgR i l) = ([], take l [i ..])
--- argsToLists (DArgR ui ul bi bl) = (take ul [ui ..], take bl [bi ..])
--- argsToLists (BArgN bs) = ([], primArrayToList bs)
--- argsToLists (UArgN us) = (primArrayToList us, [])
--- argsToLists (DArgN us bs) = (primArrayToList us, primArrayToList bs)
--- argsToLists (DArgV _ _) = internalBug "argsToLists: DArgV"
+  BArgN bs -> unzip $ (,BX) <$> primArrayToList bs
+  UArgN us -> unzip $ (,UN) <$> primArrayToList us
+  DArgV _ _ -> internalBug "argsToLists: DArgV"
 
 data UPrim1
   = -- integral
@@ -1549,7 +1534,7 @@ demuxArgs = \case
   args
     | all ((== BX) . snd) args -> BArgN $ primArrayFromList (fst <$> args)
     | all ((== UN) . snd) args -> UArgN $ primArrayFromList (fst <$> args)
-    | otherwise -> DArgN $ _
+    | otherwise -> DArgN $ UV.fromList args
 
 combDeps :: GComb clos comb -> [Word64]
 combDeps (Lam _ _ _ _ s) = sectionDeps s
