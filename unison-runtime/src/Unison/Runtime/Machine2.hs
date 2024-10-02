@@ -34,7 +34,8 @@ import Unison.Reference
     toShortHash,
   )
 import Unison.Referent (Referent, pattern Con, pattern Ref)
-import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF2 as ANF
   ( CompileExn (..),
     SuperGroup,
     foldGroupLinks,
@@ -42,7 +43,6 @@ import Unison.Runtime.ANF as ANF
     packTags,
     valueLinks,
   )
-import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin2
 import Unison.Runtime.Exception2
@@ -584,32 +584,32 @@ encodeExn stk exc = do
     Right () -> do
       stk <- bump stk
       stk <$ poke stk 1
-    Left e -> do
+    Left exn -> do
       stk <- bumpn stk 4
       upoke stk 0
       bpoke stk $ Foreign (Wrap Rf.typeLinkRef link)
       pokeOffBi stk 1 msg
       stk <$ bpokeOff stk 2 extra
-  where
-    disp e = Util.Text.pack $ show e
-    (link, msg, extra)
-      | Just (ioe :: IOException) <- fromException exn =
-          (Rf.ioFailureRef, disp ioe, unitValue)
-      | Just re <- fromException exn = case re of
-          PE _stk msg ->
-            (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
-          BU _ tx cl -> (Rf.runtimeFailureRef, Util.Text.fromText tx, cl)
-      | Just (ae :: ArithException) <- fromException exn =
-          (Rf.arithmeticFailureRef, disp ae, unitValue)
-      | Just (nae :: NestedAtomically) <- fromException exn =
-          (Rf.stmFailureRef, disp nae, unitValue)
-      | Just (be :: BlockedIndefinitelyOnSTM) <- fromException exn =
-          (Rf.stmFailureRef, disp be, unitValue)
-      | Just (be :: BlockedIndefinitelyOnMVar) <- fromException exn =
-          (Rf.ioFailureRef, disp be, unitValue)
-      | Just (ie :: AsyncException) <- fromException exn =
-          (Rf.threadKilledFailureRef, disp ie, unitValue)
-      | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
+      where
+        disp e = Util.Text.pack $ show e
+        (link, msg, extra)
+          | Just (ioe :: IOException) <- fromException exn =
+              (Rf.ioFailureRef, disp ioe, unitValue)
+          | Just re <- fromException exn = case re of
+              PE _stk msg ->
+                (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
+              BU _ tx cl -> (Rf.runtimeFailureRef, Util.Text.fromText tx, cl)
+          | Just (ae :: ArithException) <- fromException exn =
+              (Rf.arithmeticFailureRef, disp ae, unitValue)
+          | Just (nae :: NestedAtomically) <- fromException exn =
+              (Rf.stmFailureRef, disp nae, unitValue)
+          | Just (be :: BlockedIndefinitelyOnSTM) <- fromException exn =
+              (Rf.stmFailureRef, disp be, unitValue)
+          | Just (be :: BlockedIndefinitelyOnMVar) <- fromException exn =
+              (Rf.ioFailureRef, disp be, unitValue)
+          | Just (ie :: AsyncException) <- fromException exn =
+              (Rf.threadKilledFailureRef, disp ie, unitValue)
+          | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 numValue :: Maybe Reference -> Closure -> IO Word64
 numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
@@ -672,14 +672,13 @@ eval !env !denv !activeThreads !stk !k r (Let nw cix f sect) = do
     env
     denv
     activeThreads
-    ustk
-    bstk
+    stk
     (Push fsz asz cix f sect k)
     r
     nw
 eval !env !denv !activeThreads !stk !k r (Ins i nx) = do
-  (denv, stk, k) <- exec env denv activeThreads ustk bstk k r i
-  eval env denv activeThreads ustk bstk k r nx
+  (denv, stk, k) <- exec env denv activeThreads stk k r i
+  eval env denv activeThreads stk k r nx
 eval !_ !_ !_ !_activeThreads !_ _ Exit = pure ()
 eval !_ !_ !_ !_activeThreads !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
@@ -751,10 +750,10 @@ enter !env !denv !activeThreads !stk !k !ck !args = \case
 name :: Stack -> Args -> Closure -> IO Stack
 name !stk !args clo = case clo of
   PAp cix comb seg -> do
-    (useg, bseg) <- closeArgs I ustk bstk useg bseg args
-    bstk <- bump bstk
-    poke bstk $ PAp cix comb useg bseg
-    pure bstk
+    seg <- closeArgs I stk seg args
+    stk <- bump stk
+    bpoke stk $ PAp cix comb seg
+    pure stk
   _ -> die $ "naming non-function: " ++ show clo
 {-# INLINE name #-}
 
@@ -775,7 +774,7 @@ apply !env !denv !activeThreads !stk !k !ck !args = \case
       CachedClosure _cix clos -> do
         zeroArgClosure clos
       Lam a f entry
-        | ck || ua <= uac && ba <= bac -> do
+        | ck || a <= ac -> do
             stk <- ensure stk f
             stk <- moveArgs stk args
             stk <- dumpSeg stk seg A
@@ -788,19 +787,17 @@ apply !env !denv !activeThreads !stk !k !ck !args = \case
             bpoke stk $ PAp cix comb seg
             yield env denv activeThreads stk k
     where
-      uac = asize ustk + ucount args + uscount useg
-      bac = asize bstk + bcount args + bscount bseg
+      ac = asize stk + countArgs args + scount seg
   clo -> zeroArgClosure clo
   where
+    zeroArgClosure :: Closure -> IO ()
     zeroArgClosure clo
       | ZArgs <- args,
-        asize ustk == 0,
-        asize bstk == 0 = do
-          ustk <- discardFrame ustk
-          bstk <- discardFrame bstk
-          bstk <- bump bstk
-          poke bstk clo
-          yield env denv activeThreads ustk bstk k
+        asize stk == 0 = do
+          stk <- discardFrame stk
+          stk <- bump stk
+          bpoke stk clo
+          yield env denv activeThreads stk k
       | otherwise = die $ "applying non-function: " ++ show clo
 {-# INLINE apply #-}
 
@@ -814,16 +811,13 @@ jump ::
   Closure ->
   IO ()
 jump !env !denv !activeThreads !stk !k !args clo = case clo of
-  Captured sk0 ua ba seg -> do
-    let (up, bp, sk) = adjust sk0
-    (useg, bseg) <- closeArgs K ustk bstk useg bseg args
-    ustk <- discardFrame ustk
-    bstk <- discardFrame bstk
-    ustk <- dumpSeg ustk useg $ F (ucount args) ua
-    bstk <- dumpSeg bstk bseg $ F (bcount args) ba
-    ustk <- adjustArgs ustk up
-    bstk <- adjustArgs bstk bp
-    repush env activeThreads ustk bstk denv sk k
+  Captured sk0 a seg -> do
+    let (p, sk) = adjust sk0
+    seg <- closeArgs K stk seg args
+    stk <- discardFrame stk
+    stk <- dumpSeg stk seg $ F (countArgs args) a
+    stk <- adjustArgs stk p
+    repush env activeThreads stk denv sk k
   _ -> die "jump: non-cont"
   where
     -- Adjusts a repushed continuation to account for pending arguments. If
@@ -831,7 +825,8 @@ jump !env !denv !activeThreads !stk !k !args clo = case clo of
     -- record the additional pending arguments.
     --
     -- If the repushed continuation has no frames, then the arguments are still
-    -- pending, and the result stacks need to be adjusted. Hence the 3 results.
+    -- pending, and the result stacks need to be adjusted.
+    adjust :: K -> (SZ, K)
     adjust (Mark a rs denv k) =
       (0, Mark (a + asize stk) rs denv k)
     adjust (Push n a cix f rsect k) =
@@ -849,8 +844,8 @@ repush ::
   IO ()
 repush !env !activeThreads !stk = go
   where
-    go !denv KE !k = yield env denv activeThreads ustk bstk k
-    go !denv (Mark a ps cs sk) !k = go denv' sk $ Mark ua ba ps cs' k
+    go !denv KE !k = yield env denv activeThreads stk k
+    go !denv (Mark a ps cs sk) !k = go denv' sk $ Mark a ps cs' k
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
@@ -859,67 +854,40 @@ repush !env !activeThreads !stk = go
     go !_ (CB _) !_ = die "repush: impossible"
 {-# INLINE repush #-}
 
+-- TODO: Double-check this one
 moveArgs ::
   Stack ->
   Args ->
   IO Stack
 moveArgs !stk ZArgs = do
-  ustk <- discardFrame ustk
-  bstk <- discardFrame bstk
-  pure (ustk, bstk)
-moveArgs !stk (VArgV i j) = do
-  ustk <-
-    if ul > 0
-      then prepareArgs ustk (ArgR 0 ul)
-      else discardFrame ustk
-  bstk <-
-    if bl > 0
-      then prepareArgs bstk (ArgR 0 bl)
-      else discardFrame bstk
-  pure (ustk, bstk)
-  where
-    ul = fsize ustk - i
-    bl = fsize bstk - j
+  stk <- discardFrame stk
+  pure stk
 moveArgs !stk (VArg1 i) = do
-  ustk <- prepareArgs ustk (Arg1 i)
-  bstk <- discardFrame bstk
-  pure (ustk, bstk)
+  stk <- prepareArgs stk (Arg1 i)
+  pure stk
 moveArgs !stk (VArg2 i j) = do
-  ustk <- prepareArgs ustk (Arg2 i j)
-  bstk <- discardFrame bstk
-  pure (ustk, bstk)
+  stk <- prepareArgs stk (Arg2 i j)
+  pure stk
 moveArgs !stk (VArgR i l) = do
-  ustk <- prepareArgs ustk (ArgR i l)
-  bstk <- discardFrame bstk
-  pure (ustk, bstk)
-moveArgs !stk (VArg1 i) = do
-  ustk <- discardFrame ustk
-  bstk <- prepareArgs bstk (Arg1 i)
-  pure (ustk, bstk)
-moveArgs !stk (VArg2 i j) = do
-  ustk <- discardFrame ustk
-  bstk <- prepareArgs bstk (Arg2 i j)
-  pure (ustk, bstk)
-moveArgs !stk (VArgR i l) = do
-  ustk <- discardFrame ustk
-  bstk <- prepareArgs bstk (ArgR i l)
-  pure (ustk, bstk)
-moveArgs !stk (VArg2 i j) = do
-  ustk <- prepareArgs ustk (Arg1 i)
-  bstk <- prepareArgs bstk (Arg1 j)
-  pure (ustk, bstk)
+  stk <- prepareArgs stk (ArgR i l)
+  pure stk
 moveArgs !stk (VArgN as) = do
-  ustk <- prepareArgs ustk (ArgN as)
-  bstk <- discardFrame bstk
-  pure (ustk, bstk)
-moveArgs !stk (VArgN as) = do
-  ustk <- discardFrame ustk
-  bstk <- prepareArgs bstk (ArgN as)
-  pure (ustk, bstk)
-moveArgs !stk (VArgN as) = do
-  ustk <- prepareArgs ustk (ArgN us)
-  bstk <- prepareArgs bstk (ArgN bs)
-  pure (ustk, bstk)
+  stk <- prepareArgs stk (ArgN as)
+  pure stk
+-- TODO: Don't know what to do with this, maybe can delete it?
+moveArgs !_stk (VArgV _i _j) = error "moveArgs: VArgV not implemented."
+-- ustk <-
+--   if ul > 0
+--     then prepareArgs ustk (ArgR 0 ul)
+--     else discardFrame ustk
+-- bstk <-
+--   if bl > 0
+--     then prepareArgs bstk (ArgR 0 bl)
+--     else discardFrame bstk
+-- pure (ustk, bstk)
+-- where
+--   ul = fsize ustk - i
+--   bl = fsize bstk - j
 {-# INLINE moveArgs #-}
 
 closureArgs :: Stack -> Args -> IO [Closure]
@@ -939,27 +907,39 @@ closureArgs !_ _ =
   error "closure arguments can only be boxed."
 {-# INLINE closureArgs #-}
 
+-- | TODO: Experiment:
+-- In cases where we need to check the boxed stack to see where the argument lives
+-- we can either fetch from both unboxed and boxed stacks, then check the boxed result;
+-- OR we can just fetch from the boxed stack and check the result, then conditionally
+-- fetch from the unboxed stack.
+--
+-- The former puts more work before the branch, which _may_ be better for cpu pipelining,
+-- but the latter avoids an unnecessary fetch from the unboxed stack in cases where all args are boxed.
 buildData ::
   Stack -> Reference -> Tag -> Args -> IO Closure
 buildData !_ !r !t ZArgs = pure $ Enum r t
 buildData !stk !r !t (VArg1 i) = do
-  x <- peekOff ustk i
-  pure $ DataU1 r t x
+  bv <- bpeekOff stk i
+  case bv of
+    BlackHole -> do
+      uv <- upeekOff stk i
+      pure $ DataU1 r t uv
+    _ -> pure $ DataB1 r t bv
 buildData !stk !r !t (VArg2 i j) = do
-  x <- peekOff ustk i
-  y <- peekOff ustk j
-  pure $ DataU2 r t x y
-buildData !stk !r !t (VArg1 i) = do
-  x <- peekOff bstk i
-  pure $ DataB1 r t x
-buildData !stk !r !t (VArg2 i j) = do
-  x <- peekOff bstk i
-  y <- peekOff bstk j
-  pure $ DataB2 r t x y
-buildData !stk !r !t (VArg2 i j) = do
-  x <- peekOff ustk i
-  y <- peekOff bstk j
-  pure $ DataUB r t x y
+  b1 <- bpeekOff stk i
+  b2 <- bpeekOff stk j
+  case (b1, b2) of
+    (BlackHole, BlackHole) -> do
+      u1 <- upeekOff stk i
+      u2 <- upeekOff stk j
+      pure $ DataU2 r t u1 u2
+    (BlackHole, _) -> do
+      u1 <- upeekOff stk i
+      pure $ DataUB r t u1 b2
+    (_, BlackHole) -> do
+      u2 <- upeekOff stk j
+      pure $ DataUB r t u2 b1
+    _ -> pure $ DataB2 r t b1 b2
 buildData !stk !r !t (VArgR i l) = do
   useg <- augSeg I ustk unull (Just $ ArgR i l)
   pure $ DataG r t useg bnull
@@ -2236,7 +2216,7 @@ reflectValue rty = goV
     goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
     goV (DataC r t us bs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
-    goV (CapV k _ _ us bs) =
+    goV (CapV k _ (us, bs)) =
       ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
     goV (Foreign f) = ANF.BLit <$> goF f
     goV BlackHole = die $ err "black hole"
@@ -2417,7 +2397,7 @@ universalEq frn = eqc
       cix1 == cix2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
-    eqc (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =
+    eqc (CapV k1 a1 (us1, bs1)) (CapV k2 a2 (us2, bs2)) =
       k1 == k2
         && ua1 == ua2
         && ba1 == ba2
@@ -2556,10 +2536,9 @@ universalCompare frn = cmpc False
       compare cix1 cix2
         <> cmpl compare us1 us2
         <> cmpl (cmpc tyEq) bs1 bs2
-    cmpc _ (CapV k1 ua1 ba1 us1 bs1) (CapV k2 ua2 ba2 us2 bs2) =
+    cmpc _ (CapV k1 a1 (us1, bs1)) (CapV k2 a2 (us2, bs2)) =
       compare k1 k2
-        <> compare ua1 ua2
-        <> compare ba1 ba2
+        <> compare a1 a2
         <> cmpl compare us1 us2
         <> cmpl (cmpc True) bs1 bs2
     cmpc tyEq (Foreign fl) (Foreign fr)

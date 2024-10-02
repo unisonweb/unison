@@ -59,8 +59,7 @@ module Unison.Runtime.Stack2
     pokeS,
     pokeOffS,
     frameView,
-    uscount,
-    bscount,
+    scount,
     closureTermRefs,
     dumpAP,
     dumpFP,
@@ -97,13 +96,10 @@ module Unison.Runtime.Stack2
   )
 where
 
-import Control.Monad (when)
 import Control.Monad.Primitive
-import Data.Functor (($>))
-import Data.Sequence (Seq)
 import Data.Word
 import GHC.Exts as L (IsList (..))
-import GHC.Stack (HasCallStack)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
@@ -178,8 +174,8 @@ data GClosure comb
   | GDataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
   | GDataUB !Reference !Word64 !Int !(GClosure comb)
   | GDataG !Reference !Word64 {-# UNPACK #-} !Seg
-  | -- code cont, u/b arg size, u/b data stacks
-    GCaptured !K !Int !Int {-# UNPACK #-} !Seg
+  | -- code cont, arg size, u/b data stacks
+    GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
   | GBlackHole
   deriving stock (Show, Functor, Foldable, Traversable)
@@ -213,7 +209,7 @@ pattern DataUB r t i y <- Closure (GDataUB r t i (Closure -> y))
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern Captured k ua ba seg = Closure (GCaptured k ua ba seg)
+pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
 
@@ -294,11 +290,10 @@ pattern PApV cix rcomb us bs <-
   where
     PApV cix rcomb us bs = PAp cix rcomb (useg us, bseg bs)
 
-pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
-pattern CapV k ua ba us bs <-
-  Captured k ua ba ((ints -> us), (bsegToList -> bs))
+pattern CapV :: K -> Int -> ([Int], [Closure]) -> Closure
+pattern CapV k a segs <- Captured k a (bimap ints bsegToList -> segs)
   where
-    CapV k ua ba us bs = Captured k ua ba (useg us, bseg bs)
+    CapV k a (us, bs) = Captured k a (useg us, bseg bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
@@ -904,11 +899,11 @@ frameView stk = putStr "|" >> gof False 0
           putStr . show =<< peekOff stk (fsz + n)
           goa True (n + 1)
 
-uscount :: USeg -> Int
-uscount seg = words $ sizeofByteArray seg
-
-bscount :: BSeg -> Int
-bscount seg = sizeofArray seg
+scount :: Seg -> Int
+scount (_, bseg) = bscount bseg
+  where
+    bscount :: BSeg -> Int
+    bscount seg = sizeofArray seg
 
 closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
 closureTermRefs f = \case
@@ -919,7 +914,7 @@ closureTermRefs f = \case
     closureTermRefs f c1 <> closureTermRefs f c2
   (DataUB _ _ _ c) ->
     closureTermRefs f c
-  (Captured k _ _ (_useg, bseg)) ->
+  (Captured k _ (_useg, bseg)) ->
     contTermRefs f k <> foldMap (closureTermRefs f) bseg
   (Foreign fo)
     | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo ->

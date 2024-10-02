@@ -39,6 +39,7 @@ module Unison.Runtime.MCode2
     absurdCombs,
     emptyRNs,
     argsToLists,
+    countArgs,
     combRef,
     combDeps,
     combTypes,
@@ -276,6 +277,14 @@ argsToLists = \case
   VArgR i l -> take l [i ..]
   VArgN us -> primArrayToList us
   VArgV _ _ -> internalBug "argsToLists: DArgV"
+
+countArgs :: Args -> Int
+countArgs ZArgs = 0
+countArgs (VArg1 {}) = 1
+countArgs (VArg2 {}) = 2
+countArgs (VArgR _ l) = l
+countArgs (VArgN us) = sizeofPrimArray us
+countArgs (VArgV {}) = internalBug "countArgs: DArgV"
 
 data UPrim1
   = -- integral
