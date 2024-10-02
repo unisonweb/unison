@@ -135,8 +135,8 @@ fixity =
       (%) = Nat.mod
       ($) = (+)
       c = 1 * (2 + 3) * 4
-      minus = 1 + 2 + 3
-      minus2 = 1 + (2 + 3)
+      plus = 1 + 2 + 3
+      plus2 = 1 + (2 + 3)
       d = true && (false || true)
       z = true || false && true
       e = 1 + 2 >= 3 + 4

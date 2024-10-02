@@ -97,7 +97,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integrationtests/IntegrationTests/*')}}
+          # added the integration test dependencies here as if they were source, for simplicity
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -244,7 +245,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.transcript_test_results}}
-          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md') }}
+          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u') }}
       - name: restore binaries
         uses: actions/cache/restore@v4
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
