@@ -60,11 +60,15 @@ processedBlockToNode = \case
 type P = P.Parsec Void Text
 
 stanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
-stanzas srcName = (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks) . CMark.commonmarkToNode []
+stanzas srcName =
+  -- TODO: Internal warning if `_DOCUMENT` isn’t `CMark.DOCUMENT`.
+  (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks)
+    . CMark.commonmarkToNode [CMark.optSourcePos]
   where
     stanzaFromNode :: CMark.Node -> Either (P.ParseErrorBundle Text Void) Stanza
     stanzaFromNode node = case node of
-      CMarkCodeBlock _ info body -> maybe (Left node) pure <$> P.parse (fenced info) srcName body
+      CMarkCodeBlock (Just CMark.PosInfo {startLine, startColumn}) info body ->
+        maybe (Left node) pure <$> snd (P.runParser' fenced $ fencedState srcName startLine startColumn info body)
       _ -> pure $ Left node
 
 ucmLine :: P UcmLine
@@ -98,31 +102,25 @@ apiRequest = do
       spaces
       pure (APIComment comment)
 
--- | Produce the correct parser for the code block based on the provided info string.
-fenced :: Text -> P (Maybe ProcessedBlock)
-fenced info = do
-  body <- P.getInput
-  P.setInput info
+-- | Parses the info string and contents of a fenced code block.
+fenced :: P (Maybe ProcessedBlock)
+fenced = do
   fenceType <- lineToken (word "ucm" <|> word "unison" <|> word "api" <|> language)
   case fenceType of
     "ucm" -> do
       hide <- hidden
       err <- expectingError
-      P.setInput body
       pure . Ucm hide err <$> (spaces *> P.manyTill ucmLine P.eof)
-    "unison" ->
-      do
-        -- todo: this has to be more interesting
-        -- ```unison:hide
-        -- ```unison
-        -- ```unison:hide:all scratch.u
-        hide <- lineToken hidden
-        err <- lineToken expectingError
-        fileName <- optional untilSpace1
-        P.setInput body
-        pure . Unison hide err fileName <$> (spaces *> P.getInput)
+    "unison" -> do
+      -- todo: this has to be more interesting
+      -- ```unison:hide
+      -- ```unison
+      -- ```unison:hide:all scratch.u
+      hide <- lineToken hidden
+      err <- lineToken expectingError
+      fileName <- optional untilSpace1
+      pure . Unison hide err fileName <$> (spaces *> P.getInput)
     "api" -> do
-      P.setInput body
       pure . API <$> (spaces *> P.manyTill apiRequest P.eof)
     _ -> pure Nothing
 
@@ -155,3 +153,47 @@ language = P.takeWhileP Nothing (\ch -> Char.isDigit ch || Char.isLower ch || ch
 
 spaces :: P ()
 spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
+
+-- | Create a parser state that has source locations that match the file (as opposed to being relative to the start of
+--   the individual fenced code block).
+--
+--  __NB__: If a code block has a fence longer than the minimum (three backticks), the columns for parse errors in the
+--          info string will be slightly off (but the printed code excerpt will match the reported positions).
+--
+--  __NB__: Creating custom states is likely simpler starting with Megaparsec 9.6.0.
+fencedState ::
+  -- | file containing the fenced code block
+  FilePath ->
+  -- | `CMark.startLine` for the block
+  Int ->
+  -- | `CMark.startColumn` for the block`
+  Int ->
+  -- | info string from the block
+  Text ->
+  -- | contents of the code block
+  Text ->
+  P.State Text e
+fencedState name startLine startColumn info body =
+  let -- This is the most common opening fence, so we assume it’s the right one. I don’t think there’s any way to get
+      -- the actual size of the fence from "CMark", so this can be wrong sometimes, but it’s probably the approach
+      -- that’s least likely to confuse users.
+      openingFence = "``` "
+      -- Glue the info string and body back together, as if they hadn’t been split by "CMark". This keeps the position
+      -- info in sync.
+      s = info <> "\n" <> body
+   in P.State
+        { stateInput = s,
+          stateOffset = 0,
+          statePosState =
+            P.PosState
+              { pstateInput = s,
+                pstateOffset = 0,
+                -- `CMark.startColumn` marks the beginning of the fence, not the beginning of the info string, so we
+                -- adjust it for the fence that precedes it.
+                pstateSourcePos = P.SourcePos name (P.mkPos startLine) . P.mkPos $ startColumn + length openingFence,
+                pstateTabWidth = P.defaultTabWidth,
+                -- Ensure we print the fence as part of the line if there’s a parse error in the info string.
+                pstateLinePrefix = openingFence
+              },
+          stateParseErrors = []
+        }
