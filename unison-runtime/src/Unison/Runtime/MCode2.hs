@@ -542,8 +542,7 @@ data GSection comb
     Let
       !(GSection comb) -- binding
       !CombIx -- body section refrence
-      !Int -- unboxed stack safety
-      !Int -- boxed stack safety
+      !Int -- stack safety
       !(GSection comb) -- body code
   | -- Throw an exception with the given message
     Die String
@@ -593,10 +592,8 @@ type Comb = GComb Void CombIx
 
 data GComb clos comb
   = Lam
-      !Int -- Number of unboxed arguments
-      !Int -- Number of boxed arguments
-      !Int -- Maximum needed unboxed frame size
-      !Int -- Maximum needed boxed frame size
+      !Int -- Number of arguments
+      !Int -- Maximum needed frame size
       !(GSection comb) -- Entry
   | -- A pre-evaluated comb, typically a pure top-level const
     CachedClosure !Word64 {- top level comb ix -} !clos
@@ -610,7 +607,7 @@ instance Bifoldable GComb where
 
 instance Bitraversable GComb where
   bitraverse f _ (CachedClosure cix c) = CachedClosure cix <$> f c
-  bitraverse _ f (Lam u b uf bf s) = Lam u b uf bf <$> traverse f s
+  bitraverse _ f (Lam a fr s) = Lam a fr <$> traverse f s
 
 type RCombs clos = GCombs clos (RComb clos)
 
@@ -795,16 +792,18 @@ resolveCombs mayExisting combs =
 absurdCombs :: EnumMap Word64 (EnumMap Word64 (GComb Void cix)) -> EnumMap Word64 (GCombs any cix)
 absurdCombs = fmap . fmap . first $ absurd
 
--- Type for aggregating the necessary stack frame size. First field is
--- unboxed size, second is boxed. The Applicative instance takes the
--- point-wise maximum, so that combining values from different branches
--- results in finding the maximum value of either size necessary.
-data Counted a = C !Int !Int a
+-- Type for aggregating the necessary stack frame size. First field is the
+-- necessary size. The Applicative instance takes the
+-- maximum, so that combining values from different branches
+-- results in finding the maximum number of slots either side requires.
+--
+-- TODO: Now that we have a single stack, most of this counting can probably be simplified.
+data Counted a = C !Int a
   deriving (Functor)
 
 instance Applicative Counted where
-  pure = C 0 0
-  C u0 b0 f <*> C u1 b1 x = C (max u0 u1) (max b0 b1) (f x)
+  pure = C 0
+  C s0 f <*> C s1 x = C (max s0 s1) (f x)
 
 newtype Emit a
   = EM (Word64 -> (EC.EnumMap Word64 Comb, Counted a))
@@ -828,30 +827,31 @@ letIndex l c = c .|. fromIntegral l
 
 record :: Ctx v -> Word16 -> Emit Section -> Emit (Word64, Comb)
 record ctx l (EM es) = EM $ \c ->
-  let (m, C u b s) = es c
-      (au, ab) = countCtx0 0 0 ctx
+  let (m, C sz s) = es c
+      na = countCtx0 0 ctx
       n = letIndex l c
-      comb = Lam au ab u b s
-   in (EC.mapInsert n comb m, C u b (n, comb))
+      comb = Lam na sz s
+   in (EC.mapInsert n comb m, C sz (n, comb))
 
 recordTop :: [v] -> Word16 -> Emit Section -> Emit ()
 recordTop vs l (EM e) = EM $ \c ->
-  let (m, C u b s) = e c
-      ab = length vs
+  let (m, C sz s) = e c
+      na = length vs
       n = letIndex l c
-   in (EC.mapInsert n (Lam 0 ab u b s) m, C u b ())
+   in (EC.mapInsert n (Lam na sz s) m, C sz ())
 
 -- Counts the stack space used by a context and annotates a value
 -- with it.
 countCtx :: Ctx v -> a -> Emit a
-countCtx ctx = counted . C u b where (u, b) = countCtx0 0 0 ctx
+countCtx ctx = counted . C i
+  where
+    i = countCtx0 0 ctx
 
-countCtx0 :: Int -> Int -> Ctx v -> (Int, Int)
-countCtx0 !ui !bi (Var _ UN ctx) = countCtx0 (ui + 1) bi ctx
-countCtx0 ui bi (Var _ BX ctx) = countCtx0 ui (bi + 1) ctx
-countCtx0 ui bi (Tag ctx) = countCtx0 (ui + 1) bi ctx
-countCtx0 ui bi (Block ctx) = countCtx0 ui bi ctx
-countCtx0 ui bi ECtx = (ui, bi)
+countCtx0 :: Int -> Ctx v -> Int
+countCtx0 !i (Var _ _ ctx) = countCtx0 (i + 1) ctx
+countCtx0 i (Tag ctx) = countCtx0 (i + 1) ctx
+countCtx0 i (Block ctx) = countCtx0 i ctx
+countCtx0 i ECtx = i
 
 emitComb ::
   (Var v) =>
@@ -866,8 +866,8 @@ emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
     . recordTop vs 0
     $ emitSection rns grpr grpn rec (ctx vs ccs) bd
 
-addCount :: Int -> Int -> Emit a -> Emit a
-addCount i j = onCount $ \(C u b x) -> C (u + i) (b + j) x
+addCount :: Int -> Emit a -> Emit a
+addCount i = onCount $ \(C sz x) -> C (sz + i) x
 
 -- Emit a machine code section from an ANF term
 emitSection ::
@@ -909,7 +909,7 @@ emitSection _ grpr grpn rec ctx (TVar v)
 emitSection _ _ grpn _ ctx (TPrm p args) =
   -- 3 is a conservative estimate of how many extra stack slots
   -- a prim op will need for its results.
-  addCount 3 3
+  addCount 3
     . countCtx ctx
     . Ins (emitPOp p $ emitArgs grpn ctx args)
     . Yield
@@ -917,7 +917,7 @@ emitSection _ _ grpn _ ctx (TPrm p args) =
   where
     (i, j) = countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
-  addCount 3 3
+  addCount 3
     . countCtx ctx
     . Ins (emitFOp p $ emitArgs grpn ctx args)
     . Yield
@@ -931,12 +931,12 @@ emitSection _ _ _ _ ctx (TLit l) =
   c . countCtx ctx . Ins (emitLit l) . Yield $ litArg l
   where
     c
-      | ANF.T {} <- l = addCount 0 1
-      | ANF.LM {} <- l = addCount 0 1
-      | ANF.LY {} <- l = addCount 0 1
-      | otherwise = addCount 1 0
+      | ANF.T {} <- l = addCount 1
+      | ANF.LM {} <- l = addCount 1
+      | ANF.LY {} <- l = addCount 1
+      | otherwise = addCount 1
 emitSection _ _ _ _ ctx (TBLit l) =
-  addCount 0 1 . countCtx ctx . Ins (emitBLit l) . Yield $ VArg1 0
+  addCount 1 . countCtx ctx . Ins (emitBLit l) . Yield $ VArg1 0
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
@@ -1143,9 +1143,9 @@ emitLet rns grpr grpn rec d vcs ctx bnd
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
           <*> record (pushCtx vcs ctx) w esect
   where
-    f s (w, Lam _ _ un bx bd) =
+    f s (w, Lam _ f bd) =
       let cix = (CIx grpr grpn w)
-       in Let s cix un bx bd
+       in Let s cix f bd
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1518,11 +1518,11 @@ demuxArgs = \case
   args -> VArgN $ PA.primArrayFromList (fst <$> args)
 
 combDeps :: GComb clos comb -> [Word64]
-combDeps (Lam _ _ _ _ s) = sectionDeps s
+combDeps (Lam _ _ s) = sectionDeps s
 combDeps (CachedClosure {}) = []
 
 combTypes :: GComb any comb -> [Word64]
-combTypes (Lam _ _ _ _ s) = sectionTypes s
+combTypes (Lam _ _ s) = sectionTypes s
 combTypes (CachedClosure {}) = []
 
 sectionDeps :: GSection comb -> [Word64]
@@ -1536,13 +1536,13 @@ sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
   | Name (Env (CIx _ w _) _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
-sectionDeps (Let s (CIx _ w _) _ _ b) =
+sectionDeps (Let s (CIx _ w _) _ b) =
   w : sectionDeps s ++ sectionDeps b
 sectionDeps _ = []
 
 sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
-sectionTypes (Let s _ _ _ b) = sectionTypes s ++ sectionTypes b
+sectionTypes (Let s _ _ b) = sectionTypes s ++ sectionTypes b
 sectionTypes (Match _ br) = branchTypes br
 sectionTypes (DMatch _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
@@ -1590,11 +1590,11 @@ prettyCombs w es =
 
 prettyComb :: Word64 -> Word64 -> Comb -> ShowS
 prettyComb w i = \case
-  (Lam ua ba _ _ s) ->
+  (Lam a _ s) ->
     shows w
       . showString ":"
       . shows i
-      . shows [ua, ba]
+      . shows a
       . showString ":\n"
       . prettySection 2 s
 
@@ -1618,7 +1618,7 @@ prettySection ind sec =
     Yield as -> showString "Yield " . prettyArgs as
     Ins i nx ->
       prettyIns i . showString "\n" . prettySection ind nx
-    Let s _ _ _ b ->
+    Let s _ _ b ->
       showString "Let\n"
         . prettySection (ind + 2) s
         . showString "\n"
