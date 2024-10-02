@@ -394,8 +394,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LOAD i)
   | sandboxed env = die "attempted to use sandboxed operation: load"
   | otherwise = do
       v <- peekOffBi stk i
-      stk <- bump stk
-      stk <- bump stk
+      stk <- bumpn stk 2
       reifyValue env v >>= \case
         Left miss -> do
           upokeOff stk 1 0
@@ -571,7 +570,7 @@ exec !env !denv !activeThreads !stk !k _ (TryForce i)
       -- TODO: This one is a little tricky, double-check it.
       ev <- Control.Exception.try $ nestEval env activeThreads (bpoke stk) c
       -- TODO: Why don't we do this bump inside encode Exn itself?
-      stk <- bump stk
+
       stk <- encodeExn stk ev
       pure (denv, stk, k)
 {-# INLINE exec #-}
@@ -580,15 +579,17 @@ encodeExn ::
   Stack ->
   Either SomeException () ->
   IO Stack
-encodeExn stk (Right _) = stk <$ poke stk 1
-encodeExn stk (Left exn) = do
-  upoke stk 0
-  -- TODO: ALERT: something funky going on here,
-  -- we seem to allocate only 2 slots, but write to 3
-  stk <- bumpn stk 2
-  bpoke stk $ Foreign (Wrap Rf.typeLinkRef link)
-  pokeOffBi stk 1 msg
-  stk <$ bpokeOff stk 2 extra
+encodeExn stk exc = do
+  case exc of
+    Right () -> do
+      stk <- bump stk
+      stk <$ poke stk 1
+    Left e -> do
+      stk <- bumpn stk 4
+      upoke stk 0
+      bpoke stk $ Foreign (Wrap Rf.typeLinkRef link)
+      pokeOffBi stk 1 msg
+      stk <$ bpokeOff stk 2 extra
   where
     disp e = Util.Text.pack $ show e
     (link, msg, extra)
@@ -732,21 +733,18 @@ enter ::
   MComb ->
   IO ()
 enter !env !denv !activeThreads !stk !k !ck !args = \case
-  (RComb (Lam ua ba uf bf entry)) -> do
-    ustk <- if ck then ensure ustk uf else pure ustk
-    bstk <- if ck then ensure bstk bf else pure bstk
-    (ustk, bstk) <- moveArgs ustk bstk args
-    ustk <- acceptArgs ustk ua
-    bstk <- acceptArgs bstk ba
+  (RComb (Lam a f entry)) -> do
+    stk <- if ck then ensure stk f else pure stk
+    stk <- moveArgs stk args
+    stk <- acceptArgs stk a
     -- TODO: start putting references in `Call` if we ever start
     -- detecting saturated calls.
-    eval env denv activeThreads ustk bstk k dummyRef entry
+    eval env denv activeThreads stk k dummyRef entry
   (RComb (CachedClosure _cix clos)) -> do
-    ustk <- discardFrame ustk
-    bstk <- discardFrame bstk
-    bstk <- bump bstk
-    poke bstk clos
-    yield env denv activeThreads ustk bstk k
+    stk <- discardFrame stk
+    stk <- bump stk
+    bpoke stk clos
+    yield env denv activeThreads stk k
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -776,23 +774,19 @@ apply !env !denv !activeThreads !stk !k !ck !args = \case
     case unRComb comb of
       CachedClosure _cix clos -> do
         zeroArgClosure clos
-      Lam ua ba uf bf entry
+      Lam a f entry
         | ck || ua <= uac && ba <= bac -> do
-            ustk <- ensure ustk uf
-            bstk <- ensure bstk bf
-            (ustk, bstk) <- moveArgs ustk bstk args
-            ustk <- dumpSeg ustk useg A
-            bstk <- dumpSeg bstk bseg A
-            ustk <- acceptArgs ustk ua
-            bstk <- acceptArgs bstk ba
-            eval env denv activeThreads ustk bstk k combRef entry
+            stk <- ensure stk f
+            stk <- moveArgs stk args
+            stk <- dumpSeg stk seg A
+            stk <- acceptArgs stk a
+            eval env denv activeThreads stk k combRef entry
         | otherwise -> do
-            (useg, bseg) <- closeArgs C ustk bstk useg bseg args
-            ustk <- discardFrame =<< frameArgs ustk
-            bstk <- discardFrame =<< frameArgs bstk
-            bstk <- bump bstk
-            poke bstk $ PAp cix comb useg bseg
-            yield env denv activeThreads ustk bstk k
+            seg <- closeArgs C stk seg args
+            stk <- discardFrame =<< frameArgs stk
+            stk <- bump stk
+            bpoke stk $ PAp cix comb seg
+            yield env denv activeThreads stk k
     where
       uac = asize ustk + ucount args + uscount useg
       bac = asize bstk + bcount args + bscount bseg
@@ -2357,7 +2351,7 @@ reifyValue0 (combs, rty, rtm) = goV
           Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
     goK (ANF.Push uf bf ua ba gr k) =
       goIx gr >>= \case
-        (cix, RComb (Lam _ _ un bx sect)) ->
+        (cix, RComb (Lam _ fr sect)) ->
           Push
             (fromIntegral uf)
             (fromIntegral bf)
