@@ -5,7 +5,7 @@ import Data.String (fromString)
 import Data.Text
 import GHC.Stack
 import Unison.Reference (Reference)
-import Unison.Runtime.Stack
+import Unison.Runtime.Stack2
 import Unison.Util.Pretty as P
 
 data RuntimeExn
