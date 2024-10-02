@@ -42,6 +42,7 @@ module Unison.Runtime.Stack2
     marshalToForeign,
     unull,
     bnull,
+    nullSeg,
     peekD,
     peekOffD,
     pokeD,
@@ -98,7 +99,6 @@ where
 
 import Control.Monad (when)
 import Control.Monad.Primitive
-import Data.Foldable as F (for_)
 import Data.Functor (($>))
 import Data.Sequence (Seq)
 import Data.Word
@@ -107,7 +107,7 @@ import GHC.Stack (HasCallStack)
 import Unison.Reference (Reference)
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
-import Unison.Runtime.MCode
+import Unison.Runtime.MCode2
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)
@@ -125,45 +125,41 @@ data K
     CB Callback
   | -- mark continuation with a prompt
     Mark
-      !Int -- pending unboxed args
-      !Int -- pending boxed args
+      !Int -- pending args
       !(EnumSet Word64)
       !(EnumMap Word64 Closure)
       !K
   | -- save information about a frame for later resumption
     Push
-      !Int -- unboxed frame size
-      !Int -- boxed frame size
-      !Int -- pending unboxed args
-      !Int -- pending boxed args
+      !Int -- frame size
+      !Int -- pending args
       !CombIx -- resumption section reference
-      !Int -- unboxed stack guard
-      !Int -- boxed stack guard
+      !Int -- stack guard
       !(RSection Closure) -- resumption section
       !K
 
 instance Eq K where
   KE == KE = True
   (CB cb) == (CB cb') = cb == cb'
-  (Mark ua ba ps m k) == (Mark ua' ba' ps' m' k') =
-    ua == ua' && ba == ba' && ps == ps' && m == m' && k == k'
-  (Push uf bf ua ba ci _ _ _sect k) == (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
-    uf == uf' && bf == bf' && ua == ua' && ba == ba' && ci == ci' && k == k'
+  (Mark a ps m k) == (Mark a' ps' m' k') =
+    a == a' && ps == ps' && m == m' && k == k'
+  (Push f a ci _ _sect k) == (Push f' a' ci' _ _sect' k') =
+    f == f' && a == a' && ci == ci' && k == k'
   _ == _ = False
 
 instance Ord K where
   compare KE KE = EQ
   compare (CB cb) (CB cb') = compare cb cb'
-  compare (Mark ua ba ps m k) (Mark ua' ba' ps' m' k') =
+  compare (Mark a ps m k) (Mark a' ps' m' k') =
     compare (ua, ba, ps, m, k) (ua', ba', ps', m', k')
-  compare (Push uf bf ua ba ci _ _ _sect k) (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
-    compare (uf, bf, ua, ba, ci, k) (uf', bf', ua', ba', ci', k')
+  compare (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') =
+    compare (f, a, ci, k) (f', a', ci', k')
   compare KE _ = LT
   compare _ KE = GT
-  compare (CB _) _ = LT
-  compare _ (CB _) = GT
-  compare (Mark _ _ _ _ _) _ = LT
-  compare _ (Mark _ _ _ _ _) = GT
+  compare (CB {}) _ = LT
+  compare _ (CB {}) = GT
+  compare (Mark {}) _ = LT
+  compare _ (Mark {}) = GT
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Closure))}
   deriving stock (Show, Eq, Ord)
@@ -226,8 +222,8 @@ pattern BlackHole = Closure GBlackHole
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
-    dedup p (Mark _ _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) _ _ _ k)
+    dedup p (Mark _ _ _ k) = dedup p k
+    dedup p@(cur, n) (Push _ _ (CIx r _ _) _ _ k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
@@ -277,14 +273,14 @@ formData r t [] [x, y] = DataB2 r t x y
 formData r t [i] [x] = DataUB r t i x
 formData r t us bs = DataG r t (useg us, bseg bs)
 
-frameDataSize :: K -> (Int, Int)
+frameDataSize :: K -> Int
 frameDataSize = go 0 0
   where
-    go usz bsz KE = (usz, bsz)
-    go usz bsz (CB _) = (usz, bsz)
-    go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
-    go usz bsz (Push uf bf ua ba _ _ _ _ k) =
-      go (usz + uf + ua) (bsz + bf + ba) k
+    go sz KE = sz
+    go sz (CB _) = sz
+    go sz (Mark a _ _ k) = go (sz + a) k
+    go sz (Push f a _ _ _ k) =
+      go (sz + f + a) k
 
 pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
@@ -737,8 +733,8 @@ frameArgs :: Stack -> IO Stack
 frameArgs (Stack ap _ sp ustk bstk) = pure $ Stack ap ap sp ustk bstk
 {-# INLINE frameArgs #-}
 
-augSeg :: Augment -> Stack -> Seg -> Maybe Args' -> IO Seg
-augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
+augSeg :: Augment -> Stack -> Seg -> Args' -> IO Seg
+augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
   useg' <- unboxedSeg
   bseg' <- boxedSeg
   pure (useg', bseg')
@@ -747,7 +743,7 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
       cop <- newByteArray $ ssz + psz + asz
       copyByteArray cop soff useg 0 ssz
       copyMutableByteArray cop 0 ustk (bytes $ ap + 1) psz
-      for_ margs $ uargOnto ustk sp cop (words poff + pix - 1)
+      uargOnto ustk sp cop (words poff + pix - 1) args
       unsafeFreezeByteArray cop
       where
         ssz = sizeofByteArray useg
@@ -756,17 +752,16 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
           | K <- mode = (ssz, 0)
           | otherwise = (0, psz + asz)
         psz = bytes pix
-        asz = case margs of
-          Nothing -> 0
-          Just (Arg1 _) -> 8
-          Just (Arg2 _ _) -> 16
-          Just (ArgN v) -> bytes $ sizeofPrimArray v
-          Just (ArgR _ l) -> bytes l
+        asz = case args of
+          Arg1 _ -> 8
+          Arg2 _ _ -> 16
+          ArgN v -> bytes $ sizeofPrimArray v
+          ArgR _ l -> bytes l
     boxedSeg = do
       cop <- newArray (ssz + psz + asz) BlackHole
       copyArray cop soff bseg 0 ssz
       copyMutableArray cop poff bstk (ap + 1) psz
-      for_ margs $ bargOnto bstk sp cop (poff + psz - 1)
+      bargOnto bstk sp cop (poff + psz - 1) args
       unsafeFreezeArray cop
       where
         ssz = sizeofArray bseg
@@ -879,15 +874,18 @@ unull = byteArrayFromListN 0 ([] :: [Int])
 bnull :: BSeg
 bnull = fromListN 0 []
 
+nullSeg :: Seg
+nullSeg = (unull, bnull)
+
 instance Show K where
   show k = "[" ++ go "" k
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba ci _un _bx _rsect k) =
-        com ++ show (uf, bf, ua, ba, ci) ++ go "," k
-      go com (Mark ua ba ps _ k) =
-        com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
+      go com (Push f a ci _g _rsect k) =
+        com ++ show (f, a, ci) ++ go "," k
+      go com (Mark a ps _ k) =
+        com ++ "M " ++ show a ++ " " ++ show ps ++ go "," k
 
 frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
@@ -930,8 +928,8 @@ closureTermRefs f = \case
   _ -> mempty
 
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
-contTermRefs f (Mark _ _ _ m k) =
+contTermRefs f (Mark _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (CIx r _ _) _ _ _ k) =
+contTermRefs f (Push _ _ (CIx r _ _) _ _ k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty
