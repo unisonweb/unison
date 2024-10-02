@@ -151,7 +151,7 @@ instance Ord K where
   compare KE KE = EQ
   compare (CB cb) (CB cb') = compare cb cb'
   compare (Mark a ps m k) (Mark a' ps' m' k') =
-    compare (ua, ba, ps, m, k) (ua', ba', ps', m', k')
+    compare (a, ps, m, k) (a', ps', m', k')
   compare (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') =
     compare (f, a, ci, k) (f', a', ci', k')
   compare KE _ = LT
@@ -274,7 +274,7 @@ formData r t [i] [x] = DataUB r t i x
 formData r t us bs = DataG r t (useg us, bseg bs)
 
 frameDataSize :: K -> Int
-frameDataSize = go 0 0
+frameDataSize = go 0
   where
     go sz KE = sz
     go sz (CB _) = sz
@@ -769,12 +769,11 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
         (poff, soff)
           | K <- mode = (ssz, 0)
           | otherwise = (0, psz + asz)
-        asz = case margs of
-          Nothing -> 0
-          Just (Arg1 _) -> 1
-          Just (Arg2 _ _) -> 2
-          Just (ArgN v) -> sizeofPrimArray v
-          Just (ArgR _ l) -> l
+        asz = case args of
+          Arg1 _ -> 1
+          Arg2 _ _ -> 2
+          ArgN v -> sizeofPrimArray v
+          ArgR _ l -> l
 {-# INLINE augSeg #-}
 
 dumpSeg :: Stack -> Seg -> Dump -> IO Stack

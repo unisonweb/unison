@@ -83,7 +83,7 @@ mkForeign ::
 mkForeign ev = FF readArgs writeForeign ev
   where
     readArgs stk (argsToLists -> args) =
-      readForeign (fst args) stk >>= \case
+      readForeign args stk >>= \case
         ([], a) -> pure a
         _ ->
           internalBug

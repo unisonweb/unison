@@ -34,10 +34,12 @@ library
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Builtin2
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
+      Unison.Runtime.Exception2
       Unison.Runtime.Foreign
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function2
