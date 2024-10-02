@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-20.04, macos-12, macos-14, windows-2019]
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
@@ -133,6 +133,7 @@ jobs:
         os:
           - ubuntu-20.04
           - macos-12
+          - macos-14
           - windows-2019
     runs-on: ${{matrix.os}}
     steps:
@@ -196,7 +197,7 @@ jobs:
       - name: set up environment
         run: |
           staging_dir="${RUNNER_TEMP//\\//}/ucm-staging"
-          artifact_os="$(echo $RUNNER_OS | tr '[:upper:]' '[:lower:]')"
+          artifact_os="$(echo "${RUNNER_OS}-${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
           echo "staging_dir=$staging_dir" >> $GITHUB_ENV
           echo "artifact_os=$artifact_os" >> $GITHUB_ENV
       - name: download ucm
