@@ -14,13 +14,6 @@ import Unison.Runtime.ANF
     lamLift,
     superNormalize,
   )
-import Unison.Runtime.MCode
-  ( Args (..),
-    GBranch (..),
-    GInstr (..),
-    GSection (..),
-    Section,
-  )
 import Unison.Runtime.Machine
   ( CCache (..),
     apply0,
