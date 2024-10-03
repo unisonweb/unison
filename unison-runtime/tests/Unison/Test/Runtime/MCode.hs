@@ -51,15 +51,6 @@ testEval0 env main =
   where
     (<<) = flip (>>)
 
-asrt :: Section
-asrt =
-  Ins (Unpack Nothing 0) $
-    Match 0 $
-      Test1
-        1
-        (Yield (BArg1 0))
-        (Die "assertion failed")
-
 multRec :: String
 multRec =
   "let\n\

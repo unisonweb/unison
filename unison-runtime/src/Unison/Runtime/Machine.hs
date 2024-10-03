@@ -473,9 +473,6 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Pack r t args) = do
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k _ (Unpack r i) = do
-  (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
-  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Print i) = do
   t <- peekOffBi bstk i
   Tx.putStrLn (Util.Text.toText t)
