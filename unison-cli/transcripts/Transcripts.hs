@@ -59,11 +59,12 @@ testBuilder expectFailure recordFailure runtimePath dir prelude transcript = sco
       let outputFile = outputFileForTranscript filePath
       case err of
         Transcript.ParseError errors -> do
-          let errMsg = "Error parsing " <> filePath <> ": " <> MP.errorBundlePretty errors
-              textErrMsg = Text.pack errMsg
-          io $ writeUtf8 outputFile textErrMsg
+          let bundle = MP.errorBundlePretty errors
+              errMsg = "Error parsing " <> filePath <> ": " <> bundle
+          -- Drop the file name, to avoid POSIX/Windows conflicts
+          io . writeUtf8 outputFile . Text.dropWhile (/= ':') $ Text.pack bundle
           when (not expectFailure) $ do
-            io $ recordFailure (filePath, textErrMsg)
+            io $ recordFailure (filePath, Text.pack errMsg)
             crash errMsg
         Transcript.RunFailure errOutput -> do
           io $ writeUtf8 outputFile errOutput
