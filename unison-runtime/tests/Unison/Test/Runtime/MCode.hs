@@ -14,13 +14,6 @@ import Unison.Runtime.ANF
     lamLift,
     superNormalize,
   )
-import Unison.Runtime.MCode
-  ( Args (..),
-    GBranch (..),
-    GInstr (..),
-    GSection (..),
-    Section,
-  )
 import Unison.Runtime.Machine
   ( CCache (..),
     apply0,
@@ -50,15 +43,6 @@ testEval0 env main =
     apply0 Nothing cc Nothing (rtm Map.! mainRef)
   where
     (<<) = flip (>>)
-
-asrt :: Section
-asrt =
-  Ins (Unpack Nothing 0) $
-    Match 0 $
-      Test1
-        1
-        (Yield (BArg1 0))
-        (Die "assertion failed")
 
 multRec :: String
 multRec =

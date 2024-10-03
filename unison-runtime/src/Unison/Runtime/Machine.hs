@@ -473,9 +473,6 @@ exec !_ !denv !_activeThreads !ustk !bstk !k _ (Pack r t args) = do
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec !_ !denv !_activeThreads !ustk !bstk !k _ (Unpack r i) = do
-  (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
-  pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (Print i) = do
   t <- peekOffBi bstk i
   Tx.putStrLn (Util.Text.toText t)
@@ -1007,60 +1004,6 @@ dumpDataNoTag !mr !_ !_ clo =
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpDataNoTag #-}
-
-dumpData ::
-  Maybe Reference ->
-  Stack 'UN ->
-  Stack 'BX ->
-  Closure ->
-  IO (Stack 'UN, Stack 'BX)
-dumpData !_ !ustk !bstk (Enum _ t) = do
-  ustk <- bump ustk
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataU1 _ t x) = do
-  ustk <- bumpn ustk 2
-  pokeOff ustk 1 x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataU2 _ t x y) = do
-  ustk <- bumpn ustk 3
-  pokeOff ustk 2 y
-  pokeOff ustk 1 x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataB1 _ t x) = do
-  ustk <- bump ustk
-  bstk <- bump bstk
-  poke bstk x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataB2 _ t x y) = do
-  ustk <- bump ustk
-  bstk <- bumpn bstk 2
-  pokeOff bstk 1 y
-  poke bstk x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataUB _ t x y) = do
-  ustk <- bumpn ustk 2
-  bstk <- bump bstk
-  pokeOff ustk 1 x
-  poke bstk y
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !ustk !bstk (DataG _ t us bs) = do
-  ustk <- dumpSeg ustk us S
-  bstk <- dumpSeg bstk bs S
-  ustk <- bump ustk
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !mr !_ !_ clo =
-  die $
-    "dumpData: bad closure: "
-      ++ show clo
-      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
-{-# INLINE dumpData #-}
 
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the
