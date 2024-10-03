@@ -21,6 +21,7 @@ module Unison.Runtime.Stack2
         DataB1,
         DataB2,
         DataUB,
+        DataBU,
         DataG,
         Captured,
         Foreign,
@@ -173,6 +174,7 @@ data GClosure comb
   | GDataB1 !Reference !Word64 !(GClosure comb)
   | GDataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
   | GDataUB !Reference !Word64 !Int !(GClosure comb)
+  | GDataBU !Reference !Word64 !(GClosure comb) !Int
   | GDataG !Reference !Word64 {-# UNPACK #-} !Seg
   | -- code cont, arg size, u/b data stacks
     GCaptured !K !Int {-# UNPACK #-} !Seg
@@ -206,6 +208,10 @@ pattern DataB2 r t x y <- Closure (GDataB2 r t (Closure -> x) (Closure -> y))
 pattern DataUB r t i y <- Closure (GDataUB r t i (Closure -> y))
   where
     DataUB r t i y = Closure (GDataUB r t i (unClosure y))
+
+pattern DataBU r t y i <- Closure (GDataBU r t (Closure -> y) i)
+  where
+    DataBU r t y i = Closure (GDataBU r t (unClosure y) i)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
@@ -728,8 +734,8 @@ frameArgs :: Stack -> IO Stack
 frameArgs (Stack ap _ sp ustk bstk) = pure $ Stack ap ap sp ustk bstk
 {-# INLINE frameArgs #-}
 
-augSeg :: Augment -> Stack -> Seg -> Args' -> IO Seg
-augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
+augSeg :: Augment -> Stack -> Seg -> Maybe Args' -> IO Seg
+augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
   useg' <- unboxedSeg
   bseg' <- boxedSeg
   pure (useg', bseg')
@@ -738,7 +744,7 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
       cop <- newByteArray $ ssz + psz + asz
       copyByteArray cop soff useg 0 ssz
       copyMutableByteArray cop 0 ustk (bytes $ ap + 1) psz
-      uargOnto ustk sp cop (words poff + pix - 1) args
+      for_ margs $ uargOnto ustk sp cop (words poff + pix - 1)
       unsafeFreezeByteArray cop
       where
         ssz = sizeofByteArray useg
@@ -747,16 +753,17 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
           | K <- mode = (ssz, 0)
           | otherwise = (0, psz + asz)
         psz = bytes pix
-        asz = case args of
-          Arg1 _ -> 8
-          Arg2 _ _ -> 16
-          ArgN v -> bytes $ sizeofPrimArray v
-          ArgR _ l -> bytes l
+        asz = case margs of
+          Nothing -> 0
+          Just (Arg1 _) -> 8
+          Just (Arg2 _ _) -> 16
+          Just (ArgN v) -> bytes $ sizeofPrimArray v
+          Just (ArgR _ l) -> bytes l
     boxedSeg = do
       cop <- newArray (ssz + psz + asz) BlackHole
       copyArray cop soff bseg 0 ssz
       copyMutableArray cop poff bstk (ap + 1) psz
-      bargOnto bstk sp cop (poff + psz - 1) args
+      for_ margs $ bargOnto bstk sp cop (poff + psz - 1)
       unsafeFreezeArray cop
       where
         ssz = sizeofArray bseg
@@ -764,11 +771,12 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) args = do
         (poff, soff)
           | K <- mode = (ssz, 0)
           | otherwise = (0, psz + asz)
-        asz = case args of
-          Arg1 _ -> 1
-          Arg2 _ _ -> 2
-          ArgN v -> sizeofPrimArray v
-          ArgR _ l -> l
+        asz = case margs of
+          Nothing -> 0
+          Just (Arg1 _) -> 1
+          Just (Arg2 _ _) -> 2
+          Just (ArgN v) -> sizeofPrimArray v
+          Just (ArgR _ l) -> l
 {-# INLINE augSeg #-}
 
 dumpSeg :: Stack -> Seg -> Dump -> IO Stack

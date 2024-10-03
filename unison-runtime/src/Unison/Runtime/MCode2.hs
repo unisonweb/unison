@@ -266,7 +266,7 @@ data Args
   | VArgR !Int !Int
   | VArgN {-# UNPACK #-} !(PrimArray Int)
   | -- TODO: What do I do with this?
-    VArgV !Int !Int
+    VArgV !Int
   deriving (Show, Eq, Ord)
 
 argsToLists :: Args -> [Int]
@@ -276,7 +276,7 @@ argsToLists = \case
   VArg2 i j -> [i, j]
   VArgR i l -> take l [i ..]
   VArgN us -> primArrayToList us
-  VArgV _ _ -> internalBug "argsToLists: DArgV"
+  VArgV _ -> internalBug "argsToLists: DArgV"
 
 countArgs :: Args -> Int
 countArgs ZArgs = 0
@@ -922,17 +922,15 @@ emitSection _ _ grpn _ ctx (TPrm p args) =
     . countCtx ctx
     . Ins (emitPOp p $ emitArgs grpn ctx args)
     . Yield
-    $ VArgV i j
-  where
-    (i, j) = countBlock ctx
+    . VArgV
+    $ countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
   addCount 3
     . countCtx ctx
     . Ins (emitFOp p $ emitArgs grpn ctx args)
     . Yield
-    $ VArgV i j
-  where
-    (i, j) = countBlock ctx
+    . VArgV
+    $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
@@ -1074,13 +1072,12 @@ emitFunction _ _grpr _ _ ctx (FCont k) as
 emitFunction _ _grpr _ _ _ (FPrim _) _ =
   internalBug "emitFunction: impossible"
 
-countBlock :: Ctx v -> (Int, Int)
-countBlock = go 0 0
+countBlock :: Ctx v -> Int
+countBlock = go 0
   where
-    go !ui !bi (Var _ UN ctx) = go (ui + 1) bi ctx
-    go ui bi (Var _ BX ctx) = go ui (bi + 1) ctx
-    go ui bi (Tag ctx) = go (ui + 1) bi ctx
-    go ui bi _ = (ui, bi)
+    go !i (Var _ _ ctx) = go (i + 1) ctx
+    go i (Tag ctx) = go (i + 1) ctx
+    go i _ = i
 
 matchCallingError :: Mem -> Branched v -> String
 matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"

@@ -874,20 +874,14 @@ moveArgs !stk (VArgR i l) = do
 moveArgs !stk (VArgN as) = do
   stk <- prepareArgs stk (ArgN as)
   pure stk
--- TODO: Don't know what to do with this, maybe can delete it?
-moveArgs !_stk (VArgV _i _j) = error "moveArgs: VArgV not implemented."
--- ustk <-
---   if ul > 0
---     then prepareArgs ustk (ArgR 0 ul)
---     else discardFrame ustk
--- bstk <-
---   if bl > 0
---     then prepareArgs bstk (ArgR 0 bl)
---     else discardFrame bstk
--- pure (ustk, bstk)
--- where
---   ul = fsize ustk - i
---   bl = fsize bstk - j
+moveArgs !stk (VArgV i) = do
+  stk <-
+    if l > 0
+      then prepareArgs stk (ArgR 0 l)
+      else discardFrame stk
+  pure stk
+  where
+    l = fsize stk - i
 {-# INLINE moveArgs #-}
 
 closureArgs :: Stack -> Args -> IO [Closure]
@@ -941,31 +935,19 @@ buildData !stk !r !t (VArg2 i j) = do
       pure $ DataUB r t u2 b1
     _ -> pure $ DataB2 r t b1 b2
 buildData !stk !r !t (VArgR i l) = do
-  useg <- augSeg I ustk unull (Just $ ArgR i l)
-  pure $ DataG r t useg bnull
-buildData !stk !r !t (VArgR i l) = do
-  bseg <- augSeg I bstk bnull (Just $ ArgR i l)
-  pure $ DataG r t unull bseg
+  seg <- augSeg I stk nullSeg (Just $ ArgR i l)
+  pure $ DataG r t seg
 buildData !stk !r !t (VArgN as) = do
-  useg <- augSeg I ustk unull (Just $ ArgN as)
-  pure $ DataG r t useg bnull
-buildData !stk !r !t (VArgN as) = do
-  useg <- augSeg I ustk unull (Just $ ArgN us)
-  bseg <- augSeg I bstk bnull (Just $ ArgN bs)
-  pure $ DataG r t useg bseg
-buildData !stk !r !t (VArgV ui bi) = do
-  useg <-
-    if ul > 0
-      then augSeg I ustk unull (Just $ ArgR 0 ul)
-      else pure unull
-  bseg <-
-    if bl > 0
-      then augSeg I bstk bnull (Just $ ArgR 0 bl)
-      else pure bnull
-  pure $ DataG r t useg bseg
+  seg <- augSeg I stk nullSeg (Just $ ArgN as)
+  pure $ DataG r t seg
+buildData !stk !r !t (VArgV i) = do
+  seg <-
+    if l > 0
+      then augSeg I stk nullSeg (Just $ ArgR 0 l)
+      else pure nullSeg
+  pure $ DataG r t seg
   where
-    ul = fsize ustk - ui
-    bl = fsize bstk - bi
+    l = fsize stk - i
 {-# INLINE buildData #-}
 
 -- Dumps a data type closure to the stack without writing its tag.
@@ -975,35 +957,38 @@ dumpDataNoTag ::
   Stack ->
   Closure ->
   IO (Word64, Stack)
-dumpDataNoTag !_ !stk (Enum _ t) = pure (t, ustk, bstk)
+dumpDataNoTag !_ !stk (Enum _ t) = pure (t, stk)
 dumpDataNoTag !_ !stk (DataU1 _ t x) = do
-  ustk <- bump ustk
-  poke ustk x
-  pure (t, ustk, bstk)
+  stk <- bump stk
+  upoke stk x
+  pure (t, stk)
 dumpDataNoTag !_ !stk (DataU2 _ t x y) = do
-  ustk <- bumpn ustk 2
-  pokeOff ustk 1 y
-  poke ustk x
-  pure (t, ustk, bstk)
+  stk <- bumpn stk 2
+  upokeOff stk 1 y
+  upoke stk x
+  pure (t, stk)
 dumpDataNoTag !_ !stk (DataB1 _ t x) = do
-  bstk <- bump bstk
-  poke bstk x
-  pure (t, ustk, bstk)
+  stk <- bump stk
+  bpoke stk x
+  pure (t, stk)
 dumpDataNoTag !_ !stk (DataB2 _ t x y) = do
-  bstk <- bumpn bstk 2
-  pokeOff bstk 1 y
-  poke bstk x
-  pure (t, ustk, bstk)
+  stk <- bumpn stk 2
+  bpokeOff stk 1 y
+  bpoke stk x
+  pure (t, stk)
 dumpDataNoTag !_ !stk (DataUB _ t x y) = do
-  ustk <- bump ustk
-  bstk <- bump bstk
-  poke ustk x
-  poke bstk y
-  pure (t, ustk, bstk)
+  stk <- bumpn stk 2
+  upoke stk x
+  bpokeOff stk 1 y
+  pure (t, stk)
+dumpDataNoTag !_ !stk (DataBU _ t x y) = do
+  stk <- bumpn stk 2
+  bpoke stk x
+  upokeOff stk 1 y
+  pure (t, stk)
 dumpDataNoTag !_ !stk (DataG _ t seg) = do
-  ustk <- dumpSeg ustk us S
-  bstk <- dumpSeg bstk bs S
-  pure (t, ustk, bstk)
+  stk <- dumpSeg stk seg S
+  pure (t, stk)
 dumpDataNoTag !mr !_ clo =
   die $
     "dumpDataNoTag: bad closure: "
@@ -1017,20 +1002,20 @@ dumpData ::
   Closure ->
   IO Stack
 dumpData !_ !stk (Enum _ t) = do
-  ustk <- bump ustk
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
+  stk <- bump stk
+  pokeN stk $ maskTags t
+  pure stk
 dumpData !_ !stk (DataU1 _ t x) = do
-  ustk <- bumpn ustk 2
-  pokeOff ustk 1 x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
+  stk <- bumpn stk 2
+  upokeOff stk 1 x
+  pokeN stk $ maskTags t
+  pure stk
 dumpData !_ !stk (DataU2 _ t x y) = do
-  ustk <- bumpn ustk 3
-  pokeOff ustk 2 y
-  pokeOff ustk 1 x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
+  stk <- bumpn stk 3
+  upokeOff stk 2 y
+  upokeOff stk 1 x
+  pokeN stk $ maskTags t
+  pure stk
 dumpData !_ !stk (DataB1 _ t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
@@ -1074,9 +1059,9 @@ closeArgs ::
   Seg ->
   Args ->
   IO Seg
-closeArgs mode !stk !seg args = augSeg mode stk seg args
+closeArgs mode !stk !seg args = augSeg mode stk seg as
   where
-    (uargs, bargs) = case args of
+    as = case args of
       -- TODO:
       ZArgs -> (Nothing, Nothing)
       VArg1 i -> (Just $ Arg1 i, Nothing)
@@ -1088,7 +1073,7 @@ closeArgs mode !stk !seg args = augSeg mode stk seg args
       VArg2 i j -> (Just $ Arg1 i, Just $ Arg1 j)
       VArgN as -> (Just $ ArgN as, Nothing)
       VArgN as -> (Nothing, Just $ ArgN as)
-      VArgV ui bi -> (ua, ba)
+      VArgV i -> (ua, ba)
         where
           ua
             | ul > 0 = Just $ ArgR 0 ul
