@@ -146,6 +146,7 @@ expectingError :: P Result
 expectingError =
   (Error <$ word ":error")
     <|> (Failure <$ word ":failure")
+    <|> (Incorrect <$ word ":incorrect")
     <|> pure Success
 
 untilSpace1 :: P Text

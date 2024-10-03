@@ -19,7 +19,7 @@ import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch)
 
-data Result = Success | Error | Failure
+data Result = Success | Incorrect | Error | Failure
 
 type ScratchFileName = Text
 

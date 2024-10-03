@@ -266,6 +266,14 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
                             liftIO $ writeIORef hasErrors True
                             liftIO (readIORef allowErrors) >>= \case
                               Success -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
+                              Incorrect ->
+                                liftIO . dieWithMsg . Pretty.toPlain terminalWidth $
+                                  "The stanza above previously had an incorrect successful result, but now fails with"
+                                    <> "\n"
+                                    <> Pretty.border 2 msg
+                                    <> "\n"
+                                    <> "if this is the expected result, replace `:incorrect` with `:error`, otherwise "
+                                    <> "change `:incorrect` to `:failure`."
                               _ -> do
                                 liftIO . output . Pretty.toPlain terminalWidth $ "\n" <> msg <> "\n"
                                 awaitInput
@@ -366,6 +374,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
         output rendered
         when (Output.isFailure o) case errOk of
           Success -> dieWithMsg rendered
+          Incorrect -> dieWithMsg rendered
           _ -> writeIORef hasErrors True
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
@@ -376,6 +385,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
         output rendered
         when (Output.isNumberedFailure o) case errOk of
           Success -> dieWithMsg rendered
+          Incorrect -> dieWithMsg rendered
           _ -> writeIORef hasErrors True
         pure numberedArgs
 
