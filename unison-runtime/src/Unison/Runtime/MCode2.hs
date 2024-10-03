@@ -704,16 +704,14 @@ ctx vs cs = pushCtx (zip vs cs) ECtx
 -- Look up a variable in the context, getting its position on the
 -- relevant stack and its calling convention if it is there.
 ctxResolve :: (Var v) => Ctx v -> v -> Maybe (Int, Mem)
-ctxResolve ctx v = walk 0 0 ctx
+ctxResolve ctx v = walk 0 ctx
   where
-    walk _ _ ECtx = Nothing
-    walk ui bi (Block ctx) = walk ui bi ctx
-    walk ui bi (Tag ctx) = walk (ui + 1) bi ctx
-    walk ui bi (Var x m ctx)
-      | v == x = case m of BX -> Just (bi, m); UN -> Just (ui, m)
-      | otherwise = walk ui' bi' ctx
-      where
-        (ui', bi') = case m of BX -> (ui, bi + 1); UN -> (ui + 1, bi)
+    walk _ ECtx = Nothing
+    walk i (Block ctx) = walk i ctx
+    walk i (Tag ctx) = walk (i + 1) ctx
+    walk i (Var x m ctx)
+      | v == x = Just (i, m)
+      | otherwise = walk (i + 1) ctx
 
 -- Add a sequence of variables and calling conventions to the context.
 pushCtx :: [(v, Mem)] -> Ctx v -> Ctx v
