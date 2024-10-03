@@ -142,8 +142,11 @@ hidden =
     <|> (HideOutput <$ word ":hide")
     <|> pure Shown
 
-expectingError :: P ExpectingError
-expectingError = isJust <$> optional (word ":error")
+expectingError :: P Result
+expectingError =
+  (Error <$ word ":error")
+    <|> (Failure <$ word ":failure")
+    <|> pure Success
 
 untilSpace1 :: P Text
 untilSpace1 = P.takeWhile1P Nothing (not . Char.isSpace)
