@@ -862,56 +862,55 @@ getValue v =
 
 putCont :: (MonadPut m) => Cont -> m ()
 putCont KE = putTag KET
-putCont (Mark 0 ba rs ds k) =
+putCont (Mark a rs ds k) =
   putTag MarkT
-    *> putWord64be ba
+    *> putWord64be a
     *> putFoldable putReference rs
     *> putMap putReference putValue ds
     *> putCont k
-putCont Mark {} =
-  exn "putCont: Mark with unboxed args no longer supported"
-putCont (Push 0 j 0 n gr k) =
+putCont (Push f n gr k) =
   putTag PushT
-    *> putWord64be j
+    *> putWord64be f
     *> putWord64be n
     *> putGroupRef gr
     *> putCont k
-putCont Push {} =
-  exn "putCont: Push with unboxed information no longer supported"
 
 getCont :: (MonadGet m) => Version -> m Cont
 getCont v =
   getTag >>= \case
     KET -> pure KE
     MarkT
-      | v < 4 ->
-          Mark
-            <$> getWord64be
-            <*> getWord64be
-            <*> getList getReference
-            <*> getMap getReference (getValue v)
-            <*> getCont v
+      | v < 4 -> do
+          ua <- getWord64be
+          ba <- getWord64be
+          refs <- getList getReference
+          vals <- getMap getReference (getValue v)
+          cont <- getCont v
+          pure $ Mark (ua + ba) refs vals cont
       | otherwise ->
-          Mark 0
+          Mark
             <$> getWord64be
             <*> getList getReference
             <*> getMap getReference (getValue v)
             <*> getCont v
     PushT
-      | v < 4 ->
+      | v < 4 -> do
+          getWord64be >>= assert0 "unboxed frame size"
+          bf <- getWord64be
+          getWord64be >>= assert0 "unboxed arg size"
+          ba <- getWord64be
+          gr <- getGroupRef
+          cont <- getCont v
+          pure $ Push bf ba gr cont
+      | otherwise ->
           Push
             <$> getWord64be
             <*> getWord64be
-            <*> getWord64be
-            <*> getWord64be
             <*> getGroupRef
             <*> getCont v
-      | otherwise ->
-          (\j n -> Push 0 j 0 n)
-            <$> getWord64be
-            <*> getWord64be
-            <*> getGroupRef
-            <*> getCont v
+  where
+    assert0 _name 0 = pure ()
+    assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
 
 deserializeGroup :: (Var v) => ByteString -> Either String (SuperGroup v)
 deserializeGroup bs = runGetS (getVersion *> getGroup) bs
