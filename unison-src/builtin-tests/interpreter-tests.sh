@@ -4,7 +4,7 @@ set -ex
 ucm=$(stack exec -- which unison)
 echo "$ucm"
 
-runtime_tests_version="@unison/runtime-tests/main"
+runtime_tests_version="@unison/runtime-tests/releases/0.0.1"
 echo $runtime_tests_version
 
 codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/runtime-tests.unison
