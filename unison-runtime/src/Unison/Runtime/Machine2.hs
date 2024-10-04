@@ -501,9 +501,6 @@ exec !_ !denv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (denv, stk, k)
-exec !_ !denv !_activeThreads !stk !k _ (Unpack r i) = do
-  stk <- dumpData r stk =<< bpeekOff stk i
-  pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)
@@ -996,59 +993,6 @@ dumpDataNoTag !mr !_ clo =
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpDataNoTag #-}
 
-dumpData ::
-  Maybe Reference ->
-  Stack ->
-  Closure ->
-  IO Stack
-dumpData !_ !stk (Enum _ t) = do
-  stk <- bump stk
-  pokeN stk $ maskTags t
-  pure stk
-dumpData !_ !stk (DataU1 _ t x) = do
-  stk <- bumpn stk 2
-  upokeOff stk 1 x
-  pokeN stk $ maskTags t
-  pure stk
-dumpData !_ !stk (DataU2 _ t x y) = do
-  stk <- bumpn stk 3
-  upokeOff stk 2 y
-  upokeOff stk 1 x
-  pokeN stk $ maskTags t
-  pure stk
-dumpData !_ !stk (DataB1 _ t x) = do
-  ustk <- bump ustk
-  bstk <- bump bstk
-  poke bstk x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !stk (DataB2 _ t x y) = do
-  ustk <- bump ustk
-  bstk <- bumpn bstk 2
-  pokeOff bstk 1 y
-  poke bstk x
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !stk (DataUB _ t x y) = do
-  ustk <- bumpn ustk 2
-  bstk <- bump bstk
-  pokeOff ustk 1 x
-  poke bstk y
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !_ !stk (DataG _ t seg) = do
-  ustk <- dumpSeg ustk us S
-  bstk <- dumpSeg bstk bs S
-  ustk <- bump ustk
-  pokeN ustk $ maskTags t
-  pure (ustk, bstk)
-dumpData !mr !_ clo =
-  die $
-    "dumpData: bad closure: "
-      ++ show clo
-      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
-{-# INLINE dumpData #-}
-
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the
 -- other. Thus, it is unnecessary to worry about doing tricks to
@@ -1062,27 +1006,17 @@ closeArgs ::
 closeArgs mode !stk !seg args = augSeg mode stk seg as
   where
     as = case args of
-      -- TODO:
-      ZArgs -> (Nothing, Nothing)
-      VArg1 i -> (Just $ Arg1 i, Nothing)
-      VArg1 i -> (Nothing, Just $ Arg1 i)
-      VArg2 i j -> (Just $ Arg2 i j, Nothing)
-      VArg2 i j -> (Nothing, Just $ Arg2 i j)
-      VArgR i l -> (Just $ ArgR i l, Nothing)
-      VArgR i l -> (Nothing, Just $ ArgR i l)
-      VArg2 i j -> (Just $ Arg1 i, Just $ Arg1 j)
-      VArgN as -> (Just $ ArgN as, Nothing)
-      VArgN as -> (Nothing, Just $ ArgN as)
-      VArgV i -> (ua, ba)
+      ZArgs -> Nothing
+      VArg1 i -> Just $ Arg1 i
+      VArg2 i j -> Just $ Arg2 i j
+      VArgR i l -> Just $ ArgR i l
+      VArgN as -> Just $ ArgN as
+      VArgV i -> a
         where
-          ua
-            | ul > 0 = Just $ ArgR 0 ul
+          a
+            | l > 0 = Just $ ArgR 0 l
             | otherwise = Nothing
-          ba
-            | bl > 0 = Just $ ArgR 0 bl
-            | otherwise = Nothing
-          ul = fsize ustk - ui
-          bl = fsize bstk - bi
+          l = fsize stk - i
 
 peekForeign :: Stack -> Int -> IO a
 peekForeign bstk i =
@@ -1092,327 +1026,327 @@ peekForeign bstk i =
 {-# INLINE peekForeign #-}
 
 uprim1 :: Stack -> UPrim1 -> Int -> IO Stack
-uprim1 !ustk DECI !i = do
-  m <- peekOff ustk i
-  ustk <- bump ustk
-  poke ustk (m - 1)
-  pure ustk
-uprim1 !ustk INCI !i = do
-  m <- peekOff ustk i
-  ustk <- bump ustk
-  poke ustk (m + 1)
-  pure ustk
-uprim1 !ustk NEGI !i = do
-  m <- peekOff ustk i
-  ustk <- bump ustk
-  poke ustk (-m)
-  pure ustk
-uprim1 !ustk SGNI !i = do
-  m <- peekOff ustk i
-  ustk <- bump ustk
-  poke ustk (signum m)
-  pure ustk
-uprim1 !ustk ABSF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (abs d)
-  pure ustk
-uprim1 !ustk CEIL !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  poke ustk (ceiling d)
-  pure ustk
-uprim1 !ustk FLOR !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  poke ustk (floor d)
-  pure ustk
-uprim1 !ustk TRNF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  poke ustk (truncate d)
-  pure ustk
-uprim1 !ustk RNDF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  poke ustk (round d)
-  pure ustk
-uprim1 !ustk EXPF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (exp d)
-  pure ustk
-uprim1 !ustk LOGF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (log d)
-  pure ustk
-uprim1 !ustk SQRT !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (sqrt d)
-  pure ustk
-uprim1 !ustk COSF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (cos d)
-  pure ustk
-uprim1 !ustk SINF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (sin d)
-  pure ustk
-uprim1 !ustk TANF !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (tan d)
-  pure ustk
-uprim1 !ustk COSH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (cosh d)
-  pure ustk
-uprim1 !ustk SINH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (sinh d)
-  pure ustk
-uprim1 !ustk TANH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (tanh d)
-  pure ustk
-uprim1 !ustk ACOS !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (acos d)
-  pure ustk
-uprim1 !ustk ASIN !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (asin d)
-  pure ustk
-uprim1 !ustk ATAN !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (atan d)
-  pure ustk
-uprim1 !ustk ASNH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (asinh d)
-  pure ustk
-uprim1 !ustk ACSH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (acosh d)
-  pure ustk
-uprim1 !ustk ATNH !i = do
-  d <- peekOffD ustk i
-  ustk <- bump ustk
-  pokeD ustk (atanh d)
-  pure ustk
-uprim1 !ustk ITOF !i = do
-  n <- peekOff ustk i
-  ustk <- bump ustk
-  pokeD ustk (fromIntegral n)
-  pure ustk
-uprim1 !ustk NTOF !i = do
-  n <- peekOffN ustk i
-  ustk <- bump ustk
-  pokeD ustk (fromIntegral n)
-  pure ustk
-uprim1 !ustk LZRO !i = do
-  n <- peekOffN ustk i
-  ustk <- bump ustk
-  poke ustk (countLeadingZeros n)
-  pure ustk
-uprim1 !ustk TZRO !i = do
-  n <- peekOffN ustk i
-  ustk <- bump ustk
-  poke ustk (countTrailingZeros n)
-  pure ustk
-uprim1 !ustk POPC !i = do
-  n <- peekOffN ustk i
-  ustk <- bump ustk
-  poke ustk (popCount n)
-  pure ustk
-uprim1 !ustk COMN !i = do
-  n <- peekOffN ustk i
-  ustk <- bump ustk
-  pokeN ustk (complement n)
-  pure ustk
+uprim1 !stk DECI !i = do
+  m <- peekOff stk i
+  stk <- bump stk
+  poke stk (m - 1)
+  pure stk
+uprim1 !stk INCI !i = do
+  m <- peekOff stk i
+  stk <- bump stk
+  poke stk (m + 1)
+  pure stk
+uprim1 !stk NEGI !i = do
+  m <- peekOff stk i
+  stk <- bump stk
+  poke stk (-m)
+  pure stk
+uprim1 !stk SGNI !i = do
+  m <- peekOff stk i
+  stk <- bump stk
+  poke stk (signum m)
+  pure stk
+uprim1 !stk ABSF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (abs d)
+  pure stk
+uprim1 !stk CEIL !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  poke stk (ceiling d)
+  pure stk
+uprim1 !stk FLOR !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  poke stk (floor d)
+  pure stk
+uprim1 !stk TRNF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  poke stk (truncate d)
+  pure stk
+uprim1 !stk RNDF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  poke stk (round d)
+  pure stk
+uprim1 !stk EXPF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (exp d)
+  pure stk
+uprim1 !stk LOGF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (log d)
+  pure stk
+uprim1 !stk SQRT !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (sqrt d)
+  pure stk
+uprim1 !stk COSF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (cos d)
+  pure stk
+uprim1 !stk SINF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (sin d)
+  pure stk
+uprim1 !stk TANF !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (tan d)
+  pure stk
+uprim1 !stk COSH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (cosh d)
+  pure stk
+uprim1 !stk SINH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (sinh d)
+  pure stk
+uprim1 !stk TANH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (tanh d)
+  pure stk
+uprim1 !stk ACOS !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (acos d)
+  pure stk
+uprim1 !stk ASIN !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (asin d)
+  pure stk
+uprim1 !stk ATAN !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (atan d)
+  pure stk
+uprim1 !stk ASNH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (asinh d)
+  pure stk
+uprim1 !stk ACSH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (acosh d)
+  pure stk
+uprim1 !stk ATNH !i = do
+  d <- peekOffD stk i
+  stk <- bump stk
+  pokeD stk (atanh d)
+  pure stk
+uprim1 !stk ITOF !i = do
+  n <- peekOff stk i
+  stk <- bump stk
+  pokeD stk (fromIntegral n)
+  pure stk
+uprim1 !stk NTOF !i = do
+  n <- peekOffN stk i
+  stk <- bump stk
+  pokeD stk (fromIntegral n)
+  pure stk
+uprim1 !stk LZRO !i = do
+  n <- peekOffN stk i
+  stk <- bump stk
+  upoke stk (countLeadingZeros n)
+  pure stk
+uprim1 !stk TZRO !i = do
+  n <- peekOffN stk i
+  stk <- bump stk
+  upoke stk (countTrailingZeros n)
+  pure stk
+uprim1 !stk POPC !i = do
+  n <- peekOffN stk i
+  stk <- bump stk
+  upoke stk (popCount n)
+  pure stk
+uprim1 !stk COMN !i = do
+  n <- peekOffN stk i
+  stk <- bump stk
+  pokeN stk (complement n)
+  pure stk
 {-# INLINE uprim1 #-}
 
 uprim2 :: Stack -> UPrim2 -> Int -> Int -> IO Stack
-uprim2 !ustk ADDI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m + n)
-  pure ustk
-uprim2 !ustk SUBI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m - n)
-  pure ustk
-uprim2 !ustk MULI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m * n)
-  pure ustk
-uprim2 !ustk DIVI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m `div` n)
-  pure ustk
-uprim2 !ustk MODI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m `mod` n)
-  pure ustk
-uprim2 !ustk SHLI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m `shiftL` n)
-  pure ustk
-uprim2 !ustk SHRI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk (m `shiftR` n)
-  pure ustk
-uprim2 !ustk SHRN !i !j = do
-  m <- peekOffN ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  pokeN ustk (m `shiftR` n)
-  pure ustk
-uprim2 !ustk POWI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOffN ustk j
-  ustk <- bump ustk
-  poke ustk (m ^ n)
-  pure ustk
-uprim2 !ustk EQLI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk $ if m == n then 1 else 0
-  pure ustk
-uprim2 !ustk LEQI !i !j = do
-  m <- peekOff ustk i
-  n <- peekOff ustk j
-  ustk <- bump ustk
-  poke ustk $ if m <= n then 1 else 0
-  pure ustk
-uprim2 !ustk LEQN !i !j = do
-  m <- peekOffN ustk i
-  n <- peekOffN ustk j
-  ustk <- bump ustk
-  poke ustk $ if m <= n then 1 else 0
-  pure ustk
-uprim2 !ustk DIVN !i !j = do
-  m <- peekOffN ustk i
-  n <- peekOffN ustk j
-  ustk <- bump ustk
-  pokeN ustk (m `div` n)
-  pure ustk
-uprim2 !ustk MODN !i !j = do
-  m <- peekOffN ustk i
-  n <- peekOffN ustk j
-  ustk <- bump ustk
-  pokeN ustk (m `mod` n)
-  pure ustk
-uprim2 !ustk ADDF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (x + y)
-  pure ustk
-uprim2 !ustk SUBF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (x - y)
-  pure ustk
-uprim2 !ustk MULF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (x * y)
-  pure ustk
-uprim2 !ustk DIVF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (x / y)
-  pure ustk
-uprim2 !ustk LOGB !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (logBase x y)
-  pure ustk
-uprim2 !ustk POWF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (x ** y)
-  pure ustk
-uprim2 !ustk MAXF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (max x y)
-  pure ustk
-uprim2 !ustk MINF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (min x y)
-  pure ustk
-uprim2 !ustk EQLF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  poke ustk (if x == y then 1 else 0)
-  pure ustk
-uprim2 !ustk LEQF !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  poke ustk (if x <= y then 1 else 0)
-  pure ustk
-uprim2 !ustk ATN2 !i !j = do
-  x <- peekOffD ustk i
-  y <- peekOffD ustk j
-  ustk <- bump ustk
-  pokeD ustk (atan2 x y)
-  pure ustk
-uprim2 !ustk ANDN !i !j = do
-  x <- peekOffN ustk i
-  y <- peekOffN ustk j
-  ustk <- bump ustk
-  pokeN ustk (x .&. y)
-  pure ustk
-uprim2 !ustk IORN !i !j = do
-  x <- peekOffN ustk i
-  y <- peekOffN ustk j
-  ustk <- bump ustk
-  pokeN ustk (x .|. y)
-  pure ustk
-uprim2 !ustk XORN !i !j = do
-  x <- peekOffN ustk i
-  y <- peekOffN ustk j
-  ustk <- bump ustk
-  pokeN ustk (xor x y)
-  pure ustk
+uprim2 !stk ADDI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk (m + n)
+  pure stk
+uprim2 !stk SUBI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk (m - n)
+  pure stk
+uprim2 !stk MULI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk (m * n)
+  pure stk
+uprim2 !stk DIVI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk (m `div` n)
+  pure stk
+uprim2 !stk MODI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk (m `mod` n)
+  pure stk
+uprim2 !stk SHLI !i !j = do
+  m <- upeekOff stk i
+  n <- upeekOff stk j
+  stk <- bump stk
+  upoke stk (m `shiftL` n)
+  pure stk
+uprim2 !stk SHRI !i !j = do
+  m <- upeekOff stk i
+  n <- upeekOff stk j
+  stk <- bump stk
+  upoke stk (m `shiftR` n)
+  pure stk
+uprim2 !stk SHRN !i !j = do
+  m <- peekOffN stk i
+  n <- upeekOff stk j
+  stk <- bump stk
+  pokeN stk (m `shiftR` n)
+  pure stk
+uprim2 !stk POWI !i !j = do
+  m <- peekOff stk i
+  n <- peekOffN stk j
+  stk <- bump stk
+  poke stk (m ^ n)
+  pure stk
+uprim2 !stk EQLI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk $ if m == n then 1 else 0
+  pure stk
+uprim2 !stk LEQI !i !j = do
+  m <- peekOff stk i
+  n <- peekOff stk j
+  stk <- bump stk
+  poke stk $ if m <= n then 1 else 0
+  pure stk
+uprim2 !stk LEQN !i !j = do
+  m <- peekOffN stk i
+  n <- peekOffN stk j
+  stk <- bump stk
+  poke stk $ if m <= n then 1 else 0
+  pure stk
+uprim2 !stk DIVN !i !j = do
+  m <- peekOffN stk i
+  n <- peekOffN stk j
+  stk <- bump stk
+  pokeN stk (m `div` n)
+  pure stk
+uprim2 !stk MODN !i !j = do
+  m <- peekOffN stk i
+  n <- peekOffN stk j
+  stk <- bump stk
+  pokeN stk (m `mod` n)
+  pure stk
+uprim2 !stk ADDF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (x + y)
+  pure stk
+uprim2 !stk SUBF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (x - y)
+  pure stk
+uprim2 !stk MULF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (x * y)
+  pure stk
+uprim2 !stk DIVF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (x / y)
+  pure stk
+uprim2 !stk LOGB !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (logBase x y)
+  pure stk
+uprim2 !stk POWF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (x ** y)
+  pure stk
+uprim2 !stk MAXF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (max x y)
+  pure stk
+uprim2 !stk MINF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (min x y)
+  pure stk
+uprim2 !stk EQLF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  poke stk (if x == y then 1 else 0)
+  pure stk
+uprim2 !stk LEQF !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  poke stk (if x <= y then 1 else 0)
+  pure stk
+uprim2 !stk ATN2 !i !j = do
+  x <- peekOffD stk i
+  y <- peekOffD stk j
+  stk <- bump stk
+  pokeD stk (atan2 x y)
+  pure stk
+uprim2 !stk ANDN !i !j = do
+  x <- peekOffN stk i
+  y <- peekOffN stk j
+  stk <- bump stk
+  pokeN stk (x .&. y)
+  pure stk
+uprim2 !stk IORN !i !j = do
+  x <- peekOffN stk i
+  y <- peekOffN stk j
+  stk <- bump stk
+  pokeN stk (x .|. y)
+  pure stk
+uprim2 !stk XORN !i !j = do
+  x <- peekOffN stk i
+  y <- peekOffN stk j
+  stk <- bump stk
+  pokeN stk (xor x y)
+  pure stk
 {-# INLINE uprim2 #-}
 
 bprim1 ::
@@ -1421,40 +1355,40 @@ bprim1 ::
   Int ->
   IO Stack
 bprim1 !stk SIZT i = do
-  t <- peekOffBi bstk i
-  ustk <- bump ustk
-  poke ustk $ Util.Text.size t
-  pure (ustk, bstk)
+  t <- peekOffBi stk i
+  stk <- bump stk
+  upoke stk $ Util.Text.size t
+  pure stk
 bprim1 !stk SIZS i = do
-  s <- peekOffS bstk i
-  ustk <- bump ustk
-  poke ustk $ Sq.length s
-  pure (ustk, bstk)
+  s <- peekOffS stk i
+  stk <- bump stk
+  upoke stk $ Sq.length s
+  pure stk
 bprim1 !stk ITOT i = do
-  n <- peekOff ustk i
-  bstk <- bump bstk
-  pokeBi bstk . Util.Text.pack $ show n
-  pure (ustk, bstk)
+  n <- upeekOff stk i
+  stk <- bump stk
+  pokeBi stk . Util.Text.pack $ show n
+  pure stk
 bprim1 !stk NTOT i = do
-  n <- peekOffN ustk i
-  bstk <- bump bstk
-  pokeBi bstk . Util.Text.pack $ show n
-  pure (ustk, bstk)
+  n <- peekOffN stk i
+  stk <- bump stk
+  pokeBi stk . Util.Text.pack $ show n
+  pure stk
 bprim1 !stk FTOT i = do
-  f <- peekOffD ustk i
-  bstk <- bump bstk
-  pokeBi bstk . Util.Text.pack $ show f
-  pure (ustk, bstk)
+  f <- peekOffD stk i
+  stk <- bump stk
+  pokeBi stk . Util.Text.pack $ show f
+  pure stk
 bprim1 !stk USNC i =
-  peekOffBi bstk i >>= \t -> case Util.Text.unsnoc t of
+  peekOffBi stk i >>= \t -> case Util.Text.unsnoc t of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     Just (t, c) -> do
       ustk <- bumpn ustk 2
       bstk <- bump bstk
-      pokeOff ustk 1 $ fromEnum c
+      upokeOff ustk 1 $ fromEnum c
       poke ustk 1
       pokeBi bstk t
       pure (ustk, bstk)
@@ -1579,15 +1513,15 @@ bprim1 !stk FLTB i = do
   pokeBi bstk $ By.flatten b
   pure (ustk, bstk)
 -- impossible
-bprim1 !stk MISS _ = pure (ustk, bstk)
-bprim1 !stk CACH _ = pure (ustk, bstk)
-bprim1 !stk LKUP _ = pure (ustk, bstk)
-bprim1 !stk CVLD _ = pure (ustk, bstk)
-bprim1 !stk TLTT _ = pure (ustk, bstk)
-bprim1 !stk LOAD _ = pure (ustk, bstk)
-bprim1 !stk VALU _ = pure (ustk, bstk)
-bprim1 !stk DBTX _ = pure (ustk, bstk)
-bprim1 !stk SDBL _ = pure (ustk, bstk)
+bprim1 !stk MISS _ = pure stk
+bprim1 !stk CACH _ = pure stk
+bprim1 !stk LKUP _ = pure stk
+bprim1 !stk CVLD _ = pure stk
+bprim1 !stk TLTT _ = pure stk
+bprim1 !stk LOAD _ = pure stk
+bprim1 !stk VALU _ = pure stk
+bprim1 !stk DBTX _ = pure stk
+bprim1 !stk SDBL _ = pure stk
 {-# INLINE bprim1 #-}
 
 bprim2 ::
@@ -1597,202 +1531,202 @@ bprim2 ::
   Int ->
   IO Stack
 bprim2 !stk EQLU i j = do
-  x <- peekOff bstk i
-  y <- peekOff bstk j
-  ustk <- bump ustk
-  poke ustk $ if universalEq (==) x y then 1 else 0
-  pure (ustk, bstk)
+  x <- bpeekOff stk i
+  y <- bpeekOff stk j
+  stk <- bump stk
+  upoke stk $ if universalEq (==) x y then 1 else 0
+  pure stk
 bprim2 !stk IXOT i j = do
-  x <- peekOffBi bstk i
-  y <- peekOffBi bstk j
+  x <- peekOffBi stk i
+  y <- peekOffBi stk j
   case Util.Text.indexOf x y of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     Just i -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOffN ustk 1 i
-      pure (ustk, bstk)
+      stk <- bumpn stk 2
+      poke stk 1
+      pokeOffN stk 1 i
+      pure stk
 bprim2 !stk IXOB i j = do
-  x <- peekOffBi bstk i
-  y <- peekOffBi bstk j
+  x <- peekOffBi stk i
+  y <- peekOffBi stk j
   case By.indexOf x y of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     Just i -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOffN ustk 1 i
-      pure (ustk, bstk)
+      stk <- bumpn stk 2
+      upoke stk 1
+      pokeOffN stk 1 i
+      pure stk
 bprim2 !stk DRPT i j = do
-  n <- peekOff ustk i
-  t <- peekOffBi bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  t <- peekOffBi stk j
+  stk <- bump stk
   -- Note; if n < 0, the Nat argument was greater than the maximum
   -- signed integer. As an approximation, just return the empty
   -- string, as a string larger than this would require an absurd
   -- amount of memory.
-  pokeBi bstk $ if n < 0 then Util.Text.empty else Util.Text.drop n t
-  pure (ustk, bstk)
+  pokeBi stk $ if n < 0 then Util.Text.empty else Util.Text.drop n t
+  pure stk
 bprim2 !stk CATT i j = do
-  x <- peekOffBi bstk i
-  y <- peekOffBi bstk j
-  bstk <- bump bstk
+  x <- peekOffBi stk i
+  y <- peekOffBi stk j
+  bstk <- bump stk
   pokeBi bstk $ (x <> y :: Util.Text.Text)
-  pure (ustk, bstk)
+  pure stk
 bprim2 !stk TAKT i j = do
-  n <- peekOff ustk i
-  t <- peekOffBi bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  t <- peekOffBi stk j
+  stk <- bump stk
   -- Note: if n < 0, the Nat argument was greater than the maximum
   -- signed integer. As an approximation, we just return the original
   -- string, because it's unlikely such a large string exists.
-  pokeBi bstk $ if n < 0 then t else Util.Text.take n t
-  pure (ustk, bstk)
+  pokeBi stk $ if n < 0 then t else Util.Text.take n t
+  pure stk
 bprim2 !stk EQLT i j = do
-  x <- peekOffBi @Util.Text.Text bstk i
-  y <- peekOffBi bstk j
-  ustk <- bump ustk
-  poke ustk $ if x == y then 1 else 0
-  pure (ustk, bstk)
+  x <- peekOffBi @Util.Text.Text stk i
+  y <- peekOffBi stk j
+  stk <- bump stk
+  upoke stk $ if x == y then 1 else 0
+  pure stk
 bprim2 !stk LEQT i j = do
-  x <- peekOffBi @Util.Text.Text bstk i
-  y <- peekOffBi bstk j
-  ustk <- bump ustk
-  poke ustk $ if x <= y then 1 else 0
-  pure (ustk, bstk)
+  x <- peekOffBi @Util.Text.Text stk i
+  y <- peekOffBi stk j
+  stk <- bump stk
+  upoke stk $ if x <= y then 1 else 0
+  pure stk
 bprim2 !stk LEST i j = do
-  x <- peekOffBi @Util.Text.Text bstk i
-  y <- peekOffBi bstk j
-  ustk <- bump ustk
-  poke ustk $ if x < y then 1 else 0
-  pure (ustk, bstk)
+  x <- peekOffBi @Util.Text.Text stk i
+  y <- peekOffBi stk j
+  stk <- bump stk
+  upoke stk $ if x < y then 1 else 0
+  pure stk
 bprim2 !stk DRPS i j = do
-  n <- peekOff ustk i
-  s <- peekOffS bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  s <- peekOffS stk j
+  stk <- bump stk
   -- Note: if n < 0, then the Nat argument was larger than the largest
   -- signed integer. Seq actually doesn't handle this well, despite it
   -- being possible to build (lazy) sequences this large. So,
   -- approximate by yielding the empty sequence.
-  pokeS bstk $ if n < 0 then Sq.empty else Sq.drop n s
-  pure (ustk, bstk)
+  pokeS stk $ if n < 0 then Sq.empty else Sq.drop n s
+  pure stk
 bprim2 !stk TAKS i j = do
-  n <- peekOff ustk i
-  s <- peekOffS bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  s <- peekOffS stk j
+  stk <- bump stk
   -- Note: if n < 0, then the Nat argument was greater than the
   -- largest signed integer. It is possible to build such large
   -- sequences, but the internal size will actually be wrong then. So,
   -- we just return the original sequence as an approximation.
-  pokeS bstk $ if n < 0 then s else Sq.take n s
-  pure (ustk, bstk)
+  pokeS stk $ if n < 0 then s else Sq.take n s
+  pure stk
 bprim2 !stk CONS i j = do
-  x <- peekOff bstk i
-  s <- peekOffS bstk j
-  bstk <- bump bstk
-  pokeS bstk $ x Sq.<| s
-  pure (ustk, bstk)
+  x <- bpeekOff stk i
+  s <- peekOffS stk j
+  stk <- bump stk
+  pokeS stk $ x Sq.<| s
+  pure stk
 bprim2 !stk SNOC i j = do
-  s <- peekOffS bstk i
-  x <- peekOff bstk j
-  bstk <- bump bstk
+  s <- peekOffS stk i
+  x <- bpeekOff stk j
+  bstk <- bump stk
   pokeS bstk $ s Sq.|> x
-  pure (ustk, bstk)
+  pure stk
 bprim2 !stk CATS i j = do
-  x <- peekOffS bstk i
-  y <- peekOffS bstk j
-  bstk <- bump bstk
-  pokeS bstk $ x Sq.>< y
-  pure (ustk, bstk)
+  x <- peekOffS stk i
+  y <- peekOffS stk j
+  stk <- bump stk
+  pokeS stk $ x Sq.>< y
+  pure stk
 bprim2 !stk IDXS i j = do
-  n <- peekOff ustk i
-  s <- peekOffS bstk j
+  n <- upeekOff stk i
+  s <- peekOffS stk j
   case Sq.lookup n s of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     Just x -> do
-      ustk <- bump ustk
-      poke ustk 1
-      bstk <- bump bstk
-      poke bstk x
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 1
+      stk <- bump stk
+      bpoke stk x
+      pure stk
 bprim2 !stk SPLL i j = do
-  n <- peekOff ustk i
-  s <- peekOffS bstk j
+  n <- upeekOff stk i
+  s <- peekOffS stk j
   if Sq.length s < n
     then do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     else do
-      ustk <- bump ustk
-      poke ustk 1
-      bstk <- bumpn bstk 2
+      stk <- bump stk
+      upoke stk 1
+      stk <- bumpn stk 2
       let (l, r) = Sq.splitAt n s
-      pokeOffS bstk 1 r
-      pokeS bstk l
-      pure (ustk, bstk)
+      pokeOffS stk 1 r
+      pokeS stk l
+      pure stk
 bprim2 !stk SPLR i j = do
-  n <- peekOff ustk i
-  s <- peekOffS bstk j
+  n <- upeekOff stk i
+  s <- peekOffS stk j
   if Sq.length s < n
     then do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     else do
-      ustk <- bump ustk
-      poke ustk 1
-      bstk <- bumpn bstk 2
+      stk <- bump stk
+      upoke stk 1
+      stk <- bumpn stk 2
       let (l, r) = Sq.splitAt (Sq.length s - n) s
-      pokeOffS bstk 1 r
-      pokeS bstk l
-      pure (ustk, bstk)
+      pokeOffS stk 1 r
+      pokeS stk l
+      pure stk
 bprim2 !stk TAKB i j = do
-  n <- peekOff ustk i
-  b <- peekOffBi bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  b <- peekOffBi stk j
+  stk <- bump stk
   -- If n < 0, the Nat argument was larger than the maximum signed
   -- integer. Building a value this large would reuire an absurd
   -- amount of memory, so just assume n is larger.
-  pokeBi bstk $ if n < 0 then b else By.take n b
-  pure (ustk, bstk)
+  pokeBi stk $ if n < 0 then b else By.take n b
+  pure stk
 bprim2 !stk DRPB i j = do
-  n <- peekOff ustk i
-  b <- peekOffBi bstk j
-  bstk <- bump bstk
+  n <- upeekOff stk i
+  b <- peekOffBi stk j
+  stk <- bump stk
   -- See above for n < 0
-  pokeBi bstk $ if n < 0 then By.empty else By.drop n b
-  pure (ustk, bstk)
+  pokeBi stk $ if n < 0 then By.empty else By.drop n b
+  pure stk
 bprim2 !stk IDXB i j = do
-  n <- peekOff ustk i
-  b <- peekOffBi bstk j
-  ustk <- bump ustk
-  ustk <- case By.at n b of
-    Nothing -> ustk <$ poke ustk 0
+  n <- upeekOff stk i
+  b <- peekOffBi stk j
+  stk <- bump stk
+  stk <- case By.at n b of
+    Nothing -> stk <$ upoke stk 0
     Just x -> do
-      poke ustk $ fromIntegral x
-      ustk <- bump ustk
-      ustk <$ poke ustk 1
-  pure (ustk, bstk)
+      upoke stk $ fromIntegral x
+      stk <- bump stk
+      stk <$ upoke stk 1
+  pure stk
 bprim2 !stk CATB i j = do
-  l <- peekOffBi bstk i
-  r <- peekOffBi bstk j
-  bstk <- bump bstk
-  pokeBi bstk (l <> r :: By.Bytes)
-  pure (ustk, bstk)
-bprim2 !stk THRO _ _ = pure (ustk, bstk) -- impossible
-bprim2 !stk TRCE _ _ = pure (ustk, bstk) -- impossible
-bprim2 !stk CMPU _ _ = pure (ustk, bstk) -- impossible
-bprim2 !stk SDBX _ _ = pure (ustk, bstk) -- impossible
-bprim2 !stk SDBV _ _ = pure (ustk, bstk) -- impossible
+  l <- peekOffBi stk i
+  r <- peekOffBi stk j
+  stk <- bump stk
+  pokeBi stk (l <> r :: By.Bytes)
+  pure stk
+bprim2 !stk THRO _ _ = pure stk -- impossible
+bprim2 !stk TRCE _ _ = pure stk -- impossible
+bprim2 !stk CMPU _ _ = pure stk -- impossible
+bprim2 !stk SDBX _ _ = pure stk -- impossible
+bprim2 !stk SDBV _ _ = pure stk -- impossible
 {-# INLINE bprim2 #-}
 
 yield ::
@@ -1807,17 +1741,14 @@ yield !env !denv !activeThreads !stk !k = leap denv k
     leap !denv0 (Mark a ps cs k) = do
       let denv = cs <> EC.withoutKeys denv0 ps
           clo = denv0 EC.! EC.findMin ps
-      poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
-      ustk <- adjustArgs ustk ua
-      bstk <- adjustArgs bstk ba
-      apply env denv activeThreads ustk bstk k False (BArg1 0) clo
+      bpoke stk . DataB1 Rf.effectRef 0 =<< bpeek stk
+      stk <- adjustArgs stk a
+      apply env denv activeThreads stk k False (VArg1 0) clo
     leap !denv (Push fsz asz (CIx ref _ _) f nx k) = do
-      ustk <- restoreFrame ustk ufsz uasz
-      bstk <- restoreFrame bstk bfsz basz
-      ustk <- ensure ustk uf
-      bstk <- ensure bstk bf
-      eval env denv activeThreads ustk bstk k ref nx
-    leap _ (CB (Hook f)) = f ustk bstk
+      stk <- restoreFrame stk fsz asz
+      stk <- ensure stk f
+      eval env denv activeThreads stk k ref nx
+    leap _ (CB (Hook f)) = f stk
     leap _ KE = pure ()
 {-# INLINE yield #-}
 
@@ -2384,8 +2315,7 @@ universalEq frn = eqc
         && eql eqc bs1 bs2
     eqc (CapV k1 a1 (us1, bs1)) (CapV k2 a2 (us2, bs2)) =
       k1 == k2
-        && ua1 == ua2
-        && ba1 == ba2
+        && a1 == a2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
     eqc (Foreign fl) (Foreign fr)
