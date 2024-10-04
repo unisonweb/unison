@@ -1471,9 +1471,9 @@ bprim1 !ustk !bstk USNC i =
     Just (t, c) -> do
       ustk <- bumpn ustk 2
       bstk <- bump bstk
-      pokeOff ustk 1 $ fromEnum c
-      poke ustk 1
-      pokeBi bstk t
+      pokeOff ustk 1 $ fromEnum c -- Char
+      poke ustk 1 -- 'Just' tag
+      pokeBi bstk t -- Text
       pure (ustk, bstk)
 bprim1 !ustk !bstk UCNS i =
   peekOffBi bstk i >>= \t -> case Util.Text.uncons t of

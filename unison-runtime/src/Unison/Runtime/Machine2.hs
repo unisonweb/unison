@@ -1387,132 +1387,127 @@ bprim1 !stk USNC i =
       upoke stk 0
       pure stk
     Just (t, c) -> do
-      ustk <- bumpn ustk 2
-      bstk <- bump bstk
-      upokeOff ustk 1 $ fromEnum c
-      poke ustk 1
-      pokeBi bstk t
-      pure (ustk, bstk)
+      stk <- bumpn stk 3
+      upokeOff stk 2 $ fromEnum c -- char value
+      pokeOffBi stk 1 t -- remaining text
+      upoke stk 1 -- 'Just' tag
+      pure stk
 bprim1 !stk UCNS i =
-  peekOffBi bstk i >>= \t -> case Util.Text.uncons t of
+  peekOffBi stk i >>= \t -> case Util.Text.uncons t of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
     Just (c, t) -> do
-      ustk <- bumpn ustk 2
-      bstk <- bump bstk
-      pokeOff ustk 1 $ fromEnum c
-      poke ustk 1
-      pokeBi bstk t
-      pure (ustk, bstk)
+      stk <- bumpn stk 3
+      pokeOffBi stk 2 t -- remaining text
+      upokeOff stk 1 $ fromEnum c -- char value
+      upoke stk 1 -- 'Just' tag
+      pure stk
 bprim1 !stk TTOI i =
-  peekOffBi bstk i >>= \t -> case readm $ Util.Text.unpack t of
+  peekOffBi stk i >>= \t -> case readm $ Util.Text.unpack t of
     Just n
       | fromIntegral (minBound :: Int) <= n,
         n <= fromIntegral (maxBound :: Int) -> do
-          ustk <- bumpn ustk 2
-          poke ustk 1
-          pokeOff ustk 1 (fromInteger n)
-          pure (ustk, bstk)
+          stk <- bumpn stk 2
+          upoke stk 1
+          upokeOff stk 1 (fromInteger n)
+          pure stk
     _ -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
   where
     readm ('+' : s) = readMaybe s
     readm s = readMaybe s
 bprim1 !stk TTON i =
-  peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
+  peekOffBi stk i >>= \t -> case readMaybe $ Util.Text.unpack t of
     Just n
       | 0 <= n,
         n <= fromIntegral (maxBound :: Word) -> do
-          ustk <- bumpn ustk 2
-          poke ustk 1
-          pokeOffN ustk 1 (fromInteger n)
-          pure (ustk, bstk)
+          stk <- bumpn stk 2
+          upoke stk 1
+          pokeOffN stk 1 (fromInteger n)
+          pure stk
     _ -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0
+      pure stk
 bprim1 !stk TTOF i =
-  peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
+  peekOffBi stk i >>= \t -> case readMaybe $ Util.Text.unpack t of
     Nothing -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      poke stk 0
+      pure stk
     Just f -> do
-      ustk <- bumpn ustk 2
-      poke ustk 1
-      pokeOffD ustk 1 f
-      pure (ustk, bstk)
+      stk <- bumpn stk 2
+      upoke stk 1
+      pokeOffD stk 1 f
+      pure stk
 bprim1 !stk VWLS i =
-  peekOffS bstk i >>= \case
+  peekOffS stk i >>= \case
     Sq.Empty -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0 -- 'Empty' tag
+      pure stk
     x Sq.:<| xs -> do
-      ustk <- bump ustk
-      poke ustk 1
-      bstk <- bumpn bstk 2
-      pokeOffS bstk 1 xs
-      poke bstk x
-      pure (ustk, bstk)
+      stk <- bumpn stk 3
+      pokeOffS stk 2 xs -- remaining seq
+      bpokeOff stk 1 x -- head
+      upoke stk 1 -- ':<|' tag
+      pure stk
 bprim1 !stk VWRS i =
-  peekOffS bstk i >>= \case
+  peekOffS stk i >>= \case
     Sq.Empty -> do
-      ustk <- bump ustk
-      poke ustk 0
-      pure (ustk, bstk)
+      stk <- bump stk
+      upoke stk 0 -- 'Empty' tag
+      pure stk
     xs Sq.:|> x -> do
-      ustk <- bump ustk
-      poke ustk 1
-      bstk <- bumpn bstk 2
-      pokeOff bstk 1 x
-      pokeS bstk xs
-      pure (ustk, bstk)
+      bpokeOff stk 2 x -- last
+      pokeOffS stk 1 xs -- remaining seq
+      upoke stk 1 -- ':|>' tag
+      pure stk
 bprim1 !stk PAKT i = do
-  s <- peekOffS bstk i
-  bstk <- bump bstk
-  pokeBi bstk . Util.Text.pack . toList $ clo2char <$> s
-  pure (ustk, bstk)
+  s <- peekOffS stk i
+  stk <- bump stk
+  pokeBi stk . Util.Text.pack . toList $ clo2char <$> s
+  pure stk
   where
     clo2char (DataU1 _ t i) | t == charTag = toEnum i
     clo2char c = error $ "pack text: non-character closure: " ++ show c
 bprim1 !stk UPKT i = do
-  t <- peekOffBi bstk i
-  bstk <- bump bstk
-  pokeS bstk
+  t <- peekOffBi stk i
+  stk <- bump stk
+  pokeS stk
     . Sq.fromList
     . fmap (DataU1 Rf.charRef charTag . fromEnum)
     . Util.Text.unpack
     $ t
-  pure (ustk, bstk)
+  pure stk
 bprim1 !stk PAKB i = do
-  s <- peekOffS bstk i
-  bstk <- bump bstk
-  pokeBi bstk . By.fromWord8s . fmap clo2w8 $ toList s
-  pure (ustk, bstk)
+  s <- peekOffS stk i
+  stk <- bump stk
+  pokeBi stk . By.fromWord8s . fmap clo2w8 $ toList s
+  pure stk
   where
     clo2w8 (DataU1 _ t n) | t == natTag = toEnum n
     clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
 bprim1 !stk UPKB i = do
-  b <- peekOffBi bstk i
-  bstk <- bump bstk
-  pokeS bstk . Sq.fromList . fmap (DataU1 Rf.natRef natTag . fromEnum) $
+  b <- peekOffBi stk i
+  stk <- bump stk
+  pokeS stk . Sq.fromList . fmap (DataU1 Rf.natRef natTag . fromEnum) $
     By.toWord8s b
-  pure (ustk, bstk)
+  pure stk
 bprim1 !stk SIZB i = do
-  b <- peekOffBi bstk i
-  ustk <- bump ustk
-  poke ustk $ By.size b
-  pure (ustk, bstk)
+  b <- peekOffBi stk i
+  stk <- bump stk
+  upoke stk $ By.size b
+  pure stk
 bprim1 !stk FLTB i = do
-  b <- peekOffBi bstk i
-  bstk <- bump bstk
-  pokeBi bstk $ By.flatten b
-  pure (ustk, bstk)
+  b <- peekOffBi stk i
+  stk <- bump stk
+  pokeBi stk $ By.flatten b
+  pure stk
 -- impossible
 bprim1 !stk MISS _ = pure stk
 bprim1 !stk CACH _ = pure stk
