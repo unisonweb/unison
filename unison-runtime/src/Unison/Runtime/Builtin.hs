@@ -2860,23 +2860,24 @@ declareForeigns = do
 
   declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
     . mkForeign
-    $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
+    $ \(lsgs0 :: [(Referent, Code)]) -> do
       let f (msg, rs) =
             Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
       pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
-    $ \(sg :: SuperGroup Symbol) ->
+    $ \(CodeRep sg _) ->
       pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
   declareForeign Untracked "Code.serialize" boxDirect
     . mkForeign
-    $ \(sg :: SuperGroup Symbol) ->
-      pure . Bytes.fromArray $ serializeGroup builtinForeignNames sg
+    $ \(co :: Code) ->
+      pure . Bytes.fromArray $ serializeCode builtinForeignNames co
   declareForeign Untracked "Code.deserialize" boxToEBoxBox
     . mkForeign
-    $ pure . deserializeGroup @Symbol . Bytes.toArray
+    $ pure . deserializeCode . Bytes.toArray
   declareForeign Untracked "Code.display" boxBoxDirect . mkForeign $
-    \(nm, sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
+    \(nm, (CodeRep sg _)) ->
+      pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   declareForeign Untracked "Value.dependencies" boxDirect
     . mkForeign
     $ pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
@@ -2924,7 +2925,7 @@ declareForeigns = do
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hashlazy alg $ serializeValueForHash x
 
   declareForeign Untracked "crypto.hmac" crypto'hmac . mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
@@ -2935,7 +2936,7 @@ declareForeigns = do
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hmac alg $ serializeValueForHash x
 
   declareForeign Untracked "crypto.Ed25519.sign.impl" boxBoxBoxToEFBox
     . mkForeign
@@ -2961,7 +2962,7 @@ declareForeigns = do
           Right a -> Right a
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
-    pure . asWord64 . hash64 . serializeValueLazy
+    pure . asWord64 . hash64 . serializeValueForHash
 
   declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n

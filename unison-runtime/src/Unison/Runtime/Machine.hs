@@ -35,9 +35,13 @@ import Unison.Reference
   )
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
-  ( CompileExn (..),
+  ( Cacheability (..),
+    CompileExn (..),
     Mem (..),
+    Code (..),
     SuperGroup,
+    codeGroup,
+    foldGroup,
     foldGroupLinks,
     maskTags,
     packTags,
@@ -94,11 +98,6 @@ data Tracer
   = NoTrace
   | MsgTrace String String String
   | SimpleTrace String
-
--- | Whether the evaluation of a given definition is cacheable or not.
--- i.e. it's a top-level pure value.
-data Cacheability = Cacheable | Uncacheable
-  deriving stock (Eq, Show)
 
 -- code caching environment
 data CCache = CCache
@@ -360,7 +359,7 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 CVLD i)
   | otherwise = do
       arg <- peekOffS bstk i
       news <- decodeCacheArgument arg
-      codeValidate news env >>= \case
+      codeValidate (second codeGroup <$> news) env >>= \case
         Nothing -> do
           ustk <- bump ustk
           poke ustk 0
@@ -381,6 +380,8 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
             Ref r -> r
             _ -> error "exec:BPrim1:LKUP: Expected Ref"
       m <- readTVarIO (intermed env)
+      rfn <- readTVarIO (refTm env)
+      cach <- readTVarIO (cacheableCombs env)
       ustk <- bump ustk
       bstk <- case M.lookup link m of
         Nothing
@@ -388,12 +389,15 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
             Just sn <- EC.lookup w numberedTermLookup -> do
               poke ustk 1
               bstk <- bump bstk
-              bstk <$ pokeBi bstk (ANF.Rec [] sn)
+              bstk <$ pokeBi bstk (CodeRep (ANF.Rec [] sn) Uncacheable)
           | otherwise -> bstk <$ poke ustk 0
         Just sg -> do
           poke ustk 1
           bstk <- bump bstk
-          bstk <$ pokeBi bstk sg
+          let ch | Just n <- M.lookup link rfn
+                 , EC.member n cach = Cacheable
+                 | otherwise = Uncacheable
+          bstk <$ pokeBi bstk (CodeRep sg ch)
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 TLTT i) = do
   clink <- peekOff bstk i
@@ -2018,7 +2022,7 @@ refLookup s m r
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
 decodeCacheArgument ::
-  Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
+  Sq.Seq Closure -> IO [(Reference, Code)]
 decodeCacheArgument s = for (toList s) $ \case
   DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _) ->
     case unwrapForeign x of
@@ -2145,12 +2149,12 @@ evaluateSTM x = unsafeIOToSTM (evaluate x)
 
 cacheAdd0 ::
   S.Set Reference ->
-  [(Reference, SuperGroup Symbol, Cacheability)] ->
+  [(Reference, Code)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
 cacheAdd0 ntys0 termSuperGroups sands cc = do
-  let toAdd = M.fromList (termSuperGroups <&> \(r, g, _) -> (r, g))
+  let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
     let new = M.difference toAdd have
@@ -2171,7 +2175,8 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
           termSuperGroups
             & mapMaybe
               ( \case
-                  (ref, _, Cacheable) -> M.lookup ref combIdFromRefMap
+                  (ref, CodeRep _ Cacheable) ->
+                    M.lookup ref combIdFromRefMap
                   _ -> Nothing
               )
             & EC.setFromList
@@ -2237,24 +2242,22 @@ expandSandbox sand0 groups = fixed mempty
         extra' = M.fromList new
 
 cacheAdd ::
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, Code)] ->
   CCache ->
   IO [Reference]
 cacheAdd l cc = do
   rtm <- readTVarIO (refTm cc)
   rty <- readTVarIO (refTy cc)
   sand <- readTVarIO (sandbox cc)
-  let known = M.keysSet rtm <> S.fromList (fst <$> l)
+  let known = M.keysSet rtm <> S.fromList (view _1 <$> l)
       f b r
         | not b, S.notMember r known = Const (S.singleton r, mempty)
         | b, M.notMember r rty = Const (mempty, S.singleton r)
         | otherwise = Const (mempty, mempty)
-      (missing, tys) = getConst $ (foldMap . foldMap) (foldGroupLinks f) l
-      l' = filter (\(r, _) -> M.notMember r rtm) l
-      -- Terms added via cacheAdd will have already been eval'd and cached if possible when
-      -- they were originally loaded, so we
-      -- don't need to re-check for cacheability here as part of a dynamic cache add.
-      l'' = l' <&> (\(r, g) -> (r, g, Uncacheable))
+      (missing, tys) =
+        getConst $ (foldMap . foldMap . foldGroup) (foldGroupLinks f) l
+      l'' = filter (\(r, _) -> M.notMember r rtm) l
+      l' = map (second codeGroup) l''
   if S.null missing
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing

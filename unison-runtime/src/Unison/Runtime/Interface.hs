@@ -117,7 +117,6 @@ import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
-    Cacheability (..),
     Combs,
     Tracer (..),
     apply0,
@@ -449,7 +448,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
+  IO (EvalCtx, [(Reference, Code)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -461,33 +460,40 @@ loadDeps cl ppe ctx tyrs tmrs = do
       _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
-  out@(ctx', rgrp) <- loadCode cl ppe ctx tmrs
-  crgrp <- traverse (checkCacheability ctx') rgrp
-  out <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
-  where
-    checkCacheability :: EvalCtx -> (IntermediateReference, sprgrp) -> IO (IntermediateReference, sprgrp, Cacheability)
-    checkCacheability ctx (r, sg) = do
-      let codebaseRef = backmapRef ctx r
-      getTermType codebaseRef >>= \case
-        -- A term's result is cacheable iff it has no arrows in its type,
-        -- this is sufficient since top-level definitions can't have effects without a delay.
-        Just typ | not (Rec.cata hasArrows typ) -> pure (r, sg, Cacheable)
-        _ -> pure (r, sg, Uncacheable)
-    getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
-    getTermType = \case
-      (RF.DerivedId i) ->
-        getTypeOfTerm cl i >>= \case
-          Just t -> pure $ Just t
-          Nothing -> pure Nothing
-      RF.Builtin {} -> pure $ Nothing
-    hasArrows :: Type.TypeF v a Bool -> Bool
-    hasArrows abt = case ABT.out' abt of
-      (ABT.Tm f) -> case f of
-        Type.Arrow _ _ -> True
-        other -> or other
-      t -> or t
+  (ctx', rgrp) <- loadCode cl ppe ctx tmrs
+  crgrp <- traverse (checkCacheability cl ctx') rgrp
+  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
 
-compileValue :: Reference -> [(Reference, SuperGroup Symbol)] -> Value
+checkCacheability ::
+  CodeLookup Symbol IO () ->
+  EvalCtx ->
+  (IntermediateReference, SuperGroup Symbol) ->
+  IO (IntermediateReference, Code)
+checkCacheability cl ctx (r, sg) =
+  getTermType codebaseRef >>= \case
+    -- A term's result is cacheable iff it has no arrows in its type,
+    -- this is sufficient since top-level definitions can't have effects without a delay.
+    Just typ | not (Rec.cata hasArrows typ) ->
+      pure (r, CodeRep sg Cacheable)
+    _ -> pure (r, CodeRep sg Uncacheable)
+  where
+  codebaseRef = backmapRef ctx r
+  getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
+  getTermType = \case
+    (RF.DerivedId i) ->
+      getTypeOfTerm cl i >>= \case
+        Just t -> pure $ Just t
+        Nothing -> pure Nothing
+    RF.Builtin {} -> pure $ Nothing
+  hasArrows :: Type.TypeF v a Bool -> Bool
+  hasArrows abt = case ABT.out' abt of
+    (ABT.Tm f) -> case f of
+      Type.Arrow _ _ -> True
+      other -> or other
+    t -> or t
+
+
+compileValue :: Reference -> [(Reference, Code)] -> Value
 compileValue base =
   flip pair (rf base) . ANF.BLit . List . Seq.fromList . fmap cpair
   where
@@ -823,22 +829,24 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol)], Reference)
+  IO (EvalCtx, [(Reference, Code)], Reference)
 prepareEvaluation ppe tm ctx = do
-  missing <- cacheAdd rgrp (ccache ctx')
+  missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
       "Error in prepareEvaluation, cache is missing: " <> show missing
-  pure (backrefAdd rbkr ctx', rgrp, rmn)
+  pure (backrefAdd rbkr ctx', rcode, rmn)
   where
+    uncacheable g = CodeRep g Uncacheable
     (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
     int b r
       | b || Map.member r rgrp0 = r
       | otherwise = toIntermed ctx r
     (ctx', rrefs, rgrp) =
       performRehash
-        ((fmap . overGroupLinks) int rgrp0)
+        ((fmap . overGroupLinks) int $ rgrp0)
         (floatRemapAdd frem ctx)
+    rcode = second uncacheable <$> rgrp
     rmn = case Map.lookup rmn0 rrefs of
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
@@ -921,7 +929,7 @@ nativeEvalInContext ::
   EvalCtx ->
   Socket ->
   PortNumber ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, Code)] ->
   Reference ->
   IO (Either Error ([Error], Term Symbol))
 nativeEvalInContext executable ppe ctx serv port codes base = do
@@ -973,7 +981,7 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
 nativeCompileCodes ::
   CompileOpts ->
   FilePath ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, Code)] ->
   Reference ->
   FilePath ->
   IO ()

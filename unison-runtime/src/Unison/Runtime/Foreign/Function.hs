@@ -31,12 +31,11 @@ import Network.UDP (UDPSocket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (Mem (..), SuperGroup, Value, internalBug)
+import Unison.Runtime.ANF (Mem (..), Code, Value, internalBug)
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
-import Unison.Symbol (Symbol)
 import Unison.Type
   ( iarrayRef,
     ibytearrayRef,
@@ -473,7 +472,7 @@ instance ForeignConvention (Promise Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap promiseRef)
 
-instance ForeignConvention (SuperGroup Symbol) where
+instance ForeignConvention Code where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
 
