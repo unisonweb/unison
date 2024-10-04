@@ -64,7 +64,7 @@ import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF
+import Unison.Runtime.ANF2
   ( ANormal,
     Branched (..),
     CTag,
@@ -88,7 +88,7 @@ import Unison.Runtime.ANF
     pattern TShift,
     pattern TVar,
   )
-import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF2 qualified as ANF
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)

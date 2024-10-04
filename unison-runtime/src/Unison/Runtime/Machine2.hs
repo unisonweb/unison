@@ -34,7 +34,6 @@ import Unison.Reference
     toShortHash,
   )
 import Unison.Referent (Referent, pattern Con, pattern Ref)
-import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF2 as ANF
   ( CompileExn (..),
     SuperGroup,
@@ -43,6 +42,7 @@ import Unison.Runtime.ANF2 as ANF
     packTags,
     valueLinks,
   )
+import Unison.Runtime.ANF2 qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin2
 import Unison.Runtime.Exception2
@@ -1791,30 +1791,29 @@ splitCont !denv !stk !k !p =
   walk denv asz KE k
   where
     asz = asize stk
+    walk :: EnumMap Word64 Closure -> SZ -> K -> K -> IO (Closure, EnumMap Word64 Closure, Stack, K)
     walk !denv !sz !ck KE =
-      die "fell off stack" >> finish denv sz 0 0 ck KE
+      die "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (CB _) =
-      die "fell off stack" >> finish denv sz 0 0 ck KE
+      die "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
-      | EC.member p ps = finish denv' sz ua ba ck k
-      | otherwise = walk denv' (usz + ua) (bsz + ba) (Mark ua ba ps cs' ck) k
+      | EC.member p ps = finish denv' sz a ck k
+      | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    walk !denv !bsz !ck (Push n a br p brSect k) =
+    walk !denv !sz !ck (Push n a br p brSect k) =
       walk
         denv
-        (usz + un + ua)
-        (bsz + bn + ba)
-        (Push un bn ua ba br up bp brSect ck)
+        (sz + n + a)
+        (Push n a br p brSect ck)
         k
 
-    finish !denv !usz !bsz !ua !ba !ck !k = do
-      (useg, ustk) <- grab ustk usz
-      (bseg, bstk) <- grab bstk bsz
-      ustk <- adjustArgs ustk ua
-      bstk <- adjustArgs bstk ba
-      return (Captured ck uasz basz useg bseg, denv, stk, k)
+    finish :: EnumMap Word64 Closure -> SZ -> SZ -> K -> K -> (IO (Closure, EnumMap Word64 Closure, Stack, K))
+    finish !denv !sz !a !ck !k = do
+      (seg, stk) <- grab stk sz
+      stk <- adjustArgs stk a
+      return (Captured ck asz seg, denv, stk, k)
 {-# INLINE splitCont #-}
 
 discardCont ::
@@ -1823,8 +1822,8 @@ discardCont ::
   K ->
   Word64 ->
   IO (DEnv, Stack, K)
-discardCont denv ustk bstk k p =
-  splitCont denv ustk bstk k p
+discardCont denv stk k p =
+  splitCont denv stk k p
     <&> \(_, denv, stk, k) -> (denv, stk, k)
 {-# INLINE discardCont #-}
 
@@ -2227,25 +2226,24 @@ reifyValue0 (combs, rty, rtm) = goV
     goV (ANF.Data r t0 us bs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       DataC r t (fromIntegral <$> us) <$> traverse goV bs
-    goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
+    goV (ANF.Cont vs k) = cv <$> goK k <*> bitraverse (pure . fromIntegral) goV bs
       where
-        cv k bs = CapV k ua ba (fromIntegral <$> us) bs
+        cv k s = CapV k a s
           where
-            (uksz, bksz) = frameDataSize k
-            ua = fromIntegral $ length us - uksz
-            ba = fromIntegral $ length bs - bksz
+            ksz = frameDataSize k
+            a = fromIntegral $ length s - ksz
     goV (ANF.BLit l) = goL l
 
     goK ANF.KE = pure KE
-    goK (ANF.Mark ua ba ps de k) =
+    goK (ANF.Mark a ps de k) =
       mrk
         <$> traverse refTy ps
         <*> traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (M.toList de)
         <*> goK k
       where
         mrk ps de k =
-          Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
-    goK (ANF.Push uf bf ua ba gr k) =
+          Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
+    goK (ANF.Push f a gr k) =
       goIx gr >>= \case
         (cix, RComb (Lam _ fr sect)) ->
           Push
