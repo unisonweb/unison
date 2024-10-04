@@ -36,9 +36,9 @@ import Unison.Reference
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
+    Code (..),
     CompileExn (..),
     Mem (..),
-    Code (..),
     SuperGroup,
     codeGroup,
     foldGroup,
@@ -394,9 +394,11 @@ exec !env !denv !_activeThreads !ustk !bstk !k _ (BPrim1 LKUP i)
         Just sg -> do
           poke ustk 1
           bstk <- bump bstk
-          let ch | Just n <- M.lookup link rfn
-                 , EC.member n cach = Cacheable
-                 | otherwise = Uncacheable
+          let ch
+                | Just n <- M.lookup link rfn,
+                  EC.member n cach =
+                    Cacheable
+                | otherwise = Uncacheable
           bstk <$ pokeBi bstk (CodeRep sg ch)
       pure (denv, ustk, bstk, k)
 exec !_ !denv !_activeThreads !ustk !bstk !k _ (BPrim1 TLTT i) = do
@@ -686,9 +688,15 @@ eval !env !denv !activeThreads !ustk !bstk !k _ (Jump i args) =
 eval !env !denv !activeThreads !ustk !bstk !k r (Let nw cix uf bf sect) = do
   (ustk, ufsz, uasz) <- saveFrame ustk
   (bstk, bfsz, basz) <- saveFrame bstk
-  eval env denv activeThreads ustk bstk
+  eval
+    env
+    denv
+    activeThreads
+    ustk
+    bstk
     (Push ufsz bfsz uasz basz cix uf bf sect k)
-    r nw
+    r
+    nw
 eval !env !denv !activeThreads !ustk !bstk !k r (Ins i nx) = do
   (denv, ustk, bstk, k) <- exec env denv activeThreads ustk bstk k r i
   eval env denv activeThreads ustk bstk k r nx
@@ -1952,8 +1960,12 @@ splitCont !denv !ustk !bstk !k !p =
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
     walk !denv !usz !bsz !ck (Push un bn ua ba br up bp brSect k) =
-      walk denv (usz + un + ua) (bsz + bn + ba)
-        (Push un bn ua ba br up bp brSect ck) k
+      walk
+        denv
+        (usz + un + ua)
+        (bsz + bn + ba)
+        (Push un bn ua ba br up bp brSect ck)
+        k
 
     finish !denv !usz !bsz !ua !ba !ck !k = do
       (useg, ustk) <- grab ustk usz
@@ -2364,15 +2376,16 @@ reifyValue0 (combs, rty, rtm) = goV
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
 
-    goV (ANF.Partial gr ua ba) = goIx gr >>= \case
-      (cix, RComb (Comb rcomb)) -> pap cix rcomb <$> traverse goV ba
-        where
-          pap cix i = PApV cix i (fromIntegral <$> ua)
-      (_, RComb (CachedClosure _ clo))
-        | [] <- ua, [] <- ba -> pure clo
-        | otherwise -> die . err $ msg
-        where
-          msg = "reifyValue0: non-trivial partial application to cached value"
+    goV (ANF.Partial gr ua ba) =
+      goIx gr >>= \case
+        (cix, RComb (Comb rcomb)) -> pap cix rcomb <$> traverse goV ba
+          where
+            pap cix i = PApV cix i (fromIntegral <$> ua)
+        (_, RComb (CachedClosure _ clo))
+          | [] <- ua, [] <- ba -> pure clo
+          | otherwise -> die . err $ msg
+          where
+            msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 us bs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       DataC r t (fromIntegral <$> us) <$> traverse goV bs
@@ -2394,22 +2407,23 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         mrk ps de k =
           Mark (fromIntegral ua) (fromIntegral ba) (setFromList ps) (mapFromList de) k
-    goK (ANF.Push uf bf ua ba gr k) = goIx gr >>= \case
-      (cix, RComb (Lam _ _ un bx sect)) ->
-        Push
-          (fromIntegral uf)
-          (fromIntegral bf)
-          (fromIntegral ua)
-          (fromIntegral ba)
-          cix
-          un
-          bx
-          sect
-          <$> goK k
-      (CIx r _ _ , _) ->
-        die . err $
-          "tried to reify a continuation with a cached value resumption"
-            ++ show r
+    goK (ANF.Push uf bf ua ba gr k) =
+      goIx gr >>= \case
+        (cix, RComb (Lam _ _ un bx sect)) ->
+          Push
+            (fromIntegral uf)
+            (fromIntegral bf)
+            (fromIntegral ua)
+            (fromIntegral ba)
+            cix
+            un
+            bx
+            sect
+            <$> goK k
+        (CIx r _ _, _) ->
+          die . err $
+            "tried to reify a continuation with a cached value resumption"
+              ++ show r
 
     goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
     goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l
