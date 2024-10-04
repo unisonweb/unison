@@ -32,6 +32,8 @@ library
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.ANF2
+      Unison.Runtime.ANF2.Rehash
+      Unison.Runtime.ANF2.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types

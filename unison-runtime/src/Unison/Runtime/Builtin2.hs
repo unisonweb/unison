@@ -159,9 +159,9 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
-import Unison.Runtime.ANF as ANF
-import Unison.Runtime.ANF.Rehash (checkGroupHashes)
-import Unison.Runtime.ANF.Serialize as ANF
+import Unison.Runtime.ANF2 as ANF
+import Unison.Runtime.ANF2.Rehash (checkGroupHashes)
+import Unison.Runtime.ANF2.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Runtime.Exception (die)

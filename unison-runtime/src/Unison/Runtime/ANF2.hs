@@ -54,7 +54,9 @@ module Unison.Runtime.ANF2
     CTag,
     Tag (..),
     GroupRef (..),
+    UBValue,
     Value (..),
+    ValList,
     Cont (..),
     BLit (..),
     packTags,
@@ -1538,10 +1540,16 @@ type ANFD v = Compose (ANFM v) (Directed ())
 data GroupRef = GR Reference Word64
   deriving (Show)
 
+-- | Represents a boxed or unboxed value.
+type UBValue = Either Word64 Value
+
+-- | Represents a segment of unboxed or boxed values.
+type ValList = [UBValue]
+
 data Value
-  = Partial GroupRef [Word64] [Value]
-  | Data Reference Word64 [Word64] [Value]
-  | Cont [Either Word64 Value] Cont
+  = Partial GroupRef ValList
+  | Data Reference Word64 ValList
+  | Cont ValList Cont
   | BLit BLit
   deriving (Show)
 
@@ -1988,10 +1996,10 @@ valueTermLinks = Set.toList . valueLinks f
     f _ _ = Set.empty
 
 valueLinks :: (Monoid a) => (Bool -> Reference -> a) -> Value -> a
-valueLinks f (Partial (GR cr _) _ bs) =
-  f False cr <> foldMap (valueLinks f) bs
-valueLinks f (Data dr _ _ bs) =
-  f True dr <> foldMap (valueLinks f) bs
+valueLinks f (Partial (GR cr _) vs) =
+  f False cr <> foldMapOf (folded . _Right) (valueLinks f) vs
+valueLinks f (Data dr _ vs) =
+  f True dr <> foldMapOf (folded . _Right) (valueLinks f) vs
 valueLinks f (Cont s k) =
   foldMapOf (folded . _Right) (valueLinks f) s <> contLinks f k
 valueLinks f (BLit l) = blitLinks f l
