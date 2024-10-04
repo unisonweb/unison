@@ -812,53 +812,69 @@ getGroupRef = GR <$> getReference <*> getWord64be
 -- So, unboxed data is completely absent from the format. We are now
 -- exchanging unison surface values, effectively.
 putValue :: (MonadPut m) => Value -> m ()
-putValue (Partial gr [] vs) =
+putValue (Partial gr vs) =
   putTag PartialT
     *> putGroupRef gr
-    *> putFoldable putValue vs
-putValue Partial {} =
-  exn "putValue: Partial with unboxed values no longer supported"
-putValue (Data r t [] vs) =
+    *> putFoldable putUBValue vs
+putValue (Data r t vs) =
   putTag DataT
     *> putReference r
     *> putWord64be t
-    *> putFoldable putValue vs
-putValue Data {} =
-  exn "putValue: Data with unboxed contents no longer supported"
-putValue (Cont [] bs k) =
+    *> putFoldable putUBValue vs
+putValue (Cont bs k) =
   putTag ContT
-    *> putFoldable putValue bs
+    *> putFoldable putUBValue bs
     *> putCont k
-putValue Cont {} =
-  exn "putValue: Cont with unboxed stack no longer supported"
 putValue (BLit l) =
   putTag BLitT *> putBLit l
+
+putUBValue :: (MonadPut m) => UBValue -> m ()
+putUBValue Left {} = exn "putUBValue: Unboxed values no longer supported"
+putUBValue (Right v) = putValue v
 
 getValue :: (MonadGet m) => Version -> m Value
 getValue v =
   getTag >>= \case
     PartialT
-      | v < 4 ->
-          Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
-      | otherwise ->
-          flip Partial [] <$> getGroupRef <*> getList (getValue v)
+      | v < 4 -> do
+          gr <- getGroupRef
+          getList getWord64be >>= assertEmptyUnboxed
+          bs <- getList getUBValue
+          pure $ Partial gr bs
+      | otherwise -> do
+          gr <- getGroupRef
+          vs <- getList getUBValue
+          pure $ Partial gr vs
     DataT
-      | v < 4 ->
-          Data
-            <$> getReference
-            <*> getWord64be
-            <*> getList getWord64be
-            <*> getList (getValue v)
-      | otherwise ->
-          (\r t -> Data r t [])
-            <$> getReference
-            <*> getWord64be
-            <*> getList (getValue v)
+      | v < 4 -> do
+          r <- getReference
+          w <- getWord64be
+          getList getWord64be >>= assertEmptyUnboxed
+          vs <- getList getUBValue
+          pure $ Data r w vs
+      | otherwise -> do
+          r <- getReference
+          w <- getWord64be
+          vs <- getList getUBValue
+          pure $ Data r w vs
     ContT
-      | v < 4 ->
-          Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
-      | otherwise -> Cont [] <$> getList (getValue v) <*> getCont v
+      | v < 4 -> do
+          getList getWord64be >>= assertEmptyUnboxed
+          bs <- getList getUBValue
+          k <- getCont v
+          pure $ Cont bs k
+      | otherwise -> do
+          bs <- getList getUBValue
+          k <- getCont v
+          pure $ Cont bs k
     BLitT -> BLit <$> getBLit v
+  where
+    -- Only Boxed values are supported.
+    getUBValue :: (MonadGet m) => m UBValue
+    getUBValue = Right <$> getValue v
+    assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
+    assertEmptyUnboxed [] = pure ()
+    assertEmptyUnboxed _ = exn "getValue: unboxed values no longer supported"
 
 putCont :: (MonadPut m) => Cont -> m ()
 putCont KE = putTag KET

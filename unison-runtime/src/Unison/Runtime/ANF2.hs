@@ -54,6 +54,8 @@ module Unison.Runtime.ANF2
     CTag,
     Tag (..),
     GroupRef (..),
+    UBValue,
+    ValList,
     Value (..),
     Cont (..),
     BLit (..),
@@ -81,7 +83,7 @@ module Unison.Runtime.ANF2
 where
 
 import Control.Exception (throw)
-import Control.Lens (snoc, unsnoc)
+import Control.Lens (foldMapOf, folded, snoc, unsnoc, _Right)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
@@ -1538,10 +1540,14 @@ type ANFD v = Compose (ANFM v) (Directed ())
 data GroupRef = GR Reference Word64
   deriving (Show)
 
+type UBValue = Either Word64 Value
+
+type ValList = [UBValue]
+
 data Value
-  = Partial GroupRef [Word64] [Value]
-  | Data Reference Word64 [Word64] [Value]
-  | Cont [Word64] [Value] Cont
+  = Partial GroupRef ValList
+  | Data Reference Word64 ValList
+  | Cont ValList Cont
   | BLit BLit
   deriving (Show)
 
@@ -1988,12 +1994,12 @@ valueTermLinks = Set.toList . valueLinks f
     f _ _ = Set.empty
 
 valueLinks :: (Monoid a) => (Bool -> Reference -> a) -> Value -> a
-valueLinks f (Partial (GR cr _) _ bs) =
-  f False cr <> foldMap (valueLinks f) bs
-valueLinks f (Data dr _ _ bs) =
-  f True dr <> foldMap (valueLinks f) bs
-valueLinks f (Cont _ bs k) =
-  foldMap (valueLinks f) bs <> contLinks f k
+valueLinks f (Partial (GR cr _) vs) =
+  f False cr <> foldMapOf (folded . _Right) (valueLinks f) vs
+valueLinks f (Data dr _ vs) =
+  f True dr <> foldMapOf (folded . _Right) (valueLinks f) vs
+valueLinks f (Cont vs k) =
+  foldMapOf (folded . _Right) (valueLinks f) vs <> contLinks f k
 valueLinks f (BLit l) = blitLinks f l
 
 contLinks :: (Monoid a) => (Bool -> Reference -> a) -> Cont -> a
