@@ -581,7 +581,7 @@ encodeExn stk exc = do
   case exc of
     Right () -> do
       stk <- bump stk
-      stk <$ poke stk 1
+      stk <$ upoke stk 1
     Left exn -> do
       stk <- bumpn stk 4
       upoke stk 0
@@ -1028,24 +1028,24 @@ peekForeign bstk i =
 
 uprim1 :: Stack -> UPrim1 -> Int -> IO Stack
 uprim1 !stk DECI !i = do
-  m <- peekOff stk i
+  m <- upeekOff stk i
   stk <- bump stk
-  poke stk (m - 1)
+  upoke stk (m - 1)
   pure stk
 uprim1 !stk INCI !i = do
-  m <- peekOff stk i
+  m <- upeekOff stk i
   stk <- bump stk
-  poke stk (m + 1)
+  upoke stk (m + 1)
   pure stk
 uprim1 !stk NEGI !i = do
-  m <- peekOff stk i
+  m <- upeekOff stk i
   stk <- bump stk
-  poke stk (-m)
+  upoke stk (-m)
   pure stk
 uprim1 !stk SGNI !i = do
-  m <- peekOff stk i
+  m <- upeekOff stk i
   stk <- bump stk
-  poke stk (signum m)
+  upoke stk (signum m)
   pure stk
 uprim1 !stk ABSF !i = do
   d <- peekOffD stk i
@@ -1055,22 +1055,22 @@ uprim1 !stk ABSF !i = do
 uprim1 !stk CEIL !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  poke stk (ceiling d)
+  upoke stk (ceiling d)
   pure stk
 uprim1 !stk FLOR !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  poke stk (floor d)
+  upoke stk (floor d)
   pure stk
 uprim1 !stk TRNF !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  poke stk (truncate d)
+  upoke stk (truncate d)
   pure stk
 uprim1 !stk RNDF !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  poke stk (round d)
+  upoke stk (round d)
   pure stk
 uprim1 !stk EXPF !i = do
   d <- peekOffD stk i
@@ -1148,7 +1148,7 @@ uprim1 !stk ATNH !i = do
   pokeD stk (atanh d)
   pure stk
 uprim1 !stk ITOF !i = do
-  n <- peekOff stk i
+  n <- upeekOff stk i
   stk <- bump stk
   pokeD stk (fromIntegral n)
   pure stk
@@ -1181,34 +1181,34 @@ uprim1 !stk COMN !i = do
 
 uprim2 :: Stack -> UPrim2 -> Int -> Int -> IO Stack
 uprim2 !stk ADDI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk (m + n)
+  upoke stk (m + n)
   pure stk
 uprim2 !stk SUBI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk (m - n)
+  upoke stk (m - n)
   pure stk
 uprim2 !stk MULI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk (m * n)
+  upoke stk (m * n)
   pure stk
 uprim2 !stk DIVI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk (m `div` n)
+  upoke stk (m `div` n)
   pure stk
 uprim2 !stk MODI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk (m `mod` n)
+  upoke stk (m `mod` n)
   pure stk
 uprim2 !stk SHLI !i !j = do
   m <- upeekOff stk i
@@ -1229,28 +1229,28 @@ uprim2 !stk SHRN !i !j = do
   pokeN stk (m `shiftR` n)
   pure stk
 uprim2 !stk POWI !i !j = do
-  m <- peekOff stk i
+  m <- upeekOff stk i
   n <- peekOffN stk j
   stk <- bump stk
-  poke stk (m ^ n)
+  upoke stk (m ^ n)
   pure stk
 uprim2 !stk EQLI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk $ if m == n then 1 else 0
+  upoke stk $ if m == n then 1 else 0
   pure stk
 uprim2 !stk LEQI !i !j = do
-  m <- peekOff stk i
-  n <- peekOff stk j
+  m <- upeekOff stk i
+  n <- upeekOff stk j
   stk <- bump stk
-  poke stk $ if m <= n then 1 else 0
+  upoke stk $ if m <= n then 1 else 0
   pure stk
 uprim2 !stk LEQN !i !j = do
   m <- peekOffN stk i
   n <- peekOffN stk j
   stk <- bump stk
-  poke stk $ if m <= n then 1 else 0
+  upoke stk $ if m <= n then 1 else 0
   pure stk
 uprim2 !stk DIVN !i !j = do
   m <- peekOffN stk i
@@ -1316,13 +1316,13 @@ uprim2 !stk EQLF !i !j = do
   x <- peekOffD stk i
   y <- peekOffD stk j
   stk <- bump stk
-  poke stk (if x == y then 1 else 0)
+  upoke stk (if x == y then 1 else 0)
   pure stk
 uprim2 !stk LEQF !i !j = do
   x <- peekOffD stk i
   y <- peekOffD stk j
   stk <- bump stk
-  poke stk (if x <= y then 1 else 0)
+  upoke stk (if x <= y then 1 else 0)
   pure stk
 uprim2 !stk ATN2 !i !j = do
   x <- peekOffD stk i
@@ -1437,7 +1437,7 @@ bprim1 !stk TTOF i =
   peekOffBi stk i >>= \t -> case readMaybe $ Util.Text.unpack t of
     Nothing -> do
       stk <- bump stk
-      poke stk 0
+      upoke stk 0
       pure stk
     Just f -> do
       stk <- bumpn stk 2
@@ -1542,7 +1542,7 @@ bprim2 !stk IXOT i j = do
       pure stk
     Just i -> do
       stk <- bumpn stk 2
-      poke stk 1
+      upoke stk 1
       pokeOffN stk 1 i
       pure stk
 bprim2 !stk IXOB i j = do
@@ -2125,11 +2125,11 @@ reflectValue rty = goV
     goV :: Closure -> IO ANF.Value
     goV (PApV cix _rComb args) =
       ANF.Partial (goIx cix) <$> traverse (bitraverse (pure . fromIntegral) goV) args
-    goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
+    goV (DataC _ t [Left w]) = ANF.BLit <$> reflectUData t w
     goV (DataC r t segs) =
-      ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
-    goV (CapV k _ (us, bs)) =
-      ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
+      ANF.Data r (maskTags t) <$> traverse (bitraverse (pure . fromIntegral) goV) segs
+    goV (CapV k _ segs) =
+      ANF.Cont <$> traverse (bitraverse (pure . fromIntegral) goV) segs <*> goK k
     goV (Foreign f) = ANF.BLit <$> goF f
     goV BlackHole = die $ err "black hole"
 
@@ -2138,13 +2138,11 @@ reflectValue rty = goV
     goK (Mark a ps de k) = do
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
-      ANF.Mark (fromIntegral ua) (fromIntegral ba) ps (M.fromList de) <$> goK k
+      ANF.Mark (fromIntegral a) ps (M.fromList de) <$> goK k
     goK (Push f a cix _ _rsect k) =
       ANF.Push
-        (fromIntegral uf)
-        (fromIntegral bf)
-        (fromIntegral ua)
-        (fromIntegral ba)
+        (fromIntegral f)
+        (fromIntegral a)
         (goIx cix)
         <$> goK k
 
@@ -2214,16 +2212,13 @@ reifyValue0 (combs, rty, rtm) = goV
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
 
-    goV (ANF.Partial gr a) = do
+    goV (ANF.Partial gr vs) = do
       (cix, rcomb) <- goIx gr
-      clos <- traverse goV ba
-      pure $ pap cix rcomb clos
-      where
-        pap cix i = PApV cix i (fromIntegral <$> ua)
-    goV (ANF.Data r t0 s) = do
+      PApV cix rcomb <$> traverse (bitraverse (pure . fromIntegral) goV) vs
+    goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      DataC r t (fromIntegral <$> us) <$> traverse goV bs
-    goV (ANF.Cont vs k) = cv <$> goK k <*> bitraverse (pure . fromIntegral) goV bs
+      DataC r t <$> traverse (bitraverse (pure . fromIntegral) goV) vs
+    goV (ANF.Cont vs k) = cv <$> goK k <*> traverse (bitraverse (pure . fromIntegral) goV) vs
       where
         cv k s = CapV k a s
           where
@@ -2244,13 +2239,10 @@ reifyValue0 (combs, rty, rtm) = goV
       goIx gr >>= \case
         (cix, RComb (Lam _ fr sect)) ->
           Push
-            (fromIntegral uf)
-            (fromIntegral bf)
-            (fromIntegral ua)
-            (fromIntegral ba)
+            (fromIntegral f)
+            (fromIntegral a)
             cix
-            un
-            bx
+            fr
             sect
             <$> goK k
         (CIx r _ _, _) ->
@@ -2298,12 +2290,11 @@ universalEq ::
 universalEq frn = eqc
   where
     eql cm l r = length l == length r && and (zipWith cm l r)
-    eqc (DataC _ ct1 [w1] []) (DataC _ ct2 [w2] []) =
+    eqc (DataC _ ct1 [Left w1]) (DataC _ ct2 [Left w2]) =
       matchTags ct1 ct2 && w1 == w2
-    eqc (DataC _ ct1 us1 bs1) (DataC _ ct2 us2 bs2) =
+    eqc (DataC _ ct1 vs1) (DataC _ ct2 vs2) =
       ct1 == ct2
-        && eql (==) us1 us2
-        && eql eqc bs1 bs2
+        && eqValList vs1 vs2
     eqc (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
       cix1 == cix2
         && eqValList segs1 segs2
@@ -2326,7 +2317,7 @@ universalEq frn = eqc
       let (us1, bs1) = partitionEithers vs1
           (us2, bs2) = partitionEithers vs2
        in eql (==) us1 us2
-            <> eql eqc bs1 bs2
+            && eql eqc bs1 bs2
 
     -- serialization doesn't necessarily preserve Int tags, so be
     -- more accepting for those.
@@ -2435,18 +2426,17 @@ universalCompare frn = cmpc False
   where
     cmpl cm l r =
       compare (length l) (length r) <> fold (zipWith cm l r)
-    cmpc _ (DataC _ ct1 [i] []) (DataC _ ct2 [j] [])
+    cmpc _ (DataC _ ct1 [Left i]) (DataC _ ct2 [Left j])
       | ct1 == floatTag, ct2 == floatTag = compareAsFloat i j
       | ct1 == natTag, ct2 == natTag = compareAsNat i j
       | ct1 == intTag, ct2 == natTag = compare i j
       | ct1 == natTag, ct2 == intTag = compare i j
-    cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2) =
+    cmpc tyEq (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) =
       (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
         <> compare (maskTags ct1) (maskTags ct2)
-        <> cmpl compare us1 us2
         -- when comparing corresponding `Any` values, which have
         -- existentials inside check that type references match
-        <> cmpl (cmpc $ tyEq || rf1 == Rf.anyRef) bs1 bs2
+        <> cmpValList (tyEq || rf1 == Rf.anyRef) vs1 vs2
     cmpc tyEq (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
       compare cix1 cix2
         <> cmpValList tyEq segs1 segs2

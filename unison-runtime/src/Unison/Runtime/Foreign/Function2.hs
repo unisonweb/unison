@@ -495,7 +495,7 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   writeForeign = writeForeignBuiltin
 
 fromUnisonPair :: Closure -> (a, b)
-fromUnisonPair (DataC _ _ [] [x, DataC _ _ [] [y, _]]) =
+fromUnisonPair (DataC _ _ [Right x, Right (DataC _ _ [Right y, Right _])]) =
   (unwrapForeignClosure x, unwrapForeignClosure y)
 fromUnisonPair _ = error "fromUnisonPair: invalid closure"
 
@@ -505,10 +505,9 @@ toUnisonPair (x, y) =
   DataC
     Ty.pairRef
     0
-    []
-    [wr x, DataC Ty.pairRef 0 [] [wr y, un]]
+    [Right $ wr x, Right $ DataC Ty.pairRef 0 [Right $ wr y, Right $ un]]
   where
-    un = DataC Ty.unitRef 0 [] []
+    un = DataC Ty.unitRef 0 []
     wr z = Foreign $ wrapBuiltin z
 
 unwrapForeignClosure :: Closure -> a
