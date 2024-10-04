@@ -17,9 +17,11 @@ module Unison.Runtime.MCode
     GSection (.., MatchT, MatchW),
     RSection,
     Section,
-    GComb (..),
+    GComb (.., Lam),
+    GCombInfo (..),
     Comb,
     RComb (..),
+    RCombInfo,
     GCombs,
     RCombs,
     CombIx (..),
@@ -622,16 +624,28 @@ emptyRNs = RN mt mt
 
 type Comb = GComb Void CombIx
 
-data GComb clos comb
-  = Lam
+-- Actual information for a proper combinator. The GComb type is no
+-- longer strictly a 'combinator.'
+data GCombInfo comb
+  = LamI
       !Int -- Number of unboxed arguments
       !Int -- Number of boxed arguments
       !Int -- Maximum needed unboxed frame size
       !Int -- Maximum needed boxed frame size
       !(GSection comb) -- Entry
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+data GComb clos comb
+  = Comb {-# unpack #-} !(GCombInfo comb)
   | -- A pre-evaluated comb, typically a pure top-level const
     CachedClosure !Word64 {- top level comb ix -} !clos
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+pattern Lam
+  :: Int -> Int -> Int -> Int -> GSection comb -> GComb clos comb
+pattern Lam ua ba uf bf sect = Comb (LamI ua ba uf bf sect)
+-- it seems GHC can't figure this out itself
+{-# complete CachedClosure, Lam #-}
 
 instance Bifunctor GComb where
   bimap = bimapDefault
@@ -646,9 +660,9 @@ instance Bitraversable GComb where
 type RCombs clos = GCombs clos (RComb clos)
 
 -- | The fixed point of a GComb where all references to a Comb are themselves Combs.
-newtype RComb clos = RComb
-  { unRComb :: (GComb clos (RComb clos {- Possibly recursive comb, keep it lazy or risk blowing up -}))
-  }
+newtype RComb clos = RComb { unRComb :: GComb clos (RComb clos) }
+
+type RCombInfo clos = GCombInfo (RComb clos)
 
 instance Show (RComb clos) where
   show _ = "<RCOMB>"

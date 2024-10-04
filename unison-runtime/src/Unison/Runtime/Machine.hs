@@ -198,6 +198,11 @@ eval0 !env !activeThreads !co = do
     topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   eval env denv activeThreads ustk bstk (k KE) dummyRef co
 
+mCombClosure :: CombIx -> MComb -> Closure
+mCombClosure cix (RComb (Comb comb)) =
+  PAp cix comb unull bnull
+mCombClosure _ (RComb (CachedClosure _ clo)) = clo
+
 topDEnv ::
   EnumMap Word64 MCombs ->
   M.Map Reference Word64 ->
@@ -205,14 +210,13 @@ topDEnv ::
   (DEnv, K -> K)
 topDEnv combs rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy,
-    -- TODO: Should I special-case this raise ref and pass it down from the top rather than always looking it up?
     rcrf <- Builtin (DTx.pack "raise"),
-    Just j <- M.lookup rcrf rfTm =
-      let cix = (CIx rcrf j 0)
-          comb = rCombSection combs cix
-       in ( EC.mapSingleton n (PAp cix comb unull bnull),
-            Mark 0 0 (EC.setSingleton n) mempty
-          )
+    Just j <- M.lookup rcrf rfTm,
+    cix <- CIx rcrf j 0,
+    clo <- mCombClosure cix $ rCombSection combs cix =
+      ( EC.mapSingleton n clo,
+        Mark 0 0 (EC.setSingleton n) mempty
+      )
 topDEnv _ _ _ = (mempty, id)
 
 -- Entry point for evaluating a numbered combinator.
@@ -237,9 +241,12 @@ apply0 !callback !env !threadTracker !i = do
     Just r -> pure r
     Nothing -> die "apply0: missing reference to entry point"
   let entryCix = (CIx r i 0)
-  let entryComb = rCombSection cmbs entryCix
-  apply env denv threadTracker ustk bstk (kf k0) True ZArgs $
-    PAp entryCix entryComb unull bnull
+  case unRComb $ rCombSection cmbs entryCix of
+    Comb entryComb ->
+      apply env denv threadTracker ustk bstk (kf k0) True ZArgs $
+        PAp entryCix entryComb unull bnull
+    -- if it's cached, we can just finish
+    CachedClosure _ clo -> bump bstk >>= \bstk -> poke bstk clo
   where
     k0 = maybe KE (CB . Hook) callback
 
@@ -777,10 +784,8 @@ apply ::
   IO ()
 apply !env !denv !activeThreads !ustk !bstk !k !ck !args = \case
   (PAp cix@(CIx combRef _ _) comb useg bseg) ->
-    case unRComb comb of
-      CachedClosure _cix clos -> do
-        zeroArgClosure clos
-      Lam ua ba uf bf entry
+    case comb of
+      LamI ua ba uf bf entry
         | ck || ua <= uac && ba <= bac -> do
             ustk <- ensure ustk uf
             bstk <- ensure bstk bf
@@ -1967,7 +1972,7 @@ discardCont denv ustk bstk k p =
 {-# INLINE discardCont #-}
 
 resolve :: CCache -> DEnv -> Stack 'BX -> MRef -> IO Closure
-resolve _ _ _ (Env cix rComb) = pure $ PAp cix rComb unull bnull
+resolve _ _ _ (Env cix mcomb) = pure $ mCombClosure cix mcomb
 resolve _ _ bstk (Stk i) = peekOff bstk i
 resolve env denv _ (Dyn i) = case EC.lookup i denv of
   Just clo -> pure clo
@@ -2356,12 +2361,15 @@ reifyValue0 (combs, rty, rtm) = goV
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
 
-    goV (ANF.Partial gr ua ba) = do
-      (cix, rcomb) <- goIx gr
-      clos <- traverse goV ba
-      pure $ pap cix rcomb clos
-      where
-        pap cix i = PApV cix i (fromIntegral <$> ua)
+    goV (ANF.Partial gr ua ba) = goIx gr >>= \case
+      (cix, RComb (Comb rcomb)) -> pap cix rcomb <$> traverse goV ba
+        where
+          pap cix i = PApV cix i (fromIntegral <$> ua)
+      (_, RComb (CachedClosure _ clo))
+        | [] <- ua, [] <- ba -> pure clo
+        | otherwise -> die . err $ msg
+        where
+          msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 us bs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       DataC r t (fromIntegral <$> us) <$> traverse goV bs

@@ -141,7 +141,7 @@ type IxClosure = GClosure CombIx
 data GClosure comb
   = GPAp
       !CombIx
-      {- Lazy! Might be cyclic -} comb
+      {-# UNPACK #-} !(GCombInfo comb)
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
       !(Seg 'BX) -- boxed args
@@ -262,7 +262,8 @@ pattern DataC rf ct us bs <-
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: CombIx -> RComb Closure -> [Int] -> [Closure] -> Closure
+pattern PApV
+  :: CombIx -> RCombInfo Closure -> [Int] -> [Closure] -> Closure
 pattern PApV cix rcomb us bs <-
   PAp cix rcomb (ints -> us) (bsegToList -> bs)
   where
