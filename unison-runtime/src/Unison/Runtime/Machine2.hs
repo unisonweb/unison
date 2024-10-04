@@ -2122,10 +2122,11 @@ reflectValue rty = goV
 
     goIx (CIx r _ i) = ANF.GR r i
 
-    goV (PApV cix _rComb ua ba) =
-      ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
+    goV :: Closure -> IO ANF.Value
+    goV (PApV cix _rComb args) =
+      ANF.Partial (goIx cix) <$> traverse (bitraverse (pure . fromIntegral) goV) args
     goV (DataC _ t [w] []) = ANF.BLit <$> reflectUData t w
-    goV (DataC r t us bs) =
+    goV (DataC r t segs) =
       ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
     goV (CapV k _ (us, bs)) =
       ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
@@ -2303,10 +2304,9 @@ universalEq frn = eqc
       ct1 == ct2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
-    eqc (PApV cix1 _ us1 bs1) (PApV cix2 _ us2 bs2) =
+    eqc (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
       cix1 == cix2
-        && eql (==) us1 us2
-        && eql eqc bs1 bs2
+        && eqValList segs1 segs2
     eqc (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
       k1 == k2
         && a1 == a2
@@ -2447,14 +2447,13 @@ universalCompare frn = cmpc False
         -- when comparing corresponding `Any` values, which have
         -- existentials inside check that type references match
         <> cmpl (cmpc $ tyEq || rf1 == Rf.anyRef) bs1 bs2
-    cmpc tyEq (PApV cix1 _ us1 bs1) (PApV cix2 _ us2 bs2) =
+    cmpc tyEq (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
       compare cix1 cix2
-        <> cmpl compare us1 us2
-        <> cmpl (cmpc tyEq) bs1 bs2
+        <> cmpValList tyEq segs1 segs2
     cmpc _ (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
       compare k1 k2
         <> compare a1 a2
-        <> cmpValList vs1 vs2
+        <> cmpValList True vs1 vs2
     cmpc tyEq (Foreign fl) (Foreign fr)
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
@@ -2467,10 +2466,10 @@ universalCompare frn = cmpc False
     cmpc _ c d = comparing closureNum c d
     -- Written this way to maintain back-compat with the
     -- old val lists which were separated by unboxed/boxed.
-    cmpValList vs1 vs2 =
+    cmpValList tyEq vs1 vs2 =
       let (us1, bs1) = (partitionEithers vs1)
           (us2, bs2) = (partitionEithers vs2)
-       in cmpl compare us1 us2 <> cmpl (cmpc True) bs1 bs2
+       in cmpl compare us1 us2 <> cmpl (cmpc tyEq) bs1 bs2
 
 arrayCmp ::
   (Closure -> Closure -> Ordering) ->

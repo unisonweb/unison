@@ -230,15 +230,16 @@ traceK begin = dedup (begin, 1)
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
+splitData :: Closure -> Maybe (Reference, Word64, SegList)
 splitData = \case
-  (Enum r t) -> Just (r, t, [], [])
-  (DataU1 r t i) -> Just (r, t, [i], [])
-  (DataU2 r t i j) -> Just (r, t, [i, j], [])
-  (DataB1 r t x) -> Just (r, t, [], [x])
-  (DataB2 r t x y) -> Just (r, t, [], [x, y])
-  (DataUB r t i y) -> Just (r, t, [i], [y])
-  (DataG r t (useg, bseg)) -> Just (r, t, ints useg, bsegToList bseg)
+  (Enum r t) -> Just (r, t, [])
+  (DataU1 r t i) -> Just (r, t, [Left i])
+  (DataU2 r t i j) -> Just (r, t, [Left i, Left j])
+  (DataB1 r t x) -> Just (r, t, [Right x])
+  (DataB2 r t x y) -> Just (r, t, [Right x, Right y])
+  (DataUB r t u b) -> Just (r, t, [Left u, Right b])
+  (DataBU r t b u) -> Just (r, t, [Right b, Left u])
+  (DataG r t seg) -> Just (r, t, segToList seg)
   _ -> Nothing
 
 -- | Converts an unboxed segment to a list of integers for a more interchangeable
@@ -266,14 +267,15 @@ bsegToList = reverse . L.toList
 bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
-formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
-formData r t [] [] = Enum r t
-formData r t [i] [] = DataU1 r t i
-formData r t [i, j] [] = DataU2 r t i j
-formData r t [] [x] = DataB1 r t x
-formData r t [] [x, y] = DataB2 r t x y
-formData r t [i] [x] = DataUB r t i x
-formData r t us bs = DataG r t (useg us, bseg bs)
+formData :: Reference -> Word64 -> SegList -> Closure
+formData r t [] = Enum r t
+formData r t [Left i] = DataU1 r t i
+formData r t [Left i, Left j] = DataU2 r t i j
+formData r t [Right x] = DataB1 r t x
+formData r t [Right x, Right y] = DataB2 r t x y
+formData r t [Left u, Right b] = DataUB r t u b
+formData r t [Right b, Left u] = DataBU r t b u
+formData r t segList = DataG r t (segFromList segList)
 
 frameDataSize :: K -> Int
 frameDataSize = go 0
@@ -284,11 +286,11 @@ frameDataSize = go 0
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
 
-pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
-pattern DataC rf ct us bs <-
-  (splitData -> Just (rf, ct, us, bs))
+pattern DataC :: Reference -> Word64 -> SegList -> Closure
+pattern DataC rf ct segs <-
+  (splitData -> Just (rf, ct, segs))
   where
-    DataC rf ct us bs = formData rf ct us bs
+    DataC rf ct segs = formData rf ct segs
 
 type SegList = [Either Int Closure]
 
