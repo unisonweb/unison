@@ -47,8 +47,8 @@ import Unison.Runtime.ANF2 qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin2
 import Unison.Runtime.Exception2
-import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function2
+import Unison.Runtime.Foreign2
 import Unison.Runtime.MCode2
 import Unison.Runtime.Stack2
 import Unison.ShortHash qualified as SH
@@ -2218,13 +2218,13 @@ reifyValue0 (combs, rty, rtm) = goV
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
 
-    goV (ANF.Partial gr ua ba) = do
+    goV (ANF.Partial gr a) = do
       (cix, rcomb) <- goIx gr
       clos <- traverse goV ba
       pure $ pap cix rcomb clos
       where
         pap cix i = PApV cix i (fromIntegral <$> ua)
-    goV (ANF.Data r t0 us bs) = do
+    goV (ANF.Data r t0 s) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       DataC r t (fromIntegral <$> us) <$> traverse goV bs
     goV (ANF.Cont vs k) = cv <$> goK k <*> bitraverse (pure . fromIntegral) goV bs
@@ -2312,11 +2312,10 @@ universalEq frn = eqc
       cix1 == cix2
         && eql (==) us1 us2
         && eql eqc bs1 bs2
-    eqc (CapV k1 a1 (us1, bs1)) (CapV k2 a2 (us2, bs2)) =
+    eqc (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
       k1 == k2
         && a1 == a2
-        && eql (==) us1 us2
-        && eql eqc bs1 bs2
+        && eqValList vs1 vs2
     eqc (Foreign fl) (Foreign fr)
       | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
         Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
@@ -2326,6 +2325,13 @@ universalEq frn = eqc
           length sl == length sr && and (Sq.zipWith eqc sl sr)
       | otherwise = frn fl fr
     eqc c d = closureNum c == closureNum d
+    -- Written this way to maintain back-compat with the
+    -- old val lists which were separated by unboxed/boxed.
+    eqValList vs1 vs2 =
+      let (us1, bs1) = partitionEithers vs1
+          (us2, bs2) = partitionEithers vs2
+       in eql (==) us1 us2
+            <> eql eqc bs1 bs2
 
     -- serialization doesn't necessarily preserve Int tags, so be
     -- more accepting for those.
@@ -2450,11 +2456,10 @@ universalCompare frn = cmpc False
       compare cix1 cix2
         <> cmpl compare us1 us2
         <> cmpl (cmpc tyEq) bs1 bs2
-    cmpc _ (CapV k1 a1 (us1, bs1)) (CapV k2 a2 (us2, bs2)) =
+    cmpc _ (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
       compare k1 k2
         <> compare a1 a2
-        <> cmpl compare us1 us2
-        <> cmpl (cmpc True) bs1 bs2
+        <> cmpValList vs1 vs2
     cmpc tyEq (Foreign fl) (Foreign fr)
       | Just sl <- maybeUnwrapForeign Rf.listRef fl,
         Just sr <- maybeUnwrapForeign Rf.listRef fr =
@@ -2465,6 +2470,12 @@ universalCompare frn = cmpc False
           arrayCmp (cmpc tyEq) al ar
       | otherwise = frn fl fr
     cmpc _ c d = comparing closureNum c d
+    -- Written this way to maintain back-compat with the
+    -- old val lists which were separated by unboxed/boxed.
+    cmpValList vs1 vs2 =
+      let (us1, bs1) = (partitionEithers vs1)
+          (us2, bs2) = (partitionEithers vs2)
+       in cmpl compare us1 us2 <> cmpl (cmpc True) bs1 bs2
 
 arrayCmp ::
   (Closure -> Closure -> Ordering) ->
