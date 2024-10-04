@@ -2054,8 +2054,8 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
   evaluatedCacheableCombsVar <- newTVarIO mempty
   for_ (EC.mapToList cacheableCombs) \(w, _) -> do
     Debug.debugM Debug.Temp "Evaluating " w
-    let hook _ustk bstk = do
-          clos <- peek bstk
+    let hook stk = do
+          clos <- bpeek stk
           Debug.debugM Debug.Temp "Evaluated" ("Evaluated " ++ show w ++ " to " ++ show clos)
           atomically $ do
             modifyTVar evaluatedCacheableCombsVar $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
