@@ -290,20 +290,22 @@ pattern DataC rf ct us bs <-
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: CombIx -> RComb Closure -> [Int] -> [Closure] -> Closure
-pattern PApV cix rcomb us bs <-
-  PAp cix rcomb ((ints -> us), (bsegToList -> bs))
-  where
-    PApV cix rcomb us bs = PAp cix rcomb (useg us, bseg bs)
+type SegList = [Either Int Closure]
 
-pattern CapV :: K -> Int -> ([Either Int Closure]) -> Closure
+pattern PApV :: CombIx -> RComb Closure -> SegList -> Closure
+pattern PApV cix rcomb segs <-
+  PAp cix rcomb (segToList -> segs)
+  where
+    PApV cix rcomb segs = PAp cix rcomb (segFromList segs)
+
+pattern CapV :: K -> Int -> SegList -> Closure
 pattern CapV k a segs <- Captured k a (segToList -> segs)
   where
     CapV k a segList = Captured k a (segFromList segList)
 
 -- | Converts from the efficient stack form of a segment to the list representation. Segments are stored backwards,
 -- so this reverses the contents
-segToList :: Seg -> [Either Int Closure]
+segToList :: Seg -> SegList
 segToList (u, b) =
   zipWith combine (ints u) (bsegToList b)
   where
@@ -313,7 +315,7 @@ segToList (u, b) =
 
 -- | Converts from the list representation of a segment to the efficient stack form. Segments are stored backwards,
 -- so this reverses the contents.
-segFromList :: [Either Int Closure] -> Seg
+segFromList :: SegList -> Seg
 segFromList xs = (useg u, bseg b)
   where
     u =
