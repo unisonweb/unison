@@ -11,6 +11,7 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
+import Data.Bitraversable (Bitraversable (..))
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)

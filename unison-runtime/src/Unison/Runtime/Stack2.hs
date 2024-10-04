@@ -296,10 +296,34 @@ pattern PApV cix rcomb us bs <-
   where
     PApV cix rcomb us bs = PAp cix rcomb (useg us, bseg bs)
 
-pattern CapV :: K -> Int -> ([Int], [Closure]) -> Closure
-pattern CapV k a segs <- Captured k a (bimap ints bsegToList -> segs)
+pattern CapV :: K -> Int -> ([Either Int Closure]) -> Closure
+pattern CapV k a segs <- Captured k a (segToList -> segs)
   where
-    CapV k a (us, bs) = Captured k a (useg us, bseg bs)
+    CapV k a segList = Captured k a (segFromList segList)
+
+-- | Converts from the efficient stack form of a segment to the list representation. Segments are stored backwards,
+-- so this reverses the contents
+segToList :: Seg -> [Either Int Closure]
+segToList (u, b) =
+  zipWith combine (ints u) (bsegToList b)
+  where
+    combine i c = case c of
+      BlackHole -> Left i
+      _ -> Right c
+
+-- | Converts from the list representation of a segment to the efficient stack form. Segments are stored backwards,
+-- so this reverses the contents.
+segFromList :: [Either Int Closure] -> Seg
+segFromList xs = (useg u, bseg b)
+  where
+    u =
+      xs <&> \case
+        Left i -> i
+        Right _ -> 0
+    b =
+      xs <&> \case
+        Left _ -> BlackHole
+        Right c -> c
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
