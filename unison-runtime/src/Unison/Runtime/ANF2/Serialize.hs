@@ -812,25 +812,27 @@ getGroupRef = GR <$> getReference <*> getWord64be
 -- So, unboxed data is completely absent from the format. We are now
 -- exchanging unison surface values, effectively.
 putValue :: (MonadPut m) => Value -> m ()
-putValue (Partial gr vs) =
+putValue (Partial gr [] vs) =
   putTag PartialT
     *> putGroupRef gr
-    *> putFoldable (putUBValue "putValue: Partial with unboxed values no longer supported") vs
-putValue (Data r t vs) =
+    *> putFoldable putValue vs
+putValue Partial {} =
+  exn "putValue: Partial with unboxed values no longer supported"
+putValue (Data r t [] vs) =
   putTag DataT
     *> putReference r
     *> putWord64be t
-    *> putFoldable (putUBValue "putValue: Data with unboxed contents no longer supported") vs
-putValue (Cont vs k) =
+    *> putFoldable putValue vs
+putValue Data {} =
+  exn "putValue: Data with unboxed contents no longer supported"
+putValue (Cont [] bs k) =
   putTag ContT
-    *> putFoldable (putUBValue "putValue: Cont with unboxed stack no longer supported") bs
+    *> putFoldable putValue bs
     *> putCont k
+putValue Cont {} =
+  exn "putValue: Cont with unboxed stack no longer supported"
 putValue (BLit l) =
   putTag BLitT *> putBLit l
-
-putUBValue :: (MonadPut m) => String -> UBValue -> m ()
-putUBValue msg (Left {}) = exn $ msg
-putUBValue msg (Right v) = putValue v
 
 getValue :: (MonadGet m) => Version -> m Value
 getValue v =
@@ -860,21 +862,22 @@ getValue v =
 
 putCont :: (MonadPut m) => Cont -> m ()
 putCont KE = putTag KET
-putCont (Mark ba rs ds k) =
+putCont (Mark 0 ba rs ds k) =
   putTag MarkT
     *> putWord64be ba
     *> putFoldable putReference rs
     *> putMap putReference putValue ds
     *> putCont k
-putCont (Push j n gr k) =
+putCont Mark {} =
+  exn "putCont: Mark with unboxed args no longer supported"
+putCont (Push 0 j 0 n gr k) =
   putTag PushT
     *> putWord64be j
     *> putWord64be n
     *> putGroupRef gr
-    *> putCont
-      k
-      exn
-      "putCont: Push with unboxed information no longer supported"
+    *> putCont k
+putCont Push {} =
+  exn "putCont: Push with unboxed information no longer supported"
 
 getCont :: (MonadGet m) => Version -> m Cont
 getCont v =
