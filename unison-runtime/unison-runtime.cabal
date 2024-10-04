@@ -46,6 +46,7 @@ library
       Unison.Runtime.Foreign
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function2
+      Unison.Runtime.Foreign2
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
       Unison.Runtime.Machine

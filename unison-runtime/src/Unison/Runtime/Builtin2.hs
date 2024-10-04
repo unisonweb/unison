@@ -165,12 +165,12 @@ import Unison.Runtime.ANF2.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Runtime.Exception (die)
-import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign2
   ( Foreign (Wrap),
     HashAlgorithm (..),
     pattern Failure,
   )
-import Unison.Runtime.Foreign qualified as F
+import Unison.Runtime.Foreign2 qualified as F
 import Unison.Runtime.Foreign.Function2
 import Unison.Runtime.Stack2 (Closure)
 import Unison.Runtime.Stack2 qualified as Closure
