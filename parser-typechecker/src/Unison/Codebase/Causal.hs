@@ -199,5 +199,3 @@ unsafeMapHashPreserving f c = case c of
   Merge h eh e tls -> UnsafeMerge h (retagValueHash eh) (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
   where
     retagValueHash = coerce @(HashFor e) @(HashFor e2)
-
-data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq, Ord, Show)

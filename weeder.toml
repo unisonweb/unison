@@ -74,6 +74,8 @@ roots = [
     '''^Unison\.Prelude\.wundefined$''',
     '''^Unison\.Runtime\.Debug\.[^\.]+$''',
     '''^Unison\.Syntax\.Lexer\.Unison\.debugFilePreParse$''',
+    # Only used in instance roots
+    '''^Unison\.Share\.API\.Projects\.toSumType$''',
 ]
 type-class-roots = false
 unused-types = true

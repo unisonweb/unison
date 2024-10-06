@@ -18,7 +18,6 @@ module Unison.ABT
     Term (..),
     Term' (..),
     Var (..),
-    V (..),
     Subst (..),
 
     -- * Combinators & Traversals
@@ -148,10 +147,6 @@ baseFunctor_ f t =
     & abt_ %%~ \case
       Tm fx -> Tm <$> f (fx)
       x -> pure x
-
--- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
-
-data V v = Free v | Bound v deriving (Eq, Ord, Show, Functor)
 
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)

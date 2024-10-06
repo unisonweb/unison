@@ -3,7 +3,6 @@ module U.Codebase.Branch.Diff
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
-    NameBasedDiff (..),
     diffBranches,
     allNameChanges,
     streamNameChanges,
@@ -30,7 +29,6 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Monoid (ifoldMapM)
-import Unison.Util.Relation (Relation)
 
 data Diff a = Diff
   { adds :: Set a,
@@ -91,24 +89,6 @@ instance Semigroup NameChanges where
 
 instance Monoid NameChanges where
   mempty = NameChanges mempty mempty mempty mempty
-
--- | A name-based diff for namespaces `N1` and `N2` is (for both terms and types) a relation between references, where
--- `a R b` if:
---
---   1. `a` has name `n` in `N1`, and `b` has the same name `n` in `N2`
---   2. `a` != `b`
-data NameBasedDiff = NameBasedDiff
-  { terms :: Relation Reference Reference,
-    types :: Relation Reference Reference
-  }
-  deriving stock (Generic, Show)
-
-instance Monoid NameBasedDiff where
-  mempty = NameBasedDiff mempty mempty
-
-instance Semigroup NameBasedDiff where
-  NameBasedDiff terms0 types0 <> NameBasedDiff terms1 types1 =
-    NameBasedDiff (terms0 <> terms1) (types0 <> types1)
 
 -- | Diff two Branches, returning a tree containing all of the changes
 diffBranches :: Branch Sqlite.Transaction -> Branch Sqlite.Transaction -> Sqlite.Transaction (TreeDiff Sqlite.Transaction)

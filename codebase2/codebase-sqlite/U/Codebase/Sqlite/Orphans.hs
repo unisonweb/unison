@@ -12,10 +12,6 @@ import U.Util.Base32Hex
 import Unison.Prelude
 import Unison.Sqlite
 
--- Newtype for avoiding orphan instances
-newtype AsSqlite a = AsSqlite {fromSQLite :: a}
-  deriving (Show)
-
 deriving via Text instance ToField Base32Hex
 
 deriving via Text instance FromField Base32Hex

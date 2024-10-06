@@ -3,7 +3,6 @@
 module Unison.ShortHash
   ( ShortHash (..),
     ShortCausalHash (..),
-    ShortNamespaceHash (..),
     isPrefixOf,
     shortenTo,
 
@@ -37,9 +36,6 @@ data ShortHash
   deriving (Eq, Ord, Show)
 
 newtype ShortCausalHash = ShortCausalHash {shortCausalHashToText :: Text}
-  deriving stock (Eq, Ord, Show)
-
-newtype ShortNamespaceHash = ShortNamespaceHash {shortNamespaceHashToText :: Text}
   deriving stock (Eq, Ord, Show)
 
 -- x `isPrefixOf` y is True iff x might be a shorter version of y

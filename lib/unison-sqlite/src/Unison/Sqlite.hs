@@ -52,9 +52,6 @@ module Unison.Sqlite
     -- * Rows modified
     rowsModified,
 
-    -- * Data version
-    DataVersion (..),
-
     -- * Journal mode
     JournalMode (..),
     trySetJournalMode,
@@ -98,7 +95,6 @@ import Unison.Sqlite.Connection
     vacuumInto,
     withConnection,
   )
-import Unison.Sqlite.DataVersion (DataVersion (..))
 import Unison.Sqlite.Exception
   ( SomeSqliteException (..),
     SomeSqliteExceptionReason (..),

@@ -9,7 +9,6 @@ module Unison.Server.Local.Endpoints.NamespaceListing
     NamespaceObject (..),
     NamedNamespace (..),
     NamedPatch (..),
-    KindExpression (..),
   )
 where
 
@@ -150,15 +149,6 @@ instance FromJSON NamedPatch where
   parseJSON = withObject "NamedPatch" $ \o -> do
     patchName <- o .: "patchName"
     pure NamedPatch {..}
-
-newtype KindExpression = KindExpression {kindExpressionText :: Text}
-  deriving stock (Generic, Show)
-
-instance ToJSON KindExpression where
-  toJSON KindExpression {..} =
-    object
-      [ "kindExpressionText" .= kindExpressionText
-      ]
 
 backendListEntryToNamespaceObject ::
   (Var v) =>

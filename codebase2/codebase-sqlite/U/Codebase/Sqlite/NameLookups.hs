@@ -3,7 +3,6 @@
 -- access to those domain types given the package dependency tree.
 module U.Codebase.Sqlite.NameLookups
   ( ReversedName (..),
-    ReversedPath (..),
     PathSegments (..),
     pathSegmentsToText,
     textToPathSegments,
@@ -21,9 +20,6 @@ instance From (NonEmpty Text) ReversedName
 
 instance From ReversedName [Text] where
   from (ReversedName n) = toList n
-
-newtype ReversedPath = ReversedPath [Text]
-  deriving (Eq, Ord, Show)
 
 newtype PathSegments = PathSegments [Text]
   deriving stock (Eq, Ord, Show)

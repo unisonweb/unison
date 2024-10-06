@@ -48,7 +48,6 @@ module Unison.Sync.Types
 
     -- * Common/shared error types
     HashMismatchForEntity (..),
-    InvalidParentage (..),
     NeedDependencies (..),
     EntityValidationError (..),
   )
@@ -658,9 +657,6 @@ instance FromJSON HashMismatchForEntity where
           .: "supplied"
         <*> obj
           .: "computed"
-
-data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
-  deriving stock (Show)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Common/shared error types

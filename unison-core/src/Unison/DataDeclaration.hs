@@ -193,13 +193,6 @@ mkDataDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration v a
 mkDataDecl' = DataDeclaration
 
-data F a
-  = Type (Type.F a)
-  | LetRec [a] a
-  | Constructors [a]
-  | Modified Modifier a
-  deriving (Functor, Foldable, Show)
-
 updateDependencies :: (Ord v) => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =
   back $

@@ -274,6 +274,7 @@ import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import GHC.Stack (callStack)
 import Network.URI (URI)
+import Network.URI.Orphans.Sqlite ()
 import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
@@ -328,7 +329,6 @@ import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
 import U.Codebase.Sqlite.Referent qualified as S (TextReferent)
 import U.Codebase.Sqlite.Referent qualified as S.Referent
-import U.Codebase.Sqlite.RemoteProject ()
 import U.Codebase.Sqlite.Serialization as Serialization
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Sqlite.TempEntity (TempEntity)

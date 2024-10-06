@@ -6,7 +6,6 @@
 module Unison.LSP.CodeLens where
 
 import Control.Lens hiding (List)
-import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens hiding (error)
@@ -20,30 +19,6 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Util.Pretty qualified as CT
-
-data TypeSigInsertion = TypeSigInsertion
-  { range :: Range,
-    typeSignature :: Text,
-    fileUri :: Uri
-  }
-
-instance Aeson.ToJSON TypeSigInsertion where
-  toJSON (TypeSigInsertion range typeSignature fileUri) =
-    Aeson.object
-      [ "range" Aeson..= range,
-        "typeSignature" Aeson..= typeSignature,
-        "fileUri" Aeson..= fileUri
-      ]
-
-instance Aeson.FromJSON TypeSigInsertion where
-  parseJSON = Aeson.withObject "TypeSigInsertion" $ \o ->
-    TypeSigInsertion
-      <$> o
-        Aeson..: "range"
-      <*> o
-        Aeson..: "typeSignature"
-      <*> o
-        Aeson..: "fileUri"
 
 -- | Computes code actions for a document.
 codeLensHandler :: Msg.TRequestMessage 'Msg.Method_TextDocumentCodeLens -> (Either Msg.ResponseError ([CodeLens] |? Null) -> Lsp ()) -> Lsp ()

@@ -71,15 +71,6 @@ shareUserHandle :: P ShareUserHandle
 shareUserHandle = do
   ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
 
-data Scheme = Ssh | Https
-  deriving (Eq, Ord, Show)
-
-data User = User Text
-  deriving (Eq, Ord, Show)
-
-data HostInfo = HostInfo Text (Maybe Text)
-  deriving (Eq, Ord, Show)
-
 nameSegment :: P NameSegment
 nameSegment =
   NameSegment.unsafeParseText . Text.pack

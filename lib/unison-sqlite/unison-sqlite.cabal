@@ -23,7 +23,6 @@ library
       Unison.Sqlite.Transaction
   other-modules:
       Unison.Sqlite.Connection.Internal
-      Unison.Sqlite.DataVersion
       Unison.Sqlite.Exception
       Unison.Sqlite.JournalMode
       Unison.Sqlite.Sql

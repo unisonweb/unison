@@ -308,11 +308,3 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
           Nothing -> Left OpenCodebaseFileLockFailed
           Just x -> x
-
-data Entity m
-  = B CausalHash (m (Branch m))
-  | O Hash
-
-instance Show (Entity m) where
-  show (B h _) = "B " ++ take 10 (show h)
-  show (O h) = "O " ++ take 10 (show h)

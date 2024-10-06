@@ -40,7 +40,6 @@ library:
     - pretty-simple
     - regex-tdfa
     - semialign
-    - semigroups
     - servant-client
     - stm
     - text

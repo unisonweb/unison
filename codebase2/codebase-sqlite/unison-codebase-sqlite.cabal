@@ -60,8 +60,6 @@ library
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
-      U.Codebase.Sqlite.RemoteProject
-      U.Codebase.Sqlite.RemoteProjectBranch
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
       U.Codebase.Sqlite.TempEntity

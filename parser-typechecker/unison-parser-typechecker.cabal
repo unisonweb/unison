@@ -58,7 +58,6 @@ library
       Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Cache
-      Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
@@ -207,7 +206,6 @@ library
     , pretty-simple
     , regex-tdfa
     , semialign
-    , semigroups
     , servant-client
     , stm
     , text

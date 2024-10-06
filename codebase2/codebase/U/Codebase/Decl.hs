@@ -60,13 +60,6 @@ vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
 dependencies :: (Ord r, Ord v) => DeclR r v -> Set r
 dependencies (DataDeclaration _ _ _ cts) = foldMap Type.dependencies cts
 
-data F a
-  = Type (Type.FD a)
-  | LetRec [a] a
-  | Constructors [a]
-  | Modified DeclType Modifier a
-  deriving (Functor, Foldable, Show)
-
 -- | Given the pieces of a single decl component,
 -- replaces all 'Nothing' self-referential hashes with a variable reference
 -- to the relevant piece of the component in the component map.

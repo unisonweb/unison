@@ -28,7 +28,7 @@ import Unison.Hash qualified as Hash
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch, ProjectName)
+import Unison.Project (ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax qualified as Syntax
@@ -133,20 +133,6 @@ instance ToJSON DefinitionDisplayResults where
 
 deriving instance ToSchema DefinitionDisplayResults
 
-data TermDefinitionDiff = TermDefinitionDiff
-  { left :: TermDefinition,
-    right :: TermDefinition,
-    diff :: DisplayObjectDiff
-  }
-  deriving (Eq, Show, Generic)
-
-data TypeDefinitionDiff = TypeDefinitionDiff
-  { left :: TypeDefinition,
-    right :: TypeDefinition,
-    diff :: DisplayObjectDiff
-  }
-  deriving (Eq, Show, Generic)
-
 newtype Suffixify = Suffixify {suffixified :: Bool}
   deriving (Eq, Ord, Show, Generic)
 
@@ -246,11 +232,6 @@ data DisplayObjectDiff
   deriving stock (Show, Eq, Generic)
 
 deriving instance ToSchema DisplayObjectDiff
-
-data UnisonRef
-  = TypeRef UnisonHash
-  | TermRef UnisonHash
-  deriving (Eq, Ord, Show, Generic)
 
 data NamedTerm = NamedTerm
   { -- The name of the term, should be hash qualified if conflicted, otherwise name only.
@@ -363,9 +344,6 @@ setCacheControl = addHeader @"Cache-Control" "public"
 v2CausalBranchToUnisonHash :: V2Branch.CausalBranch m -> UnisonHash
 v2CausalBranchToUnisonHash b =
   ("#" <>) . Hash.toBase32HexText . unCausalHash $ V2Causal.causalHash b
-
-newtype ProjectBranchNameParam = ProjectBranchNameParam {unProjectBranchNameParam :: ProjectAndBranch ProjectName ProjectBranchName}
-  deriving (Eq, Show, Generic)
 
 data TermDiffResponse = TermDiffResponse
   { project :: ProjectName,
