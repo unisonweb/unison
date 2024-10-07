@@ -133,8 +133,10 @@ library
     , unison-pretty-printer
     , unison-syntax
     , unison-util-bytes
+    , unison-util-recursion
     , unliftio
     , vector
+    , vector-th-unbox
   default-language: Haskell2010
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
