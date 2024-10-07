@@ -1588,7 +1588,7 @@ prettyCombs w es =
     id
     (mapToList es)
 
-prettyComb :: Word64 -> Word64 -> Comb -> ShowS
+prettyComb :: (Show clos, Show comb) => Word64 -> Word64 -> GComb clos comb -> ShowS
 prettyComb w i = \case
   (Lam a _ s) ->
     shows w
@@ -1597,6 +1597,13 @@ prettyComb w i = \case
       . shows a
       . showString ":\n"
       . prettySection 2 s
+  (CachedClosure a b) ->
+    shows w
+      . showString ":"
+      . shows i
+      . shows a
+      . showString ":\n"
+      . shows b
 
 prettySection :: (Show comb) => Int -> GSection comb -> ShowS
 prettySection ind sec =

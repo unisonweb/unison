@@ -169,13 +169,13 @@ data GClosure comb
       {- Lazy! Might be cyclic -} comb
       {-# UNPACK #-} !Seg -- args
   | GEnum !Reference !Word64
-  | GDataU1 !Reference !Word64 !Int
-  | GDataU2 !Reference !Word64 !Int !Int
-  | GDataB1 !Reference !Word64 !(GClosure comb)
-  | GDataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
-  | GDataUB !Reference !Word64 !Int !(GClosure comb)
-  | GDataBU !Reference !Word64 !(GClosure comb) !Int
-  | GDataG !Reference !Word64 {-# UNPACK #-} !Seg
+  | GDataU1 !Reference !Word64 {- <- packed type tag -} !Int
+  | GDataU2 !Reference !Word64 {- <- packed type tag -} !Int !Int
+  | GDataB1 !Reference !Word64 {- <- packed type tag -} !(GClosure comb)
+  | GDataB2 !Reference !Word64 {- <- packed type tag -} !(GClosure comb) !(GClosure comb)
+  | GDataUB !Reference !Word64 {- <- packed type tag -} !Int !(GClosure comb)
+  | GDataBU !Reference !Word64 {- <- packed type tag -} !(GClosure comb) !Int
+  | GDataG !Reference !Word64 {- <- packed type tag -} {-# UNPACK #-} !Seg
   | -- code cont, arg size, u/b data stacks
     GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
@@ -684,8 +684,7 @@ ensure (Stack ap fp sp ustk bstk) sze = do
     ensureUStk
       | sze <= 0 || bytes (sp + sze + 1) < ssz = pure ustk
       | otherwise = do
-          ustk' <- resizeMutableByteArray ustk (ssz + ext)
-          pure $ ustk'
+          resizeMutableByteArray ustk (ssz + ext)
       where
         ssz = sizeofMutableByteArray ustk
         ext

@@ -8,6 +8,7 @@
 module Unison.Runtime.Machine where
 
 import Control.Concurrent (ThreadId)
+import Unison.Debug qualified as UDebug
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
@@ -46,9 +47,10 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin
+import Unison.Runtime.Debug qualified as Debug
 import Unison.Runtime.Exception
-import Unison.Runtime.Foreign.Function
 import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.ShortHash qualified as SH
@@ -60,6 +62,7 @@ import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.Text qualified as Util.Text
 import UnliftIO (IORef)
 import UnliftIO qualified
+import UnliftIO qualified as IO
 import UnliftIO.Concurrent qualified as UnliftIO
 
 -- | A ref storing every currently active thread.
@@ -236,6 +239,7 @@ apply0 !callback !env !threadTracker !i = do
     Nothing -> die "apply0: missing reference to entry point"
   let entryCix = (CIx r i 0)
   let entryComb = rCombSection cmbs entryCix
+  _ <- IO.evaluate $ Debug.traceComb True i (unRComb entryComb)
   apply env denv threadTracker stk (kf k0) True ZArgs $
     PAp entryCix entryComb nullSeg
   where
@@ -767,6 +771,7 @@ apply ::
   Closure ->
   IO ()
 apply !env !denv !activeThreads !stk !k !ck !args = \case
+  clos | (UDebug.debug UDebug.Temp "apply" clos `seq` False) -> error "debug"
   (PAp cix@(CIx combRef _ _) comb seg) ->
     case unRComb comb of
       CachedClosure _cix clos -> do
