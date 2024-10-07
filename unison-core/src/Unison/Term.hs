@@ -895,15 +895,6 @@ letRec isTop blockAnn bindings e =
     body :: Term' vt v a
     body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
--- | Smart constructor for let blocks. Each binding in the block may
--- reference only previous bindings in the block, not including itself.
--- The output expression may reference any binding in the block.
--- todo: delete me
-let1_ :: (Ord v) => IsTop -> [(v, Term0' vt v)] -> Term0' vt v -> Term0' vt v
-let1_ isTop bindings e = foldr f e bindings
-  where
-    f (v, b) body = ABT.tm (Let isTop b (ABT.abs v body))
-
 -- | annotations are applied to each nested Let expression
 let1 ::
   (Ord v, Semigroup a) =>
@@ -915,6 +906,9 @@ let1 isTop bindings e = foldr f e bindings
   where
     f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' ann v body))
 
+-- | Smart constructor for let blocks. Each binding in the block may
+-- reference only previous bindings in the block, not including itself.
+-- The output expression may reference any binding in the block.
 let1' ::
   (Semigroup a, Ord v) =>
   IsTop ->

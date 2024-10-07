@@ -64,7 +64,7 @@ denormalize (TShift _ _ _) =
   error "denormalize shift"
 denormalize (TLet _ v _ bn bo)
   | typeOf v == ANFBlank = ABT.subst v dbn dbo
-  | otherwise = Term.let1_ False [(v, dbn)] dbo
+  | otherwise = Term.let1' False [(v, dbn)] dbo
   where
     dbn = denormalize bn
     dbo = denormalize bo

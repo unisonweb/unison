@@ -15,7 +15,6 @@ test =
     tests
       [ scope "compareSuffix" (tests testCompareSuffix),
         scope "endsWithReverseSegments" (tests testEndsWithReverseSegments),
-        scope "endsWithSegments" (tests testEndsWithSegments),
         scope "segments" (tests testSegments),
         scope "splitName" (tests testSplitName),
         scope "suffixSearch" (tests testSuffixSearch),
@@ -41,17 +40,6 @@ testEndsWithReverseSegments =
     scope
       "a.b.c doesn't end with [d]"
       (expectEqual False (endsWithReverseSegments (Name.unsafeParseText "a.b.c") [NameSegment "d"]))
-  ]
-
-testEndsWithSegments :: [Test ()]
-testEndsWithSegments =
-  [ scope "a.b.c ends with []" (expectEqual True (endsWithSegments (Name.unsafeParseText "a.b.c") [])),
-    scope
-      "a.b.c ends with [b, c]"
-      (expectEqual True (endsWithSegments (Name.unsafeParseText "a.b.c") [NameSegment "b", NameSegment "c"])),
-    scope
-      "a.b.c doesn't end with [d]"
-      (expectEqual False (endsWithSegments (Name.unsafeParseText "a.b.c") [NameSegment "d"]))
   ]
 
 testSegments :: [Test ()]

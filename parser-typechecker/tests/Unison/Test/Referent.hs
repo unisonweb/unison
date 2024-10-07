@@ -2,7 +2,6 @@
 
 module Unison.Test.Referent where
 
-import Data.Text (Text)
 import Data.Text qualified as Text
 import EasyTest
 import Unison.Reference qualified as Rf
@@ -60,21 +59,21 @@ test =
     ]
   where
     h = "#1tdqrgl90qnmqvrff0j76kg2rnajq7n8j54e9cbk4p8pdi41q343bnh8h2rv6nadhlin8teg8371d445pvo0as7j2sav8k401d2s3no"
-    suffix1 = Rf.showSuffix 0
-    suffix2 = Rf.showSuffix 3
-    ref txt = scope (Text.unpack txt) $ case Rf.fromText txt of
+    suffix1 = show (0 :: Rf.Pos)
+    suffix2 = show (3 :: Rf.Pos)
+    ref txt = scope txt case Rf.fromText $ Text.pack txt of
       Left e -> fail e
       Right r1 -> case Rf.fromText (Rf.toText r1) of
         Left e -> fail e
         Right r2 -> expect (r1 == r2)
-    r :: Text -> Test ()
-    r txt = scope (Text.unpack txt) $ case R.fromText txt of
+    r :: String -> Test ()
+    r txt = scope txt case R.fromText $ Text.pack txt of
       Nothing -> fail "oh noes"
       Just referent -> case R.fromText (R.toText referent) of
         Nothing -> fail "oh noes"
         Just referent2 -> expect (referent == referent2)
-    sh :: Text -> Test ()
-    sh txt = scope (Text.unpack txt) $ case SH.fromText txt of
+    sh :: String -> Test ()
+    sh txt = scope txt case SH.fromText $ Text.pack txt of
       Nothing -> fail "oh noes"
       Just shorthash -> case SH.fromText (SH.toText shorthash) of
         Nothing -> fail "oh noes"

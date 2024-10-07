@@ -6,9 +6,15 @@ import Data.Text qualified as Text
 import Data.These (These (..))
 import EasyTest
 import System.IO.CodePage (withCP65001)
+import Text.Megaparsec qualified as Megaparsec
 import Unison.Core.Project
 import Unison.Prelude
-import Unison.Project (ProjectAndBranchNames (..))
+import Unison.Project
+  ( ProjectAndBranchNames (..),
+    ProjectBranchSpecifier (..),
+    branchWithOptionalProjectParser,
+    projectAndOptionalBranchParser,
+  )
 
 main :: IO ()
 main =
@@ -86,7 +92,7 @@ projectTests =
             scope (Text.unpack input) $
               expectEqual
                 (Just (ProjectAndBranch project branch))
-                (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) input))
+                (Megaparsec.parseMaybe (projectAndOptionalBranchParser ProjectBranchSpecifier'Name) input)
       t "project" "project" Nothing
       t "project/" "project" Nothing
       t "project/branch" "project" (Just "branch")
@@ -104,7 +110,7 @@ projectTests =
             scope (Text.unpack input) $
               expectEqual
                 (Just (ProjectAndBranch project branch))
-                (either (const Nothing) Just (tryFrom @Text @(ProjectAndBranch (Maybe ProjectName) ProjectBranchName) input))
+                (Megaparsec.parseMaybe branchWithOptionalProjectParser input)
       t "branch" Nothing "branch"
       t "@user/branch" Nothing "@user/branch"
       t "releases/1.2.3" Nothing "releases/1.2.3"

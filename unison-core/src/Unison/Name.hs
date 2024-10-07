@@ -16,7 +16,6 @@ module Unison.Name
     beginsWithSegment,
     endsWith,
     endsWithReverseSegments,
-    endsWithSegments,
     stripReversedPrefix,
     reverseSegments,
     segments,
@@ -153,22 +152,6 @@ isRelative = \case
 beginsWithSegment :: Name -> NameSegment -> Bool
 beginsWithSegment name segment =
   segment == List.NonEmpty.head (segments name)
-
--- | @endsWithSegments x y@ returns whether @x@ ends with @y@.
---
--- >>> endsWithSegments "a.b.c" ["b", "c"]
--- True
---
--- >>> endsWithSegments "a.b.c" ["d"]
--- False
---
--- >>> endsWithSegments "a.b.c" []
--- True
---
--- /O(n)/, where /n/ is the number of name segments.
-endsWithSegments :: Name -> [NameSegment] -> Bool
-endsWithSegments name ss =
-  endsWithReverseSegments name (reverse ss)
 
 -- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
 --

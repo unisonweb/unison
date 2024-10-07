@@ -404,10 +404,6 @@ fullyQualifiedProjectAndBranchNamesParser = do
   branch <- projectBranchNameParser False
   pure (ProjectAndBranch project branch)
 
-instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchName)) where
-  tryFrom =
-    maybeTryFrom (Megaparsec.parseMaybe (projectAndOptionalBranchParser ProjectBranchSpecifier'Name))
-
 instance TryFrom Text (ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease)) where
   tryFrom =
     maybeTryFrom (Megaparsec.parseMaybe (projectAndOptionalBranchParser ProjectBranchSpecifier'NameOrLatestRelease))
@@ -437,10 +433,6 @@ instance From (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) Text wher
         Text.Builder.text (into @Text project)
           <> Text.Builder.char '/'
           <> Text.Builder.text (into @Text branch)
-
-instance TryFrom Text (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) where
-  tryFrom =
-    maybeTryFrom (Megaparsec.parseMaybe branchWithOptionalProjectParser)
 
 -- Valid things:
 --

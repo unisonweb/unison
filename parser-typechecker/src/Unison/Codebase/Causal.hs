@@ -12,21 +12,16 @@ module Unison.Codebase.Causal
     mergeNode,
     uncons,
     predecessors,
-    threeWayMerge,
     threeWayMerge',
     squashMerge',
     lca,
     stepDistinctM,
     transform,
     unsafeMapHashPreserving,
-    beforeHash,
   )
 where
 
 import Control.Lens qualified as Lens
-import Control.Monad.Extra qualified as Monad (anyM)
-import Control.Monad.Reader qualified as Reader
-import Control.Monad.State qualified as State
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash)
@@ -65,7 +60,7 @@ head_ = Lens.lens getter setter
         UnsafeMerge {tails} -> mergeNode e tails
 
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
--- as a `threeWayMerge`, but doesn't introduce a merge node for the
+-- as a @`threeWayMerge'` `lca`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
 -- (or is equal to `c2` if `c1` changes nothing).
 squashMerge' ::
@@ -87,15 +82,6 @@ squashMerge' lca discardHistory combine c1 c2 = do
       | lca == c2 -> done <$> discardHistory (head c1)
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
-threeWayMerge ::
-  forall m e.
-  (Monad m, Hashing.ContentAddressable e) =>
-  (Maybe e -> e -> e -> m e) ->
-  Causal m e ->
-  Causal m e ->
-  m (Causal m e)
-threeWayMerge = threeWayMerge' lca
-
 threeWayMerge' ::
   forall m e.
   (Monad m, Hashing.ContentAddressable e) =>
@@ -115,24 +101,6 @@ threeWayMerge' lca combine c1 c2 = do
   where
     done :: e -> Causal m e
     done newHead = fromList newHead [c1, c2]
-
--- `True` if `h` is found in the history of `c` within `maxDepth` path length
--- from the tip of `c`
-beforeHash :: forall m e. (Monad m) => Word -> CausalHash -> Causal m e -> m Bool
-beforeHash maxDepth h c =
-  Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
-  where
-    go c | h == currentHash c = pure True
-    go c = do
-      currentDepth :: Word <- Reader.ask
-      if currentDepth >= maxDepth
-        then pure False
-        else do
-          seen <- State.get
-          cs <- lift . lift $ toList <$> sequence (predecessors c)
-          let unseens = filter (\c -> c `Set.notMember` seen) cs
-          State.modify' (<> Set.fromList cs)
-          Monad.anyM (Reader.local (1 +) . go) unseens
 
 stepDistinctM ::
   (Applicative m, Functor n, Eq e, Hashing.ContentAddressable e) =>

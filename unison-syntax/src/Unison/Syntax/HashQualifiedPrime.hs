@@ -4,7 +4,6 @@
 module Unison.Syntax.HashQualifiedPrime
   ( -- * String conversions
     parseText,
-    unsafeParseText,
     toText,
 
     -- * Parsers
@@ -33,11 +32,6 @@ parseText text =
   where
     parser =
       hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.nameP) <* P.eof
-
-unsafeParseText :: (HasCallStack) => Text -> HQ'.HashQualified Name
-unsafeParseText txt = fromMaybe msg (parseText txt)
-  where
-    msg = error ("HashQualified.unsafeFromText " <> show txt)
 
 toText :: HQ'.HashQualified Name -> Text
 toText =

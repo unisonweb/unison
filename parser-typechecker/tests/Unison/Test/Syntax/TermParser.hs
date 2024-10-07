@@ -6,11 +6,9 @@ module Unison.Test.Syntax.TermParser where
 import Control.Applicative
 import Control.Monad (join)
 import Data.Functor.Identity (Identity (..))
-import EasyTest
+import EasyTest hiding (run)
 import Text.Megaparsec qualified as P
 import Text.RawString.QQ
-import Unison.Parsers qualified as Ps
-import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TP
@@ -216,8 +214,8 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol Identity a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case runIdentity (Ps.parse @_ @Symbol p s Common.parsingEnv) of
+  case runIdentity (run (root p) s Common.parsingEnv) of
     Left e -> do
-      note $ renderParseErrorAsANSI 60 s e
-      crash $ renderParseErrorAsANSI 60 s e
+      note $ Common.renderParseErrorAsANSI 60 s e
+      crash $ Common.renderParseErrorAsANSI 60 s e
     Right _ -> ok

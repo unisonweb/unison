@@ -9,7 +9,6 @@ module Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
     renderNoteAsANSI,
-    renderParseErrorAsANSI,
     renderParseErrors,
   )
 where
@@ -1275,9 +1274,6 @@ renderNoteAsANSI ::
   Note v a ->
   String
 renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
-
-renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
-renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>

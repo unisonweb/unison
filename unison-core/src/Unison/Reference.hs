@@ -26,7 +26,6 @@ module Unison.Reference
     fromText,
     readSuffix,
     showShort,
-    showSuffix,
     toHash,
     toId,
     fromId,
@@ -83,9 +82,6 @@ pattern DerivedId x = ReferenceDerived x
 
 _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"ReferenceDerived"
-
-showSuffix :: Pos -> Text
-showSuffix = Text.pack . show
 
 readSuffix :: Text -> Either String Pos
 readSuffix = \case

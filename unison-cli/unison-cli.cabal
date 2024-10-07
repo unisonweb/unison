@@ -393,6 +393,7 @@ test-suite cli-tests
     , lens
     , lsp-types
     , megaparsec
+    , safe
     , temporary
     , text
     , these

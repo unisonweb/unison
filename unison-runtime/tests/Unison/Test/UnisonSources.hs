@@ -12,7 +12,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -21,6 +20,8 @@ import Unison.Result (Result, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Parser qualified as Parser
+import Unison.Syntax.TermParser qualified as TermParser
 import Unison.Term qualified as Term
 import Unison.Test.Common (parseAndSynthesizeAsFile, parsingEnv)
 import Unison.Test.Common qualified as Common
@@ -128,7 +129,7 @@ resultTest rt uf filepath = do
   if rFileExists
     then scope "result" $ do
       values <- io $ unpack <$> readUtf8 valueFile
-      let term = runIdentity (Parsers.parseTerm values parsingEnv)
+      let term = runIdentity (Parser.run (Parser.root TermParser.term) values parsingEnv)
       let report e = throwIO (userError $ toPlain 10000 e)
       (bindings, _, watches) <-
         io $
@@ -147,5 +148,5 @@ resultTest rt uf filepath = do
           -- note . show $ tm'
           -- note . show $ Term.amap (const ()) tm
           expectEqual tm' (Term.amap (const ()) tm)
-        Left e -> crash $ PrintError.renderParseErrorAsANSI 80 values e
+        Left e -> crash $ Common.showParseError values e
     else pure ()

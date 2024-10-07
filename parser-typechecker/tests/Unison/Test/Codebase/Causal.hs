@@ -42,41 +42,8 @@ test =
         \$  testCommonAncestor
         -- $  prop_mergeCommonAncestor --}
         scope "lca.hasLca" lcaPairTest,
-        scope "lca.noLca" noLcaPairTest,
-        scope "beforeHash" $ beforeHashTests
+        scope "lca.noLca" noLcaPairTest
       ]
-
-beforeHashTests :: Test ()
-beforeHashTests = do
-  -- c1 and c2 have unrelated histories
-  c1 <- pure $ Causal.one (0 :: Int64)
-  c2 <- pure $ Causal.one (1 :: Int64)
-  -- c1' and c2' are extension of c1 and c2, respectively
-  c1' <- pure $ Causal.cons 2 c1
-  c2' <- pure $ Causal.cons 3 c2
-  c12 <- Causal.threeWayMerge sillyMerge c1' c2'
-
-  -- verifying basic properties of `before` for these examples
-  expect' =<< before c1 c1
-  expect' =<< before c1 c12
-  expect' =<< before c2 c2
-  expect' =<< before c2 c12
-  expect' =<< before c2 c2'
-  expect' =<< before c1 c1'
-  expect' . not =<< before c1 c2
-  expect' . not =<< before c2 c1
-
-  -- make sure the search cutoff works -
-  -- even though both start with `Causal.one 0`, that's
-  -- more than 10 steps back from `longCausal 1000`, so we
-  -- want this to be false
-  expect' . not =<< before c1 (longCausal (1000 :: Int64))
-  ok
-  where
-    before h c = Causal.beforeHash 10 (Causal.currentHash h) c
-    sillyMerge _lca l _r = pure l
-    longCausal 0 = Causal.one 0
-    longCausal n = Causal.cons n (longCausal (n - 1))
 
 int64 :: Test Int64
 int64 = random
@@ -181,7 +148,7 @@ threeWayMerge' ::
   Causal Identity (Set Int64) ->
   Causal Identity (Set Int64) ->
   Identity (Causal Identity (Set Int64))
-threeWayMerge' = Causal.threeWayMerge (easyCombine setCombine setDiff setPatch)
+threeWayMerge' = Causal.threeWayMerge' Causal.lca (easyCombine setCombine setDiff setPatch)
 
 -- merge x mempty == x, merge mempty x == x
 testIdentity :: Causal Identity (Set Int64) -> Causal Identity (Set Int64) -> Bool

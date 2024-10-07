@@ -120,6 +120,7 @@ tests:
       - here
       - lens
       - lsp-types
+      - safe
       - temporary
       - these
       - unison-cli
