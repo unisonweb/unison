@@ -31,34 +31,24 @@ library
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
-      Unison.Runtime.ANF2
-      Unison.Runtime.ANF2.Rehash
-      Unison.Runtime.ANF2.Serialize
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
-      Unison.Runtime.Builtin2
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
-      Unison.Runtime.Exception2
       Unison.Runtime.Foreign
       Unison.Runtime.Foreign.Function
-      Unison.Runtime.Foreign.Function2
-      Unison.Runtime.Foreign2
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
-      Unison.Runtime.Machine2
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
-      Unison.Runtime.MCode2
       Unison.Runtime.Pattern
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
-      Unison.Runtime.Stack2
       Unison.Runtime.Vector
   hs-source-dirs:
       src

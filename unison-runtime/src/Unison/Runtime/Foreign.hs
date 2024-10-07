@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Unison.Runtime.Foreign
+module Unison.Runtime.Foreign2
   ( Foreign (..),
     HashAlgorithm (..),
     unwrapForeign,
@@ -34,7 +34,7 @@ import System.IO (Handle)
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (SuperGroup, Value)
+import Unison.Runtime.ANF2 (SuperGroup, Value)
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
