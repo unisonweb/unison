@@ -1,4 +1,5 @@
 ``` unison
+
 {{ Type doc }}
 structural type Optional a =
   None
@@ -26,6 +27,7 @@ test> z = let
 ``` ucm
 scratch/main> debug.lsp.fold-ranges
 
+  
   《{{ Type doc }}》
   《structural type Optional a =
     None

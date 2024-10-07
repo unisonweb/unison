@@ -119,9 +119,9 @@ fenced = do
       hide <- lineToken hidden
       err <- lineToken expectingError
       fileName <- optional untilSpace1
-      pure . Unison hide err fileName <$> (spaces *> P.getInput)
-    "api" -> do
-      pure . API <$> (spaces *> P.manyTill apiRequest P.eof)
+      P.single '\n'
+      pure . Unison hide err fileName <$> P.getInput
+    "api" -> pure . API <$> (spaces *> P.manyTill apiRequest P.eof)
     _ -> pure Nothing
 
 word :: Text -> P Text
