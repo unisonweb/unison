@@ -7,7 +7,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
-module Unison.Runtime.Builtin2
+module Unison.Runtime.Builtin
   ( builtinLookup,
     builtinTermNumbering,
     builtinTypeNumbering,
@@ -159,21 +159,21 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
-import Unison.Runtime.ANF2 as ANF
-import Unison.Runtime.ANF2.Rehash (checkGroupHashes)
-import Unison.Runtime.ANF2.Serialize as ANF
+import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Rehash (checkGroupHashes)
+import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Crypto.Rsa as Rsa
 import Unison.Runtime.Exception (die)
-import Unison.Runtime.Foreign2
+import Unison.Runtime.Foreign
   ( Foreign (Wrap),
     HashAlgorithm (..),
     pattern Failure,
   )
-import Unison.Runtime.Foreign2 qualified as F
-import Unison.Runtime.Foreign.Function2
-import Unison.Runtime.Stack2 (Closure)
-import Unison.Runtime.Stack2 qualified as Closure
+import Unison.Runtime.Foreign qualified as F
+import Unison.Runtime.Foreign.Function
+import Unison.Runtime.Stack (Closure)
+import Unison.Runtime.Stack qualified as Closure
 import Unison.Symbol
 import Unison.Type (charRef)
 import Unison.Type qualified as Ty

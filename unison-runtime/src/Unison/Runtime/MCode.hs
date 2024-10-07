@@ -6,7 +6,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Runtime.MCode2
+module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
     RefNums (..),
@@ -64,7 +64,7 @@ import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF2
+import Unison.Runtime.ANF
   ( ANormal,
     Branched (..),
     CTag,
@@ -88,7 +88,7 @@ import Unison.Runtime.ANF2
     pattern TShift,
     pattern TVar,
   )
-import Unison.Runtime.ANF2 qualified as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)

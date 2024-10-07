@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.Stack2
+module Unison.Runtime.Stack
   ( K (..),
     GClosure (..),
     Closure
@@ -103,8 +103,8 @@ import GHC.Exts as L (IsList (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Runtime.Array
-import Unison.Runtime.Foreign2
-import Unison.Runtime.MCode2
+import Unison.Runtime.Foreign
+import Unison.Runtime.MCode
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)

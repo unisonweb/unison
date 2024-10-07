@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.Machine2 where
+module Unison.Runtime.Machine where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
@@ -35,7 +35,7 @@ import Unison.Reference
     toShortHash,
   )
 import Unison.Referent (Referent, pattern Con, pattern Ref)
-import Unison.Runtime.ANF2 as ANF
+import Unison.Runtime.ANF as ANF
   ( CompileExn (..),
     SuperGroup,
     foldGroupLinks,
@@ -43,14 +43,14 @@ import Unison.Runtime.ANF2 as ANF
     packTags,
     valueLinks,
   )
-import Unison.Runtime.ANF2 qualified as ANF
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
-import Unison.Runtime.Builtin2
-import Unison.Runtime.Exception2
-import Unison.Runtime.Foreign.Function2
-import Unison.Runtime.Foreign2
-import Unison.Runtime.MCode2
-import Unison.Runtime.Stack2
+import Unison.Runtime.Builtin
+import Unison.Runtime.Exception
+import Unison.Runtime.Foreign.Function
+import Unison.Runtime.Foreign
+import Unison.Runtime.MCode
+import Unison.Runtime.Stack
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf

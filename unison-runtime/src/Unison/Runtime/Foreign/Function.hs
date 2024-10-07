@@ -5,7 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.Foreign.Function2
+module Unison.Runtime.Foreign.Function
   ( ForeignFunc (..),
     ForeignConvention (..),
     mkForeign,
@@ -31,11 +31,11 @@ import Network.UDP (UDPSocket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF2 (SuperGroup, Value, internalBug)
+import Unison.Runtime.ANF (SuperGroup, Value, internalBug)
 import Unison.Runtime.Exception
-import Unison.Runtime.Foreign2
-import Unison.Runtime.MCode2
-import Unison.Runtime.Stack2
+import Unison.Runtime.Foreign
+import Unison.Runtime.MCode
+import Unison.Runtime.Stack
 import Unison.Symbol (Symbol)
 import Unison.Type
   ( iarrayRef,

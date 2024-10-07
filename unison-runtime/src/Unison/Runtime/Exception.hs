@@ -1,11 +1,11 @@
-module Unison.Runtime.Exception2 where
+module Unison.Runtime.Exception where
 
 import Control.Exception
 import Data.String (fromString)
 import Data.Text
 import GHC.Stack
 import Unison.Reference (Reference)
-import Unison.Runtime.Stack2
+import Unison.Runtime.Stack
 import Unison.Util.Pretty as P
 
 data RuntimeExn

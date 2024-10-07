@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Runtime.ANF2.Serialize where
+module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
 import Data.ByteString (ByteString)
@@ -23,7 +23,7 @@ import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
-import Unison.Runtime.ANF2 as ANF hiding (Tag)
+import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
 import Unison.Util.EnumContainers qualified as EC

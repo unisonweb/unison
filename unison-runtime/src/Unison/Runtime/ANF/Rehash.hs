@@ -1,4 +1,4 @@
-module Unison.Runtime.ANF2.Rehash where
+module Unison.Runtime.ANF.Rehash where
 
 import Crypto.Hash
 import Data.Bifunctor (bimap, first, second)
@@ -14,8 +14,8 @@ import Data.Text (Text)
 import Unison.Hash (fromByteString)
 import Unison.Reference as Reference
 import Unison.Referent as Referent
-import Unison.Runtime.ANF2 as ANF
-import Unison.Runtime.ANF2.Serialize as ANF
+import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Var (Var)
 
 checkGroupHashes ::

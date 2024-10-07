@@ -7,7 +7,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Runtime.ANF2
+module Unison.Runtime.ANF
   ( minimizeCyclesOrCrash,
     pattern TVar,
     pattern TLit,
