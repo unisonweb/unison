@@ -276,8 +276,8 @@ jump0 !callback !env !activeThreads !clo = do
   cmbs <- readTVarIO $ combs env
   (denv, kf) <-
     topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
-  bstk <- bump stk
-  bpoke bstk (Enum Rf.unitRef unitTag)
+  stk <- bump stk
+  bpoke stk (Enum Rf.unitRef unitTag)
   jump env denv activeThreads stk (kf k0) (VArg1 0) clo
   where
     k0 = CB (Hook callback)
@@ -520,8 +520,8 @@ exec !_ !denv !_activeThreads !stk !k _ (Print i) = do
   Tx.putStrLn (Util.Text.toText t)
   pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (Lit (MI n)) = do
-  ustk <- bump stk
-  upoke ustk n
+  stk <- bump stk
+  upoke stk n
   pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (Lit (MD d)) = do
   stk <- bump stk
@@ -1031,8 +1031,8 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
           l = fsize stk - i
 
 peekForeign :: Stack -> Int -> IO a
-peekForeign bstk i =
-  bpeekOff bstk i >>= \case
+peekForeign stk i =
+  bpeekOff stk i >>= \case
     Foreign x -> pure $ unwrapForeign x
     _ -> die "bad foreign argument"
 {-# INLINE peekForeign #-}
@@ -1582,8 +1582,8 @@ bprim2 !stk DRPT i j = do
 bprim2 !stk CATT i j = do
   x <- peekOffBi stk i
   y <- peekOffBi stk j
-  bstk <- bump stk
-  pokeBi bstk $ (x <> y :: Util.Text.Text)
+  stk <- bump stk
+  pokeBi stk $ (x <> y :: Util.Text.Text)
   pure stk
 bprim2 !stk TAKT i j = do
   n <- upeekOff stk i
@@ -1641,8 +1641,8 @@ bprim2 !stk CONS i j = do
 bprim2 !stk SNOC i j = do
   s <- peekOffS stk i
   x <- bpeekOff stk j
-  bstk <- bump stk
-  pokeS bstk $ s Sq.|> x
+  stk <- bump stk
+  pokeS stk $ s Sq.|> x
   pure stk
 bprim2 !stk CATS i j = do
   x <- peekOffS stk i
