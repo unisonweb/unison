@@ -1,25 +1,25 @@
-```ucm
+``` ucm
 scratch/main> builtins.mergeio
 ```
 
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 test> pass = [Ok "Passed"]
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> test
 ```
 
-```unison
+``` unison
 > ImmutableArray.fromList [?a, ?b, ?c]
 > ImmutableByteArray.fromBytes 0xs123456
 ```

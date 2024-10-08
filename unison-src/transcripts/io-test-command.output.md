@@ -3,15 +3,15 @@ The `io.test` command should run all of the tests within the current namespace, 
 ``` unison
 -- We manually specify types so we don't need to pull in base to run IO and such
 ioAndExceptionTest : '{IO, Exception} [Result]
-ioAndExceptionTest = do 
+ioAndExceptionTest = do
   [Ok "Success"]
 
 ioTest : '{IO} [Result]
-ioTest = do 
+ioTest = do
   [Ok "Success"]
 
 lib.ioAndExceptionTestInLib  : '{IO, Exception} [Result]
-lib.ioAndExceptionTestInLib  = do 
+lib.ioAndExceptionTestInLib  = do
   [Ok "Success"]
 ```
 

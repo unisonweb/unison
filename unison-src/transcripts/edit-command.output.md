@@ -59,7 +59,7 @@ scratch/main> edit mytest
   definitions currently in this namespace.
 
 ```
-``` unison:added-by-ucm /private/tmp/scratch.u
+``` unison :added-by-ucm /private/tmp/scratch.u
 bar : Nat
 bar = 456
 
@@ -67,7 +67,7 @@ foo : Nat
 foo = 123
 ```
 
-``` unison:added-by-ucm /private/tmp/scratch.u
+``` unison :added-by-ucm /private/tmp/scratch.u
 test> mytest = [Ok "ok"]
 ```
 

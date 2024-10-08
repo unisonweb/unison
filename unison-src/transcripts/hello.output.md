@@ -69,7 +69,7 @@ y = 99
 
 This works for `ucm` blocks as well.
 
-Doing `unison:hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
+Doing `unison :hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
 
 ## Expecting failures
 

@@ -19,8 +19,8 @@ unique type T a = T a (a Nat)
 conflicting constraints on the kind of `a` in a sum
 
 ``` unison
-unique type T a 
-  = Star a 
+unique type T a
+  = Star a
   | StarStar (a Nat)
 ```
 
@@ -248,7 +248,7 @@ unique type StarStar a = StarStar (a Nat)
 unique type Star a = Star a
 
 test : StarStar a -> ()
-test _ = 
+test _ =
   buggo : Star a
   buggo = bug ""
   ()

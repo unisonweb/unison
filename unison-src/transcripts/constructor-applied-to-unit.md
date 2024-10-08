@@ -1,9 +1,9 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> alias.type ##Nat Nat
 scratch/main> alias.term ##Any.Any Any
 ```
 
-```unison
+``` unison
 structural type Zoink a b c = Zoink a b c
 
 > Any ()

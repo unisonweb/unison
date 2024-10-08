@@ -1,4 +1,4 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -6,7 +6,7 @@ scratch/main> builtins.merge
 I can use `debug.file` to see the hashes of the last typechecked file.
 
 Given this .u file:
-```unison:hide
+``` unison :hide
 structural type outside.A = A Nat outside.B
 structural type outside.B = B Int
 outside.c = 3
@@ -17,7 +17,7 @@ inside.p = c
 inside.q x = x + p * p
 inside.r = d
 ```
-```ucm
+``` ucm
 scratch/main> debug.file
 ```
 
@@ -25,7 +25,7 @@ This will help me make progress in some situations when UCM is being deficient o
 
 ### `dependents` / `dependencies`
 But wait, there's more.  I can check the dependencies and dependents of a definition:
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> dependents q
 scratch/main> dependencies q

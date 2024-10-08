@@ -1,19 +1,19 @@
 # Get Definitions Test
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
 ```
 
-```unison:hide
+``` unison :hide
 nested.names.x.doc = {{ Documentation }}
 nested.names.x = 42
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```api
+``` api
 -- Should NOT find names by suffix
 GET /api/projects/scratch/branches/main/getDefinition?names=x
 
@@ -24,7 +24,7 @@ GET /api/projects/scratch/branches/main/getDefinition?names=names.x&relativeTo=n
 GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relativeTo=nested
 ```
 
-```unison:hide
+``` unison :hide
 doctest.thing.doc = {{ The correct docs for the thing }}
 doctest.thing = "A thing"
 doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
@@ -33,18 +33,18 @@ doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name,
 doctest.otherstuff.thing = "A different thing"
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
 ```
 
 If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
 ```

@@ -1,5 +1,4 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -11,78 +10,78 @@ Some basic errors of literals.
 
 ### Floating point literals
 
-```unison:error
+``` unison :error
 x = 1. -- missing some digits after the decimal
 ```
 
-```unison:error
+``` unison :error
 x = 1e -- missing an exponent
 ```
 
-```unison:error
+``` unison :error
 x = 1e- -- missing an exponent
 ```
 
-```unison:error
+``` unison :error
 x = 1E+ -- missing an exponent
 ```
 
 ### Hex, octal, binary, and bytes literals
 
-```unison:error
+``` unison :error
 x = 0xoogabooga -- invalid hex chars
 ```
 
-```unison:error
+``` unison :error
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
-```unison:error
+``` unison :error
 x = 0b3201 -- 3 and 2 are not valid binary chars
 ```
 
-```unison:error
+``` unison :error
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
-```unison:error
+``` unison :error
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
 ### Layout errors
 
-```unison:error
+``` unison :error
 foo = else -- not matching if
 ```
 
-```unison:error
+``` unison :error
 foo = then -- unclosed
 ```
 
-```unison:error
+``` unison :error
 foo = with -- unclosed
 ```
 
 ### Matching
 
-```unison:error
+``` unison :error
 -- No cases
 foo = match 1 with
 ```
 
-```unison:error
+``` unison :error
 foo = match 1 with
   2 -- no right-hand-side
 ```
 
-```unison:error
+``` unison :error
 -- Mismatched arities
 foo = cases
   1, 2 -> ()
   3 -> ()
 ```
 
-```unison:error
+``` unison :error
 -- Missing a '->'
 x = match Some a with
       None ->
@@ -91,7 +90,7 @@ x = match Some a with
         2
 ```
 
-```unison:error
+``` unison :error
 -- Missing patterns
 x = match Some a with
       None -> 1
@@ -99,7 +98,7 @@ x = match Some a with
            -> 3
 ```
 
-```unison:error
+``` unison :error
 -- Guards following an unguarded case
 x = match Some a with
       None     -> 1
@@ -108,18 +107,18 @@ x = match Some a with
 
 ### Watches
 
-```unison:error
+``` unison :error
 -- Empty watch
 >
 ```
 
 ### Keywords
 
-```unison:error
+``` unison :error
 use.keyword.in.namespace = 1
 ```
 
-```unison:error
+``` unison :error
 -- reserved operator
 a ! b = 1
 ```

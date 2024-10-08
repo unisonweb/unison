@@ -1,4 +1,4 @@
-```ucm:hide
+``` ucm :hide
 scratch/b1> builtins.merge lib.builtins
 scratch/b2> builtins.merge lib.builtins
 scratch/nsx> builtins.merge lib.builtins
@@ -6,27 +6,27 @@ scratch/main> builtins.merge lib.builtins
 scratch/ns1> builtins.merge lib.builtins
 ```
 
-```unison:hide
+``` unison :hide
 x = 23
 fslkdjflskdjflksjdf = 663
 ```
 
-```ucm
+``` ucm
 scratch/b1> add
 ```
 
-```unison:hide
+``` unison :hide
 x = 23
 fslkdjflskdjflksjdf = 23
 abc = 23
 ```
 
-```ucm
+``` ucm
 scratch/b2> add
 scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
 ```
 
-```ucm
+``` ucm
 scratch/main> diff.namespace /b1: /b2:
 ```
 Things we want to test:
@@ -40,7 +40,7 @@ Things we want to test:
 * New patches, modified patches, deleted patches, moved patches
 * With and without propagated updates
 
-```unison:hide
+``` unison :hide
 fromJust = 1
 b = 2
 bdependent = b
@@ -51,7 +51,7 @@ structural type A a = A ()
 structural ability X a1 a2 where x : ()
 ```
 
-```ucm
+``` ucm
 scratch/ns1> add
 scratch/ns1> alias.term fromJust fromJust'
 scratch/ns1> alias.term helloWorld helloWorld2
@@ -60,25 +60,25 @@ scratch/ns1> branch /ns2
 
 Here's what we've done so far:
 
-```ucm:error
+``` ucm :error
 scratch/main> diff.namespace .nothing /ns1:
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> diff.namespace /ns1: /ns2:
 ```
 
-```unison:hide
+``` unison :hide
 junk = "asldkfjasldkfj"
 ```
 
-```ucm
+``` ucm
 scratch/ns1> add
 scratch/ns1> debug.alias.term.force junk fromJust
 scratch/ns1> delete.term junk
 ```
 
-```unison:hide
+``` unison :hide
 fromJust = 99
 b = 999999999
 d = 4
@@ -87,7 +87,7 @@ f = 6
 unique type Y a b = Y a b
 ```
 
-```ucm
+``` ucm
 scratch/ns2> update
 scratch/main> diff.namespace /ns1: /ns2:
 scratch/ns2> alias.term d d'
@@ -105,10 +105,10 @@ scratch/ns2> alias.term fromJust' yoohoo
 scratch/ns2> delete.term.verbose fromJust'
 scratch/main> diff.namespace /ns3: /ns2:
 ```
-```unison:hide
+``` unison :hide
 bdependent = "banana"
 ```
-```ucm
+``` ucm
 scratch/ns3> update
 scratch/main> diff.namespace /ns2: /ns3:
 ```
@@ -119,39 +119,39 @@ scratch/main> diff.namespace /ns2: /ns3:
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
 
-```unison:hide
+``` unison :hide
 a = 333
 b = a + 1
 
 forconflicts = 777
 ```
 
-```ucm
+``` ucm
 scratch/nsx> add
 scratch/nsx> branch /nsy
 scratch/nsx> branch /nsz
 ```
 
-```unison:hide
+``` unison :hide
 a = 444
 ```
 
-```ucm
+``` ucm
 scratch/nsy> update
 ```
 
-```unison:hide
+``` unison :hide
 a = 555
 ```
 
-```ucm
+``` ucm
 scratch/nsz> update
 scratch/nsy> branch /nsw
 scratch/nsw> debug.alias.term.force .forconflicts .a
 scratch/nsw> debug.alias.term.force .forconflicts .b
 ```
 
-```ucm
+``` ucm
 scratch/main> diff.namespace /nsx: /nsw:
 scratch/nsw> view a
 scratch/nsw> view b
@@ -159,19 +159,19 @@ scratch/nsw> view b
 
 ## Should be able to diff a namespace hash from history.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 scratch/hashdiff> add
 ```
 
-```unison
+``` unison
 y = 2
 ```
 
-```ucm
+``` ucm
 scratch/hashdiff> add
 scratch/hashdiff> history
 scratch/hashdiff> diff.namespace 2 1

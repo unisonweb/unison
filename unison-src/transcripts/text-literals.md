@@ -1,11 +1,10 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 This transcript shows some syntax for raw text literals.
 
-```unison
+``` unison
 lit1 = """
 This is a raw text literal.
 It can start with 3 or more ",
@@ -36,7 +35,7 @@ lit2 = """"
 > Some lit2
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view lit1 lit2
 ```

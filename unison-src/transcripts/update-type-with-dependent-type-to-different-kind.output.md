@@ -57,7 +57,7 @@ scratch/main> update
   `update` again.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 type Foo a = Bar Nat a
 
 -- The definitions below no longer typecheck with the changes above.

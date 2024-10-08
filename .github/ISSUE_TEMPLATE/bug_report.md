@@ -11,27 +11,27 @@ assignees: ''
 Please attach a [ucm transcript](https://www.unison-lang.org/docs/tooling/transcripts/) if possible, calling out the unexpected behavior in the text. e.g.
 
 Input:
-````
-```unison:hide
+```` markdown
+``` unison :hide
 a = 1
 ```
 Here I typo the next command and `ucm` silently does nothing. I would have expected an error message:
-```ucm
+``` ucm
 .> add b
 ```
 ````
 
 Output:
-````
-```unison
+```` markdown
+``` unison
 a = 1
 ```
 
 Here I typo the next command and `ucm` silently does nothing, I would have expected an error message:
-```ucm
+``` ucm
 .> add b
 
-  
+
 
 ```
 ````

@@ -1,6 +1,6 @@
 The order of a set of abilities is normalized before hashing.
 
-```unison
+``` unison
 unique ability Foo where
   foo : ()
 
@@ -14,7 +14,7 @@ term2 : () ->{Bar, Foo} ()
 term2 _ = ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> names term1
 ```

@@ -4,13 +4,13 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ## Codebase Setup
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 ```
 
 First we define differing types with the same name in different namespaces:
 
-```unison
+``` unison
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
 
@@ -18,7 +18,7 @@ one.ambiguousTerm = "term one"
 two.ambiguousTerm = "term two"
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
@@ -32,7 +32,7 @@ We expect the output to:
 1. Print all ambiguous usage sites separately
 2. Print possible disambiguation suggestions for each unique ambiguity
 
-```unison:error
+``` unison :error
 -- We intentionally avoid using a constructor to ensure the constructor doesn't
 -- affect type resolution.
 useAmbiguousType : AmbiguousType -> ()
@@ -49,6 +49,6 @@ separateAmbiguousTypeUsage _ = ()
 Currently, ambiguous terms are caught and handled by type directed name resolution,
 but expect it to eventually be handled by the above machinery.
 
-```unison:error
+``` unison :error
 useAmbiguousTerm = ambiguousTerm
 ```

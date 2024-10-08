@@ -1,20 +1,20 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtin
 ```
 
-```unison
+``` unison
 unique type Foo = Bar Nat
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> alias.term Foo.Bar Stray.BarAlias
 ```
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> update
 ```

@@ -1,8 +1,8 @@
-```unison
+``` unison
 `()`.foo = "bar"
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> find
 scratch/main> find-in `()`

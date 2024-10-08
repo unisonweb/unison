@@ -50,7 +50,7 @@ scratch/main> update
   `update` again.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 foo n = "hello, world!"
 
 -- The definitions below no longer typecheck with the changes above.

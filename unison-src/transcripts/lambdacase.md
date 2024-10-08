@@ -1,24 +1,24 @@
 # Lambda case syntax
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
 
-```unison
+``` unison
 isEmpty x = match x with
   [] -> true
   _ -> false
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
 Here's the same function written using `cases` syntax:
 
-```unison
+``` unison
 isEmpty2 = cases
   [] -> true
   _ -> false
@@ -26,7 +26,7 @@ isEmpty2 = cases
 
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
-```ucm
+``` ucm
 scratch/main> view isEmpty
 ```
 
@@ -36,7 +36,7 @@ it shows the definition using `cases` syntax opportunistically, even though the 
 
 Functions that take multiple arguments and immediately match on a tuple of arguments can also be rewritten to use `cases`. Here's a version using regular `match` syntax on a tuple:
 
-```unison:hide
+``` unison :hide
 merge : [a] -> [a] -> [a]
 merge xs ys = match (xs, ys) with
   ([], ys) -> ys
@@ -46,13 +46,13 @@ merge xs ys = match (xs, ys) with
     else            h2 +: merge (h +: t) t2
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
 And here's a version using `cases`. The patterns are separated by commas:
 
-```unison
+``` unison
 merge2 : [a] -> [a] -> [a]
 merge2 = cases
   [], ys -> ys
@@ -64,7 +64,7 @@ merge2 = cases
 
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
-```ucm
+``` ucm
 scratch/main> view merge
 ```
 
@@ -72,7 +72,7 @@ it again shows the definition using the multi-argument `cases` syntax opportunis
 
 Here's another example:
 
-```unison
+``` unison
 structural type B = T | F
 
 blah : B -> B -> Text
@@ -91,7 +91,7 @@ blorf = cases
 
 ## Patterns with multiple guards
 
-```unison
+``` unison
 merge3 : [a] -> [a] -> [a]
 merge3 = cases
   [], ys -> ys
@@ -100,14 +100,14 @@ merge3 = cases
                    | otherwise -> h2 +: merge3 (h +: t) t2
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view merge3
 ```
 
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.
 
-```unison
+``` unison
 merge4 : [a] -> [a] -> [a]
 merge4 a b = match (a,b) with
   [], ys -> ys
@@ -115,5 +115,3 @@ merge4 a b = match (a,b) with
   h +: t, h2 +: t2 | h <= h2   -> h  +: merge4 t (h2 +: t2)
   h +: t, h2 +: t2 | otherwise -> h2 +: merge4 (h +: t) t2
 ```
-
-

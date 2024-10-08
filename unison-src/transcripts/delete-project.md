@@ -1,6 +1,6 @@
 # delete.project
 
-```ucm
+``` ucm
 scratch/main> project.create-empty foo
 scratch/main> project.create-empty bar
 -- I can delete the project I'm currently on
