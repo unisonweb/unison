@@ -20,7 +20,6 @@ import Control.Monad.State qualified as State
 import Data.Char (isPrint)
 import Data.List
 import Data.List qualified as List
-import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
@@ -39,7 +38,6 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -440,6 +438,87 @@ pretty0
                         . NameSegment.toEscapedText
                         . Name.lastSegment
                   _ -> Nothing
+                prettyBinaryApp ctx term =
+                  case (term, binaryOpsPred) of
+                    BinaryAppPred' f a b ->
+                      let prec = termPrecedence f
+                          p = precedence ctx
+                          im = imports ctx
+                          doc = docContext ctx
+                       in case unBinaryAppsPred' (term, binaryOpsPred) of
+                            -- Only render infix operators as a table
+                            -- if there's more than one of the same
+                            -- operator in a row.
+                            Just (apps@(_ : _ : _), lastArg) -> do
+                              prettyLast <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) lastArg
+                              prettyApps <- binaryApps apps prettyLast
+                              pure $ paren (p > fromMaybe (InfixOp Lowest) prec) prettyApps
+                            _ -> do
+                              prettyF <- pretty0 (AmbientContext Application Normal Infix im doc False) f
+                              prettyA <- prettyBinaryApp (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
+                              -- We increment the precedence for the right-hand side
+                              -- since we want parens if the right-hand side is an
+                              -- infix operator app with the same precedence as the
+                              -- current operator.
+                              prettyB <- prettyBinaryApp (ac (maybe (InfixOp Highest) increment prec) Normal im doc) b
+                              pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
+                                (prettyA <> " " <> prettyF <> " " <> prettyB) `PP.orElse` (prettyA <> "\n" <> PP.indent "  " (prettyF <> " " <> prettyB))
+                    _ -> pretty0 ctx term
+                unBinaryAppsPred' ::
+                  ( Term3 v PrintAnnotation,
+                    Term3 v PrintAnnotation -> Bool
+                  ) ->
+                  Maybe
+                    ( [ ( Term3 v PrintAnnotation,
+                          Term3 v PrintAnnotation
+                        )
+                      ],
+                      Term3 v PrintAnnotation
+                    )
+                unBinaryAppsPred' (t, isInfix) =
+                  go t isInfix
+                  where
+                    go t pred =
+                      case unBinaryAppPred (t, pred) of
+                        Just (f, x, y) ->
+                          -- We only chain together infix operators in a table
+                          -- if they are literally the same operator.
+                          let inChain g = isInfix g && (g == f)
+                              l = unBinaryAppsPred' (x, inChain)
+                           in case l of
+                                Just (as, xLast) -> Just ((xLast, f) : as, y)
+                                Nothing -> Just ([(x, f)], y)
+                        Nothing -> Nothing
+
+                -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
+                -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing
+                -- "a1 `f1` a2 `f2`".  Except the operators are all symbolic, so we won't
+                -- produce any backticks.  We build the result out from the right,
+                -- starting at `f2`.
+                binaryApps ::
+                  [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)] ->
+                  Pretty SyntaxText ->
+                  m (Pretty SyntaxText)
+                binaryApps xs last =
+                  do
+                    let xs' = reverse xs
+                    psh <- join <$> traverse (uncurry (r (InfixOp Lowest))) (take 1 xs')
+                    pst <- join <$> traverse (uncurry (r (InfixOp Highest))) (drop 1 xs')
+                    let ps = psh <> pst
+                    let unbroken = PP.spaced (ps <> [last])
+                        broken = PP.hang (head ps) . PP.column2 . psCols $ tail ps <> [last]
+                    pure (unbroken `PP.orElse` broken)
+                  where
+                    psCols ps = case take 2 ps of
+                      [x, y] -> (x, y) : psCols (drop 2 ps)
+                      [x] -> [(x, "")]
+                      [] -> []
+                      _ -> undefined
+                    r p a f =
+                      sequenceA
+                        [ pretty0 (ac (if isBlock a then Top else fromMaybe p (termPrecedence f)) Normal im doc) a,
+                          pretty0 (AmbientContext Application Normal Infix im doc False) f
+                        ]
             case (term, binaryOpsPred) of
               (DD.Doc, _)
                 | doc == MaybeDoc ->
@@ -484,28 +563,25 @@ pretty0
                 PP.hang kw <$> fmap PP.lines (traverse go rs)
               (Bytes' bs, _) ->
                 pure $ PP.group $ fmt S.BytesLiteral "0xs" <> PP.shown (Bytes.fromWord8s (map fromIntegral bs))
-              BinaryAppPred' f a b -> do
-                let prec = termPrecedence f
-                prettyF <- pretty0 (AmbientContext Application Normal Infix im doc False) f
-                prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
-                prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
-                pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
-                  (prettyA <> " " <> prettyF <> " " <> prettyB) `PP.orElse` (prettyA `PP.hangUngrouped` (PP.column2 [(prettyF, prettyB)]))
+              binApp@(BinaryAppPred' {}) -> do
+                v <- PP.group <$> prettyBinaryApp a (fst binApp)
+                pure v
               (And' a b, _) -> do
                 let prec = operatorPrecedence "&&"
                     prettyF = fmt S.ControlKeyword "&&"
                 prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
                 prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
                 pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
-                  (prettyA <> " " <> prettyF <> " " <> prettyB) `PP.orElse` (prettyA `PP.hangUngrouped` (PP.column2 [(prettyF, prettyB)]))
+                  (prettyA <> " " <> prettyF <> " " <> prettyB)
+                    `PP.orElse` (prettyA <> "\n" <> PP.indent "  " (prettyF <> " " <> prettyB))
               (Or' a b, _) -> do
                 let prec = operatorPrecedence "||"
                     prettyF = fmt S.ControlKeyword "||"
                 prettyA <- pretty0 (ac (fromMaybe (InfixOp Lowest) prec) Normal im doc) a
                 prettyB <- pretty0 (ac (fromMaybe (InfixOp Highest) prec) Normal im doc) b
                 pure . parenNoGroup (p > fromMaybe (InfixOp Lowest) prec) $
-                  PP.group (prettyA <> " " <> prettyF <> " " <> prettyB)
-                    `PP.orElse` (prettyA `PP.hangUngrouped` prettyF <> " " <> prettyB)
+                  (prettyA <> " " <> prettyF <> " " <> prettyB)
+                    `PP.orElse` (prettyA <> "\n" <> PP.indent "  " (prettyF <> " " <> prettyB))
               {-
               When a delayed computation block is passed to a function as the last argument
               in a context where the ambient precedence is low enough, we can elide parentheses
@@ -2092,7 +2168,9 @@ nameEndsWith ppe suffix r = case PrettyPrintEnv.termName ppe (Referent.Ref r) of
 --   1. Form the set of all local variables used anywhere in the term
 --   2. When picking a name for a term, see if it is contained in this set.
 --      If yes: use a minimally qualified name which is longer than the suffixed name,
---              but doesn't conflict with any local vars.
+--              but doesn't conflict with any local vars. If even the fully-qualified
+--              name conflicts with any local vars, make it absolute. (This relies on
+--              disallowing absolute names for local variables).
 --      If no: use the suffixed name for the term
 --
 -- The algorithm does the same for type references in signatures.
@@ -2116,25 +2194,19 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
     usedTypeNames =
       Set.fromList [n | Ann' _ ty <- ABT.subterms tm, v <- ABT.allVars ty, n <- varToName v]
     tweak :: Set Name -> (HQ'.HashQualified Name, HQ'.HashQualified Name) -> (HQ'.HashQualified Name, HQ'.HashQualified Name)
-    tweak used (fullName, HQ'.NameOnly suffixedName)
+    tweak used (HQ'.NameOnly fullName, HQ'.NameOnly suffixedName)
       | Set.member suffixedName used =
-          let revFQNSegments :: NEL.NonEmpty NameSegment
-              revFQNSegments = Name.reverseSegments (HQ'.toName fullName)
-              minimallySuffixed :: HQ'.HashQualified Name
-              minimallySuffixed =
-                revFQNSegments
-                  -- Get all suffixes (it's inits instead of tails because name segments are in reverse order)
-                  & NEL.inits
-                  -- Drop the empty 'init'
-                  & NEL.tail
-                  & mapMaybe (fmap Name.fromReverseSegments . NEL.nonEmpty) -- Convert back into names
+          let resuffixifiedName :: Name
+              resuffixifiedName =
+                fullName
+                  & Name.suffixes
                   -- Drop the suffixes that we know are shorter than the suffixified name
                   & List.drop (Name.countSegments suffixedName)
-                  -- Drop the suffixes that are equal to local variables
-                  & filter ((\n -> n `Set.notMember` used))
-                  & listToMaybe
-                  & maybe fullName HQ'.NameOnly
-           in (fullName, minimallySuffixed)
+                  -- Find the first (shortest) suffix that isn't in the used set
+                  & find (\n -> n `Set.notMember` used)
+                  -- If there isn't one, use the absolut-ified full name
+                  & fromMaybe (Name.makeAbsolute fullName)
+           in (HQ'.NameOnly fullName, HQ'.NameOnly resuffixifiedName)
     tweak _ p = p
     varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name

@@ -146,7 +146,6 @@ data InstrT
   | NameT
   | InfoT
   | PackT
-  | UnpackT
   | LitT
   | PrintT
   | ResetT
@@ -167,15 +166,14 @@ instance Tag InstrT where
   tag2word NameT = 7
   tag2word InfoT = 8
   tag2word PackT = 9
-  tag2word UnpackT = 10
-  tag2word LitT = 11
-  tag2word PrintT = 12
-  tag2word ResetT = 13
-  tag2word ForkT = 14
-  tag2word AtomicallyT = 15
-  tag2word SeqT = 16
-  tag2word TryForceT = 17
-  tag2word BLitT = 18
+  tag2word LitT = 10
+  tag2word PrintT = 11
+  tag2word ResetT = 12
+  tag2word ForkT = 13
+  tag2word AtomicallyT = 14
+  tag2word SeqT = 15
+  tag2word TryForceT = 16
+  tag2word BLitT = 17
 
   word2tag 0 = pure UPrim1T
   word2tag 1 = pure UPrim2T
@@ -187,15 +185,14 @@ instance Tag InstrT where
   word2tag 7 = pure NameT
   word2tag 8 = pure InfoT
   word2tag 9 = pure PackT
-  word2tag 10 = pure UnpackT
-  word2tag 11 = pure LitT
-  word2tag 12 = pure PrintT
-  word2tag 13 = pure ResetT
-  word2tag 14 = pure ForkT
-  word2tag 15 = pure AtomicallyT
-  word2tag 16 = pure SeqT
-  word2tag 17 = pure TryForceT
-  word2tag 18 = pure BLitT
+  word2tag 10 = pure LitT
+  word2tag 11 = pure PrintT
+  word2tag 12 = pure ResetT
+  word2tag 13 = pure ForkT
+  word2tag 14 = pure AtomicallyT
+  word2tag 15 = pure SeqT
+  word2tag 16 = pure TryForceT
+  word2tag 17 = pure BLitT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: (MonadPut m) => GInstr cix -> m ()
@@ -210,7 +207,6 @@ putInstr = \case
   (Name r a) -> putTag NameT *> putRef r *> putArgs a
   (Info s) -> putTag InfoT *> serialize s
   (Pack r w a) -> putTag PackT *> putReference r *> pWord w *> putArgs a
-  (Unpack mr i) -> putTag UnpackT *> putMaybe mr putReference *> pInt i
   (Lit l) -> putTag LitT *> putLit l
   (BLit r tt l) -> putTag BLitT *> putReference r *> putNat tt *> putLit l
   (Print i) -> putTag PrintT *> pInt i
@@ -233,7 +229,6 @@ getInstr =
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> deserialize
     PackT -> Pack <$> getReference <*> gWord <*> getArgs
-    UnpackT -> Unpack <$> getMaybe getReference <*> gInt
     LitT -> Lit <$> getLit
     BLitT -> BLit <$> getReference <*> getNat <*> getLit
     PrintT -> Print <$> gInt

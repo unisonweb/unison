@@ -506,10 +506,6 @@ data GInstr comb
       !Reference -- data type reference
       !Word64 -- tag
       !Args -- arguments to pack
-  | -- Unpack the contents of a data type onto the stack
-    Unpack
-      !(Maybe Reference) -- debug reference
-      !Int -- stack index of data to unpack
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Push a particular value directly onto the boxed stack

@@ -135,6 +135,8 @@ fixity =
       (%) = Nat.mod
       ($) = (+)
       c = 1 * (2 + 3) * 4
+      plus = 1 + 2 + 3
+      plus2 = 1 + (2 + 3)
       d = true && (false || true)
       z = true || false && true
       e = 1 + 2 >= 3 + 4
@@ -163,7 +165,8 @@ fixity =
 fix_1035 : Text
 fix_1035 =
   use Text ++
-  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb"
+  "aaaaaaaaaaaaaaaaaaaaaa"
+    ++ "bbbbbbbbbbbbbbbbbbbbbb"
     ++ "cccccccccccccccccccccc"
     ++ "dddddddddddddddddddddd"
 
@@ -664,7 +667,15 @@ softhang28 =
     n ->
       forkAt
         0
-        (n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n Nat.+ n
+        (n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
+          Nat.+ n
           Nat.+ n
           Nat.+ n)
 
@@ -684,7 +695,18 @@ softhang_b x =
     a = 1
     b = 2
     softhang
-      (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200
+      (100
+      + 200
+      + 300
+      + 400
+      + 500
+      + 600
+      + 700
+      + 800
+      + 900
+      + 1000
+      + 1100
+      + 1200
       + 1300
       + 1400
       + 1500)
