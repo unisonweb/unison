@@ -8,15 +8,12 @@ module Unison.Referent
     Id,
     pattern RefId,
     pattern ConId,
-    fold,
-    toId,
     toReference,
     toReferenceId,
     toConstructorReference,
     toConstructorReferenceId,
     toTermReference,
     toTermReferenceId,
-    fromId,
     fromTermReference,
     fromTermReferenceId,
     fromText,
@@ -38,7 +35,6 @@ import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R
@@ -76,20 +72,6 @@ pattern ConId r t = Con' r t
 
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
-
-toId :: Referent -> Maybe Id
-toId = \case
-  Ref (Reference.ReferenceDerived r) ->
-    Just (RefId r)
-  Con (ConstructorReference (Reference.ReferenceDerived r) i) t ->
-    Just (ConId (ConstructorReference r i) t)
-  _ -> Nothing
-
-fromId :: Id -> Referent
-fromId = \case
-  RefId r -> Ref (Reference.ReferenceDerived r)
-  ConId (ConstructorReference r i) t ->
-    Con (ConstructorReference (Reference.ReferenceDerived r) i) t
 
 -- todo: move these to ShortHash module
 toShortHash :: Referent -> ShortHash
@@ -190,8 +172,3 @@ fromText t =
     refPart = Text.dropWhileEnd (/= '#') t
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
-
-fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
-fold fr fc = \case
-  Ref' r -> fr r
-  Con' (ConstructorReference r i) ct -> fc r i ct

@@ -1,6 +1,5 @@
 module Unison.Codebase.Editor.UriParser
   ( readRemoteNamespaceParser,
-    parseReadShareLooseCode,
     writeRemoteNamespace,
   )
 where
@@ -23,8 +22,6 @@ import Unison.Prelude
 import Unison.Project (ProjectBranchName, ProjectBranchSpecifier (..), ProjectName, projectAndBranchNamesParser)
 import Unison.Syntax.Lexer qualified
 import Unison.Syntax.NameSegment qualified as NameSegment
-import Unison.Util.Pretty qualified as P
-import Unison.Util.Pretty.MegaParsec qualified as P
 
 type P = P.Parsec Void Text.Text
 
@@ -42,11 +39,6 @@ projectAndBranchNamesParserInTheContextOfAlsoParsingLooseCodePaths specifier =
     -- we don't want to succeed parsing the 'foo' off of 'foo.bar', leaving '.bar' behind
     P.notFollowedBy (C.char '.')
     pure projectAndBranch
-
-parseReadShareLooseCode :: String -> String -> Either (P.Pretty P.ColorText) ReadShareLooseCode
-parseReadShareLooseCode label input =
-  let printError err = P.lines [P.string "I couldn't parse this as a share path.", P.prettyPrintParseError input err]
-   in first printError (P.parse readShareLooseCode label (Text.pack input))
 
 -- >>> P.parseMaybe writeRemoteNamespace "unisonweb.base._releases.M4"
 -- Just (WriteRemoteNamespaceShare (WriteShareRemoteNamespace {server = ShareRepo, repo = "unisonweb", path = base._releases.M4}))
@@ -78,15 +70,6 @@ readShareLooseCode = do
 shareUserHandle :: P ShareUserHandle
 shareUserHandle = do
   ShareUserHandle . Text.pack <$> P.some (P.satisfy \c -> isAlphaNum c || c == '-' || c == '_')
-
-data Scheme = Ssh | Https
-  deriving (Eq, Ord, Show)
-
-data User = User Text
-  deriving (Eq, Ord, Show)
-
-data HostInfo = HostInfo Text (Maybe Text)
-  deriving (Eq, Ord, Show)
 
 nameSegment :: P NameSegment
 nameSegment =

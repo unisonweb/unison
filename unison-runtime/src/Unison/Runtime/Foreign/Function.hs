@@ -24,11 +24,10 @@ import Data.Primitive.Array as PA
 import Data.Primitive.ByteArray as PA
 import Data.Sequence qualified as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
-import Data.Word (Word16, Word32, Word64, Word8)
-import GHC.IO.Exception (IOErrorType (..), IOException (..))
+import Data.Word (Word64, Word8)
 import Network.Socket (Socket)
 import Network.UDP (UDPSocket)
-import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
+import System.IO (BufferMode (..), Handle, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (Mem (..), SuperGroup, Value, internalBug)
@@ -106,14 +105,6 @@ instance ForeignConvention Word64 where
 instance ForeignConvention Word8 where
   readForeign = readForeignAs (fromIntegral :: Word64 -> Word8)
   writeForeign = writeForeignAs (fromIntegral :: Word8 -> Word64)
-
-instance ForeignConvention Word16 where
-  readForeign = readForeignAs (fromIntegral :: Word64 -> Word16)
-  writeForeign = writeForeignAs (fromIntegral :: Word16 -> Word64)
-
-instance ForeignConvention Word32 where
-  readForeign = readForeignAs (fromIntegral :: Word64 -> Word32)
-  writeForeign = writeForeignAs (fromIntegral :: Word32 -> Word64)
 
 instance ForeignConvention Char where
   readForeign (i : us) bs ustk _ = (us,bs,) . Char.chr <$> peekOff ustk i
@@ -195,35 +186,6 @@ instance
     ustk <- bump ustk
     (ustk, bstk) <$ poke ustk 1
 
-ioeDecode :: Int -> IOErrorType
-ioeDecode 0 = AlreadyExists
-ioeDecode 1 = NoSuchThing
-ioeDecode 2 = ResourceBusy
-ioeDecode 3 = ResourceExhausted
-ioeDecode 4 = EOF
-ioeDecode 5 = IllegalOperation
-ioeDecode 6 = PermissionDenied
-ioeDecode 7 = UserError
-ioeDecode _ = internalBug "ioeDecode"
-
-ioeEncode :: IOErrorType -> Int
-ioeEncode AlreadyExists = 0
-ioeEncode NoSuchThing = 1
-ioeEncode ResourceBusy = 2
-ioeEncode ResourceExhausted = 3
-ioeEncode EOF = 4
-ioeEncode IllegalOperation = 5
-ioeEncode PermissionDenied = 6
-ioeEncode UserError = 7
-ioeEncode _ = internalBug "ioeDecode"
-
-instance ForeignConvention IOException where
-  readForeign = readForeignAs (bld . ioeDecode)
-    where
-      bld t = IOError Nothing t "" "" Nothing Nothing
-
-  writeForeign = writeForeignAs (ioeEncode . ioe_type)
-
 readForeignAs ::
   (ForeignConvention a) =>
   (a -> b) ->
@@ -292,13 +254,6 @@ readTypelink ::
   IO ([Int], [Int], Reference)
 readTypelink = readForeignAs (unwrapForeign . marshalToForeign)
 
-instance ForeignConvention Double where
-  readForeign (i : us) bs ustk _ = (us,bs,) <$> peekOffD ustk i
-  readForeign _ _ _ _ = foreignCCError "Double"
-  writeForeign ustk bstk d =
-    bump ustk >>= \ustk ->
-      (ustk, bstk) <$ pokeD ustk d
-
 instance ForeignConvention Bool where
   readForeign = readForeignEnum
   writeForeign = writeForeignEnum
@@ -308,10 +263,6 @@ instance ForeignConvention String where
   writeForeign = writeForeignAs pack
 
 instance ForeignConvention SeekMode where
-  readForeign = readForeignEnum
-  writeForeign = writeForeignEnum
-
-instance ForeignConvention IOMode where
   readForeign = readForeignEnum
   writeForeign = writeForeignEnum
 
@@ -480,10 +431,6 @@ instance ForeignConvention (SuperGroup Symbol) where
 instance ForeignConvention Value where
   readForeign = readForeignBuiltin
   writeForeign = writeForeignBuiltin
-
-instance ForeignConvention Foreign where
-  readForeign = readForeignAs marshalToForeign
-  writeForeign = writeForeignAs Foreign
 
 instance ForeignConvention (PA.MutableArray s RClosure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)

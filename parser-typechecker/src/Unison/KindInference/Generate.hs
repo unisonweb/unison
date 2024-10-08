@@ -1,8 +1,7 @@
 -- | Handles generating kind constraints to be fed to the kind
 -- constraint solver (found in "Unison.KindInference.Solve").
 module Unison.KindInference.Generate
-  ( typeConstraints,
-    termConstraints,
+  ( termConstraints,
     declComponentConstraints,
     builtinConstraints,
   )
@@ -33,12 +32,6 @@ import Unison.Var (Type (User), Var (typed), freshIn)
 --------------------------------------------------------------------------------
 -- Constraints arising from Types
 --------------------------------------------------------------------------------
-
--- | Generate kind constraints arising from a given type. The given
--- @UVar@ is constrained to have the kind of the given type.
-typeConstraints :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc [GeneratedConstraint v loc]
-typeConstraints resultVar typ =
-  flatten bottomUp <$> typeConstraintTree resultVar typ
 
 typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
 typeConstraintTree resultVar term@ABT.Term {annotation, out} = do

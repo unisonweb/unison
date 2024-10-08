@@ -22,14 +22,12 @@ module Unison.Runtime.MCode
     RComb (..),
     pattern RCombIx,
     pattern RCombRef,
-    rCombToComb,
     GCombs,
     Combs,
     RCombs,
     CombIx (..),
     GRef (..),
     RRef,
-    Ref,
     UPrim1 (..),
     UPrim2 (..),
     BPrim1 (..),
@@ -649,19 +647,12 @@ instance Eq RComb where
 instance Ord RComb where
   compare (RComb r1 _) (RComb r2 _) = compare r1 r2
 
--- | Convert an RComb to a Comb by forgetting the sections and keeping only the CombIx.
-rCombToComb :: RComb -> Comb
-rCombToComb (RComb _ix c) = rCombIx <$> c
-
 -- | RCombs can be infinitely recursive so we show the CombIx instead.
 instance Show RComb where
   show (RComb ix _) = show ix
 
 -- | Map of combinators, parameterized by comb reference type
 type GCombs comb = EnumMap Word64 (GComb comb)
-
--- | A reference to a combinator, parameterized by comb
-type Ref = GRef CombIx
 
 type RRef = GRef RComb
 

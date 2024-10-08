@@ -87,7 +87,6 @@ library
     , aeson >=2.0.0.0
     , async
     , base
-    , binary
     , bytes
     , bytestring
     , containers
@@ -105,7 +104,6 @@ library
     , mtl
     , nonempty-containers
     , openapi3
-    , regex-tdfa
     , servant
     , servant-docs
     , servant-openapi3

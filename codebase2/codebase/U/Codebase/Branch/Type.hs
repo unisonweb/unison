@@ -2,21 +2,17 @@ module U.Codebase.Branch.Type
   ( Branch (..),
     CausalBranch,
     Patch (..),
-    MetadataType,
     MetadataValue,
     MdValues (..),
     NamespaceStats (..),
     hasDefinitions,
     childAt,
-    hoist,
-    hoistCausalBranch,
     U.Codebase.Branch.Type.empty,
   )
 where
 
 import Data.Map.Strict qualified as Map
 import U.Codebase.Causal (Causal)
-import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (BranchHash, CausalHash, PatchHash)
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
@@ -24,8 +20,6 @@ import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
-
-type MetadataType = Reference
 
 type MetadataValue = Reference
 
@@ -86,18 +80,3 @@ hasDefinitions (NamespaceStats numTerms numTypes _numPatches) =
 
 childAt :: NameSegment -> Branch m -> Maybe (CausalBranch m)
 childAt ns (Branch {children}) = Map.lookup ns children
-
-hoist :: (Functor n) => (forall x. m x -> n x) -> Branch m -> Branch n
-hoist f Branch {children, patches, terms, types} =
-  Branch
-    { terms = (fmap . fmap) f terms,
-      types = (fmap . fmap) f types,
-      patches = (fmap . fmap) f patches,
-      children = fmap (hoistCausalBranch f) children
-    }
-
-hoistCausalBranch :: (Functor n) => (forall x. m x -> n x) -> CausalBranch m -> CausalBranch n
-hoistCausalBranch f cb =
-  cb
-    & Causal.hoist f
-    & Causal.emap (hoist f) (hoist f)

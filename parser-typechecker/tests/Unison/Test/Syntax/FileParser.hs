@@ -6,8 +6,6 @@ import Data.Set (elems)
 import EasyTest
 import Text.Megaparsec.Error qualified as MPE
 import Unison.Parser.Ann qualified as P
-import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
-import Unison.PrintError (renderParseErrorAsANSI)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FileParser (file)
 import Unison.Syntax.Parser qualified as P
@@ -48,11 +46,6 @@ test1 =
         ]
     ]
 
-test2 :: Test ()
-test2 =
-  scope "test2" $
-    (io $ unsafeParseFileBuiltinsOnly "unison-src/test1.u") *> ok
-
 test :: Test ()
 test =
   scope "fileparser" . tests $
@@ -73,7 +66,8 @@ expectFileParseFailure s expectation = scope s $ do
         Just (MPE.ErrorCustom e) -> expectation e
         Just _ -> crash "Error encountered was not custom"
         Nothing -> crash "No error found"
-    Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ renderParseErrorAsANSI 80 s e)
+    Left e ->
+      crash $ "Parser failed with an error which was a trivial parser error: " ++ Common.renderParseErrorAsANSI 80 s e
 
 emptyWatchTest :: Test ()
 emptyWatchTest =
@@ -119,6 +113,6 @@ parses :: String -> Test ()
 parses s = scope s $ do
   let p :: UnisonFile Symbol P.Ann
       !p =
-        unsafeGetRightFrom s . runIdentity $
+        Common.unsafeGetRightFrom s . runIdentity $
           P.run (P.rootFile file) s Common.parsingEnv
   pure p >> ok

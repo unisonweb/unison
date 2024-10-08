@@ -32,8 +32,6 @@ type LocalReferenceH = Reference' LocalTextId LocalHashId
 
 type LocalReference = Reference' LocalTextId LocalDefnId
 
-type LocalId = Id' LocalDefnId
-
 type ReferenceH = Reference' TextId HashId
 
 type IdH = Id' HashId
@@ -51,9 +49,6 @@ referenceToRow :: (ToField t, ToField h) => Reference' t h -> [SQLData]
 referenceToRow = \case
   ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
   ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
-
-instance FromRow (Reference' TextId HashId) where
-  fromRow = referenceFromRow'
 
 instance FromRow (Reference) where
   fromRow = referenceFromRow'

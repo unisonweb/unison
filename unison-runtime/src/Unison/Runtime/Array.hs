@@ -23,8 +23,6 @@ module Unison.Runtime.Array
     copyByteArray,
     copyMutableByteArray,
     moveByteArray,
-    readPrimArray,
-    writePrimArray,
     indexPrimArray,
   )
 where
@@ -194,27 +192,13 @@ checkIPArray name f arr i
   | otherwise = f arr i
 {-# inline checkIPArray #-}
 
--- check index mutable prim array
-checkIMPArray
-  :: CheckCtx
-  => Prim a
-  => String
-  -> (MutablePrimArray s a -> Int -> r)
-  -> MutablePrimArray s a -> Int -> r
-checkIMPArray name f arr i
-  | i < 0 || sizeofMutablePrimArray arr <= i
-  = error $ name ++ " unsafe check out of bounds: " ++ show i
-  | otherwise = f arr i
-{-# inline checkIMPArray #-}
-
 #else
 type CheckCtx :: Constraint
 type CheckCtx = ()
 
-checkIMArray, checkIMPArray, checkIPArray :: String -> r -> r
+checkIMArray, checkIPArray :: String -> r -> r
 checkCArray, checkCMArray, checkRMArray :: String -> r -> r
 checkIMArray _ = id
-checkIMPArray _ = id
 checkCArray _ = id
 checkCMArray _ = id
 checkRMArray _ = id
@@ -349,27 +333,6 @@ moveByteArray ::
   m ()
 moveByteArray = checkCMBArray "moveByteArray" PA.moveByteArray
 {-# INLINE moveByteArray #-}
-
-readPrimArray ::
-  (CheckCtx) =>
-  (PrimMonad m) =>
-  (Prim a) =>
-  MutablePrimArray (PrimState m) a ->
-  Int ->
-  m a
-readPrimArray = checkIMPArray "readPrimArray" PA.readPrimArray
-{-# INLINE readPrimArray #-}
-
-writePrimArray ::
-  (CheckCtx) =>
-  (PrimMonad m) =>
-  (Prim a) =>
-  MutablePrimArray (PrimState m) a ->
-  Int ->
-  a ->
-  m ()
-writePrimArray = checkIMPArray "writePrimArray" PA.writePrimArray
-{-# INLINE writePrimArray #-}
 
 indexPrimArray ::
   (CheckCtx) =>

@@ -18,12 +18,9 @@ module Unison.ABT
     Term (..),
     Term' (..),
     Var (..),
-    V (..),
     Subst (..),
 
     -- * Combinators & Traversals
-    fresh,
-    unvar,
     freshenS,
     freshInBoth,
     freshenBothWrt,
@@ -47,7 +44,6 @@ module Unison.ABT
     foreachSubterm,
     freeVarOccurrences,
     isFreeIn,
-    occurrences,
     extraMap,
     vmap,
     vmapM,
@@ -59,7 +55,6 @@ module Unison.ABT
     substInheritAnnotation,
     substsInheritAnnotation,
     find,
-    find',
     FindAction (..),
     containsExpression,
     rewriteExpression,
@@ -69,7 +64,6 @@ module Unison.ABT
     rewriteDown_,
 
     -- * Safe Term constructors & Patterns
-    annotate,
     annotatedVar,
     var,
     tm,
@@ -78,13 +72,11 @@ module Unison.ABT
     absChain,
     absChain',
     abs',
-    absr,
     unabs,
     unabsA,
     dropAbs,
     cycle,
     cycle',
-    cycler,
     pattern Abs',
     pattern Abs'',
     pattern AbsN',
@@ -156,31 +148,6 @@ baseFunctor_ f t =
       Tm fx -> Tm <$> f (fx)
       x -> pure x
 
--- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
-
-data V v = Free v | Bound v deriving (Eq, Ord, Show, Functor)
-
-unvar :: V v -> v
-unvar (Free v) = v
-unvar (Bound v) = v
-
-instance (Var v) => Var (V v) where
-  freshIn s v = freshIn (Set.map unvar s) <$> v
-
-wrap :: (Functor f, Foldable f, Var v) => v -> Term f (V v) a -> (V v, Term f (V v) a)
-wrap v t =
-  if Set.member (Free v) (freeVars t)
-    then let v' = fresh t (Bound v) in (v', rename (Bound v) v' t)
-    else (Bound v, t)
-
-wrap' ::
-  (Functor f, Foldable f, Var v) =>
-  v ->
-  Term f (V v) a ->
-  (V v -> Term f (V v) a -> c) ->
-  c
-wrap' v t f = uncurry f (wrap v t)
-
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
 annotateBound = go Set.empty
@@ -196,10 +163,6 @@ annotateBound = go Set.empty
 -- | `True` if `v` is a member of the set of free variables of `t`
 isFreeIn :: (Ord v) => v -> Term f v a -> Bool
 isFreeIn v t = Set.member v (freeVars t)
-
--- | Replace the annotation with the given argument.
-annotate :: a -> Term f v a -> Term f v a
-annotate a (Term fvs _ out) = Term fvs a out
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
 amap = amap' . const
@@ -263,13 +226,6 @@ abs = abs' ()
 abs' :: (Ord v) => a -> v -> Term f v a -> Term f v a
 abs' = U.Core.ABT.abs
 
-absr :: (Functor f, Foldable f, Var v) => v -> Term f (V v) () -> Term f (V v) ()
-absr = absr' ()
-
--- | Rebuild an `abs`, renaming `v` to avoid capturing any `Free v` in `body`.
-absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
-absr' a v body = wrap' v body $ \v body -> abs' a v body
-
 absChain :: (Ord v) => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
 
@@ -287,12 +243,6 @@ cycle = cycle' ()
 
 cycle' :: a -> Term f v a -> Term f v a
 cycle' = U.Core.ABT.cycle
-
-cycler' :: (Functor f, Foldable f, Var v) => a -> [v] -> Term f (V v) a -> Term f (V v) a
-cycler' a vs t = cycle' a $ foldr (absr' a) t vs
-
-cycler :: (Functor f, Foldable f, Var v) => [v] -> Term f (V v) () -> Term f (V v) ()
-cycler = cycler' ()
 
 renames ::
   (Foldable f, Functor f, Var v) =>
@@ -341,9 +291,6 @@ changeVars m t = case out t of
     Just v -> annotatedVar (annotation t) v
   Tm v -> tm' (annotation t) (changeVars m <$> v)
 
-fresh :: (Var v) => Term f v a -> v -> v
-fresh t = freshIn (freeVars t)
-
 -- Numbers the free vars by the position where they're first
 -- used within the term. See usage in `Type.normalizeForallOrder`
 numberedFreeVars :: (Ord v, Foldable f) => Term f v a -> Map v Int
@@ -374,15 +321,6 @@ substs ::
   Term f v a ->
   Term f v a
 substs replacements body = foldr (uncurry subst) body (reverse replacements)
-
--- Count the number times the given variable appears free in the term
-occurrences :: (Foldable f, Var v) => v -> Term f v a -> Int
-occurrences v t | not (v `isFreeIn` t) = 0
-occurrences v t = case out t of
-  Var v2 -> if v == v2 then 1 else 0
-  Cycle t -> occurrences v t
-  Abs v2 t -> if v == v2 then 0 else occurrences v t
-  Tm t -> foldl' (\s t -> s + occurrences v t) 0 $ Foldable.toList t
 
 rebuildUp ::
   (Ord v, Foldable f, Functor f) =>
@@ -645,13 +583,6 @@ find p t = case p t of
       Cycle body -> Unison.ABT.find p body
       Abs _ body -> Unison.ABT.find p body
       Tm body -> Foldable.concat (Unison.ABT.find p <$> body)
-
-find' ::
-  (Ord v, Foldable f, Functor f) =>
-  (Term f v a -> Bool) ->
-  Term f v a ->
-  [Term f v a]
-find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
 components :: (Var v) => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars

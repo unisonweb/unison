@@ -6,7 +6,6 @@ module Unison.Codebase.Branch
     Branch (..),
     UnwrappedBranch,
     Branch0,
-    Raw,
     Star,
     NamespaceHash,
 
@@ -27,7 +26,6 @@ module Unison.Codebase.Branch
     isEmpty,
     isEmpty0,
     isOne,
-    before,
     lca,
 
     -- * properties
@@ -38,8 +36,6 @@ module Unison.Codebase.Branch
     children,
     nonEmptyChildren,
     deepEdits',
-    toList0,
-    namespaceStats,
 
     -- * step
     step,
@@ -48,7 +44,6 @@ module Unison.Codebase.Branch
     stepEverywhere,
     batchUpdates,
     batchUpdatesM,
-    UpdateStrategy (..),
     addTermName,
     addTypeName,
     deleteTermName,
@@ -56,8 +51,6 @@ module Unison.Codebase.Branch
     annihilateTypeName,
     deleteTypeName,
     setChildBranch,
-    replacePatch,
-    deletePatch,
     getMaybePatch,
     getPatch,
     modifyPatches,
@@ -68,7 +61,6 @@ module Unison.Codebase.Branch
     getAt0,
     modifyAt,
     modifyAtM,
-    children0,
 
     -- *** Libdep manipulations
     withoutLib,
@@ -87,7 +79,6 @@ module Unison.Codebase.Branch
     deepTerms,
     deepTypes,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepReferents,
     deepTermReferences,
@@ -102,9 +93,7 @@ import Control.Lens hiding (children, cons, transform, uncons)
 import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.These (These (..))
-import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.HashTags (CausalHash, PatchHash (..))
-import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
     Branch0,
@@ -114,7 +103,6 @@ import Unison.Codebase.Branch.Type
     branch0,
     children,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -146,7 +134,6 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
-import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
 import Witherable (FilterableWithIndex (imapMaybe))
@@ -217,14 +204,6 @@ deepTypeReferenceIds :: Branch0 m -> Set TypeReferenceId
 deepTypeReferenceIds =
   Set.mapMaybe Reference.toId . deepTypeReferences
 
-namespaceStats :: Branch0 m -> NamespaceStats
-namespaceStats b =
-  NamespaceStats
-    { numContainedTerms = Relation.size $ deepTerms b,
-      numContainedTypes = Relation.size $ deepTypes b,
-      numContainedPatches = Map.size $ deepEdits b
-    }
-
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
@@ -253,22 +232,6 @@ discardHistory0 = over children (fmap tweak)
 discardHistory :: (Applicative m) => Branch m -> Branch m
 discardHistory b =
   one (discardHistory0 (head b))
-
--- `before b1 b2` is true if `b2` incorporates all of `b1`
-before :: (Monad m) => Branch m -> Branch m -> m Bool
-before (Branch b1) (Branch b2) = Causal.before b1 b2
-
--- | what does this do? —AI
-toList0 :: Branch0 m -> [(Path, Branch0 m)]
-toList0 = go Path.empty
-  where
-    go p b =
-      (p, b)
-        : ( Map.toList (b ^. children)
-              >>= ( \(seg, cb) ->
-                      go (Path.snoc p seg) (head cb)
-                  )
-          )
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
 getAt ::
@@ -354,26 +317,6 @@ stepManyAt actions startBranch =
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
 
-data UpdateStrategy
-  = -- | Compress all changes into a single causal cons.
-    -- The resulting branch will have at most one new causal cons at each branch.
-    --
-    -- Note that this does NOT allow updates to add histories at children.
-    -- E.g. if the root.editme branch has history: A -> B -> C
-    -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
-    -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
-    -- A 'snapshot' of the most recent state of the updated branch is appended to the existing history,
-    -- if the new state is equal to the existing state, no new history nodes are appended.
-    CompressHistory
-  | -- | Preserves any history changes made within the update.
-    --
-    -- Note that this allows you to clobber the history child branches if you want.
-    -- E.g. if the root.editme branch has history: A -> B -> C
-    -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
-    -- AllowRewritingHistory will result in a history for root.editme of: X -> Y -> Z.
-    -- The history of the updated branch is replaced entirely.
-    AllowRewritingHistory
-
 -- | Run a series of updates at specific locations.
 -- History is managed according to the 'UpdateStrategy'
 stepManyAtM ::
@@ -422,12 +365,6 @@ modifyPatches seg f = mapMOf edits update
         Just (_, p) -> f <$> p
       let h = H.hashPatch p'
       pure $ Map.insert seg (PatchHash h, pure p') m
-
-replacePatch :: (Applicative m) => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
-
-deletePatch :: NameSegment -> Branch0 m -> Branch0 m
-deletePatch n = over edits (Map.delete n)
 
 updateChildren ::
   NameSegment ->
@@ -586,11 +523,6 @@ transform0 f b =
   where
     newChildren = transform f <$> (b ^. children)
     newEdits = second f <$> (b ^. edits)
-
--- | Traverse the head branch of all direct children.
--- The index of the traversal is the name of that child branch according to the parent.
-children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-children0 = children .> itraversed <. (history . Causal.head_)
 
 -- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'

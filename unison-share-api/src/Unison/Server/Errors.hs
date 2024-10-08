@@ -30,15 +30,6 @@ import Unison.Server.Types
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 
-badHQN :: HashQualifiedName -> ServerError
-badHQN hqn =
-  err400
-    { errBody =
-        LazyText.encodeUtf8 (LazyText.fromStrict hqn)
-          <> " is not a well-formed name, hash, or hash-qualified name. "
-          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
-    }
-
 backendError :: Backend.BackendError -> ServerError
 backendError = \case
   Backend.NoSuchNamespace n ->

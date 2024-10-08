@@ -11,12 +11,6 @@ import U.Codebase.Term (F' (..), MatchCase (..), Pattern (..))
 import qualified U.Codebase.Term as Term
 import qualified U.Core.ABT as ABT
 
-text :: (Ord v) => ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a -> [text]
-text =
-  execWriter . ABT.visit_ \case
-    Text t -> tell [t]
-    _ -> pure ()
-
 dependencies ::
   (Ord v) =>
   ABT.Term (Term.F' text termRef typeRef termLink typeLink vt) v a ->

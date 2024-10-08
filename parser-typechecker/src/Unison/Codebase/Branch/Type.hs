@@ -21,7 +21,6 @@ module Unison.Codebase.Branch.Type
     deepTypes,
     deepDefns,
     deepPaths,
-    deepEdits,
     Star,
     UnwrappedBranch,
   )
@@ -160,9 +159,6 @@ deepDefns branch =
 
 deepPaths :: Branch0 m -> Set Path
 deepPaths = _deepPaths
-
-deepEdits :: Branch0 m -> Map Name PatchHash
-deepEdits = _deepEdits
 
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)

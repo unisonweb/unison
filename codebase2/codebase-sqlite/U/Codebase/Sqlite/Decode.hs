@@ -16,7 +16,6 @@ module U.Codebase.Sqlite.Decode
     decodeSyncTermAndType,
     decodeTermElementDiscardingTerm,
     decodeTermElementDiscardingType,
-    decodeTermElementWithType,
     decodeTermFormat,
 
     -- * @temp_entity.blob@
@@ -132,13 +131,6 @@ decodeTermElementDiscardingTerm i =
 decodeTermElementDiscardingType :: C.Reference.Pos -> ByteString -> Either DecodeError (LocalIds, TermFormat.Term)
 decodeTermElementDiscardingType i =
   getFromBytesOr ("lookupTermElementDiscardingType " <> tShow i) (Serialization.lookupTermElementDiscardingType i)
-
-decodeTermElementWithType ::
-  C.Reference.Pos ->
-  ByteString ->
-  Either DecodeError (LocalIds, TermFormat.Term, TermFormat.Type)
-decodeTermElementWithType i =
-  getFromBytesOr ("lookupTermElement" <> tShow i) (Serialization.lookupTermElement i)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- temp_entity.blob

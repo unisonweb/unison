@@ -1,16 +1,9 @@
 module Unison.PrettyTerminal where
 
-import Data.Char (isSpace)
-import Data.List (dropWhileEnd)
 import System.Console.Terminal.Size qualified as Terminal
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Less (less)
 import Unison.Util.Pretty qualified as P
-
-stripSurroundingBlanks :: String -> String
-stripSurroundingBlanks s = unlines (dropWhile isBlank . dropWhileEnd isBlank $ lines s)
-  where
-    isBlank line = all isSpace line
 
 -- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()

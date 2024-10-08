@@ -11,8 +11,6 @@ module Unison.Prelude
     wundefined,
 
     -- * @Bool@ control flow
-    onFalse,
-    onFalseM,
     onTrue,
     onTrueM,
 
@@ -112,21 +110,6 @@ altSum = foldl' (<|>) empty
 -- | Like 'foldMap' but for Alternative.
 altMap :: (Alternative f, Foldable t) => (a -> f b) -> t a -> f b
 altMap f = altSum . fmap f . toList
-
--- |
--- > condition & onFalse do
--- >   shortCircuit
-onFalse :: (Applicative m) => m () -> Bool -> m ()
-onFalse action = \case
-  False -> action
-  True -> pure ()
-
--- |
--- > action & onFalseM do
--- >   shortCircuit
-onFalseM :: (Monad m) => m () -> m Bool -> m ()
-onFalseM x y =
-  y >>= onFalse x
 
 -- |
 -- > condition & onTrue do

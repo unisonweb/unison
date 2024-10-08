@@ -116,8 +116,6 @@ data TypeInfo v loc = TopLevelComponent
   {definitions :: [(v, Type v loc, RedundantTypeAnnotation)]}
   deriving (Show)
 
-type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
-
 typeErrorFromNote ::
   (Ord loc, Show loc, Var v) => C.ErrorNote v loc -> TypeError v loc
 typeErrorFromNote n = case Ex.extract allErrors n of
@@ -154,11 +152,6 @@ allErrors =
       uncoveredPatterns,
       kindInferenceFailure
     ]
-
-topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
-topLevelComponent = do
-  defs <- Ex.topLevelComponent
-  pure $ TopLevelComponent defs
 
 redundantPattern :: Ex.ErrorExtractor v a (TypeError v a)
 redundantPattern = do

@@ -28,7 +28,6 @@ module Unison.Server.Backend
     expandShortCausalHash,
     findDocInBranch,
     formatSuffixedType,
-    getShallowCausalAtPathFromRootHash,
     getTermTag,
     getTypeTag,
     hoistBackend,
@@ -44,14 +43,12 @@ module Unison.Server.Backend
     termEntryDisplayName,
     termEntryHQName,
     termEntryToNamedTerm,
-    termEntryLabeledDependencies,
     termListEntry,
     termReferentsByShortHash,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
     typeEntryToNamedType,
-    typeEntryLabeledDependencies,
     typeListEntry,
     typeReferencesByShortHash,
     typeToSyntaxHeader,
@@ -59,17 +56,11 @@ module Unison.Server.Backend
     docsForDefinitionName,
     normaliseRootCausalHash,
 
-    -- * Unused, could remove?
-    resolveRootBranchHash,
-    isTestResultList,
-    fixupNamesRelative,
-
     -- * Re-exported for Share Server
     termsToSyntax,
     termsToSyntaxOf,
     typesToSyntax,
     typesToSyntaxOf,
-    definitionResultsDependencies,
     evalDocRef,
     mkTermDefinition,
     mkTypeDefinition,
@@ -124,11 +115,9 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration qualified as DD
-import Unison.DataDeclaration.Dependencies qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
-import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
@@ -159,7 +148,6 @@ import Unison.Server.SearchResult qualified as SR
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Types
-import Unison.Server.Types qualified as ServerTypes
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
@@ -278,18 +266,6 @@ data TermEntry v a = TermEntry
   }
   deriving (Eq, Ord, Show, Generic)
 
-termEntryLabeledDependencies :: (Ord v) => TermEntry v a -> Set LD.LabeledDependency
-termEntryLabeledDependencies TermEntry {termEntryType, termEntryReferent, termEntryTag, termEntryName} =
-  foldMap Type.labeledDependencies termEntryType
-    <> Set.singleton (LD.TermReferent (Cv.referent2to1UsingCT ct termEntryReferent))
-  where
-    ct :: V2Referent.ConstructorType
-    ct = case termEntryTag of
-      ServerTypes.Constructor ServerTypes.Ability -> V2Referent.EffectConstructor
-      ServerTypes.Constructor ServerTypes.Data -> V2Referent.DataConstructor
-      ServerTypes.Doc -> V2Referent.DataConstructor
-      _ -> error $ "termEntryLabeledDependencies: Term is not a constructor, but the referent was a constructor. Tag: " <> show termEntryTag <> " Name: " <> show termEntryName <> " Referent: " <> show termEntryReferent
-
 termEntryDisplayName :: TermEntry v a -> Text
 termEntryDisplayName = HQ'.toTextWith Name.toText . termEntryHQName
 
@@ -307,10 +283,6 @@ data TypeEntry = TypeEntry
     typeEntryTag :: TypeTag
   }
   deriving (Eq, Ord, Show, Generic)
-
-typeEntryLabeledDependencies :: TypeEntry -> Set LD.LabeledDependency
-typeEntryLabeledDependencies TypeEntry {typeEntryReference} =
-  Set.singleton (LD.TypeReference typeEntryReference)
 
 typeEntryDisplayName :: TypeEntry -> Text
 typeEntryDisplayName = HQ'.toTextWith Name.toText . typeEntryHQName
@@ -413,14 +385,6 @@ doc1Type = Type.ref mempty Decls.docRef
 
 doc2Type :: (Ord v, Monoid a) => Type v a
 doc2Type = Type.ref mempty DD.doc2Ref
-
-isTestResultList :: forall v a. (Var v, Monoid a) => Maybe (Type v a) -> Bool
-isTestResultList typ = case typ of
-  Nothing -> False
-  Just t -> Typechecker.isEqual t resultListType
-
-resultListType :: (Ord v, Monoid a) => Type v a
-resultListType = Type.app mempty (Type.list mempty) (Type.ref mempty Decls.testResultRef)
 
 termListEntry ::
   (MonadIO m) =>
@@ -579,24 +543,6 @@ lsBranch codebase b0 = do
       ++ typeEntries
       ++ branchEntries
 
--- Any absolute names in the input which have `root` as a prefix
--- are converted to names relative to current path. All other names are
--- converted to absolute names. For example:
---
--- e.g. if currentPath = .foo.bar
---      then name foo.bar.baz becomes baz
---           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names -> Names
-fixupNamesRelative root names =
-  case Path.toName $ Path.unabsolute root of
-    Nothing -> names
-    Just prefix -> Names.map (fixName prefix) names
-  where
-    fixName prefix n =
-      if root == Path.absoluteEmpty
-        then n
-        else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
-
 hqNameQuery ::
   Codebase m v Ann ->
   NameSearch Sqlite.Transaction ->
@@ -663,26 +609,6 @@ data DefinitionResults = DefinitionResults
   }
   deriving stock (Show)
 
--- | Finds ALL direct references contained within a 'DefinitionResults' so we can
--- build a pretty printer for them.
-definitionResultsDependencies :: DefinitionResults -> Set LD.LabeledDependency
-definitionResultsDependencies (DefinitionResults {termResults, typeResults}) =
-  let topLevelTerms = Set.fromList . fmap LD.TermReference $ Map.keys termResults
-      topLevelTypes = Set.fromList . fmap LD.TypeReference $ Map.keys typeResults
-      termDeps =
-        termResults
-          & foldOf
-            ( folded
-                . beside
-                  (to Type.labeledDependencies)
-                  (to Term.labeledDependencies)
-            )
-      typeDeps =
-        typeResults
-          & ifoldMap \typeRef ddObj ->
-            foldMap (DD.labeledDeclDependenciesIncludingSelfAndFieldAccessors typeRef) ddObj
-   in termDeps <> typeDeps <> topLevelTerms <> topLevelTypes
-
 expandShortCausalHash :: ShortCausalHash -> Backend Sqlite.Transaction CausalHash
 expandShortCausalHash hash = do
   hashSet <- lift $ Codebase.causalHashesByPrefix hash
@@ -692,15 +618,6 @@ expandShortCausalHash hash = do
     [h] -> pure h
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SCH.fromHash len) hashSet
-
--- | Efficiently resolve a root hash and path to a shallow branch's causal.
-getShallowCausalAtPathFromRootHash ::
-  CausalHash ->
-  Path ->
-  Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
-getShallowCausalAtPathFromRootHash rootHash path = do
-  shallowRoot <- Codebase.expectCausalBranchByCausalHash rootHash
-  Codebase.getShallowCausalAtPath path shallowRoot
 
 formatType' :: (Var v) => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
@@ -1003,12 +920,6 @@ resolveCausalHash ::
 resolveCausalHash bhash codebase = do
   mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
   whenNothing mayBranch (throwError $ NoBranchForHash bhash)
-
-resolveRootBranchHash ::
-  (MonadIO m) => ShortCausalHash -> Codebase m v a -> Backend m (Branch m)
-resolveRootBranchHash sch codebase = do
-  h <- hoistBackend (Codebase.runTransaction codebase) (expandShortCausalHash sch)
-  resolveCausalHash h codebase
 
 resolveRootBranchHashV2 ::
   ShortCausalHash -> Backend Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)

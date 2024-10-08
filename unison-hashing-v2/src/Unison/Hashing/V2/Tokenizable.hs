@@ -18,12 +18,6 @@ import Data.Set qualified as Set
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Prelude
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
-import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation3 qualified as Relation3
-import Unison.Util.Relation4 (Relation4)
-import Unison.Util.Relation4 qualified as Relation4
 
 -- | The version of the current hashing function.
 -- This should be incremented every time the hashing function is changed.
@@ -83,18 +77,6 @@ instance (Tokenizable a) => Tokenizable (Set.Set a) where
 instance (Tokenizable k, Tokenizable v) => Tokenizable (Map.Map k v) where
   tokens = tokens . Map.toList
 
-instance (Tokenizable a, Tokenizable b) => Tokenizable (Relation a b) where
-  tokens = tokens . Relation.toList
-
-instance (Tokenizable d1, Tokenizable d2, Tokenizable d3) => Tokenizable (Relation3 d1 d2 d3) where
-  tokens s = [accumulateToken $ Relation3.toNestedList s]
-
-instance (Tokenizable d1, Tokenizable d2, Tokenizable d3, Tokenizable d4) => Tokenizable (Relation4 d1 d2 d3 d4) where
-  tokens s = [accumulateToken $ Relation4.toNestedList s]
-
-instance Tokenizable () where
-  tokens _ = []
-
 instance Tokenizable Double where
   tokens d = [Double d]
 
@@ -103,9 +85,6 @@ instance Tokenizable Text where
 
 instance Tokenizable Char where
   tokens c = [Nat $ fromIntegral $ fromEnum c]
-
-instance Tokenizable ByteString where
-  tokens bs = [Bytes bs]
 
 instance Tokenizable Word64 where
   tokens w = [Nat w]

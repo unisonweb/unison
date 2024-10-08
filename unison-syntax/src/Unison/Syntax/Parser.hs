@@ -210,7 +210,7 @@ tokenToPair t = (ann t, L.payload t)
 
 newtype Input = Input {inputStream :: [L.Token L.Lexeme]}
   deriving stock (Eq, Ord, Show)
-  deriving newtype (P.Stream, P.VisualStream)
+  deriving newtype (P.Stream)
 
 instance (Annotated a) => Annotated (ABT.Term f v a) where
   ann = ann . ABT.annotation

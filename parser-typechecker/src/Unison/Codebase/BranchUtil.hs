@@ -3,12 +3,10 @@ module Unison.Codebase.BranchUtil
     fromNames,
 
     -- * Branch queries
-    getBranch,
     getTerm,
     getType,
 
     -- * Branch modifications
-    makeSetBranch,
     makeAddTypeName,
     makeDeleteTypeName,
     makeAnnihilateTypeName,
@@ -19,7 +17,6 @@ module Unison.Codebase.BranchUtil
 where
 
 import Control.Lens
-import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -63,13 +60,6 @@ getType (p, hq) b = case hq of
     filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
     types = (Branch.getAt0 p b) ^. Branch.types
 
-getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
-getBranch (p, seg) b = case Path.toList p of
-  [] -> Map.lookup seg (b ^. Branch.children)
-  h : p ->
-    (Branch.head <$> Map.lookup h (b ^. Branch.children))
-      >>= getBranch (Path.fromList p, seg)
-
 makeAddTermName :: (p, NameSegment) -> Referent -> (p, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r = (p, Branch.addTermName r name)
 
@@ -87,6 +77,3 @@ makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)
 
 makeDeleteTypeName :: (p, NameSegment) -> Reference -> (p, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
-
-makeSetBranch :: Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
-makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)

@@ -7,7 +7,7 @@ import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import Unison.Core.Orphans.Sqlite ()
 import Unison.Core.Project (ProjectBranchName)
 import Unison.Prelude
-import Unison.Sqlite (FromRow, ToRow)
+import Unison.Sqlite (FromRow)
 
 -- | A project branch.
 data ProjectBranch = ProjectBranch
@@ -17,4 +17,4 @@ data ProjectBranch = ProjectBranch
     parentBranchId :: !(Maybe ProjectBranchId)
   }
   deriving stock (Eq, Generic, Show)
-  deriving anyclass (ToRow, FromRow)
+  deriving anyclass (FromRow)

@@ -2,6 +2,7 @@ module Unison.Test.Common
   ( hqLength,
     t,
     tm,
+    showParseError,
     parseAndSynthesizeAsFile,
     parsingEnv,
   )

@@ -26,7 +26,6 @@ module Unison.Typechecker.Context
     lookupAnn,
     lookupSolved,
     apply,
-    isEqual,
     isSubtype,
     fitsScheme,
     isRedundant,
@@ -621,12 +620,6 @@ debugTypes tag t1 t2
 
 debugPatternsEnabled :: Bool
 debugPatternsEnabled = False
-
-_logContext :: (Ord loc, Var v) => String -> M v loc ()
-_logContext msg = when debugEnabled $ do
-  ctx <- getContext
-  let !_ = trace ("\n" ++ msg ++ ": " ++ show ctx) ()
-  setContext ctx
 
 usedVars :: (Ord v) => Context v loc -> Set v
 usedVars = allVars . info
@@ -3359,11 +3352,6 @@ isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
   run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
-
-isEqual ::
-  (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-isEqual t1 t2 =
-  (&&) <$> isSubtype t1 t2 <*> isSubtype t2 t1
 
 instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of

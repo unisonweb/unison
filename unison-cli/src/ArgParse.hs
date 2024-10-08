@@ -53,8 +53,6 @@ import Options.Applicative.Help.Pretty qualified as P
 import Stats
 import System.Environment (lookupEnv)
 import Text.Megaparsec qualified as Megaparsec
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathNames)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
@@ -176,15 +174,6 @@ initCommand = command "init" (info initParser (progDesc initHelp))
   where
     initHelp =
       "This command is has been removed. Use --codebase-create instead to create a codebase in the specified directory when starting the UCM."
-
-runDesc :: String -> String -> String
-runDesc cmd location =
-  "Execute a definition from "
-    <> location
-    <> ", passing on the provided arguments. "
-    <> " To pass flags to your program, use `"
-    <> cmd
-    <> " -- --my-flag`"
 
 runSymbolCommand :: Mod CommandFields Command
 runSymbolCommand =
@@ -453,16 +442,6 @@ noFileWatchFlag =
   where
     noFileWatchHelp = "If set, ucm will not respond to changes in unison files. Instead, you can use the 'load' command."
 
-readAbsolutePath :: ReadM Path.Absolute
-readAbsolutePath = do
-  readPath' >>= \case
-    Path.AbsolutePath' abs -> pure abs
-    Path.RelativePath' rel ->
-      OptParse.readerError $
-        "Expected an absolute path, but the path "
-          <> show rel
-          <> " was relative. Try adding a `.` prefix, e.g. `.path.to.project`"
-
 nativeRuntimePathFlag :: Parser (Maybe FilePath)
 nativeRuntimePathFlag =
   optional . strOption $
@@ -470,13 +449,6 @@ nativeRuntimePathFlag =
       <> metavar "DIR"
       <> help "Path to native runtime files"
       <> noGlobal
-
-readPath' :: ReadM Path.Path'
-readPath' = do
-  strPath <- OptParse.str
-  case Path.parsePath' strPath of
-    Left err -> OptParse.readerError (Text.unpack err)
-    Right path' -> pure path'
 
 readProjectAndBranchNames :: ReadM (ProjectAndBranch ProjectName ProjectBranchName)
 readProjectAndBranchNames = do

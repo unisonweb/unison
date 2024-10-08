@@ -8,7 +8,6 @@ module Unison.Codebase.SqliteCodebase
     BackupStrategy (..),
     VacuumStrategy (..),
     CodebaseLockOption (..),
-    copyCodebase,
   )
 where
 
@@ -46,9 +45,9 @@ import Unison.Type (Type)
 import Unison.Util.Cache qualified as Cache
 import Unison.WatchKind qualified as UF
 import UnliftIO (finally)
-import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Concurrent qualified as UnliftIO
+import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO.STM
 
 debug :: Bool
@@ -309,23 +308,3 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
           Nothing -> Left OpenCodebaseFileLockFailed
           Just x -> x
-
-data Entity m
-  = B CausalHash (m (Branch m))
-  | O Hash
-
-instance Show (Entity m) where
-  show (B h _) = "B " ++ take 10 (show h)
-  show (O h) = "O " ++ take 10 (show h)
-
--- | Given two codebase roots (e.g. "./mycodebase"), safely copy the codebase
--- at the source to the destination.
--- Note: this does not copy the .unisonConfig file.
-copyCodebase :: (MonadIO m) => CodebasePath -> CodebasePath -> m ()
-copyCodebase src dest = liftIO $ do
-  createDirectoryIfMissing True (makeCodebaseDirPath dest)
-  withConnection ("copy-from:" <> src) src $ \srcConn -> do
-    Sqlite.vacuumInto srcConn (makeCodebasePath dest)
-  -- We need to reset the journal mode because vacuum-into clears it.
-  withConnection ("copy-to:" <> dest) dest $ \destConn -> do
-    Sqlite.trySetJournalMode destConn Sqlite.JournalMode'WAL

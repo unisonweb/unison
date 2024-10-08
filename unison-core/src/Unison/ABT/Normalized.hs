@@ -16,7 +16,6 @@ module Unison.ABT.Normalized
     alpha,
     renames,
     rename,
-    transform,
   )
 where
 
@@ -186,11 +185,3 @@ rename ::
   Term f v ->
   Term f v
 rename old new = renames (Map.singleton new 1) (Map.singleton old new)
-
-transform ::
-  (Var v, Bifunctor g, Bifoldable f, Bifoldable g) =>
-  (forall a b. f a b -> g a b) ->
-  Term f v ->
-  Term g v
-transform phi (TTm body) = TTm . second (transform phi) $ phi body
-transform phi (TAbs u body) = TAbs u $ transform phi body

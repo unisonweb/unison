@@ -25,18 +25,6 @@ typeOfReferent tl r = case r of
   Referent.Con r CT.Data -> typeOfDataConstructor tl r
   Referent.Con r CT.Effect -> typeOfEffectConstructor tl r
 
--- bombs if not found
-unsafeConstructorType :: TypeLookup v a -> TypeReference -> CT.ConstructorType
-unsafeConstructorType tl r =
-  fromMaybe
-    (error $ "no constructor type for " <> show r)
-    (constructorType tl r)
-
-constructorType :: TypeLookup v a -> TypeReference -> Maybe CT.ConstructorType
-constructorType tl r =
-  (const CT.Data <$> Map.lookup r (dataDecls tl))
-    <|> (const CT.Effect <$> Map.lookup r (effectDecls tl))
-
 typeOfDataConstructor :: TypeLookup v a -> ConstructorReference -> Maybe (Type v a)
 typeOfDataConstructor tl (ConstructorReference r cid) = go =<< Map.lookup r (dataDecls tl)
   where

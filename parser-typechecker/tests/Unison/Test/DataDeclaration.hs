@@ -12,7 +12,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
-import Unison.Parsers (unsafeParseFile)
+import Unison.Parsers (parseFile)
 import Unison.Prelude
 import Unison.Reference qualified as R
 import Unison.Symbol (Symbol)
@@ -40,9 +40,10 @@ test =
           ]
 
 file :: UnisonFile Symbol Ann
-file =
-  runIdentity . flip unsafeParseFile Common.parsingEnv $
-    [r|
+file = Common.unsafeGetRightFrom contents . runIdentity $ parseFile "" contents Common.parsingEnv
+  where
+    contents =
+      [r|
 
 structural type Bool = True | False
 structural type Bool' = False | True
@@ -62,22 +63,6 @@ structural type Pong a = Pnong | Pong (Ping a)
 structural type Long' a = Long' (Ling' a) | Lnong
 structural type Ling' a = Ling' a (Long' a)
 |]
-
--- faketest = scope "termparser" . tests . map parses $
---   ["x"
---   , "match x with\n" ++
---     "  {Pair x y} -> 1\n" ++
---     "  {State.set 42 -> k} -> k 42\n"
---   ]
---
--- builtins = Map.fromList
---   [("Pair", (R.Builtin "Pair", 0)),
---    ("State.set", (R.Builtin "State", 0))]
---
--- parses s = scope s $ do
---   let p = unsafeParseTerm s builtins :: Term Symbol
---   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
---   ok
 
 unhashComponentTest :: Test ()
 unhashComponentTest =

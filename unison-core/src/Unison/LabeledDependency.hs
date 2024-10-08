@@ -9,7 +9,6 @@ module Unison.LabeledDependency
     dataConstructor,
     effectConstructor,
     fold,
-    referents,
     LabeledDependency (..),
     pattern ConReference,
     pattern TermReference,
@@ -17,10 +16,8 @@ module Unison.LabeledDependency
   )
 where
 
-import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType (ConstructorType (Data, Effect))
-import Unison.Prelude hiding (fold)
 import Unison.Reference (Id, Reference, Reference' (DerivedId))
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -61,9 +58,6 @@ dataConstructor r = ConReference r Data
 
 effectConstructor :: ConstructorReference -> LabeledDependency
 effectConstructor r = ConReference r Effect
-
-referents :: (Foldable f) => f Referent -> Set LabeledDependency
-referents rs = Set.fromList (map referent $ toList rs)
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
 fold f _ (TypeReference r) = f r

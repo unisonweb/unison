@@ -153,20 +153,6 @@ data Src = Src SyntaxText SyntaxText
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, ToSchema)
 
--- | Evaluate the doc, then render it.
-evalAndRenderDoc ::
-  forall v m.
-  (Var v, Monad m) =>
-  PPE.PrettyPrintEnvDecl ->
-  (Reference -> m (Maybe (Term v ()))) ->
-  (Referent -> m (Maybe (Type v ()))) ->
-  (Term v () -> m (Maybe (Term v ()))) ->
-  (Reference -> m (Maybe (DD.Decl v ()))) ->
-  Term v () ->
-  m Doc
-evalAndRenderDoc pped terms typeOf eval types tm =
-  renderDoc pped <$> evalDoc terms typeOf eval types tm
-
 -- | Renders the given doc, which must have been evaluated using 'evalDoc'
 renderDoc ::
   forall v.
@@ -469,44 +455,3 @@ data EvaluatedTerm v
   | MissingBuiltinTypeSig Reference
   | FoundTerm Reference (Type v ()) (Term v ())
   deriving stock (Show, Eq, Generic)
-
--- Determines all dependencies which will be required to render a doc.
-dependencies :: (Ord v) => EvaluatedDoc v -> Set LD.LabeledDependency
-dependencies = foldMap dependenciesSpecial
-
--- | Determines all dependencies of a special form
-dependenciesSpecial :: forall v. (Ord v) => EvaluatedSpecialForm v -> Set LD.LabeledDependency
-dependenciesSpecial = \case
-  ESource srcs -> srcDeps srcs
-  EFoldedSource srcs -> srcDeps srcs
-  EExample trm -> Term.labeledDependencies trm
-  EExampleBlock trm -> Term.labeledDependencies trm
-  ELink ref -> either Term.labeledDependencies Set.singleton ref
-  ESignature sigtyps -> sigtypDeps sigtyps
-  ESignatureInline sig -> sigtypDeps [sig]
-  EEval trm mayTrm -> Term.labeledDependencies trm <> foldMap Term.labeledDependencies mayTrm
-  EEvalInline trm mayTrm -> Term.labeledDependencies trm <> foldMap Term.labeledDependencies mayTrm
-  EEmbed trm -> Term.labeledDependencies trm
-  EEmbedInline trm -> Term.labeledDependencies trm
-  EVideo {} -> mempty
-  EFrontMatter {} -> mempty
-  ELaTeXInline {} -> mempty
-  ESvg {} -> mempty
-  ERenderError (InvalidTerm trm) -> Term.labeledDependencies trm
-  where
-    sigtypDeps :: [(Referent, Type v a)] -> Set LD.LabeledDependency
-    sigtypDeps sigtyps =
-      sigtyps & foldMap \(ref, typ) ->
-        Set.singleton (LD.TermReferent ref) <> Type.labeledDependencies typ
-    srcDeps :: [EvaluatedSrc v] -> Set LD.LabeledDependency
-    srcDeps srcs =
-      srcs & foldMap \case
-        EvaluatedSrcDecl srcDecl -> case srcDecl of
-          MissingDecl ref -> Set.singleton (LD.TypeReference ref)
-          BuiltinDecl ref -> Set.singleton (LD.TypeReference ref)
-          FoundDecl ref decl -> Set.singleton (LD.TypeReference ref) <> DD.labeledDeclDependenciesIncludingSelf ref decl
-        EvaluatedSrcTerm srcTerm -> case srcTerm of
-          MissingTerm ref -> Set.singleton (LD.TermReference ref)
-          BuiltinTypeSig ref _ -> Set.singleton (LD.TermReference ref)
-          MissingBuiltinTypeSig ref -> Set.singleton (LD.TermReference ref)
-          FoundTerm ref typ trm -> Set.singleton (LD.TermReference ref) <> Type.labeledDependencies typ <> Term.labeledDependencies trm

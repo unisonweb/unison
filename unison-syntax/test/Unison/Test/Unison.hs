@@ -2,8 +2,10 @@ module Unison.Test.Unison (test) where
 
 import Data.Text qualified as Text
 import EasyTest
+import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Lexer.Unison
 
 test :: Test ()
@@ -226,10 +228,15 @@ t s expected = case toList . preParse $ lexer filename s of
   where
     filename = "test case"
 
+unsafeParseText :: (HasCallStack) => Text -> HQ'.HashQualified Name
+unsafeParseText txt = fromMaybe msg (HQ'.parseText txt)
+  where
+    msg = error ("Unison.Test.Unison.unsafeFromText " <> show txt)
+
 simpleSymbolyId :: Text -> Lexeme
 simpleSymbolyId =
-  SymbolyId . HQ'.unsafeParseText
+  SymbolyId . unsafeParseText
 
 simpleWordyId :: Text -> Lexeme
 simpleWordyId =
-  WordyId . HQ'.unsafeParseText
+  WordyId . unsafeParseText

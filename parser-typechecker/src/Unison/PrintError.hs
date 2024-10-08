@@ -9,7 +9,6 @@ module Unison.PrintError
     printNoteWithSource,
     renderCompilerBug,
     renderNoteAsANSI,
-    renderParseErrorAsANSI,
     renderParseErrors,
   )
 where
@@ -1221,10 +1220,6 @@ showConstructor env r =
   fromString . Text.unpack . HQ.toText $
     PPE.patternName env r
 
-_posToEnglish :: (IsString s) => L.Pos -> s
-_posToEnglish (L.Pos l c) =
-  fromString $ "Line " ++ show l ++ ", Column " ++ show c
-
 rangeForToken :: L.Token a -> Range
 rangeForToken t = Range (L.start t) (L.end t)
 
@@ -1280,9 +1275,6 @@ renderNoteAsANSI ::
   String
 renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
 
-renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
-renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
-
 printNoteWithSource ::
   (Var v, Annotated a, Show a, Ord a) =>
   Env ->
@@ -1300,19 +1292,6 @@ printNoteWithSource env s (CompilerBug (Result.TypecheckerBug c)) =
   renderCompilerBug env s c
 printNoteWithSource _env _s (CompilerBug c) =
   fromString $ "Compiler bug: " <> show c
-
-_printPosRange :: String -> L.Pos -> L.Pos -> String
-_printPosRange s (L.Pos startLine startCol) _end =
-  -- todo: multi-line ranges
-  -- todo: ranges
-  _printArrowsAtPos s startLine startCol
-
-_printArrowsAtPos :: String -> Int -> Int -> String
-_printArrowsAtPos s line column =
-  let lineCaret s i = s ++ if i == line then "\n" ++ columnCaret else ""
-      columnCaret = replicate (column - 1) '-' ++ "^"
-      source = unlines (uncurry lineCaret <$> lines s `zip` [1 ..])
-   in source
 
 -- Wow, epic view pattern for picking out a lexer error
 pattern LexerError :: [L.Token L.Lexeme] -> L.Err -> Maybe (P.ErrorItem (L.Token L.Lexeme))

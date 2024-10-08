@@ -3,12 +3,9 @@
 module Unison.Cli.MonadUtils
   ( -- * Paths
     getCurrentPath,
-    getCurrentProjectName,
-    getCurrentProjectBranchName,
     getCurrentProjectPath,
     resolvePath,
     resolvePath',
-    resolvePath'ToAbsolute,
     resolveSplit',
 
     -- * Project and branch resolution
@@ -18,10 +15,6 @@ module Unison.Cli.MonadUtils
     -- * Branches
 
     -- ** Resolving branch identifiers
-    resolveAbsBranchId,
-    resolveAbsBranchIdV2,
-    resolveBranchId,
-    resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
 
     -- ** Getting/setting branches
@@ -38,15 +31,12 @@ module Unison.Cli.MonadUtils
     expectBranchAtPath',
     expectBranch0AtPath,
     expectBranch0AtPath',
-    assertNoBranchAtPath',
     branchExistsAtPath',
 
     -- ** Updating branches
     stepAt',
     stepAt,
-    stepAtM,
     stepManyAt,
-    stepManyAtM,
     updateProjectBranchRoot,
     updateProjectBranchRoot_,
     updateAtM,
@@ -87,9 +77,7 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Data.Foldable
 import Data.Set qualified as Set
-import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
-import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.Project (Project)
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
@@ -101,7 +89,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch (..), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Patch (Patch (..))
 import Unison.Codebase.Patch qualified as Patch
@@ -118,7 +105,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..))
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Sqlite (Transaction)
@@ -154,14 +141,6 @@ getCurrentPath :: Cli Path.Absolute
 getCurrentPath = do
   view PP.absPath_ <$> getCurrentProjectPath
 
-getCurrentProjectName :: Cli ProjectName
-getCurrentProjectName = do
-  view (#project . #name) <$> getCurrentProjectPath
-
-getCurrentProjectBranchName :: Cli ProjectBranchName
-getCurrentProjectBranchName = do
-  view (#branch . #name) <$> getCurrentProjectPath
-
 -- | Resolve a @Path@ (interpreted as relative) to a @Path.Absolute@, per the current path.
 resolvePath :: Path -> Cli PP.ProjectPath
 resolvePath path = do
@@ -174,10 +153,6 @@ resolvePath' path' = do
   pp <- getCurrentProjectPath
   pure $ pp & PP.absPath_ %~ \p -> Path.resolve p path'
 
-resolvePath'ToAbsolute :: Path' -> Cli Path.Absolute
-resolvePath'ToAbsolute path' = do
-  view PP.absPath_ <$> resolvePath' path'
-
 -- | Resolve a path split, per the current path.
 resolveSplit' :: (Path', a) -> Cli (PP.ProjectPath, a)
 resolveSplit' =
@@ -185,44 +160,6 @@ resolveSplit' =
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Branch resolution
-
--- | Resolve an @AbsBranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
--- branches by path are OK - the empty branch will be returned).
-resolveAbsBranchId :: Input.AbsBranchId -> Cli (Branch IO)
-resolveAbsBranchId = \case
-  Input.BranchAtSCH hash -> resolveShortCausalHash hash
-  Input.BranchAtPath absPath -> do
-    pp <- resolvePath' (Path' (Left absPath))
-    getBranchFromProjectPath pp
-  Input.BranchAtProjectPath pp -> getBranchFromProjectPath pp
-
--- | V2 version of 'resolveAbsBranchId2'.
-resolveAbsBranchIdV2 ::
-  (forall void. Output.Output -> Sqlite.Transaction void) ->
-  ProjectAndBranch Project ProjectBranch ->
-  Input.AbsBranchId ->
-  Sqlite.Transaction (V2.Branch Sqlite.Transaction)
-resolveAbsBranchIdV2 rollback (ProjectAndBranch proj branch) = \case
-  Input.BranchAtSCH shortHash -> do
-    hash <- resolveShortCausalHashToCausalHash rollback shortHash
-    causal <- (Codebase.expectCausalBranchByCausalHash hash)
-    V2Causal.value causal
-  Input.BranchAtPath absPath -> do
-    let pp = PP.ProjectPath proj branch absPath
-    Codebase.getShallowBranchAtProjectPath pp
-  Input.BranchAtProjectPath pp -> Codebase.getShallowBranchAtProjectPath pp
-
--- | Resolve a @BranchId@ to the corresponding @Branch IO@, or fail if no such branch hash is found. (Non-existent
--- branches by path are OK - the empty branch will be returned).
-resolveBranchId :: Input.BranchId -> Cli (Branch IO)
-resolveBranchId branchId = do
-  absBranchId <- resolveBranchIdToAbsBranchId branchId
-  resolveAbsBranchId absBranchId
-
--- | Resolve a @BranchId@ to an @AbsBranchId@.
-resolveBranchIdToAbsBranchId :: Input.BranchId -> Cli Input.AbsBranchId
-resolveBranchIdToAbsBranchId =
-  traverse (fmap (view PP.absPath_) . resolvePath')
 
 -- | Resolve a @ShortCausalHash@ to the corresponding @Branch IO@, or fail if no such branch hash is found.
 resolveShortCausalHash :: ShortCausalHash -> Cli (Branch IO)
@@ -320,14 +257,6 @@ expectBranch0AtPath :: Path -> Cli (Branch0 IO)
 expectBranch0AtPath =
   expectBranch0AtPath' . Path' . Right . Path.Relative
 
--- | Assert that there's "no branch" at an absolute or relative path, or return early if there is one, where "no branch"
--- means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
--- current terms/types etc).
-assertNoBranchAtPath' :: Path' -> Cli ()
-assertNoBranchAtPath' path' = do
-  whenM (branchExistsAtPath' path') do
-    Cli.returnEarly (Output.BranchAlreadyExists path')
-
 -- | Check if there's a branch at an absolute or relative path
 --
 -- "no branch" means either there's actually no branch, or there is a branch whose head is empty (i.e. it may have a history, but no
@@ -358,12 +287,6 @@ stepAt' ::
   Cli Bool
 stepAt' cause (pp, action) = stepManyAt' pp.branch cause [(pp.absPath, action)]
 
-stepAtM ::
-  Text ->
-  (ProjectPath, Branch0 IO -> IO (Branch0 IO)) ->
-  Cli ()
-stepAtM cause (pp, action) = stepManyAtM pp.branch cause [(pp.absPath, action)]
-
 stepManyAt ::
   ProjectBranch ->
   Text ->
@@ -382,17 +305,6 @@ stepManyAt' pb reason actions = do
   newRoot <- Branch.stepManyAtM (makeActionsUnabsolute actions) origRoot
   didChange <- updateProjectBranchRoot pb reason (\oldRoot -> pure (newRoot, oldRoot /= newRoot))
   pure didChange
-
--- Like stepManyAt, but doesn't update the last saved root
-stepManyAtM ::
-  ProjectBranch ->
-  Text ->
-  [(Path.Absolute, Branch0 IO -> IO (Branch0 IO))] ->
-  Cli ()
-stepManyAtM pb reason actions = do
-  updateProjectBranchRoot pb reason \oldRoot -> do
-    newRoot <- liftIO (Branch.stepManyAtM (makeActionsUnabsolute actions) oldRoot)
-    pure (newRoot, ())
 
 -- | Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise

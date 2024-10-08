@@ -431,7 +431,7 @@ inhabited fuel x nc0 =
          in foldr phi (\_ -> pure Nothing) cs nc'
 
 newtype Fuel = Fuel Int
-  deriving newtype (Show, Eq, Ord, Enum, Bounded, Num)
+  deriving newtype (Show, Eq, Ord, Num)
 
 initFuel :: Fuel
 initFuel = 8

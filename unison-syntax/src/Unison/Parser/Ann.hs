@@ -4,11 +4,8 @@
 
 module Unison.Parser.Ann where
 
-import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Void (absurd)
 import Unison.Lexer.Pos qualified as L
-import Unison.Prelude
 
 data Ann
   = -- Used for things like Builtins which don't have a source position.
@@ -60,31 +57,6 @@ contains External _ = False
 contains (Ann start end) p = start <= p && p < end
 contains (GeneratedFrom ann) p = contains ann p
 
--- | Checks whether an annotation contains another annotation.
---
--- i.e. pos ∈ [start, end)
---
--- >>> Intrinsic `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
--- Nothing
---
--- >>> External `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
--- Nothing
---
--- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `encompasses` Ann (L.Pos 0 1) (L.Pos 0 5)
--- Just True
---
--- >>> Ann (L.Pos 1 0) (L.Pos 1 10) `encompasses` Ann (L.Pos 0 0) (L.Pos 2 0)
--- Just False
-encompasses :: Ann -> Ann -> Maybe Bool
-encompasses Intrinsic _ = Nothing
-encompasses External _ = Nothing
-encompasses _ Intrinsic = Nothing
-encompasses _ External = Nothing
-encompasses (GeneratedFrom ann) other = encompasses ann other
-encompasses ann (GeneratedFrom other) = encompasses ann other
-encompasses (Ann start1 end1) (Ann start2 end2) =
-  Just $ start1 <= start2 && end1 >= end2
-
 class Annotated a where
   ann :: a -> Ann
 
@@ -96,12 +68,3 @@ instance (Annotated a) => Annotated [a] where
 
 instance (Annotated a) => Annotated (NonEmpty a) where
   ann = foldMap ann
-
-instance (Annotated a) => Annotated (Maybe a) where
-  ann = foldMap ann
-
-instance Annotated Void where
-  ann = absurd
-
-instance (Annotated a) => Annotated (Cofree f a) where
-  ann (a :< _) = ann a

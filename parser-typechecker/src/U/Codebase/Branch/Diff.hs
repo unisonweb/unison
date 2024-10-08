@@ -1,19 +1,15 @@
 module U.Codebase.Branch.Diff
   ( TreeDiff (..),
-    hoistTreeDiff,
     NameChanges (..),
     DefinitionDiffs (..),
     Diff (..),
-    NameBasedDiff (..),
     diffBranches,
     allNameChanges,
-    nameBasedDiff,
     streamNameChanges,
   )
 where
 
 import Control.Comonad.Cofree
-import Control.Comonad.Cofree qualified as Cofree
 import Control.Lens (ifoldMap)
 import Control.Lens qualified as Lens
 import Data.Functor.Compose (Compose (..))
@@ -27,15 +23,12 @@ import U.Codebase.Branch.Type qualified as Branch
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
-import U.Codebase.Referent qualified as Referent
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
-import Unison.Util.Monoid (foldMapM, ifoldMapM)
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
+import Unison.Util.Monoid (ifoldMapM)
 
 data Diff a = Diff
   { adds :: Set a,
@@ -78,10 +71,6 @@ instance (Applicative m) => Semigroup (TreeDiff m) where
 instance (Applicative m) => Monoid (TreeDiff m) where
   mempty = TreeDiff (mempty :< Compose mempty)
 
-hoistTreeDiff :: (Functor m) => (forall x. m x -> n x) -> TreeDiff m -> TreeDiff n
-hoistTreeDiff f (TreeDiff cfr) =
-  TreeDiff $ Cofree.hoistCofree (\(Compose m) -> Compose (fmap f m)) cfr
-
 -- | A summary of a 'TreeDiff', containing all names added and removed.
 -- Note that there isn't a clear notion of a name "changing" since conflicts might muddy the notion
 -- by having multiple copies of both the from and to names, so we just talk about adds and
@@ -100,24 +89,6 @@ instance Semigroup NameChanges where
 
 instance Monoid NameChanges where
   mempty = NameChanges mempty mempty mempty mempty
-
--- | A name-based diff for namespaces `N1` and `N2` is (for both terms and types) a relation between references, where
--- `a R b` if:
---
---   1. `a` has name `n` in `N1`, and `b` has the same name `n` in `N2`
---   2. `a` != `b`
-data NameBasedDiff = NameBasedDiff
-  { terms :: Relation Reference Reference,
-    types :: Relation Reference Reference
-  }
-  deriving stock (Generic, Show)
-
-instance Monoid NameBasedDiff where
-  mempty = NameBasedDiff mempty mempty
-
-instance Semigroup NameBasedDiff where
-  NameBasedDiff terms0 types0 <> NameBasedDiff terms1 types1 =
-    NameBasedDiff (terms0 <> terms1) (types0 <> types1)
 
 -- | Diff two Branches, returning a tree containing all of the changes
 diffBranches :: Branch Sqlite.Transaction -> Branch Sqlite.Transaction -> Sqlite.Transaction (TreeDiff Sqlite.Transaction)
@@ -175,28 +146,6 @@ allNameChanges ::
   m NameChanges
 allNameChanges mayPrefix treediff = do
   streamNameChanges mayPrefix treediff \_prefix changes -> pure changes
-
--- | Get a 'NameBasedDiff' from a 'TreeDiff'.
-nameBasedDiff :: (Monad m) => TreeDiff m -> m NameBasedDiff
-nameBasedDiff (TreeDiff (DefinitionDiffs {termDiffs, typeDiffs} :< Compose childMap)) = do
-  children <- sequenceA childMap >>= foldMapM (nameBasedDiff . TreeDiff)
-  let terms = foldMap nameBasedTermDiff termDiffs
-  let types = foldMap nameBasedTypeDiff typeDiffs
-  pure $ NameBasedDiff {terms, types} <> children
-  where
-    nameBasedTermDiff :: Diff Referent -> Relation Reference Reference
-    nameBasedTermDiff Diff {adds, removals} =
-      let termAdds = mapMaybe Referent.toTermReference (Set.toList adds)
-          termRemovals = mapMaybe Referent.toTermReference (Set.toList removals)
-       in ((,) <$> termRemovals <*> termAdds)
-            & filter (\(r0, r1) -> r0 /= r1)
-            & Relation.fromList
-
-    nameBasedTypeDiff :: Diff Reference -> Relation Reference Reference
-    nameBasedTypeDiff Diff {adds, removals} =
-      ((,) <$> Set.toList removals <*> Set.toList adds)
-        & filter (\(r0, r1) -> r0 /= r1)
-        & Relation.fromList
 
 -- | Stream a summary of all of the name adds and removals from a tree diff.
 -- Callback is passed the diff from one namespace level at a time, with the name representing

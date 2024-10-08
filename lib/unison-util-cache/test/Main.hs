@@ -14,8 +14,7 @@ main =
 test :: Test ()
 test =
   tests
-    [ scope "ex1" $ fits Cache.cache,
-      scope "ex2" $ fits (Cache.semispaceCache n),
+    [ scope "ex2" $ fits (Cache.semispaceCache n),
       scope "ex3" $ doesn'tFit (Cache.semispaceCache n),
       scope "ex4" $ do
         replicateM_ 10 $ concurrent (Cache.semispaceCache n)

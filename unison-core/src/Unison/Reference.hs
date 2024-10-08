@@ -14,15 +14,11 @@ module Unison.Reference
     Id' (..),
     Pos,
     CycleSize,
-    Size,
     TermReference,
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
     derivedBase32Hex,
-    component,
-    components,
-    groupByComponent,
     componentFor,
     componentFromLength,
     unsafeFromText,
@@ -30,7 +26,6 @@ module Unison.Reference
     fromText,
     readSuffix,
     showShort,
-    showSuffix,
     toHash,
     toId,
     fromId,
@@ -47,7 +42,6 @@ where
 import Control.Lens (Prism')
 import Data.Char (isDigit)
 import Data.Generics.Sum (_Ctor)
-import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import U.Codebase.Reference
@@ -89,9 +83,6 @@ pattern DerivedId x = ReferenceDerived x
 _DerivedId :: Prism' Reference Id
 _DerivedId = _Ctor @"ReferenceDerived"
 
-showSuffix :: Pos -> Text
-showSuffix = Text.pack . show
-
 readSuffix :: Text -> Either String Pos
 readSuffix = \case
   pos
@@ -113,8 +104,6 @@ showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.shortenTo numHashChars . toShortHash
 
 type Pos = Word64
-
-type Size = CycleSize
 
 type CycleSize = Word64
 
@@ -173,20 +162,3 @@ fromText t = case Text.split (== '#') t of
   _ -> bail
   where
     bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
-
-component :: H.Hash -> [k] -> [(k, Id)]
-component h ks =
-  let
-   in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
-
-components :: [(H.Hash, [k])] -> [(k, Id)]
-components sccs = uncurry component =<< sccs
-
-groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]
-groupByComponent refs = done $ foldl' insert Map.empty refs
-  where
-    insert m (k, r@(Derived h _)) =
-      Map.unionWith (<>) m (Map.fromList [(Right h, [(k, r)])])
-    insert m (k, r) =
-      Map.unionWith (<>) m (Map.fromList [(Left r, [(k, r)])])
-    done m = sortOn snd <$> toList m

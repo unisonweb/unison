@@ -77,9 +77,6 @@ expectExitCode expected cmd args stdin = scope (intercalate " " (cmd : args)) do
   note $ printf "\n[Time: %s sec]" $ show diff
   expectEqual code expected
 
-defaultArgs :: [String]
-defaultArgs = ["--codebase-create", tempCodebase]
-
 clearTempCodebase :: () -> IO ()
 clearTempCodebase _ =
   System.Directory.removePathForcibly tempCodebase

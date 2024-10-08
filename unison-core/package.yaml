@@ -42,6 +42,7 @@ tests:
       - base
       - code-page
       - easytest
+      - megaparsec
       - text
       - these
       - unison-core

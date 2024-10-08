@@ -11,7 +11,6 @@ module Unison.Codebase.ProjectPath
     path,
     toProjectAndBranch,
     projectAndBranch_,
-    toText,
     toIds,
     toNames,
     projectPathParser,
@@ -57,10 +56,6 @@ instance From ProjectPathNames Text where
   from (ProjectPath proj branch (Path.Absolute path)) =
     into @Text (ProjectAndBranch proj branch) <> ":" <> Path.toText path
 
-instance From (ProjectPathG () ProjectBranchName) Text where
-  from (ProjectPath () branch (Path.Absolute path)) =
-    "/" <> into @Text branch <> ":" <> Path.toText path
-
 type ProjectPath = ProjectPathG Project ProjectBranch
 
 projectBranchRoot :: ProjectAndBranch Project ProjectBranch -> ProjectPath
@@ -92,10 +87,6 @@ instance Bifoldable ProjectPathG where
 
 instance Bitraversable ProjectPathG where
   bitraverse f g (ProjectPath p b path) = ProjectPath <$> f p <*> g b <*> pure path
-
-toText :: ProjectPathG Project ProjectBranch -> Text
-toText (ProjectPath proj branch path) =
-  into @Text (proj ^. #name) <> "/" <> into @Text (branch ^. #name) <> ":" <> Path.absToText path
 
 absPath_ :: Lens' (ProjectPathG p b) Path.Absolute
 absPath_ = lens absPath set

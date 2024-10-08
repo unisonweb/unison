@@ -1,19 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | This module is the primary interface to the Unison typechecker
--- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 module Unison.Typechecker
   ( synthesize,
     synthesizeAndResolve,
-    check,
-    wellTyped,
     isEqual,
     isSubtype,
     fitsScheme,
     Env (..),
     Notes (..),
     Resolution (..),
-    Name,
     NamedReference (..),
     Context.PatternMatchCoverageCheckAndKindInferenceSwitch (..),
   )
@@ -21,7 +17,7 @@ where
 
 import Control.Lens
 import Control.Monad.Fail (fail)
-import Control.Monad.State (StateT, get, modify, execState, State)
+import Control.Monad.State (State, StateT, execState, get, modify)
 import Control.Monad.Writer
 import Data.Foldable
 import Data.Map qualified as Map
@@ -48,8 +44,6 @@ import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Util.List (uniqueBy)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-
-type Name = Text
 
 data Notes v loc = Notes
   { bugs :: Seq (Context.CompilerBug v loc),
@@ -233,7 +227,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     addTypedComponent (Context.TopLevelComponent vtts) =
       for_ vtts \(v, typ, _) ->
         let name = Name.unsafeParseVar (Var.reset v)
-        in #topLevelComponents %= Map.insert name (NamedReference name typ (Context.ReplacementVar v))
+         in #topLevelComponents %= Map.insert name (NamedReference name typ (Context.ReplacementVar v))
     addTypedComponent _ = pure ()
 
     suggest :: [Resolution v loc] -> Result (Notes v loc) ()
@@ -347,64 +341,3 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
               (TypeVar.liftType foundType)
               replace
               (if b then Context.Exact else Context.WrongType)
-
--- | Check whether a term matches a type, using a
--- function to resolve the type of @Ref@ constructors
--- contained in the term. Returns @typ@ if successful,
--- and a note about typechecking failure otherwise.
-check ::
-  (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
-  PrettyPrintEnv ->
-  Env v loc ->
-  Term v loc ->
-  Type v loc ->
-  ResultT (Notes v loc) f (Type v loc)
-check ppe env term typ =
-  synthesize
-    ppe
-    Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
-    env
-    (Term.ann (ABT.annotation term) term typ)
-
--- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
--- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
--- this will check that `(f : forall a . a -> a) e` is well typed.
--- checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
--- checkAdmissible' term typ =
---   synthesize' (Term.blank() `Term.ann_` tweak typ `Term.app_` term)
---   where
---     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
---     tweak t = Type.arrow() t t
--- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
-wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled env term)
-  where
-    go (may, _) = isJust may
-
--- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
--- @x : a@ and @f : b -> t@. That is, if a value of type `a`
--- can be passed to a function expecting a `b`, then `subtype a b`
--- returns `Right b`. This function returns @Left note@ with information
--- about the reason for subtyping failure otherwise.
---
--- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
--- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
--- subtype t1 t2 = error "todo"
--- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
--- in case Context.runM (Context.subtype t1' t2')
---                      (Context.MEnv Context.env0 [] Map.empty True) of
---   Left e -> Left e
---   Right _ -> Right t2
-
--- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
--- isSubtype :: Var v => Type v -> Type v -> Bool
--- isSubtype t1 t2 = case subtype t1 t2 of
---   Left _ -> False
---   Right _ -> True
-
--- | Returns true if the two type are equal, up to alpha equivalence and
--- order of quantifier introduction. Note that alpha equivalence considers:
--- `forall b a . a -> b -> a` and
--- `forall a b . a -> b -> a` to be different types
--- equals :: Var v => Type v -> Type v -> Bool
--- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1

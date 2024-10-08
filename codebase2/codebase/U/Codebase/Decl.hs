@@ -17,7 +17,7 @@ import Unison.Util.Recursion
 type ConstructorId = Word64
 
 data DeclType = Data | Effect
-  deriving (Eq, Ord, Show, Enum)
+  deriving (Eq, Ord, Show)
 
 type Decl v = DeclR TypeRef v
 
@@ -55,28 +55,10 @@ vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
       constructorTypes = ABT.vmap f <$> constructorTypes
     }
 
-rmap :: (Ord v) => (r -> r') -> DeclR r v -> DeclR r' v
-rmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
-  DataDeclaration
-    { declType,
-      modifier,
-      bound,
-      constructorTypes = Type.rmap f <$> constructorTypes
-    }
-
 -- * Hashing stuff
 
 dependencies :: (Ord r, Ord v) => DeclR r v -> Set r
 dependencies (DataDeclaration _ _ _ cts) = foldMap Type.dependencies cts
-
-data V v = Bound v | Ctor Int
-
-data F a
-  = Type (Type.FD a)
-  | LetRec [a] a
-  | Constructors [a]
-  | Modified DeclType Modifier a
-  deriving (Functor, Foldable, Show)
 
 -- | Given the pieces of a single decl component,
 -- replaces all 'Nothing' self-referential hashes with a variable reference

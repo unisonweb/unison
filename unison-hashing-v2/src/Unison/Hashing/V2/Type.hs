@@ -7,16 +7,6 @@ module Unison.Hashing.V2.Type
     -- * find by type index stuff
     typeToReference,
     typeToReferenceMentions,
-
-    -- * builtin term references
-    booleanRef,
-    charRef,
-    effectRef,
-    floatRef,
-    intRef,
-    listRef,
-    natRef,
-    textRef,
   )
 where
 
@@ -93,16 +83,6 @@ unForalls t = go t []
 -- some smart constructors
 ref :: (Ord v) => a -> Reference -> Type v a
 ref a = ABT.tm' a . TypeRef
-
-intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, effectRef :: Reference
-intRef = ReferenceBuiltin "Int"
-natRef = ReferenceBuiltin "Nat"
-floatRef = ReferenceBuiltin "Float"
-booleanRef = ReferenceBuiltin "Boolean"
-textRef = ReferenceBuiltin "Text"
-charRef = ReferenceBuiltin "Char"
-listRef = ReferenceBuiltin "Sequence"
-effectRef = ReferenceBuiltin "Effect"
 
 forAll :: (Ord v) => a -> v -> Type v a -> Type v a
 forAll a v body = ABT.tm' a (TypeForall (ABT.abs' a v body))

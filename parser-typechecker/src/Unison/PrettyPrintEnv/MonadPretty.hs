@@ -14,22 +14,11 @@ type MonadPretty v m = (Var v, MonadReader (PrettyPrintEnv, Set v) m)
 getPPE :: (MonadPretty v m) => m PrettyPrintEnv
 getPPE = view _1
 
--- | Run a computation with a modified PrettyPrintEnv, restoring the original
-withPPE :: (MonadPretty v m) => PrettyPrintEnv -> m a -> m a
-withPPE p = local (set _1 p)
-
-applyPPE :: (MonadPretty v m) => (PrettyPrintEnv -> a) -> m a
-applyPPE = views _1
-
 applyPPE2 :: (MonadPretty v m) => (PrettyPrintEnv -> a -> b) -> a -> m b
 applyPPE2 f a = views _1 (`f` a)
 
 applyPPE3 :: (MonadPretty v m) => (PrettyPrintEnv -> a -> b -> c) -> a -> b -> m c
 applyPPE3 f a b = views _1 (\ppe -> f ppe a b)
-
--- | Run a computation with a modified PrettyPrintEnv, restoring the original
-modifyPPE :: (MonadPretty v m) => (PrettyPrintEnv -> PrettyPrintEnv) -> m a -> m a
-modifyPPE = local . over _1
 
 modifyTypeVars :: (MonadPretty v m) => (Set v -> Set v) -> m a -> m a
 modifyTypeVars = local . over _2

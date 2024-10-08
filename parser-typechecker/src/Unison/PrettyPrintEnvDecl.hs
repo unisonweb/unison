@@ -3,13 +3,12 @@
 module Unison.PrettyPrintEnvDecl
   ( PrettyPrintEnvDecl (..),
     biasTo,
-    empty,
     addFallback,
   )
 where
 
 import Unison.Name (Name)
-import Unison.Prelude hiding (empty)
+import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
 
@@ -34,9 +33,6 @@ biasTo targets PrettyPrintEnvDecl {unsuffixifiedPPE, suffixifiedPPE} =
     { unsuffixifiedPPE = PPE.biasTo targets unsuffixifiedPPE,
       suffixifiedPPE = PPE.biasTo targets suffixifiedPPE
     }
-
-empty :: PrettyPrintEnvDecl
-empty = PrettyPrintEnvDecl PPE.empty PPE.empty
 
 -- | Will use names from the fallback pped if no names were found in the primary.
 -- @addFallback primary fallback@

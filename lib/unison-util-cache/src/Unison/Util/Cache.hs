@@ -1,6 +1,5 @@
 module Unison.Util.Cache
   ( Cache,
-    cache,
     nullCache,
     semispaceCache,
     lookup,
@@ -28,19 +27,6 @@ lookup c k = liftIO (lookup_ c k)
 
 insert :: (MonadIO m) => Cache k v -> k -> v -> m ()
 insert c k v = liftIO (insert_ c k v)
-
--- Create a cache of unbounded size.
-cache :: (MonadIO m, Ord k) => m (Cache k v)
-cache = do
-  t <- newTVarIO Map.empty
-  let lookup k = Map.lookup k <$> readTVarIO t
-      insert k v = do
-        m <- readTVarIO t
-        case Map.lookup k m of
-          Nothing -> atomically $ modifyTVar' t (Map.insert k v)
-          _ -> pure ()
-
-  pure $ Cache lookup insert
 
 nullCache :: Cache k v
 nullCache = Cache (const (pure Nothing)) (\_ _ -> pure ())

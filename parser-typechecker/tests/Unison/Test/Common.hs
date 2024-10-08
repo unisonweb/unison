@@ -2,6 +2,8 @@ module Unison.Test.Common
   ( hqLength,
     t,
     tm,
+    unsafeGetRightFrom,
+    renderParseErrorAsANSI,
     parseAndSynthesizeAsFile,
     parsingEnv,
   )
@@ -61,6 +63,12 @@ showParseError ::
   MPE.ParseError Parser.Input (Parser.Error v) ->
   String
 showParseError s = Pr.toANSI 60 . prettyParseError s
+
+unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
+unsafeGetRightFrom src = either (error . showParseError src) id
+
+renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 parseAndSynthesizeAsFile ::
   [Type Symbol] ->

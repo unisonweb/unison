@@ -1,13 +1,10 @@
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
   ( dbBranchHash,
     dbPatchHash,
-    syncCausalHash,
   )
 where
 
-import Data.Set qualified as Set
-import Data.Vector qualified as Vector
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
+import U.Codebase.HashTags (BranchHash (..), PatchHash (..))
 import U.Codebase.Reference qualified as S hiding (Reference)
 import U.Codebase.Reference qualified as S.Reference
 import U.Codebase.Referent qualified as S.Referent
@@ -15,7 +12,6 @@ import U.Codebase.Sqlite.Branch.Full (DbMetadataSet)
 import U.Codebase.Sqlite.Branch.Full qualified as S
 import U.Codebase.Sqlite.Branch.Full qualified as S.Branch.Full
 import U.Codebase.Sqlite.Branch.Full qualified as S.MetadataSet
-import U.Codebase.Sqlite.Causal qualified as S
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Patch.Full qualified as S
 import U.Codebase.Sqlite.Patch.TermEdit qualified as S (TermEdit)
@@ -31,13 +27,6 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Set qualified as Set
-
-syncCausalHash :: S.SyncCausalFormat -> Transaction CausalHash
-syncCausalHash S.SyncCausalFormat {valueHash = valueHashId, parents = parentChIds} = do
-  fmap (CausalHash . Hashing.contentHash) $
-    Hashing.Causal
-      <$> coerce @(Transaction BranchHash) @(Transaction Hash) (Q.expectBranchHash valueHashId)
-      <*> fmap (Set.fromList . coerce @[CausalHash] @[Hash] . Vector.toList) (traverse Q.expectCausalHash parentChIds)
 
 dbBranchHash :: S.DbBranch -> Transaction BranchHash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =

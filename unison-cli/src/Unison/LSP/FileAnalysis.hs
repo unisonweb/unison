@@ -40,7 +40,6 @@ import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
-import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
@@ -125,11 +124,6 @@ checkFile doc = runMaybeT do
           & toRangeMap
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
   pure fileAnalysis
-
--- | Get the location of user defined definitions within the file
-getFileDefLocations :: Uri -> MaybeT Lsp (Map Symbol (Set Ann))
-getFileDefLocations uri = do
-  fileDefLocations <$> getFileSummary uri
 
 fileAnalysisWorker :: Lsp ()
 fileAnalysisWorker = forever do
@@ -400,21 +394,6 @@ getFileAnalysis uri = do
   r <- atomically (readTMVar tmvar)
   Debug.debugM Debug.LSP "Got file analysis" uri
   pure r
-
--- | Build a Names from a file if it's parseable.
---
--- If the file typechecks, generate names from that,
--- otherwise, generate names from the 'parsed' file. Note that the
--- names for a parsed file contains only names for parts of decls, since
--- we don't know references within terms before typechecking due to TDNR.
--- This should be fine though, since those references will all be kept in the
--- ABT as symbols anyways.
---
--- See UF.toNames and UF.typecheckedToNames for more info.
-getFileNames :: Uri -> MaybeT Lsp Names
-getFileNames fileUri = do
-  FileAnalysis {typecheckedFile = tf, parsedFile = pf} <- getFileAnalysis fileUri
-  hoistMaybe (fmap UF.typecheckedToNames tf <|> fmap UF.toNames pf)
 
 getFileSummary :: Uri -> MaybeT Lsp FileSummary
 getFileSummary uri = do

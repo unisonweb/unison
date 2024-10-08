@@ -1,7 +1,6 @@
 module U.Codebase.Sqlite.Branch.Format
   ( BranchFormat' (..),
     BranchFormat,
-    HashBranchFormat,
     BranchLocalIds,
     BranchLocalIds' (..),
     HashBranchLocalIds,
@@ -48,13 +47,6 @@ data
 
 -- | The 'BranchFormat'' used to store a branch in Sqlite
 type BranchFormat = BranchFormat' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId) BranchObjectId
-
--- | A BranchFormat which uses Hashes and Text for all its references, no
--- Ids which are specific to a particular codebase.
-type HashBranchFormat = BranchFormat' Text ComponentHash PatchHash (BranchHash, CausalHash)
-
--- = Full BranchLocalIds LocalBranch
--- \| Diff BranchObjectId BranchLocalIds LocalDiff
 
 -- | A 'BranchLocalIds' is a mapping between local ids (local to this object) encoded as offsets, and actual database ids.
 --

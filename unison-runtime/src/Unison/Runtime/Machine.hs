@@ -107,15 +107,6 @@ refNumTm cc r =
     (M.lookup r -> Just w) -> pure w
     _ -> die $ "refNumTm: unknown reference: " ++ show r
 
-refNumTy :: CCache -> Reference -> IO Word64
-refNumTy cc r =
-  refNumsTy cc >>= \case
-    (M.lookup r -> Just w) -> pure w
-    _ -> die $ "refNumTy: unknown reference: " ++ show r
-
-refNumTy' :: CCache -> Reference -> IO (Maybe Word64)
-refNumTy' cc r = M.lookup r <$> refNumsTy cc
-
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
   CCache ffuncs sandboxed noTrace
@@ -149,13 +140,6 @@ info ctx x = infos ctx (show x)
 
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
-
-stk'info :: Stack 'BX -> IO ()
-stk'info s@(BS _ _ sp _) = do
-  let prn i
-        | i < 0 = return ()
-        | otherwise = peekOff s i >>= print >> prn (i - 1)
-  prn sp
 
 -- Entry point for evaluating a section
 eval0 :: CCache -> ActiveThreads -> RSection -> IO ()
@@ -226,33 +210,8 @@ apply1 callback env threadTracker clo = do
   where
     k0 = CB $ Hook callback
 
--- Entry point for evaluating a saved continuation.
---
--- The continuation must be from an evaluation context expecting a
--- unit value.
-jump0 ::
-  (Stack 'UN -> Stack 'BX -> IO ()) ->
-  CCache ->
-  ActiveThreads ->
-  Closure ->
-  IO ()
-jump0 !callback !env !activeThreads !clo = do
-  ustk <- alloc
-  bstk <- alloc
-  cmbs <- readTVarIO $ combs env
-  (denv, kf) <-
-    topDEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
-  bstk <- bump bstk
-  poke bstk (Enum Rf.unitRef unitTag)
-  jump env denv activeThreads ustk bstk (kf k0) (BArg1 0) clo
-  where
-    k0 = CB (Hook callback)
-
 unitValue :: Closure
 unitValue = Enum Rf.unitRef unitTag
-
-lookupDenv :: Word64 -> DEnv -> Closure
-lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
 buildLit :: Reference -> Word64 -> MLit -> Closure
 buildLit rf tt (MI i) = DataU1 rf tt i
@@ -1045,13 +1004,6 @@ closeArgs mode !ustk !bstk !useg !bseg args =
             | otherwise = Nothing
           ul = fsize ustk - ui
           bl = fsize bstk - bi
-
-peekForeign :: Stack 'BX -> Int -> IO a
-peekForeign bstk i =
-  peekOff bstk i >>= \case
-    Foreign x -> pure $ unwrapForeign x
-    _ -> die "bad foreign argument"
-{-# INLINE peekForeign #-}
 
 uprim1 :: Stack 'UN -> UPrim1 -> Int -> IO (Stack 'UN)
 uprim1 !ustk DECI !i = do
@@ -1849,18 +1801,6 @@ splitCont !denv !ustk !bstk !k !p =
       return (Captured ck uasz basz useg bseg, denv, ustk, bstk, k)
 {-# INLINE splitCont #-}
 
-discardCont ::
-  DEnv ->
-  Stack 'UN ->
-  Stack 'BX ->
-  K ->
-  Word64 ->
-  IO (DEnv, Stack 'UN, Stack 'BX, K)
-discardCont denv ustk bstk k p =
-  splitCont denv ustk bstk k p
-    <&> \(_, denv, ustk, bstk, k) -> (denv, ustk, bstk, k)
-{-# INLINE discardCont #-}
-
 resolve :: CCache -> DEnv -> Stack 'BX -> RRef -> IO Closure
 resolve _ _ _ (Env rComb) = pure $ PAp rComb unull bnull
 resolve _ _ bstk (Stk i) = peekOff bstk i
@@ -1891,9 +1831,6 @@ resolveSection cc section = do
 
 dummyRef :: Reference
 dummyRef = Builtin (DTx.pack "dummy")
-
-reserveIds :: Word64 -> TVar Word64 -> IO Word64
-reserveIds n free = atomically . stateTVar free $ \i -> (i, i + n)
 
 updateMap :: (Semigroup s) => s -> TVar s -> STM s
 updateMap new0 r = do

@@ -4,7 +4,6 @@
 module Unison.Sqlite.Exception
   ( -- * @SomeSqliteException@
     SomeSqliteException (..),
-    isCantOpenException,
 
     -- ** @SqliteConnectException@
     SqliteConnectException (..),
@@ -56,12 +55,6 @@ data SomeSqliteException
 
 instance Show SomeSqliteException where
   show (SomeSqliteException e) = show e
-
-isCantOpenException :: SomeSqliteException -> Bool
-isCantOpenException (SomeSqliteException exception) =
-  case cast exception of
-    Just SqliteConnectException {exception = Sqlite.SQLError Sqlite.ErrorCan'tOpen _ _} -> True
-    _ -> False
 
 ------------------------------------------------------------------------------------------------------------------------
 -- SomeSqliteException
@@ -153,7 +146,6 @@ throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, sql =
 
 data SomeSqliteExceptionReason
   = forall e. (SqliteExceptionReason e) => SomeSqliteExceptionReason e
-  deriving anyclass (SqliteExceptionReason)
 
 instance Show SomeSqliteExceptionReason where
   show (SomeSqliteExceptionReason x) = show x

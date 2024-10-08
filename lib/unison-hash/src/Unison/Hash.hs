@@ -15,7 +15,6 @@ module Unison.Hash
 
     -- ** Base32Hex Text conversions
     fromBase32HexText,
-    unsafeFromBase32HexText,
     toBase32HexText,
   )
 where
@@ -37,9 +36,6 @@ instance Show Hash where
 newtype HashFor t = HashFor {genericHash :: Hash}
   deriving newtype (Show, Eq, Ord, Generic)
 
-instance From Hash Text where
-  from = toBase32HexText
-
 -- | Convert a hash to a byte string.
 toByteString :: Hash -> ByteString
 toByteString = B.Short.fromShort . toShort
@@ -59,10 +55,6 @@ toBase32Hex = Base32Hex.fromByteString . toByteString
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 fromBase32HexText :: Text -> Maybe Hash
 fromBase32HexText = fmap fromBase32Hex . Base32Hex.fromText
-
--- | Convert a hash from base32 hex without any validation.
-unsafeFromBase32HexText :: Text -> Hash
-unsafeFromBase32HexText = fromBase32Hex . Base32Hex.UnsafeFromText
 
 -- | Return the lowercase unpadded base32Hex encoding of this 'Hash'.
 -- Multibase prefix would be 'v', see https://github.com/multiformats/multibase

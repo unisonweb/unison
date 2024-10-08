@@ -8,7 +8,6 @@ module Unison.DataDeclaration
     Modifier (..),
     allVars,
     asDataDecl,
-    bindReferences,
     constructorCount,
     constructorNames,
     constructors,
@@ -18,11 +17,8 @@ module Unison.DataDeclaration
     constructorIds,
     declConstructorReferents,
     declTypeDependencies,
-    labeledDeclTypeDependencies,
-    labeledDeclDependenciesIncludingSelf,
     declFields,
     typeDependencies,
-    labeledTypeDependencies,
     unhashComponent,
     mkDataDecl',
     mkEffectDecl',
@@ -45,9 +41,6 @@ import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.LabeledDependency qualified as LD
-import Unison.Name qualified as Name
-import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
 import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -71,28 +64,6 @@ asDataDecl = either toDataDecl id
 
 declTypeDependencies :: (Ord v) => Decl v a -> Set Reference
 declTypeDependencies = either (typeDependencies . toDataDecl) typeDependencies
-
-labeledDeclTypeDependencies :: (Ord v) => Decl v a -> Set LD.LabeledDependency
-labeledDeclTypeDependencies = Set.map LD.TypeReference . declTypeDependencies
-
--- | Compute the dependencies of a data declaration,
--- including the type itself and references for each of its constructors.
---
--- NOTE: You may prefer labeledDeclDependenciesIncludingSelfAndFieldAccessors in
--- Unison.DataDeclaration.Dependencies, it also includes Referents for accessors of record
--- fields.
-labeledDeclDependenciesIncludingSelf :: (Ord v) => Reference.TypeReference -> Decl v a -> Set LD.LabeledDependency
-labeledDeclDependenciesIncludingSelf selfRef decl =
-  labeledDeclTypeDependencies decl <> (Set.singleton $ LD.TypeReference selfRef) <> labeledConstructorRefs
-  where
-    labeledConstructorRefs :: Set LD.LabeledDependency
-    labeledConstructorRefs =
-      case selfRef of
-        Reference.Builtin {} -> mempty
-        Reference.DerivedId selfRefId ->
-          declConstructorReferents selfRefId decl
-            & fmap (LD.TermReferent . fmap Reference.DerivedId)
-            & Set.fromList
 
 constructorType :: Decl v a -> CT.ConstructorType
 constructorType = \case
@@ -205,18 +176,6 @@ allVars (DataDeclaration _ _ bound ctors) =
 allVars' :: (Ord v) => Decl v a -> Set v
 allVars' = allVars . either toDataDecl id
 
-bindReferences ::
-  (Var v) =>
-  (v -> Name.Name) ->
-  Set v ->
-  Map Name.Name Reference ->
-  DataDeclaration v a ->
-  Names.ResolutionResult a (DataDeclaration v a)
-bindReferences unsafeVarToName keepFree names (DataDeclaration m a bound constructors) = do
-  constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindReferences unsafeVarToName keepFree names ty
-  pure $ DataDeclaration m a bound constructors
-
 -- | All references to types mentioned in the given data declaration's fields/constructors
 -- Note: Does not include references to the constructors or the decl itself
 -- (unless the decl is self-referential)
@@ -226,9 +185,6 @@ typeDependencies :: (Ord v) => DataDeclaration v a -> Set TypeReference
 typeDependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-labeledTypeDependencies :: (Ord v) => DataDeclaration v a -> Set LD.LabeledDependency
-labeledTypeDependencies = Set.map LD.TypeReference . typeDependencies
-
 mkEffectDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
@@ -236,13 +192,6 @@ mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 mkDataDecl' ::
   Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration v a
 mkDataDecl' = DataDeclaration
-
-data F a
-  = Type (Type.F a)
-  | LetRec [a] a
-  | Constructors [a]
-  | Modified Modifier a
-  deriving (Functor, Foldable, Show)
 
 updateDependencies :: (Ord v) => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl =

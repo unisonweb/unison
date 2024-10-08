@@ -1,13 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 
-module Unison.Sync.API (API, api) where
+module Unison.Sync.API (API) where
 
-import Data.Proxy
 import Servant.API
 import Unison.Sync.Types
-
-api :: Proxy API
-api = Proxy
 
 type API =
   "path" :> "get" :> GetCausalHashByPathEndpoint

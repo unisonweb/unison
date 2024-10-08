@@ -11,8 +11,5 @@ dependencies:
   - bytes
   - bytestring
   - containers
-  - filepath
   - text
-  - text-short
-  - unliftio
   - vector

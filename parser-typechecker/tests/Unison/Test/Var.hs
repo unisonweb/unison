@@ -19,8 +19,6 @@ test =
                     Var.inferOutput,
                     Var.inferPatternPureE,
                     Var.inferPatternPureV,
-                    Var.inferPatternBindE,
-                    Var.inferPatternBindV,
                     Var.inferTypeConstructor,
                     Var.inferTypeConstructorArg
                   ]

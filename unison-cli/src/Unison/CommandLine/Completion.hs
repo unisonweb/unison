@@ -12,9 +12,6 @@ module Unison.CommandLine.Completion
     prefixCompletePatch,
     noCompletions,
     prefixCompleteNamespace,
-    -- Unused for now, but may be useful later
-    prettyCompletion,
-    fixupCompletion,
     haskelineTabComplete,
     sharePathCompletion,
   )
@@ -318,12 +315,6 @@ prettyCompletionWithQueryPrefix endWithSpace query s =
   let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
    in Line.Completion s (P.toAnsiUnbroken coloredMatch) endWithSpace
 
--- discards formatting in favor of better alignment
--- prettyCompletion (s, p) = Line.Completion s (P.toPlainUnbroken p) True
--- preserves formatting, but Haskeline doesn't know how to align
-prettyCompletion :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion endWithSpace (s, p) = Line.Completion s (P.toAnsiUnbroken p) endWithSpace
-
 -- | Constructs a list of 'Completion's from a query and completion options by
 -- filtering them for prefix matches. A completion will be selected if it's an exact match for
 -- a provided option.
@@ -331,22 +322,6 @@ exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss
   where
     go s = prettyCompletionWithQueryPrefix (s == q) q s
-
--- workaround for https://github.com/judah/haskeline/issues/100
--- if the common prefix of all the completions is smaller than
--- the query, we make all the replacements equal to the query,
--- which will preserve what the user has typed
-fixupCompletion :: String -> [Line.Completion] -> [Line.Completion]
-fixupCompletion _q [] = []
-fixupCompletion _q [c] = [c]
-fixupCompletion q cs@(h : t) =
-  let commonPrefix (h1 : t1) (h2 : t2) | h1 == h2 = h1 : commonPrefix t1 t2
-      commonPrefix _ _ = ""
-      overallCommonPrefix =
-        foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-   in if not (q `isPrefixOf` overallCommonPrefix)
-        then [c {Line.replacement = q} | c <- cs]
-        else cs
 
 sharePathCompletion ::
   (MonadIO m) =>

@@ -1,16 +1,12 @@
 module Unison.Typechecker.Extractor where
 
 import Control.Monad.Reader
-import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
-import Unison.Blank qualified as B
-import Unison.ConstructorReference (ConstructorReference)
 import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Term qualified as Term
-import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as C
 import Unison.Util.Monoid (whenM)
@@ -22,8 +18,6 @@ type RedundantTypeAnnotation = Bool
 type Extractor e a = MaybeT (Reader e) a
 
 type ErrorExtractor v loc a = Extractor (C.ErrorNote v loc) a
-
-type InfoExtractor v loc a = Extractor (C.InfoNote v loc) a
 
 type PathExtractor v loc a = Extractor (C.PathElement v loc) a
 
@@ -38,17 +32,6 @@ extract = runReader . runMaybeT
 subseqExtractor :: (C.ErrorNote v loc -> [Ranged a]) -> SubseqExtractor v loc a
 subseqExtractor f = SubseqExtractor' f
 
-traceSubseq :: (Show a) => String -> SubseqExtractor' n a -> SubseqExtractor' n a
-traceSubseq s ex = SubseqExtractor' $ \n ->
-  let rs = runSubseq ex n
-   in trace (if null s then show rs else s ++ ": " ++ show rs) rs
-
-traceNote ::
-  (Show a) => String -> ErrorExtractor v loc a -> ErrorExtractor v loc a
-traceNote s ex = extractor $ \n ->
-  let result = extract ex n
-   in trace (if null s then show result else s ++ ": " ++ show result) result
-
 unique :: SubseqExtractor v loc a -> ErrorExtractor v loc a
 unique ex = extractor $ \note -> case runSubseq ex note of
   [Pure a] -> Just a
@@ -61,51 +44,6 @@ data Ranged a
   = Pure a
   | Ranged {get :: a, start :: Int, end :: Int}
   deriving (Functor, Show)
-
--- | collects the regions where `xa` doesn't match / aka invert a set of intervals
--- unused, but don't want to delete it yet - Aug 30, 2018
-_no :: SubseqExtractor' n a -> SubseqExtractor' n ()
-_no xa = SubseqExtractor' $ \note ->
-  let as = runSubseq xa note
-   in if null [a | Pure a <- as]
-        then -- results are not full
-
-          if null as
-            then [Pure ()] -- results are empty, make them full
-            -- not full and not empty, find the negation
-            else
-              reverse . fst $
-                foldl'
-                  go
-                  ([], Nothing)
-                  (List.sort $ fmap toPairs as)
-        else [] -- results were full, make them empty
-  where
-    toPairs :: Ranged a -> (Int, Int)
-    toPairs (Pure _) = error "this case should be avoided by the if!"
-    toPairs (Ranged _ start end) = (start, end)
-
-    go :: ([Ranged ()], Maybe Int) -> (Int, Int) -> ([Ranged ()], Maybe Int)
-    go ([], Nothing) (0, r) = ([], Just (r + 1))
-    go ([], Nothing) (l, r) = ([Ranged () 0 (l - 1)], Just r)
-    go (_ : _, Nothing) _ = error "state machine bug in Extractor2.no"
-    go (rs, Just r0) (l, r) =
-      (if r0 + 1 <= l - 1 then Ranged () (r0 + 1) (l - 1) : rs else rs, Just r)
-
--- unused / untested
-_any :: SubseqExtractor v loc ()
-_any = _any' (\n -> pathLength n - 1)
-  where
-    pathLength :: C.ErrorNote v loc -> Int
-    pathLength = length . toList . C.path
-
-_any' :: (n -> Int) -> SubseqExtractor' n ()
-_any' getLast = SubseqExtractor' $ \note ->
-  Pure () : do
-    let last = getLast note
-    start <- [0 .. last]
-    end <- [0 .. last]
-    pure $ Ranged () start end
 
 -- Kind of a newtype for Ranged.Ranged.
 -- The Eq instance ignores the embedded value
@@ -164,20 +102,10 @@ asPathExtractor = fromPathExtractor . extractor
           Just a -> [Ranged a i i]
           Nothing -> []
 
-inSynthesize :: SubseqExtractor v loc (C.Term v loc)
-inSynthesize = asPathExtractor $ \case
-  C.InSynthesize t -> Just t
-  _ -> Nothing
-
 inSubtype :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
 inSubtype = asPathExtractor $ \case
   C.InSubtype found expected -> Just (found, expected)
   C.InEquate found expected -> Just (found, expected)
-  _ -> Nothing
-
-inEquate :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
-inEquate = asPathExtractor $ \case
-  C.InEquate lhs rhs -> Just (lhs, rhs)
   _ -> Nothing
 
 inCheck :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
@@ -268,12 +196,6 @@ typeMismatch =
     C.TypeMismatch c -> pure c
     _ -> mzero
 
-illFormedType :: ErrorExtractor v loc (C.Context v loc)
-illFormedType =
-  cause >>= \case
-    C.IllFormedType c -> pure c
-    _ -> mzero
-
 unknownSymbol :: ErrorExtractor v loc (loc, v)
 unknownSymbol =
   cause >>= \case
@@ -303,35 +225,9 @@ abilityEqFailure =
     C.AbilityEqFailure lhs rhs ctx -> pure (lhs, rhs, ctx)
     _ -> mzero
 
-effectConstructorWrongArgCount ::
-  ErrorExtractor
-    v
-    loc
-    (C.ExpectedArgCount, C.ActualArgCount, ConstructorReference)
-effectConstructorWrongArgCount =
-  cause >>= \case
-    C.EffectConstructorWrongArgCount expected actual r ->
-      pure (expected, actual, r)
-    _ -> mzero
-
-malformedEffectBind ::
-  ErrorExtractor v loc (C.Type v loc, C.Type v loc, [C.Type v loc])
-malformedEffectBind =
-  cause >>= \case
-    C.MalformedEffectBind ctor ctorResult es -> pure (ctor, ctorResult, es)
-    _ -> mzero
-
-solvedBlank :: InfoExtractor v loc (B.Recorded loc, v, C.Type v loc)
-solvedBlank = extractor $ \n -> case n of
-  C.SolvedBlank b v t -> pure (b, v, t)
-  _ -> mzero
-
 -- Misc --
 errorNote :: ErrorExtractor v loc (C.ErrorNote v loc)
 errorNote = extractor $ Just . id
-
-infoNote :: InfoExtractor v loc (C.InfoNote v loc)
-infoNote = extractor $ Just . id
 
 innermostTerm :: ErrorExtractor v loc (C.Term v loc)
 innermostTerm = extractor $ \n -> case C.innermostErrorTerm n of
@@ -340,17 +236,6 @@ innermostTerm = extractor $ \n -> case C.innermostErrorTerm n of
 
 path :: ErrorExtractor v loc [C.PathElement v loc]
 path = extractor $ pure . toList . C.path
-
--- Informational notes --
-topLevelComponent ::
-  InfoExtractor
-    v
-    loc
-    [(v, Type v loc, RedundantTypeAnnotation)]
-topLevelComponent = extractor go
-  where
-    go (C.TopLevelComponent c) = Just c
-    go _ = Nothing
 
 instance Functor (SubseqExtractor' n) where
   fmap = liftM

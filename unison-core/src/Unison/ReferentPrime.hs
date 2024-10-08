@@ -6,14 +6,12 @@ module Unison.ReferentPrime
 
     -- * Basic queries
     isConstructor,
-    Unison.ReferentPrime.fold,
 
     -- * Lenses
     reference_,
 
     -- * Conversions
     toReference',
-    toTermReference,
     toTypeReference,
   )
 where
@@ -21,7 +19,6 @@ where
 import Control.Lens (Lens, lens)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude
 
 -- | Specifies a term.
@@ -49,11 +46,6 @@ isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True
 isConstructor _ = False
 
-toTermReference :: Referent' r -> Maybe r
-toTermReference = \case
-  Ref' r -> Just r
-  _ -> Nothing
-
 toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
@@ -63,8 +55,3 @@ toTypeReference :: Referent' r -> Maybe r
 toTypeReference = \case
   Con' (ConstructorReference r _i) _t -> Just r
   _ -> Nothing
-
-fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
-fold fr fc = \case
-  Ref' r -> fr r
-  Con' (ConstructorReference r i) ct -> fc r i ct

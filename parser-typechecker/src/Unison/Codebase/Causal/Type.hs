@@ -7,7 +7,6 @@ module Unison.Codebase.Causal.Type
     pattern One,
     pattern Cons,
     pattern Merge,
-    before,
     predecessors,
     lca,
   )
@@ -84,9 +83,6 @@ predecessors :: Causal m e -> Seq (m (Causal m e))
 predecessors (UnsafeOne _ _ _) = Seq.empty
 predecessors (UnsafeCons _ _ _ (_, t)) = Seq.singleton t
 predecessors (UnsafeMerge _ _ _ ts) = Seq.fromList $ Map.elems ts
-
-before :: (Monad m) => Causal m e -> Causal m e -> m Bool
-before a b = (== Just a) <$> lca a b
 
 -- Find the lowest common ancestor of two causals.
 lca :: (Monad m) => Causal m e -> Causal m e -> m (Maybe (Causal m e))

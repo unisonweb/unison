@@ -20,15 +20,10 @@ module Unison.Cli.ProjectUtils
     expectRemoteProjectById,
     expectRemoteProjectByName,
     expectRemoteProjectBranchById,
-    loadRemoteProjectBranchByName,
     expectRemoteProjectBranchByName,
-    loadRemoteProjectBranchByNames,
     expectRemoteProjectBranchByNames,
-    expectRemoteProjectBranchByTheseNames,
 
     -- * Projecting out common things
-    justTheIds,
-    justTheIds',
     justTheNames,
 
     -- * Other helpers
@@ -84,14 +79,6 @@ resolveBranchRelativePath brp = do
     UnqualifiedPath newPath' -> do
       pp <- Cli.getCurrentProjectPath
       pure $ pp & PP.absPath_ %~ \curPath -> Path.resolve curPath newPath'
-
-justTheIds :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
-justTheIds x =
-  ProjectAndBranch x.project.projectId x.branch.branchId
-
-justTheIds' :: Sqlite.ProjectBranch -> ProjectAndBranch ProjectId ProjectBranchId
-justTheIds' branch =
-  ProjectAndBranch branch.projectId branch.branchId
 
 justTheNames :: ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch -> ProjectAndBranch ProjectName ProjectBranchName
 justTheNames x =
@@ -253,16 +240,6 @@ expectRemoteProjectBranchById includeSquashed projectAndBranch = do
     projectAndBranchIds = projectAndBranch & over #project fst & over #branch fst
     projectAndBranchNames = projectAndBranch & over #project snd & over #branch snd
 
-loadRemoteProjectBranchByName ::
-  IncludeSquashedHead ->
-  ProjectAndBranch RemoteProjectId ProjectBranchName ->
-  Cli (Maybe Share.RemoteProjectBranch)
-loadRemoteProjectBranchByName includeSquashed projectAndBranch =
-  Share.getProjectBranchByName includeSquashed projectAndBranch <&> \case
-    Share.GetProjectBranchResponseBranchNotFound -> Nothing
-    Share.GetProjectBranchResponseProjectNotFound -> Nothing
-    Share.GetProjectBranchResponseSuccess branch -> Just branch
-
 expectRemoteProjectBranchByName ::
   IncludeSquashedHead ->
   ProjectAndBranch (RemoteProjectId, ProjectName) ProjectBranchName ->
@@ -276,15 +253,6 @@ expectRemoteProjectBranchByName includeSquashed projectAndBranch =
     doesntExist =
       remoteProjectBranchDoesntExist (projectAndBranch & over #project snd)
 
-loadRemoteProjectBranchByNames ::
-  IncludeSquashedHead ->
-  ProjectAndBranch ProjectName ProjectBranchName ->
-  Cli (Maybe Share.RemoteProjectBranch)
-loadRemoteProjectBranchByNames includeSquashed (ProjectAndBranch projectName branchName) =
-  runMaybeT do
-    project <- MaybeT (Share.getProjectByName projectName)
-    MaybeT (loadRemoteProjectBranchByName includeSquashed (ProjectAndBranch (project ^. #projectId) branchName))
-
 expectRemoteProjectBranchByNames ::
   IncludeSquashedHead ->
   ProjectAndBranch ProjectName ProjectBranchName ->
@@ -292,39 +260,6 @@ expectRemoteProjectBranchByNames ::
 expectRemoteProjectBranchByNames includeSquashed (ProjectAndBranch projectName branchName) = do
   project <- expectRemoteProjectByName projectName
   expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (project ^. #projectId, project ^. #projectName) branchName)
-
--- Expect a remote project branch by a "these names".
---
---   If both names are provided, use them.
---
---   If only a project name is provided, use branch name "main".
---
---   If only a branch name is provided, use the current branch's remote mapping (falling back to its parent, etc) to get
---   the project.
-expectRemoteProjectBranchByTheseNames :: IncludeSquashedHead -> These ProjectName ProjectBranchName -> Cli Share.RemoteProjectBranch
-expectRemoteProjectBranchByTheseNames includeSquashed = \case
-  This remoteProjectName -> do
-    remoteProject <- expectRemoteProjectByName remoteProjectName
-    let remoteProjectId = remoteProject ^. #projectId
-    let remoteBranchName = unsafeFrom @Text "main"
-    expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) remoteBranchName)
-  That branchName -> do
-    PP.ProjectPath localProject localBranch _restPath <- Cli.getCurrentProjectPath
-    let localProjectId = localProject ^. #projectId
-    let localBranchId = localBranch ^. #branchId
-    Cli.runTransaction (Queries.loadRemoteProjectBranch localProjectId Share.hardCodedUri localBranchId) >>= \case
-      Just (remoteProjectId, _maybeProjectBranchId) -> do
-        remoteProjectName <- Cli.runTransaction (Queries.expectRemoteProjectName remoteProjectId Share.hardCodedUri)
-        expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, remoteProjectName) branchName)
-      Nothing -> do
-        Cli.returnEarly $
-          Output.NoAssociatedRemoteProject
-            Share.hardCodedUri
-            (ProjectAndBranch (localProject ^. #name) (localBranch ^. #name))
-  These projectName branchName -> do
-    remoteProject <- expectRemoteProjectByName projectName
-    let remoteProjectId = remoteProject ^. #projectId
-    expectRemoteProjectBranchByName includeSquashed (ProjectAndBranch (remoteProjectId, projectName) branchName)
 
 remoteProjectBranchDoesntExist :: ProjectAndBranch ProjectName ProjectBranchName -> Cli void
 remoteProjectBranchDoesntExist projectAndBranch =

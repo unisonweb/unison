@@ -7,8 +7,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Runtime.ANF
-  ( minimizeCyclesOrCrash,
-    pattern TVar,
+  ( pattern TVar,
     pattern TLit,
     pattern TBLit,
     pattern TApp,
@@ -25,7 +24,6 @@ module Unison.Runtime.ANF
     pattern TFrc,
     pattern TLets,
     pattern TName,
-    pattern TBind,
     pattern TBinds,
     pattern TShift,
     pattern TMatch,
@@ -105,9 +103,8 @@ import Unison.Prelude
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Symbol (Symbol)
-import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
+import Unison.Term hiding (List, Ref, Text, float, resolve)
 import Unison.Type qualified as Ty
-import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as Pretty
@@ -666,15 +663,7 @@ inlineAlias = ABT.visitPure $ \case
   Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
-minimizeCyclesOrCrash :: (Var v) => Term v a -> Term v a
-minimizeCyclesOrCrash t = case minimize' t of
-  Right t -> t
-  Left e ->
-    internalBug $
-      "tried to minimize let rec with duplicate definitions: "
-        ++ show (fst <$> toList e)
-
-data Mem = UN | BX deriving (Eq, Ord, Show, Enum)
+data Mem = UN | BX deriving (Eq, Ord, Show)
 
 -- Context entries with evaluation strategy
 data CTE v s
@@ -703,7 +692,6 @@ data ANormalF v e
 -- correspond to constructors.
 newtype RTag = RTag Word64
   deriving stock (Eq, Ord, Show, Read)
-  deriving newtype (EC.EnumKey)
 
 newtype CTag = CTag Word16
   deriving stock (Eq, Ord, Show, Read)
@@ -1119,26 +1107,11 @@ bind :: (Var v) => Cte v -> ANormal v -> ANormal v
 bind (ST d us ms bu) = TLets d us ms bu
 bind (LZ u f as) = TName u f as
 
-unbind :: (Var v) => ANormal v -> Maybe (Cte v, ANormal v)
-unbind (TLets d us ms bu bd) = Just (ST d us ms bu, bd)
-unbind (TName u f as bd) = Just (LZ u f as, bd)
-unbind _ = Nothing
-
 unbinds :: (Var v) => ANormal v -> ([Cte v], ANormal v)
 unbinds (TLets d us ms bu (unbinds -> (ctx, bd))) =
   (ST d us ms bu : ctx, bd)
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as : ctx, bd)
 unbinds tm = ([], tm)
-
-pattern TBind ::
-  (Var v) =>
-  Cte v ->
-  ANormal v ->
-  ANormal v
-pattern TBind bn bd <-
-  (unbind -> Just (bn, bd))
-  where
-    TBind bn bd = bind bn bd
 
 pattern TBinds :: (Var v) => [Cte v] -> ANormal v -> ANormal v
 pattern TBinds ctx bd <-
@@ -1149,7 +1122,7 @@ pattern TBinds ctx bd <-
 {-# COMPLETE TBinds #-}
 
 data SeqEnd = SLeft | SRight
-  deriving (Eq, Ord, Enum, Show)
+  deriving (Eq, Ord, Show)
 
 -- Note: MatchNumeric is a new form for matching directly on boxed
 -- numeric data. This leaves MatchIntegral around so that builtins can

@@ -1,7 +1,6 @@
 module U.Codebase.Type where
 
 import Control.Monad.Writer.Strict qualified as Writer
-import Data.Maybe qualified as Maybe
 import Data.Set qualified as Set
 import U.Codebase.Kind (Kind)
 import U.Codebase.Reference (Reference, Reference')
@@ -48,9 +47,6 @@ rmapM ::
 rmapM f = ABT.transformM \case
   Ref r -> Ref <$> f r
   x -> pure $ unsafeCoerce x
-
-typeD2T :: (Ord v) => Hash -> TypeD v -> TypeT v
-typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 
 dependencies :: (Ord v, Ord r) => ABT.Term (F' r) v a -> Set r
 dependencies = Writer.execWriter . ABT.visit' f

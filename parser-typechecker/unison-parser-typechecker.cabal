@@ -24,7 +24,6 @@ flag optimized
 library
   exposed-modules:
       U.Codebase.Branch.Diff
-      U.Codebase.Projects
       Unison.Builtin
       Unison.Builtin.Decls
       Unison.Builtin.Terms
@@ -33,7 +32,6 @@ library
       Unison.Codebase.Branch.BranchDiff
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
-      Unison.Codebase.Branch.Raw
       Unison.Codebase.Branch.Type
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
@@ -48,7 +46,6 @@ library
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
-      Unison.Codebase.Init.Type
       Unison.Codebase.IntegrityCheck
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
@@ -58,11 +55,9 @@ library
       Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
-      Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Cache
-      Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
@@ -76,7 +71,6 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
-      Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
       Unison.Codebase.Type
@@ -150,11 +144,6 @@ library
       Unison.UnisonFile.Names
       Unison.UnisonFile.Summary
       Unison.UnisonFile.Type
-      Unison.Util.CycleTable
-      Unison.Util.CyclicEq
-      Unison.Util.CyclicOrd
-      Unison.Util.EnumContainers
-      Unison.Util.Exception
       Unison.Util.Logger
       Unison.Util.Pretty.MegaParsec
       Unison.Util.RefPromise
@@ -199,32 +188,24 @@ library
   build-depends:
       ListLike
     , aeson
-    , async
     , atomic-primops
     , base
-    , bytes
-    , bytestring
     , concurrent-output
     , containers >=0.6.3
-    , errors
     , extra
     , filelock
     , filepath
     , free
     , generic-lens
-    , hashable
-    , hashtables
     , lens
     , megaparsec
     , mmorph
     , mtl
-    , mutable-containers
     , network-uri
     , nonempty-containers
     , pretty-simple
     , regex-tdfa
     , semialign
-    , semigroups
     , servant-client
     , stm
     , text
@@ -278,7 +259,6 @@ test-suite parser-typechecker-tests
       Unison.Test.Term
       Unison.Test.Type
       Unison.Test.Typechecker
-      Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty

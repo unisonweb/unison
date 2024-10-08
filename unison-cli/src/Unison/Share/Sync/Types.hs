@@ -40,7 +40,6 @@ data CodeserverTransportError
   | UnexpectedResponse Servant.Response
   | UnreachableCodeserver Servant.BaseUrl
   deriving stock (Show)
-  deriving anyclass (Exception)
 
 data SyncError e
   = TransportError CodeserverTransportError

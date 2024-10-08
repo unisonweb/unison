@@ -25,12 +25,6 @@ toHQ = \case
   NameOnly n -> HQ.NameOnly n
   HashQualified n sh -> HQ.HashQualified n sh
 
-fromHQ :: HQ.HashQualified n -> Maybe (HashQualified n)
-fromHQ = \case
-  HQ.NameOnly n -> Just $ NameOnly n
-  HQ.HashQualified n sh -> Just $ HashQualified n sh
-  HQ.HashOnly {} -> Nothing
-
 -- | Like 'fromHQ', but if the 'HQ.HashQualified' is just a 'ShortHash', return it on the 'Left', rather than as a
 -- 'Nothing'.
 fromHQ2 :: HQ.HashQualified n -> Either ShortHash (HashQualified n)
@@ -52,17 +46,6 @@ take i = \case
   n@(NameOnly _) -> n
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.shortenTo i s)
 
-toNameOnly :: HashQualified n -> HashQualified n
-toNameOnly = fromName . toName
-
-toHash :: HashQualified n -> Maybe ShortHash
-toHash = \case
-  NameOnly _ -> Nothing
-  HashQualified _ sh -> Just sh
-
-toStringWith :: (n -> String) -> HashQualified n -> String
-toStringWith f = Text.unpack . toTextWith (Text.pack . f)
-
 toTextWith :: (n -> Text) -> HashQualified n -> Text
 toTextWith f = \case
   NameOnly name -> f name
@@ -79,11 +62,6 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified n
 fromName = NameOnly
 
-fromNameHash :: n -> Maybe ShortHash -> HashQualified n
-fromNameHash name = \case
-  Nothing -> NameOnly name
-  Just hash -> HashQualified name hash
-
 matchesNamedReferent :: (Eq n) => n -> Referent -> HashQualified n -> Bool
 matchesNamedReferent n r = \case
   NameOnly n' -> n' == n
@@ -99,13 +77,6 @@ requalify :: HashQualified Name -> Referent -> HashQualified Name
 requalify hq r = case hq of
   NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
-
--- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
-sortByLength :: [HashQualified Name] -> [HashQualified Name]
-sortByLength =
-  sortOn \case
-    NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
-    HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
 
 instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
   compareAlphabetical (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2

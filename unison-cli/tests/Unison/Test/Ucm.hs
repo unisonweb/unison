@@ -4,7 +4,6 @@
 
 module Unison.Test.Ucm
   ( initCodebase,
-    deleteCodebase,
     runTranscript,
     lowLevel,
     CodebaseFormat (..),
@@ -15,10 +14,11 @@ module Unison.Test.Ucm
 where
 
 import Control.Monad (when)
+import Data.Char qualified as Char
+import Data.Text (Text)
 import Data.Text qualified as Text
-import System.Directory (removeDirectoryRecursive)
+import Safe.Foldable (minimumMay)
 import System.IO.Temp qualified as Temp
-import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Init qualified as Codebase.Init
@@ -27,7 +27,7 @@ import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (traceM)
+import Unison.Prelude (fromMaybe, traceM)
 import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
@@ -59,8 +59,32 @@ initCodebase fmt = do
     Left CreateCodebaseAlreadyExists -> fail $ P.toANSI 80 "Codebase already exists"
     Right _ -> pure $ Codebase tmp fmt
 
-deleteCodebase :: Codebase -> IO ()
-deleteCodebase (Codebase path _) = removeDirectoryRecursive path
+-- | remove however many spaces prefix all of the lines of the input
+-- e.g.
+-- stripMargin [here|
+--         def foo:
+--           blah blah
+--     |] == [here|
+-- def foo:
+--   blah blah
+-- |]T
+stripMargin :: Text -> Text
+stripMargin str =
+  let stripLen =
+        fromMaybe 0
+          . minimumMay
+          . map (Text.length . fst . Text.span (== ' '))
+          . filter (not . Text.all Char.isSpace)
+          $ Text.lines str
+      dropFirstIf f = \case
+        h : t | f h -> t
+        x -> x
+      dropLastIf f = reverse . dropFirstIf f . reverse
+   in Text.unlines
+        . dropLastIf Text.null
+        . dropFirstIf Text.null
+        . map (Text.drop stripLen)
+        $ Text.lines str
 
 runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do

@@ -10,7 +10,6 @@ module Unison.Codebase.Path.Parse
 
     -- * Path parsers
     pathP,
-    pathP',
     splitP,
     splitP',
   )
@@ -19,7 +18,6 @@ where
 import Data.Text qualified as Text
 import Text.Megaparsec (Parsec)
 import Text.Megaparsec qualified as P
-import Text.Megaparsec.Char qualified as P (char)
 import Text.Megaparsec.Internal qualified as P (withParsecT)
 import Unison.Codebase.Path
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -75,14 +73,6 @@ runParser p =
 pathP :: Parsec (Lexer.Token Text) [Char] Path
 pathP =
   (unsplit <$> splitP) <|> pure empty
-
-pathP' :: Parsec (Lexer.Token Text) [Char] Path'
-pathP' =
-  asum
-    [ unsplit' <$> splitP',
-      P.char '.' $> absoluteEmpty',
-      pure relativeEmpty'
-    ]
 
 splitP :: Parsec (Lexer.Token Text) [Char] Split
 splitP =

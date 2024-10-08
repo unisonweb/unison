@@ -11,7 +11,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration (..), Modifier (Structural, Unique))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashing.V2.Convert (hashDataDecls, typeToReference)
+import Unison.Hashing.V2.Convert (hashDataDecls)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -46,10 +46,10 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, testResultListRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+testResultRef, linkRef, docRef, stdHandleRef :: Reference
 failureRef, ioFailureRef, tlsFailureRef, arrayFailureRef :: Reference
 cryptoFailureRef :: Reference
-exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+exceptionRef :: Reference
 isPropagatedRef, isTestRef :: Reference
 isPropagatedRef = lookupDeclRef "IsPropagated"
 
@@ -57,14 +57,9 @@ isTestRef = lookupDeclRef "IsTest"
 
 testResultRef = lookupDeclRef "Test.Result"
 
--- Reference for [Test.Result]
-testResultListRef = typeToReference @Symbol (testResultListType ())
-
 linkRef = lookupDeclRef "Link"
 
 docRef = lookupDeclRef "Doc"
-
-ioErrorRef = lookupDeclRef "io2.IOError"
 
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 
@@ -80,10 +75,6 @@ arrayFailureRef = lookupDeclRef "io2.ArrayFailure"
 
 cryptoFailureRef = lookupDeclRef "crypto.CryptoFailure"
 
-tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
-
-tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
-
 runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: Reference
 runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
 arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
@@ -91,9 +82,8 @@ miscFailureRef = lookupDeclRef "io2.MiscFailure"
 stmFailureRef = lookupDeclRef "io2.STMFailure"
 threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
 
-fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
+fileModeRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
-filePathRef = lookupDeclRef "io2.FilePath"
 bufferModeRef = lookupDeclRef "io2.BufferMode"
 seekModeRef = lookupDeclRef "io2.SeekMode"
 seqViewRef = lookupDeclRef "SeqView"
@@ -152,10 +142,6 @@ bufferModeLineBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.Bu
 bufferModeBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.BlockBuffering"
 
 bufferModeSizedBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
-
-okConstructorReferent, failConstructorReferent :: Referent.Referent
-okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
-failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
 
 rewriteTermRef :: Reference
 rewriteTermRef = lookupDeclRef "RewriteTerm"
@@ -728,9 +714,7 @@ unitType,
   optionalType,
   testResultListType,
   eitherType,
-  ioErrorType,
   fileModeType,
-  filePathType,
   bufferModeType,
   seekModeType,
   stdHandleType,
@@ -745,17 +729,12 @@ pairType a = Type.ref a pairRef
 testResultListType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
-ioErrorType a = Type.ref a ioErrorRef
 fileModeType a = Type.ref a fileModeRef
-filePathType a = Type.ref a filePathRef
 bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
 exceptionType a = Type.ref a exceptionRef
-
-tlsSignedCertType :: (Var v) => a -> Type v a
-tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
 unitTerm :: (Var v) => a -> Term2 vt at ap v a
 unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)

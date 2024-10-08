@@ -69,12 +69,6 @@ data BranchIdG p
   | BranchAtProjectPath ProjectPath
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
-instance (From p Text) => From (BranchIdG p) Text where
-  from = \case
-    BranchAtSCH h -> "#" <> SCH.toText h
-    BranchAtPath p -> from p
-    BranchAtProjectPath pp -> from pp
-
 type BranchId = BranchIdG Path'
 
 type BranchId2 = Either ShortCausalHash BranchRelativePath
@@ -126,8 +120,8 @@ data Input
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
   | ResetI (BranchId2 {- namespace to reset it to -}) (Maybe UnresolvedProjectBranch {- ProjectBranch to reset -})
-  -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
-  | --          Does it make sense to fork from not-the-root of a Github repo?
+  | -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
+    --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user
     CreateMessage (P.Pretty P.ColorText)
   | -- Change directory.

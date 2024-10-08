@@ -387,13 +387,13 @@ test-suite cli-tests
     , code-page
     , containers
     , cryptonite
-    , directory
     , easytest
     , extra
     , here
     , lens
     , lsp-types
     , megaparsec
+    , safe
     , temporary
     , text
     , these

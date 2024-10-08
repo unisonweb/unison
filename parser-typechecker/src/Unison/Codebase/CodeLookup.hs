@@ -1,16 +1,10 @@
 module Unison.Codebase.CodeLookup where
 
 import Control.Monad.Morph (MFunctor (..))
-import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
-import Unison.DataDeclaration qualified as DD
-import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Term (Term)
 import Unison.Term qualified as Term
-import Unison.Util.Defns (Defns (..))
-import Unison.Util.Set qualified as Set
-import Unison.Var (Var)
 
 data CodeLookup v m a = CodeLookup
   { getTerm :: Reference.Id -> m (Maybe (Term v a)),
@@ -40,34 +34,3 @@ instance (Monad m) => Semigroup (CodeLookup v m a) where
 
 instance (Monad m) => Monoid (CodeLookup v m a) where
   mempty = CodeLookup (const $ pure Nothing) (const $ pure Nothing)
-
--- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
--- todo: add some tests on this guy?
-transitiveDependencies ::
-  (Monad m, Var v) =>
-  CodeLookup v m a ->
-  Set Reference.Id ->
-  Reference.Id ->
-  m (Set Reference.Id)
-transitiveDependencies code seen0 rid =
-  if Set.member rid seen0
-    then pure seen0
-    else
-      let seen = Set.insert rid seen0
-          getIds = Set.mapMaybe Reference.toId
-       in getTerm code rid >>= \case
-            Just t ->
-              foldM (transitiveDependencies code) seen (getIds $ let deps = Term.dependencies t in deps.terms <> deps.types)
-            Nothing ->
-              getTypeDeclaration code rid >>= \case
-                Nothing -> pure seen
-                Just (Left ed) ->
-                  foldM
-                    (transitiveDependencies code)
-                    seen
-                    (getIds $ DD.typeDependencies (DD.toDataDecl ed))
-                Just (Right dd) ->
-                  foldM
-                    (transitiveDependencies code)
-                    seen
-                    (getIds $ DD.typeDependencies dd)

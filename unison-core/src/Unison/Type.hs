@@ -7,18 +7,12 @@ import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
-import Data.Monoid (Any (..))
-import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
-import Unison.HashQualified qualified as HQ
 import Unison.Kind qualified as K
 import Unison.LabeledDependency qualified as LD
-import Unison.Name qualified as Name
-import Unison.Names.ResolutionResult qualified as Names
 import Unison.Prelude
-  ( Const (Const, getConst),
-    Generic,
+  ( Generic,
     Generic1,
     Identity (runIdentity),
     Map,
@@ -28,12 +22,10 @@ import Unison.Prelude
     join,
     sortOn,
     ($>),
-    (<&>),
   )
 import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Settings qualified as Settings
-import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -57,31 +49,12 @@ _Ref = _Ctor @"Ref"
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
 
-wrapV :: (Ord v) => Type v a -> Type (ABT.V v) a
-wrapV = ABT.vmap ABT.Bound
-
 freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
 bindExternal ::
   (ABT.Var v) => [(v, TypeReference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
-
-bindReferences ::
-  (Var v) =>
-  (v -> Name.Name) ->
-  Set v ->
-  Map Name.Name TypeReference ->
-  Type v a ->
-  Names.ResolutionResult a (Type v a)
-bindReferences unsafeVarToName keepFree ns t =
-  let fvs = ABT.freeVarOccurrences keepFree t
-      rs = [(v, a, Map.lookup (unsafeVarToName v) ns) | (v, a) <- fvs]
-      ok (v, _a, Just r) = pure (v, r)
-      ok (v, a, Nothing) =
-        Left $
-          Seq.singleton (Names.TypeResolutionFailure (HQ.NameOnly (unsafeVarToName v)) a Names.NotFound)
-   in List.validate ok rs <&> \es -> bindExternal es t
 
 newtype Monotype v a = Monotype {getPolytype :: Type v a} deriving (Eq)
 
@@ -125,9 +98,6 @@ pattern App' f x <- ABT.Tm' (App f x)
 
 pattern Apps' :: Type v a -> [Type v a] -> Type v a
 pattern Apps' f args <- (unApps -> Just (f, args))
-
-pattern Pure' :: (Ord v) => Type v a -> Type v a
-pattern Pure' t <- (unPure -> Just t)
 
 pattern Request' :: [Type v a] -> Type v a -> Type v a
 pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
@@ -179,11 +149,6 @@ pattern Cycle' xs t <- ABT.Cycle' xs t
 
 pattern Abs' :: (Foldable f, Functor f, ABT.Var v) => ABT.Subst f v a -> ABT.Term f v a
 pattern Abs' subst <- ABT.Abs' subst
-
-unPure :: (Ord v) => Type v a -> Maybe (Type v a)
-unPure (Effect'' [] t) = Just t
-unPure (Effect'' _ _) = Nothing
-unPure t = Just t
 
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
@@ -243,12 +208,6 @@ unEffects1 :: (Ord v) => Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _ = Nothing
 
--- | True if the given type is a function, possibly quantified
-isArrow :: (ABT.Var v) => Type v a -> Bool
-isArrow (ForallNamed' _ t) = isArrow t
-isArrow (Arrow' _ _) = True
-isArrow _ = False
-
 -- some smart constructors
 
 ref :: (Ord v) => a -> TypeReference -> Type v a
@@ -262,9 +221,6 @@ termLink a = ABT.tm' a . Ref $ termLinkRef
 
 typeLink :: (Ord v) => a -> Type v a
 typeLink a = ABT.tm' a . Ref $ typeLinkRef
-
-derivedBase32Hex :: (Ord v) => TypeReference -> a -> Type v a
-derivedBase32Hex r a = ref a r
 
 intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: TypeReference
 intRef = Reference.Builtin "Int"
@@ -461,31 +417,12 @@ forAll a v body = ABT.tm' a (Forall (ABT.abs' a v body))
 introOuter :: (Ord v) => a -> v -> Type v a -> Type v a
 introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
-iff :: (Var v) => Type v ()
-iff = forAll () aa $ arrows (f <$> [boolean (), a, a]) a
-  where
-    aa = Var.named "a"
-    a = var () aa
-    f x = ((), x)
-
-iff' :: (Var v) => a -> Type v a
-iff' loc = forAll loc aa $ arrows (f <$> [boolean loc, a, a]) a
-  where
-    aa = Var.named "a"
-    a = var loc aa
-    f x = (loc, x)
-
 iff2 :: (Var v) => a -> Type v a
 iff2 loc = forAll loc aa $ arrows (f <$> [a, a]) a
   where
     aa = Var.named "a"
     a = var loc aa
     f x = (loc, x)
-
-andor :: (Ord v) => Type v ()
-andor = arrows (f <$> [boolean (), boolean ()]) $ boolean ()
-  where
-    f x = ((), x)
 
 andor' :: (Ord v) => a -> Type v a
 andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
@@ -495,15 +432,9 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: (Ord v) => a -> v -> Type v a
 var = ABT.annotatedVar
 
-v' :: (Var v) => Text -> Type v ()
-v' s = ABT.var (Var.named s)
-
 -- Like `v'`, but creates an annotated variable given an annotation
 av' :: (Var v) => a -> Text -> Type v a
 av' a s = ABT.annotatedVar a (Var.named s)
-
-forAll' :: (Var v) => a -> [Text] -> Type v a -> Type v a
-forAll' a vs body = foldr (forAll a) body (Var.named <$> vs)
 
 foralls :: (Ord v) => a -> [v] -> Type v a -> Type v a
 foralls a vs body = foldr (forAll a) body vs
@@ -546,13 +477,6 @@ stripEffect :: (Ord v) => Type v a -> ([Type v a], Type v a)
 stripEffect (Effect' e t) = case stripEffect t of (ei, t) -> (e ++ ei, t)
 stripEffect t = ([], t)
 
--- The type of the flipped function application operator:
--- `(a -> (a -> b) -> b)`
-flipApply :: (Var v) => Type v () -> Type v ()
-flipApply t = forAll () b $ arrow () (arrow () t (var () b)) (var () b)
-  where
-    b = ABT.fresh t (Var.named "b")
-
 generalize' :: (Var v) => Var.Type -> Type v a -> Type v a
 generalize' k t = generalize vsk t
   where
@@ -564,10 +488,6 @@ generalize vs t = foldr f t vs
   where
     f v t =
       if Set.member v (ABT.freeVars t) then forAll (ABT.annotation t) v t else t
-
-unforall :: Type v a -> Type v a
-unforall (ForallsNamed' _ t) = t
-unforall t = t
 
 unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
@@ -587,12 +507,6 @@ updateDependencies typeUpdates = ABT.rebuildUp go
   where
     go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
     go f = f
-
-usesEffects :: (Ord v) => Type v a -> Bool
-usesEffects t = getAny . getConst $ ABT.visit go t
-  where
-    go (Effect1' _ _) = Just (Const (Any True))
-    go _ = Nothing
 
 -- Returns free effect variables in the given type, for instance, in:
 --
@@ -744,13 +658,6 @@ editFunctionResult f = go
       ABT.Abs v r ->
         (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
       _ -> f (ABT.Term s a t)
-
-functionResult :: Type v a -> Maybe (Type v a)
-functionResult = go False
-  where
-    go inArr (ForallNamed' _ body) = go inArr body
-    go _inArr (Arrow' _i o) = go True o
-    go inArr t = if inArr then Just t else Nothing
 
 -- | Bind all free variables (not in `except`) that start with a lowercase
 -- letter and are unqualified with an outer `forall`.

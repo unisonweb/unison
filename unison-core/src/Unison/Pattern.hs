@@ -11,8 +11,6 @@ import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.LabeledDependency (LabeledDependency)
-import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -104,10 +102,6 @@ instance Show (Pattern loc) where
   show (SequenceLiteral _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
   show (SequenceOp _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
 
-application :: Pattern loc -> Bool
-application (Constructor _ _ (_ : _)) = True
-application _ = False
-
 loc :: Pattern loc -> loc
 loc = \case
   Unbound loc -> loc
@@ -198,12 +192,3 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
           Text _ _ -> [literalType Type.textRef]
           Char _ _ -> [literalType Type.charRef]
       )
-
-labeledDependencies :: Pattern loc -> Set LabeledDependency
-labeledDependencies =
-  generalizedDependencies
-    LD.typeRef
-    (\r i -> LD.dataConstructor (ConstructorReference r i))
-    LD.typeRef
-    (\r i -> LD.effectConstructor (ConstructorReference r i))
-    LD.typeRef

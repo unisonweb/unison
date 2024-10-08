@@ -2,20 +2,20 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Local.Endpoints.NamespaceListing (serve, NamespaceListingAPI, NamespaceListing (..), NamespaceObject (..), NamedNamespace (..), NamedPatch (..), KindExpression (..)) where
+module Unison.Server.Local.Endpoints.NamespaceListing
+  ( serve,
+    NamespaceListingAPI,
+    NamespaceListing (..),
+    NamespaceObject (..),
+    NamedNamespace (..),
+    NamedPatch (..),
+  )
+where
 
 import Data.Aeson
 import Data.OpenApi (ToSchema)
-import Servant
-  ( QueryParam,
-    (:>),
-  )
-import Servant.Docs
-  ( DocQueryParam (..),
-    ParamKind (Normal),
-    ToParam (..),
-    ToSample (..),
-  )
+import Servant (QueryParam, (:>))
+import Servant.Docs (ToSample (..))
 import Servant.OpenApi ()
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Causal qualified as V2Causal
@@ -49,14 +49,6 @@ type NamespaceListingAPI =
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "namespace" Path.Path
     :> APIGet NamespaceListing
-
-instance ToParam (QueryParam "namespace" Text) where
-  toParam _ =
-    DocQueryParam
-      "namespace"
-      [".", ".base.List", "foo.bar"]
-      "The fully qualified name of a namespace. The leading `.` is optional."
-      Normal
 
 instance ToSample NamespaceListing where
   toSamples _ =
@@ -157,16 +149,6 @@ instance FromJSON NamedPatch where
   parseJSON = withObject "NamedPatch" $ \o -> do
     patchName <- o .: "patchName"
     pure NamedPatch {..}
-
-newtype KindExpression = KindExpression {kindExpressionText :: Text}
-  deriving stock (Generic, Show)
-  deriving anyclass (ToSchema)
-
-instance ToJSON KindExpression where
-  toJSON KindExpression {..} =
-    object
-      [ "kindExpressionText" .= kindExpressionText
-      ]
 
 backendListEntryToNamespaceObject ::
   (Var v) =>

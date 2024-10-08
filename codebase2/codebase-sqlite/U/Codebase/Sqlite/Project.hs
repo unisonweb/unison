@@ -7,7 +7,7 @@ import U.Codebase.Sqlite.DbId (ProjectId)
 import Unison.Core.Orphans.Sqlite ()
 import Unison.Core.Project (ProjectName)
 import Unison.Prelude
-import Unison.Sqlite (FromRow, ToRow)
+import Unison.Sqlite (FromRow)
 
 -- | A project.
 data Project = Project
@@ -15,4 +15,4 @@ data Project = Project
     name :: !ProjectName
   }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (ToRow, FromRow)
+  deriving anyclass (FromRow)

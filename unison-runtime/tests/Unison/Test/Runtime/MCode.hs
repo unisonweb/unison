@@ -25,14 +25,8 @@ import Unison.Symbol (Symbol)
 import Unison.Term (unannotate)
 import Unison.Test.Common (tm)
 
-dummyRef :: Reference
-dummyRef = Builtin "dummy"
-
 mainRef :: Reference
 mainRef = Builtin "main"
-
-modifyTVarTest :: TVar a -> (a -> a) -> Test ()
-modifyTVarTest v f = io . atomically $ modifyTVar v f
 
 testEval0 :: [(Reference, SuperGroup Symbol)] -> SuperGroup Symbol -> Test ()
 testEval0 env main =

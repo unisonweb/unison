@@ -32,15 +32,6 @@ import Unison.Prelude
 newtype Hash32 = UnsafeFromBase32Hex Base32Hex
   deriving (Eq, Ord, Show) via (Text)
 
-instance From Hash32 Text where
-  from = toText
-
-instance From Hash32 Hash where
-  from = toHash
-
-instance From Hash Hash32 where
-  from = fromHash
-
 fromHash :: Hash -> Hash32
 fromHash =
   unsafeFromBase32Hex . Hash.toBase32Hex

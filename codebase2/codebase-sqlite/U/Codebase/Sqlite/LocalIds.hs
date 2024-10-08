@@ -37,9 +37,6 @@ newtype LocalPatchObjectId = LocalPatchObjectId Word64 deriving (Eq, Ord, Show, 
 
 newtype LocalBranchChildId = LocalBranchChildId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 
--- | causal hashes are treated differently from HashIds, which don't have dependencies
-newtype LocalCausalHashId = LocalCausalHashId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
-
 instance Bitraversable LocalIds' where
   bitraverse f g (LocalIds t d) = LocalIds <$> traverse f t <*> traverse g d
 
@@ -48,9 +45,3 @@ instance Bifoldable LocalIds' where
 
 instance Bifunctor LocalIds' where
   bimap f g (LocalIds t d) = LocalIds (f <$> t) (g <$> d)
-
-t_ :: Traversal (LocalIds' t h) (LocalIds' t' h) t t'
-t_ f (LocalIds t d) = LocalIds <$> traverse f t <*> pure d
-
-h_ :: Traversal (LocalIds' t h) (LocalIds' t h') h h'
-h_ f (LocalIds t d) = LocalIds <$> pure t <*> traverse f d

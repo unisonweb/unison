@@ -1,6 +1,5 @@
 module Unison.HashQualified where
 
-import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Name (Name)
@@ -35,26 +34,6 @@ toName = \case
   HashQualified name _ -> Just name
   HashOnly _ -> Nothing
 
--- Sort the list of names by length of segments: smaller number of
--- segments is listed first. NameOnly < Hash qualified < Hash only
---
--- Examples:
---   [foo.bar.baz, bar.baz] -> [bar.baz, foo.bar.baz]
---   [#a29dj2k91, foo.bar.baz] -> [foo.bar.baz, #a29dj2k91]
---   [foo.bar#abc, foo.bar] -> [foo.bar, foo.bar#abc]
---   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
-sortByLength :: [HashQualified Name] -> [HashQualified Name]
-sortByLength hs = sortOn f hs
-  where
-    f :: HashQualified Name -> (Int, Int)
-    f (NameOnly n) = (length (Name.reverseSegments n), 0)
-    f (HashQualified n _h) = (length (Name.reverseSegments n), 1)
-    f (HashOnly _h) = (maxBound, 0)
-
-hasName, hasHash :: HashQualified Name -> Bool
-hasName = isJust . toName
-hasHash = isJust . toHash
-
 toHash :: HashQualified n -> Maybe ShortHash
 toHash = \case
   NameOnly _ -> Nothing
@@ -76,9 +55,6 @@ take i = \case
   n@(NameOnly _) -> n
   HashOnly s -> HashOnly (SH.shortenTo i s)
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.shortenTo i s)
-
-toStringWith :: (n -> String) -> HashQualified n -> String
-toStringWith f = Text.unpack . toTextWith (Text.pack . f)
 
 toTextWith :: (n -> Text) -> HashQualified n -> Text
 toTextWith f = \case
@@ -105,19 +81,6 @@ fromPattern r = HashOnly $ ConstructorReference.toShortHash r
 
 fromName :: n -> HashQualified n
 fromName = NameOnly
-
--- todo: find this logic elsewhere and replace with call to this
-matchesNamedReferent :: Name -> Referent -> HashQualified Name -> Bool
-matchesNamedReferent n r = \case
-  NameOnly n' -> n' == n
-  HashOnly sh -> sh `SH.isPrefixOf` Referent.toShortHash r
-  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
-
-matchesNamedReference :: Name -> Reference -> HashQualified Name -> Bool
-matchesNamedReference n r = \case
-  NameOnly n' -> n' == n
-  HashOnly sh -> sh `SH.isPrefixOf` Reference.toShortHash r
-  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r
 
 -- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
 requalify :: HashQualified Name -> Referent -> HashQualified Name

@@ -10,6 +10,10 @@ flags:
 allow-different-user: true
 
 build:
+  haddock-arguments:
+    haddock-args:
+      - --optghc=-Wno-missing-pattern-synonym-signatures
+      - --optghc=-Wno-name-shadowing
   interleaved-output: false
 
 packages:

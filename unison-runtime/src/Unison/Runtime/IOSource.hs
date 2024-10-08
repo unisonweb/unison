@@ -5,7 +5,7 @@ module Unison.Runtime.IOSource where
 
 import Control.Lens (_2)
 import Control.Monad.Morph (hoist)
-import Data.List (elemIndex, genericIndex)
+import Data.List (elemIndex)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Text.RawString.QQ (r)
@@ -95,36 +95,8 @@ typeNamedId s =
 typeNamed :: String -> R.Reference
 typeNamed = R.DerivedId . typeNamedId
 
-abilityNamedId :: String -> R.Id
-abilityNamedId s =
-  case Map.lookup (Var.nameds s) (UF.effectDeclarationsId' typecheckedFile) of
-    Nothing -> error $ "No builtin ability called: " <> s
-    Just (r, _) -> r
-
-eitherReference,
-  optionReference,
-  isTestReference,
-  isPropagatedReference ::
-    R.Reference
-eitherReference = typeNamed "Either"
-optionReference = typeNamed "Optional"
-isTestReference = typeNamed "IsTest"
-isPropagatedReference = typeNamed "IsPropagated"
-
-isTest :: (R.Reference, R.Reference)
-isTest = (isTestReference, termNamed "metadata.isTest")
-
-isIOTest :: (R.Reference, R.Reference)
-isIOTest = (isTestReference, termNamed "metadata.isIOTest")
-
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
-
-eitherLeftId, eitherRightId, someId, noneId :: DD.ConstructorId
-eitherLeftId = constructorNamed eitherReference "Either.Left"
-eitherRightId = constructorNamed eitherReference "Either.Right"
-someId = constructorNamed optionReference "Optional.Some"
-noneId = constructorNamed optionReference "Optional.None"
 
 authorRef, guidRef, copyrightHolderRef :: R.Reference
 authorRef = typeNamed "Author"
@@ -135,10 +107,6 @@ doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
 
 doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
-
-doc2TermRef = typeNamed "Doc2.Term"
-
-prettyRef = typeNamed "Pretty"
 
 prettyAnnotatedRef = typeNamed "Pretty.Annotated"
 
@@ -348,8 +316,6 @@ pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _
 -- pulls out `body` in `Doc2.Term (Any 'body)`
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
 
-pattern Doc2TermRef <- ((== doc2TermRef) -> True)
-
 pattern PrettyAnnotatedRef <- ((== prettyAnnotatedRef) -> True)
 
 prettyEmptyId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Empty"
@@ -383,8 +349,6 @@ pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' (ConstructorRefe
 pattern PrettyTable ann rows <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyTableId -> True))) [ann, Term.List' rows]
 
 pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyAppendId -> True))) [ann, Term.List' tms]
-
-pattern PrettyRef <- ((== prettyRef) -> True)
 
 prettyGetRef = termNamed "Pretty.get"
 
@@ -513,15 +477,6 @@ constructorNamed ref name =
         . elemIndex name
         . DD.constructorNames
         $ DD.asDataDecl decl
-
-constructorName :: R.Reference -> DD.ConstructorId -> Text
-constructorName ref cid =
-  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
-    Nothing ->
-      error $
-        "There's a bug in the Unison runtime. Couldn't find type "
-          <> show ref
-    Just decl -> genericIndex (DD.constructorNames $ DD.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
 
@@ -1026,15 +981,6 @@ ImmutableByteArray.fromBytes bs = Scope.run do
 |]
 
 type Note = Result.Note Symbol Ann
-
-type TFile = UF.TypecheckedUnisonFile Symbol Ann
-
-type SynthResult =
-  Result.Result
-    (Seq Note)
-    (Either (UF.UnisonFile Symbol Ann) TFile)
-
-type EitherResult = Either String TFile
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
 showNotes source env =

@@ -27,7 +27,6 @@ import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
-import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
@@ -341,9 +340,35 @@ annotationNestingTest (name, src) = scope name do
     & traverse_ \(_fileAnn, _refId, _wk, trm, _typ) ->
       assertAnnotationsAreNested trm
 
+-- | Checks whether an annotation contains another annotation.
+--
+-- i.e. pos ∈ [start, end)
+--
+-- >>> Intrinsic `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
+-- Nothing
+--
+-- >>> External `encompasses` Ann (L.Pos 1 1) (L.Pos 2 1)
+-- Nothing
+--
+-- >>> Ann (L.Pos 0 0) (L.Pos 0 10) `encompasses` Ann (L.Pos 0 1) (L.Pos 0 5)
+-- Just True
+--
+-- >>> Ann (L.Pos 1 0) (L.Pos 1 10) `encompasses` Ann (L.Pos 0 0) (L.Pos 2 0)
+-- Just False
+encompasses :: Ann -> Ann -> Maybe Bool
+encompasses Intrinsic _ = Nothing
+encompasses External _ = Nothing
+encompasses _ Intrinsic = Nothing
+encompasses _ External = Nothing
+encompasses (GeneratedFrom outer) inner = outer `encompasses` inner
+encompasses outer (GeneratedFrom inner) = outer `encompasses` inner
+encompasses (Ann outerStart outerEnd) (Ann innerStart innerEnd) =
+  Just $ outerStart <= innerStart && innerEnd <= outerEnd
+
 -- | Asserts that for all nodes in the provided ABT EXCEPT Abs nodes, the annotations of all child nodes are
 -- within the span of the parent node.
-assertAnnotationsAreNested :: forall f. (Foldable f, Functor f, Show (f (Either String Ann))) => ABT.Term f Symbol Ann -> Test ()
+assertAnnotationsAreNested ::
+  forall f. (Foldable f, Functor f, Show (f (Either String Ann))) => ABT.Term f Symbol Ann -> Test ()
 assertAnnotationsAreNested term = do
   case cata alg term of
     Right _ -> pure ()
@@ -359,7 +384,7 @@ assertAnnotationsAreNested term = do
         ABT.Abs _ _ ->
           pure (ann <> childSpan)
         _ -> do
-          case ann `Ann.encompasses` childSpan of
+          case ann `encompasses` childSpan of
             -- one of the annotations isn't in the file, don't bother checking.
             Nothing -> pure (ann <> childSpan)
             Just isInFile

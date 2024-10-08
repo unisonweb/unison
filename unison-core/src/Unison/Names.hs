@@ -3,21 +3,15 @@
 
 module Unison.Names
   ( Names (..),
-    addTerm,
-    addType,
     labeledReferences,
     conflicts,
     contains,
     difference,
     filter,
-    filterByHQs,
-    filterBySHs,
-    filterTypes,
     fromReferenceIds,
     fromUnconflictedReferenceIds,
     map,
     makeAbsolute,
-    makeRelative,
     fuzzyFind,
     hqName,
     hqTermName,
@@ -30,12 +24,9 @@ module Unison.Names
     _hqTypeAliases,
     mapNames,
     prefix0,
-    restrictReferences,
     refTermsNamed,
-    refTermsHQNamed,
     referenceIds,
     termReferences,
-    termReferents,
     typeReferences,
     termsNamed,
     typesNamed,
@@ -80,8 +71,6 @@ import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReferenc
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as SH
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Nametree (Nametree, unflattenNametree)
 import Unison.Util.Relation (Relation)
@@ -134,9 +123,6 @@ map f (Names {terms, types}) = Names terms' types'
 
 makeAbsolute :: Names -> Names
 makeAbsolute = map Name.makeAbsolute
-
-makeRelative :: Names -> Names
-makeRelative = map Name.makeRelative
 
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
@@ -201,15 +187,6 @@ labeledReferences Names {..} =
   Set.map LD.typeRef (Relation.ran types)
     <> Set.map LD.referent (Relation.ran terms)
 
-termReferents :: Names -> Set Referent
-termReferents Names {..} = R.ran terms
-
-restrictReferences :: Set Reference -> Names -> Names
-restrictReferences refs Names {..} = Names terms' types'
-  where
-    terms' = R.filterRan ((`Set.member` refs) . Referent.toReference) terms
-    types' = R.filterRan (`Set.member` refs) types
-
 -- | Prefer names in the first argument, falling back to names in the second.
 -- This can be used to shadow names in the codebase with names in a unison file for instance:
 -- e.g. @shadowing scratchFileNames codebaseNames@
@@ -233,19 +210,6 @@ refTermsNamed :: Names -> Name -> Set TermReference
 refTermsNamed names n =
   Set.mapMaybe Referent.toTermReference (termsNamed names n)
 
--- | Get all terms with a specific hash-qualified name.
-refTermsHQNamed :: Names -> HQ.HashQualified Name -> Set TermReference
-refTermsHQNamed names = \case
-  HQ.NameOnly name -> refTermsNamed names name
-  HQ.HashOnly _hash -> Set.empty
-  HQ.HashQualified name hash ->
-    let f :: Referent -> Maybe TermReference
-        f ref0 = do
-          ref <- Referent.toTermReference ref0
-          guard (Reference.isPrefixOf hash ref)
-          Just ref
-     in Set.mapMaybe f (termsNamed names name)
-
 typesNamed :: Names -> Name -> Set TypeReference
 typesNamed = flip R.lookupDom . (.types)
 
@@ -260,12 +224,6 @@ termAliases names n r = Set.delete n $ namesForReferent names r
 
 typeAliases :: Names -> Name -> TypeReference -> Set Name
 typeAliases names n r = Set.delete n $ namesForReference names r
-
-addType :: Name -> TypeReference -> Names -> Names
-addType n r = (<> fromTypes [(n, r)])
-
-addTerm :: Name -> Referent -> Names -> Names
-addTerm n r = (<> fromTerms [(n, r)])
 
 -- | Like hqTermName and hqTypeName, but considers term and type names to
 -- conflict with each other (so will hash-qualify if there is e.g. both a term
@@ -364,26 +322,6 @@ prefix0 n =
 
 filter :: (Name -> Bool) -> Names -> Names
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
-
--- currently used for filtering before a conditional `add`
-filterByHQs :: Set (HQ'.HashQualified Name) -> Names -> Names
-filterByHQs hqs Names {..} = Names terms' types'
-  where
-    terms' = R.filter f terms
-    types' = R.filter g types
-    f (n, r) = any (HQ'.matchesNamedReferent n r) hqs
-    g (n, r) = any (HQ'.matchesNamedReference n r) hqs
-
-filterBySHs :: Set ShortHash -> Names -> Names
-filterBySHs shs Names {..} = Names terms' types'
-  where
-    terms' = R.filter f terms
-    types' = R.filter g types
-    f (_n, r) = any (`SH.isPrefixOf` Referent.toShortHash r) shs
-    g (_n, r) = any (`SH.isPrefixOf` Reference.toShortHash r) shs
-
-filterTypes :: (Name -> Bool) -> Names -> Names
-filterTypes f (Names terms types) = Names terms (R.filterDom f types)
 
 difference :: Names -> Names -> Names
 difference a b =
