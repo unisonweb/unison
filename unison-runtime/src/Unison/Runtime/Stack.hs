@@ -740,7 +740,10 @@ saveArgs (Stack ap fp sp ustk bstk) = pure (Stack fp fp sp ustk bstk, fp - ap)
 {-# INLINE saveArgs #-}
 
 restoreFrame :: Stack -> SZ -> SZ -> IO Stack
-restoreFrame (Stack ap _ sp ustk bstk) fsz asz = pure $ Stack (ap + asz) (sp + fsz) sp ustk bstk
+restoreFrame (Stack _ fp0 sp ustk bstk) fsz asz = pure $ Stack ap fp sp ustk bstk
+  where
+    fp = fp0 - fsz
+    ap = fp - asz
 {-# INLINE restoreFrame #-}
 
 prepareArgs :: Stack -> Args' -> IO Stack
