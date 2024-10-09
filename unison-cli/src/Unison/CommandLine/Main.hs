@@ -210,8 +210,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
 
   let foldLine :: Text
       foldLine = "\n\n---- Anything below this line is ignored by Unison.\n\n"
-  let writeSourceFile :: Text -> Text -> IO ()
-      writeSourceFile fp contents = do
+  let prependSource :: Text -> Text -> IO ()
+      prependSource fp contents = do
         path <- Directory.canonicalizePath (Text.unpack fp)
         prependUtf8 path (contents <> foldLine)
 
@@ -221,7 +221,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
             codebase,
             credentialManager,
             loadSource = loadSourceFile,
-            writeSource = writeSourceFile,
+            prependSource,
             generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
             notify,
             notifyNumbered = \o ->

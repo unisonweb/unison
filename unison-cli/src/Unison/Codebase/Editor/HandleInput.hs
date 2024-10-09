@@ -14,7 +14,6 @@ import Control.Monad.State qualified as State
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -763,7 +762,7 @@ loop e = do
                 Nothing -> do
                   Cli.respond DebugFuzzyOptionsNoResolver
             DebugFormatI -> do
-              Cli.Env {writeSource, loadSource} <- ask
+              env <- ask
               void $ runMaybeT do
                 (filePath, _) <- MaybeT Cli.getLatestFile
                 pf <- lift Cli.getLatestParsedFile
@@ -776,12 +775,12 @@ loop e = do
                 currentPath <- lift $ Cli.getCurrentPath
                 updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
                 source <-
-                  liftIO (loadSource (Text.pack filePath)) >>= \case
+                  liftIO (env.loadSource (Text.pack filePath)) >>= \case
                     Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
                     Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
                     Cli.LoadSuccess contents -> pure contents
                 let updatedSource = Format.applyTextReplacements updates source
-                liftIO $ writeSource (Text.pack filePath) updatedSource
+                liftIO $ env.prependSource (Text.pack filePath) updatedSource
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)

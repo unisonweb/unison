@@ -164,8 +164,8 @@ data Env = Env
     generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
-    -- | How to write source code.
-    writeSource :: SourceName -> Text -> IO (),
+    -- | How to prepend source code.
+    prependSource :: SourceName -> Text -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.

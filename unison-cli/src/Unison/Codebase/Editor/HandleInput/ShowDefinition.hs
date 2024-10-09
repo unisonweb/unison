@@ -102,7 +102,7 @@ showDefinitions ::
   [HQ.HashQualified Name] ->
   Cli ()
 showDefinitions outputLoc pped terms types misses = do
-  Cli.Env {codebase, writeSource} <- ask
+  env <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
@@ -115,7 +115,12 @@ showDefinitions outputLoc pped terms types misses = do
       Cli.respond $ DisplayDefinitions renderedCodePretty
     Just fp -> do
       -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
-      testRefs <- Cli.runTransaction (Codebase.filterTermsByReferenceIdHavingType codebase (DD.testResultListType mempty) (Map.keysSet terms & Set.mapMaybe Reference.toId))
+      testRefs <-
+        Cli.runTransaction do
+          Codebase.filterTermsByReferenceIdHavingType
+            env.codebase
+            (DD.testResultListType mempty)
+            (Map.keysSet terms & Set.mapMaybe Reference.toId)
       let isTest r = Set.member r testRefs
       let isSourceFile = True
       let renderedCodePretty = renderCodePretty pped isSourceFile isTest terms types
@@ -125,7 +130,7 @@ showDefinitions outputLoc pped terms types misses = do
       -- are viewing these definitions to a file - this will skip the
       -- next update for that file (which will happen immediately)
       #latestFile ?= (fp, True)
-      liftIO $ writeSource (Text.pack fp) renderedCodeText
+      liftIO $ env.prependSource (Text.pack fp) renderedCodeText
       let numDefinitions = Map.size terms + Map.size types
       Cli.respond $ LoadedDefinitionsToSourceFile fp numDefinitions
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
