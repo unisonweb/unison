@@ -4,7 +4,7 @@ scratch/main> builtins.merge
 
 Some random ability stuff to ensure things work.
 
-``` unison
+``` unison :hide
 
 unique ability A where
   one : Nat ->{A} Nat
@@ -19,20 +19,6 @@ ha = cases
   { two i j -> c } -> handle c (i+j) with ha
   { three i j k -> c } -> handle c (i+j+k) with ha
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      ability A
-      ha : Request {A} r -> r
 ```
 
 ``` ucm

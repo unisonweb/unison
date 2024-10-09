@@ -1,6 +1,6 @@
 The order of a set of abilities is normalized before hashing.
 
-``` unison
+``` unison :hide
 unique ability Foo where
   foo : ()
 
@@ -12,22 +12,6 @@ term1 _ = ()
 
 term2 : () ->{Bar, Foo} ()
 term2 _ = ()
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      ability Bar
-      ability Foo
-      term1 : '{Bar, Foo} ()
-      term2 : '{Bar, Foo} ()
 ```
 
 ``` ucm

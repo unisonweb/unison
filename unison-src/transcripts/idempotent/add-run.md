@@ -6,7 +6,7 @@
 scratch/main> builtins.merge
 ```
 
-``` unison
+``` unison :hide
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
 
@@ -15,21 +15,6 @@ odd x = if x == 0 then false else even (drop x 1)
 
 is2even : 'Boolean
 is2even = '(even 2)
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      even    : Nat -> Boolean
-      is2even : 'Boolean
-      odd     : Nat -> Boolean
 ```
 
 it errors if there isn't a previous run
@@ -146,22 +131,9 @@ scratch/main> add inc
     inc : Nat -> Nat
 ```
 
-``` unison
+``` unison :hide
 main : '(Nat -> Nat)
 main _ x = inc x
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      main : '(Nat -> Nat)
 ```
 
 ``` ucm
@@ -208,21 +180,8 @@ scratch/main> run main
   2
 ```
 
-``` unison
+``` unison :hide
 x = 50
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      x : Nat
 ```
 
 this saves 2 to xres, rather than 100
@@ -241,21 +200,8 @@ scratch/main> view xres
 
 ## It fails with a message if add cannot complete cleanly
 
-``` unison
+``` unison :hide
 main = '5
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      main : 'Nat
 ```
 
 ``` ucm :error
@@ -274,21 +220,8 @@ scratch/main> add.run xres
 
 ## It works with absolute names
 
-``` unison
+``` unison :hide
 main = '5
-```
-
-``` ucm :added-by-ucm
-
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-
-    ⍟ These new definitions are ok to `add`:
-    
-      main : 'Nat
 ```
 
 ``` ucm
