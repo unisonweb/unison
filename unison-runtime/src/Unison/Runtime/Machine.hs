@@ -359,12 +359,12 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 CVLD i)
           upoke stk 0
           pure (denv, stk, k)
         Just (Failure ref msg clo) -> do
-          stk <- bump stk
-          upoke stk 1
           stk <- bumpn stk 3
           bpoke stk (Foreign $ Wrap Rf.typeLinkRef ref)
           pokeOffBi stk 1 msg
           bpokeOff stk 2 clo
+          stk <- bump stk
+          upoke stk 1
           pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 LKUP i)
   | sandboxed env = die "attempted to use sandboxed operation: lookup"
@@ -381,19 +381,19 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LKUP i)
         Nothing
           | Just w <- M.lookup link builtinTermNumbering,
             Just sn <- EC.lookup w numberedTermLookup -> do
-              upoke stk 1
+              pokeBi stk (CodeRep (ANF.Rec [] sn) Uncacheable)
               stk <- bump stk
-              stk <$ pokeBi stk (CodeRep (ANF.Rec [] sn) Uncacheable)
+              stk <$ upoke stk 1
           | otherwise -> stk <$ upoke stk 0
         Just sg -> do
-          upoke stk 1
-          stk <- bump stk
           let ch
                 | Just n <- M.lookup link rfn,
                   EC.member n cach =
                     Cacheable
                 | otherwise = Uncacheable
-          stk <$ pokeBi stk (CodeRep sg ch)
+          pokeBi stk (CodeRep sg ch)
+          stk <- bump stk
+          stk <$ upoke stk 1
       pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (BPrim1 TLTT i) = do
   clink <- bpeekOff stk i
@@ -411,13 +411,13 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LOAD i)
       stk <- bumpn stk 2
       reifyValue env v >>= \case
         Left miss -> do
-          upokeOff stk 1 0
-          pokeS stk $
+          pokeOffS stk 1 $
             Sq.fromList $
               Foreign . Wrap Rf.termLinkRef . Ref <$> miss
+          upoke stk 0
         Right x -> do
-          upokeOff stk 1 1
-          bpoke stk x
+          bpokeOff stk 1 x
+          upoke stk 1
       pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
