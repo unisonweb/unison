@@ -74,7 +74,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.jit_test_results}}
-          key: jit-test-results.dist-exe_${{ hashFiles(env.jit_dist_rel_exe) }}.tests_${{ env.runtime_tests_causalhash }}.yaml_${{ hashFiles('**/ci-test-jit.yaml') }}
+          key: jit-test-results.dist-exe_${{ hashFiles(env.jit_dist_rel_exe) }}.tests_${{ env.runtime_tests_causalhash }}.yaml_${{ hashFiles('**/ci-test-jit.yaml') }}_$({ hashFiles(env.ucm) })
 
       - name: install libb2 (linux)
         uses: awalsh128/cache-apt-pkgs-action@latest
