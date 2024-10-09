@@ -333,24 +333,26 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
-putCode :: MonadPut m => EC.EnumMap FOp Text -> Code -> m ()
+putCode :: (MonadPut m) => EC.EnumMap FOp Text -> Code -> m ()
 putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
 
-getCode :: MonadGet m => Word32 -> m Code
+getCode :: (MonadGet m) => Word32 -> m Code
 getCode v = CodeRep <$> getGroup <*> getCache
   where
-  getCache | v == 3 = getCacheability
-           | otherwise = pure Uncacheable
+    getCache
+      | v == 3 = getCacheability
+      | otherwise = pure Uncacheable
 
-putCacheability :: MonadPut m => Cacheability -> m ()
+putCacheability :: (MonadPut m) => Cacheability -> m ()
 putCacheability Uncacheable = putWord8 0
 putCacheability Cacheable = putWord8 1
 
-getCacheability :: MonadGet m => m Cacheability
-getCacheability = getWord8 >>= \case
-  0 -> pure Uncacheable
-  1 -> pure Cacheable
-  n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
+getCacheability :: (MonadGet m) => m Cacheability
+getCacheability =
+  getWord8 >>= \case
+    0 -> pure Uncacheable
+    1 -> pure Cacheable
+    n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
 
 putComb ::
   (MonadPut m) =>
@@ -684,7 +686,7 @@ putBLit (Quote v) = putTag QuoteT *> putValue v
 putBLit (Code (CodeRep sg ch)) =
   putTag tag *> putGroup mempty mempty sg
   where
-  tag | Cacheable <- ch = CachedCodeT | otherwise = CodeT
+    tag | Cacheable <- ch = CachedCodeT | otherwise = CodeT
 putBLit (BArr a) = putTag BArrT *> putByteArray a
 putBLit (Pos n) = putTag PosT *> putPositive n
 putBLit (Neg n) = putTag NegT *> putPositive n
