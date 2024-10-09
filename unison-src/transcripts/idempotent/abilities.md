@@ -21,6 +21,25 @@ ha = cases
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ability A
+      ha : Request {A} r -> r
+```
+
 ``` ucm
 scratch/main> add
+
+  ⍟ I've added these definitions:
+
+    ability A
+    ha : Request {A} r -> r
 ```

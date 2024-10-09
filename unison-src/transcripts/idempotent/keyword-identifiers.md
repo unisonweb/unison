@@ -4,34 +4,34 @@ In particular, following a keyword with a `wordyIdChar` should be a valid identi
 
 Related issues:
 
-- https://github.com/unisonweb/unison/issues/2091
-- https://github.com/unisonweb/unison/issues/2727
+  - https://github.com/unisonweb/unison/issues/2091
+  - https://github.com/unisonweb/unison/issues/2727
 
 ## Keyword list
 
 Checks the following keywords:
 
-- `type`
-- `ability`
-- `structural`
-- `unique`
-- `if`
-- `then`
-- `else`
-- `forall`
-- `handle`
-- `with`
-- `where`
-- `use`
-- `true`
-- `false`
-- `alias`
-- `typeLink`
-- `termLink`
-- `let`
-- `namespace`
-- `match`
-- `cases`
+  - `type`
+  - `ability`
+  - `structural`
+  - `unique`
+  - `if`
+  - `then`
+  - `else`
+  - `forall`
+  - `handle`
+  - `with`
+  - `where`
+  - `use`
+  - `true`
+  - `false`
+  - `alias`
+  - `typeLink`
+  - `termLink`
+  - `let`
+  - `namespace`
+  - `match`
+  - `cases`
 
 Note that although `∀` is a keyword, it cannot actually appear at the start of
 identifier.

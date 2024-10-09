@@ -27,17 +27,54 @@ Run a IO tests one by one
 
 ``` ucm
 scratch/main> io.test ioAndExceptionTest
+
+    New test results:
+
+    1. ioAndExceptionTest   ◉ Success
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 scratch/main> io.test ioTest
+
+    New test results:
+
+    1. ioTest   ◉ Success
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 `io.test` doesn't cache results
 
 ``` ucm
 scratch/main> io.test ioAndExceptionTest
+
+    New test results:
+
+    1. ioAndExceptionTest   ◉ Success
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 `io.test.all` will run all matching tests except those in the `lib` namespace.
 
 ``` ucm
 scratch/main> io.test.all
+
+
+
+
+
+    New test results:
+
+    1. ioAndExceptionTest   ◉ Success
+    2. ioTest               ◉ Success
+
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

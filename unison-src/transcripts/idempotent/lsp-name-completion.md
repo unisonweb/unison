@@ -27,9 +27,20 @@ prioritizing exact matches over partial matches. We don't have any control over 
 
 ``` ucm
 scratch/main> debug.lsp-name-completion foldMap
+
+  Matching Path   Name                             Hash
+  foldMap         foldMap                          #o38ps8p4q6
+  foldMapWith     foldMapWith                      #r9rs4mcb0m
+  foldMap         nested.deeply.foldMap            #snrjegr5dk
+  foldMap         lib.base.foldMap                 #jf4buul17k
+  foldMap         lib.dep.lib.transitive.foldMap   #0o01gvr3fi
 ```
 
 Should still find the term which has a matching hash to a better name if the better name doesn't match.
+
 ``` ucm
 scratch/main> debug.lsp-name-completion transitive_same_hash.foldMap
+
+  Matching Path                  Name                                       Hash
+  transitive_same_hash.foldMap   lib.dep.lib.transitive_same_hash.foldMap   #o38ps8p4q6
 ```

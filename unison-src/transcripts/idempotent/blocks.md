@@ -19,6 +19,26 @@ ex thing =
 > ex "hello"
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : thing -> Nat
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    8 | > ex "hello"
+          ⧩
+          43
+```
+
 ### Whether a block shadows outer names doesn't depend on the order of bindings in the block
 
 The `thing` reference in `bar` refers to the one declared locally in the block that `bar` is part of. This is true even if the declaration which shadows the outer name appears later in the block, for instance:
@@ -30,6 +50,26 @@ ex thing =
   bar 42
 
 > ex "hello"
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : thing -> Nat
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    6 | > ex "hello"
+          ⧩
+          43
 ```
 
 ### Blocks use lexical scoping and can only reference definitions in parent scopes or in the same block
@@ -47,7 +87,27 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-Here's another example, showing that bindings cannot reference bindings declared in blocks nested in the _body_ (the final expression) of a block:
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : (Nat ->{g} Nat) ->{g} Nat
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    8 | > ex (x -> x * 100)
+          ⧩
+          4201
+```
+
+Here's another example, showing that bindings cannot reference bindings declared in blocks nested in the *body* (the final expression) of a block:
 
 ``` unison
 ex thing =
@@ -59,9 +119,29 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : (Nat ->{g} Nat) ->{g} Nat
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    7 | > ex (x -> x * 100)
+          ⧩
+          4201
+```
+
 ### Blocks can define one or more functions which are recursive or mutually recursive
 
-We call these groups of definitions that reference each other in a block _cycles_. For instance:
+We call these groups of definitions that reference each other in a block *cycles*. For instance:
 
 ``` unison
 sumTo n =
@@ -78,6 +158,20 @@ ex n =
   ping 42
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex    : n -> r
+      sumTo : Nat -> Nat
+```
+
 The `go` function is a one-element cycle (it reference itself), and `ping` and `pong` form a two-element cycle.
 
 ### Cyclic references or forward reference must be guarded
@@ -91,6 +185,19 @@ ex n =
   ping 0
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : n -> Nat
+```
+
 Since the forward reference to `pong` appears inside `ping`.
 
 This, however, will not compile:
@@ -102,12 +209,29 @@ ex n =
   pong
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  These definitions depend on each other cyclically but aren't guarded by a lambda: pong8
+      2 |   pong = ping + 1
+      3 |   ping = 42
+```
+
 This also won't compile; it's a cyclic reference that isn't guarded:
 
 ``` unison :error
 ex n =
   loop = loop
   loop
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  These definitions depend on each other cyclically but aren't guarded by a lambda: loop8
+      2 |   loop = loop
 ```
 
 This, however, will compile. This also shows that `'expr` is another way of guarding a definition.
@@ -118,7 +242,20 @@ ex n =
   !loop
 ```
 
-Just don't try to run it as it's an infinite loop!
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      ex : n -> r
+```
+
+Just don't try to run it as it's an infinite loop\!
 
 ### Cyclic definitions in a block don't have access to any abilities
 
@@ -134,7 +271,16 @@ ex n =
   zap1
 ```
 
-### The _body_ of recursive functions can certainly access abilities
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
+
+      5 |   zap1 = launchMissiles "neptune" + zap2
+```
+
+### The *body* of recursive functions can certainly access abilities
 
 For instance, this works fine:
 
@@ -146,6 +292,20 @@ ex n =
   zap1 planet = launchMissiles planet + zap2 planet
   zap2 planet = launchMissiles planet + zap1 planet
   zap1 "pluto"
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability SpaceAttack
+      ex : n ->{SpaceAttack} Nat
 ```
 
 ### Unrelated definitions not part of a cycle and are moved after the cycle
@@ -163,6 +323,20 @@ ex n =
   ping 42
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability SpaceAttack
+      ex : n ->{SpaceAttack} r
+```
+
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
 
 ``` unison
@@ -174,4 +348,18 @@ ex n =
   pong x = ping (x + 2)
   zap = launchMissiles "neptune"
   ping 42
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability SpaceAttack
+      ex : n ->{SpaceAttack} r
 ```

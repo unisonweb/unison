@@ -15,6 +15,26 @@ f id = (id 1, id "hi")
 > f (x -> x)
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    4 | > f (x -> x)
+          ⧩
+          (1, "hi")
+```
+
 Another example, involving abilities. Here the ability-polymorphic function is instantiated with two different ability lists, `{}` and `{IO}`:
 
 ``` unison
@@ -22,6 +42,19 @@ f : (forall a g . '{g} a -> '{g} a) -> () -> ()
 f id _ =
   _ = (id ('1 : '{} Nat), id ('("hi") : '{IO} Text))
   ()
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
 ```
 
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
@@ -37,6 +70,22 @@ Functor.blah = cases Functor f ->
   g : forall a b . (a -> b) -> f a -> f b
   g = f
   ()
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      type Functor f
+      Functor.blah : Functor f -> ()
+      Functor.map  : Functor f
+                     -> (∀ a b. (a -> b) -> f a -> f b)
 ```
 
 This example is similar, but involves abilities:
@@ -67,6 +116,27 @@ Loc.transform2 nt = cases Loc f ->
   Loc f'
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      type Loc
+      ability Remote t
+      Loc.blah       : Loc -> ()
+      Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                       -> Loc
+                       -> Loc
+      Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                       -> Loc
+                       -> Loc
+```
+
 ## Types with polymorphic fields
 
 ``` unison :hide
@@ -77,5 +147,11 @@ We should be able to add and view records with higher-rank fields.
 
 ``` ucm
 scratch/main> add
+
+  ⍟ I've added these definitions:
+
+    structural type HigherRanked
 scratch/main> view HigherRanked
+
+  structural type HigherRanked = HigherRanked (∀ a. a -> a)
 ```

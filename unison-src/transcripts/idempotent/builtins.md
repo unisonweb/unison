@@ -167,6 +167,7 @@ scratch/main> add
 ```
 
 ## `Boolean` functions
+
 ``` unison :hide
 test> Boolean.tests.orTable =
       checks [
@@ -375,6 +376,7 @@ scratch/main> add
 ```
 
 Other list functions
+
 ``` unison :hide
 test> checks [
         List.take bigN [1,2,3] == [1,2,3],
@@ -389,6 +391,35 @@ test> checks [
 
 test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      Any.test1 : [Result]
+      Any.test2 : [Result]
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > [Any "hi", Any (41 + 1)]
+          ⧩
+          [Any "hi", Any 42]
+
+    3 | test> Any.test1 = checks [(Any "hi" == Any "hi")]
+    
+    ✅ Passed Passed
+
+    4 | test> Any.test2 = checks [(not (Any "hi" == Any 42))]
+    
+    ✅ Passed Passed
 ```
 
 ``` ucm :hide
@@ -418,6 +449,46 @@ test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      Sandbox.test1          : [Result]
+      Sandbox.test2          : [Result]
+      Sandbox.test3          : [Result]
+      openFile1              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFile2              : Text
+                               -> FileMode
+                               ->{IO, Exception} Handle
+      openFiles              : [Boolean]
+      validateSandboxedSimpl : [Link.Term]
+                               -> Value
+                               ->{IO} Boolean
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+    
+    ✅ Passed Passed
+
+    16 | test> Sandbox.test2 = checks openFiles
+    
+    ✅ Passed Passed
+
+    17 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+    
+    ✅ Passed Passed
+```
+
 ``` ucm :hide
 scratch/main> add
 ```
@@ -435,9 +506,34 @@ openFilesIO = do
     ]
 ```
 
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      openFilesIO : '{IO} [Result]
+```
+
 ``` ucm
 scratch/main> add
+
+  ⍟ I've added these definitions:
+
+    openFilesIO : '{IO} [Result]
 scratch/main> io.test openFilesIO
+
+    New test results:
+
+    1. openFilesIO   ◉ Passed
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ## Universal hash functions
@@ -447,6 +543,30 @@ Just exercises the function
 ``` unison
 > Universal.murmurHash 1
 test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      Universal.murmurHash.tests : [Result]
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    1 | > Universal.murmurHash 1
+          ⧩
+          1208954131003843843
+
+    2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
+    
+    ✅ Passed Passed
 ```
 
 ``` ucm :hide
@@ -459,4 +579,38 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
 ``` ucm
 scratch/main> test
+
+  Cached test results (`help testcache` to learn more)
+
+    1.  Any.test1                           ◉ Passed
+    2.  Any.test2                           ◉ Passed
+    3.  Boolean.tests.andTable              ◉ Passed
+    4.  Boolean.tests.notTable              ◉ Passed
+    5.  Boolean.tests.orTable               ◉ Passed
+    6.  Bytes.tests.at                      ◉ Passed
+    7.  Bytes.tests.compression             ◉ Passed
+    8.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    9.  Bytes.tests.indexOf                 ◉ Passed
+    10. Int.tests.arithmetic                ◉ Passed
+    11. Int.tests.bitTwiddling              ◉ Passed
+    12. Int.tests.conversions               ◉ Passed
+    13. Nat.tests.arithmetic                ◉ Passed
+    14. Nat.tests.bitTwiddling              ◉ Passed
+    15. Nat.tests.conversions               ◉ Passed
+    16. Sandbox.test1                       ◉ Passed
+    17. Sandbox.test2                       ◉ Passed
+    18. Sandbox.test3                       ◉ Passed
+    19. test.rtjqan7bcs                     ◉ Passed
+    20. Text.tests.alignment                ◉ Passed
+    21. Text.tests.indexOf                  ◉ Passed
+    22. Text.tests.indexOfEmoji             ◉ Passed
+    23. Text.tests.literalsEq               ◉ Passed
+    24. Text.tests.patterns                 ◉ Passed
+    25. Text.tests.repeat                   ◉ Passed
+    26. Text.tests.takeDropAppend           ◉ Passed
+    27. Universal.murmurHash.tests          ◉ Passed
+
+  ✅ 27 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

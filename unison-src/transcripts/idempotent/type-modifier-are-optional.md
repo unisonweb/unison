@@ -15,3 +15,22 @@ ability MyAbility where const : a
 unique ability MyAbilityU where const : a
 structural ability MyAbilityS where const : a
 ```
+
+``` ucm :added-by-ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      type Abc
+      type Def
+      structural type Ghi
+        (also named builtin.Unit)
+      ability MyAbility
+      structural ability MyAbilityS
+      ability MyAbilityU
+```
