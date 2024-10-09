@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 unique type A = A Text
 
 foo : A
@@ -40,7 +40,7 @@ scratch/main> find : A
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> find : Text
 
   ☝️

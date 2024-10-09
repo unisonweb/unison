@@ -6,7 +6,7 @@ Some basic errors of literals.
 
 ### Floating point literals
 
-``` unison
+``` unison :error
 x = 1. -- missing some digits after the decimal
 ```
 
@@ -22,7 +22,7 @@ x = 1. -- missing some digits after the decimal
 
 ```
 
-``` unison
+``` unison :error
 x = 1e -- missing an exponent
 ```
 
@@ -38,7 +38,7 @@ x = 1e -- missing an exponent
 
 ```
 
-``` unison
+``` unison :error
 x = 1e- -- missing an exponent
 ```
 
@@ -54,7 +54,7 @@ x = 1e- -- missing an exponent
 
 ```
 
-``` unison
+``` unison :error
 x = 1E+ -- missing an exponent
 ```
 
@@ -72,7 +72,7 @@ x = 1E+ -- missing an exponent
 
 ### Hex, octal, binary, and bytes literals
 
-``` unison
+``` unison :error
 x = 0xoogabooga -- invalid hex chars
 ```
 
@@ -88,7 +88,7 @@ x = 0xoogabooga -- invalid hex chars
 
 ```
 
-``` unison
+``` unison :error
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
@@ -104,7 +104,7 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 
 ```
 
-``` unison
+``` unison :error
 x = 0b3201 -- 3 and 2 are not valid binary chars
 ```
 
@@ -120,7 +120,7 @@ x = 0b3201 -- 3 and 2 are not valid binary chars
 
 ```
 
-``` unison
+``` unison :error
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
@@ -136,7 +136,7 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 
 ```
 
-``` unison
+``` unison :error
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
@@ -154,7 +154,7 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 
 ### Layout errors
 
-``` unison
+``` unison :error
 foo = else -- not matching if
 ```
 
@@ -168,7 +168,7 @@ foo = else -- not matching if
 
 ```
 
-``` unison
+``` unison :error
 foo = then -- unclosed
 ```
 
@@ -182,7 +182,7 @@ foo = then -- unclosed
 
 ```
 
-``` unison
+``` unison :error
 foo = with -- unclosed
 ```
 
@@ -198,7 +198,7 @@ foo = with -- unclosed
 
 ### Matching
 
-``` unison
+``` unison :error
 -- No cases
 foo = match 1 with
 ```
@@ -215,7 +215,7 @@ foo = match 1 with
 
 ```
 
-``` unison
+``` unison :error
 foo = match 1 with
   2 -- no right-hand-side
 ```
@@ -236,7 +236,7 @@ foo = match 1 with
 
 ```
 
-``` unison
+``` unison :error
 -- Mismatched arities
 foo = cases
   1, 2 -> ()
@@ -257,7 +257,7 @@ foo = cases
 
 ```
 
-``` unison
+``` unison :error
 -- Missing a '->'
 x = match Some a with
       None ->
@@ -285,7 +285,7 @@ x = match Some a with
 
 ```
 
-``` unison
+``` unison :error
 -- Missing patterns
 x = match Some a with
       None -> 1
@@ -309,7 +309,7 @@ x = match Some a with
 
 ```
 
-``` unison
+``` unison :error
 -- Guards following an unguarded case
 x = match Some a with
       None     -> 1
@@ -334,7 +334,7 @@ x = match Some a with
 
 ### Watches
 
-``` unison
+``` unison :error
 -- Empty watch
 >
 ```
@@ -351,7 +351,7 @@ x = match Some a with
 
 ### Keywords
 
-``` unison
+``` unison :error
 use.keyword.in.namespace = 1
 ```
 
@@ -367,7 +367,7 @@ use.keyword.in.namespace = 1
 
 ```
 
-``` unison
+``` unison :error
 -- reserved operator
 a ! b = 1
 ```

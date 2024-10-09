@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 x = 30
 
 y : Nat

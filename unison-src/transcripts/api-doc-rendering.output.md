@@ -1,6 +1,6 @@
 # Doc rendering
 
-``` unison
+``` unison :hide
 structural type Maybe a = Nothing | Just a
 otherTerm = "text"
 

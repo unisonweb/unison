@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 
 {{ Type doc }}
 structural type Optional a =

@@ -59,7 +59,7 @@ We expect the output to:
 1.  Print all ambiguous usage sites separately
 2.  Print possible disambiguation suggestions for each unique ambiguity
 
-``` unison
+``` unison :error
 -- We intentionally avoid using a constructor to ensure the constructor doesn't
 -- affect type resolution.
 useAmbiguousType : AmbiguousType -> ()
@@ -104,7 +104,7 @@ separateAmbiguousTypeUsage _ = ()
 Currently, ambiguous terms are caught and handled by type directed name resolution,
 but expect it to eventually be handled by the above machinery.
 
-``` unison
+``` unison :error
 useAmbiguousTerm = ambiguousTerm
 ```
 

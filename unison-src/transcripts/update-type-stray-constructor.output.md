@@ -50,7 +50,7 @@ unique type Foo = Bar Nat Nat
 
 Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`) doesn't really exist, it's just showing up due to a pretty-printer bug.
 
-``` ucm
+``` ucm :error
 scratch/main> view Foo
 
   type Foo = Stray.Bar Nat

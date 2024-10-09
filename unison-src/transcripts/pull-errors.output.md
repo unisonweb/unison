@@ -1,4 +1,4 @@
-``` ucm
+``` ucm :error
 test/main> pull @aryairani/test-almost-empty/main lib.base_latest
 
   The use of `pull` to install libraries is now deprecated.

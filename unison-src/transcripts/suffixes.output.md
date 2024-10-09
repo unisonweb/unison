@@ -2,7 +2,7 @@
 
 Any unique name suffix can be used to refer to a definition. For instance:
 
-``` unison
+``` unison :hide
 -- No imports needed even though FQN is `builtin.{Int,Nat}`
 foo.bar.a : Int
 foo.bar.a = +99
@@ -99,7 +99,7 @@ scratch/main> add
 
 ```
 
-``` unison
+``` unison :error
 > abra.cadabra
 ```
 

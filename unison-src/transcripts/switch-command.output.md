@@ -61,7 +61,7 @@ foo/main> switch bar/
 
 It's an error to try to switch to something ambiguous.
 
-``` ucm
+``` ucm :error
 foo/main> switch bar
 
   I'm not sure if you wanted to switch to the branch foo/bar or
@@ -76,14 +76,14 @@ foo/main> switch bar
 
 It's an error to try to switch to something that doesn't exist, of course.
 
-``` ucm
+``` ucm :error
 scratch/main> switch foo/no-such-branch
 
   foo/no-such-branch does not exist.
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> switch no-such-project
 
   Neither project no-such-project nor branch /no-such-project
@@ -91,7 +91,7 @@ scratch/main> switch no-such-project
 
 ```
 
-``` ucm
+``` ucm :error
 foo/main> switch no-such-project-or-branch
 
   Neither project no-such-project-or-branch nor branch

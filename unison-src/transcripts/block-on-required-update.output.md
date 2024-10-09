@@ -55,7 +55,7 @@ y = x + 1
 
 Try to add only the new `y`. This should fail because it requires an update to `x`, but we only ran an 'add'.
 
-``` ucm
+``` ucm :error
 scratch/main> add y
 
   x These definitions failed:

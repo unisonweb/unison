@@ -6,7 +6,7 @@ not the ability `Patterns`; the lexer should see this as a single identifier.
 
 See https://github.com/unisonweb/unison/issues/2642 for an example.
 
-``` unison
+``` unison :hide
 abilityPatterns : ()
 abilityPatterns = ()
 

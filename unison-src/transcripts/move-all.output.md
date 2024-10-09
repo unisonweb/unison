@@ -200,7 +200,7 @@ a/main> view zonk.zonk
 
 ## Sad Path - No term, type, or namespace named src
 
-``` ucm
+``` ucm :error
 scratch/main> move doesntexist foo
 
   ⚠️

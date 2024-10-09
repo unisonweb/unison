@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 foo = 1
 lib.foo = 2
 lib.bar = 3
@@ -83,7 +83,7 @@ scratch/main> find-in somewhere bar
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> find baz
 
   ☝️

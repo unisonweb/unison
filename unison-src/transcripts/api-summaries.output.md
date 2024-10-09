@@ -1,6 +1,6 @@
 # Definition Summary APIs
 
-``` unison
+``` unison :hide
 nat : Nat
 nat = 42
 doc : Doc2

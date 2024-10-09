@@ -46,7 +46,7 @@ unique type Foo = Bar Nat Nat
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> update
 
   Sorry, I wasn't able to perform the update, because I need all

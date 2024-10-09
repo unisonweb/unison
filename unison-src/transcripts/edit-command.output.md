@@ -5,16 +5,12 @@ scratch/main> builtins.merge
 
 ```
 
-``` unison
----
-title: /private/tmp/scratch.u
----
+``` unison  /private/tmp/scratch.u
 foo = 123
 
 bar = 456
 
 mytest = [Ok "ok"]
-
 ```
 
 ``` ucm
@@ -73,7 +69,7 @@ foo = 123
 test> mytest = [Ok "ok"]
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> edit missing
 
   ⚠️

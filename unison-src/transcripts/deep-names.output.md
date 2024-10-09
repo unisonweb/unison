@@ -2,7 +2,7 @@ First we'll set up two libraries, and then we'll use them in some projects and s
 
 Our two "libraries":
 
-``` unison
+``` unison :hide
 text.a = 1
 text.b = 2
 text.c = 3

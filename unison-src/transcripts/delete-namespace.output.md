@@ -1,6 +1,6 @@
 # delete.namespace.force
 
-``` unison
+``` unison :hide
 no_dependencies.thing = "no dependents on this term"
 
 dependencies.term1 = 1
@@ -21,7 +21,7 @@ scratch/main> delete.namespace no_dependencies
 
 Deleting a namespace with external dependencies should fail and list all dependents.
 
-``` ucm
+``` ucm :error
 scratch/main> delete.namespace dependencies
 
   ⚠️

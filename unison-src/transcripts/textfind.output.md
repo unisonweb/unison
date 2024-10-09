@@ -194,7 +194,7 @@ scratch/main> view 1
 
 Now some failed searches:
 
-``` ucm
+``` ucm :error
 scratch/main> grep lsdkfjlskdjfsd
 
   😶 I couldn't find any matches.
@@ -205,7 +205,7 @@ scratch/main> grep lsdkfjlskdjfsd
 
 Notice it gives the tip about `text.find.all`. But not here:
 
-``` ucm
+``` ucm :error
 scratch/main> grep.all lsdkfjlskdjfsd
 
   😶 I couldn't find any matches.

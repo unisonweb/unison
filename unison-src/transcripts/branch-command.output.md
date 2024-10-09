@@ -2,7 +2,7 @@ The `branch` command creates a new branch.
 
 First, we'll create a term to include in the branches.
 
-``` unison
+``` unison :hide
 someterm = 18
 ```
 
@@ -168,7 +168,7 @@ foo/main> switch /releases/drafts/1.2.3
 
 The `branch` command can't create branches named `releases/*` nor `releases/drafts/*`.
 
-``` ucm
+``` ucm :error
 foo/main> branch releases/1.2.3
 
   Branch names like releases/1.2.3 are reserved for releases.

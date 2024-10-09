@@ -14,7 +14,7 @@ project/main> ls
 
 It won't create a conflicted name, though.
 
-``` ucm
+``` ucm :error
 project/main> alias.type lib.builtins.Int Foo
 
   ⚠️

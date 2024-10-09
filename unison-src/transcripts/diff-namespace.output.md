@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 x = 23
 fslkdjflskdjflksjdf = 663
 ```
@@ -13,7 +13,7 @@ scratch/b1> add
 
 ```
 
-``` unison
+``` unison :hide
 x = 23
 fslkdjflskdjflksjdf = 23
 abc = 23
@@ -64,7 +64,7 @@ Things we want to test:
   - New patches, modified patches, deleted patches, moved patches
   - With and without propagated updates
 
-``` unison
+``` unison :hide
 fromJust = 1
 b = 2
 bdependent = b
@@ -107,7 +107,7 @@ scratch/ns1> branch /ns2
 
 Here's what we've done so far:
 
-``` ucm
+``` ucm :error
 scratch/main> diff.namespace .nothing /ns1:
 
   ⚠️
@@ -116,14 +116,14 @@ scratch/main> diff.namespace .nothing /ns1:
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> diff.namespace /ns1: /ns2:
 
   The namespaces are identical.
 
 ```
 
-``` unison
+``` unison :hide
 junk = "asldkfjasldkfj"
 ```
 
@@ -144,7 +144,7 @@ scratch/ns1> delete.term junk
 
 ```
 
-``` unison
+``` unison :hide
 fromJust = 99
 b = 999999999
 d = 4
@@ -308,7 +308,7 @@ scratch/main> diff.namespace /ns3: /ns2:
 
 ```
 
-``` unison
+``` unison :hide
 bdependent = "banana"
 ```
 
@@ -341,7 +341,7 @@ scratch/main> diff.namespace /ns2: /ns3:
 Currently, the auto-propagated name-conflicted definitions are not explicitly
 shown, only their also-conflicted dependency is shown.
 
-``` unison
+``` unison :hide
 a = 333
 b = a + 1
 
@@ -373,7 +373,7 @@ scratch/nsx> branch /nsz
 
 ```
 
-``` unison
+``` unison :hide
 a = 444
 ```
 
@@ -391,7 +391,7 @@ scratch/nsy> update
 
 ```
 
-``` unison
+``` unison :hide
 a = 555
 ```
 

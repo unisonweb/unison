@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 serverSocket = compose2 reraise IO.serverSocket.impl
 socketPort = compose reraise socketPort.impl
 listen = compose reraise listen.impl

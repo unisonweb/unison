@@ -2,7 +2,7 @@ We were seeing an issue where (it seemed) that every namespace that was visited 
 
 Example:
 
-``` unison
+``` unison :hide
 a = "a term"
 X.foo = "a namespace"
 ```
@@ -19,7 +19,7 @@ scratch/main> add
 
 Here is an update which should not affect `X`:
 
-``` unison
+``` unison :hide
 a = "an update"
 ```
 
@@ -49,7 +49,7 @@ scratch/main> history X
 
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 
-``` ucm
+``` ucm :error
 scratch/main> history #7nl6ppokhg
 
   😶

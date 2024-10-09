@@ -57,7 +57,7 @@ x = 3
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> update
 
   This branch has more than one term with the name `x`. Please

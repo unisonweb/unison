@@ -42,7 +42,7 @@ myproject/main> add
 
 ```
 
-``` ucm
+``` ucm :error
 myproject/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've

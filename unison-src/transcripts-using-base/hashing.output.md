@@ -181,7 +181,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 
 Here are some test vectors (taken from [here](https://www.di-mgt.com.au/sha_testvectors.html) and [here](https://en.wikipedia.org/wiki/BLAKE_\(hash_function\))) for the various hashing algorithms:
 
-``` unison
+``` unison :hide
 ex alg input expected = checks [hashBytes alg (ascii input) == fromHex expected]
 
 test> sha3_512.tests.ex1 =

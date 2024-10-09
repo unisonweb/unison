@@ -1,6 +1,6 @@
 # Tests for TLS builtins
 
-``` unison
+``` unison :hide
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
 

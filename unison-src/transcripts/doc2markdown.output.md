@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 

@@ -2,7 +2,7 @@
 
 `todo` and `bug` have type `a -> b`. They take a message or a value of type `a` and crash during runtime displaying `a` in ucm.
 
-``` unison
+``` unison :error
 > todo "implement me later"
 ```
 
@@ -29,7 +29,7 @@
 
 ```
 
-``` unison
+``` unison :error
 > bug "there's a bug in my code"
 ```
 

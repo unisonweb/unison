@@ -7,7 +7,7 @@ scratch/main> builtins.merge lib.builtins
 
 ```
 
-``` unison
+``` unison :hide
 const a b = a
 external.mynat = 1
 mynamespace.dependsOnText = const external.mynat 10

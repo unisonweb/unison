@@ -2,7 +2,7 @@
 
 If an argument is required but doesn't have a fuzzy resolver, the command should just print the help.
 
-``` ucm
+``` ucm :error
 -- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
 scratch/main> move.term
 
@@ -12,7 +12,7 @@ scratch/main> move.term
 If a fuzzy resolver doesn't have any options available it should print a message instead of
 opening an empty fuzzy-select.
 
-``` ucm
+``` ucm :error
 scratch/empty> view
 
 ⚠️
@@ -20,7 +20,7 @@ scratch/empty> view
 Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
 ```
 
-``` unison
+``` unison :hide
 optionOne = 1
 
 nested.optionTwo = 2

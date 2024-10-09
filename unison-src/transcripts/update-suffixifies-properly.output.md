@@ -57,7 +57,7 @@ foo = +30
 
 ```
 
-``` ucm
+``` ucm :error
 myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be

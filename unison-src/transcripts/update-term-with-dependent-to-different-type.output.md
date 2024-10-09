@@ -56,7 +56,7 @@ foo = +5
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

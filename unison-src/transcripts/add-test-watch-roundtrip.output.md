@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 test> foo : [Test.Result]
 foo = []
 ```

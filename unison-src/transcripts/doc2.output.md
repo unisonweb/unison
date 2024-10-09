@@ -1,6 +1,6 @@
 # Test parsing and round-trip of doc2 syntax elements
 
-``` unison
+``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 

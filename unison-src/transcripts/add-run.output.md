@@ -30,7 +30,7 @@ is2even = '(even 2)
 
 it errors if there isn't a previous run
 
-``` ucm
+``` ucm :error
 scratch/main> add.run foo
 
   ⚠️
@@ -50,7 +50,7 @@ scratch/main> run is2even
 it errors if the desired result name conflicts with a name in the
 unison file
 
-``` ucm
+``` ucm :error
 scratch/main> add.run is2even
 
   ⚠️
@@ -268,7 +268,7 @@ main = '5
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> run main
 
   5

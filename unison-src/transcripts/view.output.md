@@ -1,6 +1,6 @@
 # View commands
 
-``` unison
+``` unison :hide
 a.thing = "a"
 b.thing = "b"
 ```

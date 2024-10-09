@@ -431,7 +431,7 @@ scratch/main> io.test testSystemTime
 
 ### Get temp directory
 
-``` unison
+``` unison :hide
 testGetTempDirectory : '{io2.IO} [Result]
 testGetTempDirectory _ =
   test = 'let
@@ -463,7 +463,7 @@ scratch/main> io.test testGetTempDirectory
 
 ### Get current directory
 
-``` unison
+``` unison :hide
 testGetCurrentDirectory : '{io2.IO} [Result]
 testGetCurrentDirectory _ =
   test = 'let
@@ -495,7 +495,7 @@ scratch/main> io.test testGetCurrentDirectory
 
 ### Get directory contents
 
-``` unison
+``` unison :hide
 testDirContents : '{io2.IO} [Result]
 testDirContents _ =
   test = 'let
@@ -529,7 +529,7 @@ scratch/main> io.test testDirContents
 
 ### Read environment variables
 
-``` unison
+``` unison :hide
 testGetEnv : '{io2.IO} [Result]
 testGetEnv _ =
   test = 'let
@@ -566,7 +566,7 @@ scratch/main> io.test testGetEnv
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
 unless they called with the right number of arguments.
 
-``` unison
+``` unison :hide
 testGetArgs.fail : Text -> Failure
 testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
 
@@ -623,7 +623,7 @@ scratch/main> run runMeWithTwoArgs foo bar
 
 Calling our examples with the wrong number of args will error.
 
-``` ucm
+``` ucm :error
 scratch/main> run runMeWithNoArgs foo
 
   💔💥
@@ -637,7 +637,7 @@ scratch/main> run runMeWithNoArgs foo
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> run runMeWithOneArg
 
   💔💥
@@ -651,7 +651,7 @@ scratch/main> run runMeWithOneArg
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> run runMeWithOneArg foo bar
 
   💔💥
@@ -666,7 +666,7 @@ scratch/main> run runMeWithOneArg foo bar
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> run runMeWithTwoArgs
 
   💔💥
@@ -682,7 +682,7 @@ scratch/main> run runMeWithTwoArgs
 
 ### Get the time zone
 
-``` unison
+``` unison :hide
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
   _ = (offset : Int, summer : Nat, name : Text)
@@ -704,7 +704,7 @@ scratch/main> run testTimeZone
 
 ### Get some random bytes
 
-``` unison
+``` unison :hide
 testRandom : '{io2.IO} [Result]
 testRandom = do
   test = do

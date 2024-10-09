@@ -1,19 +1,19 @@
 # Empty namespace behaviours
 
-``` unison
+``` unison :hide
 mynamespace.x = 1
 ```
 
 The deleted namespace shouldn't appear in `ls` output.
 
-``` ucm
+``` ucm :error
 scratch/main> ls
 
   nothing to show
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> find.verbose
 
   ☝️
@@ -31,7 +31,7 @@ scratch/main> find.verbose
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> find mynamespace
 
   ☝️
@@ -67,7 +67,7 @@ scratch/main> history mynamespace
 
 Add and then delete a term to add some history to a deleted namespace.
 
-``` unison
+``` unison :hide
 deleted.x = 1
 stuff.thing = 2
 ```
@@ -108,7 +108,7 @@ scratch/main> history deleted
 
 ## move.namespace
 
-``` unison
+``` unison :hide
 moveoverme.x = 1
 moveme.y = 2
 ```

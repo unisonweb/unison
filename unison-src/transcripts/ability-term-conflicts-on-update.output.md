@@ -68,7 +68,7 @@ thing _ = send 1
 
 These should fail with a term/ctor conflict since we exclude the ability from the update.
 
-``` ucm
+``` ucm :error
 scratch/main> update.old patch Channels.send
 
   x These definitions failed:
@@ -219,7 +219,7 @@ structural ability X where
 
 This should fail with a ctor/term conflict.
 
-``` ucm
+``` ucm :error
 scratch/main2> add
 
   x These definitions failed:

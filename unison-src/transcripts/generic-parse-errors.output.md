@@ -1,6 +1,6 @@
 Just a bunch of random parse errors to test the error formatting.
 
-``` unison
+``` unison :error
 x =
   foo.123
 ```
@@ -22,7 +22,7 @@ x =
 
 ```
 
-``` unison
+``` unison :error
 namespace.blah = 1
 ```
 
@@ -58,7 +58,7 @@ namespace.blah = 1
 
 ```
 
-``` unison
+``` unison :error
 x = 1 ]
 ```
 
@@ -72,7 +72,7 @@ x = 1 ]
 
 ```
 
-``` unison
+``` unison :error
 x = a.#abc
 ```
 
@@ -106,7 +106,7 @@ x = a.#abc
 
 ```
 
-``` unison
+``` unison :error
 x = "hi
 ```
 
@@ -126,7 +126,7 @@ x = "hi
 
 ```
 
-``` unison
+``` unison :error
 y : a
 ```
 

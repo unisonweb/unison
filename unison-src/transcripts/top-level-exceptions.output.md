@@ -90,7 +90,7 @@ unique type RuntimeError =
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> run main2
 
   💔💥

@@ -4,7 +4,7 @@ This transcript shows how the pretty-printer picks names for a hash when multipl
 2.  Shorter names (in terms of segment count) come before longer ones, for instance `base.List.map` comes before `somelibrary.external.base.List.map`.
 3.  Otherwise if there are multiple names with a minimal number of segments, compare the names alphabetically.
 
-``` unison
+``` unison :hide
 a.a = a.b + 1
 a.b = 0 + 1
 a.aaa.but.more.segments = 0 + 1
@@ -32,7 +32,7 @@ scratch/main> view a.a
 
 Next let's introduce a conflicting symbol and show that its hash qualified name isn't used when it has an unconflicted name:
 
-``` unison
+``` unison :hide
 a2.a = a2.b + 1
 a2.b = 0 + 1
 a2.aaa.but.more.segments = 0 + 1

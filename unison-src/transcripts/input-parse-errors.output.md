@@ -1,12 +1,12 @@
 # demonstrating our new input parsing errors
 
-``` unison
+``` unison :hide
 x = 55
 ```
 
 `handleNameArg` parse error in `add`
 
-``` ucm
+``` ucm :error
 scratch/main> add .
 
 ⚠️
@@ -61,7 +61,7 @@ todo:
 
 aliasMany: skipped -- similar to `add`
 
-``` ucm
+``` ucm :error
 scratch/main> update arg
 
 ⚠️

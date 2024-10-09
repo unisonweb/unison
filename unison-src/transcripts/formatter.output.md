@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 {{ # Doc
 This is a *doc*!
 
@@ -168,7 +168,7 @@ multilineBold =
 
 Formatter should leave things alone if the file doesn't typecheck.
 
-``` unison
+``` unison :error
 brokenDoc = {{ hello }} + 1
 ```
 

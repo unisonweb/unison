@@ -4,7 +4,7 @@ I can use `debug.file` to see the hashes of the last typechecked file.
 
 Given this .u file:
 
-``` unison
+``` unison :hide
 structural type outside.A = A Nat outside.B
 structural type outside.B = B Int
 outside.c = 3

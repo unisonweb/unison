@@ -2,7 +2,7 @@ Ensure that Records keep their syntax after being added to the codebase
 
 ## Record with 1 field
 
-``` unison
+``` unison :hide
 unique type Record1 = { a : Text }
 ```
 
@@ -15,7 +15,7 @@ scratch/main> view Record1
 
 ## Record with 2 fields
 
-``` unison
+``` unison :hide
 unique type Record2 = { a : Text, b : Int }
 ```
 
@@ -28,7 +28,7 @@ scratch/main> view Record2
 
 ## Record with 3 fields
 
-``` unison
+``` unison :hide
 unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
@@ -41,7 +41,7 @@ scratch/main> view Record3
 
 ## Record with many fields
 
-``` unison
+``` unison :hide
 unique type Record4 =
   { a : Text
   , b : Int
@@ -69,7 +69,7 @@ scratch/main> view Record4
 
 ## Record with many many fields
 
-``` unison
+``` unison :hide
 unique type Record5 = {
   zero : Nat,
   one : [Nat],
@@ -127,7 +127,7 @@ scratch/main> view Record5
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
 
-``` unison
+``` unison :hide
 unique type UserType = UserType Nat
 
 unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }

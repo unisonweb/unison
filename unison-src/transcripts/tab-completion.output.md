@@ -91,7 +91,7 @@ scratch/main> debug.tab-complete view subnamespace.someOther
 
 ```
 
-``` unison
+``` unison :hide
 absolute.term = "absolute"
 ```
 

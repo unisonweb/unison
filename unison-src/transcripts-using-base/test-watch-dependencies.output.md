@@ -4,7 +4,7 @@ https://github.com/unisonweb/unison/issues/2195
 
 We add a simple definition.
 
-``` unison
+``` unison :hide
 x = 999
 ```
 
@@ -42,7 +42,7 @@ test> mytest = checks [x + 1 == 1001]
 
 We expect this 'add' to fail because the test is blocked by the update to `x`.
 
-``` ucm
+``` ucm :error
 scratch/main> add
 
   x These definitions failed:

@@ -1,4 +1,4 @@
-``` unison
+``` unison :hide
 foldMap = "top-level"
 nested.deeply.foldMap = "nested"
 lib.base.foldMap = "lib"

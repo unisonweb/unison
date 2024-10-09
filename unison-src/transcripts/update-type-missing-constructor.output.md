@@ -48,7 +48,7 @@ unique type Foo = Bar Nat Nat
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> view Foo
 
   type Foo = #b509v3eg4k#0 Nat

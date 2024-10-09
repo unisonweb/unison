@@ -49,7 +49,7 @@ unique type Foo = Bar Nat Nat
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> update
 
   The type A.B is an alias of A. I'm not able to perform an

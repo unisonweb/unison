@@ -2,7 +2,7 @@
 
 conflicting constraints on the kind of `a` in a product
 
-``` unison
+``` unison :error
 unique type T a = T a (a Nat)
 ```
 
@@ -18,7 +18,7 @@ unique type T a = T a (a Nat)
 
 conflicting constraints on the kind of `a` in a sum
 
-``` unison
+``` unison :error
 unique type T a
   = Star a
   | StarStar (a Nat)
@@ -61,7 +61,7 @@ unique type Pong = Pong (Ping Optional)
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
 `a` to `*`, whereas `Pong` restricts `a` to `* -> *`.
 
-``` unison
+``` unison :error
 unique type Ping a = Ping a Pong
 unique type Pong = Pong (Ping Optional)
 ```
@@ -101,7 +101,7 @@ unique ability Pong a where
 
 Catch conflict between mutually recursive type and ability
 
-``` unison
+``` unison :error
 unique type Ping a = Ping (a -> {Pong Nat} ())
 unique ability Pong a where
   pong : Ping Optional -> ()
@@ -166,7 +166,7 @@ unique type S = S (T Optional)
 
 Catch invalid instantiation of `T`'s `a` parameter in `S`
 
-``` unison
+``` unison :error
 unique type T a = T a
 
 unique type S = S (T Optional)
@@ -187,7 +187,7 @@ unique type S = S (T Optional)
 
 Catch kind error in type annotation
 
-``` unison
+``` unison :error
 test : Nat Nat
 test = 0
 ```
@@ -205,7 +205,7 @@ test = 0
 
 Catch kind error in annotation example 2
 
-``` unison
+``` unison :error
 test : Optional -> ()
 test _ = ()
 ```
@@ -223,7 +223,7 @@ test _ = ()
 
 Catch kind error in annotation example 3
 
-``` unison
+``` unison :error
 unique type T a = T (a Nat)
 
 test : T Nat -> ()
@@ -243,7 +243,7 @@ test _ = ()
 
 Catch kind error in scoped type variable annotation
 
-``` unison
+``` unison :error
 unique type StarStar a = StarStar (a Nat)
 unique type Star a = Star a
 
@@ -269,7 +269,7 @@ test _ =
 
 Effects appearing where types are expected
 
-``` unison
+``` unison :error
 unique ability Foo where
   foo : ()
 
@@ -290,7 +290,7 @@ test _ = ()
 
 Types appearing where effects are expected
 
-``` unison
+``` unison :error
 test : {Nat} ()
 test _ = ()
 ```
@@ -309,7 +309,7 @@ test _ = ()
 
 ## Cyclic kinds
 
-``` unison
+``` unison :error
 unique type T a = T (a a)
 ```
 
@@ -325,7 +325,7 @@ unique type T a = T (a a)
 
 ```
 
-``` unison
+``` unison :error
 unique type T a b = T (a b) (b a)
 ```
 
@@ -341,7 +341,7 @@ unique type T a b = T (a b) (b a)
 
 ```
 
-``` unison
+``` unison :error
 unique type Ping a = Ping (a Pong)
 unique type Pong a = Pong (a Ping)
 ```

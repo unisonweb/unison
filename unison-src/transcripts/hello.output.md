@@ -21,12 +21,8 @@ Take a look at [the elaborated output](hello.output.md) to see what this file lo
 
 In the `unison` fenced block, you can give an (optional) file name (defaults to `scratch.u`), like so:
 
-``` unison
----
-title: myfile.u
----
+``` unison  myfile.u
 x = 42
-
 ```
 
 ``` ucm
@@ -64,7 +60,7 @@ If `view` returned no results, the transcript would fail at this point.
 
 You may not always want to view the output of typechecking and evaluation every time, in which case, you can add `:hide` to the block. For instance:
 
-``` unison
+``` unison :hide
 y = 99
 ```
 
@@ -76,7 +72,7 @@ Doing `unison :hide:all` hides the block altogether, both input and output - thi
 
 Sometimes, you have a block which you are *expecting* to fail, perhaps because you're illustrating how something would be a type error. Adding `:error` to the block will check for this. For instance, this program has a type error:
 
-``` unison
+``` unison :error
 hmm : .builtin.Nat
 hmm = "Not, in fact, a number"
 ```

@@ -4,7 +4,7 @@
 
 I should be able to move the root into a sub-namespace
 
-``` unison
+``` unison :hide
 foo = 1
 ```
 
@@ -88,7 +88,7 @@ scratch/main> history
 
 ```
 
-``` ucm
+``` ucm :error
 -- should be empty
 scratch/main> ls .root.at.path
 

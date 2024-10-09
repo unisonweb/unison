@@ -2,7 +2,7 @@
 
 Here's a scratch file with some rewrite rules:
 
-``` unison
+``` unison :hide
 ex1 = List.map (x -> x + 1) [1,2,3,4,5,6,7]
 
 eitherToOptional e a =
@@ -138,7 +138,7 @@ scratch/main> view ex1 Either.mapRight rule1
 
 Another example, showing that we can rewrite to definitions that only exist in the file:
 
-``` unison
+``` unison :hide
 unique ability Woot1 where woot1 : () -> Nat
 unique ability Woot2 where woot2 : () -> Nat
 
@@ -207,7 +207,7 @@ scratch/main> view wootEx
 
 This example shows that rewrite rules can to refer to term definitions that only exist in the file:
 
-``` unison
+``` unison :hide
 foo1 =
   b = "b"
   123
@@ -250,7 +250,7 @@ scratch/main> view foo1 foo2 sameFileEx
 
 ## Capture avoidance
 
-``` unison
+``` unison :hide
 bar1 =
   b = "bar"
   123
@@ -305,7 +305,7 @@ sameFileEx =
 
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
-``` ucm
+``` ucm :error
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -327,7 +327,7 @@ scratch/main> load
 
 In this example, the `a` is locally bound by the rule, so it shouldn't capture the `a = 39494` binding which is in scope at the point of the replacement:
 
-``` unison
+``` unison :hide
 bar2 =
   a = 39494
   233
@@ -364,7 +364,7 @@ rule a =
 
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
-``` ucm
+``` ucm :error
 scratch/main> load
 
   Loading changes detected in scratch.u.
@@ -386,11 +386,11 @@ scratch/main> load
 
 ## Structural find
 
-``` unison
+``` unison :hide
 eitherEx = Left ("hello", "there")
 ```
 
-``` unison
+``` unison :hide
 findEitherEx x = @rewrite term Left ("hello", x) ==> Left ("hello" Text.++ x)
 findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```

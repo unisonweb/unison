@@ -28,15 +28,11 @@ scratch/main> add
 
 ```
 
-``` unison
----
-title: :scratch.u
----
+``` unison :hide:error :scratch.u
 z
-
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> delete foo
 
   ⚠️
@@ -46,7 +42,7 @@ scratch/main> delete foo
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> delete lineToken.call
 
   ⚠️

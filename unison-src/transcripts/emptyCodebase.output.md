@@ -6,7 +6,7 @@ Not even `Nat` or `+`\!
 
 BEHOLD\!\!\!
 
-``` ucm
+``` ucm :error
 scratch/main> ls
 
   nothing to show

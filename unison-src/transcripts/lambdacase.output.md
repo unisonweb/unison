@@ -61,7 +61,7 @@ it shows the definition using `cases` syntax opportunistically, even though the 
 
 Functions that take multiple arguments and immediately match on a tuple of arguments can also be rewritten to use `cases`. Here's a version using regular `match` syntax on a tuple:
 
-``` unison
+``` unison :hide
 merge : [a] -> [a] -> [a]
 merge xs ys = match (xs, ys) with
   ([], ys) -> ys

@@ -2,7 +2,7 @@
 
 ## non-exhaustive patterns
 
-``` unison
+``` unison :error
 unique type T = A | B | C
 
 test : T -> ()
@@ -25,7 +25,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 unique type T = A | B
 
 test : (T, Optional T) -> ()
@@ -54,7 +54,7 @@ test = cases
 
 ## redundant patterns
 
-``` unison
+``` unison :error
 unique type T = A | B | C
 
 test : T -> ()
@@ -74,7 +74,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 unique type T = A | B
 
 test : (T, Optional T) -> ()
@@ -124,7 +124,7 @@ test = cases
 
 uninhabited patterns are reported as redundant
 
-``` unison
+``` unison :error
 unique type V =
 
 test0 : V -> ()
@@ -141,7 +141,7 @@ test0 = cases
 
 ```
 
-``` unison
+``` unison :error
 unique type V =
 
 test : Optional (Optional V) -> ()
@@ -164,7 +164,7 @@ test = cases
 
 ## Incomplete patterns due to guards should be reported
 
-``` unison
+``` unison :error
 test : () -> ()
 test = cases
   () | false -> ()
@@ -183,7 +183,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 test : Optional Nat -> Nat
 test = cases
   None -> 0
@@ -208,7 +208,7 @@ test = cases
 
 ## Complete patterns with guards should be accepted
 
-``` unison
+``` unison :error
 test : Optional Nat -> Nat
 test = cases
   None -> 0
@@ -235,7 +235,7 @@ test = cases
 Uncovered patterns are only instantiated as deeply as necessary to
 distinguish them from existing patterns.
 
-``` unison
+``` unison :error
 unique type T = A | B | C
 
 test : Optional (Optional T) -> ()
@@ -258,7 +258,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 unique type T = A | B | C
 
 test : Optional (Optional T) -> ()
@@ -291,7 +291,7 @@ test = cases
 
 Nat
 
-``` unison
+``` unison :error
 test : Nat -> ()
 test = cases
   0 -> ()
@@ -312,7 +312,7 @@ test = cases
 
 Boolean
 
-``` unison
+``` unison :error
 test : Boolean -> ()
 test = cases
   true -> ()
@@ -381,7 +381,7 @@ test = cases
 
 Nat
 
-``` unison
+``` unison :error
 test : Nat -> ()
 test = cases
   0 -> ()
@@ -400,7 +400,7 @@ test = cases
 
 Boolean
 
-``` unison
+``` unison :error
 test : Boolean -> ()
 test = cases
   true -> ()
@@ -443,7 +443,7 @@ test = cases
 
 ## Non-exhaustive
 
-``` unison
+``` unison :error
 test : [()] -> ()
 test = cases
   [] -> ()
@@ -462,7 +462,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 test : [()] -> ()
 test = cases
   x +: xs -> ()
@@ -481,7 +481,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 test : [()] -> ()
 test = cases
   xs :+ x -> ()
@@ -500,7 +500,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 test : [()] -> ()
 test = cases
   x0 +: (x1 +: xs) -> ()
@@ -521,7 +521,7 @@ test = cases
 
 ```
 
-``` unison
+``` unison :error
 test : [()] -> ()
 test = cases
   [] -> ()
@@ -601,7 +601,7 @@ test = cases
 
 This is the same idea as above but shows that fourth match is redundant.
 
-``` unison
+``` unison :error
 test : [Boolean] -> ()
 test = cases
   [a, b] ++ xs -> ()
@@ -627,7 +627,7 @@ or greater where the final 4 elements are `true, false, true, false`.
 The list must be exactly of length 4 to arrive at the second or third
 clause, so the third pattern is redundant.
 
-``` unison
+``` unison :error
 test : [Boolean] -> ()
 test = cases
   [a, b, c, d, f] ++ xs -> ()
@@ -737,7 +737,7 @@ scratch/main> add
 
 ```
 
-``` unison
+``` unison :error
 withV : Unit
 withV = match evil () with
   x -> ()
@@ -939,7 +939,7 @@ handleMulti c =
 
 ## Non-exhaustive ability handlers are rejected
 
-``` unison
+``` unison :error
 structural ability Abort where
   abort : {Abort} a
   abortWithMessage : Text -> {Abort} a
@@ -965,7 +965,7 @@ result f = handle !f with cases
 
 ```
 
-``` unison
+``` unison :error
 structural ability Abort where
   abort : {Abort} a
 
@@ -991,7 +991,7 @@ result f = handle !f with cases
 
 ```
 
-``` unison
+``` unison :error
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -1017,7 +1017,7 @@ result f = handle !f with cases
 
 ```
 
-``` unison
+``` unison :error
 structural ability Abort where
   abort : {Abort} a
 
@@ -1049,7 +1049,7 @@ handleMulti c =
 
 ## Redundant handler cases are rejected
 
-``` unison
+``` unison :error
 unique ability Give a where
   give : a -> {Give a} Unit
 
@@ -1130,7 +1130,7 @@ result f =
 
 ## Non-exhaustive ability reinterpretations are rejected
 
-``` unison
+``` unison :error
 structural ability Abort where
   abort : {Abort} a
   abortWithMessage : Text -> {Abort} a
@@ -1169,7 +1169,7 @@ they are all uninhabited.
 The messages here aren't the best, but I don't think uninhabited
 abilities will come up and get handlers written for them often.
 
-``` unison
+``` unison :error
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1253,7 +1253,7 @@ result f =
 
 ```
 
-``` unison
+``` unison :error
 unique ability Give a where
   give : a -> {Give a} Unit
   give2 : a -> {Give a} Unit
@@ -1277,7 +1277,7 @@ result f =
 
 ```
 
-``` unison
+``` unison :error
 unique ability GiveA a where
   giveA : a -> {GiveA a} Unit
   giveA2 : a -> {GiveA a} Unit

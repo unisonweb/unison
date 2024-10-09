@@ -198,7 +198,7 @@ Since the forward reference to `pong` appears inside `ping`.
 
 This, however, will not compile:
 
-``` unison
+``` unison :error
 ex n =
   pong = ping + 1
   ping = 42
@@ -217,7 +217,7 @@ ex n =
 
 This also won't compile; it's a cyclic reference that isn't guarded:
 
-``` unison
+``` unison :error
 ex n =
   loop = loop
   loop
@@ -259,7 +259,7 @@ Just don't try to run it as it's an infinite loop\!
 
 The reason is it's unclear what the order should be of any requests that are made. It can also be viewed of a special case of the restriction that elements of a cycle must all be guarded. Here's an example:
 
-``` unison
+``` unison :error
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 

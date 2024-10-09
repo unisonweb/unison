@@ -133,7 +133,7 @@ Loc.transform2 nt = cases Loc f ->
 
 ## Types with polymorphic fields
 
-``` unison
+``` unison :hide
 structural type HigherRanked = HigherRanked (forall a. a -> a)
 ```
 

@@ -2,7 +2,7 @@
 
 Term and ability constructor collisions should cause a parse error.
 
-``` unison
+``` unison :error
 structural ability Stream where
   send : a -> ()
 
@@ -26,7 +26,7 @@ Stream.send _ = ()
 
 Term and type constructor collisions should cause a parse error.
 
-``` unison
+``` unison :error
 structural type X = x
 
 X.x : a -> ()
@@ -49,7 +49,7 @@ X.x _ = ()
 
 Ability and type constructor collisions should cause a parse error.
 
-``` unison
+``` unison :error
 structural type X = x
 structural ability X where
   x : ()
@@ -69,7 +69,7 @@ structural ability X where
 
 Field accessors and terms with the same name should cause a parse error.
 
-``` unison
+``` unison :error
 structural type X = {x : ()}
 X.x.modify = ()
 X.x.set = ()

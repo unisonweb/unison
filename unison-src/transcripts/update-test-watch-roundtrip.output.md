@@ -1,6 +1,6 @@
 Given a test that depends on another definition,
 
-``` unison
+``` unison :hide
 foo n = n + 1
 
 test> mynamespace.foo.test =
@@ -38,7 +38,7 @@ foo n = "hello, world!"
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be

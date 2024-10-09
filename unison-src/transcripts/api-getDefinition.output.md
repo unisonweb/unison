@@ -1,6 +1,6 @@
 # Get Definitions Test
 
-``` unison
+``` unison :hide
 nested.names.x.doc = {{ Documentation }}
 nested.names.x = 42
 ```
@@ -207,7 +207,7 @@ GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relati
 }
 ```
 
-``` unison
+``` unison :hide
 doctest.thing.doc = {{ The correct docs for the thing }}
 doctest.thing = "A thing"
 doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}

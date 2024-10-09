@@ -4,7 +4,7 @@ This transcript defines unit tests for builtin functions. There's a single `scra
 
 ## `Int` functions
 
-``` unison
+``` unison :hide
 use Int
 
 -- used for some take/drop tests later
@@ -83,7 +83,7 @@ test> Int.tests.conversions =
 
 ## `Nat` functions
 
-``` unison
+``` unison :hide
 use Nat
 
 test> Nat.tests.arithmetic =
@@ -154,7 +154,7 @@ test> Nat.tests.conversions =
 
 ## `Boolean` functions
 
-``` unison
+``` unison :hide
 test> Boolean.tests.orTable =
       checks [
         (true || true) == true,
@@ -178,7 +178,7 @@ test> Boolean.tests.notTable =
 
 ## `Text` functions
 
-``` unison
+``` unison :hide
 test> Text.tests.takeDropAppend =
       checks [
         "yabba" ++ "dabba" == "yabbadabba",
@@ -272,7 +272,7 @@ test> Text.tests.indexOfEmoji =
 
 ## `Bytes` functions
 
-``` unison
+``` unison :hide
 test> Bytes.tests.at =
         bs = Bytes.fromList [77, 13, 12]
         checks [
@@ -332,7 +332,7 @@ test> Bytes.tests.indexOf =
 
 ## `List` comparison
 
-``` unison
+``` unison :hide
 test> checks [
         compare [] [1,2,3] == -1,
         compare [1,2,3] [1,2,3,4] == -1,
@@ -347,7 +347,7 @@ test> checks [
 
 Other list functions
 
-``` unison
+``` unison :hide
 test> checks [
         List.take bigN [1,2,3] == [1,2,3],
         List.drop bigN [1,2,3] == []

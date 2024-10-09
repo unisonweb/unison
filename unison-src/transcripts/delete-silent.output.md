@@ -1,4 +1,4 @@
-``` ucm
+``` ucm :error
 scratch/main> delete foo
 
   ⚠️
@@ -8,7 +8,7 @@ scratch/main> delete foo
 
 ```
 
-``` unison
+``` unison :hide
 foo = 1
 structural type Foo = Foo ()
 ```

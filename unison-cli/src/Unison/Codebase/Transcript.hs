@@ -10,6 +10,9 @@ module Unison.Codebase.Transcript
     APIRequest (..),
     pattern CMarkCodeBlock,
     Stanza,
+    InfoTags (..),
+    defaultInfoTags,
+    defaultInfoTags',
     ProcessedBlock (..),
     CMark.Node,
   )
@@ -25,7 +28,7 @@ type ExpectingError = Bool
 type ScratchFileName = Text
 
 data Hidden = Shown | HideOutput | HideAll
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Read, Show)
 
 data UcmLine
   = UcmCommand UcmContext Text
@@ -48,8 +51,23 @@ pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info bod
 
 type Stanza = Either CMark.Node ProcessedBlock
 
+data InfoTags a = InfoTags
+  { hidden :: Hidden,
+    expectingError :: ExpectingError,
+    generated :: Bool,
+    additionalTags :: a
+  }
+  deriving (Eq, Ord, Read, Show)
+
+defaultInfoTags :: a -> InfoTags a
+defaultInfoTags = InfoTags Shown False False
+
+-- | If the `additionalTags` form a `Monoid`, then you don’t need to provide a default value for them.
+defaultInfoTags' :: (Monoid a) => InfoTags a
+defaultInfoTags' = defaultInfoTags mempty
+
 data ProcessedBlock
-  = Ucm Hidden ExpectingError [UcmLine]
-  | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
-  | API [APIRequest]
+  = Ucm (InfoTags ()) [UcmLine]
+  | Unison (InfoTags (Maybe ScratchFileName)) Text
+  | API (InfoTags ()) [APIRequest]
   deriving (Eq, Show)

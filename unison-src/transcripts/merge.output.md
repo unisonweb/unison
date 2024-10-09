@@ -32,14 +32,14 @@ contains both additions.
 
 Alice's adds:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alices foo"
 ```
 
 Bob's adds:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = "bobs bar"
 ```
@@ -67,14 +67,14 @@ If Alice and Bob also happen to add the same definition, that's not a conflict.
 
 Alice's adds:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alice and bobs foo"
 ```
 
 Bob's adds:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alice and bobs foo"
 
@@ -105,21 +105,21 @@ Updates that occur in one branch are propagated to the other. In this example, A
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "old foo"
 ```
 
 Alice's updates:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "new foo"
 ```
 
 Bob's adds:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = foo ++ " - " ++ foo
 ```
@@ -162,7 +162,7 @@ Let's see an example. We have `foo`, which depends on `bar` and `baz`. Alice upd
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "foo" ++ " - " ++ bar ++ " - " ++ baz
 
@@ -175,7 +175,7 @@ baz = "old baz"
 
 Alice's updates:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = "alices bar"
 ```
@@ -189,7 +189,7 @@ scratch/alice> display foo
 
 Bob's updates:
 
-``` unison
+``` unison :hide
 baz : Text
 baz = "bobs baz"
 ```
@@ -233,7 +233,7 @@ Of course, it's also possible for Alice's update to propagate to one of Bob's up
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "old foo" ++ " - " ++ bar
 
@@ -253,7 +253,7 @@ scratch/main> display foo
 
 Alice's updates:
 
-``` unison
+``` unison :hide
 baz : Text
 baz = "alices baz"
 ```
@@ -267,7 +267,7 @@ scratch/alice> display foo
 
 Bob's updates:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = "bobs bar" ++ " - " ++ baz
 ```
@@ -313,14 +313,14 @@ We don't currently consider "update + delete" a conflict like Git does. In this 
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "old foo"
 ```
 
 Alice's updates:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alices foo"
 ```
@@ -356,7 +356,7 @@ Library dependencies don't cause merge conflicts, the library dependencies are j
 
 Alice's adds:
 
-``` unison
+``` unison :hide
 lib.alice.foo : Nat
 lib.alice.foo = 17
 
@@ -369,7 +369,7 @@ lib.bothDifferent.baz = 19
 
 Bob's adds:
 
-``` unison
+``` unison :hide
 lib.bob.foo : Nat
 lib.bob.foo = 20
 
@@ -456,7 +456,7 @@ scratch/main> branch bob
 
 Alice's addition:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "foo"
 ```
@@ -499,7 +499,7 @@ scratch/main> branch bob
 
 Bob's addition:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "foo"
 ```
@@ -545,7 +545,7 @@ In this example, Alice deletes `foo`, while Bob adds a new dependent of `foo`.
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "foo"
 ```
@@ -561,12 +561,12 @@ scratch/alice> delete.term foo
 
 Bob's new code that depends on `foo`:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = foo ++ " - " ++ foo
 ```
 
-``` ucm
+``` ucm :error
 scratch/bob> add
 
   ⍟ I've added these definitions:
@@ -609,26 +609,26 @@ In this example, Alice updates a `Text` to a `Nat`, while Bob adds a new depende
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "foo"
 ```
 
 Alice's update:
 
-``` unison
+``` unison :hide
 foo : Nat
 foo = 100
 ```
 
 Bob's new definition:
 
-``` unison
+``` unison :hide
 bar : Text
 bar = foo ++ " - " ++ foo
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -664,7 +664,7 @@ are presented to the user to resolve.
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "old foo"
 
@@ -674,7 +674,7 @@ bar = "old bar"
 
 Alice's changes:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alices foo"
 
@@ -687,7 +687,7 @@ qux = "alices qux depends on alices foo" ++ foo
 
 Bob's changes:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "bobs foo"
 
@@ -695,7 +695,7 @@ baz : Text
 baz = "bobs baz"
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -752,23 +752,23 @@ Ditto for types; if the hashes don't match, it's a conflict. In this example, Al
 
 Original branch:
 
-``` unison
+``` unison :hide
 unique type Foo = MkFoo Nat
 ```
 
 Alice's changes:
 
-``` unison
+``` unison :hide
 unique type Foo = MkFoo Nat Nat
 ```
 
 Bob's changes:
 
-``` unison
+``` unison :hide
 unique type Foo = MkFoo Nat Text
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -804,13 +804,13 @@ We model the renaming of a type's constructor as an update, so if Alice updates 
 
 Original branch:
 
-``` unison
+``` unison :hide
 unique type Foo = Baz Nat | Qux Text
 ```
 
 Alice's changes `Baz Nat` to `Baz Nat Nat`
 
-``` unison
+``` unison :hide
 unique type Foo = Baz Nat Nat | Qux Text
 ```
 
@@ -823,7 +823,7 @@ scratch/bob> move.term Foo.Qux Foo.BobQux
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -859,7 +859,7 @@ Here is another example demonstrating that constructor renames are modeled as up
 
 Original branch:
 
-``` unison
+``` unison :hide
 unique type Foo = Baz Nat | Qux Text
 ```
 
@@ -881,7 +881,7 @@ scratch/bob> move.term Foo.Qux Foo.Bob
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -917,19 +917,19 @@ A constructor on one side can conflict with a regular term definition on the oth
 
 Alice's additions:
 
-``` unison
+``` unison :hide
 my.cool.thing : Nat
 my.cool.thing = 17
 ```
 
 Bob's additions:
 
-``` unison
+``` unison :hide
 unique ability my.cool where
   thing : Nat -> Nat
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -966,14 +966,14 @@ Here's a subtle situation where a new type is added on each side of the merge, a
 
 Original branch:
 
-``` unison
+``` unison :hide
 Foo.Bar : Nat
 Foo.Bar = 17
 ```
 
 Alice adds this type `Foo` with constructor `Foo.Alice`:
 
-``` unison
+``` unison :hide
 unique type Foo = Alice Nat
 ```
 
@@ -986,13 +986,13 @@ scratch/bob> delete.term Foo.Bar
 
 ```
 
-``` unison
+``` unison :hide
 unique type Foo = Bar Nat Nat
 ```
 
 These won't cleanly merge.
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -1030,7 +1030,7 @@ Here's a more involved example that demonstrates the same idea.
 
 In the LCA, we have a type with two constructors, and some term.
 
-``` unison
+``` unison :hide
 unique type Foo
   = Bar.Baz Nat
   | Bar.Qux Nat Nat
@@ -1068,7 +1068,7 @@ At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in diffe
 
 Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she changed its hash and Bob didn't touch it) is nonetheless considered conflicted with Bob's "Foo.Bar.Baz".
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -1113,7 +1113,7 @@ We will resolve this situation automatically in a future version.
 
 Alice's additions:
 
-``` unison
+``` unison :hide
 unique type Foo = Bar
 
 alice : Foo -> Nat
@@ -1122,14 +1122,14 @@ alice _ = 18
 
 Bob's additions:
 
-``` unison
+``` unison :hide
 unique type Foo = Bar
 
 bob : Foo -> Nat
 bob _ = 19
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -1177,28 +1177,28 @@ After merge conflicts are resolved, you can use `merge.commit` rather than `swit
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "old foo"
 ```
 
 Alice's changes:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "alices foo"
 ```
 
 Bob's changes:
 
-``` unison
+``` unison :hide
 foo : Text
 foo = "bobs foo"
 ```
 
 Attempt to merge:
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -1292,7 +1292,7 @@ scratch/main> branch topic
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/topic> merge.commit
 
   It doesn't look like there's a merge in progress.
@@ -1309,7 +1309,7 @@ If `foo` and `bar` are aliases in the nearest common ancestor, but not in Alice'
 
 Original branch:
 
-``` unison
+``` unison :hide
 foo : Nat
 foo = 100
 
@@ -1319,7 +1319,7 @@ bar = 100
 
 Alice's updates:
 
-``` unison
+``` unison :hide
 foo : Nat
 foo = 200
 
@@ -1329,12 +1329,12 @@ bar = 300
 
 Bob's addition:
 
-``` unison
+``` unison :hide
 baz : Text
 baz = "baz"
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1374,11 +1374,11 @@ scratch/alice> alias.type lib.builtins.Nat MyNat
 
 Bob's branch:
 
-``` unison
+``` unison :hide
 unique type MyNat = MyNat Nat
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1399,7 +1399,7 @@ Each naming of a decl may not have more than one name for each constructor, with
 
 Alice's branch:
 
-``` unison
+``` unison :hide
 unique type Foo = Bar
 ```
 
@@ -1412,12 +1412,12 @@ scratch/alice> alias.term Foo.Bar Foo.some.other.Alias
 
 Bob's branch:
 
-``` unison
+``` unison :hide
 bob : Nat
 bob = 100
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1439,7 +1439,7 @@ Each naming of a decl must have a name for each constructor, within the decl's n
 
 Alice's branch:
 
-``` unison
+``` unison :hide
 unique type Foo = Bar
 ```
 
@@ -1452,12 +1452,12 @@ scratch/alice> delete.term Foo.Bar
 
 Bob's branch:
 
-``` unison
+``` unison :hide
 bob : Nat
 bob = 100
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -1477,7 +1477,7 @@ A decl cannot be aliased within the namespace of another of its aliased.
 
 Alice's branch:
 
-``` unison
+``` unison :hide
 structural type A = B Nat | C Nat Nat
 structural type A.inner.X = Y Nat | Z Nat Nat
 ```
@@ -1493,12 +1493,12 @@ scratch/alice> names A
 
 Bob's branch:
 
-``` unison
+``` unison :hide
 bob : Nat
 bob = 100
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   On scratch/alice, the type A.inner.X is an alias of A. I'm not
@@ -1538,7 +1538,7 @@ scratch/bob> add
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge bob
 
   Sorry, I wasn't able to perform the merge, because I need all
@@ -1558,19 +1558,19 @@ By convention, `lib` can only namespaces; each of these represents a library dep
 
 Alice's branch:
 
-``` unison
+``` unison :hide
 lib.foo : Nat
 lib.foo = 1
 ```
 
 Bob's branch:
 
-``` unison
+``` unison :hide
 bob : Nat
 bob = 100
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   Sorry, I wasn't able to perform the merge:
@@ -2060,7 +2060,7 @@ scratch/alice> update
 When we try to merge Bob into Alice, we should see both versions of `baz`, with Alice's unconflicted `foo` and `bar` in
 the underlying namespace.
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.
@@ -2436,7 +2436,7 @@ scratch/bob> move.term Foo.Lca Foo.Bob
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/alice> merge /bob
 
   I couldn't automatically merge scratch/bob into scratch/alice.

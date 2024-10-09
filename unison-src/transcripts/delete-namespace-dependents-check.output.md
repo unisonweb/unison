@@ -24,7 +24,7 @@ dependent = dependency + 99
 
 ```
 
-``` ucm
+``` ucm :error
 myproject/main> add
 
   ⍟ I've added these definitions:

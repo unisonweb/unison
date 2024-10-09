@@ -36,7 +36,7 @@ scratch/main> add
 
 ```
 
-``` unison
+``` unison :error
 type File.Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
@@ -407,7 +407,7 @@ scratch/main> add
 
 ```
 
-``` unison
+``` unison :error
 file.foo : Nat
 file.foo = 43
 

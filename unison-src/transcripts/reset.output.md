@@ -15,7 +15,7 @@ def = "first value"
 
 ```
 
-``` unison
+``` unison :hide
 def = "second value"
 ```
 
@@ -136,7 +136,7 @@ foo/main> history
 
 ```
 
-``` unison
+``` unison :hide
 a = 5
 ```
 
@@ -170,7 +170,7 @@ foo/empty> history
 
 ## second argument is always interpreted as a branch
 
-``` unison
+``` unison :hide
 main.a = 3
 ```
 

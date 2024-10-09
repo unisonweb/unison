@@ -116,6 +116,12 @@ withRunner isTest verbosity ucmVersion nrtp action =
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
           action runtime sbRuntime =<< liftIO (RTI.startNativeRuntime ucmVersion nrtp)
 
+isGeneratedBlock :: ProcessedBlock -> Bool
+isGeneratedBlock = \case
+  Ucm InfoTags {generated} _ -> generated
+  Unison InfoTags {generated} _ -> generated
+  API InfoTags {generated} _ -> generated
+
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
   Bool ->
@@ -151,7 +157,9 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           mayShareAccessToken
   -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
   -- e.g. a unison-file update by a command like 'edit'
-  inputQueue <- Q.prepopulatedIO . Seq.fromList $ stanzas `zip` (Just <$> [1 :: Int ..])
+  inputQueue <-
+    Q.prepopulatedIO . Seq.fromList $
+      filter (either (const True) (not . isGeneratedBlock)) stanzas `zip` (Just <$> [1 :: Int ..])
   -- Queue of UCM commands to run.
   -- Nothing indicates the end of a ucm block.
   cmdQueue <- Q.newIO @(Maybe UcmLine)
@@ -160,14 +168,15 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
   ucmOutput <- newIORef mempty
   unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
-  hidden <- newIORef Shown
+  currentTags <- newIORef Nothing
+  isHidden <- newIORef Shown
   allowErrors <- newIORef False
   hasErrors <- newIORef False
   mBlock <- newIORef Nothing
   let patternMap = Map.fromList $ (\p -> (patternName p, p) : ((,p) <$> aliases p)) =<< validInputs
   let output' :: Bool -> Stanza -> IO ()
       output' inputEcho msg = do
-        hide <- readIORef hidden
+        hide <- readIORef isHidden
         unless (hideOutput inputEcho hide) $ modifyIORef' out (<> pure msg)
 
       hideOutput :: Bool -> Hidden -> Bool
@@ -183,27 +192,46 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       outputUcm :: Text -> IO ()
       outputUcm line = modifyIORef' ucmOutput (<> pure line)
 
+      maybeDieWithMsg :: String -> IO ()
+      maybeDieWithMsg msg = do
+        errOk <- readIORef allowErrors
+        if errOk
+          then writeIORef hasErrors True
+          else dieWithMsg msg
+
       apiRequest :: APIRequest -> IO [Text]
       apiRequest req =
         let input = Transcript.formatAPIRequest req
          in case req of
               APIComment {} -> pure $ pure input
-              GetRequest path -> do
-                req <- either (dieWithMsg . show) pure $ HTTP.parseRequest (Text.unpack $ baseURL <> path)
-                respBytes <- HTTP.httpLbs req httpManager
-                case Aeson.eitherDecode (HTTP.responseBody respBytes) of
-                  Right (v :: Aeson.Value) ->
-                    pure
-                      [ input,
-                        Text.pack . BL.unpack $ Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
-                      ]
-                  Left err -> dieWithMsg ("Error decoding response from " <> Text.unpack path <> ": " <> err)
+              GetRequest path ->
+                either
+                  (([] <$) . maybeDieWithMsg . show)
+                  ( either
+                      (([] <$) . maybeDieWithMsg . (("Error decoding response from " <> Text.unpack path <> ": ") <>))
+                      ( \(v :: Aeson.Value) ->
+                          pure
+                            [ input,
+                              Text.pack . BL.unpack $
+                                Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+                            ]
+                      )
+                      . Aeson.eitherDecode
+                      . HTTP.responseBody
+                      <=< flip HTTP.httpLbs httpManager
+                  )
+                  . HTTP.parseRequest
+                  . Text.unpack
+                  $ baseURL <> path
 
       endUcmBlock = do
         liftIO $ do
-          -- NB: This uses a `CMarkCodeBlock` instead of `Ucm`, because `Ucm` can’t yet contain command output. This
-          --     should change with #5199.
-          output . Left . CMarkCodeBlock Nothing "ucm" . Text.unlines =<< readIORef ucmOutput
+          tags <- readIORef currentTags
+          output
+            . Left
+            . Transcript.processedBlockToNode' (\() -> "") "ucm" (fromMaybe defaultInfoTags' tags)
+            . Text.unlines
+            =<< readIORef ucmOutput
           writeIORef ucmOutput []
           dieUnexpectedSuccess
         atomically $ void $ do
@@ -211,10 +239,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           -- Push them onto the front stanza queue in the correct order.
           for (reverse scratchFileUpdates) \(fp, contents) ->
             -- Output blocks for any scratch file updates the ucm block triggered.
-            --
-            -- NB: This uses a `CMarkCodeBlock` instead of `Unison`, because `Unison` doesn’t yet support the
-            --     `:added-by-ucm` token. This should change with #5199.
-            Q.undequeue inputQueue (Left $ CMarkCodeBlock Nothing ("unison :added-by-ucm " <> fp) contents, Nothing)
+            Q.undequeue inputQueue (pure $ Unison (defaultInfoTags $ pure fp) {generated = True} contents, Nothing)
         Cli.returnEarlyWithoutOutput
 
       processUcmLine p =
@@ -278,26 +303,30 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                         (maybe Cli.returnEarlyWithoutOutput $ pure . Right . snd)
 
       startProcessedBlock block = case block of
-        Unison hide errOk filename txt -> do
-          liftIO (writeIORef hidden hide)
-          liftIO . outputEcho $ pure block
-          liftIO (writeIORef allowErrors errOk)
+        Unison infoTags txt -> do
+          liftIO do
+            writeIORef isHidden $ hidden infoTags
+            outputEcho $ pure block
+            writeIORef allowErrors $ expectingError infoTags
           -- Open a ucm block which will contain the output from UCM after processing the `UnisonFileChanged` event.
           -- Close the ucm block after processing the UnisonFileChanged event.
           atomically . Q.enqueue cmdQueue $ Nothing
-          let sourceName = fromMaybe "scratch.u" filename
+          let sourceName = fromMaybe "scratch.u" $ additionalTags infoTags
           liftIO $ updateVirtualFile sourceName txt
           pure . Left $ UnisonFileChanged sourceName txt
-        API apiRequests -> do
-          liftIO $
-            -- NB: This uses a `CMarkCodeBlock` instead of `API`, because `API` can’t yet contain API responses. This
-            --     should change with #5199.
-            output . Left . CMarkCodeBlock Nothing "api" . Text.unlines . fold =<< traverse apiRequest apiRequests
+        API infoTags apiRequests -> do
+          liftIO do
+            writeIORef isHidden $ hidden infoTags
+            writeIORef allowErrors $ expectingError infoTags
+            output . Left . Transcript.processedBlockToNode' (\() -> "") "api" infoTags . Text.unlines . fold
+              =<< traverse apiRequest apiRequests
           Cli.returnEarlyWithoutOutput
-        Ucm hide errOk cmds -> do
-          liftIO (writeIORef hidden hide)
-          liftIO (writeIORef allowErrors errOk)
-          liftIO (writeIORef hasErrors False)
+        Ucm infoTags cmds -> do
+          liftIO do
+            writeIORef currentTags $ pure infoTags
+            writeIORef isHidden $ hidden infoTags
+            writeIORef allowErrors $ expectingError infoTags
+            writeIORef hasErrors False
           traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
           atomically . Q.enqueue cmdQueue $ Nothing
           Cli.returnEarlyWithoutOutput
@@ -318,20 +347,25 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
             (\idx -> "Processing stanza " <> show idx <> " of " <> show (length stanzas) <> ".")
             midx
         either
-          ( \node -> do
-              liftIO . output $ Left node
-              Cli.returnEarlyWithoutOutput
-          )
-          ( \block -> do
-              liftIO . writeIORef mBlock $ pure block
-              startProcessedBlock block
+          (bypassStanza . Left)
+          ( \block ->
+              if isGeneratedBlock block
+                then bypassStanza $ pure block
+                else do
+                  liftIO . writeIORef mBlock $ pure block
+                  startProcessedBlock block
           )
           stanza
 
+      bypassStanza stanza = do
+        liftIO $ output stanza
+        Cli.returnEarlyWithoutOutput
+
       whatsNext = do
-        liftIO (dieUnexpectedSuccess)
-        liftIO (writeIORef hidden Shown)
-        liftIO (writeIORef allowErrors False)
+        liftIO dieUnexpectedSuccess
+        liftIO $ writeIORef currentTags Nothing
+        liftIO $ writeIORef isHidden Shown
+        liftIO $ writeIORef allowErrors False
         maybe (liftIO finishTranscript) (uncurry processStanza) =<< atomically (Q.tryDequeue inputQueue)
 
       awaitInput :: Cli (Either Event Input)
@@ -349,7 +383,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
 
       writeSourceFile :: ScratchFileName -> Text -> IO ()
       writeSourceFile fp contents = do
-        shouldShowSourceChanges <- (== Shown) <$> readIORef hidden
+        shouldShowSourceChanges <- (== Shown) <$> readIORef isHidden
         when shouldShowSourceChanges . atomically $ Q.enqueue ucmScratchFileUpdatesQueue (fp, contents)
         updateVirtualFile fp contents
 

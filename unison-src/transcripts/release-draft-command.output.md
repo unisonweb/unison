@@ -53,7 +53,7 @@ foo/main> release.draft 1.2.3
 
 It's an error to try to create a `releases/drafts/x.y.z` branch that already exists.
 
-``` ucm
+``` ucm :error
 foo/main> release.draft 1.2.3
 
   foo/releases/drafts/1.2.3 already exists. You can switch to it

@@ -77,7 +77,7 @@ ex2 tup = match tup with
 
 Destructuring binds can't be recursive: the left-hand side bound variables aren't available on the right hand side. For instance, this doesn't typecheck:
 
-``` unison
+``` unison :error
 ex4 =
   (a,b) = (a Nat.+ b, 19)
   "Doesn't typecheck"
@@ -157,7 +157,7 @@ Notice how it prints both an ordinary match.
 
 Also, for clarity, the pretty-printer shows a single-branch match if the match shadows free variables of the scrutinee, for example:
 
-``` unison
+``` unison :hide
 ex6 x = match x with
   (x, y) -> x Nat.+ y
 ```

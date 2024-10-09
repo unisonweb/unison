@@ -42,7 +42,7 @@ scratch/main> add
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> io.test test1
 
   💔💥
@@ -59,7 +59,7 @@ scratch/main> io.test test1
 
 ```
 
-``` ucm
+``` ucm :error
 scratch/main> io.test test2
 
   💔💥

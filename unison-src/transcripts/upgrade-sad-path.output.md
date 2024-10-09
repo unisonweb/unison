@@ -30,7 +30,7 @@ proj/main> add
 
 ```
 
-``` ucm
+``` ucm :error
 proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new. However, I've

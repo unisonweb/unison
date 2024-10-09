@@ -4,7 +4,7 @@ https://github.com/unisonweb/unison/pull/2821
 
 Define a type.
 
-``` unison
+``` unison :hide
 structural type Y = Y
 ```
 
@@ -36,7 +36,7 @@ structural type Y = Y Nat
 
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.
 
-``` ucm
+``` ucm :error
 scratch/main> add
 
   x These definitions failed:
