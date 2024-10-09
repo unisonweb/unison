@@ -71,7 +71,6 @@ module Unison.Runtime.Stack
     peekOff,
     upeekOff,
     bpeekOff,
-    poke,
     pokeOff,
     bpoke,
     bpokeOff,
@@ -523,12 +522,6 @@ bpeekOff (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
 upeekOff :: Stack -> Off -> IO UElem
 upeekOff (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 {-# INLINE upeekOff #-}
-
-poke :: Stack -> Elem -> IO ()
-poke (Stack _ _ sp ustk bstk) (u, b) = do
-  writeByteArray ustk sp u
-  writeArray bstk sp b
-{-# INLINE poke #-}
 
 -- | Store an unboxed value and null out the boxed stack at that location, both so we know there's no value there,
 -- and so garbage collection can clean up any value that was referenced there.
