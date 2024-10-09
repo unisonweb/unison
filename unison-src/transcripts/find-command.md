@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtin
 ```
 
-```unison:hide
+``` unison :hide
 foo = 1
 lib.foo = 2
 lib.bar = 3
@@ -12,18 +12,18 @@ cat.lib.bar = 6
 somewhere.bar = 7
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> find foo
 scratch/main> view 1
 scratch/main> find.all foo
 scratch/main> view 1
 ```
 
-```ucm
+``` ucm
 scratch/main> find-in cat foo
 scratch/main> view 1
 scratch/main> find-in.all cat foo
@@ -32,12 +32,12 @@ scratch/main> view 1
 
 Finding within a namespace
 
-```ucm
+``` ucm
 scratch/main> find bar
 scratch/other> debug.find.global bar
 scratch/main> find-in somewhere bar
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> find baz
 ```

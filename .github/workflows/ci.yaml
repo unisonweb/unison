@@ -388,14 +388,14 @@ jobs:
           path: ${{ runner.temp }}/setup-jit.md
           write-mode: overwrite
           contents: |
-            ```ucm
+            ``` ucm
             scratch/main> project.create-empty jit-setup
             jit-setup/main> lib.install ${{ env.jit_version }}
             ```
-            ```unison
+            ``` unison
             go = generateSchemeBoot "${{ env.jit_generated_src_scheme }}"
             ```
-            ```ucm
+            ``` ucm
             jit-setup/main> run go
             ```
       - name: download ucm artifact

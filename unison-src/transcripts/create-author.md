@@ -1,10 +1,10 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
 Demonstrating `create.author`:
 
-```ucm
+``` ucm
 scratch/main> create.author alicecoder "Alice McGee"
 scratch/main> find alicecoder
 ```

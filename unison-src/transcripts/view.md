@@ -1,19 +1,19 @@
 # View commands
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison:hide
+``` unison :hide
 a.thing = "a"
 b.thing = "b"
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 -- Should suffix-search and find values in sub-namespaces
 scratch/main> view thing
 -- Should support absolute paths

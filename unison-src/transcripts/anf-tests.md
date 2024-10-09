@@ -1,5 +1,4 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -13,7 +12,7 @@ which would be handled by renaming. However, the _context_ portion of
 the rest of the code was not being renamed correctly, so `bar` would
 remain in the definition of `baz`.
 
-```unison
+``` unison
 foo _ =
   id x = x
   void x = ()
@@ -28,7 +27,6 @@ foo _ =
 > !foo
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
-

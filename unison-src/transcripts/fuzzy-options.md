@@ -3,7 +3,7 @@
 If an argument is required but doesn't have a fuzzy resolver, the command should just print the help.
 
 
-```ucm:error
+``` ucm :error
 -- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
 scratch/main> move.term
 ```
@@ -11,12 +11,12 @@ scratch/main> move.term
 If a fuzzy resolver doesn't have any options available it should print a message instead of
 opening an empty fuzzy-select.
 
-```ucm:error
+``` ucm :error
 scratch/empty> view
 ```
 
 
-```unison:hide
+``` unison :hide
 optionOne = 1
 
 nested.optionTwo = 2
@@ -24,7 +24,7 @@ nested.optionTwo = 2
 
 Definition args
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> debug.fuzzy-options view _
 ```
@@ -32,14 +32,14 @@ scratch/main> debug.fuzzy-options view _
 
 Namespace args
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> debug.fuzzy-options find-in _
 ```
 
 Project Branch args
 
-```ucm
+``` ucm
 myproject/main> branch mybranch
 scratch/main> debug.fuzzy-options switch _
 ```

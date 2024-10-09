@@ -1,4 +1,4 @@
-```unison
+``` unison
 directory = "unison-src/transcripts-using-base/serialized-cases/"
 
 availableCases : '{IO,Exception} [Text]
@@ -55,7 +55,7 @@ serialTests = do
   List.map snd (bSort (List.map runTestCase cs))
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test serialTests
 ```

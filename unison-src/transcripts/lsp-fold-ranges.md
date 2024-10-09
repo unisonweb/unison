@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-```unison:hide
+``` unison :hide
 
 {{ Type doc }}
 structural type Optional a =
@@ -14,9 +14,9 @@ structural type Optional a =
 
   Term doc
 }}
-List.map : 
-  (a -> b) 
-  -> [a] 
+List.map :
+  (a -> b)
+  -> [a]
   -> [b]
 List.map f = cases
   (x +: xs) -> f x +: List.map f xs
@@ -28,6 +28,6 @@ test> z = let
   [Ok (x ++ y)]
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.lsp.fold-ranges
 ```

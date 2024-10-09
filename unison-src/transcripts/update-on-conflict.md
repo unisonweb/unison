@@ -2,25 +2,25 @@
 
 Conflicted definitions prevent `update` from succeeding.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtins
 ```
 
-```unison
+``` unison
 x = 1
 temp = 2
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> debug.alias.term.force temp x
 scratch/main> delete.term temp
 ```
 
-```unison
+``` unison
 x = 3
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> update
 ```

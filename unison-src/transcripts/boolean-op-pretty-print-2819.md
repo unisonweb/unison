@@ -1,18 +1,17 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 hangExample : Boolean
 hangExample =
   ("a long piece of text to hang the line" == "")
     && ("a long piece of text to hang the line" == "")
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view hangExample
 ```
-

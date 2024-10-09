@@ -67,7 +67,7 @@ scratch/main> update
   `update` again.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 foo : Int
 foo = +5
 

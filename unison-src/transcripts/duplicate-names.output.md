@@ -27,7 +27,7 @@ Stream.send _ = ()
 Term and type constructor collisions should cause a parse error.
 
 ``` unison
-structural type X = x 
+structural type X = x
 
 X.x : a -> ()
 X.x _ = ()
@@ -40,7 +40,7 @@ X.x _ = ()
   ❗️
   
   I found multiple bindings with the name X.x:
-      1 | structural type X = x 
+      1 | structural type X = x
       2 | 
       3 | X.x : a -> ()
       4 | X.x _ = ()
@@ -50,7 +50,7 @@ X.x _ = ()
 Ability and type constructor collisions should cause a parse error.
 
 ``` unison
-structural type X = x 
+structural type X = x
 structural ability X where
   x : ()
 ```
@@ -61,7 +61,7 @@ structural ability X where
 
   I found two types called X:
   
-      1 | structural type X = x 
+      1 | structural type X = x
       2 | structural ability X where
       3 |   x : ()
   

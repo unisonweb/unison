@@ -1,15 +1,15 @@
-```ucm:hide
+``` ucm :hide
 myproject/main> builtins.merge lib.builtin
 ```
 
-```unison
+``` unison
 lib.old.foo = 141
 lib.new.foo = 142
 bar = 141
 mything = lib.old.foo + 100
 ```
 
-```ucm
+``` ucm
 myproject/main> update
 myproject/main> upgrade old new
 myproject/main> view mything

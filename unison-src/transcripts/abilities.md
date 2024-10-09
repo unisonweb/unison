@@ -1,11 +1,10 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 Some random ability stuff to ensure things work.
 
-```unison
+``` unison
 
 unique ability A where
   one : Nat ->{A} Nat
@@ -22,6 +21,6 @@ ha = cases
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```

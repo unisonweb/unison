@@ -48,7 +48,7 @@ scratch/main> rewrite eitherToOptional
   The rewritten file has been added to the top of scratch.u
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): ex1
 
@@ -78,7 +78,7 @@ type Optional2 a = Some2 a | None2
 rule2 x = @rewrite signature Optional ==> Optional2
 ```
 
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): Either.mapRight
 
@@ -166,7 +166,7 @@ scratch/main> rewrite woot1to2
   The rewritten file has been added to the top of scratch.u
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): wootEx
 
@@ -275,7 +275,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): sameFileEx
 
@@ -340,7 +340,7 @@ scratch/main> rewrite rule
   The rewritten file has been added to the top of scratch.u
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- | Rewrote using: 
 -- | Modified definition(s): bar2
 

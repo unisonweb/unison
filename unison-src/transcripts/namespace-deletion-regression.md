@@ -7,7 +7,7 @@ If branch operations aren't performed in the correct order it's possible to end 
 Previously the following sequence delete the current namespace
 unexpectedly 😬.
 
-```ucm
+``` ucm
 scratch/main> alias.term ##Nat.+ Nat.+
 scratch/main> ls Nat
 scratch/main> move.namespace Nat Nat.operators

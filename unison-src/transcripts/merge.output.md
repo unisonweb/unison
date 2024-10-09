@@ -570,7 +570,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 bar : Text
 bar =
   use Text ++
@@ -625,7 +625,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 bar : Text
 bar =
   use Text ++
@@ -691,7 +691,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 foo : Text
 foo = "alices foo"
@@ -762,7 +762,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = MkFoo Nat Nat
 
@@ -815,7 +815,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = Baz Nat Nat | Qux Text
 
@@ -870,7 +870,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo = Qux Text | Alice Nat
 
@@ -917,7 +917,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 my.cool.thing : Nat
 my.cool.thing = 17
@@ -978,7 +978,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 Foo.Bar : Nat
 Foo.Bar = 17
@@ -1051,7 +1051,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 Foo.Bar.Baz : Nat
 Foo.Bar.Baz = 100
@@ -1111,7 +1111,7 @@ scratch/alice> merge bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo
   = Bar
@@ -1179,7 +1179,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 foo : Text
 foo = "alices foo"
@@ -2007,7 +2007,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 baz : Text
 baz = "alice"
@@ -2372,7 +2372,7 @@ scratch/alice> merge /bob
   to delete the temporary branch and switch back to alice.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- scratch/alice
 type Foo
   = Alice

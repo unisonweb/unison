@@ -1,26 +1,26 @@
 Just a bunch of random parse errors to test the error formatting.
 
-```unison:error
-x = 
+``` unison :error
+x =
   foo.123
 ```
 
-```unison:error
+``` unison :error
 namespace.blah = 1
 ```
 
-```unison:error
+``` unison :error
 x = 1 ]
 ```
 
-```unison:error
+``` unison :error
 x = a.#abc
 ```
 
-```unison:error
+``` unison :error
 x = "hi
 ```
 
-```unison:error
-y : a 
+``` unison :error
+y : a
 ```

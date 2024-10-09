@@ -1,22 +1,22 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtin
 ```
 
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 incrFoo : Foo -> Foo
 incrFoo = cases Bar n -> Bar (n+1)
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 unique type Foo = Bar Nat Nat
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> update
 ```

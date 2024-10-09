@@ -1,16 +1,16 @@
 The `release.draft` command drafts a release from the current branch.
 
-```ucm:hide
+``` ucm :hide
 foo/main> builtins.merge
 ```
 
 Some setup:
 
-```unison
+``` unison
 someterm = 18
 ```
 
-```ucm
+``` ucm
 foo/main> add
 ```
 
@@ -18,12 +18,12 @@ Now, the `release.draft` demo:
 
 `release.draft` accepts a single semver argument.
 
-```ucm
+``` ucm
 foo/main> release.draft 1.2.3
 ```
 
 It's an error to try to create a `releases/drafts/x.y.z` branch that already exists.
 
-```ucm:error
+``` ucm :error
 foo/main> release.draft 1.2.3
 ```

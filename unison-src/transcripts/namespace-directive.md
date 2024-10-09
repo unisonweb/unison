@@ -5,11 +5,11 @@ It affects the contents of the file as follows:
 1. All bindings like `x.y.z` are prefixed with the namespace; note that when this file is saved, the feedback mentions
 the full bindings' names.
 
-```ucm
+``` ucm
 scratch/main> builtins.mergeio lib.builtins
 ```
 
-```unison
+``` unison
 namespace foo
 
 baz : Nat
@@ -19,7 +19,7 @@ baz = 17
 2. Free variables whose names exactly match bindings in the file are rewritten to refer to the prefixed binder instead.
 That is, a term like `factorial = ... factorial ...` is rewritten to `foo.factorial = ... foo.factorial ...`.
 
-```unison
+``` unison
 namespace foo
 
 factorial : Int -> Int
@@ -31,7 +31,7 @@ longer.evil.factorial : Int -> Int
 longer.evil.factorial n = n
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view factorial
 ```
@@ -44,16 +44,16 @@ bindings were expanded to `foo.factorial` and `foo.longer.evil.factorial`, but t
 Here are a few more examples demonstrating that type names, constructor names, generated record accessor names, and
 type links are all properly handled.
 
-```unison
+``` unison
 type longer.foo.Foo = Bar
 type longer.foo.Baz = { qux : Nat }
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 namespace foo
 
 type Foo = Bar
@@ -71,7 +71,7 @@ hasTypeLink =
   {{ {type Foo} }}
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
 scratch/main> todo

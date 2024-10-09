@@ -30,7 +30,7 @@ scratch/a1> edit 1-1000
   definitions currently in this namespace.
 
 ```
-````` unison:added-by-ucm scratch.u
+````` unison :added-by-ucm scratch.u
 structural ability Abort where abort : {Abort} a
 
 structural ability Ask a where ask : {Ask a} a
@@ -550,7 +550,7 @@ nested_fences : Doc2
 nested_fences =
   {{
   ```` raw
-  ```unison
+  ``` unison
   r = "boopydoo"
   ```
   ````
@@ -835,7 +835,7 @@ scratch/a3> edit 1-5000
   definitions currently in this namespace.
 
 ```
-```` unison:added-by-ucm scratch.u
+```` unison :added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
   """
@@ -896,7 +896,7 @@ scratch/regressions> load
   I loaded scratch.u and didn't find anything.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 -- builtin plus : ##Nat -> ##Nat -> ##Nat
 ```
 

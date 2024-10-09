@@ -1,6 +1,6 @@
 # Tests for `move`
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -8,29 +8,29 @@ scratch/main> builtins.merge
 
 Create a term, type, and namespace with history
 
-```unison
+``` unison
 Foo = 2
 unique type Foo = Foo
 Foo.termInA = 1
 unique type Foo.T = T
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 Foo.termInA = 2
 unique type Foo.T = T1 | T2
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 ```
 
 Should be able to move the term, type, and namespace, including its types, terms, and sub-namespaces.
 
-```ucm
+``` ucm
 scratch/main> move Foo Bar
 scratch/main> ls
 scratch/main> ls Bar
@@ -39,11 +39,11 @@ scratch/main> history Bar
 
 ## Happy Path - Just term
 
-```unison
+``` unison
 bonk = 5
 ```
 
-```ucm
+``` ucm
 z/main> builtins.merge
 z/main> add
 z/main> move bonk zonk
@@ -52,11 +52,11 @@ z/main> ls
 
 ## Happy Path - Just namespace
 
-```unison
+``` unison
 bonk.zonk = 5
 ```
 
-```ucm
+``` ucm
 a/main> builtins.merge
 a/main> add
 a/main> move bonk zonk
@@ -66,6 +66,6 @@ a/main> view zonk.zonk
 
 ## Sad Path - No term, type, or namespace named src
 
-```ucm:error
+``` ucm :error
 scratch/main> move doesntexist foo
 ```

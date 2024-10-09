@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> alias.type ##Text builtin.Text
 ```
 
-```unison:hide
+``` unison :hide
 unique type A = A Text
 
 foo : A
@@ -16,12 +16,12 @@ baz = cases
   A t -> t
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> find : Text -> A
 scratch/main> find : A -> Text
 scratch/main> find : A
 ```
-```ucm:error
+``` ucm :error
 scratch/main> find : Text
 ```
