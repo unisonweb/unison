@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.Input
     TestInput (..),
     Event (..),
     OutputLocation (..),
+    RelativeToFold(..),
     PatchPath,
     BranchIdG (..),
     BranchId,
@@ -292,10 +293,16 @@ data TestInput = TestInput
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
   = ConsoleLocation
-  | LatestFileLocation
-  | FileLocation FilePath
+  | LatestFileLocation RelativeToFold
+  | FileLocation FilePath RelativeToFold
   -- ClipboardLocation
   deriving (Eq, Show)
+
+-- | Above a new fold, or within the topmost fold?
+data RelativeToFold
+  = AboveFold
+  | WithinFold
+  deriving stock (Eq, Show)
 
 data FindScope
   = FindLocal Path'

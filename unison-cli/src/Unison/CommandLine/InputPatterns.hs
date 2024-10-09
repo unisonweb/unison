@@ -1026,10 +1026,10 @@ displayTo =
       file : defs ->
         maybe
           (wrongArgsLength "at least two arguments" [file])
-          ( \defs ->
-              Input.DisplayI . Input.FileLocation
-                <$> unsupportedStructuredArgument displayTo "a file name" file
-                <*> traverse handleHashQualifiedNameArg defs
+          ( \defs -> do
+              file <- unsupportedStructuredArgument displayTo "a file name" file
+              names <- traverse handleHashQualifiedNameArg defs
+              pure (Input.DisplayI (Input.FileLocation file Input.AboveFold) names)
           )
           $ NE.nonEmpty defs
       [] -> wrongArgsLength "at least two arguments" []
@@ -1086,8 +1086,8 @@ textfind :: Bool -> InputPattern
 textfind allowLib =
   InputPattern cmdName aliases I.Visible [("token", OnePlus, noCompletionsArg)] msg parse
   where
-    (cmdName, aliases, alternate) = 
-      if allowLib then 
+    (cmdName, aliases, alternate) =
+      if allowLib then
         ("text.find.all", ["grep.all"], "Use `text.find` to exclude `lib` from search.")
       else
         ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
@@ -1107,8 +1107,8 @@ textfind allowLib =
           P.wrap alternate
         ]
 
--- | Reinterprets `"` in the expected way, combining tokens until reaching 
--- the closing quote. 
+-- | Reinterprets `"` in the expected way, combining tokens until reaching
+-- the closing quote.
 -- Example: `untokenize ["\"uno", "dos\""]` becomes `["uno dos"]`.
 untokenize :: [String] -> [String]
 untokenize words = go (unwords words)
@@ -1116,9 +1116,9 @@ untokenize words = go (unwords words)
   go words = case words of
     [] -> []
     '"' : quoted -> takeWhile (/= '"') quoted : go (drop 1 . dropWhile (/= '"') $ quoted)
-    unquoted -> case span ok unquoted of 
+    unquoted -> case span ok unquoted of
       ("", rem) -> go (dropWhile isSpace rem)
-      (tok, rem) -> tok : go (dropWhile isSpace rem) 
+      (tok, rem) -> tok : go (dropWhile isSpace rem)
       where
         ok ch = ch /= '"' && not (isSpace ch)
 
@@ -2377,7 +2377,7 @@ edit =
       parse =
         maybe
           (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI Input.LatestFileLocation Input.ShowDefinitionLocal)
+          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.AboveFold) Input.ShowDefinitionLocal)
               . traverse handleHashQualifiedNameArg
           )
           . NE.nonEmpty

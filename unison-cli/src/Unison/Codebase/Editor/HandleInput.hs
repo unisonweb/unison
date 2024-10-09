@@ -616,7 +616,7 @@ loop e = do
             DisplayI outputLoc namesToDisplay -> do
               traverse_ (displayI outputLoc) namesToDisplay
             ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
-            EditNamespaceI paths -> handleEditNamespace LatestFileLocation paths
+            EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
             FindShallowI pathArg -> handleLs pathArg
             FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
             StructuredFindI _fscope ws -> handleStructuredFindI ws
@@ -1298,15 +1298,15 @@ handleShowDefinition outputLoc showDefinitionScope query = do
     suffixify =
       case outputLoc of
         ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ -> PPE.suffixifyByHashName
-        LatestFileLocation -> PPE.suffixifyByHashName
+        FileLocation _ _ -> PPE.suffixifyByHashName
+        LatestFileLocation _ -> PPE.suffixifyByHashName
 
     -- `view`: don't include cycles; `edit`: include cycles
     includeCycles =
       case outputLoc of
         ConsoleLocation -> Backend.DontIncludeCycles
-        FileLocation _ -> Backend.IncludeCycles
-        LatestFileLocation -> Backend.IncludeCycles
+        FileLocation _ _ -> Backend.IncludeCycles
+        LatestFileLocation _ -> Backend.IncludeCycles
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
@@ -1355,8 +1355,8 @@ doDisplay outputLoc names tm = do
   rendered <- DisplayValues.displayTerm pped loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   mayFP <- case outputLoc of
     ConsoleLocation -> pure Nothing
-    FileLocation path -> Just <$> Directory.canonicalizePath path
-    LatestFileLocation -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
+    FileLocation path _ -> Just <$> Directory.canonicalizePath path
+    LatestFileLocation _ -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
   whenJust mayFP \fp -> do
     liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
   Cli.respond $ DisplayRendered mayFP rendered
@@ -1364,8 +1364,8 @@ doDisplay outputLoc names tm = do
     suffixify =
       case outputLoc of
         ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ -> PPE.suffixifyByHashName
-        LatestFileLocation -> PPE.suffixifyByHashName
+        FileLocation _ _ -> PPE.suffixifyByHashName
+        LatestFileLocation _ -> PPE.suffixifyByHashName
 
     prependFile :: FilePath -> Text -> IO ()
     prependFile filePath txt = do
@@ -1661,8 +1661,8 @@ displayI outputLoc hq = do
     suffixify =
       case outputLoc of
         ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ -> PPE.suffixifyByHashName
-        LatestFileLocation -> PPE.suffixifyByHashName
+        FileLocation _ _ -> PPE.suffixifyByHashName
+        LatestFileLocation _ -> PPE.suffixifyByHashName
 
 docsI :: Name -> Cli ()
 docsI src = do

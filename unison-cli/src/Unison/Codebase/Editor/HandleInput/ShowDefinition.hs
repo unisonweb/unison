@@ -74,8 +74,8 @@ showDefinitions outputLoc pped terms types misses = do
     getOutputPath =
       case outputLoc of
         ConsoleLocation -> pure Nothing
-        FileLocation path -> pure (Just path)
-        LatestFileLocation -> do
+        FileLocation path _fold -> pure (Just path)
+        LatestFileLocation _fold -> do
           loopState <- State.get
           pure case loopState ^. #latestFile of
             Nothing -> Just "scratch.u"
