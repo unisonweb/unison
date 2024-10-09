@@ -1,55 +1,55 @@
 Ensure that Records keep their syntax after being added to the codebase
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 scratch/main> load unison-src/transcripts-using-base/base.u
 ```
 
 ## Record with 1 field
 
-```unison:hide
+``` unison :hide
 unique type Record1 = { a : Text }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record1
 ```
 
 ## Record with 2 fields
 
-```unison:hide
+``` unison :hide
 unique type Record2 = { a : Text, b : Int }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record2
 ```
 
 ## Record with 3 fields
 
-```unison:hide
+``` unison :hide
 unique type Record3 = { a : Text, b : Int, c : Nat }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record3
 ```
 
 ## Record with many fields
 
-```unison:hide
+``` unison :hide
 unique type Record4 =
   { a : Text
   , b : Int
@@ -61,17 +61,17 @@ unique type Record4 =
   }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record4
 ```
 
 ## Record with many many fields
 
-```unison:hide
+``` unison :hide
 unique type Record5 = {
   zero : Nat,
   one : [Nat],
@@ -97,11 +97,11 @@ unique type Record5 = {
 }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> view Record5
 ```
 
@@ -109,19 +109,19 @@ scratch/main> view Record5
 
 This record type has two fields whose types are user-defined (`Record4` and `UserType`).
 
-```unison:hide
+``` unison :hide
 unique type UserType = UserType Nat
 
 unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
 If you `view` or `edit` it, it _should_ be treated as a record type, but it does not (which is a bug)
 
-```ucm
+``` ucm
 scratch/main> view RecordWithUserType
 ```
 
@@ -130,7 +130,7 @@ scratch/main> view RecordWithUserType
 
 Trailing commas are allowed.
 
-```unison
+``` unison
 unique type Record5 =
   { a : Text,
     b : Int,

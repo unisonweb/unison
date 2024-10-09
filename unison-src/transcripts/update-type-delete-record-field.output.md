@@ -103,7 +103,7 @@ scratch/main> find.verbose
   
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 type Foo = { bar : Nat }
 
 -- The definitions below no longer typecheck with the changes above.

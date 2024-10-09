@@ -1,18 +1,18 @@
 # demonstrating our new input parsing errors
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtin
 ```
 
-```unison:hide
+``` unison :hide
 x = 55
 ```
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
 `handleNameArg` parse error in `add`
-```ucm:error
+``` ucm :error
 scratch/main> add .
 scratch/main> ls
 scratch/main> add 1
@@ -38,7 +38,7 @@ todo:
 
 aliasMany: skipped -- similar to `add`
 
-```ucm:error
+``` ucm :error
 scratch/main> update arg
 ```
 

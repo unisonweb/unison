@@ -31,15 +31,15 @@ scratch/main> help text.find.all
 Here's an example:
 
 ``` unison
-foo = 
+foo =
   _ = "an interesting constant"
   1
 bar = match "well hi there" with
   "ooga" -> 99
   "booga" -> 23
   _ -> 0
-baz = ["an", "quaffle", "tres"] 
-qux = 
+baz = ["an", "quaffle", "tres"]
+qux =
   quaffle = 99
   quaffle + 1
 
@@ -76,7 +76,7 @@ scratch/main> grep hi
   
   Tip: Try `edit 1` to bring this into your scratch file.
 
-scratch/main> view 1 
+scratch/main> view 1
 
   bar : Nat
   bar = match "well hi there" with
@@ -127,7 +127,7 @@ scratch/main> grep oog
   
   Tip: Try `edit 1` to bring this into your scratch file.
 
-scratch/main> view 1 
+scratch/main> view 1
 
   bar : Nat
   bar = match "well hi there" with
@@ -137,7 +137,7 @@ scratch/main> view 1
 
 ```
 ``` ucm
-scratch/main> grep quaffle 
+scratch/main> grep quaffle
 
   🔎
   

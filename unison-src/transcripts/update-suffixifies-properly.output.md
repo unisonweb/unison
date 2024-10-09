@@ -69,7 +69,7 @@ myproject/main> update
   `update` again.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 foo = +30
 
 -- The definitions below no longer typecheck with the changes above.

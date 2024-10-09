@@ -1,6 +1,6 @@
 # tests for built-in IO functions
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 scratch/main> builtins.mergeio
 scratch/main> load unison-src/transcripts-using-base/base.u
@@ -16,7 +16,7 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
@@ -31,7 +31,7 @@ Tests:
 - renameDirectory,
 - deleteDirectory
 
-```unison
+``` unison
 testCreateRename : '{io2.IO} [Result]
 testCreateRename _ =
   test = 'let
@@ -57,7 +57,7 @@ testCreateRename _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testCreateRename
 ```
@@ -69,7 +69,7 @@ Tests:
 - closeFile
 - isFileOpen
 
-```unison
+``` unison
 testOpenClose : '{io2.IO} [Result]
 testOpenClose _ =
   test = 'let
@@ -108,7 +108,7 @@ testOpenClose _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testOpenClose
 ```
@@ -121,7 +121,7 @@ Tests:
 - isFileOpen
 - seekHandle
 
-```unison
+``` unison
 testGetSomeBytes : '{io2.IO} [Result]
 testGetSomeBytes _ =
   test = 'let
@@ -168,7 +168,7 @@ testGetSomeBytes _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testGetSomeBytes
 ```
@@ -185,7 +185,7 @@ Tests:
 - getBytes
 - getLine
 
-```unison
+``` unison
 testSeek : '{io2.IO} [Result]
 testSeek _ =
   test = 'let
@@ -243,14 +243,14 @@ testAppend _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testSeek
 scratch/main> io.test testAppend
 ```
 
 ### SystemTime
-```unison
+``` unison
 testSystemTime : '{io2.IO} [Result]
 testSystemTime _ =
   test = 'let
@@ -260,14 +260,14 @@ testSystemTime _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testSystemTime
 ```
 
 ### Get temp directory
 
-```unison:hide
+``` unison :hide
 testGetTempDirectory : '{io2.IO} [Result]
 testGetTempDirectory _ =
   test = 'let
@@ -277,14 +277,14 @@ testGetTempDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testGetTempDirectory
 ```
 
 ### Get current directory
 
-```unison:hide
+``` unison :hide
 testGetCurrentDirectory : '{io2.IO} [Result]
 testGetCurrentDirectory _ =
   test = 'let
@@ -294,14 +294,14 @@ testGetCurrentDirectory _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testGetCurrentDirectory
 ```
 
 ### Get directory contents
 
-```unison:hide
+``` unison :hide
 testDirContents : '{io2.IO} [Result]
 testDirContents _ =
   test = 'let
@@ -313,14 +313,14 @@ testDirContents _ =
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testDirContents
 ```
 
 ### Read environment variables
 
-```unison:hide
+``` unison :hide
 testGetEnv : '{io2.IO} [Result]
 testGetEnv _ =
   test = 'let
@@ -331,7 +331,7 @@ testGetEnv _ =
       Left _ -> emit (Ok "DOESNTEXIST didn't exist")
   runTest test
 ```
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testGetEnv
 ```
@@ -341,7 +341,7 @@ scratch/main> io.test testGetEnv
 `runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions
 unless they called with the right number of arguments.
 
-```unison:hide
+``` unison :hide
 testGetArgs.fail : Text -> Failure
 testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
 
@@ -371,7 +371,7 @@ testGetArgs.runMeWithTwoArgs = 'let
 ```
 
 Test that they can be run with the right number of args.
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> run runMeWithNoArgs
 scratch/main> run runMeWithOneArg foo
@@ -380,38 +380,38 @@ scratch/main> run runMeWithTwoArgs foo bar
 
 Calling our examples with the wrong number of args will error.
 
-```ucm:error
+``` ucm :error
 scratch/main> run runMeWithNoArgs foo
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> run runMeWithOneArg
 ```
-```ucm:error
+``` ucm :error
 scratch/main> run runMeWithOneArg foo bar
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> run runMeWithTwoArgs
 ```
 
 ### Get the time zone
 
-```unison:hide
+``` unison :hide
 testTimeZone = do
   (offset, summer, name) = Clock.internals.systemTimeZone +0
   _ = (offset : Int, summer : Nat, name : Text)
   ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> run testTimeZone
 ```
 
 ### Get some random bytes
 
-```unison:hide
+``` unison :hide
 testRandom : '{io2.IO} [Result]
 testRandom = do
   test = do
@@ -420,7 +420,7 @@ testRandom = do
   runTest test
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> io.test testGetEnv
 ```

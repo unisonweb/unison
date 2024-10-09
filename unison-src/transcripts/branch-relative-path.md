@@ -1,18 +1,18 @@
-```unison
+``` unison
 foo = 5
 foo.bar = 1
 ```
 
-```ucm
+``` ucm
 p0/main> add
 ```
 
-```unison
+``` unison
 bonk = 5
 donk.bonk = 1
 ```
 
-```ucm
+``` ucm
 p1/main> add
 p1/main> fork p0/main: zzz
 p1/main> find zzz

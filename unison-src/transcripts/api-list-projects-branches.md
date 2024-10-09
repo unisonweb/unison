@@ -1,6 +1,6 @@
 # List Projects And Branches Test
 
-```ucm:hide
+``` ucm :hide
 scratch/main> project.create-empty project-one
 scratch/main> project.create-empty project-two
 scratch/main> project.create-empty project-three
@@ -9,7 +9,7 @@ project-one/main> branch branch-two
 project-one/main> branch branch-three
 ```
 
-```api
+``` api
 -- Should list all projects
 GET /api/projects
 

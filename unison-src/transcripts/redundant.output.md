@@ -1,13 +1,13 @@
 The same kind of thing happens with `map`. Are we saying this is incorrect behaviour?
 
-```unison
+``` unison
 map : (a -> b) -> [a] -> [b]
 map f = cases
   x +: xs -> f x +: map f xs
   [] -> []
 ```
 
-```ucm
+``` ucm
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
@@ -21,7 +21,7 @@ map f = cases
   `>`)... Ctrl+C cancels.
 
 ```
-```ucm
+``` ucm
 .> add
 
   ⍟ I've added these definitions:

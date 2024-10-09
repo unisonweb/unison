@@ -1,12 +1,12 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison:hide
+``` unison :hide
 x = 30
 
 y : Nat
-y = 
+y =
   z = x + 2
   z + 10
 
@@ -16,7 +16,7 @@ ability Ask a where
   ask : a
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> debug.term.abt Nat.+
 scratch/main> debug.term.abt y

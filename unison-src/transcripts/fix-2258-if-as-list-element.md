@@ -1,10 +1,10 @@
 Tests that `if` statements can appear as list and tuple elements.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison:hide
+``` unison :hide
 > [ if true then 1 else 0 ]
 
 > [ if true then 1 else 0, 1]
@@ -63,4 +63,3 @@ fst = cases (x,_) -> x
       cases x, y -> x Nat.+ y
     ]
 ```
-

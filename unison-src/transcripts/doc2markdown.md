@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-```unison:hide
+``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 
@@ -74,9 +74,9 @@ The following markdown features aren't supported by the Doc format yet, but mayb
 
 Table
 
-| Header 1 | Header 2 | 
-| -------- | -------- | 
-| Cell 1 | Cell 2 | 
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1 | Cell 2 |
 
 
     Indented Code block
@@ -85,17 +85,17 @@ Table
 }}
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> debug.doc-to-markdown fulldoc
 ```
 
 You can add docs to a term or type with a top-level doc literal above the binding:
 
-```unison
+``` unison
 {{ This is a term doc }}
 myTerm = 10
 

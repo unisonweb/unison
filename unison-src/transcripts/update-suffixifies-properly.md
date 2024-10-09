@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 myproject/main> builtins.merge lib.builtin
 ```
 
-```unison
+``` unison
 a.x.x.x.x = 100
 b.x.x.x.x = 100
 foo = 25
@@ -11,14 +11,14 @@ d.y.y.y.y = foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
-```ucm
+``` ucm
 myproject/main> add
 ```
 
-```unison
+``` unison
 foo = +30
 ```
 
-```ucm:error
+``` ucm :error
 myproject/main> update
 ```

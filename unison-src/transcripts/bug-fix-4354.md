@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 bonk : forall a. a -> a
 bonk x =
   zonk : forall a. a -> a

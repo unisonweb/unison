@@ -1,27 +1,27 @@
 `alias.term` makes a new name for a term.
 
-```ucm:hide
+``` ucm :hide
 project/main> builtins.mergeio lib.builtins
 ```
 
-```ucm
+``` ucm
 project/main> alias.term lib.builtins.bug foo
 project/main> ls
 ```
 
 It won't create a conflicted name, though.
 
-```ucm:error
+``` ucm :error
 project/main> alias.term lib.builtins.todo foo
 ```
 
-```ucm
+``` ucm
 project/main> ls
 ```
 
 You can use `debug.alias.term.force` for that.
 
-```ucm
+``` ucm
 project/main> debug.alias.term.force lib.builtins.todo foo
 project/main> ls
 ```

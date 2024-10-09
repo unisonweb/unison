@@ -202,7 +202,7 @@ the value of the counter is correct after all threads are done.
 fullTest : '{IO} [Result]
 fullTest = do
   use Nat * + eq drop
-  
+
   numThreads = 100
   iterations = 100
   expected = numThreads * iterations
@@ -212,13 +212,13 @@ fullTest = do
     thread n =
       if eq n 0
       then ()
-      else 
+      else
         atomicUpdate state (v -> v + 1)
         thread (drop n 1)
     void (spawnN numThreads '(thread iterations))
     result = Ref.read state
     check "The state of the counter is consistent "(eq result expected)
-      
+
   runTest test
 ```
 

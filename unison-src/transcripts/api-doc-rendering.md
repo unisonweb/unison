@@ -1,10 +1,10 @@
 # Doc rendering
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-```unison:hide
+``` unison :hide
 structural type Maybe a = Nothing | Just a
 otherTerm = "text"
 
@@ -81,14 +81,14 @@ Transclusion/evaluation:
 term = 42
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 scratch/main> display term.doc
 ```
 
-```api
+``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=term
 ```

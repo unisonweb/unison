@@ -49,13 +49,13 @@ tremulous = cases
 throaty = cases
   { Ab.a a -> k } -> ()
   { _ } -> ()
-  
+
 agitated = cases
   a | a == 2 -> ()
   _ -> ()
 
 doc = cases
-  y@4 -> () 
+  y@4 -> ()
   _ -> ()
 ```
 
