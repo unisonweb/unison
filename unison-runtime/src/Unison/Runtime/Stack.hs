@@ -71,7 +71,6 @@ module Unison.Runtime.Stack
     peekOff,
     upeekOff,
     bpeekOff,
-    pokeOff,
     bpoke,
     bpokeOff,
     upoke,
@@ -364,6 +363,8 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
   cp <- bargOnto srcBstk srcSp dstBstk dstSp args
   pure cp
 
+-- The Caller must ensure that when setting the unboxed stack, the equivalent
+-- boxed stack is zeroed out to BlackHole where necessary.
 uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
 uargOnto stk sp cop cp0 (Arg1 i) = do
   (x :: Int) <- readByteArray stk (sp - i)
@@ -537,12 +538,6 @@ upoke stk@(Stack _ _ sp ustk _) u = do
 bpoke :: Stack -> BElem -> IO ()
 bpoke (Stack _ _ sp _ bstk) b = writeArray bstk sp b
 {-# INLINE bpoke #-}
-
-pokeOff :: Stack -> Off -> Elem -> IO ()
-pokeOff (Stack _ _ sp ustk bstk) i (u, b) = do
-  writeByteArray ustk (sp - i) u
-  writeArray bstk (sp - i) b
-{-# INLINE pokeOff #-}
 
 upokeOff :: Stack -> Off -> UElem -> IO ()
 upokeOff stk i u = do
@@ -760,19 +755,27 @@ peekOffD (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 {-# INLINE peekOffD #-}
 
 pokeN :: Stack -> Word64 -> IO ()
-pokeN (Stack _ _ sp ustk _) n = writeByteArray ustk sp n
+pokeN stk@(Stack _ _ sp ustk _) n = do
+  bpoke stk BlackHole
+  writeByteArray ustk sp n
 {-# INLINE pokeN #-}
 
 pokeD :: Stack -> Double -> IO ()
-pokeD (Stack _ _ sp ustk _) d = writeByteArray ustk sp d
+pokeD stk@(Stack _ _ sp ustk _) d = do
+  bpoke stk BlackHole
+  writeByteArray ustk sp d
 {-# INLINE pokeD #-}
 
 pokeOffN :: Stack -> Int -> Word64 -> IO ()
-pokeOffN (Stack _ _ sp ustk _) i n = writeByteArray ustk (sp - i) n
+pokeOffN stk@(Stack _ _ sp ustk _) i n = do
+  bpokeOff stk i BlackHole
+  writeByteArray ustk (sp - i) n
 {-# INLINE pokeOffN #-}
 
 pokeOffD :: Stack -> Int -> Double -> IO ()
-pokeOffD (Stack _ _ sp ustk _) i d = writeByteArray ustk (sp - i) d
+pokeOffD stk@(Stack _ _ sp ustk _) i d = do
+  bpokeOff stk i BlackHole
+  writeByteArray ustk (sp - i) d
 {-# INLINE pokeOffD #-}
 
 pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
