@@ -53,7 +53,7 @@ testABunchOfNats _ =
   (runTest (testNat 0))
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -77,7 +77,6 @@ testABunchOfNats _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type EncDec
@@ -92,7 +91,6 @@ scratch/main> add
     testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
 scratch/main> io.test testABunchOfNats
-
     New test results:
   
     1. testABunchOfNats   ◉ successfully decoded 4294967295 using 64 bit Big Endian

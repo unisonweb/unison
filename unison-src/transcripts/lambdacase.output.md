@@ -1,5 +1,9 @@
 # Lambda case syntax
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
 
 ``` unison
@@ -8,7 +12,7 @@ isEmpty x = match x with
   _ -> false
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,6 +25,10 @@ isEmpty x = match x with
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 Here's the same function written using `cases` syntax:
 
 ``` unison
@@ -29,7 +37,7 @@ isEmpty2 = cases
   _ -> false
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,7 +55,6 @@ Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpt
 
 ``` ucm
 scratch/main> view isEmpty
-
   isEmpty : [t] -> Boolean
   isEmpty = cases
     [] -> true
@@ -73,7 +80,6 @@ merge xs ys = match (xs, ys) with
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     merge : [a] -> [a] -> [a]
@@ -92,7 +98,7 @@ merge2 = cases
     else            h2 +: merge2 (h +: t) t2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -110,7 +116,6 @@ Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ``` ucm
 scratch/main> view merge
-
   merge : [a] -> [a] -> [a]
   merge = cases
     [], ys -> ys
@@ -142,7 +147,7 @@ blorf = cases
 > blorf T F
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -183,7 +188,7 @@ merge3 = cases
                    | otherwise -> h2 +: merge3 (h +: t) t2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -198,13 +203,11 @@ merge3 = cases
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     merge3 : [a] -> [a] -> [a]
 
 scratch/main> view merge3
-
   merge3 : [a] -> [a] -> [a]
   merge3 = cases
     [], ys           -> ys
@@ -226,7 +229,7 @@ merge4 a b = match (a,b) with
   h +: t, h2 +: t2 | otherwise -> h2 +: merge4 (h +: t) t2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

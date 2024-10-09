@@ -2,13 +2,17 @@
 
 https://github.com/unisonweb/unison/issues/2786
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
 First we add a sum-type to the codebase.
 
 ``` unison
 structural type X = x
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,7 +28,6 @@ structural type X = x
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type X
@@ -44,7 +47,7 @@ X.x = "some text that's not in the codebase"
 dependsOnX = Text.size X.x
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -69,7 +72,6 @@ is removed in the same update that the new term is being added.
 
 ``` ucm
 scratch/main> update.old
-
   ⍟ I've added these definitions:
   
     X.x        : Text

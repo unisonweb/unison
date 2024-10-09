@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 
 up = 0xs0123456789abcdef
@@ -31,7 +35,7 @@ sigKo = match signature with
 > sigKo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

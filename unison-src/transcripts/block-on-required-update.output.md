@@ -2,11 +2,15 @@
 
 Should block an `add` if it requires an update on an in-file dependency.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,7 +25,6 @@ x = 1
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     x : Nat
@@ -35,7 +38,7 @@ x = 10
 y = x + 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -57,7 +60,6 @@ Try to add only the new `y`. This should fail because it requires an update to `
 
 ``` ucm :error
 scratch/main> add y
-
   x These definitions failed:
   
     Reason

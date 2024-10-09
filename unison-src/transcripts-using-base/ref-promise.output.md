@@ -18,7 +18,7 @@ casTest = do
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -33,13 +33,11 @@ casTest = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     casTest : '{IO} [Result]
 
 scratch/main> io.test casTest
-
     New test results:
   
     1. casTest   ◉ CAS is successful is there were no conflicting writes
@@ -81,7 +79,7 @@ promiseConcurrentTest = do
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -97,14 +95,12 @@ promiseConcurrentTest = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     promiseConcurrentTest : '{IO} [Result]
     promiseSequentialTest : '{IO} [Result]
 
 scratch/main> io.test promiseSequentialTest
-
     New test results:
   
     1. promiseSequentialTest   ◉ Should read a value that's been written
@@ -115,7 +111,6 @@ scratch/main> io.test promiseSequentialTest
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test promiseConcurrentTest
-
     New test results:
   
     1. promiseConcurrentTest   ◉ Reads awaits for completion of the Promise
@@ -136,7 +131,7 @@ atomicUpdate ref f =
   if Ref.cas ref ticket value then () else atomicUpdate ref f
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -151,7 +146,6 @@ atomicUpdate ref f =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
@@ -176,7 +170,7 @@ spawnN n fa =
   map Promise.read (go n [])
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -191,7 +185,6 @@ spawnN n fa =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     spawnN : Nat -> '{IO} a ->{IO} [a]
@@ -226,7 +219,7 @@ fullTest = do
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -241,13 +234,11 @@ fullTest = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     fullTest : '{IO} [Result]
 
 scratch/main> io.test fullTest
-
     New test results:
   
     1. fullTest   ◉ The state of the counter is consistent 

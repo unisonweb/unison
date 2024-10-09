@@ -1,8 +1,12 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 unique type Foo = Bar Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,13 +21,11 @@ unique type Foo = Bar Nat
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> alias.term Foo.Bar Stray.BarAlias
-
   Done.
 
 ```
@@ -32,7 +34,7 @@ scratch/main> alias.term Foo.Bar Stray.BarAlias
 unique type Foo = Bar Nat Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -48,7 +50,6 @@ unique type Foo = Bar Nat Nat
 
 ``` ucm :error
 scratch/main> update
-
   Sorry, I wasn't able to perform the update, because I need all
   constructor names to be nested somewhere beneath the
   corresponding type name.

@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 This transcript shows some syntax for raw text literals.
 
 ``` unison
@@ -31,7 +35,7 @@ lit2 = """"
 > Some lit2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -87,14 +91,12 @@ lit2 = """"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lit1 : Text
     lit2 : Text
 
 scratch/main> view lit1 lit2
-
   lit1 : Text
   lit1 =
     """

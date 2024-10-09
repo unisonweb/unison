@@ -10,6 +10,10 @@ and surface a helpful message.
 scratch/main> history
 ```
 
+``` ucm :hide:error
+scratch/main> history
+```
+
 🛑
 
 The transcript was expecting an error in the stanza above, but did not encounter one.

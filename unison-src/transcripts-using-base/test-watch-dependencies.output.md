@@ -8,6 +8,10 @@ We add a simple definition.
 x = 999
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 Now, we update that definition and define a test-watch which depends on it.
 
 ``` unison
@@ -15,7 +19,7 @@ x = 1000
 test> mytest = checks [x + 1 == 1001]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -44,7 +48,6 @@ We expect this 'add' to fail because the test is blocked by the update to `x`.
 
 ``` ucm :error
 scratch/main> add
-
   x These definitions failed:
   
     Reason
@@ -62,7 +65,7 @@ y = 42
 test> useY = checks [y + 1 == 43]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -87,7 +90,6 @@ This should correctly identify `y` as a dependency and add that too.
 
 ``` ucm
 scratch/main> add useY
-
   ⍟ I've added these definitions:
   
     useY : [Result]

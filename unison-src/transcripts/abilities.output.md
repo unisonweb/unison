@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Some random ability stuff to ensure things work.
 
 ``` unison
@@ -17,7 +21,7 @@ ha = cases
   { four i -> c } -> handle c (j k l -> i+j+k+l) with ha
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -33,7 +37,6 @@ ha = cases
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ability A

@@ -2,6 +2,10 @@
 
 https://github.com/unisonweb/unison/issues/2786
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
 First we add an ability to the codebase.
 Note that this will create the name `Channels.send` as an ability constructor.
 
@@ -10,7 +14,7 @@ unique ability Channels where
   send : a -> {Channels} ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -25,7 +29,6 @@ unique ability Channels where
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ability Channels
@@ -47,7 +50,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -70,7 +73,6 @@ These should fail with a term/ctor conflict since we exclude the ability from th
 
 ``` ucm :error
 scratch/main> update.old patch Channels.send
-
   x These definitions failed:
   
     Reason
@@ -79,7 +81,6 @@ scratch/main> update.old patch Channels.send
     Tip: Use `help filestatus` to learn more.
 
 scratch/main> update.old patch thing
-
   ⍟ I've added these definitions:
   
     Channels.send : a -> ()
@@ -104,7 +105,7 @@ thing : '{Channels} ()
 thing _ = send 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -125,7 +126,6 @@ These updates should succeed since `Channels` is a dependency.
 
 ``` ucm
 scratch/main> update.old.preview patch Channels.send
-
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -138,7 +138,6 @@ scratch/main> update.old.preview patch Channels.send
       Channels.send : a ->{Channels} ()
 
 scratch/main> update.old.preview patch thing
-
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
@@ -157,7 +156,6 @@ We should also be able to successfully update the whole thing.
 
 ``` ucm
 scratch/main> update.old
-
   ⊡ Ignored previously added definitions: Channels
   
   ⍟ I've updated these names to your new definition:
@@ -169,11 +167,15 @@ scratch/main> update.old
 
 # Constructor-term conflict
 
+``` ucm :hide
+scratch/main2> builtins.merge lib.builtins
+```
+
 ``` unison
 X.x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -188,7 +190,6 @@ X.x = 1
 
 ``` ucm
 scratch/main2> add
-
   ⍟ I've added these definitions:
   
     X.x : Nat
@@ -200,7 +201,7 @@ structural ability X where
   x : ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -221,7 +222,6 @@ This should fail with a ctor/term conflict.
 
 ``` ucm :error
 scratch/main2> add
-
   x These definitions failed:
   
     Reason

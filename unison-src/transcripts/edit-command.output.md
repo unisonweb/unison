@@ -1,6 +1,5 @@
 ``` ucm
 scratch/main> builtins.merge
-
   Done.
 
 ```
@@ -13,7 +12,7 @@ bar = 456
 mytest = [Ok "ok"]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in /private/tmp/scratch.u.
 
   I found and typechecked these definitions in
@@ -30,7 +29,6 @@ mytest = [Ok "ok"]
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bar    : Nat
@@ -38,7 +36,6 @@ scratch/main> add
     mytest : [Result]
 
 scratch/main> edit foo bar
-
   ☝️
   
   I added 2 definitions to the top of /private/tmp/scratch.u
@@ -47,7 +44,6 @@ scratch/main> edit foo bar
   definitions currently in this namespace.
 
 scratch/main> edit mytest
-
   ☝️
   
   I added 1 definitions to the top of /private/tmp/scratch.u
@@ -71,7 +67,6 @@ test> mytest = [Ok "ok"]
 
 ``` ucm :error
 scratch/main> edit missing
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.

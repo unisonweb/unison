@@ -1,6 +1,10 @@
 File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 unique type A = A
 
@@ -10,7 +14,7 @@ threadEyeDeez _ =
   (t1 == t2, t1 < t2)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -26,14 +30,12 @@ threadEyeDeez _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 scratch/main> run threadEyeDeez
-
   (false, true)
 
 ```
@@ -45,7 +47,7 @@ scratch/main> run threadEyeDeez
 > termLink threadEyeDeez == termLink threadEyeDeez
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ✅

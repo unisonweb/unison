@@ -15,7 +15,7 @@ mkTestCase = do
   saveTestCase "case-01" "v5" combines (l1, l2, l3)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -34,7 +34,6 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     combines   : ([Float], [Int], [Char]) -> Text
@@ -44,7 +43,6 @@ scratch/main> add
     mkTestCase : '{IO, Exception} ()
 
 scratch/main> run mkTestCase
-
   ()
 
 ```

@@ -2,6 +2,10 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 
 Docs can be used as inline code comments.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 foo : Nat -> Nat
 foo n =
@@ -9,7 +13,7 @@ foo n =
   n + 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -22,9 +26,12 @@ foo n =
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view foo
-
   foo : Nat -> Nat
   foo n =
     use Nat +
@@ -39,7 +46,7 @@ Note that `@` and `:]` must be escaped within docs.
 escaping = [: Docs look [: like \@this \:] :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,9 +59,12 @@ escaping = [: Docs look [: like \@this \:] :]
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view escaping
-
   escaping : Doc
   escaping = [: Docs look [: like \@this \:] :]
 
@@ -72,7 +82,7 @@ commented = [:
 :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -85,9 +95,12 @@ commented = [:
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view commented
-
   commented : Doc
   commented =
     [: example:
@@ -108,7 +121,7 @@ Handling of indenting in docs between the parser and pretty-printer is a bit fid
 doc1 = [:   hi   :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -121,9 +134,12 @@ doc1 = [:   hi   :]
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc1
-
   doc1 : Doc
   doc1 = [: hi :]
 
@@ -141,7 +157,7 @@ doc2 = [: hello
           and the rest. :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -154,9 +170,12 @@ doc2 = [: hello
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc2
-
   doc2 : Doc
   doc2 =
     [: hello
@@ -181,7 +200,7 @@ Note that because of the special treatment of the first line mentioned above, wh
    :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -194,9 +213,12 @@ Note that because of the special treatment of the first line mentioned above, wh
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc3
-
   doc3 : Doc
   doc3 =
     [: When Unison identifies a paragraph, it removes any 
@@ -229,7 +251,7 @@ doc4 = [: Here's another example of some paragraphs.
             - Apart from this one. :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -242,9 +264,12 @@ doc4 = [: Here's another example of some paragraphs.
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc4
-
   doc4 : Doc
   doc4 =
     [: Here's another example of some paragraphs.
@@ -265,7 +290,7 @@ doc5 = [:   - foo
           and the rest. :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -278,9 +303,12 @@ doc5 = [:   - foo
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc5
-
   doc5 : Doc
   doc5 =
     [: - foo
@@ -298,7 +326,7 @@ doc6 = [:
        :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -311,9 +339,12 @@ doc6 = [:
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view doc6
-
   doc6 : Doc
   doc6 =
     [: - foo
@@ -332,7 +363,7 @@ empty = [::]
 expr = foo 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -346,9 +377,12 @@ expr = foo 1
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view empty
-
   empty : Doc
   empty = [:  :]
 
@@ -394,7 +428,7 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -407,9 +441,12 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view test1
-
   test1 : Doc
   test1 =
     [: The internal logic starts to get hairy when you use the 
@@ -477,7 +514,7 @@ reg1363 = [: `@List.take foo` bar
   baz :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -490,9 +527,12 @@ reg1363 = [: `@List.take foo` bar
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> view reg1363
-
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
 
@@ -508,7 +548,7 @@ test2 = [:
 :]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -521,11 +561,14 @@ test2 = [:
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 View is fine.
 
 ``` ucm
 scratch/main> view test2
-
   test2 : Doc
   test2 =
     [: Take a look at this:
@@ -538,7 +581,6 @@ But note it's not obvious how display should best be handling this.  At the mome
 
 ``` ucm
 scratch/main> display test2
-
   Take a look at this:
   foo : Nat -> Nat
   foo n =

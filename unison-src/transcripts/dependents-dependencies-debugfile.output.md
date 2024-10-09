@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ### `debug.file`
 
 I can use `debug.file` to see the hashes of the last typechecked file.
@@ -18,7 +22,6 @@ inside.r = d
 
 ``` ucm
 scratch/main> debug.file
-
   type inside.M#h37a56c5ep
   type outside.A#6l6krl7n4l
   type outside.B#eo6rj0lj1b
@@ -38,7 +41,6 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type inside.M
@@ -51,11 +53,9 @@ scratch/main> add
     outside.d : Boolean
 
 scratch/main> dependents q
-
   q has no dependents.
 
 scratch/main> dependencies q
-
   Dependencies of: q
   
     Types:
@@ -72,7 +72,6 @@ scratch/main> dependencies q
        the above list.
 
 scratch/main> dependencies B
-
   Dependencies of: type B, B
   
     Types:
@@ -84,7 +83,6 @@ scratch/main> dependencies B
        the above list.
 
 scratch/main> dependencies d
-
   Dependencies of: d
   
     Types:
@@ -103,7 +101,6 @@ scratch/main> dependencies d
        the above list.
 
 scratch/main> dependents d
-
   Dependents of: d
   
     Terms:

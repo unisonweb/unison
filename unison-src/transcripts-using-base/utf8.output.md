@@ -4,7 +4,6 @@ Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding o
 
 ``` ucm
 scratch/main> find Utf8
-
   1. builtin.Text.toUtf8 : Text -> Bytes
   2. Text.fromUtf8 : Bytes ->{Exception} Text
   3. builtin.Text.fromUtf8.impl : Bytes -> Either Failure Text
@@ -22,7 +21,7 @@ ascii = "ABCDE"
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,7 +51,7 @@ greek = "ΑΒΓΔΕ"
 > toUtf8 greek
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -87,7 +86,7 @@ greek = "ΑΒΓΔΕ"
 test> greekTest = checkRoundTrip greek
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -122,7 +121,7 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

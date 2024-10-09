@@ -1,5 +1,9 @@
 # Doc rendering
 
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 structural type Maybe a = Nothing | Just a
 otherTerm = "text"
@@ -77,9 +81,12 @@ Transclusion/evaluation:
 term = 42
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` ucm
 scratch/main> display term.doc
-
   # Heading
   
     # Heading 2

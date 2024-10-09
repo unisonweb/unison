@@ -1,3 +1,8 @@
+``` ucm :hide
+scratch/main> alias.type ##Nat Nat
+scratch/main> alias.term ##Any.Any Any
+```
+
 ``` unison
 structural type Zoink a b c = Zoink a b c
 
@@ -5,7 +10,7 @@ structural type Zoink a b c = Zoink a b c
 > [ Zoink [0,1,2,3,4,5] [6,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,3] () ]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

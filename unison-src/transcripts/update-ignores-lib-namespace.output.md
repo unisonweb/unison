@@ -2,12 +2,16 @@
 the project organization convention that dependencies are put in "lib"; it's much easier to apply a patch to all of
 one's own code if the "lib" namespace is simply ignored.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 foo = 100
 lib.foo = 100
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -23,7 +27,6 @@ lib.foo = 100
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     foo     : Nat
@@ -35,7 +38,7 @@ scratch/main> add
 foo = 200
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,14 +55,12 @@ foo = 200
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names foo
-
   Term
   Hash:   #9ntnotdp87
   Names:  foo

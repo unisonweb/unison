@@ -1,5 +1,9 @@
 # Hello\!
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
 
 The format is just a regular markdown file with some fenced code blocks that are typechecked and elaborated by `ucm`. For example, you can call this transcript via:
@@ -25,7 +29,7 @@ In the `unison` fenced block, you can give an (optional) file name (defaults to 
 x = 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in myfile.u.
 
   I found and typechecked these definitions in myfile.u. If you
@@ -42,13 +46,11 @@ Let's go ahead and add that to the codebase, then make sure it's there:
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     x : Nat
 
 scratch/main> view x
-
   x : Nat
   x = 42
 
@@ -66,6 +68,10 @@ y = 99
 
 This works for `ucm` blocks as well.
 
+``` ucm :hide
+scratch/main> rename.term x answerToUltimateQuestionOfLife
+```
+
 Doing `unison :hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
 
 ## Expecting failures
@@ -77,7 +83,7 @@ hmm : .builtin.Nat
 hmm = "Not, in fact, a number"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found a value  of type:  Text

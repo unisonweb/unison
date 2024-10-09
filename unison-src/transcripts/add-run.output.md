@@ -2,6 +2,10 @@
 
 ## Basic usage
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 even : Nat -> Boolean
 even x = if x == 0 then true else odd (drop x 1)
@@ -13,7 +17,7 @@ is2even : 'Boolean
 is2even = '(even 2)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -32,7 +36,6 @@ it errors if there isn't a previous run
 
 ``` ucm :error
 scratch/main> add.run foo
-
   ⚠️
   
   There is no previous evaluation to save. Use `run` to evaluate
@@ -42,7 +45,6 @@ scratch/main> add.run foo
 
 ``` ucm
 scratch/main> run is2even
-
   true
 
 ```
@@ -52,7 +54,6 @@ unison file
 
 ``` ucm :error
 scratch/main> add.run is2even
-
   ⚠️
   
   Cannot save the last run result into `is2even` because that
@@ -64,7 +65,6 @@ otherwise, the result is successfully persisted
 
 ``` ucm
 scratch/main> add.run foo.bar.baz
-
   ⍟ I've added these definitions:
   
     foo.bar.baz : Boolean
@@ -73,7 +73,6 @@ scratch/main> add.run foo.bar.baz
 
 ``` ucm
 scratch/main> view foo.bar.baz
-
   foo.bar.baz : Boolean
   foo.bar.baz = true
 
@@ -92,7 +91,7 @@ main : '{IO, Exception} (Nat -> Nat -> Nat)
 main _ = y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -109,11 +108,9 @@ main _ = y
 
 ``` ucm
 scratch/main> run main
-
   a b -> a Nat.+ b Nat.+ z 10
 
 scratch/main> add.run result
-
   ⍟ I've added these definitions:
   
     result : Nat -> Nat -> Nat
@@ -128,7 +125,7 @@ inc : Nat -> Nat
 inc x = x + 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -143,7 +140,6 @@ inc x = x + 1
 
 ``` ucm
 scratch/main> add inc
-
   ⍟ I've added these definitions:
   
     inc : Nat -> Nat
@@ -155,7 +151,7 @@ main : '(Nat -> Nat)
 main _ x = inc x
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -170,17 +166,14 @@ main _ x = inc x
 
 ``` ucm
 scratch/main> run main
-
   inc
 
 scratch/main> add.run natfoo
-
   ⍟ I've added these definitions:
   
     natfoo : Nat -> Nat
 
 scratch/main> view natfoo
-
   natfoo : Nat -> Nat
   natfoo = inc
 
@@ -194,7 +187,7 @@ y = x + x
 main = 'y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -211,7 +204,6 @@ main = 'y
 
 ``` ucm
 scratch/main> run main
-
   2
 
 ```
@@ -220,7 +212,7 @@ scratch/main> run main
 x = 50
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -237,13 +229,11 @@ this saves 2 to xres, rather than 100
 
 ``` ucm
 scratch/main> add.run xres
-
   ⍟ I've added these definitions:
   
     xres : Nat
 
 scratch/main> view xres
-
   xres : Nat
   xres = 2
 
@@ -255,7 +245,7 @@ scratch/main> view xres
 main = '5
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -270,11 +260,9 @@ main = '5
 
 ``` ucm :error
 scratch/main> run main
-
   5
 
 scratch/main> add.run xres
-
   x These definitions failed:
   
     Reason
@@ -290,7 +278,7 @@ scratch/main> add.run xres
 main = '5
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -305,17 +293,14 @@ main = '5
 
 ``` ucm
 scratch/main> run main
-
   5
 
 scratch/main> add.run .an.absolute.name
-
   ⍟ I've added these definitions:
   
     .an.absolute.name : Nat
 
 scratch/main> view .an.absolute.name
-
   .an.absolute.name : Nat
   .an.absolute.name = 5
 

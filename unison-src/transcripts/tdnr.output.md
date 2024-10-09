@@ -1,12 +1,16 @@
 TDNR selects local term (in file) that typechecks over local term (in file) that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 good.foo = 17
 bad.foo = "bar"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,15 +23,23 @@ thing = foo Nat.+ foo
       good.foo : Nat
       thing    : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```
 
 TDNR selects local term (in file) that typechecks over local term (in namespace) that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -42,7 +54,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo : Text
@@ -54,7 +65,7 @@ good.foo = 17
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -66,15 +77,23 @@ thing = foo Nat.+ foo
       good.foo : Nat
       thing    : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```
 
 TDNR selects local term (in file) that typechecks over local term (shadowing namespace) that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -89,7 +108,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo : Text
@@ -102,7 +120,7 @@ bad.foo = "baz"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -121,13 +139,21 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (in namespace) that typechecks over local term (in file) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -142,7 +168,6 @@ good.foo = 17
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo : Nat
@@ -154,7 +179,7 @@ bad.foo = "bar"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -166,16 +191,24 @@ thing = foo Nat.+ foo
       bad.foo : Text
       thing   : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```
 
 TDNR selects local term (in namespace) that typechecks over local term (in namespace) that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -191,7 +224,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -203,7 +235,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -216,14 +248,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (in namespace) that typechecks over local term (shadowing namespace) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -239,7 +279,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -252,7 +291,7 @@ bad.foo = "baz"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -270,13 +309,21 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (shadowing namespace) that typechecks over local term (in file) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -291,7 +338,6 @@ good.foo = 17
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo : Nat
@@ -304,7 +350,7 @@ bad.foo = "bar"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -323,14 +369,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (shadowing namespace) that typechecks over local term (in namespace) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -346,7 +400,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -359,7 +412,7 @@ good.foo = 18
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -377,14 +430,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (shadowing namespace) that typechecks over local term (shadowing namespace) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -400,7 +461,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -414,7 +474,7 @@ bad.foo = "baz"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -431,17 +491,25 @@ thing = foo Nat.+ foo
       bad.foo  : Text
       good.foo : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```
 
 \=== start local over direct dep
 
 TDNR selects local term (in file) that typechecks over direct dependency that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 lib.bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -456,7 +524,6 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.bad.foo : Text
@@ -468,7 +535,7 @@ good.foo = 17
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -480,16 +547,24 @@ thing = foo Nat.+ foo
       good.foo : Nat
       thing    : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```
 
 TDNR selects local term (in namespace) that typechecks over direct dependency that doesn't.
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 good.foo = 17
 lib.bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -505,7 +580,6 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo    : Nat
@@ -517,7 +591,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -530,14 +604,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects local term (shadowing namespace) that typechecks over direct dependency that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 lib.bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -553,7 +635,6 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo    : Nat
@@ -566,7 +647,7 @@ good.foo = 18
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -584,13 +665,21 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR not used to select local term (in file) that typechecks over indirect dependency that also typechecks.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.dep.lib.dep.foo = 217
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -605,7 +694,6 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.dep.lib.dep.foo : Nat
@@ -617,7 +705,7 @@ good.foo = 17
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -631,14 +719,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR not used to select local term (in namespace) that typechecks over indirect dependency that also typechecks.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 lib.dep.lib.dep.foo = 217
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -654,7 +750,6 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo            : Nat
@@ -666,7 +761,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -679,14 +774,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR not used to select local term (shadowing namespace) that typechecks over indirect dependency that also typechecks.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 good.foo = 17
 lib.dep.lib.dep.foo = 217
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -702,7 +805,6 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     good.foo            : Nat
@@ -715,7 +817,7 @@ good.foo = 18
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -733,13 +835,21 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects direct dependency that typechecks over local term (in file) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.good.foo = 17
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -754,7 +864,6 @@ lib.good.foo = 17
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.good.foo : Nat
@@ -766,7 +875,7 @@ bad.foo = "bar"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -780,14 +889,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects direct dependency that typechecks over local term (in namespace) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -803,7 +920,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo      : Text
@@ -815,7 +931,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -828,14 +944,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects direct dependency that typechecks over local term (shadowing namespace) that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.good.foo = 17
 bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -851,7 +975,6 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bad.foo      : Text
@@ -864,7 +987,7 @@ bad.foo = "baz"
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -882,14 +1005,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects direct dependency that typechecks over direct dependency that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.good.foo = 17
 lib.bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -905,7 +1036,6 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.bad.foo  : Text
@@ -917,7 +1047,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -930,14 +1060,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR not used to select direct dependency that typechecks over indirect dependency that also typechecks.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.good.foo = 17
 lib.dep.lib.dep.foo = 217
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -953,7 +1091,6 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.dep.lib.dep.foo : Nat
@@ -965,7 +1102,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -978,14 +1115,22 @@ thing = foo Nat.+ foo
 
 ```
 
+``` ucm :hide
+scratch/main> delete.project scratch
+```
+
 TDNR selects indirect dependency that typechecks over indirect dependency that doesn't.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
 
 ``` unison
 lib.dep.lib.good.foo = 17
 lib.dep.lib.bad.foo = "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1001,7 +1146,6 @@ lib.dep.lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     lib.dep.lib.bad.foo  : Text
@@ -1013,7 +1157,7 @@ scratch/main> add
 thing = foo Nat.+ foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1024,4 +1168,8 @@ thing = foo Nat.+ foo
     
       thing : Nat
 
+```
+
+``` ucm :hide
+scratch/main> delete.project scratch
 ```

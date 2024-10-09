@@ -1,8 +1,12 @@
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+scratch/main> load unison-src/transcripts-using-base/doc.md.files/syntax.u
+```
+
 We can display the guide before and after adding it to the codebase:
 
 ```` ucm
 scratch/main> display doc.guide
-
   # Unison computable documentation
   
     # Basic formatting
@@ -200,7 +204,6 @@ scratch/main> display doc.guide
     Some text   More text   Zounds!
 
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     basicFormatting     : Doc2
@@ -213,7 +216,6 @@ scratch/main> add
     sqr                 : Nat -> Nat
 
 scratch/main> display doc.guide
-
   # Unison computable documentation
   
     # Basic formatting
@@ -418,7 +420,7 @@ But we can't display this due to a decompilation problem.
 rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -433,7 +435,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 
 ```` ucm
 scratch/main> display rendered
-
   # Unison computable documentation
   
     # Basic formatting
@@ -631,13 +632,11 @@ scratch/main> display rendered
     Some text   More text   Zounds!
 
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     rendered : Annotated () (Either SpecialForm ConsoleText)
 
 scratch/main> display rendered
-
   # Unison computable documentation
   
     # Basic formatting
@@ -835,7 +834,6 @@ scratch/main> display rendered
     Some text   More text   Zounds!
 
 scratch/main> undo
-
   Here are the changes I undid
   
   Added definitions:
@@ -852,7 +850,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 > rendered
 ```
 
-```` ucm
+```` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

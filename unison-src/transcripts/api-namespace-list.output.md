@@ -1,5 +1,9 @@
 # Namespace list api
 
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison
 {{ Documentation }}
 nested.names.x = 42
@@ -7,7 +11,7 @@ nested.names.x = 42
 nested.names.readme = {{ I'm a readme! }}
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,7 +28,6 @@ nested.names.readme = {{ I'm a readme! }}
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     nested.names.readme : Doc2

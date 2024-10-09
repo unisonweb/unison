@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
@@ -81,9 +85,12 @@ Table
 }}
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ```` ucm
 scratch/main> debug.doc-to-markdown fulldoc
-
   Heres some text with a soft line break
   
   hard line break
@@ -175,7 +182,7 @@ unique type MyUniqueType = MyUniqueType
 structural type MyStructuralType = MyStructuralType
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

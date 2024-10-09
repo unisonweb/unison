@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Some tests of pattern behavior.
 
 ``` unison
@@ -7,7 +11,7 @@ p1 = join [literal "blue", literal "frog"]
 > Pattern.run (many.corrected p1) "bluefrogbluegoat"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

@@ -1,5 +1,9 @@
 # Destructuring binds
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Here's a couple examples:
 
 ``` unison
@@ -14,7 +18,7 @@ ex1 tup =
   c + d
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -30,14 +34,12 @@ ex1 tup =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ex0 : Nat -> Nat
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
 scratch/main> view ex0 ex1
-
   ex0 : Nat -> Nat
   ex0 n =
     use Nat +
@@ -59,7 +61,7 @@ ex2 tup = match tup with
   (a, b, (c,d)) -> c + d
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -83,7 +85,7 @@ ex4 =
   "Doesn't typecheck"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I couldn't figure out what a refers to here:
@@ -117,7 +119,7 @@ ex5a _ = match (99 + 1, "hi") with
   _ -> "impossible"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -133,14 +135,12 @@ ex5a _ = match (99 + 1, "hi") with
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ex5  : 'Text
     ex5a : 'Text
 
 scratch/main> view ex5 ex5a
-
   ex5 : 'Text
   ex5 _ = match 99 Nat.+ 1 with
     12 -> "Hi"
@@ -166,13 +166,11 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ex6 : (Nat, Nat) -> Nat
 
 scratch/main> view ex6
-
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases (x, y) -> x Nat.+ y
 

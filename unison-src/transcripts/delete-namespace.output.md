@@ -1,5 +1,9 @@
 # delete.namespace.force
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison :hide
 no_dependencies.thing = "no dependents on this term"
 
@@ -10,11 +14,14 @@ dependents.usage1 = dependencies.term1 + dependencies.term2
 dependents.usage2 = dependencies.term1 * dependencies.term2
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 Deleting a namespace with no external dependencies should succeed.
 
 ``` ucm
 scratch/main> delete.namespace no_dependencies
-
   Done.
 
 ```
@@ -23,7 +30,6 @@ Deleting a namespace with external dependencies should fail and list all depende
 
 ``` ucm :error
 scratch/main> delete.namespace dependencies
-
   ⚠️
   
   I didn't delete the namespace because the following
@@ -45,7 +51,6 @@ Deleting a namespace with external dependencies should succeed when using `delet
 
 ``` ucm
 scratch/main> delete.namespace.force dependencies
-
   Done.
 
   ⚠️
@@ -66,7 +71,6 @@ I should be able to view an affected dependency by number
 
 ``` ucm
 scratch/main> view 2
-
   dependents.usage2 : Nat
   dependents.usage2 =
     use Nat *
@@ -78,7 +82,6 @@ Deleting the root namespace should require confirmation if not forced.
 
 ``` ucm
 scratch/main> delete.namespace .
-
   ⚠️
   
   Are you sure you want to clear away everything?
@@ -86,14 +89,12 @@ scratch/main> delete.namespace .
   instead, or delete the current branch with `delete.branch`
 
 scratch/main> delete.namespace .
-
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
 
 -- Should have an empty history
 scratch/main> history .
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -107,14 +108,12 @@ Deleting the root namespace shouldn't require confirmation if forced.
 
 ``` ucm
 scratch/main> delete.namespace.force .
-
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
   the current path.
 
 -- Should have an empty history
 scratch/main> history .
-
   Note: The most recent namespace hash is immediately below this
         message.
   

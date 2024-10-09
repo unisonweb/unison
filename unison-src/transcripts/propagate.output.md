@@ -1,5 +1,9 @@
 # Propagating type edits
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
 We introduce a type `Foo` with a function dependent `fooToInt`.
 
 ``` unison
@@ -9,7 +13,7 @@ fooToInt : Foo -> Int
 fooToInt _ = +42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,14 +31,12 @@ And then we add it.
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
     fooToInt : Foo -> Int
 
 scratch/main> find.verbose
-
   1. -- #uj8oalgadr2f52qloufah6t8vsvbc76oqijkotek87vooih7aqu44k20hrs34kartusapghp4jmfv6g1409peklv3r6a527qpk52soo
      type Foo
      
@@ -47,7 +49,6 @@ scratch/main> find.verbose
   
 
 scratch/main> view fooToInt
-
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
@@ -59,7 +60,7 @@ Then if we change the type `Foo`...
 unique type Foo = Foo | Bar
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -77,7 +78,6 @@ and update the codebase to use the new type `Foo`...
 
 ``` ucm
 scratch/main> update.old
-
   ⍟ I've updated these names to your new definition:
   
     type Foo
@@ -88,7 +88,6 @@ scratch/main> update.old
 
 ``` ucm
 scratch/main> view fooToInt
-
   fooToInt : Foo -> Int
   fooToInt _ = +42
 
@@ -107,7 +106,7 @@ preserve.otherTerm : Optional baz -> Optional baz
 preserve.otherTerm y = someTerm y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -125,7 +124,6 @@ Add that to the codebase:
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     preserve.otherTerm : Optional baz -> Optional baz
@@ -140,7 +138,7 @@ preserve.someTerm : Optional x -> Optional x
 preserve.someTerm _ = None
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -158,7 +156,6 @@ Update...
 
 ``` ucm
 scratch/main> update.old
-
   ⍟ I've updated these names to your new definition:
   
     preserve.someTerm : Optional x -> Optional x
@@ -170,12 +167,10 @@ type of `otherTerm` should remain the same.
 
 ``` ucm
 scratch/main> view preserve.someTerm
-
   preserve.someTerm : Optional x -> Optional x
   preserve.someTerm _ = None
 
 scratch/main> view preserve.otherTerm
-
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y
 

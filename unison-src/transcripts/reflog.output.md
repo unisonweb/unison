@@ -1,10 +1,14 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
 First we make some changes to the codebase so there's data in the reflog.
 
 ``` unison
 x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,7 +23,6 @@ x = 1
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     x : Nat
@@ -30,7 +33,7 @@ scratch/main> add
 y = 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -45,28 +48,23 @@ y = 2
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     y : Nat
 
 scratch/main> branch /other
-
   Done. I've created the other branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /other`.
 
 scratch/other> alias.term y z
-
   Done.
 
 newproject/main> builtins.merge lib.builtins
-
   Done.
 
 newproject/main> alias.type lib.builtins.Nat MyNat
-
   Done.
 
 ```
@@ -75,7 +73,6 @@ Should see reflog entries from the current branch
 
 ``` ucm
 scratch/main> reflog
-
   Below is a record of recent changes, you can use
   `reset #abcdef` to reset the current branch to a previous
   state.
@@ -95,7 +92,6 @@ Should see reflog entries from the current project
 
 ``` ucm
 scratch/main> project.reflog
-
   Below is a record of recent changes, you can use
   `reset #abcdef` to reset the current branch to a previous
   state.
@@ -117,7 +113,6 @@ Should see reflog entries from all projects
 
 ``` ucm
 scratch/main> reflog.global
-
   Below is a record of recent changes, you can use
   `reset #abcdef` to reset the current branch to a previous
   state.

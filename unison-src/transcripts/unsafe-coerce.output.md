@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 f : '{} Nat
 f _ = 5
@@ -11,7 +15,7 @@ main _ =
   if n == 5 then [Ok ""] else [Fail ""]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -28,12 +32,10 @@ main _ =
 
 ``` ucm
 scratch/main> find unsafe.coerceAbilities
-
   1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   
 
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     f    : 'Nat
@@ -41,7 +43,6 @@ scratch/main> add
     main : '{IO, Exception} [Result]
 
 scratch/main> io.test main
-
     New test results:
   
     1. main   ◉ 

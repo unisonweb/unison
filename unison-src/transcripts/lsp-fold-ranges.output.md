@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 
 {{ Type doc }}
@@ -26,7 +30,6 @@ test> z = let
 
 ``` ucm
 scratch/main> debug.lsp.fold-ranges
-
   
   《{{ Type doc }}》
   《structural type Optional a =

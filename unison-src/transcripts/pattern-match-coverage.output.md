@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 # Basics
 
 ## non-exhaustive patterns
@@ -10,7 +14,7 @@ test = cases
   A -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -36,7 +40,7 @@ test = cases
   (B, None) -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -65,7 +69,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -86,7 +90,7 @@ test = cases
   (A, Some A) -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -108,7 +112,7 @@ test = cases
   Some None -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -132,7 +136,7 @@ test0 = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -151,7 +155,7 @@ test = cases
   Some _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -170,7 +174,7 @@ test = cases
   () | false -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -191,7 +195,7 @@ test = cases
     | isEven x -> x
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -217,7 +221,7 @@ test = cases
     | otherwise -> 0
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -244,7 +248,7 @@ test = cases
   Some None -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -268,7 +272,7 @@ test = cases
   Some (Some A) -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -297,7 +301,7 @@ test = cases
   0 -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -318,7 +322,7 @@ test = cases
   true -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -342,7 +346,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -364,7 +368,7 @@ test = cases
   false -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -389,7 +393,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -408,7 +412,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -428,7 +432,7 @@ test = cases
   x +: xs -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -449,7 +453,7 @@ test = cases
   [] -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -468,7 +472,7 @@ test = cases
   x +: xs -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -487,7 +491,7 @@ test = cases
   xs :+ x -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -507,7 +511,7 @@ test = cases
   [] -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -528,7 +532,7 @@ test = cases
   x0 +: [] -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -554,7 +558,7 @@ test = cases
   [] -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -586,7 +590,7 @@ test = cases
   true +: xs -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -611,7 +615,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -636,7 +640,7 @@ test = cases
   _ -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -655,7 +659,7 @@ unit2t = cases
   () -> A
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -671,7 +675,6 @@ unit2t = cases
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type T
@@ -693,7 +696,7 @@ witht = match unit2t () with
   x -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -713,7 +716,7 @@ evil : Unit -> V
 evil = bug ""
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -729,7 +732,6 @@ evil = bug ""
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type V
@@ -743,7 +745,7 @@ withV = match evil () with
   x -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -756,7 +758,7 @@ withV = match evil () with
 unique type SomeType = A
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -771,7 +773,6 @@ unique type SomeType = A
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type SomeType
@@ -785,7 +786,7 @@ get x = match x with
   R y -> y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -803,7 +804,7 @@ get x = match x with
 unique type R = { someType : SomeType }
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -834,7 +835,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -861,7 +862,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -892,7 +893,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -922,7 +923,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -950,7 +951,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -977,7 +978,7 @@ result f = handle !f with cases
        { abort -> _ } -> bug "aborted"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1003,7 +1004,7 @@ result f = handle !f with cases
        { give T.A -> resume } -> result resume
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1033,7 +1034,7 @@ handleMulti c =
   handle !c with impl []
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1062,7 +1063,7 @@ result f = handle !f with cases
        { give T.A -> resume } -> result resume
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1086,7 +1087,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1114,7 +1115,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1142,7 +1143,7 @@ result f = handle !f with cases
        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1182,7 +1183,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1211,7 +1212,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1239,7 +1240,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -1268,7 +1269,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1298,7 +1299,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
@@ -1326,7 +1327,7 @@ result f =
   handle !f with impl
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

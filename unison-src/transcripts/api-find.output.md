@@ -7,7 +7,7 @@ joey.httpServer.z = 44
 joey.yaml.zz = 45
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -25,7 +25,6 @@ joey.yaml.zz = 45
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     joey.httpServer.z   : ##Nat

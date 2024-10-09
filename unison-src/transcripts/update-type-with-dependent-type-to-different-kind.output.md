@@ -1,9 +1,13 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 unique type Foo = Bar Nat
 unique type Baz = Qux Foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -19,7 +23,6 @@ unique type Baz = Qux Foo
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Baz
@@ -31,7 +34,7 @@ scratch/main> add
 unique type Foo a = Bar Nat a
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,7 +50,6 @@ unique type Foo a = Bar Nat a
 
 ``` ucm :error
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 

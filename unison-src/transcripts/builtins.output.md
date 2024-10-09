@@ -1,5 +1,11 @@
 # Unit tests for builtin functions
 
+``` ucm :hide
+scratch/main> builtins.mergeio
+scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
+```
+
 This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions
@@ -81,6 +87,10 @@ test> Int.tests.conversions =
         ]
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## `Nat` functions
 
 ``` unison :hide
@@ -152,6 +162,10 @@ test> Nat.tests.conversions =
         ]
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## `Boolean` functions
 
 ``` unison :hide
@@ -174,6 +188,10 @@ test> Boolean.tests.notTable =
         not true == false,
         not false == true
       ]
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 ## `Text` functions
@@ -270,6 +288,10 @@ test> Text.tests.indexOfEmoji =
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## `Bytes` functions
 
 ``` unison :hide
@@ -330,6 +352,10 @@ test> Bytes.tests.indexOf =
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## `List` comparison
 
 ``` unison :hide
@@ -343,6 +369,10 @@ test> checks [
         compare [1,2,2] [1,2,1,2] == +1,
         compare [1,2,3,4] [3,2,1] == -1
       ]
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 Other list functions
@@ -363,7 +393,7 @@ test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -392,6 +422,10 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## Sandboxing functions
 
 ``` unison
@@ -415,7 +449,7 @@ test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -455,6 +489,10 @@ openFile]
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ``` unison
 openFilesIO = do
   checks
@@ -468,7 +506,7 @@ openFilesIO = do
     ]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -483,13 +521,11 @@ openFilesIO = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     openFilesIO : '{IO} [Result]
 
 scratch/main> io.test openFilesIO
-
     New test results:
   
     1. openFilesIO   ◉ Passed
@@ -509,7 +545,7 @@ Just exercises the function
 test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -533,13 +569,16 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ``` ucm
 scratch/main> test
-
   Cached test results (`help testcache` to learn more)
   
     1.  Any.test1                           ◉ Passed

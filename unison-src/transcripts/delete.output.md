@@ -1,5 +1,9 @@
 # Delete
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
 The delete command can delete both terms and types.
 
 First, let's make sure it complains when we try to delete a name that doesn't
@@ -7,7 +11,6 @@ exist.
 
 ``` ucm :error
 scratch/main> delete.verbose foo
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
@@ -25,14 +28,12 @@ structural type Foo = Foo ()
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Foo
     foo : Nat
 
 scratch/main> delete.verbose foo
-
   Removed definitions:
   
     1. foo : Nat
@@ -41,7 +42,6 @@ scratch/main> delete.verbose foo
        this change.
 
 scratch/main> delete.verbose Foo
-
   Removed definitions:
   
     1. structural type Foo
@@ -50,7 +50,6 @@ scratch/main> delete.verbose Foo
        this change.
 
 scratch/main> delete.verbose Foo.Foo
-
   Removed definitions:
   
     1. Foo.Foo : '#089vmor9c5
@@ -69,14 +68,12 @@ a.bar = 2
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     a.bar : Nat
     a.foo : Nat
 
 scratch/main> debug.alias.term.force a.bar a.foo
-
   Done.
 
 ```
@@ -85,7 +82,6 @@ A delete should remove both versions of the term.
 
 ``` ucm
 scratch/main> delete.verbose a.foo
-
   Removed definitions:
   
     1. a.foo#gjmq673r1v : Nat
@@ -100,7 +96,6 @@ scratch/main> delete.verbose a.foo
        this change.
 
 scratch/main> ls a
-
   1. bar (Nat)
 
 ```
@@ -114,7 +109,6 @@ structural type a.Bar = Bar
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type a.Bar
@@ -122,11 +116,9 @@ scratch/main> add
     structural type a.Foo
 
 scratch/main> debug.alias.type.force a.Bar a.Foo
-
   Done.
 
 scratch/main> delete.verbose a.Foo
-
   Removed definitions:
   
     1. structural type a.Foo#089vmor9c5
@@ -142,7 +134,6 @@ scratch/main> delete.verbose a.Foo
        this change.
 
 scratch/main> delete.verbose a.Foo.Foo
-
   Removed definitions:
   
     1. a.Foo.Foo : '#089vmor9c5
@@ -161,14 +152,12 @@ structural type foo = Foo ()
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type foo
     foo : Nat
 
 scratch/main> delete.verbose foo
-
   Removed definitions:
   
     1. structural type foo
@@ -189,7 +178,6 @@ c = "c"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     a : Text
@@ -197,7 +185,6 @@ scratch/main> add
     c : Text
 
 scratch/main> delete.verbose a b c
-
   Removed definitions:
   
     1. a : Text
@@ -220,7 +207,6 @@ c = "c"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Foo
@@ -229,7 +215,6 @@ scratch/main> add
     c : Text
 
 scratch/main> delete.verbose a b c Foo
-
   Removed definitions:
   
     1. structural type Foo
@@ -241,7 +226,6 @@ scratch/main> delete.verbose a b c Foo
        this change.
 
 scratch/main> delete.verbose Foo.Foo
-
   Name changes:
   
     Original      Changes
@@ -261,13 +245,11 @@ structural type Foo = Foo ()
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Foo
 
 scratch/main> delete.verbose Foo Foo.Foo
-
   Removed definitions:
   
     1. structural type Foo
@@ -294,7 +276,6 @@ d = a + b + c
 
 ``` ucm :error
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     a : Nat
@@ -304,7 +285,6 @@ scratch/main> add
     d : Nat
 
 scratch/main> delete.verbose a b c
-
   ⚠️
   
   I didn't delete the following definitions because they are
@@ -328,7 +308,6 @@ h = e + f + g
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     e : Nat
@@ -337,7 +316,6 @@ scratch/main> add
     h : Nat
 
 scratch/main> delete.verbose e f g h
-
   Removed definitions:
   
     1. e : Nat
@@ -362,14 +340,12 @@ incrementFoo = cases
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Foo
     incrementFoo : Foo -> Nat
 
 scratch/main> delete.verbose Foo Foo.Foo incrementFoo
-
   Removed definitions:
   
     1. structural type Foo
@@ -392,7 +368,6 @@ h = e + f + g
 
 ``` ucm :error
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     e : Nat
@@ -401,7 +376,6 @@ scratch/main> add
     h : Nat
 
 scratch/main> delete.verbose e f gg
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
@@ -418,14 +392,12 @@ pong _ = 4 Nat.+ !ping
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ping : 'Nat
     pong : 'Nat
 
 scratch/main> delete.verbose ping
-
   Removed definitions:
   
     1. ping : 'Nat
@@ -434,7 +406,6 @@ scratch/main> delete.verbose ping
        this change.
 
 scratch/main> view pong
-
   pong : 'Nat
   pong _ =
     use Nat +

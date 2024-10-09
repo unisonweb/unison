@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 This tests a variable related bug in the ANF compiler.
 
 The nested let would get flattened out, resulting in:
@@ -25,7 +29,7 @@ foo _ =
 > !foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,7 +51,6 @@ foo _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     foo : ∀ _. _ -> Nat

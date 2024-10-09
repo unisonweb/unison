@@ -1,43 +1,46 @@
 # demonstrating our new input parsing errors
 
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison :hide
 x = 55
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 `handleNameArg` parse error in `add`
 
 ``` ucm :error
 scratch/main> add .
-
-⚠️
-
-Sorry, I wasn’t sure how to process your request:
-
-  1:2:
-    |
-  1 | .
-    |  ^
-  unexpected end of input
-  expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
+  ⚠️
   
-
-You can run `help add` for more information on using `add`.
+  Sorry, I wasn’t sure how to process your request:
+  
+    1:2:
+      |
+    1 | .
+      |  ^
+    unexpected end of input
+    expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
+    
+  
+  You can run `help add` for more information on using `add`.
 scratch/main> ls
-
   1. lib/ (469 terms, 74 types)
   2. x    (Nat)
 
 scratch/main> add 1
-
   
 
 scratch/main> ls
-
   1. lib/ (469 terms, 74 types)
   2. x    (Nat)
 
 scratch/main> add 2
-
   ⊡ Ignored previously added definitions: x
 
 ```
@@ -63,15 +66,14 @@ aliasMany: skipped -- similar to `add`
 
 ``` ucm :error
 scratch/main> update arg
-
-⚠️
-
-Sorry, I wasn’t sure how to process your request:
-
-  I expected no arguments, but received one.
-
-You can run `help update` for more information on using
-`update`.
+  ⚠️
+  
+  Sorry, I wasn’t sure how to process your request:
+  
+    I expected no arguments, but received one.
+  
+  You can run `help update` for more information on using
+  `update`.
 ```
 
 aliasTerm

@@ -1,8 +1,12 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 def = "first value"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -15,6 +19,10 @@ def = "first value"
 
 ```
 
+``` ucm :hide
+scratch/main> update
+```
+
 ``` unison :hide
 def = "second value"
 ```
@@ -23,14 +31,12 @@ Can reset to a value from history by number.
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -49,16 +55,13 @@ scratch/main> history
   □ 3. #4bigcpnl7t (start of history)
 
 scratch/main> reset 2
-
   Done.
 
 scratch/main> view def
-
   def : Text
   def = "first value"
 
 scratch/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -76,7 +79,6 @@ Can reset to a value from reflog by number.
 
 ``` ucm
 scratch/main> reflog
-
   Below is a record of recent changes, you can use
   `reset #abcdef` to reset the current branch to a previous
   state.
@@ -93,16 +95,13 @@ scratch/main> reflog
 
 -- Reset the current branch to the first history element
 scratch/main> reset 2
-
   Done.
 
 scratch/main> view def
-
   def : Text
   def = "second value"
 
 scratch/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -126,7 +125,6 @@ scratch/main> history
 
 ``` ucm
 foo/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -142,23 +140,19 @@ a = 5
 
 ``` ucm
 foo/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 foo/empty> reset /main:
-
   Done.
 
 foo/empty> view a
-
   a : ##Nat
   a = 5
 
 foo/empty> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -176,14 +170,12 @@ main.a = 3
 
 ``` ucm
 foo/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 foo/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -196,7 +188,6 @@ foo/main> history
   □ 2. #5l94rduvel (start of history)
 
 foo/main> reset 2 main
-
   Done.
 
 ```

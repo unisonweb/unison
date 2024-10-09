@@ -29,7 +29,7 @@ mkTestCase = do
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -50,7 +50,6 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural ability Exit a
@@ -62,7 +61,6 @@ scratch/main> add
     products   : ([Nat], [Nat], [Nat]) -> Text
 
 scratch/main> run mkTestCase
-
   ()
 
 ```

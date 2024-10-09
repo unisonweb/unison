@@ -1,6 +1,5 @@
 ``` ucm
 scratch/main> builtins.mergeio
-
   Done.
 
 ```
@@ -9,7 +8,7 @@ scratch/main> builtins.mergeio
 test> pass = [Ok "Passed"]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -31,7 +30,6 @@ test> pass = [Ok "Passed"]
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     pass : [Result]
@@ -42,7 +40,7 @@ scratch/main> add
 test> pass = [Ok "Passed"]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
@@ -59,11 +57,9 @@ test> pass = [Ok "Passed"]
 
 ``` ucm
 scratch/main> add
-
   ⊡ Ignored previously added definitions: pass
 
 scratch/main> test
-
   Cached test results (`help testcache` to learn more)
   
     1. pass   ◉ Passed
@@ -79,7 +75,7 @@ scratch/main> test
 > ImmutableByteArray.fromBytes 0xs123456
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ✅

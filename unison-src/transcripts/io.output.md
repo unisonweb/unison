@@ -1,5 +1,12 @@
 # tests for built-in IO functions
 
+``` ucm :hide
+scratch/main> builtins.merge
+scratch/main> builtins.mergeio
+scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
+```
+
 Tests for IO builtins which wired to foreign haskell calls.
 
 ## Setup
@@ -8,6 +15,10 @@ You can skip the section which is just needed to make the transcript self-contai
 
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
+
+``` ucm :hide
+scratch/main> add
+```
 
 ## Basic File Functions
 
@@ -47,7 +58,7 @@ testCreateRename _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -62,13 +73,11 @@ testCreateRename _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testCreateRename : '{IO} [Result]
 
 scratch/main> io.test testCreateRename
-
     New test results:
   
     1. testCreateRename   ◉ create a foo directory
@@ -132,7 +141,7 @@ testOpenClose _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -147,13 +156,11 @@ testOpenClose _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testOpenClose : '{IO} [Result]
 
 scratch/main> io.test testOpenClose
-
     New test results:
   
     1. testOpenClose   ◉ file should be open
@@ -225,7 +232,7 @@ testGetSomeBytes _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -240,13 +247,11 @@ testGetSomeBytes _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testGetSomeBytes : '{IO} [Result]
 
 scratch/main> io.test testGetSomeBytes
-
     New test results:
   
     1. testGetSomeBytes   ◉ chunk size splits data into 2 uneven sides
@@ -335,7 +340,7 @@ testAppend _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -351,14 +356,12 @@ testAppend _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testAppend : '{IO} [Result]
     testSeek   : '{IO} [Result]
 
 scratch/main> io.test testSeek
-
     New test results:
   
     1. testSeek   ◉ seeked
@@ -374,7 +377,6 @@ scratch/main> io.test testSeek
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test testAppend
-
     New test results:
   
     1. testAppend   ◉ should be able to read our temporary file
@@ -397,7 +399,7 @@ testSystemTime _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -412,13 +414,11 @@ testSystemTime _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testSystemTime : '{IO} [Result]
 
 scratch/main> io.test testSystemTime
-
     New test results:
   
     1. testSystemTime   ◉ systemTime should be sane
@@ -443,13 +443,11 @@ testGetTempDirectory _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testGetTempDirectory : '{IO} [Result]
 
 scratch/main> io.test testGetTempDirectory
-
     New test results:
   
     1. testGetTempDirectory   ◉ Temp directory is directory
@@ -475,13 +473,11 @@ testGetCurrentDirectory _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testGetCurrentDirectory : '{IO} [Result]
 
 scratch/main> io.test testGetCurrentDirectory
-
     New test results:
   
     1. testGetCurrentDirectory   ◉ Current directory is directory
@@ -509,13 +505,11 @@ testDirContents _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testDirContents : '{IO} [Result]
 
 scratch/main> io.test testDirContents
-
     New test results:
   
     1. testDirContents   ◉ directory size should be
@@ -543,13 +537,11 @@ testGetEnv _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testGetEnv : '{IO} [Result]
 
 scratch/main> io.test testGetEnv
-
     New test results:
   
     1. testGetEnv   ◉ PATH environent variable should be set
@@ -599,7 +591,6 @@ Test that they can be run with the right number of args.
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testGetArgs.fail             : Text -> Failure
@@ -608,15 +599,12 @@ scratch/main> add
     testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
 
 scratch/main> run runMeWithNoArgs
-
   ()
 
 scratch/main> run runMeWithOneArg foo
-
   ()
 
 scratch/main> run runMeWithTwoArgs foo bar
-
   ()
 
 ```
@@ -625,7 +613,6 @@ Calling our examples with the wrong number of args will error.
 
 ``` ucm :error
 scratch/main> run runMeWithNoArgs foo
-
   💔💥
   
   The program halted with an unhandled exception:
@@ -639,7 +626,6 @@ scratch/main> run runMeWithNoArgs foo
 
 ``` ucm :error
 scratch/main> run runMeWithOneArg
-
   💔💥
   
   The program halted with an unhandled exception:
@@ -653,7 +639,6 @@ scratch/main> run runMeWithOneArg
 
 ``` ucm :error
 scratch/main> run runMeWithOneArg foo bar
-
   💔💥
   
   The program halted with an unhandled exception:
@@ -668,7 +653,6 @@ scratch/main> run runMeWithOneArg foo bar
 
 ``` ucm :error
 scratch/main> run runMeWithTwoArgs
-
   💔💥
   
   The program halted with an unhandled exception:
@@ -691,13 +675,11 @@ testTimeZone = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testTimeZone : '{IO} ()
 
 scratch/main> run testTimeZone
-
   ()
 
 ```
@@ -715,13 +697,11 @@ testRandom = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testRandom : '{IO} [Result]
 
 scratch/main> io.test testGetEnv
-
     New test results:
   
     1. testGetEnv   ◉ PATH environent variable should be set

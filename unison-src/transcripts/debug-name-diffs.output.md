@@ -9,7 +9,7 @@ structural type a.x.Foo = Foo | Bar
 structural type a.b.Baz = Boo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,7 +29,6 @@ structural type a.b.Baz = Boo
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type a.b.Baz
@@ -40,7 +39,6 @@ scratch/main> add
     a.x.three : ##Nat
 
 scratch/main> delete.term.verbose a.b.one
-
   Removed definitions:
   
     1. a.b.one : ##Nat
@@ -49,15 +47,12 @@ scratch/main> delete.term.verbose a.b.one
        this change.
 
 scratch/main> alias.term a.two a.newtwo
-
   Done.
 
 scratch/main> move.namespace a.x a.y
-
   Done.
 
 scratch/main> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -92,7 +87,6 @@ scratch/main> history
   □ 4. #gss5s88mo3 (start of history)
 
 scratch/main> debug.name-diff 4 1
-
   Kind   Name          Change    Ref
   Term   a.newtwo      Added     #dcgdua2lj6upd1ah5v0qp09gjsej0d77d87fu6qn8e2qrssnlnmuinoio46hiu53magr7qn8vnqke8ndt0v76700o5u8gcvo7st28jg
   Term   a.y.four      Added     #vcfbbslncd2qloc03kalgsmufl3j5es6cehcrbmlj6t78d4uk5j9gpa3hhf2opln1u2kiepg5n2cn49ianf2oig0mi4c2ldn1r9lf40

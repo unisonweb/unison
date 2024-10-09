@@ -43,7 +43,7 @@ mkTestCase = do
   saveTestCase "case-03" "v5" finish trip
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -69,7 +69,6 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural ability DC r
@@ -85,7 +84,6 @@ scratch/main> add
     suspSum    : [Nat] -> Delayed Nat
 
 scratch/main> run mkTestCase
-
   ()
 
 ```

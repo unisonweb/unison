@@ -1,3 +1,7 @@
+``` ucm :hide
+myproject/main> builtins.merge lib.builtin
+```
+
 ``` unison
 a.x.x.x.x = 100
 b.x.x.x.x = 100
@@ -7,7 +11,7 @@ d.y.y.y.y = foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -27,7 +31,6 @@ bar = a.x.x.x.x + c.y.y.y.y
 
 ``` ucm
 myproject/main> add
-
   ⍟ I've added these definitions:
   
     a.x.x.x.x : Nat
@@ -43,7 +46,7 @@ myproject/main> add
 foo = +30
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -59,7 +62,6 @@ foo = +30
 
 ``` ucm :error
 myproject/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 

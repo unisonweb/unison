@@ -62,7 +62,7 @@ serialTests = do
   List.map snd (bSort (List.map runTestCase cs))
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -82,7 +82,6 @@ serialTests = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     availableCases : '{IO, Exception} [Text]
@@ -93,7 +92,6 @@ scratch/main> add
     shuffle        : Nat -> [a] -> [a]
 
 scratch/main> io.test serialTests
-
     New test results:
   
     1. serialTests   ◉ case-00

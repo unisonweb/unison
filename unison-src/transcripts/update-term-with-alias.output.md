@@ -1,6 +1,5 @@
 ``` ucm
 scratch/main> builtins.merge
-
   Done.
 
 ```
@@ -13,7 +12,7 @@ bar : Nat
 bar = 5
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,7 +28,6 @@ bar = 5
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bar : Nat
@@ -42,7 +40,7 @@ foo : Nat
 foo = 6
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -59,14 +57,12 @@ foo = 6
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> view foo bar
-
   bar : Nat
   bar = 5
   

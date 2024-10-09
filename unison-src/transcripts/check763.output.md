@@ -1,11 +1,15 @@
 Regression test for https://github.com/unisonweb/unison/issues/763
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 (+-+) : Nat -> Nat -> Nat
 (+-+) x y = x * y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -20,17 +24,14 @@ Regression test for https://github.com/unisonweb/unison/issues/763
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     +-+ : Nat -> Nat -> Nat
 
 scratch/main> move.term +-+ boppitybeep
-
   Done.
 
 scratch/main> move.term boppitybeep +-+
-
   Done.
 
 ```

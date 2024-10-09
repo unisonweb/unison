@@ -16,7 +16,7 @@ testBasicFork = 'let
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -31,6 +31,11 @@ testBasicFork = 'let
 ```
 
 See if we can get another thread to stuff a value into a MVar
+
+``` ucm :hide
+scratch/main> add
+scratch/main> io.test testBasicFork
+```
 
 ``` unison
 thread1 : Nat -> MVar Nat -> '{io2.IO}()
@@ -56,7 +61,7 @@ testBasicMultiThreadMVar = 'let
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -72,14 +77,12 @@ testBasicMultiThreadMVar = 'let
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     testBasicMultiThreadMVar : '{IO} [Result]
     thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 scratch/main> io.test testBasicMultiThreadMVar
-
     New test results:
   
     1. testBasicMultiThreadMVar   ◉ other thread should have incremented
@@ -128,7 +131,7 @@ testTwoThreads = 'let
 
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -146,7 +149,6 @@ testTwoThreads = 'let
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     receivingThread : MVar Nat -> MVar Text -> '{IO} ()
@@ -155,7 +157,6 @@ scratch/main> add
     testTwoThreads  : '{IO} [Result]
 
 scratch/main> io.test testTwoThreads
-
     New test results:
   
     1. testTwoThreads   ◉ 

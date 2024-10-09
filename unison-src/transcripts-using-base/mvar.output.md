@@ -50,7 +50,7 @@ testMvars _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -66,14 +66,12 @@ testMvars _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
     testMvars : '{IO} [Result]
 
 scratch/main> io.test testMvars
-
     New test results:
   
     1. testMvars   ◉ ma should not be empty

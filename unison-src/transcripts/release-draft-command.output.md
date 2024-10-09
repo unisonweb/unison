@@ -1,12 +1,16 @@
 The `release.draft` command drafts a release from the current branch.
 
+``` ucm :hide
+foo/main> builtins.merge
+```
+
 Some setup:
 
 ``` unison
 someterm = 18
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,7 +25,6 @@ someterm = 18
 
 ``` ucm
 foo/main> add
-
   ⍟ I've added these definitions:
   
     someterm : Nat
@@ -34,7 +37,6 @@ Now, the `release.draft` demo:
 
 ``` ucm
 foo/main> release.draft 1.2.3
-
   😎 Great! I've created a draft release for you at
   /releases/drafts/1.2.3.
   
@@ -55,7 +57,6 @@ It's an error to try to create a `releases/drafts/x.y.z` branch that already exi
 
 ``` ucm :error
 foo/main> release.draft 1.2.3
-
   foo/releases/drafts/1.2.3 already exists. You can switch to it
   with `switch foo/releases/drafts/1.2.3`.
 

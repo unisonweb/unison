@@ -7,7 +7,6 @@ It affects the contents of the file as follows:
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -19,7 +18,7 @@ baz : Nat
 baz = 17
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -47,7 +46,7 @@ longer.evil.factorial : Int -> Int
 longer.evil.factorial n = n
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -63,14 +62,12 @@ longer.evil.factorial n = n
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     foo.factorial             : Int -> Int
     foo.longer.evil.factorial : Int -> Int
 
 scratch/main> view factorial
-
   foo.factorial : Int -> Int
   foo.factorial = cases
     +0 -> +1
@@ -94,7 +91,7 @@ type longer.foo.Foo = Bar
 type longer.foo.Baz = { qux : Nat }
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -115,7 +112,6 @@ type longer.foo.Baz = { qux : Nat }
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type longer.foo.Baz
@@ -144,7 +140,7 @@ hasTypeLink =
   {{ {type Foo} }}
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -169,7 +165,6 @@ hasTypeLink =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type foo.Baz
@@ -185,7 +180,6 @@ scratch/main> add
     foo.refersToQux    : foo.Baz -> Nat
 
 scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
-
   type foo.RefersToFoo = RefersToFoo foo.Foo
   
   foo.hasTypeLink : Doc2
@@ -201,7 +195,6 @@ scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
     qux baz + qux baz
 
 scratch/main> todo
-
   You have no pending todo items. Good work! ✅
 
 ```

@@ -9,7 +9,6 @@ X.foo = "a namespace"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     X.foo : ##Text
@@ -25,7 +24,6 @@ a = "an update"
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -37,7 +35,6 @@ As of the time of this writing, the history for `X` should be a single node, `#4
 
 ``` ucm
 scratch/main> history X
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -51,7 +48,6 @@ however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is 
 
 ``` ucm :error
 scratch/main> history #7nl6ppokhg
-
   😶
   
   I don't know of a namespace with that hash.

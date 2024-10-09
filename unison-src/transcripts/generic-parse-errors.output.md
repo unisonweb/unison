@@ -5,7 +5,7 @@ x =
   foo.123
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -26,7 +26,7 @@ x =
 namespace.blah = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -62,7 +62,7 @@ namespace.blah = 1
 x = 1 ]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found a closing ']' here without a matching '['.
@@ -76,7 +76,7 @@ x = 1 ]
 x = a.#abc
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -110,7 +110,7 @@ x = a.#abc
 x = "hi
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -130,7 +130,7 @@ x = "hi
 y : a
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:

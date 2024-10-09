@@ -1,5 +1,9 @@
 # Test parsing and round-trip of doc2 syntax elements
 
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
@@ -111,7 +115,6 @@ Format it to check that everything pretty-prints in a valid way.
 
 ``` ucm
 scratch/main> debug.format
-
 ```
 
 ``` unison :added-by-ucm scratch.u

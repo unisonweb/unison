@@ -1,5 +1,9 @@
 # Duplicate names in scratch file.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Term and ability constructor collisions should cause a parse error.
 
 ``` unison :error
@@ -10,7 +14,7 @@ Stream.send : a -> ()
 Stream.send _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -33,7 +37,7 @@ X.x : a -> ()
 X.x _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -55,7 +59,7 @@ structural ability X where
   x : ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found two types called X:
@@ -76,7 +80,7 @@ X.x.set = ()
 X.x = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -109,7 +113,7 @@ structural type X = Z
 X = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -126,7 +130,6 @@ X = ()
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type X
@@ -134,7 +137,6 @@ scratch/main> add
     X : ()
 
 scratch/main> view X
-
   structural type X = Z
   
   X : ()

@@ -1,5 +1,9 @@
 # Type modifiers are optional, `unique` is the default.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Types and abilities may be prefixed with either `unique` or `structural`. When left unspecified, `unique` is assumed.
 
 ``` unison
@@ -12,7 +16,7 @@ unique ability MyAbilityU where const : a
 structural ability MyAbilityS where const : a
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

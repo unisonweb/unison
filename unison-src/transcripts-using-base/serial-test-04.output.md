@@ -13,7 +13,7 @@ mkTestCase = do
   saveTestCase "case-04" "v5" mutual1 5
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -30,7 +30,6 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     mkTestCase : '{IO, Exception} ()
@@ -38,7 +37,6 @@ scratch/main> add
     mutual1    : Nat -> Text
 
 scratch/main> run mkTestCase
-
   ()
 
 ```

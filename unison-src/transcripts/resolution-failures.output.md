@@ -6,7 +6,6 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ``` ucm
 scratch/main> builtins.merge lib.builtins
-
   Done.
 
 ```
@@ -21,7 +20,7 @@ one.ambiguousTerm = "term one"
 two.ambiguousTerm = "term two"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -39,7 +38,6 @@ two.ambiguousTerm = "term two"
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type one.AmbiguousType
@@ -73,7 +71,7 @@ separateAmbiguousTypeUsage : AmbiguousType -> ()
 separateAmbiguousTypeUsage _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   
@@ -108,7 +106,7 @@ but expect it to eventually be handled by the above machinery.
 useAmbiguousTerm = ambiguousTerm
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I couldn't figure out what ambiguousTerm refers to here:

@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 We had bugs in the calling conventions for both send and terminate which would
 cause pattern matching on the resulting (Right ()) would cause a runtime error.
 
@@ -20,7 +24,7 @@ assertRight = cases
   Left _ -> bug "expected a right but got a left"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -36,14 +40,12 @@ assertRight = cases
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     assertRight : Either a b -> b
     frank       : '{IO} ()
 
 scratch/main> run frank
-
   ()
 
 ```

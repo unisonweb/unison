@@ -1,5 +1,9 @@
 # Definition Summary APIs
 
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 nat : Nat
 nat = 42
@@ -17,6 +21,12 @@ structural type Maybe a = Nothing | Just a
 
 structural ability Stream s where
   send : s -> ()
+```
+
+``` ucm :hide
+scratch/main> add
+scratch/main> alias.type ##Nat Nat
+scratch/main> alias.term ##IO.putBytes.impl.v3 putBytesImpl
 ```
 
 ## Term Summary APIs

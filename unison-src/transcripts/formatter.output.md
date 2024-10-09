@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.mergeio
+```
+
 ``` unison :hide
 {{ # Doc
 This is a *doc*!
@@ -85,7 +89,6 @@ with a strike-through block~
 
 ``` ucm
 scratch/main> debug.format
-
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -172,7 +175,7 @@ Formatter should leave things alone if the file doesn't typecheck.
 brokenDoc = {{ hello }} + 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I couldn't figure out what + refers to here:
@@ -202,5 +205,4 @@ brokenDoc = {{ hello }} + 1
 
 ``` ucm
 scratch/main> debug.format
-
 ```

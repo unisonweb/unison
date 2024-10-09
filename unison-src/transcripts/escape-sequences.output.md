@@ -4,7 +4,7 @@
 > "古池や蛙飛びこむ水の音"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ✅

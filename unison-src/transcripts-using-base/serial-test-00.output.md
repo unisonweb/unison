@@ -67,7 +67,7 @@ mkTestCase = do
   saveTestCase "case-00" "v5" f tup
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -96,7 +96,6 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Tree a
@@ -116,7 +115,6 @@ scratch/main> add
     tree3      : Tree Text
 
 scratch/main> run mkTestCase
-
   ()
 
 ```

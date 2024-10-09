@@ -1,3 +1,11 @@
+``` ucm :hide
+scratch/b1> builtins.merge lib.builtins
+scratch/b2> builtins.merge lib.builtins
+scratch/nsx> builtins.merge lib.builtins
+scratch/main> builtins.merge lib.builtins
+scratch/ns1> builtins.merge lib.builtins
+```
+
 ``` unison :hide
 x = 23
 fslkdjflskdjflksjdf = 663
@@ -5,7 +13,6 @@ fslkdjflskdjflksjdf = 663
 
 ``` ucm
 scratch/b1> add
-
   ⍟ I've added these definitions:
   
     fslkdjflskdjflksjdf : Nat
@@ -21,7 +28,6 @@ abc = 23
 
 ``` ucm
 scratch/b2> add
-
   ⍟ I've added these definitions:
   
     abc                 : Nat
@@ -29,14 +35,12 @@ scratch/b2> add
     x                   : Nat
 
 scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
-
   Done.
 
 ```
 
 ``` ucm
 scratch/main> diff.namespace /b1: /b2:
-
   Resolved name conflicts:
   
     1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
@@ -77,7 +81,6 @@ structural ability X a1 a2 where x : ()
 
 ``` ucm
 scratch/ns1> add
-
   ⍟ I've added these definitions:
   
     structural type A a
@@ -89,15 +92,12 @@ scratch/ns1> add
     helloWorld : Text
 
 scratch/ns1> alias.term fromJust fromJust'
-
   Done.
 
 scratch/ns1> alias.term helloWorld helloWorld2
-
   Done.
 
 scratch/ns1> branch /ns2
-
   Done. I've created the ns2 branch based off of ns1.
   
   Tip: To merge your work back into the ns1 branch, first
@@ -109,7 +109,6 @@ Here's what we've done so far:
 
 ``` ucm :error
 scratch/main> diff.namespace .nothing /ns1:
-
   ⚠️
   
   The namespace scratch/main:.nothing is empty. Was there a typo?
@@ -118,7 +117,6 @@ scratch/main> diff.namespace .nothing /ns1:
 
 ``` ucm :error
 scratch/main> diff.namespace /ns1: /ns2:
-
   The namespaces are identical.
 
 ```
@@ -129,17 +127,14 @@ junk = "asldkfjasldkfj"
 
 ``` ucm
 scratch/ns1> add
-
   ⍟ I've added these definitions:
   
     junk : Text
 
 scratch/ns1> debug.alias.term.force junk fromJust
-
   Done.
 
 scratch/ns1> delete.term junk
-
   Done.
 
 ```
@@ -155,7 +150,6 @@ unique type Y a b = Y a b
 
 ``` ucm
 scratch/ns2> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -166,7 +160,6 @@ scratch/ns2> update
   Done.
 
 scratch/main> diff.namespace /ns1: /ns2:
-
   Resolved name conflicts:
   
     1.  ┌ fromJust#gjmq673r1v : Nat
@@ -199,27 +192,21 @@ scratch/main> diff.namespace /ns1: /ns2:
     15. fromJust#gjmq673r1v ┘  
 
 scratch/ns2> alias.term d d'
-
   Done.
 
 scratch/ns2> alias.type A A'
-
   Done.
 
 scratch/ns2> alias.term A.A A'.A
-
   Done.
 
 scratch/ns2> alias.type X X'
-
   Done.
 
 scratch/ns2> alias.term X.x X'.x
-
   Done.
 
 scratch/main> diff.namespace /ns1: /ns2:
-
   Resolved name conflicts:
   
     1.  ┌ fromJust#gjmq673r1v : Nat
@@ -261,34 +248,27 @@ scratch/main> diff.namespace /ns1: /ns2:
     23. X.x                    24. X'.x (added)
 
 scratch/ns1> alias.type X X2
-
   Done.
 
 scratch/ns1> alias.term X.x X2.x
-
   Done.
 
 scratch/ns2> alias.type A' A''
-
   Done.
 
 scratch/ns2> alias.term A'.A A''.A
-
   Done.
 
 scratch/ns2> branch /ns3
-
   Done. I've created the ns3 branch based off of ns2.
   
   Tip: To merge your work back into the ns2 branch, first
        `switch /ns2` then `merge /ns3`.
 
 scratch/ns2> alias.term fromJust' yoohoo
-
   Done.
 
 scratch/ns2> delete.term.verbose fromJust'
-
   Name changes:
   
     Original        Changes
@@ -299,7 +279,6 @@ scratch/ns2> delete.term.verbose fromJust'
        this change.
 
 scratch/main> diff.namespace /ns3: /ns2:
-
   Name changes:
   
     Original        Changes
@@ -314,14 +293,12 @@ bdependent = "banana"
 
 ``` ucm
 scratch/ns3> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> diff.namespace /ns2: /ns3:
-
   Updates:
   
     1. bdependent : Nat
@@ -350,7 +327,6 @@ forconflicts = 777
 
 ``` ucm
 scratch/nsx> add
-
   ⍟ I've added these definitions:
   
     a            : Nat
@@ -358,14 +334,12 @@ scratch/nsx> add
     forconflicts : Nat
 
 scratch/nsx> branch /nsy
-
   Done. I've created the nsy branch based off of nsx.
   
   Tip: To merge your work back into the nsx branch, first
        `switch /nsx` then `merge /nsy`.
 
 scratch/nsx> branch /nsz
-
   Done. I've created the nsz branch based off of nsx.
   
   Tip: To merge your work back into the nsx branch, first
@@ -379,7 +353,6 @@ a = 444
 
 ``` ucm
 scratch/nsy> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -397,7 +370,6 @@ a = 555
 
 ``` ucm
 scratch/nsz> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -408,25 +380,21 @@ scratch/nsz> update
   Done.
 
 scratch/nsy> branch /nsw
-
   Done. I've created the nsw branch based off of nsy.
   
   Tip: To merge your work back into the nsy branch, first
        `switch /nsy` then `merge /nsw`.
 
 scratch/nsw> debug.alias.term.force .forconflicts .a
-
   Done.
 
 scratch/nsw> debug.alias.term.force .forconflicts .b
-
   Done.
 
 ```
 
 ``` ucm
 scratch/main> diff.namespace /nsx: /nsw:
-
   New name conflicts:
   
     1. a#uiiiv8a86s : Nat
@@ -446,7 +414,6 @@ scratch/main> diff.namespace /nsx: /nsw:
                        9. b#r3msrbpp1v (added)
 
 scratch/nsw> view a
-
   a#mdl4vqtu00 : Nat
   a#mdl4vqtu00 = 444
   
@@ -454,7 +421,6 @@ scratch/nsw> view a
   a#r3msrbpp1v = 777
 
 scratch/nsw> view b
-
   b#r3msrbpp1v : Nat
   b#r3msrbpp1v = 777
   
@@ -471,7 +437,7 @@ scratch/nsw> view b
 x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -486,7 +452,6 @@ x = 1
 
 ``` ucm
 scratch/hashdiff> add
-
   ⍟ I've added these definitions:
   
     x : ##Nat
@@ -497,7 +462,7 @@ scratch/hashdiff> add
 y = 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -512,13 +477,11 @@ y = 2
 
 ``` ucm
 scratch/hashdiff> add
-
   ⍟ I've added these definitions:
   
     y : ##Nat
 
 scratch/hashdiff> history
-
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -531,7 +494,6 @@ scratch/hashdiff> history
   □ 2. #i52j9fd57b (start of history)
 
 scratch/hashdiff> diff.namespace 2 1
-
   Added definitions:
   
     1. y : ##Nat

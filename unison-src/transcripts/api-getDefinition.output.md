@@ -1,8 +1,16 @@
 # Get Definitions Test
 
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
 ``` unison :hide
 nested.names.x.doc = {{ Documentation }}
 nested.names.x = 42
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 ``` api
@@ -214,6 +222,10 @@ doctest.thingalias.doc = {{ Docs for the alias, should not be displayed }}
 doctest.thingalias = "A thing"
 doctest.otherstuff.thing.doc = {{ A doc for a different term with the same name, should not be displayed }}
 doctest.otherstuff.thing = "A different thing"
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.

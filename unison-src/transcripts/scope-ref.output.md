@@ -1,5 +1,9 @@
 A short script to test mutable references with local scope.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 test = Scope.run 'let
   r = Scope.ref 0
@@ -13,7 +17,7 @@ test = Scope.run 'let
 > test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

@@ -189,8 +189,13 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       output = output' False
       outputEcho = output' True
 
-      outputUcm :: Text -> IO ()
-      outputUcm line = modifyIORef' ucmOutput (<> pure line)
+      outputUcmLine :: UcmLine -> IO ()
+      outputUcmLine line = modifyIORef' ucmOutput (<> pure (Transcript.formatUcmLine line))
+
+      outputUcmResult :: String -> IO ()
+      outputUcmResult line = do
+        hide <- readIORef isHidden
+        unless (hideOutput False hide) $ modifyIORef' ucmOutput (<> pure (Text.pack line))
 
       maybeDieWithMsg :: String -> IO ()
       maybeDieWithMsg msg = do
@@ -200,38 +205,44 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           else dieWithMsg msg
 
       apiRequest :: APIRequest -> IO [Text]
-      apiRequest req =
+      apiRequest req = do
+        hide <- readIORef isHidden
         let input = Transcript.formatAPIRequest req
-         in case req of
-              APIComment {} -> pure $ pure input
-              GetRequest path ->
-                either
-                  (([] <$) . maybeDieWithMsg . show)
-                  ( either
-                      (([] <$) . maybeDieWithMsg . (("Error decoding response from " <> Text.unpack path <> ": ") <>))
-                      ( \(v :: Aeson.Value) ->
-                          pure
+        case req of
+          APIComment {} -> pure $ pure input
+          GetRequest path ->
+            either
+              (([] <$) . maybeDieWithMsg . show)
+              ( either
+                  (([] <$) . maybeDieWithMsg . (("Error decoding response from " <> Text.unpack path <> ": ") <>))
+                  ( \(v :: Aeson.Value) ->
+                      pure $
+                        if hide == HideOutput
+                          then [input]
+                          else
                             [ input,
                               Text.pack . BL.unpack $
                                 Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
                             ]
-                      )
-                      . Aeson.eitherDecode
-                      . HTTP.responseBody
-                      <=< flip HTTP.httpLbs httpManager
                   )
-                  . HTTP.parseRequest
-                  . Text.unpack
-                  $ baseURL <> path
+                  . Aeson.eitherDecode
+                  . HTTP.responseBody
+                  <=< flip HTTP.httpLbs httpManager
+              )
+              . HTTP.parseRequest
+              . Text.unpack
+              $ baseURL <> path
 
       endUcmBlock = do
         liftIO $ do
           tags <- readIORef currentTags
-          output
+          ucmOut <- readIORef ucmOutput
+          unless (null ucmOut && tags == Nothing)
+            . outputEcho
             . Left
-            . Transcript.processedBlockToNode' (\() -> "") "ucm" (fromMaybe defaultInfoTags' tags)
-            . Text.unlines
-            =<< readIORef ucmOutput
+            . Transcript.processedBlockToNode' (\() -> "") "ucm" (fromMaybe defaultInfoTags' {generated = True} tags)
+            $ Text.unlines ucmOut
+
           writeIORef ucmOutput []
           dieUnexpectedSuccess
         atomically $ void $ do
@@ -245,7 +256,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       processUcmLine p =
         case p of
           UcmComment {} -> do
-            liftIO . outputUcm $ Transcript.formatUcmLine p
+            liftIO $ outputUcmLine p
             Cli.returnEarlyWithoutOutput
           UcmCommand context lineTxt -> do
             curPath <- Cli.getCurrentProjectPath
@@ -283,7 +294,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                 case words . Text.unpack $ lineTxt of
                   [] -> Cli.returnEarlyWithoutOutput
                   args -> do
-                    liftIO . outputUcm $ Transcript.formatUcmLine p <> "\n"
+                    liftIO $ outputUcmLine p
                     numberedArgs <- use #numberedArgs
                     PP.ProjectAndBranch projId branchId <-
                       PP.toProjectAndBranch . NonEmpty.head <$> use #projectPathStack
@@ -295,7 +306,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                             liftIO $ writeIORef hasErrors True
                             liftIO (readIORef allowErrors) >>= \case
                               True -> do
-                                liftIO . outputUcm . Text.pack $ Pretty.toPlain terminalWidth msg
+                                liftIO . outputUcmResult . Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg
                                 Cli.returnEarlyWithoutOutput
                               False -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
                         )
@@ -318,7 +329,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           liftIO do
             writeIORef isHidden $ hidden infoTags
             writeIORef allowErrors $ expectingError infoTags
-            output . Left . Transcript.processedBlockToNode' (\() -> "") "api" infoTags . Text.unlines . fold
+            outputEcho . Left . Transcript.processedBlockToNode' (\() -> "") "api" infoTags . Text.unlines . fold
               =<< traverse apiRequest apiRequests
           Cli.returnEarlyWithoutOutput
         Ucm infoTags cmds -> do
@@ -395,7 +406,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg <> "\n"
-        outputUcm $ Text.pack rendered
+        outputUcmResult rendered
         when (Output.isFailure o) $
           if errOk
             then writeIORef hasErrors True
@@ -406,7 +417,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         let (msg, numberedArgs) = notifyNumbered o
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg <> "\n"
-        outputUcm $ Text.pack rendered
+        outputUcmResult rendered
         when (Output.isNumberedFailure o) $
           if errOk
             then writeIORef hasErrors True

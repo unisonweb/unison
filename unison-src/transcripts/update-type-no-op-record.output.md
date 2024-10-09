@@ -1,8 +1,12 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 unique type Foo = { bar : Nat }
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -20,7 +24,6 @@ unique type Foo = { bar : Nat }
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
@@ -34,7 +37,6 @@ Bug: this no-op update should (of course) succeed.
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 

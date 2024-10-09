@@ -8,7 +8,7 @@ unique type B = B C
 unique type C = C B
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -25,7 +25,6 @@ unique type C = C B
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type A
@@ -41,7 +40,7 @@ unique type B = B C
 unique type C = C B
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked the definitions in scratch.u. This
@@ -53,7 +52,6 @@ If the name stays the same, the churn is even prevented if the type is updated a
 
 ``` ucm
 scratch/main> names A
-
   Type
   Hash:  #uj8oalgadr
   Names: A
@@ -68,7 +66,7 @@ scratch/main> names A
 unique type A = A ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -84,14 +82,12 @@ unique type A = A ()
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names A
-
   Type
   Hash:  #ufo5tuc7ho
   Names: A
@@ -106,7 +102,7 @@ scratch/main> names A
 unique type A = A
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -124,14 +120,12 @@ Note that `A` is back to its original hash.
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names A
-
   Type
   Hash:  #uj8oalgadr
   Names: A

@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 oldRight: (b ->{e} a ->{e} b) -> [a] ->{e} [b]
 oldRight f la = bug "out"
@@ -11,7 +15,7 @@ pecan = 'let
   oldRight f la
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

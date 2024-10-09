@@ -2,7 +2,6 @@
 
 ``` ucm
 scratch/main> help
-
   add
   `add` adds to the codebase all the definitions from the most recently typechecked file.
   
@@ -881,7 +880,6 @@ scratch/main> help
   `view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.
 
 scratch/main> help-topics
-
   🌻
   
   Here's a list of topics I can tell you more about: 
@@ -896,7 +894,6 @@ scratch/main> help-topics
   Example: use `help-topics filestatus` to learn more about that topic.
 
 scratch/main> help-topic filestatus
-
   📓
   
   Here's a list of possible status messages you might see for
@@ -927,7 +924,6 @@ scratch/main> help-topic filestatus
                        selected.
 
 scratch/main> help-topic messages.disallowedAbsolute
-
   🤖
   
   Although I can understand absolute (ex: .foo.bar) or relative
@@ -939,7 +935,6 @@ scratch/main> help-topic messages.disallowedAbsolute
   temporarily (like `exports.blah.foo`) and then use `move.*`.
 
 scratch/main> help-topic namespaces
-
   🧐
   
   There are two kinds of namespaces, absolute, such as (.foo.bar
@@ -965,7 +960,6 @@ scratch/main> help-topic namespaces
     answerToLifeTheUniverseAndEverything = .foo.bar.x + 1
 
 scratch/main> help-topic projects
-
   A project is a versioned collection of code that can be
   edited, published, and depended on other projects. Unison
   projects are analogous to Git repositories.
@@ -986,7 +980,6 @@ scratch/main> help-topic projects
   https://unison-lang.org/learn/projects
 
 scratch/main> help-topic remotes
-
   🤖
   
   Local projects may be associated with at most one remote
@@ -1001,7 +994,6 @@ scratch/main> help-topic remotes
   the relationship will be established on the first `push`.
 
 scratch/main> help-topic testcache
-
   🎈
   
   Unison caches the results of test> watch expressions. Since

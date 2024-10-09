@@ -1,12 +1,16 @@
 ### Transcript parser operations
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 The transcript parser is meant to parse `ucm` and `unison` blocks.
 
 ``` unison
 x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -21,7 +25,6 @@ x = 1
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     x : Nat
@@ -34,7 +37,6 @@ z
 
 ``` ucm :error
 scratch/main> delete foo
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
@@ -44,7 +46,6 @@ scratch/main> delete foo
 
 ``` ucm :error
 scratch/main> delete lineToken.call
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.

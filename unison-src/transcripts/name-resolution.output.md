@@ -5,7 +5,6 @@ ambiguous. A reference to `Namespace.Foo` or `File.Foo` work fine.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -14,7 +13,7 @@ scratch/main> builtins.mergeio lib.builtins
 type Namespace.Foo = Bar
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,7 +28,6 @@ type Namespace.Foo = Bar
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Namespace.Foo
@@ -41,7 +39,7 @@ type File.Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   
@@ -65,7 +63,7 @@ type File.Foo = Baz
 type UsesFoo = UsesFoo Namespace.Foo File.Foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -81,7 +79,6 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 2
@@ -91,7 +88,6 @@ it refers to the namespace type (because it is an exact match).
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -100,7 +96,7 @@ scratch/main> builtins.mergeio lib.builtins
 type Foo = Bar
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -115,7 +111,6 @@ type Foo = Bar
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
@@ -127,7 +122,7 @@ type File.Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -143,21 +138,18 @@ type UsesFoo = UsesFoo Foo
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type File.Foo
     type UsesFoo
 
 scratch/main> view UsesFoo
-
   type UsesFoo = UsesFoo Foo
 
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 3
@@ -167,7 +159,6 @@ it refers to the file type (because it is an exact match).
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -176,7 +167,7 @@ scratch/main> builtins.mergeio lib.builtins
 type Namespace.Foo = Bar
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -191,7 +182,6 @@ type Namespace.Foo = Bar
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Namespace.Foo
@@ -203,7 +193,7 @@ type Foo = Baz
 type UsesFoo = UsesFoo Foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -219,21 +209,18 @@ type UsesFoo = UsesFoo Foo
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
     type UsesFoo
 
 scratch/main> view UsesFoo
-
   type UsesFoo = UsesFoo Foo
 
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -243,7 +230,6 @@ but resolves to `ns.foo` via TDNR.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -253,7 +239,7 @@ ns.foo : Nat
 ns.foo = 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -268,7 +254,6 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -283,7 +268,7 @@ bar : Text
 bar = foo ++ "bar"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -299,7 +284,6 @@ bar = foo ++ "bar"
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -309,7 +293,6 @@ but resolves to `file.foo` via TDNR.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -319,7 +302,7 @@ ns.foo : Nat
 ns.foo = 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -334,7 +317,6 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -349,7 +331,7 @@ bar : Nat
 bar = foo + 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -365,7 +347,6 @@ bar = foo + 42
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -375,7 +356,6 @@ A reference to `ns.foo` or `file.foo` work fine.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -385,7 +365,7 @@ ns.foo : Nat
 ns.foo = 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -400,7 +380,6 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -415,7 +394,7 @@ bar : Nat
 bar = foo + 10
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I couldn't figure out what foo refers to here:
@@ -440,7 +419,7 @@ bar : Nat
 bar = file.foo + ns.foo
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -456,14 +435,12 @@ bar = file.foo + ns.foo
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     bar      : Nat
     file.foo : Nat
 
 scratch/main> view bar
-
   bar : Nat
   bar =
     use Nat +
@@ -473,5 +450,4 @@ scratch/main> view bar
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```

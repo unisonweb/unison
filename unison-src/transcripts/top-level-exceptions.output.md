@@ -1,10 +1,13 @@
 A simple transcript to test the use of exceptions that bubble to the top level.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 FYI, here are the `Exception` and `Failure` types:
 
 ``` ucm
 scratch/main> view Exception Failure
-
   structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
   
@@ -25,7 +28,7 @@ mytest : '{IO, Exception} [Test.Result]
 mytest _ = [Ok "Great"]
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -41,18 +44,15 @@ mytest _ = [Ok "Great"]
 
 ``` ucm
 scratch/main> run main
-
   ()
 
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     main   : '{IO, Exception} ()
     mytest : '{IO, Exception} [Result]
 
 scratch/main> io.test mytest
-
     New test results:
   
     1. mytest   ◉ Great
@@ -75,7 +75,7 @@ error msg a =
 unique type RuntimeError =
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -92,7 +92,6 @@ unique type RuntimeError =
 
 ``` ucm :error
 scratch/main> run main2
-
   💔💥
   
   The program halted with an unhandled exception:

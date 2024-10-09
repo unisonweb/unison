@@ -1,5 +1,9 @@
 ## Blocks and scoping
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ### Names introduced by a block shadow names introduced in outer scopes
 
 For example:
@@ -15,7 +19,7 @@ ex thing =
 > ex "hello"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -48,7 +52,7 @@ ex thing =
 > ex "hello"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -83,7 +87,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -115,7 +119,7 @@ ex thing =
 > ex (x -> x * 100)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -154,7 +158,7 @@ ex n =
   ping 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -181,7 +185,7 @@ ex n =
   ping 0
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -205,7 +209,7 @@ ex n =
   pong
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   These definitions depend on each other cyclically but aren't guarded by a lambda: pong8
@@ -223,7 +227,7 @@ ex n =
   loop
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   These definitions depend on each other cyclically but aren't guarded by a lambda: loop8
@@ -240,7 +244,7 @@ ex n =
   !loop
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -269,7 +273,7 @@ ex n =
   zap1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   The expression in red needs the {SpaceAttack} ability, but this location does not have access to any abilities.
@@ -293,7 +297,7 @@ ex n =
   zap1 "pluto"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -322,7 +326,7 @@ ex n =
   ping 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -349,7 +353,7 @@ ex n =
   ping 42
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

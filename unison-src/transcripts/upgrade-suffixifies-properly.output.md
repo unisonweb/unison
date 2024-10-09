@@ -1,3 +1,7 @@
+``` ucm :hide
+myproject/main> builtins.merge lib.builtin
+```
+
 ``` unison
 lib.old.foo = 25
 lib.new.foo = +30
@@ -8,7 +12,7 @@ d.y.y.y.y = lib.old.foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -29,7 +33,6 @@ bar = a.x.x.x.x + c.y.y.y.y
 
 ``` ucm
 myproject/main> add
-
   ⍟ I've added these definitions:
   
     a.x.x.x.x   : Nat
@@ -44,7 +47,6 @@ myproject/main> add
 
 ``` ucm :error
 myproject/main> upgrade old new
-
   I couldn't automatically upgrade old to new. However, I've
   added the definitions that need attention to the top of
   scratch.u.

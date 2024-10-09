@@ -11,6 +11,10 @@ self_signed_cert_pem2 = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUdMNT5s
 not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 # Using an alternative certificate store
 
 First lets make sure we can load our cert and private key
@@ -27,7 +31,7 @@ this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
 what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -44,7 +48,6 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     this_should_not_work : [Result]
@@ -52,7 +55,6 @@ scratch/main> add
     what_should_work     : ∀ _. _ -> [Result]
 
 scratch/main> io.test what_should_work
-
     New test results:
   
     1. what_should_work   ◉ succesfully decoded self_signed_pem
@@ -218,7 +220,7 @@ testCNReject _ =
   runTest test
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -240,7 +242,6 @@ testCNReject _ =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     serverThread          : MVar Nat -> Text -> '{IO} ()
@@ -253,7 +254,6 @@ scratch/main> add
     testConnectSelfSigned : '{IO} [Result]
 
 scratch/main> io.test testConnectSelfSigned
-
     New test results:
   
     1. testConnectSelfSigned   ◉ should have reaped what we've sown
@@ -263,7 +263,6 @@ scratch/main> io.test testConnectSelfSigned
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test testCAReject
-
     New test results:
   
     1. testCAReject   ◉ correctly rejected self-signed cert
@@ -273,7 +272,6 @@ scratch/main> io.test testCAReject
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test testCNReject
-
     New test results:
   
     1. testCNReject   ◉ correctly rejected self-signed cert

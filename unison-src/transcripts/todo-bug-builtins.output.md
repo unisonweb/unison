@@ -1,12 +1,16 @@
 # The `todo` and `bug` builtin
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 `todo` and `bug` have type `a -> b`. They take a message or a value of type `a` and crash during runtime displaying `a` in ucm.
 
 ``` unison :error
 > todo "implement me later"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ✅
@@ -33,7 +37,7 @@
 > bug "there's a bug in my code"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ✅
@@ -64,7 +68,7 @@
 complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -87,7 +91,7 @@ test = match true with
     false -> bug "Wow, that's unexpected"
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you

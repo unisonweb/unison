@@ -1,5 +1,9 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 hangExample : Boolean
 hangExample =
@@ -7,7 +11,7 @@ hangExample =
     && ("a long piece of text to hang the line" == "")
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -22,13 +26,11 @@ hangExample =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     hangExample : Boolean
 
 scratch/main> view hangExample
-
   hangExample : Boolean
   hangExample =
     "a long piece of text to hang the line" == ""

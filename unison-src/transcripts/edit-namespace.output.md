@@ -1,3 +1,7 @@
+``` ucm :hide
+project/main> builtins.mergeio lib.builtin
+```
+
 ``` unison
 {{ ping doc }}
 nested.cycle.ping n = n Nat.+ pong n
@@ -17,7 +21,7 @@ lib.project.ignoreMe = 30
 unique type Foo = { bar : Nat, baz : Nat }
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -46,7 +50,6 @@ unique type Foo = { bar : Nat, baz : Nat }
 
 ``` ucm
 project/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
@@ -71,7 +74,6 @@ project/main> add
 
 ``` ucm
 project/main> edit.namespace
-
   ☝️
   
   I added 8 definitions to the top of scratch.u
@@ -114,7 +116,6 @@ toplevel = "hi"
 
 ``` ucm
 project/main> edit.namespace nested simple
-
   ☝️
   
   I added 6 definitions to the top of scratch.u

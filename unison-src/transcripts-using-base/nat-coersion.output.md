@@ -32,7 +32,7 @@ test = 'let
    runTest testABunchOfNats
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -51,7 +51,6 @@ test = 'let
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     test    : '{IO} [Result]
@@ -61,7 +60,6 @@ scratch/main> add
               ->{Stream Result} ()
 
 scratch/main> io.test test
-
     New test results:
   
     1. test   ◉ expected 0.0 got 0.0

@@ -1,8 +1,12 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
 ``` unison
 unique type Foo = Bar Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -17,13 +21,11 @@ unique type Foo = Bar Nat
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> move.term Foo.Bar Stray.Bar
-
   Done.
 
 ```
@@ -34,7 +36,7 @@ Now we've set up a situation where the constructor is not where it's supposed to
 unique type Foo = Bar Nat Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,11 +54,9 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
 
 ``` ucm :error
 scratch/main> view Foo
-
   type Foo = Stray.Bar Nat
 
 scratch/main> update
-
   Sorry, I wasn't able to perform the update:
   
   The type Foo has some constructors with missing names, and I

@@ -2,6 +2,10 @@
 
 Let's set up some definitions to start:
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 x = 1
 y = 2
@@ -10,7 +14,7 @@ structural type X = One Nat
 structural type Y = Two Nat Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -30,7 +34,6 @@ Expected: `x` and `y`, `X`, and `Y` exist as above. UCM tells you this.
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type X
@@ -48,7 +51,7 @@ z = 1
 structural type Z = One Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -69,7 +72,6 @@ Also, `Z` is an alias for `X`.
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type Z
@@ -86,7 +88,7 @@ x = 3
 structural type X = Three Nat Nat Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -107,7 +109,6 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -126,7 +127,7 @@ x = 2
 structural type X = Two Nat Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -147,7 +148,6 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 

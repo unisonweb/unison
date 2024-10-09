@@ -1,5 +1,11 @@
 This transcript does some testing of higher-rank types. Regression tests related to higher-rank types can be added here.
 
+``` ucm :hide
+scratch/main> alias.type ##Nat Nat
+scratch/main> alias.type ##Text Text
+scratch/main> alias.type ##IO IO
+```
+
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:
 
 ``` unison
@@ -9,7 +15,7 @@ f id = (id 1, id "hi")
 > f (x -> x)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -38,7 +44,7 @@ f id _ =
   ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -66,7 +72,7 @@ Functor.blah = cases Functor f ->
   ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -110,7 +116,7 @@ Loc.transform2 nt = cases Loc f ->
   Loc f'
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -141,13 +147,11 @@ We should be able to add and view records with higher-rank fields.
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     structural type HigherRanked
 
 scratch/main> view HigherRanked
-
   structural type HigherRanked = HigherRanked (∀ a. a -> a)
 
 ```

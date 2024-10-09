@@ -1,5 +1,9 @@
 Update a member of a cycle, but retain the cycle.
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ``` unison
 ping : 'Nat
 ping _ = !pong + 1
@@ -8,7 +12,7 @@ pong : 'Nat
 pong _ = !ping + 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -24,7 +28,6 @@ pong _ = !ping + 2
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ping : 'Nat
@@ -37,7 +40,7 @@ ping : 'Nat
 ping _ = !pong + 3
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -53,7 +56,6 @@ ping _ = !pong + 3
 
 ``` ucm
 scratch/main> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -64,7 +66,6 @@ scratch/main> update
   Done.
 
 scratch/main> view ping pong
-
   ping : 'Nat
   ping _ =
     use Nat +

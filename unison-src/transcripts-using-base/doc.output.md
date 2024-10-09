@@ -28,7 +28,7 @@ The 7 days of the week, defined as:
 unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -52,15 +52,12 @@ You can preview what docs will look like when rendered to the console using the 
 
 ``` ucm
 scratch/main> display d1
-
   Hello there Alice!
 
 scratch/main> docs ImportantConstant
-
   An important constant, equal to `42`
 
 scratch/main> docs DayOfWeek
-
   The 7 days of the week, defined as:
   
       type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
@@ -75,7 +72,6 @@ First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ``` ucm
 scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
-
   Loading changes detected in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
@@ -97,13 +93,16 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 Now we can review different portions of the guide.
 we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
 ```` ucm
 scratch/main> view basicFormatting
-
   basicFormatting : Doc2
   basicFormatting =
     {{
@@ -133,7 +132,6 @@ scratch/main> view basicFormatting
     }}
 
 scratch/main> display basicFormatting
-
   # Basic formatting
   
     Paragraphs are separated by one or more blanklines. Sections
@@ -158,7 +156,6 @@ scratch/main> display basicFormatting
     *Next up:* lists
 
 scratch/main> view lists
-
   lists : Doc2
   lists =
     {{
@@ -201,7 +198,6 @@ scratch/main> view lists
     }}
 
 scratch/main> display lists
-
   # Lists
   
     # Bulleted lists
@@ -240,7 +236,6 @@ scratch/main> display lists
       3. Get dressed.
 
 scratch/main> view evaluation
-
   evaluation : Doc2
   evaluation =
     use Nat * +
@@ -275,7 +270,6 @@ scratch/main> view evaluation
     }}
 
 scratch/main> display evaluation
-
   # Evaluation
   
     Expressions can be evaluated inline, for instance `2`.
@@ -303,7 +297,6 @@ scratch/main> display evaluation
         cube x = x * x * x
 
 scratch/main> view includingSource
-
   includingSource : Doc2
   includingSource =
     use Nat +
@@ -344,7 +337,6 @@ scratch/main> view includingSource
     }}
 
 scratch/main> display includingSource
-
   # Including Unison source code
   
     Unison definitions can be included in docs. For instance:
@@ -390,7 +382,6 @@ scratch/main> display includingSource
         so: `sqr x`. This is equivalent to `sqr x`.
 
 scratch/main> view nonUnisonCodeBlocks
-
   nonUnisonCodeBlocks : Doc2
   nonUnisonCodeBlocks =
     {{
@@ -423,7 +414,6 @@ scratch/main> view nonUnisonCodeBlocks
     }}
 
 scratch/main> display nonUnisonCodeBlocks
-
   # Non-Unison code blocks
   
     Use three or more single quotes to start a block with no
@@ -452,7 +442,6 @@ scratch/main> display nonUnisonCodeBlocks
     ```
 
 scratch/main> view otherElements
-
   otherElements : Doc2
   otherElements =
     {{
@@ -509,7 +498,6 @@ scratch/main> view otherElements
     }}
 
 scratch/main> display otherElements
-
   There are also asides, callouts, tables, tooltips, and more.
   These don't currently have special syntax; just use the
   `{{ }}` syntax to call these functions directly.
@@ -553,7 +541,6 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
 
 ```` ucm
 scratch/main> view doc.guide
-
   doc.guide : Doc2
   doc.guide =
     {{
@@ -573,7 +560,6 @@ scratch/main> view doc.guide
     }}
 
 scratch/main> display doc.guide
-
   # Unison computable documentation
   
     # Basic formatting

@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 ## A type param cannot have conflicting kind constraints within a single decl
 
 conflicting constraints on the kind of `a` in a product
@@ -6,7 +10,7 @@ conflicting constraints on the kind of `a` in a product
 unique type T a = T a (a Nat)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -24,7 +28,7 @@ unique type T a
   | StarStar (a Nat)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -44,7 +48,7 @@ unique type Ping a = Ping Pong
 unique type Pong = Pong (Ping Optional)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -66,7 +70,7 @@ unique type Ping a = Ping a Pong
 unique type Pong = Pong (Ping Optional)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -85,7 +89,7 @@ unique ability Pong a where
   pong : Ping Optional -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -107,7 +111,7 @@ unique ability Pong a where
   pong : Ping Optional -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -126,7 +130,7 @@ unique type T a = T a
 unique type S = S (T Nat)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -150,7 +154,7 @@ unique type T a = T
 unique type S = S (T Optional)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -172,7 +176,7 @@ unique type T a = T a
 unique type S = S (T Optional)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -192,7 +196,7 @@ test : Nat Nat
 test = 0
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -210,7 +214,7 @@ test : Optional -> ()
 test _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -230,7 +234,7 @@ test : T Nat -> ()
 test _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -254,7 +258,7 @@ test _ =
   ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -277,7 +281,7 @@ test : Foo -> ()
 test _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -295,7 +299,7 @@ test : {Nat} ()
 test _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -313,7 +317,7 @@ test _ = ()
 unique type T a = T (a a)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -329,7 +333,7 @@ unique type T a = T (a a)
 unique type T a b = T (a b) (b a)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -346,7 +350,7 @@ unique type Ping a = Ping (a Pong)
 unique type Pong a = Pong (a Ping)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind

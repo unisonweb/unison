@@ -1,14 +1,11 @@
 ``` ucm
 diffs/main> builtins.mergeio lib.builtins
-
   Done.
 
 diffs/main> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
-
   Done.
 
 diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
-
   Done.
 
 ```
@@ -35,7 +32,7 @@ take n s =
   handle s() with h n
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -53,7 +50,6 @@ take n s =
 
 ``` ucm
 diffs/main> add
-
   ⍟ I've added these definitions:
   
     ability Stream a
@@ -62,7 +58,6 @@ diffs/main> add
     term : Nat
 
 diffs/main> branch.create new
-
   Done. I've created the new branch based off of main.
   
   Tip: To merge your work back into the main branch, first
@@ -94,7 +89,7 @@ take n s =
     else None
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -114,7 +109,6 @@ take n s =
 
 ``` ucm
 diffs/new> update
-
   Okay, I'm searching the branch for code that needs to be
   updated...
 

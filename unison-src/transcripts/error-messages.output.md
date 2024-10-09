@@ -1,3 +1,7 @@
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 This file contains programs with parse errors and type errors, for visual inspection of error message quality and to check for regressions or changes to error reporting.
 
 ## Parse errors
@@ -10,7 +14,7 @@ Some basic errors of literals.
 x = 1. -- missing some digits after the decimal
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -26,7 +30,7 @@ x = 1. -- missing some digits after the decimal
 x = 1e -- missing an exponent
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -42,7 +46,7 @@ x = 1e -- missing an exponent
 x = 1e- -- missing an exponent
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -58,7 +62,7 @@ x = 1e- -- missing an exponent
 x = 1E+ -- missing an exponent
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -76,7 +80,7 @@ x = 1E+ -- missing an exponent
 x = 0xoogabooga -- invalid hex chars
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -92,7 +96,7 @@ x = 0xoogabooga -- invalid hex chars
 x = 0o987654321 -- 9 and 8 are not valid octal char
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -108,7 +112,7 @@ x = 0o987654321 -- 9 and 8 are not valid octal char
 x = 0b3201 -- 3 and 2 are not valid binary chars
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This number isn't valid syntax: 
@@ -124,7 +128,7 @@ x = 0b3201 -- 3 and 2 are not valid binary chars
 x = 0xsf -- odd number of hex chars in a bytes literal
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This bytes literal isn't valid syntax: 0xsf
@@ -140,7 +144,7 @@ x = 0xsf -- odd number of hex chars in a bytes literal
 x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This bytes literal isn't valid syntax: 0xsnotvalidhexchars
@@ -158,7 +162,7 @@ x = 0xsnotvalidhexchars -- invalid hex chars in a bytes literal
 foo = else -- not matching if
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found a closing 'else' here without a matching 'then'.
@@ -172,7 +176,7 @@ foo = else -- not matching if
 foo = then -- unclosed
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found a closing 'then' here without a matching 'if'.
@@ -186,7 +190,7 @@ foo = then -- unclosed
 foo = with -- unclosed
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found a closing 'with' here without a matching 'handle' or 'match'.
@@ -203,7 +207,7 @@ foo = with -- unclosed
 foo = match 1 with
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -220,7 +224,7 @@ foo = match 1 with
   2 -- no right-hand-side
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -243,7 +247,7 @@ foo = cases
   3 -> ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
     😶
@@ -266,7 +270,7 @@ x = match Some a with
         2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -293,7 +297,7 @@ x = match Some a with
            -> 3
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -316,7 +320,7 @@ x = match Some a with
         | true -> 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I got confused here:
@@ -339,7 +343,7 @@ x = match Some a with
 >
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I expected a non-empty watch expression and not just ">"
@@ -355,7 +359,7 @@ x = match Some a with
 use.keyword.in.namespace = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   The identifier `namespace` used here is a reserved keyword: 
@@ -372,7 +376,7 @@ use.keyword.in.namespace = 1
 a ! b = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   This looks like the start of an expression here 

@@ -2,10 +2,18 @@
 
 https://github.com/unisonweb/unison/pull/2821
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Define a type.
 
 ``` unison :hide
 structural type Y = Y
+```
+
+``` ucm :hide
+scratch/main> add
 ```
 
 Now, we update `Y`, and add a new type `Z` which depends on it.
@@ -15,7 +23,7 @@ structural type Z = Z Y
 structural type Y = Y Nat
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -38,7 +46,6 @@ Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked 
 
 ``` ucm :error
 scratch/main> add
-
   x These definitions failed:
   
     Reason
@@ -49,7 +56,6 @@ scratch/main> add
 
 -- This shouldn't exist, because it should've been blocked.
 scratch/main> view Z
-
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.

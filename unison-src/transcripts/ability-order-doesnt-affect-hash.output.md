@@ -14,7 +14,7 @@ term2 : () ->{Bar, Foo} ()
 term2 _ = ()
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -32,7 +32,6 @@ term2 _ = ()
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     ability Bar
@@ -41,7 +40,6 @@ scratch/main> add
     term2 : '{Bar, Foo} ()
 
 scratch/main> names term1
-
   Term
   Hash:   #8hum58rlih
   Names:  term1 term2

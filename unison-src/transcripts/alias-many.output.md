@@ -1,3 +1,11 @@
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
+```
+
+``` ucm :hide
+scratch/main> add
+```
+
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
@@ -14,7 +22,6 @@ Let's try it\!
 
 ``` ucm
 scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
-
   Here's what changed in mylib :
   
   Added definitions:
@@ -43,7 +50,6 @@ scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.ch
        this change.
 
 scratch/main> find-in mylib
-
   1.  List.adjacentPairs : [a] -> [(a, a)]
   2.  List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
   3.  List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean

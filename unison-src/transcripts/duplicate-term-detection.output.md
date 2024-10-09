@@ -1,5 +1,9 @@
 # Duplicate Term Detection
 
+``` ucm :hide
+scratch/main> builtins.merge
+```
+
 Trivial duplicate terms should be detected:
 
 ``` unison :error
@@ -7,7 +11,7 @@ x = 1
 x = 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -26,7 +30,7 @@ x = 1
 x = 1
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -47,7 +51,7 @@ Record.x.set = 2
 Record.x.modify = 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️
@@ -85,7 +89,7 @@ structural ability AnAbility where
 AnAbility.thing = 2
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   ❗️

@@ -1,6 +1,5 @@
 ``` ucm
 test-html-docs/main> builtins.mergeio lib.builtins
-
   Done.
 
 ```
@@ -16,7 +15,7 @@ some.ns.pretty.deeply.nested = 2
 some.outside = 3
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -36,7 +35,6 @@ some.outside = 3
 
 ``` ucm
 test-html-docs/main> add
-
   ⍟ I've added these definitions:
   
     some.ns.direct                   : Nat
@@ -47,5 +45,4 @@ test-html-docs/main> add
     some.outside.doc                 : Doc2
 
 test-html-docs/main> docs.to-html some.ns unison-src/transcripts-manual/docs.to-html
-
 ```

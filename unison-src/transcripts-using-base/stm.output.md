@@ -28,7 +28,7 @@ body k out v =
   atomically '(TVar.write out (Some n))
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -46,7 +46,6 @@ body k out v =
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
@@ -91,7 +90,7 @@ tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
-``` ucm
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
@@ -109,7 +108,6 @@ tests = '(map spawn nats)
 
 ``` ucm
 scratch/main> add
-
   ⍟ I've added these definitions:
   
     display : Nat -> Nat -> Nat -> Text
@@ -118,7 +116,6 @@ scratch/main> add
     tests   : '{IO} [Result]
 
 scratch/main> io.test tests
-
     New test results:
   
     1. tests   ◉ verified
