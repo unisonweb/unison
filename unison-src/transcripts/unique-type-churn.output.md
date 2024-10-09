@@ -25,6 +25,7 @@ unique type C = C B
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type A
@@ -52,6 +53,7 @@ If the name stays the same, the churn is even prevented if the type is updated a
 
 ``` ucm
 scratch/main> names A
+
   Type
   Hash:  #uj8oalgadr
   Names: A
@@ -82,12 +84,14 @@ unique type A = A ()
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names A
+
   Type
   Hash:  #ufo5tuc7ho
   Names: A
@@ -120,12 +124,14 @@ Note that `A` is back to its original hash.
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names A
+
   Type
   Hash:  #uj8oalgadr
   Names: A

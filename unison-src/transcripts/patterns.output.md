@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Some tests of pattern behavior.

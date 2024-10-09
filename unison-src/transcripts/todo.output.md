@@ -4,6 +4,7 @@ When there's nothing to do, `todo` says this:
 
 ``` ucm
 scratch/main> todo
+
   You have no pending todo items. Good work! ✅
 
 ```
@@ -14,6 +15,7 @@ The `todo` command shows local (outside `lib`) terms that directly call `todo`.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -40,12 +42,14 @@ bar = foo + foo
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bar : Nat
     foo : Nat
 
 scratch/main> todo
+
   These terms call `todo`:
   
     1. foo
@@ -54,6 +58,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Direct dependencies without names
@@ -63,6 +68,7 @@ the current namespace.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -86,12 +92,14 @@ baz = foo.bar + foo.bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     baz     : Nat
     foo.bar : Nat
 
 scratch/main> delete.namespace.force foo
+
   Done.
 
   ⚠️
@@ -103,6 +111,7 @@ scratch/main> delete.namespace.force foo
   bar          1. baz
 
 scratch/main> todo
+
   These terms do not have any names in the current namespace:
   
     1. #1jujb8oelv
@@ -111,6 +120,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Conflicted names
@@ -119,6 +129,7 @@ The `todo` command shows conflicted names.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -142,15 +153,18 @@ bar = 17
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bar : Nat
     foo : Nat
 
 scratch/main> debug.alias.term.force foo bar
+
   Done.
 
 scratch/main> todo
+
   ❓
   
   The term bar has conflicting definitions:
@@ -165,6 +179,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Definitions in lib
@@ -173,6 +188,7 @@ The `todo` command complains about terms and types directly in `lib`.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -194,11 +210,13 @@ lib.foo = 16
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.foo : Nat
 
 scratch/main> todo
+
   There's a type or term at the top level of the `lib`
   namespace, where I only expect to find subnamespaces
   representing library dependencies. Please move or remove it.
@@ -207,6 +225,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Constructor aliases
@@ -215,6 +234,7 @@ The `todo` command complains about constructor aliases.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -236,14 +256,17 @@ type Foo = One
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> alias.term Foo.One Foo.Two
+
   Done.
 
 scratch/main> todo
+
   The type Foo has a constructor with multiple names.
   
     1. Foo.One
@@ -255,6 +278,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Missing constructor names
@@ -263,6 +287,7 @@ The `todo` command complains about missing constructor names.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -284,14 +309,17 @@ type Foo = Bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> delete.term Foo.Bar
+
   Done.
 
 scratch/main> todo
+
   These types have some constructors with missing names.
   
     1. Foo
@@ -304,6 +332,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Nested decl aliases
@@ -312,6 +341,7 @@ The `todo` command complains about nested decl aliases.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -335,12 +365,14 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type Foo a
     structural type Foo.inner.Bar a
 
 scratch/main> todo
+
   These types are aliases, but one is nested under the other.
   Please separate them or delete one copy.
   
@@ -351,6 +383,7 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 # Stray constructors
@@ -359,6 +392,7 @@ The `todo` command complains about stray constructors.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison
@@ -380,14 +414,17 @@ type Foo = Bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> alias.term Foo.Bar Baz
+
   Done.
 
 scratch/main> todo
+
   These constructors are not nested beneath their corresponding
   type names:
   
@@ -400,4 +437,5 @@ scratch/main> todo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```

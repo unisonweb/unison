@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Any unique name suffix can be used to refer to a definition. For instance:
@@ -21,12 +22,14 @@ This also affects commands like find. Notice lack of qualified names in output:
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo.bar.a       : Int
     optional.isNone : Optional a -> Boolean
 
 scratch/main> find take
+
   1. builtin.Bytes.take : Nat -> Bytes -> Bytes
   2. builtin.List.take : Nat -> [a] -> [a]
   3. builtin.Text.take : Nat -> Text -> Text
@@ -40,9 +43,11 @@ The `view` and `display` commands also benefit from this:
 
 ``` ucm
 scratch/main> view List.drop
+
   builtin builtin.List.drop : builtin.Nat -> [a] -> [a]
 
 scratch/main> display bar.a
+
   +99
 
 ```
@@ -53,6 +58,7 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
 
 ``` ucm
 scratch/main> find : Nat -> [a] -> [a]
+
   1. builtin.List.drop : Nat -> [a] -> [a]
   2. builtin.List.take : Nat -> [a] -> [a]
   
@@ -88,6 +94,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     cool.abra.cadabra            : Text
@@ -141,6 +148,7 @@ scratch/main> add
 
 ``` ucm
 scratch/main> view abra.cadabra
+
   cool.abra.cadabra : Text
   cool.abra.cadabra = "my project"
   
@@ -148,6 +156,7 @@ scratch/main> view abra.cadabra
   lib.distributed.abra.cadabra = "direct dependency 1"
 
 scratch/main> view baz.qux
+
   lib.distributed.baz.qux : Text
   lib.distributed.baz.qux = "direct dependency 2"
 
@@ -157,10 +166,12 @@ Note that we can always still view indirect dependencies by using more name segm
 
 ``` ucm
 scratch/main> view distributed.abra.cadabra
+
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
 scratch/main> names distributed.lib.baz.qux
+
   Term
   Hash:   #nhup096n2s
   Names:  lib.distributed.lib.baz.qux

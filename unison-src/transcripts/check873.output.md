@@ -2,6 +2,7 @@ See [this ticket](https://github.com/unisonweb/unison/issues/873); the point bei
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -23,6 +24,7 @@ scratch/main> builtins.merge
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     - : Nat -> Nat -> Int

@@ -34,6 +34,7 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     combines   : ([Float], [Int], [Char]) -> Text
@@ -43,6 +44,7 @@ scratch/main> add
     mkTestCase : '{IO, Exception} ()
 
 scratch/main> run mkTestCase
+
   ()
 
 ```

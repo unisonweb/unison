@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
+
 ```
 
 ``` unison :hide
@@ -11,6 +12,7 @@ nested.names.x = 42
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` api
@@ -226,6 +228,7 @@ doctest.otherstuff.thing = "A different thing"
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 Only docs for the term we request should be returned, even if there are other term docs with the same suffix.

@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -21,11 +22,13 @@ unique type Foo = Bar Nat
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
 
 scratch/main> move.term Foo.Bar Stray.Bar
+
   Done.
 
 ```
@@ -54,9 +57,11 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
 
 ``` ucm :error
 scratch/main> view Foo
+
   type Foo = Stray.Bar Nat
 
 scratch/main> update
+
   Sorry, I wasn't able to perform the update:
   
   The type Foo has some constructors with missing names, and I

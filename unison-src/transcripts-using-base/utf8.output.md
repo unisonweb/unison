@@ -4,6 +4,7 @@ Unison has function for converting between `Text` and a UTF-8 `Bytes` encoding o
 
 ``` ucm
 scratch/main> find Utf8
+
   1. builtin.Text.toUtf8 : Text -> Bytes
   2. Text.fromUtf8 : Bytes ->{Exception} Text
   3. builtin.Text.fromUtf8.impl : Bytes -> Either Failure Text

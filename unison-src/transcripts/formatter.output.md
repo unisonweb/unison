@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 ```
 
 ``` unison :hide
@@ -89,6 +90,7 @@ with a strike-through block~
 
 ``` ucm
 scratch/main> debug.format
+
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -205,4 +207,5 @@ brokenDoc = {{ hello }} + 1
 
 ``` ucm
 scratch/main> debug.format
+
 ```

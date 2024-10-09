@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Trivial duplicate terms should be detected:

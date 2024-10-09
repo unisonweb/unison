@@ -36,7 +36,7 @@ formatAPIRequest = \case
 
 formatUcmLine :: UcmLine -> Text
 formatUcmLine = \case
-  UcmCommand context txt -> formatContext context <> "> " <> txt
+  UcmCommand context txt -> formatContext context <> "> " <> txt <> "\n"
   UcmComment txt -> "--" <> txt
   where
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch

@@ -1,5 +1,6 @@
 ``` ucm
 scratch/main> builtins.mergeio
+
   Done.
 
 ```
@@ -30,6 +31,7 @@ test> pass = [Ok "Passed"]
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     pass : [Result]
@@ -57,9 +59,11 @@ test> pass = [Ok "Passed"]
 
 ``` ucm
 scratch/main> add
+
   ⊡ Ignored previously added definitions: pass
 
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1. pass   ◉ Passed

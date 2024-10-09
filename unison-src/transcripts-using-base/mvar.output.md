@@ -66,12 +66,14 @@ testMvars _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
     testMvars : '{IO} [Result]
 
 scratch/main> io.test testMvars
+
     New test results:
   
     1. testMvars   ◉ ma should not be empty

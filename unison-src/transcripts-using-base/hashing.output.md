@@ -4,6 +4,7 @@ Unison has cryptographic builtins for hashing and computing [HMACs](https://en.w
 
 ``` ucm
 scratch/main> ls builtin.Bytes
+
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
   3.  decodeNat16be         (Bytes -> Optional (Nat, Bytes))
@@ -121,6 +122,7 @@ And here's the full API:
 
 ``` ucm
 scratch/main> find-in builtin.crypto
+
   1.  type CryptoFailure
   2.  Ed25519.sign.impl : Bytes
                           -> Bytes
@@ -313,10 +315,12 @@ test> crypto.hash.numTests =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1.  blake2b_512.tests.ex1   ◉ Passed
@@ -479,10 +483,12 @@ test> md5.tests.ex3 =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1.  blake2b_512.tests.ex1   ◉ Passed

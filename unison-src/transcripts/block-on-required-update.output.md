@@ -4,6 +4,7 @@ Should block an `add` if it requires an update on an in-file dependency.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -25,6 +26,7 @@ x = 1
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     x : Nat
@@ -60,6 +62,7 @@ Try to add only the new `y`. This should fail because it requires an update to `
 
 ``` ucm :error
 scratch/main> add y
+
   x These definitions failed:
   
     Reason

@@ -13,6 +13,7 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 # Using an alternative certificate store
@@ -48,6 +49,7 @@ what_should_work _ = this_should_work ++ this_should_not_work
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     this_should_not_work : [Result]
@@ -55,6 +57,7 @@ scratch/main> add
     what_should_work     : ∀ _. _ -> [Result]
 
 scratch/main> io.test what_should_work
+
     New test results:
   
     1. what_should_work   ◉ succesfully decoded self_signed_pem
@@ -242,6 +245,7 @@ testCNReject _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     serverThread          : MVar Nat -> Text -> '{IO} ()
@@ -254,6 +258,7 @@ scratch/main> add
     testConnectSelfSigned : '{IO} [Result]
 
 scratch/main> io.test testConnectSelfSigned
+
     New test results:
   
     1. testConnectSelfSigned   ◉ should have reaped what we've sown
@@ -263,6 +268,7 @@ scratch/main> io.test testConnectSelfSigned
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test testCAReject
+
     New test results:
   
     1. testCAReject   ◉ correctly rejected self-signed cert
@@ -272,6 +278,7 @@ scratch/main> io.test testCAReject
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test testCNReject
+
     New test results:
   
     1. testCNReject   ◉ correctly rejected self-signed cert

@@ -69,6 +69,7 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural ability DC r
@@ -84,6 +85,7 @@ scratch/main> add
     suspSum    : [Nat] -> Delayed Nat
 
 scratch/main> run mkTestCase
+
   ()
 
 ```

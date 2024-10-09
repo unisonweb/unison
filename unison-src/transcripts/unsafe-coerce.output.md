@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -32,10 +33,12 @@ main _ =
 
 ``` ucm
 scratch/main> find unsafe.coerceAbilities
+
   1. builtin.unsafe.coerceAbilities : (a ->{e1} b) -> a -> b
   
 
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     f    : 'Nat
@@ -43,6 +46,7 @@ scratch/main> add
     main : '{IO, Exception} [Result]
 
 scratch/main> io.test main
+
     New test results:
   
     1. main   ◉ 

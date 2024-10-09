@@ -3,6 +3,7 @@ cases exist for built-in types. Just making sure they don't crash.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -30,12 +31,14 @@ threadEyeDeez _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type A
     threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
 
 scratch/main> run threadEyeDeez
+
   (false, true)
 
 ```

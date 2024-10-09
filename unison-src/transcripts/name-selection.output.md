@@ -6,7 +6,9 @@ This transcript shows how the pretty-printer picks names for a hash when multipl
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
+
 scratch/biasing> builtins.merge lib.builtins
+
 ```
 
 ``` unison :hide
@@ -19,6 +21,7 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     a.a                     : Nat
@@ -26,6 +29,7 @@ scratch/main> add
     a.b                     : Nat
 
 scratch/main> view a.a
+
   a.a : Nat
   a.a =
     use Nat +
@@ -53,6 +57,7 @@ a3.long.name.but.shortest.suffixification = 1
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     a2.a                                      : Nat
@@ -75,9 +80,11 @@ scratch/main> add
     a3.long.name.but.shortest.suffixification : Nat
 
 scratch/main> debug.alias.term.force a2.c a3.c
+
   Done.
 
 scratch/main> debug.alias.term.force a2.d a3.d
+
   Done.
 
 ```
@@ -88,6 +95,7 @@ The original `a2` namespace has an unconflicted definition for `c` and `d`, but 
 
 ``` ucm
 scratch/main> view a b c d
+
   a.a : Nat
   a.a =
     use Nat +
@@ -144,6 +152,7 @@ a = 10
 
 ``` ucm
 scratch/biasing> add
+
   ⍟ I've added these definitions:
   
     a                  : Nat
@@ -154,6 +163,7 @@ scratch/biasing> add
 -- the pretty printer should prefer the suffixified 'deeply.nested.num name' over the shallow 'a'.
 -- It's closer to the term being printed.
 scratch/biasing> view deeply.nested.term
+
   deeply.nested.term : Nat
   deeply.nested.term =
     use Nat +
@@ -182,6 +192,7 @@ other.num = 20
 
 ``` ucm
 scratch/biasing> add
+
   ⍟ I've added these definitions:
   
     other.num : Nat
@@ -189,6 +200,7 @@ scratch/biasing> add
 -- nested.num should be preferred over the shorter name `a` due to biasing
 -- because `deeply.nested.num` is nearby to the term being viewed.
 scratch/biasing> view deeply.nested.term
+
   deeply.nested.term : Nat
   deeply.nested.term =
     use Nat +

@@ -4,6 +4,7 @@ https://github.com/unisonweb/unison/issues/2786
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
+
 ```
 
 First we add a sum-type to the codebase.
@@ -28,6 +29,7 @@ structural type X = x
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type X
@@ -72,6 +74,7 @@ is removed in the same update that the new term is being added.
 
 ``` ucm
 scratch/main> update.old
+
   ⍟ I've added these definitions:
   
     X.x        : Text

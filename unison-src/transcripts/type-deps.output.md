@@ -4,6 +4,7 @@ https://github.com/unisonweb/unison/pull/2821
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Define a type.
@@ -14,6 +15,7 @@ structural type Y = Y
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 Now, we update `Y`, and add a new type `Z` which depends on it.
@@ -46,6 +48,7 @@ Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked 
 
 ``` ucm :error
 scratch/main> add
+
   x These definitions failed:
   
     Reason
@@ -56,6 +59,7 @@ scratch/main> add
 
 -- This shouldn't exist, because it should've been blocked.
 scratch/main> view Z
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.

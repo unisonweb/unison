@@ -1,5 +1,6 @@
 ``` ucm :hide
 myproject/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -27,21 +28,25 @@ mything = lib.old.foo + 100
 
 ``` ucm
 myproject/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 myproject/main> upgrade old new
+
   I upgraded old to new, and removed old.
 
 myproject/main> view mything
+
   mything : Nat
   mything =
     use Nat +
     foo + 100
 
 myproject/main> view bar
+
   bar : Nat
   bar = 141
 

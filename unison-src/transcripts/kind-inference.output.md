@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ## A type param cannot have conflicting kind constraints within a single decl

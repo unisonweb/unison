@@ -2,9 +2,11 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
 
 ``` ucm
 scratch/main> builtins.merge builtins
+
   Done.
 
 scratch/main> ls builtins
+
   1.  Any                 (builtin type)
   2.  Any/                (2 terms)
   3.  Boolean             (builtin type)

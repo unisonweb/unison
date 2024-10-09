@@ -11,8 +11,11 @@ transcripts which contain less boilerplate.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 scratch/main> load unison-src/transcripts-using-base/base.u
+
 scratch/main> add
+
 ```
 
 The test shows that `hex (fromHex str) == str` as expected.
@@ -25,6 +28,7 @@ test> hex.tests.ex1 = checks let
 
 ``` ucm :hide
 scratch/main> test
+
 ```
 
 Lets do some basic testing of our test harness to make sure its
@@ -64,11 +68,13 @@ testAutoClean _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     testAutoClean : '{IO} [Result]
 
 scratch/main> io.test testAutoClean
+
     New test results:
   
     1. testAutoClean   ◉ our temporary directory should exist

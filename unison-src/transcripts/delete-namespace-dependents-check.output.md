@@ -6,6 +6,7 @@ This is a regression test, previously `delete.namespace` allowed a delete as lon
 
 ``` ucm :hide
 myproject/main> builtins.merge
+
 ```
 
 ``` unison
@@ -30,18 +31,21 @@ dependent = dependency + 99
 
 ``` ucm :error
 myproject/main> add
+
   ⍟ I've added these definitions:
   
     dependent      : Nat
     sub.dependency : Nat
 
 myproject/main> branch /new
+
   Done. I've created the new branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /new`.
 
 myproject/new> delete.namespace sub
+
   ⚠️
   
   I didn't delete the namespace because the following
@@ -54,6 +58,7 @@ myproject/new> delete.namespace sub
   without names, use delete.namespace.force
 
 myproject/new> view dependent
+
   dependent : Nat
   dependent =
     use Nat +

@@ -6,6 +6,7 @@ This transcript tests the errors printed to the user when a name cannot be resol
 
 ``` ucm
 scratch/main> builtins.merge lib.builtins
+
   Done.
 
 ```
@@ -38,6 +39,7 @@ two.ambiguousTerm = "term two"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type one.AmbiguousType

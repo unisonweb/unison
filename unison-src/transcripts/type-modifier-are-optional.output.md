@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Types and abilities may be prefixed with either `unique` or `structural`. When left unspecified, `unique` is assumed.

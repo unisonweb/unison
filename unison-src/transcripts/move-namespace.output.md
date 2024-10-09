@@ -10,24 +10,29 @@ foo = 1
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo : ##Nat
 
 -- Should request confirmation
 scratch/main> move.namespace . .root.at.path
+
   ⚠️
   
   Moves which affect the root branch cannot be undone, are you sure?
   Re-run the same command to proceed.
 
 scratch/main> move.namespace . .root.at.path
+
   Done.
 
 scratch/main> ls
+
   1. root/ (1 term)
 
 scratch/main> history
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -39,9 +44,11 @@ scratch/main> history
 
 ``` ucm
 scratch/main> ls .root.at.path
+
   1. foo (##Nat)
 
 scratch/main> history .root.at.path
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -56,18 +63,22 @@ I should be able to move a sub namespace *over* the root.
 ``` ucm
 -- Should request confirmation
 scratch/main> move.namespace .root.at.path .
+
   ⚠️
   
   Moves which affect the root branch cannot be undone, are you sure?
   Re-run the same command to proceed.
 
 scratch/main> move.namespace .root.at.path .
+
   Done.
 
 scratch/main> ls
+
   1. foo (##Nat)
 
 scratch/main> history
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -80,9 +91,11 @@ scratch/main> history
 ``` ucm :error
 -- should be empty
 scratch/main> ls .root.at.path
+
   nothing to show
 
 scratch/main> history .root.at.path
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -94,6 +107,7 @@ scratch/main> history .root.at.path
 
 ``` ucm :hide
 scratch/happy> builtins.merge lib.builtins
+
 ```
 
 ## Happy path
@@ -121,6 +135,7 @@ unique type a.T = T
 
 ``` ucm
 scratch/happy> add
+
   ⍟ I've added these definitions:
   
     type a.T
@@ -150,6 +165,7 @@ unique type a.T = T1 | T2
 
 ``` ucm
 scratch/happy> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -161,14 +177,17 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 
 ``` ucm
 scratch/happy> move.namespace a b
+
   Done.
 
 scratch/happy> ls b
+
   1. T       (type)
   2. T/      (2 terms)
   3. termInA (Nat)
 
 scratch/happy> history b
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -190,6 +209,7 @@ scratch/happy> history b
 
 ``` ucm :hide
 scratch/history> builtins.merge lib.builtins
+
 ```
 
 Create some namespaces and add some history to them
@@ -215,6 +235,7 @@ b.termInB = 10
 
 ``` ucm
 scratch/history> add
+
   ⍟ I've added these definitions:
   
     a.termInA : Nat
@@ -244,6 +265,7 @@ b.termInB = 11
 
 ``` ucm
 scratch/history> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
@@ -257,13 +279,16 @@ of the moved namespace.
 
 ``` ucm
 scratch/history> delete.namespace b
+
   Done.
 
 scratch/history> move.namespace a b
+
   Done.
 
 -- Should be the history from 'a'
 scratch/history> history b
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -277,6 +302,7 @@ scratch/history> history b
 
 -- Should be empty
 scratch/history> history a
+
   Note: The most recent namespace hash is immediately below this
         message.
   
@@ -290,6 +316,7 @@ scratch/history> history a
 
 ``` ucm :hide
 scratch/existing> builtins.merge lib.builtins
+
 ```
 
 Create some namespace and add some history to them
@@ -315,6 +342,7 @@ b.termInB = 10
 
 ``` ucm
 scratch/existing> add
+
   ⍟ I've added these definitions:
   
     a.termInA : Nat
@@ -344,12 +372,14 @@ b.termInB = 11
 
 ``` ucm
 scratch/existing> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/existing> move.namespace a b
+
   ⚠️
   
   A branch existed at the destination: b so I over-wrote it.

@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 We had bugs in the calling conventions for both send and terminate which would
@@ -40,12 +41,14 @@ assertRight = cases
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     assertRight : Either a b -> b
     frank       : '{IO} ()
 
 scratch/main> run frank
+
   ()
 
 ```

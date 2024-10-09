@@ -17,19 +17,23 @@
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     `()`.foo : ##Text
 
 scratch/main> find
+
   1. `()`.foo : ##Text
   
 
 scratch/main> find-in `()`
+
   1. foo : ##Text
   
 
 scratch/main> delete.namespace `()`
+
   Done.
 
 ```

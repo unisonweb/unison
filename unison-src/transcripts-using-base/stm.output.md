@@ -46,6 +46,7 @@ body k out v =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
@@ -108,6 +109,7 @@ tests = '(map spawn nats)
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     display : Nat -> Nat -> Nat -> Text
@@ -116,6 +118,7 @@ scratch/main> add
     tests   : '{IO} [Result]
 
 scratch/main> io.test tests
+
     New test results:
   
     1. tests   ◉ verified

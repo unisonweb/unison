@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 This tests a variable related bug in the ANF compiler.
@@ -51,6 +52,7 @@ foo _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo : ∀ _. _ -> Nat

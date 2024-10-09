@@ -1,5 +1,6 @@
 ``` ucm :hide
 myproject/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -33,6 +34,7 @@ bar = a.x.x.x.x + c.y.y.y.y
 
 ``` ucm
 myproject/main> add
+
   ⍟ I've added these definitions:
   
     a.x.x.x.x   : Nat
@@ -47,6 +49,7 @@ myproject/main> add
 
 ``` ucm :error
 myproject/main> upgrade old new
+
   I couldn't automatically upgrade old to new. However, I've
   added the definitions that need attention to the top of
   scratch.u.

@@ -2,8 +2,11 @@
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 scratch/main> load unison-src/transcripts-using-base/base.u
+
 scratch/main> add
+
 ```
 
 This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
@@ -89,6 +92,7 @@ test> Int.tests.conversions =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## `Nat` functions
@@ -164,6 +168,7 @@ test> Nat.tests.conversions =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## `Boolean` functions
@@ -192,6 +197,7 @@ test> Boolean.tests.notTable =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## `Text` functions
@@ -290,6 +296,7 @@ test> Text.tests.indexOfEmoji =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## `Bytes` functions
@@ -354,6 +361,7 @@ test> Bytes.tests.indexOf =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## `List` comparison
@@ -373,6 +381,7 @@ test> checks [
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 Other list functions
@@ -424,6 +433,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## Sandboxing functions
@@ -491,6 +501,7 @@ openFile]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` unison
@@ -521,11 +532,13 @@ openFilesIO = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     openFilesIO : '{IO} [Result]
 
 scratch/main> io.test openFilesIO
+
     New test results:
   
     1. openFilesIO   ◉ Passed
@@ -571,6 +584,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ## Run the tests
@@ -579,6 +593,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
 ``` ucm
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1.  Any.test1                           ◉ Passed

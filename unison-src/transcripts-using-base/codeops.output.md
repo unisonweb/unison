@@ -200,6 +200,7 @@ swapped name link =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type Three a b c
@@ -344,6 +345,7 @@ to actual show that the serialization works.
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural ability Zap
@@ -359,6 +361,7 @@ scratch/main> add
     zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
 scratch/main> io.test tests
+
     New test results:
   
     1. tests   ◉ (ext f) passed
@@ -380,6 +383,7 @@ scratch/main> io.test tests
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> io.test badLoad
+
     New test results:
   
     1. badLoad   ◉ serialized77
@@ -441,11 +445,13 @@ codeTests =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     codeTests : '{IO} [Result]
 
 scratch/main> io.test codeTests
+
     New test results:
   
     1. codeTests   ◉ (idem f) passed
@@ -527,12 +533,14 @@ vtests _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     validateTest : Link.Term ->{IO} Result
     vtests       : '{IO} [Result]
 
 scratch/main> io.test vtests
+
     New test results:
   
     1. vtests   ◉ validated

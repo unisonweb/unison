@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -26,6 +27,7 @@ structural type A = B.TheOtherAlias Foo
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type A
@@ -54,6 +56,7 @@ unique type Foo = Bar Nat Nat
 
 ``` ucm :error
 scratch/main> update
+
   The type A.B is an alias of A. I'm not able to perform an
   update when a type exists nested under an alias of itself.
   Please separate them or delete one copy, and then try updating

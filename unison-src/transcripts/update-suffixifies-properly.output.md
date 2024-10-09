@@ -1,5 +1,6 @@
 ``` ucm :hide
 myproject/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -31,6 +32,7 @@ bar = a.x.x.x.x + c.y.y.y.y
 
 ``` ucm
 myproject/main> add
+
   ⍟ I've added these definitions:
   
     a.x.x.x.x : Nat
@@ -62,6 +64,7 @@ foo = +30
 
 ``` ucm :error
 myproject/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 

@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Here's a couple examples:
@@ -34,12 +35,14 @@ ex1 tup =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ex0 : Nat -> Nat
     ex1 : (a, b, (Nat, Nat)) -> Nat
 
 scratch/main> view ex0 ex1
+
   ex0 : Nat -> Nat
   ex0 n =
     use Nat +
@@ -135,12 +138,14 @@ ex5a _ = match (99 + 1, "hi") with
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ex5  : 'Text
     ex5a : 'Text
 
 scratch/main> view ex5 ex5a
+
   ex5 : 'Text
   ex5 _ = match 99 Nat.+ 1 with
     12 -> "Hi"
@@ -166,11 +171,13 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ex6 : (Nat, Nat) -> Nat
 
 scratch/main> view ex6
+
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases (x, y) -> x Nat.+ y
 

@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Some random ability stuff to ensure things work.
@@ -37,6 +38,7 @@ ha = cases
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ability A

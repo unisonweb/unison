@@ -2,6 +2,7 @@
 
 ``` ucm
 scratch/main> builtins.merge lib.builtins
+
   Done.
 
 ```
@@ -37,6 +38,7 @@ somewhere.y = 2
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     some.otherplace.x : Nat
@@ -52,6 +54,7 @@ scratch/main> add
 ``` ucm
 -- We can search by suffix and find all definitions named 'x', and each of their aliases respectively.
 scratch/main> names x
+
   Terms
   Hash:   #gjmq673r1v
   Names:  some.otherplace.y some.place.x somewhere.z
@@ -61,12 +64,14 @@ scratch/main> names x
 
 -- We can search by hash, and see all aliases of that hash
 scratch/main> names #gjmq673r1v
+
   Term
   Hash:   #gjmq673r1v
   Names:  some.otherplace.y some.place.x somewhere.z
 
 -- Works with absolute names too
 scratch/main> names .some.place.x
+
   Term
   Hash:   #gjmq673r1v
   Names:  some.otherplace.y some.place.x somewhere.z
@@ -78,6 +83,7 @@ scratch/main> names .some.place.x
 ``` ucm
 -- We can search from a different branch and find all names in the codebase named 'x', and each of their aliases respectively.
 scratch/other> debug.names.global x
+
   Found results in scratch/main
   
   Terms
@@ -89,6 +95,7 @@ scratch/other> debug.names.global x
 
 -- We can search by hash, and see all aliases of that hash in the codebase
 scratch/other> debug.names.global #gjmq673r1v
+
   Found results in scratch/main
   
   Term
@@ -97,6 +104,7 @@ scratch/other> debug.names.global #gjmq673r1v
 
 -- We can search using an absolute name
 scratch/other> debug.names.global .some.place.x
+
   Found results in scratch/main
   
   Term

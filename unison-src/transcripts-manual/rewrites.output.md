@@ -1,7 +1,10 @@
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 scratch/main> load unison-src/transcripts-using-base/base.u
+
 scratch/main> add
+
 ```
 
 ## Structural find and replace
@@ -37,6 +40,7 @@ Let's rewrite these:
 
 ``` ucm
 scratch/main> rewrite rule1
+
   ☝️
   
   I found and replaced matches in these definitions: ex1
@@ -44,6 +48,7 @@ scratch/main> rewrite rule1
   The rewritten file has been added to the top of scratch.u
 
 scratch/main> rewrite eitherToOptional
+
   ☝️
   
   I found and replaced matches in these definitions:
@@ -115,13 +120,16 @@ rule2 x = @rewrite signature Optional ==> Optional2
 
 ``` ucm :hide
 scratch/main> load
+
 scratch/main> add
+
 ```
 
 After adding to the codebase, here's the rewritten source:
 
 ``` ucm
 scratch/main> view ex1 Either.mapRight rule1
+
   Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
   Either.mapRight f = cases
     None   -> None
@@ -168,6 +176,7 @@ Let's apply the rewrite `woot1to2`:
 
 ``` ucm
 scratch/main> rewrite woot1to2
+
   ☝️
   
   I found and replaced matches in these definitions: wootEx
@@ -202,13 +211,16 @@ blah2 = 456
 
 ``` ucm :hide
 scratch/main> load
+
 scratch/main> add
+
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ``` ucm
 scratch/main> view wootEx
+
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
     _ = woot2()
@@ -239,14 +251,18 @@ sameFileEx =
 
 ``` ucm :hide
 scratch/main> rewrite rule
+
 scratch/main> load
+
 scratch/main> add
+
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ``` ucm
 scratch/main> view foo1 foo2 sameFileEx
+
   foo1 : Nat
   foo1 =
     b = "b"
@@ -288,6 +304,7 @@ In the above example, `bar2` is locally bound by the rule, so when applied, it s
 
 ``` ucm
 scratch/main> rewrite rule
+
   ☝️
   
   I found and replaced matches in these definitions: sameFileEx
@@ -322,6 +339,7 @@ Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ``` ucm :error
 scratch/main> load
+
   Loading changes detected in scratch.u.
 
   I couldn't figure out what bar21 refers to here:
@@ -353,6 +371,7 @@ rule a = @rewrite
 
 ``` ucm
 scratch/main> rewrite rule
+
   ☝️
   
   I found and replaced matches in these definitions: bar2
@@ -379,6 +398,7 @@ The `a` introduced will be freshened to not capture the `a` in scope, so it rema
 
 ``` ucm :error
 scratch/main> load
+
   Loading changes detected in scratch.u.
 
   I couldn't figure out what a1 refers to here:
@@ -404,6 +424,7 @@ eitherEx = Left ("hello", "there")
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` unison :hide
@@ -413,6 +434,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 
 ``` ucm
 scratch/main> sfind findEitherEx
+
   🔎
   
   These definitions from the current namespace (excluding `lib`) have matches:
@@ -422,6 +444,7 @@ scratch/main> sfind findEitherEx
   Tip: Try `edit 1` to bring this into your scratch file.
 
 scratch/main> sfind findEitherFailure
+
   🔎
   
   These definitions from the current namespace (excluding `lib`) have matches:
@@ -436,6 +459,7 @@ scratch/main> sfind findEitherFailure
        scratch file.
 
 scratch/main> find 1-5
+
   1. Exception.catch : '{g, Exception} a ->{g} Either Failure a
   2. Exception.reraise : Either Failure a ->{Exception} a
   3. Exception.toEither : '{ε, Exception} a

@@ -5,6 +5,7 @@ ambiguous. A reference to `Namespace.Foo` or `File.Foo` work fine.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -28,6 +29,7 @@ type Namespace.Foo = Bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Namespace.Foo
@@ -79,6 +81,7 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```
 
 # Example 2
@@ -88,6 +91,7 @@ it refers to the namespace type (because it is an exact match).
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -111,6 +115,7 @@ type Foo = Bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
@@ -138,18 +143,21 @@ type UsesFoo = UsesFoo Foo
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type File.Foo
     type UsesFoo
 
 scratch/main> view UsesFoo
+
   type UsesFoo = UsesFoo Foo
 
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```
 
 # Example 3
@@ -159,6 +167,7 @@ it refers to the file type (because it is an exact match).
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -182,6 +191,7 @@ type Namespace.Foo = Bar
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Namespace.Foo
@@ -209,18 +219,21 @@ type UsesFoo = UsesFoo Foo
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
     type UsesFoo
 
 scratch/main> view UsesFoo
+
   type UsesFoo = UsesFoo Foo
 
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```
 
 # Example 4
@@ -230,6 +243,7 @@ but resolves to `ns.foo` via TDNR.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -254,6 +268,7 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -284,6 +299,7 @@ bar = foo ++ "bar"
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```
 
 # Example 4
@@ -293,6 +309,7 @@ but resolves to `file.foo` via TDNR.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -317,6 +334,7 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -347,6 +365,7 @@ bar = foo + 42
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```
 
 # Example 4
@@ -356,6 +375,7 @@ A reference to `ns.foo` or `file.foo` work fine.
 
 ``` ucm
 scratch/main> builtins.mergeio lib.builtins
+
   Done.
 
 ```
@@ -380,6 +400,7 @@ ns.foo = 42
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ns.foo : Nat
@@ -435,12 +456,14 @@ bar = file.foo + ns.foo
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bar      : Nat
     file.foo : Nat
 
 scratch/main> view bar
+
   bar : Nat
   bar =
     use Nat +
@@ -450,4 +473,5 @@ scratch/main> view bar
 
 ``` ucm
 scratch/main> project.delete scratch
+
 ```

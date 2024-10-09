@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 This transcript shows some syntax for raw text literals.
@@ -91,12 +92,14 @@ lit2 = """"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lit1 : Text
     lit2 : Text
 
 scratch/main> view lit1 lit2
+
   lit1 : Text
   lit1 =
     """

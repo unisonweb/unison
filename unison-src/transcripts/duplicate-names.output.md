@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Term and ability constructor collisions should cause a parse error.
@@ -130,6 +131,7 @@ X = ()
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type X
@@ -137,6 +139,7 @@ scratch/main> add
     X : ()
 
 scratch/main> view X
+
   structural type X = Z
   
   X : ()

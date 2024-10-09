@@ -34,6 +34,7 @@ test2 = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     test1 : '{IO, Exception} [Result]
@@ -43,6 +44,7 @@ scratch/main> add
 
 ``` ucm :error
 scratch/main> io.test test1
+
   💔💥
   
   The program halted with an unhandled exception:
@@ -59,6 +61,7 @@ scratch/main> io.test test1
 
 ``` ucm :error
 scratch/main> io.test test2
+
   💔💥
   
   The program halted with an unhandled exception:

@@ -96,6 +96,7 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     structural type Tree a
@@ -115,6 +116,7 @@ scratch/main> add
     tree3      : Tree Text
 
 scratch/main> run mkTestCase
+
   ()
 
 ```

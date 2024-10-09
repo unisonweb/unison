@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
+
 ```
 
 ``` unison :hide
@@ -17,6 +18,7 @@ other = "other"
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 Completion should find all the `foldMap` definitions in the codebase,
@@ -27,6 +29,7 @@ prioritizing exact matches over partial matches. We don't have any control over 
 
 ``` ucm
 scratch/main> debug.lsp-name-completion foldMap
+
   Matching Path   Name                             Hash
   foldMap         foldMap                          #o38ps8p4q6
   foldMapWith     foldMapWith                      #r9rs4mcb0m
@@ -40,6 +43,7 @@ Should still find the term which has a matching hash to a better name if the bet
 
 ``` ucm
 scratch/main> debug.lsp-name-completion transitive_same_hash.foldMap
+
   Matching Path                  Name                                       Hash
   transitive_same_hash.foldMap   lib.dep.lib.transitive_same_hash.foldMap   #o38ps8p4q6
 

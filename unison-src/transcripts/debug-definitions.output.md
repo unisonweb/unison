@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison :hide
@@ -18,6 +19,7 @@ ability Ask a where
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ability Ask a
@@ -27,12 +29,15 @@ scratch/main> add
     y : Nat
 
 scratch/main> debug.term.abt Nat.+
+
   Builtin term: ##Nat.+
 
 scratch/main> debug.term.abt y
+
   (let Ref(ReferenceBuiltin "Nat.+") Ref(ReferenceDerived (Id "qpo3o788girkkbb43uf6ggqberfduhtnqbt7096eojlrp27jieco09mdasb7b0b06ej9hj60a00nnbbdo8he0b4e0m7vtopifiuhdig" 0)) 2 in (User "z". Ref(ReferenceBuiltin "Nat.+") (Var User "z") 10)):ReferenceBuiltin "Nat"
 
 scratch/main> debug.term.abt Some
+
   Constructor #0 of the following type:
   DataDeclaration
       { modifier = Structural
@@ -62,6 +67,7 @@ scratch/main> debug.term.abt Some
       }
 
 scratch/main> debug.term.abt ask
+
   Constructor #0 of the following type:
   EffectDeclaration
       { toDataDecl = DataDeclaration
@@ -90,9 +96,11 @@ scratch/main> debug.term.abt ask
       }
 
 scratch/main> debug.type.abt Nat
+
   Builtin type: ##Nat
 
 scratch/main> debug.type.abt Optional
+
   DataDeclaration
       { modifier = Structural
       , annotation = External
@@ -121,6 +129,7 @@ scratch/main> debug.type.abt Optional
       }
 
 scratch/main> debug.type.abt Ask
+
   EffectDeclaration
       { toDataDecl = DataDeclaration
           { modifier = Unique "a1ns7cunv2dvjmum0q8jbc54g6811cbh"

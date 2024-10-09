@@ -1,5 +1,6 @@
 ``` ucm
 scratch/main> builtins.merge
+
   Done.
 
 ```
@@ -31,11 +32,13 @@ After adding the test `foo`, we expect `view` to render it like a test. (Bug: It
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo : [Result]
 
 scratch/main> view foo
+
   foo : [Result]
   foo = []
 
@@ -63,12 +66,14 @@ After updating `foo` to not be a test, we expect `view` to not render it like a 
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> view foo
+
   foo : Nat
   foo = 1
 

@@ -2,6 +2,7 @@ Merge builtins so we get enough names for the testing stuff.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 The `test` command should run all of the tests in the current directory.
@@ -30,10 +31,12 @@ foo.test2 = [Ok "test2"]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> test
+
   ✅  
 
   
@@ -59,6 +62,7 @@ Tests should be cached if unchanged.
 
 ``` ucm
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1. foo.test2   ◉ test2
@@ -92,10 +96,12 @@ lib.dep.testInLib = [Ok "testInLib"]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> test
+
   Cached test results (`help testcache` to learn more)
   
     1. foo.test2   ◉ test2
@@ -106,6 +112,7 @@ scratch/main> test
   Tip: Use view 1 to view the source of a test.
 
 scratch/main> test.all
+
     
     Cached test results (`help testcache` to learn more)
     
@@ -134,6 +141,7 @@ scratch/main> test.all
 
 ``` ucm
 scratch/main> test lib.dep
+
   Cached test results (`help testcache` to learn more)
   
     1. lib.dep.testInLib   ◉ testInLib
@@ -148,6 +156,7 @@ scratch/main> test lib.dep
 
 ``` ucm
 scratch/main> test foo
+
   Cached test results (`help testcache` to learn more)
   
     1. foo.test2   ◉ test2

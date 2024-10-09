@@ -4,6 +4,7 @@ one's own code if the "lib" namespace is simply ignored.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -27,6 +28,7 @@ lib.foo = 100
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo     : Nat
@@ -55,12 +57,14 @@ foo = 200
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> names foo
+
   Term
   Hash:   #9ntnotdp87
   Names:  foo

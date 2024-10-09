@@ -2,7 +2,9 @@ Ensure that Records keep their syntax after being added to the codebase
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 scratch/main> load unison-src/transcripts-using-base/base.u
+
 ```
 
 ## Record with 1 field
@@ -13,10 +15,12 @@ unique type Record1 = { a : Text }
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view Record1
+
   type Record1 = { a : Text }
 
 ```
@@ -29,10 +33,12 @@ unique type Record2 = { a : Text, b : Int }
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view Record2
+
   type Record2 = { a : Text, b : Int }
 
 ```
@@ -45,10 +51,12 @@ unique type Record3 = { a : Text, b : Int, c : Nat }
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view Record3
+
   type Record3 = { a : Text, b : Int, c : Nat }
 
 ```
@@ -69,10 +77,12 @@ unique type Record4 =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view Record4
+
   type Record4
     = { a : Text,
         b : Int,
@@ -114,10 +124,12 @@ unique type Record5 = {
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view Record5
+
   type Record5
     = { zero : Nat,
         one : [Nat],
@@ -155,12 +167,14 @@ unique type RecordWithUserType = { a : Text, b : Record4, c : UserType }
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 If you `view` or `edit` it, it *should* be treated as a record type, but it does not (which is a bug)
 
 ``` ucm
 scratch/main> view RecordWithUserType
+
   type RecordWithUserType
     = { a : Text, b : Record4, c : UserType }
 

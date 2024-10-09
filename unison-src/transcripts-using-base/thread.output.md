@@ -34,7 +34,9 @@ See if we can get another thread to stuff a value into a MVar
 
 ``` ucm :hide
 scratch/main> add
+
 scratch/main> io.test testBasicFork
+
 ```
 
 ``` unison
@@ -77,12 +79,14 @@ testBasicMultiThreadMVar = 'let
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     testBasicMultiThreadMVar : '{IO} [Result]
     thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 scratch/main> io.test testBasicMultiThreadMVar
+
     New test results:
   
     1. testBasicMultiThreadMVar   ◉ other thread should have incremented
@@ -149,6 +153,7 @@ testTwoThreads = 'let
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     receivingThread : MVar Nat -> MVar Text -> '{IO} ()
@@ -157,6 +162,7 @@ scratch/main> add
     testTwoThreads  : '{IO} [Result]
 
 scratch/main> io.test testTwoThreads
+
     New test results:
   
     1. testTwoThreads   ◉ 

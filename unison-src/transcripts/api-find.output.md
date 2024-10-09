@@ -25,6 +25,7 @@ joey.yaml.zz = 45
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     joey.httpServer.z   : ##Nat

@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -24,6 +25,7 @@ unique type Foo = { bar : Nat }
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
@@ -62,15 +64,18 @@ unique type Foo = { bar : Nat, baz : Int }
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> view Foo
+
   type Foo = { bar : Nat, baz : Int }
 
 scratch/main> find.verbose
+
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
      type Foo
      

@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -28,6 +29,7 @@ pong _ = !ping + 2
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ping : 'Nat
@@ -63,6 +65,7 @@ clang _ = !pong + 3
 
 ``` ucm
 scratch/main> update.old ping
+
   ⍟ I've added these definitions:
   
     clang : 'Nat
@@ -73,6 +76,7 @@ scratch/main> update.old ping
     pong : 'Nat
 
 scratch/main> view ping pong clang
+
   clang : 'Nat
   clang _ =
     use Nat +

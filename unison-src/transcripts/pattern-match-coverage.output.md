@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 # Basics
@@ -675,6 +676,7 @@ unit2t = cases
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type T
@@ -732,6 +734,7 @@ evil = bug ""
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type V
@@ -773,6 +776,7 @@ unique type SomeType = A
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     type SomeType

@@ -3,6 +3,7 @@ If `foo#old` exists in old, and `foo#new` exists in new, you might think `upgrad
 
 ``` ucm :hide
 foo/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -30,6 +31,7 @@ mything = lib.old.foo + lib.old.foo
 
 ``` ucm
 foo/main> add
+
   ⍟ I've added these definitions:
   
     lib.new.foo   : Nat
@@ -38,9 +40,11 @@ foo/main> add
     mything       : Nat
 
 foo/main> upgrade old new
+
   I upgraded old to new, and removed old.
 
 foo/main> view mything
+
   mything : Nat
   mything =
     use Nat +

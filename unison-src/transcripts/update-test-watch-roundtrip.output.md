@@ -1,5 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 Given a test that depends on another definition,
@@ -14,6 +15,7 @@ test> mynamespace.foo.test =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo                  : Nat -> Nat
@@ -43,6 +45,7 @@ foo n = "hello, world!"
 
 ``` ucm :error
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 

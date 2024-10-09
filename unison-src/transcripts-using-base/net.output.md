@@ -11,6 +11,7 @@ socketAccept = compose reraise socketAccept.impl
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 # Tests for network related builtins
@@ -113,6 +114,7 @@ testDefaultPort _ =
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     testDefaultHost  : '{IO} [Result]
@@ -120,6 +122,7 @@ scratch/main> add
     testExplicitHost : '{IO} [Result]
 
 scratch/main> io.test testDefaultPort
+
     New test results:
   
     1. testDefaultPort   ◉ successfully created socket
@@ -200,6 +203,7 @@ testTcpConnect = 'let
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     clientThread   : MVar Nat -> MVar Text -> '{IO} ()
@@ -207,6 +211,7 @@ scratch/main> add
     testTcpConnect : '{IO} [Result]
 
 scratch/main> io.test testTcpConnect
+
     New test results:
   
     1. testTcpConnect   ◉ should have reaped what we've sown

@@ -1,5 +1,6 @@
 ``` ucm
 test-ls/main> builtins.merge
+
   Done.
 
 ```
@@ -26,15 +27,18 @@ foo.bar.subtract x y = x Int.- y
 
 ``` ucm
 test-ls/main> add
+
   ⍟ I've added these definitions:
   
     foo.bar.add      : Int -> Int -> Int
     foo.bar.subtract : Int -> Int -> Int
 
 test-ls/main> ls foo
+
   1. bar/ (2 terms)
 
 test-ls/main> ls 1
+
   1. add      (Int -> Int -> Int)
   2. subtract (Int -> Int -> Int)
 

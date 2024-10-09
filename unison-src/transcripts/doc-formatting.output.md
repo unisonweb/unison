@@ -4,6 +4,7 @@ Docs can be used as inline code comments.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison
@@ -28,10 +29,12 @@ foo n =
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view foo
+
   foo : Nat -> Nat
   foo n =
     use Nat +
@@ -61,10 +64,12 @@ escaping = [: Docs look [: like \@this \:] :]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view escaping
+
   escaping : Doc
   escaping = [: Docs look [: like \@this \:] :]
 
@@ -97,10 +102,12 @@ commented = [:
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view commented
+
   commented : Doc
   commented =
     [: example:
@@ -136,10 +143,12 @@ doc1 = [:   hi   :]
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc1
+
   doc1 : Doc
   doc1 = [: hi :]
 
@@ -172,10 +181,12 @@ doc2 = [: hello
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc2
+
   doc2 : Doc
   doc2 =
     [: hello
@@ -215,10 +226,12 @@ Note that because of the special treatment of the first line mentioned above, wh
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc3
+
   doc3 : Doc
   doc3 =
     [: When Unison identifies a paragraph, it removes any 
@@ -266,10 +279,12 @@ doc4 = [: Here's another example of some paragraphs.
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc4
+
   doc4 : Doc
   doc4 =
     [: Here's another example of some paragraphs.
@@ -305,10 +320,12 @@ doc5 = [:   - foo
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc5
+
   doc5 : Doc
   doc5 =
     [: - foo
@@ -341,10 +358,12 @@ doc6 = [:
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view doc6
+
   doc6 : Doc
   doc6 =
     [: - foo
@@ -379,10 +398,12 @@ expr = foo 1
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view empty
+
   empty : Doc
   empty = [:  :]
 
@@ -443,10 +464,12 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view test1
+
   test1 : Doc
   test1 =
     [: The internal logic starts to get hairy when you use the 
@@ -529,10 +552,12 @@ reg1363 = [: `@List.take foo` bar
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 scratch/main> view reg1363
+
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
 
@@ -563,12 +588,14 @@ test2 = [:
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 View is fine.
 
 ``` ucm
 scratch/main> view test2
+
   test2 : Doc
   test2 =
     [: Take a look at this:
@@ -581,6 +608,7 @@ But note it's not obvious how display should best be handling this.  At the mome
 
 ``` ucm
 scratch/main> display test2
+
   Take a look at this:
   foo : Nat -> Nat
   foo n =

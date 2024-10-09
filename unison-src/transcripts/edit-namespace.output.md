@@ -1,5 +1,6 @@
 ``` ucm :hide
 project/main> builtins.mergeio lib.builtin
+
 ```
 
 ``` unison
@@ -50,6 +51,7 @@ unique type Foo = { bar : Nat, baz : Nat }
 
 ``` ucm
 project/main> add
+
   ⍟ I've added these definitions:
   
     type Foo
@@ -74,6 +76,7 @@ project/main> add
 
 ``` ucm
 project/main> edit.namespace
+
   ☝️
   
   I added 8 definitions to the top of scratch.u
@@ -116,6 +119,7 @@ toplevel = "hi"
 
 ``` ucm
 project/main> edit.namespace nested simple
+
   ☝️
   
   I added 6 definitions to the top of scratch.u

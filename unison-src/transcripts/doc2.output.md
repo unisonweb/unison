@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 ```
 
 ``` unison :hide
@@ -115,6 +116,7 @@ Format it to check that everything pretty-prints in a valid way.
 
 ``` ucm
 scratch/main> debug.format
+
 ```
 
 ``` unison :added-by-ucm scratch.u

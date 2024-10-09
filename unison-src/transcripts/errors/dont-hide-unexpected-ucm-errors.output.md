@@ -2,13 +2,16 @@ Since this code block is expecting an error, we still hide it. It seems unusual 
 
 ``` ucm :hide:error
 scratch/main> help pull
+
 scratch/main> not.a.command
+
 ```
 
 For comparison, here’s what we get without `:hide`.
 
 ``` ucm :error
 scratch/main> help pull
+
   pull
   The `pull` command merges a remote namespace into a local
   branch
@@ -33,6 +36,7 @@ scratch/main> help pull
     Project Release                        `@unison/base/releases/1.0.0`
 
 scratch/main> not.a.command
+
   ⚠️
   I don't know how to not.a.command. Type `help` or `?` to get
   help.
@@ -41,7 +45,8 @@ scratch/main> not.a.command
 Even though this code block has `:hide` on it, we should still see the error output, because it wasn’t expecting an error. But we should continue to hide the output *before* the error.
 
 ``` ucm :hide
-scratch/main> help pullscratch/main> not.a.command
+scratch/main> help pull
+scratch/main> not.a.command
 ```
 
 🛑

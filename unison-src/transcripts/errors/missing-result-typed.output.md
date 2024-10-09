@@ -6,6 +6,7 @@ and surface a helpful message.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison :hide:all

@@ -6,10 +6,12 @@ Test that tab completion works as expected.
 
 ``` ucm
 scratch/main> debug.tab-complete vi
+
    view
    view.global
 
 scratch/main> debug.tab-complete delete.
+
    delete.branch
    delete.namespace
    delete.namespace.force
@@ -52,21 +54,25 @@ unique type subnamespace.AType = A | B
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 ``` ucm
 -- Should tab complete namespaces since they may contain terms/types
 scratch/main> debug.tab-complete view sub
+
    subnamespace.
    subnamespace2.
 
 -- Should not complete things from child namespaces of the current query if there are other completions at this level
 scratch/main> debug.tab-complete view subnamespace
+
    subnamespace.
    subnamespace2.
 
 -- Should complete things from child namespaces of the current query if it's dot-suffixed
 scratch/main> debug.tab-complete view subnamespace.
+
   * subnamespace.AType
     subnamespace.AType.
   * subnamespace.someName
@@ -74,15 +80,18 @@ scratch/main> debug.tab-complete view subnamespace.
 
 -- Should complete things from child namespaces of the current query if there are no more completions at this level.
 scratch/main> debug.tab-complete view subnamespace2
+
     subnamespace2.
   * subnamespace2.thing
 
 -- Should prefix-filter by query suffix
 scratch/main> debug.tab-complete view subnamespace.some
+
   * subnamespace.someName
   * subnamespace.someOtherName
 
 scratch/main> debug.tab-complete view subnamespace.someOther
+
   * subnamespace.someOtherName
 
 ```
@@ -93,12 +102,14 @@ absolute.term = "absolute"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     absolute.term : ##Text
 
 -- Should tab complete absolute names
 scratch/main> debug.tab-complete view .absolute.te
+
   * .absolute.term
 
 ```
@@ -108,25 +119,31 @@ scratch/main> debug.tab-complete view .absolute.te
 ``` ucm
 -- Should tab complete namespaces
 scratch/main> debug.tab-complete find-in sub
+
    subnamespace
    subnamespace2
 
 scratch/main> debug.tab-complete find-in subnamespace
+
    subnamespace
    subnamespace2
 
 scratch/main> debug.tab-complete find-in subnamespace.
+
    subnamespace.AType
 
 scratch/main> debug.tab-complete io.test sub
+
    subnamespace.
    subnamespace2.
 
 scratch/main> debug.tab-complete io.test subnamespace
+
    subnamespace.
    subnamespace2.
 
 scratch/main> debug.tab-complete io.test subnamespace.
+
     subnamespace.AType.
   * subnamespace.someName
   * subnamespace.someOtherName
@@ -157,16 +174,19 @@ add b = b
 
 ``` ucm
 scratch/main> update.old
+
   ⍟ I've added these definitions:
   
     type Foo
     add : a -> a
 
 scratch/main> debug.tab-complete delete.type Foo
+
   * Foo
     Foo.
 
 scratch/main> debug.tab-complete delete.term add
+
   * add
 
 ```
@@ -175,15 +195,18 @@ scratch/main> debug.tab-complete delete.term add
 
 ``` ucm
 myproject/main> branch mybranch
+
   Done. I've created the mybranch branch based off of main.
   
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /mybranch`.
 
 myproject/main> debug.tab-complete branch.delete /mybr
+
    /mybranch
 
 myproject/main> debug.tab-complete project.rename my
+
    myproject
 
 ```
@@ -209,11 +232,13 @@ mybranchsubnamespace.term = 1
 
 ``` ucm
 myproject/main> add
+
   ⍟ I've added these definitions:
   
     mybranchsubnamespace.term : ##Nat
 
 myproject/main> debug.tab-complete merge mybr
+
    /mybranch
 
 ```

@@ -1,5 +1,6 @@
 ``` ucm
 scratch/main> builtins.merge
+
   Done.
 
 ```
@@ -29,6 +30,7 @@ mytest = [Ok "ok"]
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bar    : Nat
@@ -36,6 +38,7 @@ scratch/main> add
     mytest : [Result]
 
 scratch/main> edit foo bar
+
   ☝️
   
   I added 2 definitions to the top of /private/tmp/scratch.u
@@ -44,6 +47,7 @@ scratch/main> edit foo bar
   definitions currently in this namespace.
 
 scratch/main> edit mytest
+
   ☝️
   
   I added 1 definitions to the top of /private/tmp/scratch.u
@@ -67,6 +71,7 @@ test> mytest = [Ok "ok"]
 
 ``` ucm :error
 scratch/main> edit missing
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.

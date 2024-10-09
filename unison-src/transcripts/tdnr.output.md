@@ -2,6 +2,7 @@ TDNR selects local term (in file) that typechecks over local term (in file) that
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -27,12 +28,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in file) that typechecks over local term (in namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -54,6 +57,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo : Text
@@ -81,12 +85,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in file) that typechecks over local term (shadowing namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -108,6 +114,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo : Text
@@ -141,12 +148,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in namespace) that typechecks over local term (in file) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -168,6 +177,7 @@ good.foo = 17
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo : Nat
@@ -195,12 +205,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in namespace) that typechecks over local term (in namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -224,6 +236,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -250,12 +263,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in namespace) that typechecks over local term (shadowing namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -279,6 +294,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -311,12 +327,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (shadowing namespace) that typechecks over local term (in file) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -338,6 +356,7 @@ good.foo = 17
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo : Nat
@@ -371,12 +390,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (shadowing namespace) that typechecks over local term (in namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -400,6 +421,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -432,12 +454,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (shadowing namespace) that typechecks over local term (shadowing namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -461,6 +485,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo  : Text
@@ -495,6 +520,7 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 \=== start local over direct dep
@@ -503,6 +529,7 @@ TDNR selects local term (in file) that typechecks over direct dependency that do
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -524,6 +551,7 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.bad.foo : Text
@@ -551,12 +579,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (in namespace) that typechecks over direct dependency that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -580,6 +610,7 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo    : Nat
@@ -606,12 +637,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects local term (shadowing namespace) that typechecks over direct dependency that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -635,6 +668,7 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo    : Nat
@@ -667,12 +701,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR not used to select local term (in file) that typechecks over indirect dependency that also typechecks.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -694,6 +730,7 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.dep.lib.dep.foo : Nat
@@ -721,12 +758,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR not used to select local term (in namespace) that typechecks over indirect dependency that also typechecks.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -750,6 +789,7 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo            : Nat
@@ -776,12 +816,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR not used to select local term (shadowing namespace) that typechecks over indirect dependency that also typechecks.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -805,6 +847,7 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     good.foo            : Nat
@@ -837,12 +880,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects direct dependency that typechecks over local term (in file) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -864,6 +909,7 @@ lib.good.foo = 17
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.good.foo : Nat
@@ -891,12 +937,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects direct dependency that typechecks over local term (in namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -920,6 +968,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo      : Text
@@ -946,12 +995,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects direct dependency that typechecks over local term (shadowing namespace) that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -975,6 +1026,7 @@ bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     bad.foo      : Text
@@ -1007,12 +1059,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects direct dependency that typechecks over direct dependency that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -1036,6 +1090,7 @@ lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.bad.foo  : Text
@@ -1062,12 +1117,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR not used to select direct dependency that typechecks over indirect dependency that also typechecks.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -1091,6 +1148,7 @@ lib.dep.lib.dep.foo = 217
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.dep.lib.dep.foo : Nat
@@ -1117,12 +1175,14 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```
 
 TDNR selects indirect dependency that typechecks over indirect dependency that doesn't.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
+
 ```
 
 ``` unison
@@ -1146,6 +1206,7 @@ lib.dep.lib.bad.foo = "bar"
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     lib.dep.lib.bad.foo  : Text
@@ -1172,4 +1233,5 @@ thing = foo Nat.+ foo
 
 ``` ucm :hide
 scratch/main> delete.project scratch
+
 ```

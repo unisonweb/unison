@@ -4,6 +4,7 @@ Conflicted definitions prevent `update` from succeeding.
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
+
 ```
 
 ``` unison
@@ -27,15 +28,18 @@ temp = 2
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     temp : Nat
     x    : Nat
 
 scratch/main> debug.alias.term.force temp x
+
   Done.
 
 scratch/main> delete.term temp
+
   Done.
 
 ```
@@ -60,6 +64,7 @@ x = 3
 
 ``` ucm :error
 scratch/main> update
+
   This branch has more than one term with the name `x`. Please
   delete or rename all but one of them, then try the update
   again.

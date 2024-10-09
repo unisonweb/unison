@@ -82,6 +82,7 @@ serialTests = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     availableCases : '{IO, Exception} [Text]
@@ -92,6 +93,7 @@ scratch/main> add
     shuffle        : Nat -> [a] -> [a]
 
 scratch/main> io.test serialTests
+
     New test results:
   
     1. serialTests   ◉ case-00

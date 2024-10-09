@@ -10,6 +10,7 @@ x = 999
 
 ``` ucm :hide
 scratch/main> add
+
 ```
 
 Now, we update that definition and define a test-watch which depends on it.
@@ -48,6 +49,7 @@ We expect this 'add' to fail because the test is blocked by the update to `x`.
 
 ``` ucm :error
 scratch/main> add
+
   x These definitions failed:
   
     Reason
@@ -90,6 +92,7 @@ This should correctly identify `y` as a dependency and add that too.
 
 ``` ucm
 scratch/main> add useY
+
   ⍟ I've added these definitions:
   
     useY : [Result]

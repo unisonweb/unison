@@ -2,6 +2,7 @@ Tests that `if` statements can appear as list and tuple elements.
 
 ``` ucm :hide
 scratch/main> builtins.merge
+
 ```
 
 ``` unison :hide

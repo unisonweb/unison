@@ -1,5 +1,6 @@
 ``` ucm
 scratch/main> builtins.merge
+
   Done.
 
 ```
@@ -24,6 +25,7 @@ foo = 5
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     foo : Nat
@@ -51,12 +53,14 @@ foo = 6
 
 ``` ucm
 scratch/main> update
+
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
 scratch/main> view foo
+
   foo : Nat
   foo = 6
 

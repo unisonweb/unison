@@ -30,6 +30,7 @@ mkTestCase = do
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     mkTestCase : '{IO, Exception} ()
@@ -37,6 +38,7 @@ scratch/main> add
     mutual1    : Nat -> Text
 
 scratch/main> run mkTestCase
+
   ()
 
 ```

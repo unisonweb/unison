@@ -2,6 +2,7 @@
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
+
 ```
 
 ``` unison
@@ -30,6 +31,7 @@ Here's a *README*!
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     nested.names.readme : Doc2

@@ -32,6 +32,7 @@ term2 _ = ()
 
 ``` ucm
 scratch/main> add
+
   ⍟ I've added these definitions:
   
     ability Bar
@@ -40,6 +41,7 @@ scratch/main> add
     term2 : '{Bar, Foo} ()
 
 scratch/main> names term1
+
   Term
   Hash:   #8hum58rlih
   Names:  term1 term2

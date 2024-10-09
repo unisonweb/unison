@@ -2,12 +2,14 @@ You can use a keyword or reserved operator as a name segment if you surround it 
 
 ``` ucm :error
 scratch/main> view `match`
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
     `match`
 
 scratch/main> view `=`
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
@@ -21,12 +23,14 @@ This allows you to spell `.` or `()` as name segments (which historically have a
 
 ``` ucm :error
 scratch/main> view `.`
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
     `.`
 
 scratch/main> view `()`
+
   ⚠️
   
   The following names were not found in the codebase. Check your spelling.
