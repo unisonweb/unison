@@ -67,7 +67,7 @@ handleStructuredFindReplaceI rule = do
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
   let rendered = Text.pack . P.toPlain 80 $ renderRewrittenFile ppe msg uf'
-  liftIO $ env.prependSource (Text.pack dest) rendered
+  liftIO $ env.writeSource (Text.pack dest) rendered True
   Cli.respond $ OutputRewrittenFile dest vs
 
 handleStructuredFindI :: HQ.HashQualified Name -> Cli ()

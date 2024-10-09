@@ -197,7 +197,7 @@ handleUpgrade oldName newName = do
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
-      liftIO $ env.prependSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile)
+      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
       Cli.returnEarly $
         Output.UpgradeFailure (projectBranch ^. #name) temporaryBranchName scratchFilePath oldName newName
 

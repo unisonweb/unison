@@ -2383,6 +2383,26 @@ edit =
           . NE.nonEmpty
     }
 
+edit2 :: InputPattern
+edit2 =
+  InputPattern
+    { patternName = "edit2",
+      aliases = [],
+      visibility = I.Visible,
+      args = [("definition to edit", OnePlus, definitionQueryArg)],
+      help =
+        P.lines
+          [ "Like `edit`, but adds to the current fold rather than creating a new one."
+          ],
+      parse =
+        maybe
+          (wrongArgsLength "at least one argument" [])
+          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.WithinFold) Input.ShowDefinitionLocal)
+              . traverse handleHashQualifiedNameArg
+          )
+          . NE.nonEmpty
+    }
+
 editNamespace :: InputPattern
 editNamespace =
   InputPattern
@@ -3488,6 +3508,7 @@ validInputs =
       docs,
       docsToHtml,
       edit,
+      edit2,
       editNamespace,
       execute,
       find,

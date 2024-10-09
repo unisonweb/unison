@@ -780,7 +780,7 @@ loop e = do
                     Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
                     Cli.LoadSuccess contents -> pure contents
                 let updatedSource = Format.applyTextReplacements updates source
-                liftIO $ env.prependSource (Text.pack filePath) updatedSource
+                liftIO $ env.writeSource (Text.pack filePath) updatedSource True
             DebugDumpNamespacesI -> do
               let seen h = State.gets (Set.member h)
                   set h = State.modify (Set.insert h)
