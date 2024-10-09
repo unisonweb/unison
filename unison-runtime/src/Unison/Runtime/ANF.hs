@@ -4,7 +4,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Runtime.ANF
@@ -101,7 +100,6 @@ import Data.Map qualified as Map
 import Data.Primitive qualified as PA
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
-import Data.Vector.Unboxed.Deriving (derivingUnbox)
 import GHC.Stack (CallStack, callStack)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
@@ -685,20 +683,6 @@ minimizeCyclesOrCrash t = case minimize' t of
         ++ show (fst <$> toList e)
 
 data Mem = UN | BX deriving (Eq, Ord, Show, Enum)
-
-derivingUnbox
-  "Mem"
-  [t|Mem -> Bool|]
-  [|
-    \case
-      UN -> False
-      BX -> True
-    |]
-  [|
-    \case
-      False -> UN
-      True -> BX
-    |]
 
 -- Context entries with evaluation strategy
 data CTE v s
