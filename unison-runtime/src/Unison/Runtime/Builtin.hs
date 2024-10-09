@@ -2304,7 +2304,7 @@ unitValue :: Closure
 unitValue = Closure.Enum Ty.unitRef 0
 
 natValue :: Word64 -> Closure
-natValue w = Closure.DataU1 Ty.natRef 0 (fromIntegral w)
+natValue w =  Closure.DataU1 Ty.natRef 0 (fromIntegral w)
 
 mkForeignTls ::
   forall a r.
@@ -2860,23 +2860,24 @@ declareForeigns = do
 
   declareForeign Untracked "Code.validateLinks" boxToExnEBoxBox
     . mkForeign
-    $ \(lsgs0 :: [(Referent, SuperGroup Symbol)]) -> do
+    $ \(lsgs0 :: [(Referent, Code)]) -> do
       let f (msg, rs) =
             Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
       pure . first f $ checkGroupHashes lsgs0
   declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign
-    $ \(sg :: SuperGroup Symbol) ->
+    $ \(CodeRep sg _) ->
       pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
   declareForeign Untracked "Code.serialize" boxDirect
     . mkForeign
-    $ \(sg :: SuperGroup Symbol) ->
-      pure . Bytes.fromArray $ serializeGroup builtinForeignNames sg
+    $ \(co :: Code) ->
+      pure . Bytes.fromArray $ serializeCode builtinForeignNames co
   declareForeign Untracked "Code.deserialize" boxToEBoxBox
     . mkForeign
-    $ pure . deserializeGroup @Symbol . Bytes.toArray
+    $ pure . deserializeCode . Bytes.toArray
   declareForeign Untracked "Code.display" boxBoxDirect . mkForeign $
-    \(nm, sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
+    \(nm, (CodeRep sg _)) ->
+      pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   declareForeign Untracked "Value.dependencies" boxDirect
     . mkForeign
     $ pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
@@ -2924,7 +2925,7 @@ declareForeigns = do
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hashlazy alg $ serializeValueForHash x
 
   declareForeign Untracked "crypto.hmac" crypto'hmac . mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
@@ -2935,7 +2936,7 @@ declareForeigns = do
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
+       in pure . Bytes.fromArray . hmac alg $ serializeValueForHash x
 
   declareForeign Untracked "crypto.Ed25519.sign.impl" boxBoxBoxToEFBox
     . mkForeign
@@ -2961,7 +2962,7 @@ declareForeigns = do
           Right a -> Right a
 
   declareForeign Untracked "Universal.murmurHash" murmur'hash . mkForeign $
-    pure . asWord64 . hash64 . serializeValueLazy
+    pure . asWord64 . hash64 . serializeValueForHash
 
   declareForeign Tracked "IO.randomBytes" natToBox . mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
@@ -3156,9 +3157,9 @@ declareForeigns = do
             $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
 
   declareForeign Untracked "MutableArray.freeze" boxNatNatToExnBox . mkForeign $
-    \(src :: PA.MutableArray PA.RealWorld Closure.RClosure, off, len) ->
+    \(src :: PA.MutableArray PA.RealWorld Closure, off, len) ->
       if len == 0
-        then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 Closure.BlackHole
+        then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 ( Closure.BlackHole)
         else
           checkBounds
             "MutableArray.freeze"
@@ -3173,7 +3174,7 @@ declareForeigns = do
     pure . PA.sizeofByteArray
 
   declareForeign Tracked "IO.array" natToBox . mkForeign $
-    \n -> PA.newArray n (Closure.BlackHole :: Closure.RClosure)
+    \n -> PA.newArray n (Closure.BlackHole :: Closure)
   declareForeign Tracked "IO.arrayOf" boxNatToBox . mkForeign $
     \(v :: Closure, n) -> PA.newArray n v
   declareForeign Tracked "IO.bytearray" natToBox . mkForeign $ PA.newByteArray
@@ -3185,7 +3186,7 @@ declareForeigns = do
       pure arr
 
   declareForeign Untracked "Scope.array" natToBox . mkForeign $
-    \n -> PA.newArray n (Closure.BlackHole :: Closure.RClosure)
+    \n -> PA.newArray n (Closure.BlackHole :: Closure)
   declareForeign Untracked "Scope.arrayOf" boxNatToBox . mkForeign $
     \(v :: Closure, n) -> PA.newArray n v
   declareForeign Untracked "Scope.bytearray" natToBox . mkForeign $ PA.newByteArray

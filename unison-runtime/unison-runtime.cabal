@@ -133,6 +133,7 @@ library
     , unison-pretty-printer
     , unison-syntax
     , unison-util-bytes
+    , unison-util-recursion
     , unliftio
     , vector
   default-language: Haskell2010

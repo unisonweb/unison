@@ -8,9 +8,24 @@
 
 module Unison.Runtime.Stack
   ( K (..),
-    GClosure (.., DataC, PApV, CapV),
-    Closure,
-    RClosure,
+    GClosure (..),
+    Closure
+      ( ..,
+        DataC,
+        PApV,
+        CapV,
+        PAp,
+        Enum,
+        DataU1,
+        DataU2,
+        DataB1,
+        DataB2,
+        DataUB,
+        DataG,
+        Captured,
+        Foreign,
+        BlackHole
+      ),
     IxClosure,
     Callback (..),
     Augment (..),
@@ -50,6 +65,7 @@ where
 import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Foldable as F (for_)
+import Data.Functor (($>))
 import Data.Kind qualified as Kind
 import Data.Sequence (Seq)
 import Data.Word
@@ -80,7 +96,7 @@ data K
       !Int -- pending unboxed args
       !Int -- pending boxed args
       !(EnumSet Word64)
-      !(EnumMap Word64 RClosure)
+      !(EnumMap Word64 Closure)
       !K
   | -- save information about a frame for later resumption
     Push
@@ -88,53 +104,114 @@ data K
       !Int -- boxed frame size
       !Int -- pending unboxed args
       !Int -- pending boxed args
-      !RComb -- local continuation reference
+      !CombIx -- resumption section reference
+      !Int -- unboxed stack guard
+      !Int -- boxed stack guard
+      !(RSection Closure) -- resumption section
       !K
-  deriving (Eq, Ord)
 
-type RClosure = GClosure RComb
+instance Eq K where
+  KE == KE = True
+  (CB cb) == (CB cb') = cb == cb'
+  (Mark ua ba ps m k) == (Mark ua' ba' ps' m' k') =
+    ua == ua' && ba == ba' && ps == ps' && m == m' && k == k'
+  (Push uf bf ua ba ci _ _ _sect k) == (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
+    uf == uf' && bf == bf' && ua == ua' && ba == ba' && ci == ci' && k == k'
+  _ == _ = False
+
+instance Ord K where
+  compare KE KE = EQ
+  compare (CB cb) (CB cb') = compare cb cb'
+  compare (Mark ua ba ps m k) (Mark ua' ba' ps' m' k') =
+    compare (ua, ba, ps, m, k) (ua', ba', ps', m', k')
+  compare (Push uf bf ua ba ci _ _ _sect k) (Push uf' bf' ua' ba' ci' _ _ _sect' k') =
+    compare (uf, bf, ua, ba, ci, k) (uf', bf', ua', ba', ci', k')
+  compare KE _ = LT
+  compare _ KE = GT
+  compare (CB _) _ = LT
+  compare _ (CB _) = GT
+  compare (Mark _ _ _ _ _) _ = LT
+  compare _ (Mark _ _ _ _ _) = GT
+
+newtype Closure = Closure {unClosure :: (GClosure (RComb Closure))}
+  deriving stock (Show, Eq, Ord)
 
 type IxClosure = GClosure CombIx
 
-type Closure = GClosure RComb
-
 data GClosure comb
-  = PAp
-      !comb
+  = GPAp
+      !CombIx
+      {-# UNPACK #-} !(GCombInfo comb)
       {-# UNPACK #-} !(Seg 'UN) -- unboxed args
       {-  unpack  -}
       !(Seg 'BX) -- boxed args
-  | Enum !Reference !Word64
-  | DataU1 !Reference !Word64 !Int
-  | DataU2 !Reference !Word64 !Int !Int
-  | DataB1 !Reference !Word64 !(GClosure comb)
-  | DataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
-  | DataUB !Reference !Word64 !Int !(GClosure comb)
-  | DataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
+  | GEnum !Reference !Word64
+  | GDataU1 !Reference !Word64 !Int
+  | GDataU2 !Reference !Word64 !Int !Int
+  | GDataB1 !Reference !Word64 !(GClosure comb)
+  | GDataB2 !Reference !Word64 !(GClosure comb) !(GClosure comb)
+  | GDataUB !Reference !Word64 !Int !(GClosure comb)
+  | GDataG !Reference !Word64 !(Seg 'UN) !(Seg 'BX)
   | -- code cont, u/b arg size, u/b data stacks
-    Captured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
-  | Foreign !Foreign
-  | BlackHole
-  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+    GCaptured !K !Int !Int {-# UNPACK #-} !(Seg 'UN) !(Seg 'BX)
+  | GForeign !Foreign
+  | GBlackHole
+  deriving stock (Show, Functor, Foldable, Traversable)
+
+instance Eq (GClosure comb) where
+  -- This is safe because the embedded CombIx will break disputes
+  a == b = (a $> ()) == (b $> ())
+
+instance Ord (GClosure comb) where
+  compare a b = compare (a $> ()) (b $> ())
+
+pattern PAp cix comb segUn segBx = Closure (GPAp cix comb segUn segBx)
+
+pattern Enum r t = Closure (GEnum r t)
+
+pattern DataU1 r t i = Closure (GDataU1 r t i)
+
+pattern DataU2 r t i j = Closure (GDataU2 r t i j)
+
+pattern DataB1 r t x <- Closure (GDataB1 r t (Closure -> x))
+  where
+    DataB1 r t x = Closure (GDataB1 r t (unClosure x))
+
+pattern DataB2 r t x y <- Closure (GDataB2 r t (Closure -> x) (Closure -> y))
+  where
+    DataB2 r t x y = Closure (GDataB2 r t (unClosure x) (unClosure y))
+
+pattern DataUB r t i y <- Closure (GDataUB r t i (Closure -> y))
+  where
+    DataUB r t i y = Closure (GDataUB r t i (unClosure y))
+
+pattern DataG r t us bs = Closure (GDataG r t us bs)
+
+pattern Captured k ua ba us bs = Closure (GCaptured k ua ba us bs)
+
+pattern Foreign x = Closure (GForeign x)
+
+pattern BlackHole = Closure GBlackHole
 
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
     dedup p (Mark _ _ _ _ k) = dedup p k
-    dedup p@(cur, n) (Push _ _ _ _ (RComb (CIx r _ _) _) k)
+    dedup p@(cur, n) (Push _ _ _ _ (CIx r _ _) _ _ _ k)
       | cur == r = dedup (cur, 1 + n) k
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: RClosure -> Maybe (Reference, Word64, [Int], [RClosure])
-splitData (Enum r t) = Just (r, t, [], [])
-splitData (DataU1 r t i) = Just (r, t, [i], [])
-splitData (DataU2 r t i j) = Just (r, t, [i, j], [])
-splitData (DataB1 r t x) = Just (r, t, [], [x])
-splitData (DataB2 r t x y) = Just (r, t, [], [x, y])
-splitData (DataUB r t i y) = Just (r, t, [i], [y])
-splitData (DataG r t us bs) = Just (r, t, ints us, bsegToList bs)
-splitData _ = Nothing
+splitData :: Closure -> Maybe (Reference, Word64, [Int], [Closure])
+splitData = \case
+  (Enum r t) -> Just (r, t, [], [])
+  (DataU1 r t i) -> Just (r, t, [i], [])
+  (DataU2 r t i j) -> Just (r, t, [i, j], [])
+  (DataB1 r t x) -> Just (r, t, [], [x])
+  (DataB2 r t x y) -> Just (r, t, [], [x, y])
+  (DataUB r t i y) -> Just (r, t, [i], [y])
+  (DataG r t us bs) -> Just (r, t, ints us, bsegToList bs)
+  _ -> Nothing
 
 -- | Converts an unboxed segment to a list of integers for a more interchangeable
 -- representation. The segments are stored in backwards order, so this reverses
@@ -153,15 +230,15 @@ useg ws = case L.fromList $ reverse ws of
 
 -- | Converts a boxed segment to a list of closures. The segments are stored
 -- backwards, so this reverses the contents.
-bsegToList :: Seg 'BX -> [RClosure]
+bsegToList :: Seg 'BX -> [Closure]
 bsegToList = reverse . L.toList
 
 -- | Converts a list of closures back to a boxed segment. Segments are stored
 -- backwards, so this reverses the contents.
-bseg :: [RClosure] -> Seg 'BX
+bseg :: [Closure] -> Seg 'BX
 bseg = L.fromList . reverse
 
-formData :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
+formData :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 formData r t [] [] = Enum r t
 formData r t [i] [] = DataU1 r t i
 formData r t [i, j] [] = DataU2 r t i j
@@ -176,21 +253,23 @@ frameDataSize = go 0 0
     go usz bsz KE = (usz, bsz)
     go usz bsz (CB _) = (usz, bsz)
     go usz bsz (Mark ua ba _ _ k) = go (usz + ua) (bsz + ba) k
-    go usz bsz (Push uf bf ua ba _ k) = go (usz + uf + ua) (bsz + bf + ba) k
+    go usz bsz (Push uf bf ua ba _ _ _ _ k) =
+      go (usz + uf + ua) (bsz + bf + ba) k
 
-pattern DataC :: Reference -> Word64 -> [Int] -> [RClosure] -> RClosure
+pattern DataC :: Reference -> Word64 -> [Int] -> [Closure] -> Closure
 pattern DataC rf ct us bs <-
   (splitData -> Just (rf, ct, us, bs))
   where
     DataC rf ct us bs = formData rf ct us bs
 
-pattern PApV :: RComb -> [Int] -> [RClosure] -> RClosure
-pattern PApV ic us bs <-
-  PAp ic (ints -> us) (bsegToList -> bs)
+pattern PApV ::
+  CombIx -> RCombInfo Closure -> [Int] -> [Closure] -> Closure
+pattern PApV cix rcomb us bs <-
+  PAp cix rcomb (ints -> us) (bsegToList -> bs)
   where
-    PApV ic us bs = PAp ic (useg us) (bseg bs)
+    PApV cix rcomb us bs = PAp cix rcomb (useg us) (bseg bs)
 
-pattern CapV :: K -> Int -> Int -> [Int] -> [RClosure] -> RClosure
+pattern CapV :: K -> Int -> Int -> [Int] -> [Closure] -> Closure
 pattern CapV k ua ba us bs <-
   Captured k ua ba (ints -> us) (bsegToList -> bs)
   where
@@ -202,7 +281,7 @@ pattern CapV k ua ba us bs <-
 
 {-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole #-}
 
-marshalToForeign :: (HasCallStack) => RClosure -> Foreign
+marshalToForeign :: (HasCallStack) => Closure -> Foreign
 marshalToForeign (Foreign x) = x
 marshalToForeign c =
   error $ "marshalToForeign: unhandled closure: " ++ show c
@@ -215,7 +294,7 @@ type FP = Int
 
 type UA = MutableByteArray (PrimState IO)
 
-type BA = MutableArray (PrimState IO) RClosure
+type BA = MutableArray (PrimState IO) Closure
 
 words :: Int -> Int
 words n = n `div` 8
@@ -283,7 +362,7 @@ bargOnto stk sp cop cp0 (Arg2 i j) = do
 bargOnto stk sp cop cp0 (ArgN v) = do
   buf <-
     if overwrite
-      then newArray sz BlackHole
+      then newArray sz $ BlackHole
       else pure cop
   let loop i
         | i < 0 = return ()
@@ -527,16 +606,16 @@ peekOffBi :: (BuiltinForeign b) => Stack 'BX -> Int -> IO b
 peekOffBi bstk i = unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffBi #-}
 
-peekOffS :: Stack 'BX -> Int -> IO (Seq RClosure)
+peekOffS :: Stack 'BX -> Int -> IO (Seq Closure)
 peekOffS bstk i =
   unwrapForeign . marshalToForeign <$> peekOff bstk i
 {-# INLINE peekOffS #-}
 
-pokeS :: Stack 'BX -> Seq RClosure -> IO ()
+pokeS :: Stack 'BX -> Seq Closure -> IO ()
 pokeS bstk s = poke bstk (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeS #-}
 
-pokeOffS :: Stack 'BX -> Int -> Seq RClosure -> IO ()
+pokeOffS :: Stack 'BX -> Int -> Seq Closure -> IO ()
 pokeOffS bstk i s = pokeOff bstk i (Foreign $ Wrap Ty.listRef s)
 {-# INLINE pokeOffS #-}
 
@@ -559,7 +638,7 @@ instance Show K where
     where
       go _ KE = "]"
       go _ (CB _) = "]"
-      go com (Push uf bf ua ba ci k) =
+      go com (Push uf bf ua ba ci _un _bx _rsect k) =
         com ++ show (uf, bf, ua, ba, ci) ++ go "," k
       go com (Mark ua ba ps _ k) =
         com ++ "M " ++ show ua ++ " " ++ show ba ++ " " ++ show ps ++ go "," k
@@ -569,10 +648,10 @@ instance MEM 'BX where
     { bap :: !Int,
       bfp :: !Int,
       bsp :: !Int,
-      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) RClosure)
+      bstk :: {-# UNPACK #-} !(MutableArray (PrimState IO) Closure)
     }
-  type Elem 'BX = RClosure
-  type Seg 'BX = Array RClosure
+  type Elem 'BX = Closure
+  type Seg 'BX = Array Closure
 
   alloc = BS (-1) (-1) (-1) <$> newArray 512 BlackHole
   {-# INLINE alloc #-}
@@ -711,24 +790,25 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
-closureTermRefs :: (Monoid m) => (Reference -> m) -> (RClosure -> m)
-closureTermRefs f (PAp (RComb (CIx r _ _) _) _ cs) =
-  f r <> foldMap (closureTermRefs f) cs
-closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
-closureTermRefs f (DataB2 _ _ c1 c2) =
-  closureTermRefs f c1 <> closureTermRefs f c2
-closureTermRefs f (DataUB _ _ _ c) =
-  closureTermRefs f c
-closureTermRefs f (Captured k _ _ _ cs) =
-  contTermRefs f k <> foldMap (closureTermRefs f) cs
-closureTermRefs f (Foreign fo)
-  | Just (cs :: Seq RClosure) <- maybeUnwrapForeign Ty.listRef fo =
-      foldMap (closureTermRefs f) cs
-closureTermRefs _ _ = mempty
+closureTermRefs :: (Monoid m) => (Reference -> m) -> (Closure -> m)
+closureTermRefs f = \case
+  PAp (CIx r _ _) _ _ cs ->
+    f r <> foldMap (closureTermRefs f) cs
+  (DataB1 _ _ c) -> closureTermRefs f c
+  (DataB2 _ _ c1 c2) ->
+    closureTermRefs f c1 <> closureTermRefs f c2
+  (DataUB _ _ _ c) ->
+    closureTermRefs f c
+  (Captured k _ _ _ cs) ->
+    contTermRefs f k <> foldMap (closureTermRefs f) cs
+  (Foreign fo)
+    | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo ->
+        foldMap (closureTermRefs f) cs
+  _ -> mempty
 
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
 contTermRefs f (Mark _ _ _ m k) =
   foldMap (closureTermRefs f) m <> contTermRefs f k
-contTermRefs f (Push _ _ _ _ (RComb (CIx r _ _) _) k) =
+contTermRefs f (Push _ _ _ _ (CIx r _ _) _ _ _ k) =
   f r <> contTermRefs f k
 contTermRefs _ _ = mempty

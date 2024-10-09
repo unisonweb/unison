@@ -25,15 +25,20 @@ shuffle =
 
 runTestCase : Text ->{Exception,IO} (Text, Test.Result)
 runTestCase name =
-  sfile = directory ++ name ++ ".v4.ser"
-  lsfile = directory ++ name ++ ".v3.ser"
+  sfile = directory ++ name ++ ".v5.ser"
+  ls3file = directory ++ name ++ ".v3.ser"
+  ls4file = directory ++ name ++ ".v4.ser"
   ofile = directory ++ name ++ ".out"
-  hfile = directory ++ name ++ ".v4.hash"
+  hfile = directory ++ name ++ ".v5.hash"
 
   p@(f, i) = loadSelfContained sfile
-  pl@(fl, il) =
-    if fileExists lsfile
-    then loadSelfContained lsfile
+  pl3@(fl3, il3) =
+    if fileExists ls3file
+    then loadSelfContained ls3file
+    else p
+  pl4@(fl4, il4) =
+    if fileExists ls4file
+    then loadSelfContained ls4file
     else p
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
@@ -43,8 +48,10 @@ runTestCase name =
     then Fail (name ++ " output mismatch")
     else if not (toBase32 (crypto.hash Sha3_512 p) == h)
     then Fail (name ++ " hash mismatch")
-    else if not (fl il == f i)
-    then Fail (name ++ " legacy mismatch")
+    else if not (fl3 il3 == f i)
+    then Fail (name ++ " legacy v3 mismatch")
+    else if not (fl4 il4 == f i)
+    then Fail (name ++ " legacy v4 mismatch")
     else Ok name
   (name, result)
 

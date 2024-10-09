@@ -201,6 +201,12 @@ getByteArray = PA.byteArrayFromList <$> getList getWord8
 putByteArray :: (MonadPut m) => PA.ByteArray -> m ()
 putByteArray a = putFoldable putWord8 (IL.toList a)
 
+getArray :: (MonadGet m) => m a -> m (PA.Array a)
+getArray getThing = PA.arrayFromList <$> getList getThing
+
+putArray :: (MonadPut m) => (a -> m ()) -> PA.Array a -> m ()
+putArray putThing a = putFoldable putThing (IL.toList a)
+
 getBlock :: (MonadGet m) => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
