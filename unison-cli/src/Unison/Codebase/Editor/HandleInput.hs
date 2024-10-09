@@ -85,7 +85,7 @@ import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
-import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
+import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
@@ -771,7 +771,7 @@ loop e = do
                 names <- lift Cli.currentNames
                 let buildPPED uf tf =
                       let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
-                      in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
+                       in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
                 let formatWidth = 80
                 currentPath <- lift $ Cli.getCurrentPath
                 updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
@@ -1264,50 +1264,6 @@ handleDependents hq = do
   Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
   Cli.respond (ListDependents ppe lds types terms)
 
--- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
-handleShowDefinition outputLoc showDefinitionScope query = do
-  Cli.Env {codebase} <- ask
-  hqLength <- Cli.runTransaction Codebase.hashLength
-  let hasAbsoluteQuery = any (any Name.isAbsolute) query
-  (names, unbiasedPPED) <- case (hasAbsoluteQuery, showDefinitionScope) of
-    -- TODO: We should instead print each definition using the names from its project-branch root.
-    (True, _) -> do
-      root <- Cli.getCurrentProjectRoot
-      let root0 = Branch.head root
-      let names = Names.makeAbsolute $ Branch.toNames root0
-      let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
-      pure (names, pped)
-    (_, ShowDefinitionGlobal) -> do
-      -- TODO: Maybe rewrite to be properly global
-      root <- Cli.getCurrentProjectRoot
-      let root0 = Branch.head root
-      let names = Names.makeAbsolute $ Branch.toNames root0
-      let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
-      pure (names, pped)
-    (_, ShowDefinitionLocal) -> do
-      currentNames <- Cli.currentNames
-      let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
-      pure (currentNames, pped)
-  let pped = PPED.biasTo (mapMaybe HQ.toName (toList query)) unbiasedPPED
-  Backend.DefinitionResults terms types misses <- do
-    let nameSearch = NameSearch.makeNameSearch hqLength names
-    Cli.runTransaction (Backend.definitionsByName codebase nameSearch includeCycles Names.IncludeSuffixes (toList query))
-  showDefinitions outputLoc pped terms types misses
-  where
-    suffixify =
-      case outputLoc of
-        ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ _ -> PPE.suffixifyByHashName
-        LatestFileLocation _ -> PPE.suffixifyByHashName
-
-    -- `view`: don't include cycles; `edit`: include cycles
-    includeCycles =
-      case outputLoc of
-        ConsoleLocation -> Backend.DontIncludeCycles
-        FileLocation _ _ -> Backend.IncludeCycles
-        LatestFileLocation _ -> Backend.IncludeCycles
-
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -1475,7 +1431,7 @@ doCompile profile native output main = do
       outf
         | native = output
         | otherwise = output <> ".uc"
-      copts = Runtime.defaultCompileOpts { Runtime.profile = profile }
+      copts = Runtime.defaultCompileOpts {Runtime.profile = profile}
   whenJustM
     ( liftIO $
         Runtime.compileTo theRuntime copts codeLookup ppe ref outf
