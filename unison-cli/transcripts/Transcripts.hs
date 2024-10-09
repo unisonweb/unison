@@ -41,13 +41,14 @@ type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
 testBuilder ::
   Bool ->
+  Bool ->
   ((FilePath, Text) -> IO ()) ->
   FilePath ->
   FilePath ->
   [String] ->
   String ->
   Test ()
-testBuilder expectFailure recordFailure runtimePath dir prelude transcript = scope transcript $ do
+testBuilder expectFailure replaceOriginal recordFailure runtimePath dir prelude transcript = scope transcript $ do
   outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) ->
     let isTest = True
      in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath \runTranscript ->
@@ -75,7 +76,7 @@ testBuilder expectFailure recordFailure runtimePath dir prelude transcript = sco
             io $ recordFailure (filePath, errText)
             crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
-      let outputFile = outputFileForTranscript filePath
+      let outputFile = if replaceOriginal then filePath else outputFileForTranscript filePath
       io . writeUtf8 outputFile . Transcript.formatStanzas $ toList out
       when expectFailure $ do
         let errMsg = "Expected a failure, but transcript was successful."
@@ -137,9 +138,10 @@ test config = do
   -- what went wrong in CI
   failuresVar <- io $ STM.newTVarIO []
   let recordFailure failure = STM.atomically $ STM.modifyTVar' failuresVar (failure :)
-  buildTests config (testBuilder False recordFailure) $ "unison-src" </> "transcripts"
-  buildTests config (testBuilder False recordFailure) $ "unison-src" </> "transcripts-using-base"
-  buildTests config (testBuilder True recordFailure) $ "unison-src" </> "transcripts" </> "errors"
+  buildTests config (testBuilder False False recordFailure) $ "unison-src" </> "transcripts"
+  buildTests config (testBuilder False True recordFailure) $ "unison-src" </> "transcripts" </> "idempotent"
+  buildTests config (testBuilder False False recordFailure) $ "unison-src" </> "transcripts-using-base"
+  buildTests config (testBuilder True False recordFailure) $ "unison-src" </> "transcripts" </> "errors"
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"
