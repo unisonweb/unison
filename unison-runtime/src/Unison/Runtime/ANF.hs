@@ -33,6 +33,7 @@ module Unison.Runtime.ANF
     internalBug,
     Mem (..),
     Lit (..),
+    Cacheability (..),
     Direction (..),
     SuperNormal (..),
     SuperGroup (..),
@@ -53,6 +54,7 @@ module Unison.Runtime.ANF
     CTag,
     Tag (..),
     GroupRef (..),
+    Code (..),
     Value (..),
     Cont (..),
     BLit (..),
@@ -66,11 +68,15 @@ module Unison.Runtime.ANF
     equivocate,
     superNormalize,
     anfTerm,
+    codeGroup,
     valueTermLinks,
     valueLinks,
     groupTermLinks,
+    foldGroup,
     foldGroupLinks,
+    overGroup,
     overGroupLinks,
+    traverseGroup,
     traverseGroupLinks,
     normalLinks,
     prettyGroup,
@@ -1476,6 +1482,11 @@ data SuperGroup v = Rec
   }
   deriving (Show)
 
+-- | Whether the evaluation of a given definition is cacheable or not.
+-- i.e. it's a top-level pure value.
+data Cacheability = Cacheable | Uncacheable
+  deriving stock (Eq, Show)
+
 instance (Var v) => Eq (SuperGroup v) where
   g0 == g1 | Left _ <- equivocate g0 g1 = False | otherwise = True
 
@@ -1529,6 +1540,31 @@ data Value
   | BLit BLit
   deriving (Show)
 
+-- Since we can now track cacheability of supergroups, this type
+-- pairs the two together. This is the type that should be used
+-- as the representation of unison Code values rather than the
+-- previous `SuperGroup Symbol`.
+data Code = CodeRep (SuperGroup Symbol) Cacheability
+  deriving (Show)
+
+codeGroup :: Code -> SuperGroup Symbol
+codeGroup (CodeRep sg _) = sg
+
+instance Eq Code where
+  CodeRep sg1 _ == CodeRep sg2 _ = sg1 == sg2
+
+overGroup :: (SuperGroup Symbol -> SuperGroup Symbol) -> Code -> Code
+overGroup f (CodeRep sg ch) = CodeRep (f sg) ch
+
+foldGroup :: Monoid m => (SuperGroup Symbol -> m) -> Code -> m
+foldGroup f (CodeRep sg _) = f sg
+
+traverseGroup ::
+  Applicative f =>
+  (SuperGroup Symbol -> f (SuperGroup Symbol)) ->
+  Code -> f Code
+traverseGroup f (CodeRep sg ch) = flip CodeRep ch <$> f sg
+
 data Cont
   = KE
   | Mark Word64 Word64 [Reference] (Map Reference Value) Cont
@@ -1542,7 +1578,7 @@ data BLit
   | TyLink Reference
   | Bytes Bytes
   | Quote Value
-  | Code (SuperGroup Symbol)
+  | Code Code
   | BArr PA.ByteArray
   | Pos Word64
   | Neg Word64

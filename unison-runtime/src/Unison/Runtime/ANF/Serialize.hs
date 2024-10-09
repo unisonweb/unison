@@ -330,6 +330,25 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
+putCode :: MonadPut m => EC.EnumMap FOp Text -> Code -> m ()
+putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
+
+getCode :: MonadGet m => Word32 -> m Code
+getCode v = CodeRep <$> getGroup <*> getCache
+  where
+  getCache | v == 3 = getCacheability
+           | otherwise = pure Uncacheable
+
+putCacheability :: MonadPut m => Cacheability -> m ()
+putCacheability Uncacheable = putWord8 0
+putCacheability Cacheable = putWord8 1
+
+getCacheability :: MonadGet m => m Cacheability
+getCacheability = getWord8 >>= \case
+  0 -> pure Uncacheable
+  1 -> pure Cacheable
+  n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
+
 putComb ::
   (MonadPut m) =>
   (Var v) =>
@@ -659,7 +678,7 @@ putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
 putBLit (Quote v) = putTag QuoteT *> putValue v
-putBLit (Code g) = putTag CodeT *> putGroup mempty mempty g
+putBLit (Code co) = putTag CodeT *> putCode mempty co
 putBLit (BArr a) = putTag BArrT *> putByteArray a
 putBLit (Pos n) = putTag PosT *> putPositive n
 putBLit (Neg n) = putTag NegT *> putPositive n
@@ -676,7 +695,9 @@ getBLit v =
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
     QuoteT -> Quote <$> getValue v
-    CodeT -> Code <$> getGroup
+    CodeT -> Code <$> getCode cv
+      where
+        cv | v == 5 = 3 | otherwise = 2
     BArrT -> BArr <$> getByteArray
     PosT -> Pos <$> getPositive
     NegT -> Neg <$> getPositive
@@ -913,18 +934,16 @@ getCont v =
             <*> getGroupRef
             <*> getCont v
 
-deserializeGroup :: (Var v) => ByteString -> Either String (SuperGroup v)
-deserializeGroup bs = runGetS (getVersion *> getGroup) bs
+deserializeCode :: ByteString -> Either String Code
+deserializeCode bs = runGetS (getVersion >>= getCode) bs
   where
     getVersion =
       getWord32be >>= \case
-        1 -> pure ()
-        2 -> pure ()
+        n | 1 <= n && n <= 3 -> pure n
         n -> fail $ "deserializeGroup: unknown version: " ++ show n
 
-serializeGroup ::
-  (Var v) => EC.EnumMap FOp Text -> SuperGroup v -> ByteString
-serializeGroup fops sg = runPutS (putVersion *> putGroup mempty fops sg)
+serializeCode :: EC.EnumMap FOp Text -> Code -> ByteString
+serializeCode fops co = runPutS (putVersion *> putCode fops co)
   where
     putVersion = putWord32be codeVersion
 
@@ -970,7 +989,7 @@ getVersionedValue = getVersion >>= getValue
         n
           | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
-          | n <= 4 -> pure n
+          | n <= 5 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 deserializeValue :: ByteString -> Either String Value
@@ -981,13 +1000,21 @@ serializeValue v = runPutS (putVersion *> putValue v)
   where
     putVersion = putWord32be valueVersion
 
-serializeValueLazy :: Value -> L.ByteString
-serializeValueLazy v = runPutLazy (putVersion *> putValue v)
+-- This serializer is used exclusively for hashing unison values.
+-- For this reason, it doesn't prefix the string with the current
+-- version, so that only genuine changes in the way things are
+-- serialized will change hashes.
+--
+-- The 4 prefix is used because we were previously including the
+-- version in the hash, so to maintain the same hashes, we need to
+-- include the extra bytes that were previously there.
+serializeValueForHash :: Value -> L.ByteString
+serializeValueForHash v = runPutLazy (putPrefix *> putValue v)
   where
-    putVersion = putWord32be valueVersion
+    putPrefix = putWord32be 4
 
 valueVersion :: Word32
-valueVersion = 4
+valueVersion = 5
 
 codeVersion :: Word32
-codeVersion = 2
+codeVersion = 3
