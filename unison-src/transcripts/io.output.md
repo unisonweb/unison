@@ -2,13 +2,9 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 scratch/main> builtins.mergeio
-
 scratch/main> load unison-src/transcripts-using-base/base.u
-
 scratch/main> add
-
 ```
 
 Tests for IO builtins which wired to foreign haskell calls.
@@ -22,7 +18,6 @@ create a scratch directory which will automatically get cleaned up.
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## Basic File Functions
@@ -64,29 +59,28 @@ testCreateRename _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testCreateRename : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testCreateRename : '{IO} [Result]
 
+    testCreateRename : '{IO} [Result]
 scratch/main> io.test testCreateRename
 
     New test results:
-  
+
     1. testCreateRename   ◉ create a foo directory
                           ◉ directory should exist
                           ◉ foo should no longer exist
@@ -94,11 +88,10 @@ scratch/main> io.test testCreateRename
                           ◉ bar should now exist
                           ◉ removeDirectory works recursively
                           ◉ removeDirectory works recursively
-  
-  ✅ 7 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 7 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Opening / Closing files
@@ -149,40 +142,38 @@ testOpenClose _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testOpenClose : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testOpenClose : '{IO} [Result]
 
+    testOpenClose : '{IO} [Result]
 scratch/main> io.test testOpenClose
 
     New test results:
-  
+
     1. testOpenClose   ◉ file should be open
                        ◉ file handle buffering should match what we just set.
                        ◉ file should be closed
                        ◉ bytes have been written
                        ◉ bytes have been written
                        ◉ file should be closed
-  
-  ✅ 6 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 6 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Reading files with getSomeBytes
@@ -242,29 +233,28 @@ testGetSomeBytes _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testGetSomeBytes : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testGetSomeBytes : '{IO} [Result]
 
+    testGetSomeBytes : '{IO} [Result]
 scratch/main> io.test testGetSomeBytes
 
     New test results:
-  
+
     1. testGetSomeBytes   ◉ chunk size splits data into 2 uneven sides
                           ◉ file should be closed
                           ◉ first chunk matches first part of testData
@@ -273,11 +263,10 @@ scratch/main> io.test testGetSomeBytes
                           ◉ reading at end of file results in Bytes.empty
                           ◉ requesting many bytes results in what's available
                           ◉ file should be closed
-  
-  ✅ 8 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 8 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Seeking in open files
@@ -352,31 +341,30 @@ testAppend _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testAppend : '{IO} [Result]
       testSeek   : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     testAppend : '{IO} [Result]
     testSeek   : '{IO} [Result]
-
 scratch/main> io.test testSeek
 
     New test results:
-  
+
     1. testSeek   ◉ seeked
                   ◉ readable file should be seekable
                   ◉ shouldn't be the EOF
@@ -384,21 +372,19 @@ scratch/main> io.test testSeek
                   ◉ we should be at position 1
                   ◉ should be able to read our temporary file after seeking
                   ◉ getLine should get a line
-  
-  ✅ 7 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 7 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 scratch/main> io.test testAppend
 
     New test results:
-  
-    1. testAppend   ◉ should be able to read our temporary file
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. testAppend   ◉ should be able to read our temporary file
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### SystemTime
@@ -414,35 +400,33 @@ testSystemTime _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testSystemTime : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testSystemTime : '{IO} [Result]
 
+    testSystemTime : '{IO} [Result]
 scratch/main> io.test testSystemTime
 
     New test results:
-  
-    1. testSystemTime   ◉ systemTime should be sane
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. testSystemTime   ◉ systemTime should be sane
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Get temp directory
@@ -461,20 +445,18 @@ testGetTempDirectory _ =
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testGetTempDirectory : '{IO} [Result]
 
+    testGetTempDirectory : '{IO} [Result]
 scratch/main> io.test testGetTempDirectory
 
     New test results:
-  
+
     1. testGetTempDirectory   ◉ Temp directory is directory
                               ◉ Temp directory should exist
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Get current directory
@@ -493,20 +475,18 @@ testGetCurrentDirectory _ =
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testGetCurrentDirectory : '{IO} [Result]
 
+    testGetCurrentDirectory : '{IO} [Result]
 scratch/main> io.test testGetCurrentDirectory
 
     New test results:
-  
+
     1. testGetCurrentDirectory   ◉ Current directory is directory
                                  ◉ Current directory should exist
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Get directory contents
@@ -527,20 +507,18 @@ testDirContents _ =
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testDirContents : '{IO} [Result]
 
+    testDirContents : '{IO} [Result]
 scratch/main> io.test testDirContents
 
     New test results:
-  
+
     1. testDirContents   ◉ directory size should be
                          ◉ directory contents should have current directory and parent
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Read environment variables
@@ -561,20 +539,18 @@ testGetEnv _ =
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testGetEnv : '{IO} [Result]
 
+    testGetEnv : '{IO} [Result]
 scratch/main> io.test testGetEnv
 
     New test results:
-  
+
     1. testGetEnv   ◉ PATH environent variable should be set
                     ◉ DOESNTEXIST didn't exist
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ### Read command line args
@@ -617,24 +593,20 @@ Test that they can be run with the right number of args.
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     testGetArgs.fail             : Text -> Failure
     testGetArgs.runMeWithNoArgs  : '{IO, Exception} ()
     testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
     testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
-
 scratch/main> run runMeWithNoArgs
 
   ()
-
 scratch/main> run runMeWithOneArg foo
 
   ()
-
 scratch/main> run runMeWithTwoArgs foo bar
 
   ()
-
 ```
 
 Calling our examples with the wrong number of args will error.
@@ -643,57 +615,53 @@ Calling our examples with the wrong number of args will error.
 scratch/main> run runMeWithNoArgs foo
 
   💔💥
-  
+
   The program halted with an unhandled exception:
-  
+
     Failure (typeLink IOFailure) "called with args" (Any ())
-  
+
   Stack trace:
     ##raise
-
 ```
 
 ``` ucm :error
 scratch/main> run runMeWithOneArg
 
   💔💥
-  
+
   The program halted with an unhandled exception:
-  
+
     Failure (typeLink IOFailure) "called with no args" (Any ())
-  
+
   Stack trace:
     ##raise
-
 ```
 
 ``` ucm :error
 scratch/main> run runMeWithOneArg foo bar
 
   💔💥
-  
+
   The program halted with an unhandled exception:
-  
+
     Failure
       (typeLink IOFailure) "called with too many args" (Any ())
-  
+
   Stack trace:
     ##raise
-
 ```
 
 ``` ucm :error
 scratch/main> run runMeWithTwoArgs
 
   💔💥
-  
+
   The program halted with an unhandled exception:
-  
+
     Failure (typeLink IOFailure) "called with no args" (Any ())
-  
+
   Stack trace:
     ##raise
-
 ```
 
 ### Get the time zone
@@ -709,13 +677,11 @@ testTimeZone = do
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testTimeZone : '{IO} ()
 
+    testTimeZone : '{IO} ()
 scratch/main> run testTimeZone
 
   ()
-
 ```
 
 ### Get some random bytes
@@ -733,18 +699,16 @@ testRandom = do
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    testRandom : '{IO} [Result]
 
+    testRandom : '{IO} [Result]
 scratch/main> io.test testGetEnv
 
     New test results:
-  
+
     1. testGetEnv   ◉ PATH environent variable should be set
                     ◉ DOESNTEXIST didn't exist
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

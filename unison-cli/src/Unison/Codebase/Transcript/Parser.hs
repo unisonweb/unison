@@ -14,9 +14,6 @@ module Unison.Codebase.Transcript.Parser
     hidden,
     expectingError,
     language,
-
-    -- * utilities
-    processedBlockToNode',
   )
 where
 
@@ -29,15 +26,20 @@ import Unison.Codebase.Transcript hiding (expectingError, generated, hidden)
 import Unison.Prelude
 import Unison.Project (fullyQualifiedProjectAndBranchNamesParser)
 
+padIfNonEmpty :: Text -> Text
+padIfNonEmpty line = if Text.null line then line else "  " <> line
+
 formatAPIRequest :: APIRequest -> Text
 formatAPIRequest = \case
-  GetRequest txt -> "GET " <> txt
-  APIComment txt -> "-- " <> txt
+  GetRequest txt -> "GET " <> txt <> "\n"
+  APIComment txt -> "--" <> txt <> "\n"
+  APIResponseLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
 
 formatUcmLine :: UcmLine -> Text
 formatUcmLine = \case
   UcmCommand context txt -> formatContext context <> "> " <> txt <> "\n"
-  UcmComment txt -> "--" <> txt
+  UcmComment txt -> "--" <> txt <> "\n"
+  UcmOutputLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
   where
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
@@ -45,18 +47,13 @@ formatStanzas :: [Stanza] -> Text
 formatStanzas =
   CMark.nodeToCommonmark [] Nothing . CMark.Node Nothing CMark.DOCUMENT . fmap (either id processedBlockToNode)
 
--- |
---
---  __NB__: This convenience function is exposed until `ProcessedBlock` can store UCM command output and API responses.
---          Until then, this is used by the `Unison.Codebase.Transcript.Runner`. This should change with #5199.
-processedBlockToNode' :: (a -> Text) -> Text -> InfoTags a -> Text -> CMark.Node
-processedBlockToNode' formatA lang tags body = CMarkCodeBlock Nothing (formatInfoString formatA lang tags) body
-
 processedBlockToNode :: ProcessedBlock -> CMark.Node
 processedBlockToNode = \case
-  Ucm tags cmds -> processedBlockToNode' (\() -> "") "ucm" tags $ foldr ((<>) . formatUcmLine) "" cmds
-  Unison tags txt -> processedBlockToNode' (maybe "" (" " <>)) "unison" tags txt
-  API tags apiRequests -> processedBlockToNode' (\() -> "") "api" tags $ foldr ((<>) . formatAPIRequest) "" apiRequests
+  Ucm tags cmds -> mkNode (\() -> "") "ucm" tags $ foldr ((<>) . formatUcmLine) "" cmds
+  Unison tags txt -> mkNode (maybe "" (" " <>)) "unison" tags txt
+  API tags apiRequests -> mkNode (\() -> "") "api" tags $ foldr ((<>) . formatAPIRequest) "" apiRequests
+  where
+    mkNode formatA lang = CMarkCodeBlock Nothing . formatInfoString formatA lang
 
 type P = P.Parsec Void Text
 
@@ -73,35 +70,30 @@ stanzas srcName =
       _ -> pure $ Left node
 
 ucmLine :: P UcmLine
-ucmLine = ucmCommand <|> ucmComment
+ucmLine = ucmOutputLine <|> ucmComment <|> ucmCommand
   where
     ucmCommand :: P UcmLine
     ucmCommand =
       UcmCommand
-        <$> fmap UcmContextProject (P.try $ fullyQualifiedProjectAndBranchNamesParser <* lineToken (word ">"))
-        <*> P.takeWhileP Nothing (/= '\n')
-        <* spaces
+        <$> fmap UcmContextProject (fullyQualifiedProjectAndBranchNamesParser <* lineToken (word ">") <* nonNewlineSpaces)
+        <*> restOfLine
 
     ucmComment :: P UcmLine
     ucmComment =
       P.label "comment (delimited with “--”)" $
-        UcmComment <$> (word "--" *> P.takeWhileP Nothing (/= '\n')) <* spaces
+        UcmComment <$> (word "--" *> restOfLine)
+
+    ucmOutputLine :: P UcmLine
+    ucmOutputLine = UcmOutputLine <$> (word "  " *> restOfLine <|> "" <$ P.single '\n' <|> "" <$ P.chunk " \n")
+
+restOfLine :: P Text
+restOfLine = P.takeWhileP Nothing (/= '\n') <* P.single '\n'
 
 apiRequest :: P APIRequest
-apiRequest = do
-  apiComment <|> getRequest
-  where
-    getRequest = do
-      word "GET"
-      spaces
-      path <- P.takeWhile1P Nothing (/= '\n')
-      spaces
-      pure (GetRequest path)
-    apiComment = do
-      word "--"
-      comment <- P.takeWhileP Nothing (/= '\n')
-      spaces
-      pure (APIComment comment)
+apiRequest =
+  GetRequest <$> (word "GET" *> spaces *> restOfLine)
+    <|> APIComment <$> (word "--" *> restOfLine)
+    <|> APIResponseLine <$> (word "  " *> restOfLine <|> "" <$ P.single '\n' <|> "" <$ P.chunk " \n")
 
 formatInfoString :: (a -> Text) -> Text -> InfoTags a -> Text
 formatInfoString formatA language infoTags =
@@ -119,29 +111,20 @@ infoTags p =
     <*> lineToken expectingError
     <*> lineToken generated
     <*> p
+    <* P.single '\n'
 
 -- | Parses the info string and contents of a fenced code block.
 fenced :: P (Maybe ProcessedBlock)
 fenced = do
   fenceType <- lineToken language
   case fenceType of
-    "ucm" -> do
-      it <- infoTags $ pure ()
-      pure . Ucm it <$> (spaces *> P.manyTill ucmLine P.eof)
-    "unison" -> do
-      it <- infoTags $ optional untilSpace1
-      P.single '\n'
-      pure . Unison it <$> P.getInput
-    "api" -> do
-      it <- infoTags $ pure ()
-      pure . API it <$> (spaces *> P.manyTill apiRequest P.eof)
+    "ucm" -> fmap pure $ Ucm <$> infoTags (pure ()) <*> P.manyTill ucmLine P.eof
+    "unison" -> fmap pure $ Unison <$> infoTags (optional untilSpace1) <*> P.getInput
+    "api" -> fmap pure $ API <$> infoTags (pure ()) <*> P.manyTill apiRequest P.eof
     _ -> pure Nothing
 
 word :: Text -> P Text
-word txt = P.try $ do
-  chs <- P.takeP (Just $ show txt) (Text.length txt)
-  guard (chs == txt)
-  pure txt
+word = P.chunk
 
 lineToken :: P a -> P a
 lineToken p = p <* nonNewlineSpaces

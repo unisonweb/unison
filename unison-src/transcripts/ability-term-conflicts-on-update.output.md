@@ -4,7 +4,6 @@ https://github.com/unisonweb/unison/issues/2786
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
-
 ```
 
 First we add an ability to the codebase.
@@ -16,25 +15,24 @@ unique ability Channels where
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ability Channels
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    ability Channels
 
+    ability Channels
 ```
 
 Now we update the ability, changing the name of the constructor, *but*, we simultaneously
@@ -53,12 +51,13 @@ thing _ = send 1
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       Channels.send : a -> ()
@@ -68,7 +67,6 @@ thing _ = send 1
       new definition:
     
       ability Channels
-
 ```
 
 These should fail with a term/ctor conflict since we exclude the ability from the update.
@@ -77,23 +75,21 @@ These should fail with a term/ctor conflict since we exclude the ability from th
 scratch/main> update.old patch Channels.send
 
   x These definitions failed:
-  
+
     Reason
     term/ctor collision   Channels.send   : a -> ()
-  
-    Tip: Use `help filestatus` to learn more.
 
+    Tip: Use `help filestatus` to learn more.
 scratch/main> update.old patch thing
 
   ⍟ I've added these definitions:
-  
+
     Channels.send : a -> ()
     thing         : '{Channels} ()
-  
-  ⍟ I've updated these names to your new definition:
-  
-    ability Channels
 
+  ⍟ I've updated these names to your new definition:
+
+    ability Channels
 ```
 
 If however, `Channels.send` and `thing` *depend* on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
@@ -110,12 +106,13 @@ thing _ = send 1
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⊡ Previously added definitions will be ignored: Channels
     
     ⍟ These names already exist. You can `update` them to your
@@ -123,7 +120,6 @@ thing _ = send 1
     
       Channels.send : a ->{Channels} ()
       thing         : '{Channels} ()
-
 ```
 
 These updates should succeed since `Channels` is a dependency.
@@ -134,20 +130,19 @@ scratch/main> update.old.preview patch Channels.send
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⊡ Previously added definitions will be ignored: Channels
     
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       Channels.send : a ->{Channels} ()
-
 scratch/main> update.old.preview patch thing
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⊡ Previously added definitions will be ignored: Channels
     
     ⍟ These names already exist. You can `update` them to your
@@ -155,7 +150,6 @@ scratch/main> update.old.preview patch thing
     
       Channels.send : a ->{Channels} ()
       thing         : '{Channels} ()
-
 ```
 
 We should also be able to successfully update the whole thing.
@@ -164,19 +158,17 @@ We should also be able to successfully update the whole thing.
 scratch/main> update.old
 
   ⊡ Ignored previously added definitions: Channels
-  
+
   ⍟ I've updated these names to your new definition:
-  
+
     Channels.send : a ->{Channels} ()
     thing         : '{Channels} ()
-
 ```
 
 # Constructor-term conflict
 
 ``` ucm :hide
 scratch/main2> builtins.merge lib.builtins
-
 ```
 
 ``` unison
@@ -184,25 +176,24 @@ X.x = 1
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       X.x : Nat
-
 ```
 
 ``` ucm
 scratch/main2> add
 
   ⍟ I've added these definitions:
-  
-    X.x : Nat
 
+    X.x : Nat
 ```
 
 ``` unison
@@ -211,12 +202,13 @@ structural ability X where
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     x These definitions would fail on `add` or `update`:
     
       Reason
@@ -224,7 +216,6 @@ structural ability X where
       ctor/term collision   X.x   
     
       Tip: Use `help filestatus` to learn more.
-
 ```
 
 This should fail with a ctor/term conflict.
@@ -233,11 +224,10 @@ This should fail with a ctor/term conflict.
 scratch/main2> add
 
   x These definitions failed:
-  
+
     Reason
     blocked structural ability X
     ctor/term collision   X.x   
-  
-    Tip: Use `help filestatus` to learn more.
 
+    Tip: Use `help filestatus` to learn more.
 ```

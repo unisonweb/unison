@@ -63,12 +63,13 @@ serialTests = do
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       availableCases : '{IO, Exception} [Text]
@@ -77,33 +78,30 @@ serialTests = do
       runTestCase    : Text ->{IO, Exception} (Text, Result)
       serialTests    : '{IO, Exception} [Result]
       shuffle        : Nat -> [a] -> [a]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     availableCases : '{IO, Exception} [Text]
     directory      : Text
     gen            : Nat -> Nat -> (Nat, Nat)
     runTestCase    : Text ->{IO, Exception} (Text, Result)
     serialTests    : '{IO, Exception} [Result]
     shuffle        : Nat -> [a] -> [a]
-
 scratch/main> io.test serialTests
 
     New test results:
-  
+
     1. serialTests   ◉ case-00
                      ◉ case-01
                      ◉ case-02
                      ◉ case-03
                      ◉ case-04
-  
-  ✅ 5 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 5 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

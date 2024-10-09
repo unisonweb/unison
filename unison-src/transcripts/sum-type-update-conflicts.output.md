@@ -4,7 +4,6 @@ https://github.com/unisonweb/unison/issues/2786
 
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtins
-
 ```
 
 First we add a sum-type to the codebase.
@@ -14,27 +13,26 @@ structural type X = x
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural type X
         (also named lib.builtins.Unit)
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural type X
       (also named lib.builtins.Unit)
-
 ```
 
 Now we update the type, changing the name of the constructors, *but*, we simultaneously
@@ -50,12 +48,13 @@ dependsOnX = Text.size X.x
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       X.x        : Text
@@ -66,7 +65,6 @@ dependsOnX = Text.size X.x
     
       structural type X
         (The old definition is also named lib.builtins.Unit.)
-
 ```
 
 This update should succeed since the conflicted constructor
@@ -76,13 +74,12 @@ is removed in the same update that the new term is being added.
 scratch/main> update.old
 
   ⍟ I've added these definitions:
-  
+
     X.x        : Text
     dependsOnX : Nat
-  
+
   ⍟ I've updated these names to your new definition:
-  
+
     structural type X
       (The old definition was also named lib.builtins.Unit.)
-
 ```

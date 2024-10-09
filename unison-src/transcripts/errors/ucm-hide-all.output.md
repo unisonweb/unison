@@ -15,7 +15,7 @@ scratch/main> move.namespace foo bar
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-  ⚠️
-  
-  The namespace foo doesn't exist.
+⚠️
+
+The namespace foo doesn't exist.
 ```

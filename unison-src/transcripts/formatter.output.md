@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.mergeio
-
 ```
 
 ``` unison :hide
@@ -90,7 +89,6 @@ with a strike-through block~
 
 ``` ucm
 scratch/main> debug.format
-
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -178,34 +176,33 @@ brokenDoc = {{ hello }} + 1
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I couldn't figure out what + refers to here:
-  
+
       1 | brokenDoc = {{ hello }} + 1
-  
+
   The name + is ambiguous. I tried to resolve it by type but no
   term with that name would pass typechecking. I think its type
   should be:
-  
+
       Doc2 -> Nat -> o
-  
+
   If that's not what you expected, you may have a type error
   somewhere else in your code.
   Help me out by using a more specific name here or adding a
   type annotation.
-  
+
   I found some terms in scope with matching names but different 
   types. If one of these is what you meant, try using its full 
   name:
-  
+
   (Float.+) : Float -> Float -> Float
   (Int.+) : Int -> Int -> Int
   (Nat.+) : Nat -> Nat -> Nat
-
 ```
 
 ``` ucm
 scratch/main> debug.format
-
 ```

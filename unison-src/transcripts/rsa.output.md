@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ``` unison
@@ -37,12 +36,13 @@ sigKo = match signature with
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       down               : Bytes
@@ -54,7 +54,7 @@ sigKo = match signature with
       sigOkay            : Either Failure Boolean
       signature          : Either Failure Bytes
       up                 : Bytes
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -62,13 +62,12 @@ sigKo = match signature with
            ⧩
            Right
              0xs84b02b6bb0e1196b65378cb12b727f7b4b38e5979f0632e8a51cfab088827f6d3da4221788029f75a0a5f4d740372cfa590462888a1189bbd9de9b084f26116640e611af5a1a17229beec7fb2570887181bbdced8f0ebfec6cad6bdd318a616ba4f01c90e1436efe44b18417d18ce712a0763be834f8c76e0c39b2119b061373
-  
+
     29 | > sigOkay
            ⧩
            Right true
-  
+
     30 | > sigKo
            ⧩
            Right false
-
 ```

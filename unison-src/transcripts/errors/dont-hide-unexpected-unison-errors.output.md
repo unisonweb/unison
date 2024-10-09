@@ -11,22 +11,22 @@ x + x +
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I got confused here:
-  
+
       1 | x + x +
-  
-  
+
+
   I was surprised to find a x here.
   I was expecting one of these instead:
-  
+
   * ability
   * namespace
   * newline or semicolon
   * type
   * use
-
 ```
 
 Even though this code block has `:hide` on it, we should still see the error output, because it wasn’t expecting an error.
@@ -40,17 +40,17 @@ x + x +
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-  I got confused here:
-  
-      1 | x + x +
-  
-  
-  I was surprised to find a x here.
-  I was expecting one of these instead:
-  
-  * ability
-  * namespace
-  * newline or semicolon
-  * type
-  * use
+I got confused here:
+
+    1 | x + x +
+
+
+I was surprised to find a x here.
+I was expecting one of these instead:
+
+* ability
+* namespace
+* newline or semicolon
+* type
+* use
 ```

@@ -9,7 +9,6 @@ It affects the contents of the file as follows:
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -20,16 +19,16 @@ baz = 17
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       foo.baz : Nat
-
 ```
 
 2.  Free variables whose names exactly match bindings in the file are rewritten to refer to the prefixed binder instead.
@@ -48,37 +47,35 @@ longer.evil.factorial n = n
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       foo.factorial             : Int -> Int
       foo.longer.evil.factorial : Int -> Int
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     foo.factorial             : Int -> Int
     foo.longer.evil.factorial : Int -> Int
-
 scratch/main> view factorial
 
   foo.factorial : Int -> Int
   foo.factorial = cases
     +0 -> +1
     n  -> n Int.* foo.factorial (n Int.- +1)
-  
+
   foo.longer.evil.factorial : Int -> Int
   foo.longer.evil.factorial n = n
-
 ```
 
 Note that in the above example, we do not want the existence of a `namespace foo` directive to determine whether the
@@ -95,12 +92,13 @@ type longer.foo.Baz = { qux : Nat }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type longer.foo.Baz
@@ -110,20 +108,18 @@ type longer.foo.Baz = { qux : Nat }
                                   -> Baz
                                   ->{g} Baz
       longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type longer.foo.Baz
     type longer.foo.Foo
     longer.foo.Baz.qux        : Baz -> Nat
     longer.foo.Baz.qux.modify : (Nat ->{g} Nat) -> Baz ->{g} Baz
     longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
-
 ```
 
 ``` unison
@@ -145,12 +141,13 @@ hasTypeLink =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type foo.Baz
@@ -164,14 +161,13 @@ hasTypeLink =
       foo.hasTypeLink    : Doc2
       foo.refersToBar    : foo.Foo -> Nat
       foo.refersToQux    : foo.Baz -> Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type foo.Baz
     type foo.Foo
     type foo.RefersToFoo
@@ -183,25 +179,22 @@ scratch/main> add
     foo.hasTypeLink    : Doc2
     foo.refersToBar    : foo.Foo -> Nat
     foo.refersToQux    : foo.Baz -> Nat
-
 scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
 
   type foo.RefersToFoo = RefersToFoo foo.Foo
-  
+
   foo.hasTypeLink : Doc2
   foo.hasTypeLink = {{ {type foo.Foo} }}
-  
+
   foo.refersToBar : foo.Foo -> Nat
   foo.refersToBar = cases foo.Foo.Bar -> 17
-  
+
   foo.refersToQux : foo.Baz -> Nat
   foo.refersToQux baz =
     use Nat +
     use foo.Baz qux
     qux baz + qux baz
-
 scratch/main> todo
 
   You have no pending todo items. Good work! ✅
-
 ```

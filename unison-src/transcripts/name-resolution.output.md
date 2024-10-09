@@ -7,7 +7,6 @@ ambiguous. A reference to `Namespace.Foo` or `File.Foo` work fine.
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -15,25 +14,24 @@ type Namespace.Foo = Bar
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Namespace.Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    type Namespace.Foo
 
+    type Namespace.Foo
 ```
 
 ``` unison :error
@@ -42,9 +40,10 @@ type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
-  
+
     ❓
     
     I couldn't resolve any of these symbols:
@@ -56,8 +55,6 @@ type UsesFoo = UsesFoo Foo
              
     Foo      File.Foo
              Namespace.Foo
-  
-
 ```
 
 ``` unison
@@ -66,22 +63,21 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type File.Foo
       type UsesFoo
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 2
@@ -93,7 +89,6 @@ it refers to the namespace type (because it is an exact match).
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -101,25 +96,24 @@ type Foo = Bar
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    type Foo
 
+    type Foo
 ```
 
 ``` unison
@@ -128,36 +122,33 @@ type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type File.Foo
       type UsesFoo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type File.Foo
     type UsesFoo
-
 scratch/main> view UsesFoo
 
   type UsesFoo = UsesFoo Foo
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 3
@@ -169,7 +160,6 @@ it refers to the file type (because it is an exact match).
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -177,25 +167,24 @@ type Namespace.Foo = Bar
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Namespace.Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    type Namespace.Foo
 
+    type Namespace.Foo
 ```
 
 ``` unison
@@ -204,36 +193,33 @@ type UsesFoo = UsesFoo Foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
       type UsesFoo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type Foo
     type UsesFoo
-
 scratch/main> view UsesFoo
 
   type UsesFoo = UsesFoo Foo
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -245,7 +231,6 @@ but resolves to `ns.foo` via TDNR.
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -254,25 +239,24 @@ ns.foo = 42
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ns.foo : Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    ns.foo : Nat
 
+    ns.foo : Nat
 ```
 
 ``` unison
@@ -284,22 +268,21 @@ bar = foo ++ "bar"
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       bar      : Text
       file.foo : Text
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -311,7 +294,6 @@ but resolves to `file.foo` via TDNR.
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -320,25 +302,24 @@ ns.foo = 42
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ns.foo : Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    ns.foo : Nat
 
+    ns.foo : Nat
 ```
 
 ``` unison
@@ -350,22 +331,21 @@ bar = foo + 42
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       bar      : Nat
       file.foo : Text
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```
 
 # Example 4
@@ -377,7 +357,6 @@ A reference to `ns.foo` or `file.foo` work fine.
 scratch/main> builtins.mergeio lib.builtins
 
   Done.
-
 ```
 
 ``` unison
@@ -386,25 +365,24 @@ ns.foo = 42
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ns.foo : Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    ns.foo : Nat
 
+    ns.foo : Nat
 ```
 
 ``` unison :error
@@ -416,20 +394,20 @@ bar = foo + 10
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I couldn't figure out what foo refers to here:
-  
+
       5 | bar = foo + 10
-  
+
   The name foo is ambiguous. Its type should be: Nat
-  
+
   I found some terms in scope that have matching names and
   types. Maybe you meant one of these:
-  
+
   file.foo : Nat
   ns.foo : Nat
-
 ```
 
 ``` unison
@@ -441,37 +419,34 @@ bar = file.foo + ns.foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       bar      : Nat
       file.foo : Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     bar      : Nat
     file.foo : Nat
-
 scratch/main> view bar
 
   bar : Nat
   bar =
     use Nat +
     file.foo + ns.foo
-
 ```
 
 ``` ucm
 scratch/main> project.delete scratch
-
 ```

@@ -1,8 +1,6 @@
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
-
 scratch/main> load unison-src/transcripts-using-base/doc.md.files/syntax.u
-
 ```
 
 We can display the guide before and after adding it to the codebase:
@@ -11,7 +9,7 @@ We can display the guide before and after adding it to the codebase:
 scratch/main> display doc.guide
 
   # Unison computable documentation
-  
+
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
@@ -34,7 +32,7 @@ scratch/main> display doc.guide
       other documents.
     
       *Next up:* lists
-  
+
     # Lists
     
       # Bulleted lists
@@ -71,7 +69,7 @@ scratch/main> display doc.guide
            * In this nested list.
         2. Take shower.
         3. Get dressed.
-  
+
     # Evaluation
     
       Expressions can be evaluated inline, for instance `2`.
@@ -97,7 +95,7 @@ scratch/main> display doc.guide
           use Nat *
           cube : Nat -> Nat
           cube x = x * x * x
-  
+
     # Including Unison source code
     
       Unison definitions can be included in docs. For instance:
@@ -141,7 +139,7 @@ scratch/main> display doc.guide
         * If your snippet expression is just a single function
           application, you can put it in double backticks, like
           so: `sqr x`. This is equivalent to `sqr x`.
-  
+
     # Non-Unison code blocks
     
       Use three or more single quotes to start a block with no
@@ -168,7 +166,7 @@ scratch/main> display doc.guide
       def reverse[A](xs: List[A]) = 
         xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
-  
+
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
     `{{ }}` syntax to call these functions directly.
@@ -205,11 +203,10 @@ scratch/main> display doc.guide
                             row occupies multiple lines in the
                             rendered table.
     Some text   More text   Zounds!
-
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     basicFormatting     : Doc2
     doc.guide           : Doc2
     evaluation          : Doc2
@@ -218,11 +215,10 @@ scratch/main> add
     nonUnisonCodeBlocks : Doc2
     otherElements       : Doc2
     sqr                 : Nat -> Nat
-
 scratch/main> display doc.guide
 
   # Unison computable documentation
-  
+
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
@@ -245,7 +241,7 @@ scratch/main> display doc.guide
       other documents.
     
       *Next up:* lists
-  
+
     # Lists
     
       # Bulleted lists
@@ -282,7 +278,7 @@ scratch/main> display doc.guide
            * In this nested list.
         2. Take shower.
         3. Get dressed.
-  
+
     # Evaluation
     
       Expressions can be evaluated inline, for instance `2`.
@@ -308,7 +304,7 @@ scratch/main> display doc.guide
           use Nat *
           cube : Nat -> Nat
           cube x = x * x * x
-  
+
     # Including Unison source code
     
       Unison definitions can be included in docs. For instance:
@@ -352,7 +348,7 @@ scratch/main> display doc.guide
         * If your snippet expression is just a single function
           application, you can put it in double backticks, like
           so: `sqr x`. This is equivalent to `sqr x`.
-  
+
     # Non-Unison code blocks
     
       Use three or more single quotes to start a block with no
@@ -379,7 +375,7 @@ scratch/main> display doc.guide
       def reverse[A](xs: List[A]) = 
         xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
-  
+
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
     `{{ }}` syntax to call these functions directly.
@@ -416,7 +412,6 @@ scratch/main> display doc.guide
                             row occupies multiple lines in the
                             rendered table.
     Some text   More text   Zounds!
-
 ````
 
 But we can't display this due to a decompilation problem.
@@ -426,23 +421,23 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       rendered : Annotated () (Either SpecialForm ConsoleText)
-
 ```
 
 ```` ucm
 scratch/main> display rendered
 
   # Unison computable documentation
-  
+
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
@@ -465,7 +460,7 @@ scratch/main> display rendered
       other documents.
     
       *Next up:* lists
-  
+
     # Lists
     
       # Bulleted lists
@@ -502,7 +497,7 @@ scratch/main> display rendered
            * In this nested list.
         2. Take shower.
         3. Get dressed.
-  
+
     # Evaluation
     
       Expressions can be evaluated inline, for instance `2`.
@@ -528,7 +523,7 @@ scratch/main> display rendered
           use Nat *
           cube : Nat -> Nat
           cube x = x * x * x
-  
+
     # Including Unison source code
     
       Unison definitions can be included in docs. For instance:
@@ -572,7 +567,7 @@ scratch/main> display rendered
         * If your snippet expression is just a single function
           application, you can put it in double backticks, like
           so: `sqr x`. This is equivalent to `sqr x`.
-  
+
     # Non-Unison code blocks
     
       Use three or more single quotes to start a block with no
@@ -599,7 +594,7 @@ scratch/main> display rendered
       def reverse[A](xs: List[A]) = 
         xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
-  
+
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
     `{{ }}` syntax to call these functions directly.
@@ -636,17 +631,15 @@ scratch/main> display rendered
                             row occupies multiple lines in the
                             rendered table.
     Some text   More text   Zounds!
-
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    rendered : Annotated () (Either SpecialForm ConsoleText)
 
+    rendered : Annotated () (Either SpecialForm ConsoleText)
 scratch/main> display rendered
 
   # Unison computable documentation
-  
+
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
@@ -669,7 +662,7 @@ scratch/main> display rendered
       other documents.
     
       *Next up:* lists
-  
+
     # Lists
     
       # Bulleted lists
@@ -706,7 +699,7 @@ scratch/main> display rendered
            * In this nested list.
         2. Take shower.
         3. Get dressed.
-  
+
     # Evaluation
     
       Expressions can be evaluated inline, for instance `2`.
@@ -732,7 +725,7 @@ scratch/main> display rendered
           use Nat *
           cube : Nat -> Nat
           cube x = x * x * x
-  
+
     # Including Unison source code
     
       Unison definitions can be included in docs. For instance:
@@ -776,7 +769,7 @@ scratch/main> display rendered
         * If your snippet expression is just a single function
           application, you can put it in double backticks, like
           so: `sqr x`. This is equivalent to `sqr x`.
-  
+
     # Non-Unison code blocks
     
       Use three or more single quotes to start a block with no
@@ -803,7 +796,7 @@ scratch/main> display rendered
       def reverse[A](xs: List[A]) = 
         xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
-  
+
     There are also asides, callouts, tables, tooltips, and more.
     These don't currently have special syntax; just use the
     `{{ }}` syntax to call these functions directly.
@@ -840,15 +833,13 @@ scratch/main> display rendered
                             row occupies multiple lines in the
                             rendered table.
     Some text   More text   Zounds!
-
 scratch/main> undo
 
   Here are the changes I undid
-  
-  Added definitions:
-  
-    1. rendered : Annotated () (Either SpecialForm ConsoleText)
 
+  Added definitions:
+
+    1. rendered : Annotated () (Either SpecialForm ConsoleText)
 ````
 
 And then this sometimes generates a GHC crash "strange closure error" but doesn't seem deterministic.
@@ -860,16 +851,17 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
 ```` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       rendered : Annotated () (Either SpecialForm ConsoleText)
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -4527,5 +4519,4 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   ]))
                           ]))))
               ])
-
 ````

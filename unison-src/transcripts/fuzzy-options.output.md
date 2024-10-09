@@ -16,7 +16,7 @@ opening an empty fuzzy-select.
 scratch/empty> view
 
   ⚠️
-  
+
   Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
 ```
 
@@ -32,16 +32,14 @@ Definition args
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     nested.optionTwo : ##Nat
     optionOne        : ##Nat
-
 scratch/main> debug.fuzzy-options view _
 
   Select a definition to view:
     * optionOne
     * nested.optionTwo
-
 ```
 
 Namespace args
@@ -51,12 +49,10 @@ scratch/main> add
 
   ⊡ Ignored previously added definitions: nested.optionTwo
     optionOne
-
 scratch/main> debug.fuzzy-options find-in _
 
   Select a namespace:
     * nested
-
 ```
 
 Project Branch args
@@ -65,10 +61,9 @@ Project Branch args
 myproject/main> branch mybranch
 
   Done. I've created the mybranch branch based off of main.
-  
+
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /mybranch`.
-
 scratch/main> debug.fuzzy-options switch _
 
   Select a project or branch to switch to:
@@ -78,5 +73,4 @@ scratch/main> debug.fuzzy-options switch _
     * scratch/main
     * myproject
     * scratch
-
 ```

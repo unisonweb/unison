@@ -4,7 +4,6 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
 scratch/main> builtins.merge builtins
 
   Done.
-
 scratch/main> ls builtins
 
   1.  Any                 (builtin type)
@@ -87,5 +86,4 @@ scratch/main> ls builtins
   78. metadata/           (2 terms)
   79. todo                (a -> b)
   80. unsafe/             (1 term)
-
 ```

@@ -2,7 +2,6 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ``` unison :hide
@@ -12,7 +11,6 @@ b.thing = "b"
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -21,16 +19,14 @@ scratch/main> view thing
 
   a.thing : Text
   a.thing = "a"
-  
+
   b.thing : Text
   b.thing = "b"
-
 -- Should support absolute paths
 scratch/main> view .b.thing
 
   .b.thing : Text
   .b.thing = "b"
-
 ```
 
 TODO: swap this back to a 'ucm' block when view.global is re-implemented

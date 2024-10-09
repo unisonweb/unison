@@ -29,31 +29,30 @@ body k out v =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
       inc   : TVar Nat ->{IO} Nat
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
     count : Nat -> ()
     inc   : TVar Nat ->{IO} Nat
     loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
-
 ```
 
 Test case.
@@ -92,35 +91,34 @@ tests = '(map spawn nats)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]
       spawn   : Nat ->{IO} Result
       tests   : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     display : Nat -> Nat -> Nat -> Text
     nats    : [Nat]
     spawn   : Nat ->{IO} Result
     tests   : '{IO} [Result]
-
 scratch/main> io.test tests
 
     New test results:
-  
+
     1. tests   ◉ verified
                ◉ verified
                ◉ verified
@@ -131,9 +129,8 @@ scratch/main> io.test tests
                ◉ verified
                ◉ verified
                ◉ verified
-  
-  ✅ 10 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 10 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

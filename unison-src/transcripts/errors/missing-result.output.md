@@ -14,10 +14,10 @@ x =
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-  The last element of a block must be an expression, but this is
-  a definition:
-  
-      2 |   y = 24
-  
-  Try adding an expression at the end of the block.
+The last element of a block must be an expression, but this is a
+definition:
+
+    2 |   y = 24
+
+Try adding an expression at the end of the block.
 ```

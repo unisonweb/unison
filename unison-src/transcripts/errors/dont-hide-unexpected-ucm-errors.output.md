@@ -2,9 +2,7 @@ Since this code block is expecting an error, we still hide it. It seems unusual 
 
 ``` ucm :hide:error
 scratch/main> help pull
-
 scratch/main> not.a.command
-
 ```
 
 For comparison, here’s what we get without `:hide`.
@@ -15,7 +13,7 @@ scratch/main> help pull
   pull
   The `pull` command merges a remote namespace into a local
   branch
-  
+
   `pull @unison/base/main`                merges the branch
                                           `main` of the Unison
                                           Share hosted project
@@ -28,13 +26,12 @@ scratch/main> help pull
                                           the branch `topic` of
                                           the local `my-base`
                                           project
-  
+
   where `remote` is a project or project branch, such as:
     Project (defaults to the /main branch) `@unison/base`
     Project Branch                         `@unison/base/feature`
     Contributor Branch                     `@unison/base/@johnsmith/feature`
     Project Release                        `@unison/base/releases/1.0.0`
-
 scratch/main> not.a.command
 
   ⚠️

@@ -190,12 +190,16 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       outputEcho = output' True
 
       outputUcmLine :: UcmLine -> IO ()
-      outputUcmLine line = modifyIORef' ucmOutput (<> pure (Transcript.formatUcmLine line))
+      outputUcmLine line = modifyIORef' ucmOutput (<> pure line)
 
-      outputUcmResult :: String -> IO ()
+      outputUcmResult :: Pretty.Pretty Pretty.ColorText -> IO ()
       outputUcmResult line = do
         hide <- readIORef isHidden
-        unless (hideOutput False hide) $ modifyIORef' ucmOutput (<> pure (Text.pack line))
+        unless (hideOutput False hide) $
+          -- We shorten the terminal width, because "Transcript" manages a 2-space indent for output lines.
+          modifyIORef'
+            ucmOutput
+            (<> pure (UcmOutputLine . Text.pack $ Pretty.toPlain (terminalWidth - 2) $ "\n" <> line))
 
       maybeDieWithMsg :: String -> IO ()
       maybeDieWithMsg msg = do
@@ -204,12 +208,13 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           then writeIORef hasErrors True
           else dieWithMsg msg
 
-      apiRequest :: APIRequest -> IO [Text]
+      apiRequest :: APIRequest -> IO [APIRequest]
       apiRequest req = do
         hide <- readIORef isHidden
-        let input = Transcript.formatAPIRequest req
         case req of
-          APIComment {} -> pure $ pure input
+          -- We just discard this, because the runner will produce new output lines.
+          APIResponseLine {} -> pure []
+          APIComment {} -> pure $ pure req
           GetRequest path ->
             either
               (([] <$) . maybeDieWithMsg . show)
@@ -218,10 +223,10 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                   ( \(v :: Aeson.Value) ->
                       pure $
                         if hide == HideOutput
-                          then [input]
+                          then [req]
                           else
-                            [ input,
-                              Text.pack . BL.unpack $
+                            [ req,
+                              APIResponseLine . Text.pack . BL.unpack $
                                 Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
                             ]
                   )
@@ -237,12 +242,8 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         liftIO $ do
           tags <- readIORef currentTags
           ucmOut <- readIORef ucmOutput
-          unless (null ucmOut && tags == Nothing)
-            . outputEcho
-            . Left
-            . Transcript.processedBlockToNode' (\() -> "") "ucm" (fromMaybe defaultInfoTags' {generated = True} tags)
-            $ Text.unlines ucmOut
-
+          unless (null ucmOut && tags == Nothing) . outputEcho . pure $
+            Ucm (fromMaybe defaultInfoTags' {generated = True} tags) ucmOut
           writeIORef ucmOutput []
           dieUnexpectedSuccess
         atomically $ void $ do
@@ -255,6 +256,8 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
 
       processUcmLine p =
         case p of
+          -- We just discard this, because the runner will produce new output lines.
+          UcmOutputLine {} -> Cli.returnEarlyWithoutOutput
           UcmComment {} -> do
             liftIO $ outputUcmLine p
             Cli.returnEarlyWithoutOutput
@@ -306,7 +309,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                             liftIO $ writeIORef hasErrors True
                             liftIO (readIORef allowErrors) >>= \case
                               True -> do
-                                liftIO . outputUcmResult . Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg
+                                liftIO $ outputUcmResult msg
                                 Cli.returnEarlyWithoutOutput
                               False -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
                         )
@@ -329,8 +332,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           liftIO do
             writeIORef isHidden $ hidden infoTags
             writeIORef allowErrors $ expectingError infoTags
-            outputEcho . Left . Transcript.processedBlockToNode' (\() -> "") "api" infoTags . Text.unlines . fold
-              =<< traverse apiRequest apiRequests
+            outputEcho . pure . API infoTags . fold =<< traverse apiRequest apiRequests
           Cli.returnEarlyWithoutOutput
         Ucm infoTags cmds -> do
           liftIO do
@@ -405,23 +407,21 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
-        let rendered = Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg <> "\n"
-        outputUcmResult rendered
+        outputUcmResult msg
         when (Output.isFailure o) $
           if errOk
             then writeIORef hasErrors True
-            else dieWithMsg rendered
+            else dieWithMsg $ Pretty.toPlain terminalWidth msg
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
         errOk <- readIORef allowErrors
-        let rendered = Pretty.toPlain terminalWidth $ Pretty.indentN 2 msg <> "\n"
-        outputUcmResult rendered
+        outputUcmResult msg
         when (Output.isNumberedFailure o) $
           if errOk
             then writeIORef hasErrors True
-            else dieWithMsg rendered
+            else dieWithMsg $ Pretty.toPlain terminalWidth msg
         pure numberedArgs
 
       -- Looks at the current stanza and decides if it is contained in the

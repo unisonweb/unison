@@ -6,7 +6,6 @@ and surface a helpful message.
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ``` unison :hide:all
@@ -20,11 +19,11 @@ a =
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
-  The last element of a block must be an expression, but this is
-  a definition:
-  
-      3 |   b = 24
-  
-  Try adding an expression at the end of the block.
-  It should be of type Nat.
+The last element of a block must be an expression, but this is a
+definition:
+
+    3 |   b = 24
+
+Try adding an expression at the end of the block.
+It should be of type Nat.
 ```

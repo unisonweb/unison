@@ -2,11 +2,8 @@ This transcript does some testing of higher-rank types. Regression tests related
 
 ``` ucm :hide
 scratch/main> alias.type ##Nat Nat
-
 scratch/main> alias.type ##Text Text
-
 scratch/main> alias.type ##IO IO
-
 ```
 
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:
@@ -19,23 +16,23 @@ f id = (id 1, id "hi")
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
     4 | > f (x -> x)
           ⧩
           (1, "hi")
-
 ```
 
 Another example, involving abilities. Here the ability-polymorphic function is instantiated with two different ability lists, `{}` and `{IO}`:
@@ -48,16 +45,16 @@ f id _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
-
 ```
 
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
@@ -76,19 +73,19 @@ Functor.blah = cases Functor f ->
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Functor f
       Functor.blah : Functor f -> ()
       Functor.map  : Functor f
                      -> (∀ a b. (a -> b) -> f a -> f b)
-
 ```
 
 This example is similar, but involves abilities:
@@ -120,12 +117,13 @@ Loc.transform2 nt = cases Loc f ->
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Loc
@@ -137,7 +135,6 @@ Loc.transform2 nt = cases Loc f ->
       Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
                        -> Loc
                        -> Loc
-
 ```
 
 ## Types with polymorphic fields
@@ -152,11 +149,9 @@ We should be able to add and view records with higher-rank fields.
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    structural type HigherRanked
 
+    structural type HigherRanked
 scratch/main> view HigherRanked
 
   structural type HigherRanked = HigherRanked (∀ a. a -> a)
-
 ```

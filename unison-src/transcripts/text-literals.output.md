@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 This transcript shows some syntax for raw text literals.
@@ -37,17 +36,18 @@ lit2 = """"
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       lit1 : Text
       lit2 : Text
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
@@ -66,12 +66,12 @@ lit2 = """"
            Use an extra blank line if you'd like a trailing newline. Like so:
            
            """
-  
+
     16 | > Some lit1
            ⧩
            Some
              "This is a raw text literal.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThe initial newline, if it exists, is ignored.\nThe last line, if it's just whitespace up to the closing quotes,\nis ignored.\n\nUse an extra blank line if you'd like a trailing newline. Like so:\n"
-  
+
     27 | > lit2
            ⧩
            """"
@@ -82,22 +82,20 @@ lit2 = """"
            
            This doesn't terminate the literal - """
            """"
-  
+
     28 | > Some lit2
            ⧩
            Some
              "This is a raw text literal, indented.\nIt can start with 3 or more \",\nand is terminated by the same number of quotes.\nNothing is escaped. \\n\n\nThis doesn't terminate the literal - \"\"\""
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     lit1 : Text
     lit2 : Text
-
 scratch/main> view lit1 lit2
 
   lit1 : Text
@@ -115,7 +113,7 @@ scratch/main> view lit1 lit2
     Use an extra blank line if you'd like a trailing newline. Like so:
     
     """
-  
+
   lit2 : Text
   lit2 =
     """"
@@ -126,5 +124,4 @@ scratch/main> view lit1 lit2
     
     This doesn't terminate the literal - """
     """"
-
 ```

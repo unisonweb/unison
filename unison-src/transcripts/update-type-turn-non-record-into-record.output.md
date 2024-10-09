@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
-
 ```
 
 ``` unison
@@ -8,25 +7,24 @@ unique type Foo = Nat
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    type Foo
 
+    type Foo
 ```
 
 ``` unison
@@ -34,12 +32,13 @@ unique type Foo = { bar : Nat }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       Foo.bar        : Foo -> Nat
@@ -50,7 +49,6 @@ unique type Foo = { bar : Nat }
       new definition:
     
       type Foo
-
 ```
 
 ``` ucm
@@ -60,11 +58,9 @@ scratch/main> update
   updated...
 
   Done.
-
 scratch/main> view Foo
 
   type Foo = { bar : Nat }
-
 scratch/main> find.verbose
 
   1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
@@ -82,6 +78,4 @@ scratch/main> find.verbose
   5. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60#0
      Foo.Foo : Nat -> Foo
      
-  
-
 ```

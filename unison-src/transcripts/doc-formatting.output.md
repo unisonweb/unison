@@ -4,7 +4,6 @@ Docs can be used as inline code comments.
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ``` unison
@@ -15,21 +14,20 @@ foo n =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       foo : Nat -> Nat
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -40,7 +38,6 @@ scratch/main> view foo
     use Nat +
     _ = [: do the thing :]
     n + 1
-
 ```
 
 Note that `@` and `:]` must be escaped within docs.
@@ -50,21 +47,20 @@ escaping = [: Docs look [: like \@this \:] :]
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       escaping : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -72,7 +68,6 @@ scratch/main> view escaping
 
   escaping : Doc
   escaping = [: Docs look [: like \@this \:] :]
-
 ```
 
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
@@ -88,21 +83,20 @@ commented = [:
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       commented : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -114,7 +108,6 @@ scratch/main> view commented
     
     -- a comment f x = x + 1
      :]
-
 ```
 
 ### Indenting, and paragraph reflow
@@ -129,21 +122,20 @@ doc1 = [:   hi   :]
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc1 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -151,7 +143,6 @@ scratch/main> view doc1
 
   doc1 : Doc
   doc1 = [: hi :]
-
 ```
 
 ``` unison
@@ -167,21 +158,20 @@ doc2 = [: hello
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc2 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -193,7 +183,6 @@ scratch/main> view doc2
       - foo
       - bar
     and the rest. :]
-
 ```
 
 ``` unison
@@ -212,21 +201,20 @@ Note that because of the special treatment of the first line mentioned above, wh
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc3 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -253,7 +241,6 @@ scratch/main> view doc3
     mentioned above, where its leading space is removed, it is 
     always treated as a paragraph.
     :]
-
 ```
 
 ``` unison
@@ -265,21 +252,20 @@ doc4 = [: Here's another example of some paragraphs.
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc4 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -292,7 +278,6 @@ scratch/main> view doc4
     All these lines have zero indent.
     
       - Apart from this one. :]
-
 ```
 
 ``` unison
@@ -306,21 +291,20 @@ doc5 = [:   - foo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc5 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -331,7 +315,6 @@ scratch/main> view doc5
     [: - foo
       - bar
     and the rest. :]
-
 ```
 
 ``` unison
@@ -344,21 +327,20 @@ doc6 = [:
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       doc6 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -370,7 +352,6 @@ scratch/main> view doc6
       - bar
     and the rest.
      :]
-
 ```
 
 ### More testing
@@ -383,22 +364,21 @@ expr = foo 1
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       empty : Doc
       expr  : Nat
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -406,7 +386,6 @@ scratch/main> view empty
 
   empty : Doc
   empty = [:  :]
-
 ```
 
 ``` unison
@@ -450,21 +429,20 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test1 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -528,7 +506,6 @@ scratch/main> view test1
       @[signature] List.take
     
     :]
-
 ```
 
 ``` unison
@@ -538,21 +515,20 @@ reg1363 = [: `@List.take foo` bar
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       reg1363 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` ucm
@@ -560,7 +536,6 @@ scratch/main> view reg1363
 
   reg1363 : Doc
   reg1363 = [: `@List.take foo` bar baz :]
-
 ```
 
 ``` unison
@@ -574,21 +549,20 @@ test2 = [:
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test2 : Doc
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 View is fine.
@@ -601,7 +575,6 @@ scratch/main> view test2
     [: Take a look at this:
     @[source] foo    ▶    bar
      :]
-
 ```
 
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
@@ -615,6 +588,4 @@ scratch/main> display test2
     use Nat +
     _ = [: do the thing :]
     n + 1    ▶    bar
-  
-
 ```

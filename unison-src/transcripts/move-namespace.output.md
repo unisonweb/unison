@@ -12,50 +12,43 @@ foo = 1
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    foo : ##Nat
 
+    foo : ##Nat
 -- Should request confirmation
 scratch/main> move.namespace . .root.at.path
 
   ⚠️
-  
+
   Moves which affect the root branch cannot be undone, are you sure?
   Re-run the same command to proceed.
-
 scratch/main> move.namespace . .root.at.path
 
   Done.
-
 scratch/main> ls
 
   1. root/ (1 term)
-
 scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #g97lh1m2v7 (start of history)
 
+
+
+  □ 1. #g97lh1m2v7 (start of history)
 ```
 
 ``` ucm
 scratch/main> ls .root.at.path
 
   1. foo (##Nat)
-
 scratch/main> history .root.at.path
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #08a6hgi6s4 (start of history)
 
+
+
+  □ 1. #08a6hgi6s4 (start of history)
 ```
 
 I should be able to move a sub namespace *over* the root.
@@ -65,27 +58,23 @@ I should be able to move a sub namespace *over* the root.
 scratch/main> move.namespace .root.at.path .
 
   ⚠️
-  
+
   Moves which affect the root branch cannot be undone, are you sure?
   Re-run the same command to proceed.
-
 scratch/main> move.namespace .root.at.path .
 
   Done.
-
 scratch/main> ls
 
   1. foo (##Nat)
-
 scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #08a6hgi6s4 (start of history)
 
+
+
+  □ 1. #08a6hgi6s4 (start of history)
 ```
 
 ``` ucm :error
@@ -93,21 +82,18 @@ scratch/main> history
 scratch/main> ls .root.at.path
 
   nothing to show
-
 scratch/main> history .root.at.path
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #sg60bvjo91 (start of history)
 
+
+
+  □ 1. #sg60bvjo91 (start of history)
 ```
 
 ``` ucm :hide
 scratch/happy> builtins.merge lib.builtins
-
 ```
 
 ## Happy path
@@ -120,27 +106,26 @@ unique type a.T = T
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type a.T
       a.termInA : Nat
-
 ```
 
 ``` ucm
 scratch/happy> add
 
   ⍟ I've added these definitions:
-  
+
     type a.T
     a.termInA : Nat
-
 ```
 
 ``` unison
@@ -149,18 +134,18 @@ unique type a.T = T1 | T2
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       type a.T
       a.termInA : Nat
-
 ```
 
 ``` ucm
@@ -170,7 +155,6 @@ scratch/happy> update
   updated...
 
   Done.
-
 ```
 
 Should be able to move the namespace, including its types, terms, and sub-namespaces.
@@ -179,20 +163,18 @@ Should be able to move the namespace, including its types, terms, and sub-namesp
 scratch/happy> move.namespace a b
 
   Done.
-
 scratch/happy> ls b
 
   1. T       (type)
   2. T/      (2 terms)
   3. termInA (Nat)
-
 scratch/happy> history b
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
+
   ⊙ 1. #rkvfe5p8fu
-  
+
     + Adds / updates:
     
       T T.T1 T.T2 termInA
@@ -200,16 +182,14 @@ scratch/happy> history b
     - Deletes:
     
       T.T
-  
-  □ 2. #avlnmh0erc (start of history)
 
+  □ 2. #avlnmh0erc (start of history)
 ```
 
 ## Namespace history
 
 ``` ucm :hide
 scratch/history> builtins.merge lib.builtins
-
 ```
 
 Create some namespaces and add some history to them
@@ -220,27 +200,26 @@ b.termInB = 10
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       a.termInA : Nat
       b.termInB : Nat
-
 ```
 
 ``` ucm
 scratch/history> add
 
   ⍟ I've added these definitions:
-  
+
     a.termInA : Nat
     b.termInB : Nat
-
 ```
 
 ``` unison
@@ -249,18 +228,18 @@ b.termInB = 11
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       a.termInA : Nat
       b.termInB : Nat
-
 ```
 
 ``` ucm
@@ -270,7 +249,6 @@ scratch/history> update
   updated...
 
   Done.
-
 ```
 
 Deleting a namespace should not leave behind any history,
@@ -281,42 +259,37 @@ of the moved namespace.
 scratch/history> delete.namespace b
 
   Done.
-
 scratch/history> move.namespace a b
 
   Done.
-
 -- Should be the history from 'a'
 scratch/history> history b
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
+
   ⊙ 1. #j0cjjqepb3
-  
+
     + Adds / updates:
     
       termInA
-  
-  □ 2. #m8smmmgjso (start of history)
 
+  □ 2. #m8smmmgjso (start of history)
 -- Should be empty
 scratch/history> history a
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #sg60bvjo91 (start of history)
 
+
+
+  □ 1. #sg60bvjo91 (start of history)
 ```
 
 ## Moving over an existing branch
 
 ``` ucm :hide
 scratch/existing> builtins.merge lib.builtins
-
 ```
 
 Create some namespace and add some history to them
@@ -327,27 +300,26 @@ b.termInB = 10
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       a.termInA : Nat
       b.termInB : Nat
-
 ```
 
 ``` ucm
 scratch/existing> add
 
   ⍟ I've added these definitions:
-  
+
     a.termInA : Nat
     b.termInB : Nat
-
 ```
 
 ``` unison
@@ -356,18 +328,18 @@ b.termInB = 11
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
       a.termInA : Nat
       b.termInB : Nat
-
 ```
 
 ``` ucm
@@ -377,16 +349,14 @@ scratch/existing> update
   updated...
 
   Done.
-
 scratch/existing> move.namespace a b
 
   ⚠️
-  
+
   A branch existed at the destination: b so I over-wrote it.
-  
+
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
   Done.
-
 ```

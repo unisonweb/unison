@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.mergeio
-
 ```
 
 ``` unison :hide
@@ -88,83 +87,80 @@ Table
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ```` ucm
 scratch/main> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
-  
+
   hard line break
-  
+
   Here's a cool **BOLD** _italic_ ~~strikethrough~~ thing with an inline code block `1 + 2`
-  
+
   # Heading
-  
+
   ## Heading 2
-  
+
   Term Link: `otherTerm`
-  
+
   Type Link: `Optional`
-  
+
   Term source:
-  
+
   ```unison
   term : '{g} a -> Doc2.Term
   term a = Term.Term (Any a)
   ```
-  
-  
-  
+
+
+
   Term signature:
-  
+
   ```unison
   term : '{g} a -> Doc2.Term
   ```
-  
-  
-  
+
+
+
   - List item
-  
+
   Inline code:
-  
+
   `1 Nat.+ 2`
-  
+
   ` "doesn't typecheck" + 1 `
-  
+
   [Link](https://unison-lang.org)
-  
+
   ![Image](https://share-next.unison-lang.org/static/unison-logo-circle.png)
-  
+
   Horizontal rule
-  
+
   ---
-  
+
   Video
-  
+
   ![](test.mp4)
-  
+
   Transclusion/evaluation:
-  
+
   yo
-  
-  
-  
+
+
+
   ---
-  
+
   The following markdown features aren't supported by the Doc format yet, but maybe will someday
-  
+
   > Block quote
-  
+
   Table
-  
+
   | Header 1 | Header 2 | | -------- | -------- | | Cell 1 | Cell 2 |
-  
+
   Indented Code block
-  
-  
-  
+
 
 ````
 
@@ -186,12 +182,13 @@ structural type MyStructuralType = MyStructuralType
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural type MyStructuralType
@@ -203,5 +200,4 @@ structural type MyStructuralType = MyStructuralType
       MyUniqueType.doc     : Doc2
       myTerm               : Nat
       myTerm.doc           : Doc2
-
 ```

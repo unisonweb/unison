@@ -1,6 +1,5 @@
 ``` ucm :hide
 project/main> builtins.mergeio lib.builtin
-
 ```
 
 ``` unison
@@ -23,12 +22,13 @@ unique type Foo = { bar : Nat, baz : Nat }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
@@ -46,14 +46,13 @@ unique type Foo = { bar : Nat, baz : Nat }
       simple.x              : Nat
       simple.y              : Nat
       toplevel              : Text
-
 ```
 
 ``` ucm
 project/main> add
 
   ⍟ I've added these definitions:
-  
+
     type Foo
     Foo.bar               : Foo -> Nat
     Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
@@ -69,7 +68,6 @@ project/main> add
     simple.x              : Nat
     simple.y              : Nat
     toplevel              : Text
-
 ```
 
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
@@ -78,12 +76,11 @@ project/main> add
 project/main> edit.namespace
 
   ☝️
-  
+
   I added 8 definitions to the top of scratch.u
-  
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
-
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -121,12 +118,11 @@ toplevel = "hi"
 project/main> edit.namespace nested simple
 
   ☝️
-  
+
   I added 6 definitions to the top of scratch.u
-  
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
-
 ```
 
 ``` unison :added-by-ucm scratch.u

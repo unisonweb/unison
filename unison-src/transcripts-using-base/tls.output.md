@@ -13,7 +13,6 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 # Using an alternative certificate store
@@ -33,40 +32,38 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       this_should_not_work : [Result]
       this_should_work     : [Result]
       what_should_work     : ∀ _. _ -> [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     this_should_not_work : [Result]
     this_should_work     : [Result]
     what_should_work     : ∀ _. _ -> [Result]
-
 scratch/main> io.test what_should_work
 
     New test results:
-  
+
     1. what_should_work   ◉ succesfully decoded self_signed_pem
                           ◉ failed
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 Test handshaking a client/server a local TCP connection using our
@@ -224,12 +221,13 @@ testCNReject _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       serverThread          : MVar Nat -> Text -> '{IO} ()
@@ -240,14 +238,13 @@ testCNReject _ =
                               -> MVar Nat
                               -> '{IO, Exception} Text
       testConnectSelfSigned : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     serverThread          : MVar Nat -> Text -> '{IO} ()
     testCAReject          : '{IO} [Result]
     testCNReject          : '{IO} [Result]
@@ -256,35 +253,31 @@ scratch/main> add
                             -> MVar Nat
                             -> '{IO, Exception} Text
     testConnectSelfSigned : '{IO} [Result]
-
 scratch/main> io.test testConnectSelfSigned
 
     New test results:
-  
-    1. testConnectSelfSigned   ◉ should have reaped what we've sown
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. testConnectSelfSigned   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 scratch/main> io.test testCAReject
 
     New test results:
-  
-    1. testCAReject   ◉ correctly rejected self-signed cert
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. testCAReject   ◉ correctly rejected self-signed cert
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 scratch/main> io.test testCNReject
 
     New test results:
-  
-    1. testCNReject   ◉ correctly rejected self-signed cert
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. testCNReject   ◉ correctly rejected self-signed cert
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

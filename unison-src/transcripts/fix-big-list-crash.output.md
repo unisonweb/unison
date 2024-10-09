@@ -2,7 +2,6 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 Big lists have been observed to crash, while in the garbage collection step.
@@ -14,15 +13,15 @@ x = [(R,1005),(U,563),(R,417),(U,509),(L,237),(U,555),(R,397),(U,414),(L,490),(U
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Direction
       x : [(Direction, Nat)]
-
 ```

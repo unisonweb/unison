@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
-
 ```
 
 ``` unison
@@ -8,12 +7,13 @@ unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
@@ -23,14 +23,13 @@ unique type Foo = { bar : Nat, baz : Int }
       Foo.baz        : Foo -> Int
       Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
       Foo.baz.set    : Int -> Foo -> Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type Foo
     Foo.bar        : Foo -> Nat
     Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
@@ -38,7 +37,6 @@ scratch/main> add
     Foo.baz        : Foo -> Int
     Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
     Foo.baz.set    : Int -> Foo -> Foo
-
 ```
 
 ``` unison
@@ -46,12 +44,13 @@ unique type Foo = { bar : Nat }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
@@ -59,7 +58,6 @@ unique type Foo = { bar : Nat }
       Foo.bar        : Foo -> Nat
       Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
       Foo.bar.set    : Nat -> Foo -> Foo
-
 ```
 
 We want the field accessors to go away; but for now they are here, causing the update to fail.
@@ -75,11 +73,9 @@ scratch/main> update
   Typechecking failed. I've updated your scratch file with the
   definitions that need fixing. Once the file is compiling, try
   `update` again.
-
 scratch/main> view Foo
 
   type Foo = { bar : Nat, baz : Int }
-
 scratch/main> find.verbose
 
   1. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58
@@ -106,8 +102,6 @@ scratch/main> find.verbose
   8. -- #05gh1dur4778dauh9slaofprc5356n47qpove0c1jl0birt2fcu301js8auu5vfr5bjfga9j8ikuk07ll9fu1gj3ehrp3basguhsd58#0
      Foo.Foo : Nat -> Int -> Foo
      
-  
-
 ```
 
 ``` unison :added-by-ucm scratch.u

@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 # Basics
@@ -16,18 +15,18 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         4 | test = cases
         5 |   A -> ()
     
-  
+
   Patterns not matched:
-  
+
     * B
     * C
-
 ```
 
 ``` unison :error
@@ -42,6 +41,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -51,10 +51,9 @@ test = cases
         7 |   (B, Some A) -> ()
         8 |   (B, None) -> ()
     
-  
+
   Patterns not matched:
    * (B, Some B)
-
 ```
 
 ## redundant patterns
@@ -71,12 +70,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         8 |   _ -> ()
     
-
 ```
 
 ``` unison :error
@@ -92,12 +91,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         9 |   (A, Some A) -> ()
     
-
 ```
 
 # Uninhabited patterns
@@ -114,17 +113,17 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type V
       test : Optional (Optional V) -> ()
-
 ```
 
 uninhabited patterns are reported as redundant
@@ -138,12 +137,12 @@ test0 = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
     
-
 ```
 
 ``` unison :error
@@ -157,12 +156,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         7 |   Some _ -> ()
     
-
 ```
 
 # Guards
@@ -176,16 +175,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   () | false -> ()
     
-  
+
   Patterns not matched:
    * ()
-
 ```
 
 ``` unison :error
@@ -197,6 +196,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -205,10 +205,9 @@ test = cases
         4 |   Some x
         5 |     | isEven x -> x
     
-  
+
   Patterns not matched:
    * Some _
-
 ```
 
 ## Complete patterns with guards should be accepted
@@ -223,16 +222,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : Optional Nat -> Nat
-
 ```
 
 # Pattern instantiation depth
@@ -250,6 +249,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -257,10 +257,9 @@ test = cases
         5 |   None -> ()
         6 |   Some None -> ()
     
-  
+
   Patterns not matched:
    * Some (Some _)
-
 ```
 
 ``` unison :error
@@ -274,6 +273,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -282,12 +282,11 @@ test = cases
         6 |   Some None -> ()
         7 |   Some (Some A) -> ()
     
-  
+
   Patterns not matched:
-  
+
     * Some (Some B)
     * Some (Some C)
-
 ```
 
 # Literals
@@ -303,16 +302,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   0 -> ()
     
-  
+
   Patterns not matched:
    * _
-
 ```
 
 Boolean
@@ -324,16 +323,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   true -> ()
     
-  
+
   Patterns not matched:
    * false
-
 ```
 
 ## Exhaustive
@@ -348,16 +347,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : Nat -> ()
-
 ```
 
 Boolean
@@ -370,16 +369,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : Boolean -> ()
-
 ```
 
 # Redundant
@@ -395,12 +394,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         4 |   0 -> ()
     
-
 ```
 
 Boolean
@@ -414,12 +413,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ -> ()
     
-
 ```
 
 # Sequences
@@ -434,16 +433,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : [()] -> ()
-
 ```
 
 ## Non-exhaustive
@@ -455,16 +454,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   [] -> ()
     
-  
+
   Patterns not matched:
    * (() +: _)
-
 ```
 
 ``` unison :error
@@ -474,16 +473,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   x +: xs -> ()
     
-  
+
   Patterns not matched:
    * []
-
 ```
 
 ``` unison :error
@@ -493,16 +492,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         2 | test = cases
         3 |   xs :+ x -> ()
     
-  
+
   Patterns not matched:
    * []
-
 ```
 
 ``` unison :error
@@ -513,6 +512,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -520,10 +520,9 @@ test = cases
         3 |   x0 +: (x1 +: xs) -> ()
         4 |   [] -> ()
     
-  
+
   Patterns not matched:
    * (() +: [])
-
 ```
 
 ``` unison :error
@@ -534,6 +533,7 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -541,10 +541,9 @@ test = cases
         3 |   [] -> ()
         4 |   x0 +: [] -> ()
     
-  
+
   Patterns not matched:
    * (() +: (() +: _))
-
 ```
 
 ## Uninhabited
@@ -560,17 +559,17 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type V
       test : [V] -> ()
-
 ```
 
 ## Length restrictions can equate cons and nil patterns
@@ -592,16 +591,16 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : [Boolean] -> ()
-
 ```
 
 This is the same idea as above but shows that fourth match is redundant.
@@ -617,12 +616,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         6 |   true +: xs -> ()
     
-
 ```
 
 This is another similar example. The first pattern matches lists of
@@ -642,12 +641,12 @@ test = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         5 |   _ ++ [true, false, true, false] -> ()
     
-
 ```
 
 # bugfix: Sufficient data decl map
@@ -661,27 +660,26 @@ unit2t = cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type T
       unit2t : 'T
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type T
     unit2t : 'T
-
 ```
 
 Pattern coverage checking needs the data decl map to contain all
@@ -699,16 +697,16 @@ witht = match unit2t () with
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       witht : ()
-
 ```
 
 ``` unison
@@ -719,27 +717,26 @@ evil = bug ""
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type V
       evil : 'V
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type V
     evil : 'V
-
 ```
 
 ``` unison :error
@@ -749,12 +746,12 @@ withV = match evil () with
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
         3 |   x -> ()
     
-
 ```
 
 ``` unison
@@ -762,25 +759,24 @@ unique type SomeType = A
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type SomeType
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    type SomeType
 
+    type SomeType
 ```
 
 ``` unison
@@ -791,17 +787,17 @@ get x = match x with
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type R
       get : R -> SomeType
-
 ```
 
 ``` unison
@@ -809,19 +805,19 @@ unique type R = { someType : SomeType }
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type R
       R.someType        : R -> SomeType
       R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
       R.someType.set    : SomeType -> R -> R
-
 ```
 
 # Ability handlers
@@ -840,17 +836,17 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort
       result : '{e, Abort} a ->{e} a
-
 ```
 
 ``` unison
@@ -867,12 +863,13 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort
@@ -882,7 +879,6 @@ result f = handle !f with cases
       new definition:
     
       type T
-
 ```
 
 ``` unison
@@ -898,17 +894,17 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort
       result : '{e, Abort} V ->{e} V
-
 ```
 
 ``` unison
@@ -928,18 +924,18 @@ handleMulti c =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort
       structural ability Stream a
       handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
-
 ```
 
 ## Non-exhaustive ability handlers are rejected
@@ -956,18 +952,18 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         7 | result f = handle !f with cases
         8 |        { abort -> _ } -> bug "aborted"
     
-  
+
   Patterns not matched:
-  
+
     * { _ }
     * { abortWithMessage _ -> _ }
-
 ```
 
 ``` unison :error
@@ -983,6 +979,7 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -990,10 +987,9 @@ result f = handle !f with cases
         8 |        { T.A } -> ()
         9 |        { abort -> _ } -> bug "aborted"
     
-  
+
   Patterns not matched:
    * { B }
-
 ```
 
 ``` unison :error
@@ -1009,6 +1005,7 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1016,10 +1013,9 @@ result f = handle !f with cases
         8 |        { x } -> x
         9 |        { give T.A -> resume } -> result resume
     
-  
+
   Patterns not matched:
    * { give B -> _ }
-
 ```
 
 ``` unison :error
@@ -1039,6 +1035,7 @@ handleMulti c =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1046,10 +1043,9 @@ handleMulti c =
        11 |     { r } -> (Some r, xs)
        12 |     { emit x -> resume } -> handle !resume with impl (xs :+ x)
     
-  
+
   Patterns not matched:
    * { abort -> _ }
-
 ```
 
 ## Redundant handler cases are rejected
@@ -1068,12 +1064,12 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
        10 |        { give T.A -> resume } -> result resume
     
-
 ```
 
 ## Exhaustive ability reinterpretations are accepted
@@ -1092,17 +1088,17 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort
       result : '{e, Abort} a ->{e, Abort} a
-
 ```
 
 ``` unison
@@ -1120,17 +1116,17 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Abort a
       result : '{e, Abort V} a ->{e, Abort V} a
-
 ```
 
 ## Non-exhaustive ability reinterpretations are rejected
@@ -1148,6 +1144,7 @@ result f = handle !f with cases
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
@@ -1155,10 +1152,9 @@ result f = handle !f with cases
         8 |        { x } -> x
         9 |        { abortWithMessage msg -> _ } -> abortWithMessage ("aborting: " ++ msg)
     
-  
+
   Patterns not matched:
    * { abort -> _ }
-
 ```
 
 ## Hacky workaround for uninhabited abilities
@@ -1188,18 +1184,18 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Pattern match doesn't cover all possible cases:
         8 |   impl = cases
         9 |        { x } -> x
     
-  
+
   Patterns not matched:
-  
+
     * { give _ -> _ }
     * { give2 _ -> _ }
-
 ```
 
 ``` unison
@@ -1217,17 +1213,17 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ability Give a
       result : '{e, Give V} r ->{e} r
-
 ```
 
 ``` unison
@@ -1245,17 +1241,17 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ability Give a
       result : '{e, Give V} r ->{e} r
-
 ```
 
 ``` unison :error
@@ -1274,12 +1270,12 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
        11 |        { give2 _ -> resume } -> bug "impossible"
     
-
 ```
 
 ``` unison :error
@@ -1304,12 +1300,12 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   This case would be ignored because it's already covered by the preceding case(s):
        15 |        { giveA2 _ -> _ } -> bug "impossible"
     
-
 ```
 
 ``` unison
@@ -1332,16 +1328,16 @@ result f =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       ability GiveA a
       ability GiveB a
       result : '{e, GiveA V, GiveB V} r ->{e} r
-
 ```

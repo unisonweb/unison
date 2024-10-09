@@ -34,6 +34,7 @@ data UcmLine
   = UcmCommand UcmContext Text
   | -- | Text does not include the '--' prefix.
     UcmComment Text
+  | UcmOutputLine Text
   deriving (Eq, Show)
 
 -- | Where a command is run: a project branch (myproject/mybranch>).
@@ -44,6 +45,7 @@ data UcmContext
 data APIRequest
   = GetRequest Text
   | APIComment Text
+  | APIResponseLine Text
   deriving (Eq, Show)
 
 pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node

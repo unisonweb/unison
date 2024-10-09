@@ -2,7 +2,6 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 `todo` and `bug` have type `a -> b`. They take a message or a value of type `a` and crash during runtime displaying `a` in ucm.
@@ -12,26 +11,26 @@ scratch/main> builtins.merge
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   ✅
-  
+
   scratch.u changed.
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
   💔💥
-  
+
   I've encountered a call to builtin.todo with the following
   value:
-  
+
     "implement me later"
-  
+
   Stack trace:
     todo
     #qe5e1lcfn8
-
 ```
 
 ``` unison :error
@@ -39,26 +38,26 @@ scratch/main> builtins.merge
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   ✅
-  
+
   scratch.u changed.
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
   💔💥
-  
+
   I've encountered a call to builtin.bug with the following
   value:
-  
+
     "there's a bug in my code"
-  
+
   Stack trace:
     bug
     #m67hcdcoda
-
 ```
 
 ## Todo
@@ -70,16 +69,16 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       complicatedMathStuff : x -> r
-
 ```
 
 ## Bug
@@ -93,14 +92,14 @@ test = match true with
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test : Text
-
 ```

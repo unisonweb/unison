@@ -2,11 +2,8 @@
 
 ``` ucm :hide
 scratch/main> builtins.mergeio
-
 scratch/main> load unison-src/transcripts-using-base/base.u
-
 scratch/main> add
-
 ```
 
 This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
@@ -92,7 +89,6 @@ test> Int.tests.conversions =
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## `Nat` functions
@@ -168,7 +164,6 @@ test> Nat.tests.conversions =
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## `Boolean` functions
@@ -197,7 +192,6 @@ test> Boolean.tests.notTable =
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## `Text` functions
@@ -296,7 +290,6 @@ test> Text.tests.indexOfEmoji =
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## `Bytes` functions
@@ -361,7 +354,6 @@ test> Bytes.tests.indexOf =
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## `List` comparison
@@ -381,7 +373,6 @@ test> checks [
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 Other list functions
@@ -403,37 +394,36 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       Any.test1 : [Result]
       Any.test2 : [Result]
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
     1 | > [Any "hi", Any (41 + 1)]
           ⧩
           [Any "hi", Any 42]
-  
+
     3 | test> Any.test1 = checks [(Any "hi" == Any "hi")]
     
     ✅ Passed Passed
-  
+
     4 | test> Any.test2 = checks [(not (Any "hi" == Any 42))]
     
     ✅ Passed Passed
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## Sandboxing functions
@@ -460,12 +450,13 @@ openFile]
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       Sandbox.test1          : [Result]
@@ -481,27 +472,25 @@ openFile]
       validateSandboxedSimpl : [Link.Term]
                                -> Value
                                ->{IO} Boolean
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
     ✅ Passed Passed
-  
+
     16 | test> Sandbox.test2 = checks openFiles
     
     ✅ Passed Passed
-  
+
     17 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
     
     ✅ Passed Passed
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ``` unison
@@ -518,35 +507,33 @@ openFilesIO = do
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       openFilesIO : '{IO} [Result]
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    openFilesIO : '{IO} [Result]
 
+    openFilesIO : '{IO} [Result]
 scratch/main> io.test openFilesIO
 
     New test results:
-  
-    1. openFilesIO   ◉ Passed
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+    1. openFilesIO   ◉ Passed
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ## Universal hash functions
@@ -559,32 +546,31 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       Universal.murmurHash.tests : [Result]
-  
+
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
     1 | > Universal.murmurHash 1
           ⧩
           1208954131003843843
-  
+
     2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
     
     ✅ Passed Passed
-
 ```
 
 ``` ucm :hide
 scratch/main> add
-
 ```
 
 ## Run the tests
@@ -595,7 +581,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
 scratch/main> test
 
   Cached test results (`help testcache` to learn more)
-  
+
     1.  Any.test1                           ◉ Passed
     2.  Any.test2                           ◉ Passed
     3.  Boolean.tests.andTable              ◉ Passed
@@ -623,9 +609,8 @@ scratch/main> test
     25. Text.tests.repeat                   ◉ Passed
     26. Text.tests.takeDropAppend           ◉ Passed
     27. Universal.murmurHash.tests          ◉ Passed
-  
-  ✅ 27 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 27 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

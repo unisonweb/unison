@@ -11,10 +11,9 @@ X.foo = "a namespace"
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     X.foo : ##Text
     a     : ##Text
-
 ```
 
 Here is an update which should not affect `X`:
@@ -30,7 +29,6 @@ scratch/main> update
   updated...
 
   Done.
-
 ```
 
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
@@ -40,11 +38,10 @@ scratch/main> history X
 
   Note: The most recent namespace hash is immediately below this
         message.
-  
-  
-  
-  □ 1. #das1se4g2i (start of history)
 
+
+
+  □ 1. #das1se4g2i (start of history)
 ```
 
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
@@ -53,7 +50,6 @@ however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is 
 scratch/main> history #7nl6ppokhg
 
   😶
-  
-  I don't know of a namespace with that hash.
 
+  I don't know of a namespace with that hash.
 ```

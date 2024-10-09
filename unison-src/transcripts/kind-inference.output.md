@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ## A type param cannot have conflicting kind constraints within a single decl
@@ -12,13 +11,13 @@ unique type T a = T a (a Nat)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         1 | unique type T a = T a (a Nat)
     
     a doesn't expect an argument; however, it is applied to Nat.
-
 ```
 
 conflicting constraints on the kind of `a` in a sum
@@ -30,13 +29,13 @@ unique type T a
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
         3 |   | StarStar (a Nat)
     
     a doesn't expect an argument; however, it is applied to Nat.
-
 ```
 
 ## Kinds are inferred by decl component
@@ -50,17 +49,17 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Ping a
       type Pong
-
 ```
 
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
@@ -72,6 +71,7 @@ unique type Pong = Pong (Ping Optional)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -79,7 +79,6 @@ unique type Pong = Pong (Ping Optional)
     
     The arrow type (->) expects arguments of kind Type; however,
     it is applied to a which has kind: Type -> Type.
-
 ```
 
 Successful example between mutually recursive type and ability
@@ -91,17 +90,17 @@ unique ability Pong a where
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Ping a
       ability Pong a
-
 ```
 
 Catch conflict between mutually recursive type and ability
@@ -113,6 +112,7 @@ unique ability Pong a where
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -120,7 +120,6 @@ unique ability Pong a where
     
     Ping expects an argument of kind: Type; however, it is
     applied to Optional which has kind: Type -> Type.
-
 ```
 
 Consistent instantiation of `T`'s `a` parameter in `S`
@@ -132,17 +131,17 @@ unique type S = S (T Nat)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type S
       type T a
-
 ```
 
 Delay kind defaulting until all components are processed. Here `S`
@@ -156,17 +155,17 @@ unique type S = S (T Optional)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type S
       type T a
-
 ```
 
 Catch invalid instantiation of `T`'s `a` parameter in `S`
@@ -178,6 +177,7 @@ unique type S = S (T Optional)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -185,7 +185,6 @@ unique type S = S (T Optional)
     
     T expects an argument of kind: Type; however, it is applied
     to Optional which has kind: Type -> Type.
-
 ```
 
 ## Checking annotations
@@ -198,6 +197,7 @@ test = 0
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -205,7 +205,6 @@ test = 0
     
     Nat doesn't expect an argument; however, it is applied to
     Nat.
-
 ```
 
 Catch kind error in annotation example 2
@@ -216,6 +215,7 @@ test _ = ()
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -223,7 +223,6 @@ test _ = ()
     
     The arrow type (->) expects arguments of kind Type; however,
     it is applied to Optional which has kind: Type -> Type.
-
 ```
 
 Catch kind error in annotation example 3
@@ -236,6 +235,7 @@ test _ = ()
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -243,7 +243,6 @@ test _ = ()
     
     T expects an argument of kind: Type -> Type; however, it is
     applied to Nat which has kind: Type.
-
 ```
 
 Catch kind error in scoped type variable annotation
@@ -260,6 +259,7 @@ test _ =
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -267,7 +267,6 @@ test _ =
     
     Star expects an argument of kind: Type; however, it is
     applied to a which has kind: Type -> Type.
-
 ```
 
 ## Effect/type mismatch
@@ -283,6 +282,7 @@ test _ = ()
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -290,7 +290,6 @@ test _ = ()
     
     The arrow type (->) expects arguments of kind Type; however,
     it is applied to Foo which has kind: Ability.
-
 ```
 
 Types appearing where effects are expected
@@ -301,6 +300,7 @@ test _ = ()
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Kind mismatch arising from
@@ -309,7 +309,6 @@ test _ = ()
     An ability list must consist solely of abilities; however,
     this list contains Nat which has kind Type. Abilities are of
     kind Ability.
-
 ```
 
 ## Cyclic kinds
@@ -319,6 +318,7 @@ unique type T a = T (a a)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -327,7 +327,6 @@ unique type T a = T (a a)
     The above application constrains the kind of a to be
     infinite, generated by the constraint k = k -> Type where k
     is the kind of a.
-
 ```
 
 ``` unison :error
@@ -335,6 +334,7 @@ unique type T a b = T (a b) (b a)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -343,7 +343,6 @@ unique type T a b = T (a b) (b a)
     The above application constrains the kind of b to be
     infinite, generated by the constraint
     k = (k -> Type) -> Type where k is the kind of b.
-
 ```
 
 ``` unison :error
@@ -352,6 +351,7 @@ unique type Pong a = Pong (a Ping)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   Cannot construct infinite kind
@@ -361,5 +361,4 @@ unique type Pong a = Pong (a Ping)
     infinite, generated by the constraint
     k = (((k -> Type) -> Type) -> Type) -> Type where k is the
     kind of a.
-
 ```

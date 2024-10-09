@@ -8,7 +8,6 @@ This transcript tests the errors printed to the user when a name cannot be resol
 scratch/main> builtins.merge lib.builtins
 
   Done.
-
 ```
 
 First we define differing types with the same name in different namespaces:
@@ -22,31 +21,30 @@ two.ambiguousTerm = "term two"
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type one.AmbiguousType
       type two.AmbiguousType
       one.ambiguousTerm : Text
       two.ambiguousTerm : Text
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type one.AmbiguousType
     type two.AmbiguousType
     one.ambiguousTerm : Text
     two.ambiguousTerm : Text
-
 ```
 
 ## Tests
@@ -74,9 +72,10 @@ separateAmbiguousTypeUsage _ = ()
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
-  
+
     ❓
     
     I couldn't resolve any of these symbols:
@@ -97,8 +96,6 @@ separateAmbiguousTypeUsage _ = ()
                     two.AmbiguousType
                     
     UnknownType     No matches
-  
-
 ```
 
 Currently, ambiguous terms are caught and handled by type directed name resolution,
@@ -109,19 +106,19 @@ useAmbiguousTerm = ambiguousTerm
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I couldn't figure out what ambiguousTerm refers to here:
-  
+
       1 | useAmbiguousTerm = ambiguousTerm
-  
+
   The name ambiguousTerm is ambiguous. I couldn't narrow it down
   by type, as any type would work here.
-  
+
   I found some terms in scope that have matching names and
   types. Maybe you meant one of these:
-  
+
   one.ambiguousTerm : Text
   two.ambiguousTerm : Text
-
 ```

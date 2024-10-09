@@ -8,11 +8,6 @@ and surface a helpful message.
 
 ``` ucm :hide:error
 scratch/main> history
-
-```
-
-``` ucm :hide:error
-scratch/main> history
 ```
 
 🛑

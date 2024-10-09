@@ -2,7 +2,6 @@
 
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
@@ -31,16 +30,16 @@ x = 42
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in myfile.u.
 
   I found and typechecked these definitions in myfile.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       x : Nat
-
 ```
 
 Let's go ahead and add that to the codebase, then make sure it's there:
@@ -49,14 +48,12 @@ Let's go ahead and add that to the codebase, then make sure it's there:
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    x : Nat
 
+    x : Nat
 scratch/main> view x
 
   x : Nat
   x = 42
-
 ```
 
 If `view` returned no results, the transcript would fail at this point.
@@ -73,7 +70,6 @@ This works for `ucm` blocks as well.
 
 ``` ucm :hide
 scratch/main> rename.term x answerToUltimateQuestionOfLife
-
 ```
 
 Doing `unison :hide:all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.
@@ -88,17 +84,16 @@ hmm = "Not, in fact, a number"
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found a value  of type:  Text
   where I expected to find:  Nat
-  
+
       1 | hmm : .builtin.Nat
       2 | hmm = "Not, in fact, a number"
-  
-    from right here:
-  
-      2 | hmm = "Not, in fact, a number"
-  
 
+    from right here:
+
+      2 | hmm = "Not, in fact, a number"
 ```

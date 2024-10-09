@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge
-
 ```
 
 ### `debug.file`
@@ -32,7 +31,6 @@ scratch/main> debug.file
   inside.r#nkgohbke6n
   outside.c#f3lgjvjqoo
   outside.d#ukd7tu6kds
-
 ```
 
 This will help me make progress in some situations when UCM is being deficient or broken.
@@ -45,7 +43,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural type inside.M
     structural type outside.A
     structural type outside.B
@@ -54,70 +52,64 @@ scratch/main> add
     inside.r  : Boolean
     outside.c : Nat
     outside.d : Boolean
-
 scratch/main> dependents q
 
   q has no dependents.
-
 scratch/main> dependencies q
 
   Dependencies of: q
-  
+
     Types:
-  
+
     1. Nat
-  
+
     Terms:
-  
+
     2. Nat.*
     3. Nat.+
     4. p
-  
+
   Tip: Try `view 4` to see the source of any numbered item in
        the above list.
-
 scratch/main> dependencies B
 
   Dependencies of: type B, B
-  
+
     Types:
-  
+
     1. B
     2. Int
-  
+
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
-
 scratch/main> dependencies d
 
   Dependencies of: d
-  
+
     Types:
-  
+
     1. Boolean
     2. Nat
-  
+
     Terms:
-  
+
     3. <
     4. c
     5. Nat.+
     6. p
-  
+
   Tip: Try `view 6` to see the source of any numbered item in
        the above list.
-
 scratch/main> dependents d
 
   Dependents of: d
-  
+
     Terms:
-  
+
     1. r
-  
+
   Tip: Try `view 1` to see the source of any numbered item in
        the above list.
-
 ```
 
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

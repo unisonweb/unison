@@ -16,12 +16,13 @@ mkTestCase = do
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       combines   : ([Float], [Int], [Char]) -> Text
@@ -29,22 +30,19 @@ mkTestCase = do
       l2         : [Int]
       l3         : [Char]
       mkTestCase : '{IO, Exception} ()
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     combines   : ([Float], [Int], [Char]) -> Text
     l1         : [Float]
     l2         : [Int]
     l3         : [Char]
     mkTestCase : '{IO, Exception} ()
-
 scratch/main> run mkTestCase
 
   ()
-
 ```

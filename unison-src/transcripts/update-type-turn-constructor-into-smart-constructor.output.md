@@ -1,6 +1,5 @@
 ``` ucm :hide
 scratch/main> builtins.merge lib.builtin
-
 ```
 
 ``` unison
@@ -11,27 +10,26 @@ makeFoo n = Bar (n+10)
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       type Foo
       makeFoo : Nat -> Foo
-
 ```
 
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     type Foo
     makeFoo : Nat -> Foo
-
 ```
 
 ``` unison
@@ -42,18 +40,18 @@ Foo.Bar n = internal.Bar n
 ```
 
 ``` ucm :added-by-ucm
+
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⊡ Previously added definitions will be ignored: Foo
     
     ⍟ These new definitions are ok to `add`:
     
       Foo.Bar : Nat -> Foo
-
 ```
 
 ``` ucm
@@ -67,11 +65,9 @@ scratch/main> update
   Everything typechecks, so I'm saving the results...
 
   Done.
-
 scratch/main> view Foo
 
   type Foo = internal.Bar Nat
-
 scratch/main> find.verbose
 
   1. -- #b509v3eg4kehsg29g6pvrogeb71ue32nm2fj9284n4i7lprsr7u9a7g6s695d09du0fsfti6rrsk1s62q5thpr1jjkqb3us3s0lrd60
@@ -86,6 +82,4 @@ scratch/main> find.verbose
   4. -- #204frdcl0iid1ujkkfbkc6b3v7cgqp56h1q3duc46i5md6qb4m6am1fqbceb335u87l05gkdnaa7fjn4alj1diukgme63e41lh072l8
      makeFoo : Nat -> Foo
      
-  
-
 ```
