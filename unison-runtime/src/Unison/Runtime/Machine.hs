@@ -434,13 +434,13 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 DBTX i)
       stk <- case tracer env False clo of
         NoTrace -> stk <$ upoke stk 0
         MsgTrace _ _ tx -> do
-          upoke stk 1
+          pokeBi stk (Util.Text.pack tx)
           stk <- bump stk
-          stk <$ pokeBi stk (Util.Text.pack tx)
+          stk <$ upoke stk 1
         SimpleTrace tx -> do
-          upoke stk 2
+          pokeBi stk (Util.Text.pack tx)
           stk <- bump stk
-          stk <$ pokeBi stk (Util.Text.pack tx)
+          stk <$ upoke stk 2
       pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 SDBL i)
   | sandboxed env =
