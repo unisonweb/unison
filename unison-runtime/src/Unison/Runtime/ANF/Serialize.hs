@@ -88,6 +88,7 @@ data BLTag
   | CharT
   | FloatT
   | ArrT
+  | CachedCodeT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 
@@ -197,6 +198,7 @@ instance Tag BLTag where
     CharT -> 10
     FloatT -> 11
     ArrT -> 12
+    CachedCodeT -> 13
 
   word2tag = \case
     0 -> pure TextT
@@ -212,6 +214,7 @@ instance Tag BLTag where
     10 -> pure CharT
     11 -> pure FloatT
     12 -> pure ArrT
+    13 -> pure CachedCodeT
     t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
@@ -678,7 +681,10 @@ putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
 putBLit (Bytes b) = putTag BytesT *> putBytes b
 putBLit (Quote v) = putTag QuoteT *> putValue v
-putBLit (Code co) = putTag CodeT *> putCode mempty co
+putBLit (Code (CodeRep sg ch)) =
+  putTag tag *> putGroup mempty mempty sg
+  where
+  tag | Cacheable <- ch = CachedCodeT | otherwise = CodeT
 putBLit (BArr a) = putTag BArrT *> putByteArray a
 putBLit (Pos n) = putTag PosT *> putPositive n
 putBLit (Neg n) = putTag NegT *> putPositive n
@@ -695,15 +701,14 @@ getBLit v =
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
     QuoteT -> Quote <$> getValue v
-    CodeT -> Code <$> getCode cv
-      where
-        cv | v == 5 = 3 | otherwise = 2
+    CodeT -> Code . flip CodeRep Uncacheable <$> getGroup
     BArrT -> BArr <$> getByteArray
     PosT -> Pos <$> getPositive
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue v)
+    CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -989,7 +994,7 @@ getVersionedValue = getVersion >>= getValue
         n
           | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
-          | n <= 5 -> pure n
+          | n <= 4 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 deserializeValue :: ByteString -> Either String Value
@@ -1008,13 +1013,18 @@ serializeValue v = runPutS (putVersion *> putValue v)
 -- The 4 prefix is used because we were previously including the
 -- version in the hash, so to maintain the same hashes, we need to
 -- include the extra bytes that were previously there.
+--
+-- Additionally, any major serialization changes should consider
+-- retaining this representation as much as possible, even if it
+-- becomes a separate format, because there is no need to parse from
+-- the hash serialization, just generate and hash it.
 serializeValueForHash :: Value -> L.ByteString
 serializeValueForHash v = runPutLazy (putPrefix *> putValue v)
   where
     putPrefix = putWord32be 4
 
 valueVersion :: Word32
-valueVersion = 5
+valueVersion = 4
 
 codeVersion :: Word32
 codeVersion = 3
