@@ -1660,9 +1660,9 @@ bprim2 !stk IDXS i j = do
       pure stk
     Just x -> do
       stk <- bump stk
-      upoke stk 1
-      stk <- bump stk
       bpoke stk x
+      stk <- bump stk
+      upoke stk 1
       pure stk
 bprim2 !stk SPLL i j = do
   n <- upeekOff stk i
@@ -1673,12 +1673,12 @@ bprim2 !stk SPLL i j = do
       upoke stk 0
       pure stk
     else do
-      stk <- bump stk
-      upoke stk 1
       stk <- bumpn stk 2
       let (l, r) = Sq.splitAt n s
       pokeOffS stk 1 r
       pokeS stk l
+      stk <- bump stk
+      upoke stk 1
       pure stk
 bprim2 !stk SPLR i j = do
   n <- upeekOff stk i
@@ -1689,12 +1689,12 @@ bprim2 !stk SPLR i j = do
       upoke stk 0
       pure stk
     else do
-      stk <- bump stk
-      upoke stk 1
       stk <- bumpn stk 2
       let (l, r) = Sq.splitAt (Sq.length s - n) s
       pokeOffS stk 1 r
       pokeS stk l
+      stk <- bump stk
+      upoke stk 1
       pure stk
 bprim2 !stk TAKB i j = do
   n <- upeekOff stk i
