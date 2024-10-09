@@ -462,8 +462,7 @@ dumpFP fp sz (F n _) = fp + sz - n
 -- instruction, kontinuation, call
 data Augment = I | K | C
 
-data Stack
-  = Stack
+data Stack = Stack
   { ap :: !Int, -- arg pointer
     fp :: !Int, -- frame pointer
     sp :: !Int, -- stack pointer
