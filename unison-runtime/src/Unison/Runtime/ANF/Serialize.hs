@@ -692,9 +692,11 @@ putBLit v (Code (CodeRep sg ch)) =
   where
     -- Hashing treats everything as uncacheable for consistent
     -- results.
-    tag | Cacheable <- ch
-        , Transfer _ <- v = CachedCodeT
-        | otherwise = CodeT
+    tag
+      | Cacheable <- ch,
+        Transfer _ <- v =
+          CachedCodeT
+      | otherwise = CodeT
 putBLit _ (BArr a) = putTag BArrT *> putByteArray a
 putBLit _ (Pos n) = putTag PosT *> putPositive n
 putBLit _ (Neg n) = putTag NegT *> putPositive n
@@ -874,12 +876,14 @@ getValue :: (MonadGet m) => Version -> m Value
 getValue v =
   getTag >>= \case
     PartialT
-      | Transfer vn <- v, vn < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
       | otherwise ->
           flip Partial [] <$> getGroupRef <*> getList (getValue v)
     DataT
-      | Transfer vn <- v, vn < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Data
             <$> getReference
             <*> getWord64be
@@ -891,7 +895,8 @@ getValue v =
             <*> getWord64be
             <*> getList (getValue v)
     ContT
-      | Transfer vn <- v, vn < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
       | otherwise -> Cont [] <$> getList (getValue v) <*> getCont v
     BLitT -> BLit <$> getBLit v
@@ -920,7 +925,8 @@ getCont v =
   getTag >>= \case
     KET -> pure KE
     MarkT
-      | Transfer vn <- v, vn < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Mark
             <$> getWord64be
             <*> getWord64be
@@ -934,7 +940,8 @@ getCont v =
             <*> getMap getReference (getValue v)
             <*> getCont v
     PushT
-      | Transfer vn <- v, vn < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Push
             <$> getWord64be
             <*> getWord64be
