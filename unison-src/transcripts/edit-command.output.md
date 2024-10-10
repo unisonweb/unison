@@ -1,28 +1,18 @@
-``` ucm
-scratch/main> builtins.merge
-
-  Done.
-
-```
 ``` unison
----
-title: /private/tmp/scratch.u
----
 foo = 123
 
 bar = 456
 
 mytest = [Ok "ok"]
-
 ```
 
 ``` ucm
 
-  Loading changes detected in /private/tmp/scratch.u.
+  Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in
-  /private/tmp/scratch.u. If you do an `add` or `update`, here's
-  how your codebase would change:
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
   
     ⍟ These new definitions are ok to `add`:
     
@@ -44,7 +34,7 @@ scratch/main> edit foo bar
 
   ☝️
   
-  I added 2 definitions to the top of /private/tmp/scratch.u
+  I added 2 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -53,13 +43,13 @@ scratch/main> edit mytest
 
   ☝️
   
-  I added 1 definitions to the top of /private/tmp/scratch.u
+  I added 1 definitions to the top of scratch.u
   
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
 ```
-``` unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm scratch.u
 bar : Nat
 bar = 456
 
@@ -67,7 +57,7 @@ foo : Nat
 foo = 123
 ```
 
-``` unison:added-by-ucm /private/tmp/scratch.u
+``` unison:added-by-ucm scratch.u
 test> mytest = [Ok "ok"]
 ```
 
@@ -80,3 +70,78 @@ scratch/main> edit missing
     missing
 
 ```
+# `edit2`
+
+The `edit2` command adds to the current fold, and takes care not to add definitions that are already in the file.
+
+This stanza does nothing for some reason (transcript runner bug?), so we repeat it twice.
+
+``` unison
+foo = 17
+bar = 18
+baz = 19
+```
+
+``` ucm
+
+```
+``` unison
+foo = 17
+bar = 18
+baz = 19
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      bar : Nat
+      baz : Nat
+      foo : Nat
+
+```
+``` ucm
+scratch/main> add
+
+  ⍟ I've added these definitions:
+  
+    bar : Nat
+    baz : Nat
+    foo : Nat
+
+```
+``` unison
+foo = 17
+bar = 18
+```
+
+``` ucm
+
+  Loading changes detected in scratch.u.
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+```
+``` ucm
+scratch/main> edit2 bar baz
+
+  ☝️
+  
+  I added 1 definitions to the top of scratch.u
+  
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
+
+```
+``` unison:added-by-ucm scratch.u
+baz : Nat
+baz = 19
+```
+
