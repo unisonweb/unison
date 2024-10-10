@@ -1476,6 +1476,7 @@ bprim1 !stk VWRS i =
       upoke stk 0 -- 'Empty' tag
       pure stk
     xs Sq.:|> x -> do
+      stk <- bumpn stk 3
       bpokeOff stk 2 x -- last
       pokeOffS stk 1 xs -- remaining seq
       upoke stk 1 -- ':|>' tag
