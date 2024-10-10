@@ -4,17 +4,17 @@
 
 This is a regression test, previously `delete.namespace` allowed a delete as long as the deletions had a name _anywhere_ in your codebase, it should only check the current project branch.
 
-```ucm:hide
+``` ucm :hide
 myproject/main> builtins.merge
 ```
 
-```unison
+``` unison
 sub.dependency = 123
 
 dependent = dependency + 99
 ```
 
-```ucm:error
+``` ucm :error
 myproject/main> add
 myproject/main> branch /new
 myproject/new> delete.namespace sub

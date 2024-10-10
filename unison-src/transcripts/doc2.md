@@ -1,10 +1,10 @@
 # Test parsing and round-trip of doc2 syntax elements
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-```unison:hide
+``` unison :hide
 otherDoc : a -> Doc2
 otherDoc _ = {{ yo }}
 
@@ -84,9 +84,9 @@ The following markdown features aren't supported by the Doc format yet, but mayb
 
 Table
 
-| Header 1 | Header 2 | 
-| -------- | -------- | 
-| Cell 1 | Cell 2 | 
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1 | Cell 2 |
 
 
     Indented Code block
@@ -113,6 +113,6 @@ Inline '' text literal with 1 space of padding '' in the middle of a sentence.
 
 Format it to check that everything pretty-prints in a valid way.
 
-```ucm
+``` ucm
 scratch/main> debug.format
 ```

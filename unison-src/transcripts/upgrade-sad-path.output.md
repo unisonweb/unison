@@ -49,7 +49,7 @@ proj/main> upgrade old new
   to delete the temporary branch and switch back to main.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 thingy : Nat
 thingy =
   use Nat +

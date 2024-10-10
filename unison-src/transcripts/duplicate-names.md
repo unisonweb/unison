@@ -1,12 +1,12 @@
 # Duplicate names in scratch file.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 Term and ability constructor collisions should cause a parse error.
 
-```unison:error
+``` unison :error
 structural ability Stream where
   send : a -> ()
 
@@ -16,8 +16,8 @@ Stream.send _ = ()
 
 Term and type constructor collisions should cause a parse error.
 
-```unison:error
-structural type X = x 
+``` unison :error
+structural type X = x
 
 X.x : a -> ()
 X.x _ = ()
@@ -25,15 +25,15 @@ X.x _ = ()
 
 Ability and type constructor collisions should cause a parse error.
 
-```unison:error
-structural type X = x 
+``` unison :error
+structural type X = x
 structural ability X where
   x : ()
 ```
 
 Field accessors and terms with the same name should cause a parse error.
 
-```unison:error
+``` unison :error
 structural type X = {x : ()}
 X.x.modify = ()
 X.x.set = ()
@@ -42,13 +42,13 @@ X.x = ()
 
 Types and terms with the same name are allowed.
 
-```unison
+``` unison
 structural type X = Z
 
 X = ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view X
 ```

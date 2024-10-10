@@ -210,7 +210,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
               scratchFileUpdates <- Q.flush ucmScratchFileUpdatesQueue
               -- Push them onto the front stanza queue in the correct order.
               for (reverse scratchFileUpdates) \(fp, contents) -> do
-                let fenceDescription = "unison:added-by-ucm " <> fp
+                let fenceDescription = "unison :added-by-ucm " <> fp
                 -- Output blocks for any scratch file updates the ucm block triggered.
                 Q.undequeue inputQueue (Left $ CMarkCodeBlock Nothing fenceDescription contents, Nothing)
             awaitInput

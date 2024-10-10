@@ -10,9 +10,9 @@ structural type Optional a =
 
   Term doc
 }}
-List.map : 
-  (a -> b) 
-  -> [a] 
+List.map :
+  (a -> b)
+  -> [a]
   -> [b]
 List.map f = cases
   (x +: xs) -> f x +: List.map f xs
@@ -38,9 +38,9 @@ scratch/main> debug.lsp.fold-ranges
   
     Term doc
   }}》
-  《List.map : 
-    (a -> b) 
-    -> [a] 
+  《List.map :
+    (a -> b)
+    -> [a]
     -> [b]
   List.map f = cases
     (x +: xs) -> f x +: List.map f xs

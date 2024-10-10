@@ -1,28 +1,27 @@
 `alias.type` makes a new name for a type.
 
-```ucm:hide
+``` ucm :hide
 project/main> builtins.mergeio lib.builtins
 ```
 
-```ucm
+``` ucm
 project/main> alias.type lib.builtins.Nat Foo
 project/main> ls
 ```
 
 It won't create a conflicted name, though.
 
-```ucm:error
+``` ucm :error
 project/main> alias.type lib.builtins.Int Foo
 ```
 
-```ucm
+``` ucm
 project/main> ls
 ```
 
 You can use `debug.alias.type.force` for that.
 
-```ucm
+``` ucm
 project/main> debug.alias.type.force lib.builtins.Int Foo
 project/main> ls
 ```
-

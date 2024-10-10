@@ -1,9 +1,8 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 
 up = 0xs0123456789abcdef
 down = 0xsfedcba9876543210

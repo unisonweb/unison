@@ -1,9 +1,8 @@
-
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 f : '{} Nat
 f _ = 5
 
@@ -16,7 +15,7 @@ main _ =
   if n == 5 then [Ok ""] else [Fail ""]
 ```
 
-```ucm
+``` ucm
 scratch/main> find unsafe.coerceAbilities
 scratch/main> add
 scratch/main> io.test main

@@ -1,12 +1,12 @@
 # Suffix-based resolution of names
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 Any unique name suffix can be used to refer to a definition. For instance:
 
-```unison:hide
+``` unison :hide
 -- No imports needed even though FQN is `builtin.{Int,Nat}`
 foo.bar.a : Int
 foo.bar.a = +99
@@ -19,14 +19,14 @@ optional.isNone = cases
 
 This also affects commands like find. Notice lack of qualified names in output:
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> find take
 ```
 
 The `view` and `display` commands also benefit from this:
 
-```ucm
+``` ucm
 scratch/main> view List.drop
 scratch/main> display bar.a
 ```
@@ -35,7 +35,7 @@ In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name
 
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
 
-```ucm
+``` ucm
 scratch/main> find : Nat -> [a] -> [a]
 ```
 
@@ -43,33 +43,33 @@ scratch/main> find : Nat -> [a] -> [a]
 
 Suffix-based resolution prefers names that are not in an indirect dependency.
 
-```unison
+``` unison
 cool.abra.cadabra = "my project"
 lib.distributed.abra.cadabra = "direct dependency 1"
 lib.distributed.baz.qux = "direct dependency 2"
 lib.distributed.lib.baz.qux = "indirect dependency"
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison:error
+``` unison :error
 > abra.cadabra
 ```
 
-```unison
+``` unison
 > baz.qux
 ```
 
-```ucm
+``` ucm
 scratch/main> view abra.cadabra
 scratch/main> view baz.qux
 ```
 
 Note that we can always still view indirect dependencies by using more name segments:
 
-```ucm
+``` ucm
 scratch/main> view distributed.abra.cadabra
 scratch/main> names distributed.lib.baz.qux
 ```

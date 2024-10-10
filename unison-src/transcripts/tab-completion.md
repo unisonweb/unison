@@ -4,14 +4,14 @@ Test that tab completion works as expected.
 
 ## Tab Complete Command Names
 
-```ucm
+``` ucm
 scratch/main> debug.tab-complete vi
 scratch/main> debug.tab-complete delete.
 ```
 
 ## Tab complete terms & types
 
-```unison
+``` unison
 subnamespace.someName = 1
 subnamespace.someOtherName = 2
 subnamespace2.thing = 3
@@ -20,11 +20,11 @@ othernamespace.someName = 4
 unique type subnamespace.AType = A | B
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> add
 ```
 
-```ucm
+``` ucm
 -- Should tab complete namespaces since they may contain terms/types
 scratch/main> debug.tab-complete view sub
 -- Should not complete things from child namespaces of the current query if there are other completions at this level
@@ -38,11 +38,11 @@ scratch/main> debug.tab-complete view subnamespace.some
 scratch/main> debug.tab-complete view subnamespace.someOther
 ```
 
-```unison:hide
+``` unison :hide
 absolute.term = "absolute"
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 -- Should tab complete absolute names
 scratch/main> debug.tab-complete view .absolute.te
@@ -50,7 +50,7 @@ scratch/main> debug.tab-complete view .absolute.te
 
 ## Tab complete namespaces
 
-```ucm
+``` ucm
 -- Should tab complete namespaces
 scratch/main> debug.tab-complete find-in sub
 scratch/main> debug.tab-complete find-in subnamespace
@@ -62,13 +62,13 @@ scratch/main> debug.tab-complete io.test subnamespace.
 
 Tab Complete Delete Subcommands
 
-```unison
+``` unison
 unique type Foo = A | B
 add : a -> a
 add b = b
 ```
 
-```ucm
+``` ucm
 scratch/main> update.old
 scratch/main> debug.tab-complete delete.type Foo
 scratch/main> debug.tab-complete delete.term add
@@ -76,7 +76,7 @@ scratch/main> debug.tab-complete delete.term add
 
 ## Tab complete projects and branches
 
-```ucm
+``` ucm
 myproject/main> branch mybranch
 myproject/main> debug.tab-complete branch.delete /mybr
 myproject/main> debug.tab-complete project.rename my
@@ -84,12 +84,12 @@ myproject/main> debug.tab-complete project.rename my
 
 Commands which complete namespaces OR branches should list both
 
-```unison
+``` unison
 mybranchsubnamespace.term = 1
 ```
 
 
-```ucm
+``` ucm
 myproject/main> add
 myproject/main> debug.tab-complete merge mybr
 ```

@@ -1,19 +1,19 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtins
 ```
 
 First we make some changes to the codebase so there's data in the reflog.
 
-```unison
+``` unison
 x = 1
 ```
-```ucm
+``` ucm
 scratch/main> add
 ```
-```unison
+``` unison
 y = 2
 ```
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> branch /other
 scratch/other> alias.term y z
@@ -23,19 +23,19 @@ newproject/main> alias.type lib.builtins.Nat MyNat
 
 Should see reflog entries from the current branch
 
-```ucm
+``` ucm
 scratch/main> reflog
 ```
 
 Should see reflog entries from the current project
 
-```ucm
+``` ucm
 scratch/main> project.reflog
 ```
 
 
 Should see reflog entries from all projects
 
-```ucm
+``` ucm
 scratch/main> reflog.global
 ```

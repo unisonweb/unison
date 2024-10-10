@@ -1,11 +1,11 @@
 Regression test for https://github.com/unisonweb/unison/pull/2377
 
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 structural ability Ab where
   a: Nat -> ()
 
@@ -54,17 +54,17 @@ tremulous = cases
 throaty = cases
   { Ab.a a -> k } -> ()
   { _ } -> ()
-  
+
 agitated = cases
   a | a == 2 -> ()
   _ -> ()
 
 doc = cases
-  y@4 -> () 
+  y@4 -> ()
   _ -> ()
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> view dopey
 scratch/main> view grumpy
@@ -82,4 +82,3 @@ scratch/main> view agitated
 scratch/main> view doc
 
 ```
-

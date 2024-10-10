@@ -1,7 +1,7 @@
-```unison
+``` unison
 > 1
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 ```

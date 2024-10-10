@@ -1,10 +1,10 @@
 # Namespace Details Test
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio
 ```
 
-```unison
+``` unison
 {{ Documentation }}
 nested.names.x = 42
 
@@ -13,11 +13,11 @@ Here's a *README*!
 }}
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```api
+``` api
 -- Should find names by suffix
 GET /api/projects/scratch/branches/main/namespaces/nested.names
 ```

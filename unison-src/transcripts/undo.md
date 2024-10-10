@@ -2,11 +2,11 @@
 
 Undo should pop a node off of the history of the current branch.
 
-```unison:hide
+``` unison :hide
 x = 1
 ```
 
-```ucm
+``` ucm
 scratch/main> builtins.merge lib.builtins
 scratch/main> add
 scratch/main> ls
@@ -22,11 +22,11 @@ scratch/main> history
 
 It should not be affected by changes on other branches.
 
-```unison:hide
+``` unison :hide
 x = 1
 ```
 
-```ucm
+``` ucm
 scratch/branch1> builtins.merge lib.builtins
 scratch/branch1> add
 scratch/branch1> ls
@@ -45,7 +45,7 @@ scratch/branch1> history
 
 Undo should be a no-op on a newly created branch
 
-```ucm:error
+``` ucm :error
 scratch/main> branch.create-empty new
 scratch/new> undo
 ```

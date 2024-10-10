@@ -1,26 +1,26 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge lib.builtin
 ```
 
-```unison
+``` unison
 unique type Foo = Bar Nat
 
 makeFoo : Nat -> Foo
 makeFoo n = Bar (n+10)
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 unique type Foo = internal.Bar Nat
 
 Foo.Bar : Nat -> Foo
 Foo.Bar n = internal.Bar n
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 scratch/main> view Foo
 scratch/main> find.verbose

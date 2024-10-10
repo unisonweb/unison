@@ -1,4 +1,4 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -7,7 +7,7 @@ cause pattern matching on the resulting (Right ()) would cause a runtime error.
 
 
 
-```unison
+``` unison
 use builtin.io2.Tls newClient send handshake terminate
 
 frank: '{IO} ()
@@ -28,7 +28,7 @@ assertRight = cases
 
 
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> run frank
 ```

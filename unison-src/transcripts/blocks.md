@@ -1,6 +1,6 @@
 ## Blocks and scoping
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
@@ -8,7 +8,7 @@ scratch/main> builtins.merge
 
 For example:
 
-```unison
+``` unison
 ex thing =
   thing y = y
   -- refers to `thing` in this block
@@ -23,7 +23,7 @@ ex thing =
 
 The `thing` reference in `bar` refers to the one declared locally in the block that `bar` is part of. This is true even if the declaration which shadows the outer name appears later in the block, for instance:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1
   thing y = y
@@ -36,7 +36,7 @@ ex thing =
 
 This is just the normal lexical scoping behavior. For example:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1 -- references outer `thing`
   baz z =
@@ -49,7 +49,7 @@ ex thing =
 
 Here's another example, showing that bindings cannot reference bindings declared in blocks nested in the _body_ (the final expression) of a block:
 
-```unison
+``` unison
 ex thing =
   bar x = thing x + 1 -- refers to outer thing
   let
@@ -63,7 +63,7 @@ ex thing =
 
 We call these groups of definitions that reference each other in a block _cycles_. For instance:
 
-```unison
+``` unison
 sumTo n =
   -- A recursive function, defined inside a block
   go acc n =
@@ -84,7 +84,7 @@ The `go` function is a one-element cycle (it reference itself), and `ping` and `
 
 For instance, this works:
 
-```unison
+``` unison
 ex n =
   ping x = pong + 1 + x
   pong = 42
@@ -95,7 +95,7 @@ Since the forward reference to `pong` appears inside `ping`.
 
 This, however, will not compile:
 
-```unison:error
+``` unison :error
 ex n =
   pong = ping + 1
   ping = 42
@@ -104,7 +104,7 @@ ex n =
 
 This also won't compile; it's a cyclic reference that isn't guarded:
 
-```unison:error
+``` unison :error
 ex n =
   loop = loop
   loop
@@ -112,7 +112,7 @@ ex n =
 
 This, however, will compile. This also shows that `'expr` is another way of guarding a definition.
 
-```unison
+``` unison
 ex n =
   loop = '(!loop)
   !loop
@@ -124,7 +124,7 @@ Just don't try to run it as it's an infinite loop!
 
 The reason is it's unclear what the order should be of any requests that are made. It can also be viewed of a special case of the restriction that elements of a cycle must all be guarded. Here's an example:
 
-```unison:error
+``` unison :error
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -138,7 +138,7 @@ ex n =
 
 For instance, this works fine:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -152,7 +152,7 @@ ex n =
 
 For instance, `zap` here isn't considered part of the cycle (it doesn't reference `ping` or `pong`), so this typechecks fine:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
@@ -165,7 +165,7 @@ ex n =
 
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
 
-```unison
+``` unison
 structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 

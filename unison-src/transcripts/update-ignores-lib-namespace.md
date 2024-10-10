@@ -2,24 +2,24 @@
 the project organization convention that dependencies are put in "lib"; it's much easier to apply a patch to all of
 one's own code if the "lib" namespace is simply ignored.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 foo = 100
 lib.foo = 100
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 foo = 200
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 scratch/main> names foo
 ```

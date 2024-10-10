@@ -1,12 +1,11 @@
-
 File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 unique type A = A
 
 threadEyeDeez _ =
@@ -15,12 +14,12 @@ threadEyeDeez _ =
   (t1 == t2, t1 < t2)
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> run threadEyeDeez
 ```
 
-```unison
+``` unison
 > typeLink A == typeLink A
 > typeLink Text == typeLink Text
 > typeLink Text == typeLink A

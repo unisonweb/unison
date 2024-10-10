@@ -1,22 +1,22 @@
-```ucm
+``` ucm
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 foo : Nat
 foo = 5
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 foo : Int
 foo = +5
 ```
 
-```ucm
+``` ucm
 scratch/main> update
 scratch/main> view foo
 ```

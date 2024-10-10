@@ -1,6 +1,6 @@
 # Shows `help` output
 
-```ucm
+``` ucm
 scratch/main> help
 scratch/main> help-topics
 scratch/main> help-topic filestatus

@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 foo = 123
 
 bar = 456
@@ -10,17 +10,17 @@ bar = 456
 mytest = [Ok "ok"]
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 scratch/main> edit foo bar
 scratch/main> edit mytest
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> edit missing
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> project.delete scratch
 ```
 
@@ -28,37 +28,37 @@ scratch/main> project.delete scratch
 
 The `edit2` command adds to the current fold, and takes care not to add definitions that are already in the file.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.mergeio lib.builtin
 ```
 
 This stanza does nothing for some reason (transcript runner bug?), so we repeat it twice.
 
-```unison
+``` unison
 foo = 17
 bar = 18
 baz = 19
 ```
 
-```unison
+``` unison
 foo = 17
 bar = 18
 baz = 19
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison
+``` unison
 foo = 17
 bar = 18
 ```
 
-```ucm
+``` ucm
 scratch/main> edit2 bar baz
 ```
 
-```ucm:hide
+``` ucm :hide
 scratch/main> project.delete scratch
 ```

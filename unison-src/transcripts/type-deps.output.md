@@ -37,7 +37,7 @@ structural type Y = Y Nat
 Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.
 
 ``` ucm
-scratch/main> add 
+scratch/main> add
 
   x These definitions failed:
   

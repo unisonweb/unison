@@ -1,8 +1,8 @@
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 oldRight: (b ->{e} a ->{e} b) -> [a] ->{e} [b]
 oldRight f la = bug "out"
 
@@ -14,4 +14,3 @@ pecan = 'let
 
   oldRight f la
 ```
-

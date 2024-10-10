@@ -49,7 +49,7 @@ scratch/main> edit mytest
   definitions currently in this namespace.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 bar : Nat
 bar = 456
 
@@ -57,7 +57,7 @@ foo : Nat
 foo = 123
 ```
 
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 test> mytest = [Ok "ok"]
 ```
 
@@ -140,7 +140,7 @@ scratch/main> edit2 bar baz
   definitions currently in this namespace.
 
 ```
-``` unison:added-by-ucm scratch.u
+``` unison :added-by-ucm scratch.u
 baz : Nat
 baz = 19
 ```

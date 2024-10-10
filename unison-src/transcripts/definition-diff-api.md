@@ -1,10 +1,10 @@
-```ucm
+``` ucm
 diffs/main> builtins.mergeio lib.builtins
 diffs/main> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
 diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
 ```
 
-```unison
+``` unison
 term =
   _ = "Here's some text"
   1 + 1
@@ -26,12 +26,12 @@ take n s =
   handle s() with h n
 ```
 
-```ucm
+``` ucm
 diffs/main> add
 diffs/main> branch.create new
 ```
 
-```unison
+``` unison
 term =
   _ = "Here's some different text"
   1 + 2
@@ -55,25 +55,25 @@ take n s =
     else None
 ```
 
-```ucm
+``` ucm
 diffs/new> update
 ```
 
 Diff terms
 
-```api
+``` api
 GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
 ```
 
 More complex diff
 
-```api
+``` api
 GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
 ```
 
 
 Diff types
 
-```api
+``` api
 GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
 ```

@@ -113,9 +113,9 @@ fenced = do
       pure . Ucm hide err <$> (spaces *> P.manyTill ucmLine P.eof)
     "unison" -> do
       -- todo: this has to be more interesting
-      -- ```unison:hide
-      -- ```unison
-      -- ```unison:hide:all scratch.u
+      -- ``` unison :hide
+      -- ``` unison
+      -- ``` unison :hide:all scratch.u
       hide <- lineToken hidden
       err <- lineToken expectingError
       fileName <- optional untilSpace1

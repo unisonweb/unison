@@ -1,11 +1,10 @@
-
 A short script to test mutable references with local scope.
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
-```unison
+``` unison
 test = Scope.run 'let
   r = Scope.ref 0
   Ref.write r 1

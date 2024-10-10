@@ -3,7 +3,7 @@ Some tests of pattern behavior.
 ``` unison
 p1 = join [literal "blue", literal "frog"]
 
-> Pattern.run (many p1) "bluefrogbluegoat" 
+> Pattern.run (many p1) "bluefrogbluegoat"
 > Pattern.run (many.corrected p1) "bluefrogbluegoat"
 ```
 
@@ -22,7 +22,7 @@ p1 = join [literal "blue", literal "frog"]
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    3 | > Pattern.run (many p1) "bluefrogbluegoat" 
+    3 | > Pattern.run (many p1) "bluefrogbluegoat"
           ⧩
           Some ([], "goat")
   

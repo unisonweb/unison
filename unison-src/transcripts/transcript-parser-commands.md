@@ -1,28 +1,28 @@
 ### Transcript parser operations
 
-```ucm:hide
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
 The transcript parser is meant to parse `ucm` and `unison` blocks.
 
-```unison
+``` unison
 x = 1
 ```
 
-```ucm
+``` ucm
 scratch/main> add
 ```
 
-```unison:hide:error:scratch.u
+``` unison :hide:error:scratch.u
 z
 ```
 
-```ucm:error
+``` ucm :error
 scratch/main> delete foo
 ```
 
-```ucm :error
+``` ucm :error
 scratch/main> delete lineToken.call
 ```
 

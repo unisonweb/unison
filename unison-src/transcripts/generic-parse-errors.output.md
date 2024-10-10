@@ -1,7 +1,7 @@
 Just a bunch of random parse errors to test the error formatting.
 
 ``` unison
-x = 
+x =
   foo.123
 ```
 
@@ -127,7 +127,7 @@ x = "hi
 
 ```
 ``` unison
-y : a 
+y : a
 ```
 
 ``` ucm
