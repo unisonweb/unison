@@ -31,7 +31,11 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
 
-type Version = Word32
+-- Version information is threaded through to allow handling
+-- different formats. Transfer means that it is for saving
+-- code/values to be restored later. Hash means we're just getting
+-- bytes for hashing, so we don't need perfect information.
+data Version = Transfer Word32 | Hash Word32
 
 data TmTag
   = VarT
@@ -676,23 +680,29 @@ getLit =
     LMT -> LM <$> getReferent
     LYT -> LY <$> getReference
 
-putBLit :: (MonadPut m) => BLit -> m ()
-putBLit (Text t) = putTag TextT *> putText (Util.Text.toText t)
-putBLit (List s) = putTag ListT *> putFoldable putValue s
-putBLit (TmLink r) = putTag TmLinkT *> putReferent r
-putBLit (TyLink r) = putTag TyLinkT *> putReference r
-putBLit (Bytes b) = putTag BytesT *> putBytes b
-putBLit (Quote v) = putTag QuoteT *> putValue v
-putBLit (Code (CodeRep sg ch)) =
+putBLit :: (MonadPut m) => Version -> BLit -> m ()
+putBLit _ (Text t) = putTag TextT *> putText (Util.Text.toText t)
+putBLit v (List s) = putTag ListT *> putFoldable (putValue v) s
+putBLit _ (TmLink r) = putTag TmLinkT *> putReferent r
+putBLit _ (TyLink r) = putTag TyLinkT *> putReference r
+putBLit _ (Bytes b) = putTag BytesT *> putBytes b
+putBLit v (Quote vl) = putTag QuoteT *> putValue v vl
+putBLit v (Code (CodeRep sg ch)) =
   putTag tag *> putGroup mempty mempty sg
   where
-    tag | Cacheable <- ch = CachedCodeT | otherwise = CodeT
-putBLit (BArr a) = putTag BArrT *> putByteArray a
-putBLit (Pos n) = putTag PosT *> putPositive n
-putBLit (Neg n) = putTag NegT *> putPositive n
-putBLit (Char c) = putTag CharT *> putChar c
-putBLit (Float d) = putTag FloatT *> putFloat d
-putBLit (Arr a) = putTag ArrT *> putFoldable putValue a
+    -- Hashing treats everything as uncacheable for consistent
+    -- results.
+    tag
+      | Cacheable <- ch,
+        Transfer _ <- v =
+          CachedCodeT
+      | otherwise = CodeT
+putBLit _ (BArr a) = putTag BArrT *> putByteArray a
+putBLit _ (Pos n) = putTag PosT *> putPositive n
+putBLit _ (Neg n) = putTag NegT *> putPositive n
+putBLit _ (Char c) = putTag CharT *> putChar c
+putBLit _ (Float d) = putTag FloatT *> putFloat d
+putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
 
 getBLit :: (MonadGet m) => Version -> m BLit
 getBLit v =
@@ -839,39 +849,41 @@ getGroupRef = GR <$> getReference <*> getWord64be
 --
 -- So, unboxed data is completely absent from the format. We are now
 -- exchanging unison surface values, effectively.
-putValue :: (MonadPut m) => Value -> m ()
-putValue (Partial gr [] vs) =
+putValue :: (MonadPut m) => Version -> Value -> m ()
+putValue v (Partial gr [] vs) =
   putTag PartialT
     *> putGroupRef gr
-    *> putFoldable putValue vs
-putValue Partial {} =
+    *> putFoldable (putValue v) vs
+putValue _ (Partial {}) =
   exn "putValue: Partial with unboxed values no longer supported"
-putValue (Data r t [] vs) =
+putValue v (Data r t [] vs) =
   putTag DataT
     *> putReference r
     *> putWord64be t
-    *> putFoldable putValue vs
-putValue Data {} =
+    *> putFoldable (putValue v) vs
+putValue _ (Data {}) =
   exn "putValue: Data with unboxed contents no longer supported"
-putValue (Cont [] bs k) =
+putValue v (Cont [] bs k) =
   putTag ContT
-    *> putFoldable putValue bs
-    *> putCont k
-putValue Cont {} =
+    *> putFoldable (putValue v) bs
+    *> putCont v k
+putValue _ (Cont {}) =
   exn "putValue: Cont with unboxed stack no longer supported"
-putValue (BLit l) =
-  putTag BLitT *> putBLit l
+putValue v (BLit l) =
+  putTag BLitT *> putBLit v l
 
 getValue :: (MonadGet m) => Version -> m Value
 getValue v =
   getTag >>= \case
     PartialT
-      | v < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Partial <$> getGroupRef <*> getList getWord64be <*> getList (getValue v)
       | otherwise ->
           flip Partial [] <$> getGroupRef <*> getList (getValue v)
     DataT
-      | v < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Data
             <$> getReference
             <*> getWord64be
@@ -883,28 +895,29 @@ getValue v =
             <*> getWord64be
             <*> getList (getValue v)
     ContT
-      | v < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Cont <$> getList getWord64be <*> getList (getValue v) <*> getCont v
       | otherwise -> Cont [] <$> getList (getValue v) <*> getCont v
     BLitT -> BLit <$> getBLit v
 
-putCont :: (MonadPut m) => Cont -> m ()
-putCont KE = putTag KET
-putCont (Mark 0 ba rs ds k) =
+putCont :: (MonadPut m) => Version -> Cont -> m ()
+putCont _ KE = putTag KET
+putCont v (Mark 0 ba rs ds k) =
   putTag MarkT
     *> putWord64be ba
     *> putFoldable putReference rs
-    *> putMap putReference putValue ds
-    *> putCont k
-putCont Mark {} =
+    *> putMap putReference (putValue v) ds
+    *> putCont v k
+putCont _ (Mark {}) =
   exn "putCont: Mark with unboxed args no longer supported"
-putCont (Push 0 j 0 n gr k) =
+putCont v (Push 0 j 0 n gr k) =
   putTag PushT
     *> putWord64be j
     *> putWord64be n
     *> putGroupRef gr
-    *> putCont k
-putCont Push {} =
+    *> putCont v k
+putCont _ (Push {}) =
   exn "putCont: Push with unboxed information no longer supported"
 
 getCont :: (MonadGet m) => Version -> m Cont
@@ -912,7 +925,8 @@ getCont v =
   getTag >>= \case
     KET -> pure KE
     MarkT
-      | v < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Mark
             <$> getWord64be
             <*> getWord64be
@@ -926,7 +940,8 @@ getCont v =
             <*> getMap getReference (getValue v)
             <*> getCont v
     PushT
-      | v < 4 ->
+      | Transfer vn <- v,
+        vn < 4 ->
           Push
             <$> getWord64be
             <*> getWord64be
@@ -989,7 +1004,7 @@ serializeGroupForRehash fops (Derived h _) sg =
     refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
 getVersionedValue :: (MonadGet m) => m Value
-getVersionedValue = getVersion >>= getValue
+getVersionedValue = getVersion >>= getValue . Transfer
   where
     getVersion =
       getWord32be >>= \case
@@ -1003,7 +1018,8 @@ deserializeValue :: ByteString -> Either String Value
 deserializeValue bs = runGetS getVersionedValue bs
 
 serializeValue :: Value -> ByteString
-serializeValue v = runPutS (putVersion *> putValue v)
+serializeValue v =
+  runPutS (putVersion *> putValue (Transfer valueVersion) v)
   where
     putVersion = putWord32be valueVersion
 
@@ -1021,7 +1037,7 @@ serializeValue v = runPutS (putVersion *> putValue v)
 -- becomes a separate format, because there is no need to parse from
 -- the hash serialization, just generate and hash it.
 serializeValueForHash :: Value -> L.ByteString
-serializeValueForHash v = runPutLazy (putPrefix *> putValue v)
+serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
   where
     putPrefix = putWord32be 4
 
