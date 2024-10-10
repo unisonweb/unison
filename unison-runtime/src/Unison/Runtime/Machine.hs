@@ -26,7 +26,6 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
-import Unison.Debug qualified as Debug
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
@@ -487,7 +486,6 @@ exec !_ !denv !_activeThreads !stk !k _ (BPrim2 CMPU i j) = do
 exec !_ !_ !_activeThreads !stk !k r (BPrim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- bpeekOff stk j
-  Debug.debugM Debug.Temp "THRO" (name, x, k)
   throwIO (BU (traceK r k) (Util.Text.toText name) x)
 exec !env !denv !_activeThreads !stk !k _ (BPrim2 TRCE i j)
   | sandboxed env = die "attempted to use sandboxed operation: trace"
@@ -2068,16 +2066,13 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
   evaluatedCacheableCombsVar <- newTVarIO mempty
   for_ (EC.mapToList cacheableCombs) \(w, _) -> do
-    Debug.debugM Debug.Temp "Evaluating " w
     let hook stk = do
           clos <- bpeek stk
-          Debug.debugM Debug.Temp "Evaluated" ("Evaluated " ++ show w ++ " to " ++ show clos)
           atomically $ do
             modifyTVar evaluatedCacheableCombsVar $ EC.mapInsert w (EC.mapSingleton 0 $ CachedClosure w clos)
     apply0 (Just hook) cc activeThreads w
 
   evaluatedCacheableCombs <- readTVarIO evaluatedCacheableCombsVar
-  Debug.debugLogM Debug.Temp "Done pre-caching"
   let allNew = evaluatedCacheableCombs <> newCombs
   -- Rewrite all the inlined combinator references to point to the
   -- new cached versions.
