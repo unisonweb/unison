@@ -487,6 +487,7 @@ exec !_ !denv !_activeThreads !stk !k _ (BPrim2 CMPU i j) = do
 exec !_ !_ !_activeThreads !stk !k r (BPrim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- bpeekOff stk j
+  Debug.debugM Debug.Temp "THRO" (name, x, k)
   throwIO (BU (traceK r k) (Util.Text.toText name) x)
 exec !env !denv !_activeThreads !stk !k _ (BPrim2 TRCE i j)
   | sandboxed env = die "attempted to use sandboxed operation: trace"
@@ -577,11 +578,8 @@ exec !env !denv !activeThreads !stk !k _ (TryForce i)
   | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
   | otherwise = do
       c <- bpeekOff stk i
-      stk <- bump stk
-      -- TODO: This one is a little tricky, double-check it.
+      stk <- bump stk -- Bump the boxed stack to make a slot for the result, which will be written in the callback if we succeed.
       ev <- Control.Exception.try $ nestEval env activeThreads (bpoke stk) c
-      -- TODO: Why don't we do this bump inside encode Exn itself?
-
       stk <- encodeExn stk ev
       pure (denv, stk, k)
 {-# INLINE exec #-}
@@ -596,11 +594,15 @@ encodeExn stk exc = do
       stk <- bump stk
       stk <$ upoke stk 1
     Left exn -> do
-      stk <- bumpn stk 4
+      -- If we hit an exception, we have one unused slot on the stack
+      -- from where the result _would_ have been placed.
+      -- So here we bump one less than it looks like we should, and re-use
+      -- that slot.
+      stk <- bumpn stk 3
       upoke stk 0
-      bpoke stk $ Foreign (Wrap Rf.typeLinkRef link)
-      pokeOffBi stk 1 msg
-      stk <$ bpokeOff stk 2 extra
+      bpokeOff stk 1 $ Foreign (Wrap Rf.typeLinkRef link)
+      pokeOffBi stk 2 msg
+      stk <$ bpokeOff stk 3 extra
       where
         disp e = Util.Text.pack $ show e
         (link, msg, extra)
