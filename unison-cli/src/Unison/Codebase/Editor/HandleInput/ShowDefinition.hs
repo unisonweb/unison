@@ -205,7 +205,7 @@ showDefinitions outputLoc pped terms types misses = do
     renderCodePretty pped isSourceFile isTest terms types excludeNames =
       let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
           prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
-       in ( Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTerms ++ prettyTypes)),
+       in ( Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)),
             length prettyTerms + length prettyTypes
           )
 
