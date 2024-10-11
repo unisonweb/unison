@@ -939,7 +939,7 @@ getCont v =
     MarkT
       | Transfer vn <- v,
         vn < 4 -> do
-          ua <- getWord64be
+          getWord64be >>= assert0 "unboxed arg size"
           ba <- getWord64be
           refs <- getList getReference
           vals <- getMap getReference (getValue v)
