@@ -944,7 +944,7 @@ getCont v =
           refs <- getList getReference
           vals <- getMap getReference (getValue v)
           cont <- getCont v
-          pure $ Mark (ua + ba) refs vals cont
+          pure $ Mark ba refs vals cont
       | otherwise ->
           Mark
             <$> getWord64be
