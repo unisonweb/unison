@@ -944,7 +944,7 @@ emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
 emitSection _ _ _ _ ctx (TLit l) =
-  c . countCtx ctx . Ins (emitLit l) . Yield $ litArg l
+  c . countCtx ctx . Ins (emitLit l) . Yield $ VArg1 0
   where
     c
       | ANF.T {} <- l = addCount 1
@@ -1109,13 +1109,6 @@ emitFunctionVErr :: (Var v, HasCallStack) => v -> a
 emitFunctionVErr v =
   internalBug $
     "emitFunction: could not resolve function variable: " ++ show v
-
--- | TODO: Can remove this
-litArg :: ANF.Lit -> Args
-litArg ANF.T {} = VArg1 0
-litArg ANF.LM {} = VArg1 0
-litArg ANF.LY {} = VArg1 0
-litArg _ = VArg1 0
 
 -- Emit machine code for a let expression. Some expressions do not
 -- require a machine code Let, which uses more complicated stack
