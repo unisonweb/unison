@@ -1481,6 +1481,7 @@ doCompile profile native output main = do
         Runtime.compileTo theRuntime copts codeLookup ppe ref outf
     )
     (Cli.returnEarly . EvaluationFailure)
+  Cli.respond $ CompileSuccess outf native
 
 delete ::
   Input ->

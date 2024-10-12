@@ -30,6 +30,7 @@ import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
 import System.Console.Haskeline.Completion qualified as Completion
 import System.Directory (canonicalizePath, getHomeDirectory)
+import System.FilePath ((</>))
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
@@ -2220,6 +2221,11 @@ notifyUser dir = \case
                 <> IP.makeExample' IP.delete
                 <> "it. Then try the update again."
           ]
+  CompileSuccess outFile isNative ->
+    pure
+      if isNative
+        then P.string "I packaged up your program into " <> P.string (outFile </> ".")
+        else P.string "I saved your program to " <> P.string (outFile) <> "."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

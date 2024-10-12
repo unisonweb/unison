@@ -59,7 +59,7 @@ import System.Directory
   )
 import System.Environment (getArgs)
 import System.Exit (ExitCode (..))
-import System.FilePath ((<.>), (</>))
+import System.FilePath (takeBaseName, (<.>), (</>))
 import System.Process
   ( CmdSpec (RawCommand, ShellCommand),
     CreateProcess (..),
@@ -941,7 +941,8 @@ nativeCompileCodes copts executable codes base path = do
   genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
   createDirectoryIfMissing True genDir
   let bytes = serializeValue . compileValue base $ codes
-      srcPath = genDir </> path <.> "rkt"
+      srcPath = genDir </> takeBaseName path <.> "rkt"
+      binPath = genDir </> takeBaseName path
       callout (Just pin) _ _ ph = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
         BS.hPut pin bytes
@@ -952,17 +953,21 @@ nativeCompileCodes copts executable codes base path = do
       ucrError (e :: IOException) =
         throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
       racoError (e :: IOException) =
-        throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
+        throwIO $ PE callStack (racoErrMsg (makeRacoExeCmd RawCommand) (Right e))
       dargs = ["-G", srcPath]
       pargs
         | profile copts = "--profile" : dargs
         | otherwise = dargs
       p = ucrCompileProc executable pargs
-      makeRacoCmd :: (FilePath -> [String] -> a) -> a
-      makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
+      makeRacoExeCmd :: (FilePath -> [String] -> a) -> a
+      makeRacoExeCmd f = f "raco" ["exe", "-o", binPath, srcPath]
+      makeRacoDistCmd :: (FilePath -> [String] -> a) -> a
+      makeRacoDistCmd f = f "raco" ["dist", path, binPath]
   withCreateProcess p callout
     `UnliftIO.catch` ucrError
-  makeRacoCmd callProcess
+  makeRacoExeCmd callProcess
+    `UnliftIO.catch` racoError
+  makeRacoDistCmd callProcess
     `UnliftIO.catch` racoError
 
 evalInContext ::
