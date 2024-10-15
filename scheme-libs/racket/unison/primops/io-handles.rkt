@@ -1,4 +1,5 @@
 #lang racket/base
+
 (require racket/string
          rnrs/io/ports-6
          (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
@@ -13,41 +14,51 @@
          )
 
 (provide
- unison-FOp-IO.stdHandle
- unison-FOp-IO.openFile.impl.v3
+  builtin-Handle.toText
+  builtin-Handle.toText:termlink
 
- builtin-IO.seekHandle.impl.v3
- builtin-IO.seekHandle.impl.v3:termlink
- builtin-IO.getLine.impl.v1
- builtin-IO.getLine.impl.v1:termlink
- builtin-IO.getSomeBytes.impl.v1
- builtin-IO.getSomeBytes.impl.v1:termlink
- builtin-IO.getBuffering.impl.v3
- builtin-IO.getBuffering.impl.v3:termlink
- builtin-IO.setBuffering.impl.v3
- builtin-IO.setBuffering.impl.v3:termlink
- builtin-IO.getEcho.impl.v1
- builtin-IO.getEcho.impl.v1:termlink
- builtin-IO.setEcho.impl.v1
- builtin-IO.setEcho.impl.v1:termlink
- builtin-IO.getArgs.impl.v1
- builtin-IO.getArgs.impl.v1:termlink
- builtin-IO.getEnv.impl.v1
- builtin-IO.getEnv.impl.v1:termlink
- builtin-IO.getChar.impl.v1
- builtin-IO.getChar.impl.v1:termlink
- builtin-IO.isFileOpen.impl.v3
- builtin-IO.isFileOpen.impl.v3:termlink
- builtin-IO.isSeekable.impl.v3
- builtin-IO.isSeekable.impl.v3:termlink
- builtin-IO.handlePosition.impl.v3
- builtin-IO.handlePosition.impl.v3:termlink
- builtin-IO.process.call
- builtin-IO.process.call:termlink
- builtin-IO.getCurrentDirectory.impl.v3
- builtin-IO.getCurrentDirectory.impl.v3:termlink
- builtin-IO.ready.impl.v1
- builtin-IO.ready.impl.v1:termlink
+  builtin-IO.closeFile.impl.v3
+  builtin-IO.closeFile.impl.v3:termlink
+  builtin-IO.getBytes.impl.v3
+  builtin-IO.getBytes.impl.v3:termlink
+  builtin-IO.stdHandle
+  builtin-IO.stdHandle:termlink
+  builtin-IO.openFile.impl.v3
+  builtin-IO.openFile.impl.v3:termlink
+  builtin-IO.putBytes.impl.v3
+  builtin-IO.putBytes.impl.v3:termlink
+  builtin-IO.seekHandle.impl.v3
+  builtin-IO.seekHandle.impl.v3:termlink
+  builtin-IO.getLine.impl.v1
+  builtin-IO.getLine.impl.v1:termlink
+  builtin-IO.getSomeBytes.impl.v1
+  builtin-IO.getSomeBytes.impl.v1:termlink
+  builtin-IO.getBuffering.impl.v3
+  builtin-IO.getBuffering.impl.v3:termlink
+  builtin-IO.setBuffering.impl.v3
+  builtin-IO.setBuffering.impl.v3:termlink
+  builtin-IO.getEcho.impl.v1
+  builtin-IO.getEcho.impl.v1:termlink
+  builtin-IO.setEcho.impl.v1
+  builtin-IO.setEcho.impl.v1:termlink
+  builtin-IO.getArgs.impl.v1
+  builtin-IO.getArgs.impl.v1:termlink
+  builtin-IO.getEnv.impl.v1
+  builtin-IO.getEnv.impl.v1:termlink
+  builtin-IO.getChar.impl.v1
+  builtin-IO.getChar.impl.v1:termlink
+  builtin-IO.isFileOpen.impl.v3
+  builtin-IO.isFileOpen.impl.v3:termlink
+  builtin-IO.isSeekable.impl.v3
+  builtin-IO.isSeekable.impl.v3:termlink
+  builtin-IO.handlePosition.impl.v3
+  builtin-IO.handlePosition.impl.v3:termlink
+  builtin-IO.process.call
+  builtin-IO.process.call:termlink
+  builtin-IO.getCurrentDirectory.impl.v3
+  builtin-IO.getCurrentDirectory.impl.v3:termlink
+  builtin-IO.ready.impl.v1
+  builtin-IO.ready.impl.v1:termlink
 
 ; Still to implement:
 ;    handlePosition.impl.v3
@@ -184,11 +195,17 @@
 (define stdout (with-buffer-mode (standard-output-port) 'line))
 (define stderr (with-buffer-mode (standard-error-port) 'line))
 
-(define (unison-FOp-IO.stdHandle n)
-  (case n
-    [(0) stdin]
-    [(1) stdout]
-    [(2) stderr]))
+(define-unison-builtin (builtin-IO.stdHandle sth)
+  (match sth
+    [(unison-data r t (list))
+     (=> break)
+     (cond
+       [(= t ref-stdhandle-stdin) stdin]
+       [(= t ref-stdhandle-stdout) stdout]
+       [(= t ref-stdhandle-stderr) stderr]
+       [else (break)])]
+    [else
+     (raise (make-exn:bug "invalid standard handle" sth))]))
 
 (define-unison-builtin
   (builtin-IO.getEcho.impl.v1 handle)
@@ -233,14 +250,31 @@
             (ref-either-right
               (string->chunked-string (bytes->string/utf-8 value))))))
 
-(define (unison-FOp-IO.openFile.impl.v3 fn0 mode)
-  (define fn (chunked-string->string fn0))
 
-  (right (case mode
-    [(0) (open-input-file fn)]
-    [(1) (open-output-file fn #:exists 'truncate)]
-    [(2) (open-output-file fn #:exists 'append)]
-    [else (open-input-output-file fn #:exists 'can-update)])))
+(define-unison-builtin (builtin-IO.openFile.impl.v3 name mode)
+  (define fn (chunked-string->string name))
+
+  (match mode
+    [(unison-data? r t _)
+     (=> break)
+     (ref-either-right
+       (cond
+         [(= t ref-filemode-read:tag)
+          (open-input-file fn)]
+         [(= t ref-filemode-write:tag)
+          (open-output-file fn #:exists 'truncate)]
+         [(= t ref-filemode-append:tag)
+          (open-output-file fn #:exists 'append)]
+         [(= t ref-filemode-readwrite:tag)
+          (open-input-output-file fn #:exists 'can-update)]
+         ; break back to outer match
+         [else (break)]))]
+    [else
+      (ref-either-left
+        (ref-failure-failure
+          ref-iofailure:typelink
+          (string->chunked-string "invalid file mode")
+          (ref-any-any mode)))]))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
 ;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
@@ -261,3 +295,25 @@
                         (vector->list
                              (chunked-list->vector arguments))))
                              " ")))
+
+(define-unison-builtin (builtin-Handle.toText h)
+  (string->chunked-string (describe-value h)))
+
+(define-unison-builtin (builtin-IO.getBytes.impl.v3 h n)
+  (with-handlers
+    ; todo: seems like we should catch more
+    [[exn:fail:contract? exn-failure]]
+    (ref-either-right
+      (bytes->chunked-bytes
+        (read-bytes n h)))))
+
+(define-unison-builtin (builtin-IO.putBytes.impl.v3 h bs)
+  ()
+
+(define-unison-builtin (builtin-IO.closeFile.impl.v3 h)
+  ; todo: review this implementation; moved from primops.ss
+  (if (input-port? h)
+    (close-input-port h)
+    (close-output-port h))
+  (ref-either-right ref-unit-unit))
+

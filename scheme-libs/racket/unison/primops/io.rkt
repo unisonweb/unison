@@ -16,23 +16,32 @@
 (require racket/file)
 
 (provide
- builtin-Clock.internals.systemTimeZone.v1
- (prefix-out
-  unison-FOp-Clock.internals.
-  (combine-out
-    threadCPUTime.v1
-    processCPUTime.v1
-    realtime.v1
-    monotonic.v1
-    sec.v1
-    nsec.v1))
- (prefix-out
-  unison-FOp-IO.
-  (combine-out
-   getFileTimestamp.impl.v3
-   getTempDirectory.impl.v3
-   removeFile.impl.v3
-   getFileSize.impl.v3))
+  builtin-Clock.internals.systemTimeZone.v1
+  builtin-Clock.internals.monotonic.v1
+  builtin-Clock.internals.monotonic.v1:termlink
+  builtin-Clock.internals.nsec.v1
+  builtin-Clock.internals.nsec.v1:termlink
+  builtin-Clock.internals.processCPUTime.v1
+  builtin-Clock.internals.processCPUTime.v1:termlink
+  builtin-Clock.internals.realtime.v1
+  builtin-Clock.internals.realtime.v1:termlink
+  builtin-Clock.internals.sec.v1
+  builtin-Clock.internals.sec.v1:termlink
+  builtin-Clock.internals.threadCPUTime.v1
+  builtin-Clock.internals.threadCPUTime.v1:termlink
+
+  builtin-IO.getFileTimestamp.impl.v3
+  builtin-IO.getFileTimestamp.impl.v3:termlink
+  builtin-IO.getFileSize.impl.v3
+  builtin-IO.getFileSize.impl.v3:termlink
+  builtin-IO.getTempDirectory.impl.v3
+  builtin-IO.getTempDirectory.impl.v3:termlink
+  builtin-IO.removeFile.impl.v3
+  builtin-IO.removeFile.impl.v3:termlink
+  builtin-IO.stdHandle
+  builtin-IO.stdHandle:termlink
+  builtin-IO.systemTimeMicroseconds.v1
+  builtin-IO.systemTimeMicroseconds.v1:termlink
 
   builtin-IO.fileExists.impl.v3
   builtin-IO.fileExists.impl.v3:termlink
@@ -64,25 +73,23 @@
       (string->chunked-string msg)
       (unison-any-any vl))))
 
-(define (getFileSize.impl.v3 path)
-    (with-handlers
-        [[exn:fail:filesystem?
-           (lambda (e)
-             (exception
-               ref-iofailure:typelink
-               (exception->string e)
-               ref-unit-unit))]]
-        (right (file-size (chunked-string->string path)))))
+(define (exn-failure e)
+  (failure-result
+    ref-iofailure:typelink
+    (exn->string e)
+    ref-unit-unit))
 
-(define (getFileTimestamp.impl.v3 path)
-    (with-handlers
-        [[exn:fail:filesystem?
-           (lambda (e)
-             (exception
-               ref-iofailure:typelink
-               (exception->string e)
-               ref-unit-unit))]]
-        (right (file-or-directory-modify-seconds (chunked-string->string path)))))
+(define-unison-builtin (builtin-IO.getFileSize.impl.v3 path)
+  (with-handlers
+    [[exn:fail:filesystem? exn-failure]]
+    (ref-either-right (file-size (chunked-string->string path)))))
+
+(define-unison-builtin (builtin-IO.getFileTimestamp.impl.v3 path)
+  (with-handlers
+    [[exn:fail:filesystem? exn-failure]]
+    (ref-either-right
+      (file-or-directory-modify-seconds
+        (chunked-string->string path)))))
 
 ; in haskell, it's not just file but also directory
 (define-unison-builtin
@@ -93,12 +100,14 @@
         (file-exists? path-string)
         (directory-exists? path-string)))))
 
-(define (removeFile.impl.v3 path)
-    (delete-file (chunked-string->string path))
-    (right none))
+(define-unison-builtin (builtin-IO.removeFile.impl.v3 path)
+  (delete-file (chunked-string->string path))
+  (ref-either-right ref-unit-unit))
 
-(define (getTempDirectory.impl.v3)
-    (right (string->chunked-string (path->string (find-system-path 'temp-dir)))))
+(define-unison-builtin (builtin-IO.getTempDirectory.impl.v3 _)
+  (ref-either-right
+    (string->chunked-string
+      (path->string (find-system-path 'temp-dir)))))
 
 (define-unison-builtin
   (builtin-IO.setCurrentDirectory.impl.v3 path)
@@ -177,23 +186,23 @@
         (if (date-dst? d) 1 0)
         (date*-time-zone-name d)))))
 
-(define (threadCPUTime.v1)
-  (right
+(define-unison-builtin (builtin-Clock.internals.threadCPUTime.v1 _)
+  (ref-either-right
     (integer->time
       (current-process-milliseconds (current-thread)))))
 
-(define (processCPUTime.v1)
-  (right
+(define-unison-builtin (builtin-Clock.internals.processCPUTime.v1 _)
+  (ref-either-right
     (integer->time
       (current-process-milliseconds #f))))
 
-(define (realtime.v1)
-  (right
+(define-unison-builtin (builtin-Clock.internals.realtime.v1 _)
+  (ref-either-right
     (float->time
       (current-inexact-milliseconds))))
 
-(define (monotonic.v1)
-  (right
+(define-unison-builtin (builtin-Clock.internals.monotonic.v1 _)
+  (ref-either-right
     (float->time
       (current-inexact-monotonic-milliseconds))))
 
@@ -210,6 +219,10 @@
 ;
 (define (trunc f) (inexact->exact (truncate f)))
 
-(define sec.v1 unison-timespec-sec)
+(define-unison-builtin (sec.v1 ts) (unison-timespec-sec ts))
 
-(define nsec.v1 unison-timespec-nsec)
+(define-unison-builtin (nsec.v1 ts) (unison-timespec-nsec ts))
+
+(define-unison-builtin (builtin-IO.systemTimeMicroseconds.v1 _)
+  (current-microseconds))
+
