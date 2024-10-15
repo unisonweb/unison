@@ -8,9 +8,9 @@ import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.Runtime.ANF qualified as ANF
+import Unison.Test.Runtime.ANF.Serialization qualified as ANF.Serialization
 import Unison.Test.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Test.Runtime.MCode qualified as MCode
-import Unison.Test.Runtime.ANF.Serialization qualified as ANF.Serialization
 import Unison.Test.UnisonSources qualified as UnisonSources
 
 test :: Test ()
