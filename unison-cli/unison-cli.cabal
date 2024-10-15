@@ -233,6 +233,7 @@ library
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
+    , process
     , random-shuffle
     , recover-rtti
     , regex-tdfa

@@ -23,6 +23,7 @@ import Data.Text.IO qualified as Text
 import Data.These (These (..))
 import System.Directory (removeFile)
 import System.Environment (lookupEnv)
+import System.Process qualified as Process
 import Text.ANSI qualified as Text
 import Text.Builder qualified
 import Text.Builder qualified as Text (Builder)
@@ -393,6 +394,8 @@ doMerge info = do
                 env.writeSource lcaFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.lca))
                 env.writeSource aliceFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.alice))
                 env.writeSource bobFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.bob))
+                -- Execute the process, silencing IO errors due to non-zero exit code
+                Process.callCommand (Text.unpack mergetool) <|> pure ()
               done (Output.MergeFailureWithMergetool mergetool mergeSourceAndTarget temporaryBranchName)
 
       Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)

@@ -2038,8 +2038,8 @@ notifyUser dir = \case
             "I couldn't automatically merge"
               <> prettyMergeSource aliceAndBob.bob
               <> "into"
-              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-              <> "However, I've written a few files to help you resolve the conflicts with",
+              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ",")
+              <> "so I'm running your MERGETOOL environment variable as",
           "",
           P.indentN 2 (P.text mergetool),
           "",
