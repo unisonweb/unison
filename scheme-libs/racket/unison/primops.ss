@@ -23,120 +23,6 @@
 
 #lang racket/base
 (provide
-  builtin-Float.*
-  builtin-Float.*:termlink
-  builtin-Float.>=
-  builtin-Float.>=:termlink
-  builtin-Float.<=
-  builtin-Float.<=:termlink
-  builtin-Float.>
-  builtin-Float.>:termlink
-  builtin-Float.<
-  builtin-Float.<:termlink
-  builtin-Float.==
-  builtin-Float.==:termlink
-  builtin-Float.fromRepresentation
-  builtin-Float.fromRepresentation:termlink
-  builtin-Float.toRepresentation
-  builtin-Float.toRepresentation:termlink
-  builtin-Float.ceiling
-  builtin-Float.ceiling:termlink
-  builtin-Float.exp
-  builtin-Float.exp:termlink
-  builtin-Float.log
-  builtin-Float.log:termlink
-  builtin-Float.max
-  builtin-Float.max:termlink
-  builtin-Float.min
-  builtin-Float.min:termlink
-  builtin-Float.sqrt
-  builtin-Float.sqrt:termlink
-  builtin-Float.tan
-  builtin-Float.tan:termlink
-  builtin-Float.tanh
-  builtin-Float.tanh:termlink
-  builtin-Float.logBase
-  builtin-Float.logBase:termlink
-  builtin-Float.pow
-  builtin-Float.pow:termlink
-  builtin-Int.pow
-  builtin-Int.pow:termlink
-  builtin-Int.*
-  builtin-Int.*:termlink
-  builtin-Int.+
-  builtin-Int.+:termlink
-  builtin-Int.-
-  builtin-Int.-:termlink
-  builtin-Int./
-  builtin-Int./:termlink
-  builtin-Int.increment
-  builtin-Int.increment:termlink
-  builtin-Int.negate
-  builtin-Int.negate:termlink
-  builtin-Int.fromRepresentation
-  builtin-Int.fromRepresentation:termlink
-  builtin-Int.toRepresentation
-  builtin-Int.toRepresentation:termlink
-  builtin-Int.signum
-  builtin-Int.signum:termlink
-  builtin-Int.trailingZeros
-  builtin-Int.trailingZeros:termlink
-  builtin-Int.popCount
-  builtin-Int.popCount:termlink
-  builtin-Int.isEven
-  builtin-Int.isEven:termlink
-  builtin-Int.isOdd
-  builtin-Int.isOdd:termlink
-  builtin-Int.==
-  builtin-Int.==:termlink
-  builtin-Int.<
-  builtin-Int.<:termlink
-  builtin-Int.<=
-  builtin-Int.<=:termlink
-  builtin-Int.>
-  builtin-Int.>:termlink
-  builtin-Int.>=
-  builtin-Int.>=:termlink
-  builtin-Nat.+
-  builtin-Nat.+:termlink
-  builtin-Nat.drop
-  builtin-Nat.drop:termlink
-  builtin-Nat.==
-  builtin-Nat.==:termlink
-  builtin-Nat.<
-  builtin-Nat.<:termlink
-  builtin-Nat.<=
-  builtin-Nat.<=:termlink
-  builtin-Nat.>
-  builtin-Nat.>:termlink
-  builtin-Nat.>=
-  builtin-Nat.>=:termlink
-  builtin-Nat.isEven
-  builtin-Nat.isEven:termlink
-  builtin-Nat.isOdd
-  builtin-Nat.isOdd:termlink
-  builtin-Nat.increment
-  builtin-Nat.increment:termlink
-  builtin-Nat.popCount
-  builtin-Nat.popCount:termlink
-  builtin-Nat.toFloat
-  builtin-Nat.toFloat:termlink
-  builtin-Nat.trailingZeros
-  builtin-Nat.trailingZeros:termlink
-  builtin-Text.indexOf
-  builtin-Text.indexOf:termlink
-  builtin-Text.==
-  builtin-Text.==:termlink
-  builtin-Text.!=
-  builtin-Text.!=:termlink
-  builtin-Text.<=
-  builtin-Text.<=:termlink
-  builtin-Text.>=
-  builtin-Text.>=:termlink
-  builtin-Text.<
-  builtin-Text.<:termlink
-  builtin-Text.>
-  builtin-Text.>:termlink
   builtin-Bytes.indexOf
   builtin-Bytes.indexOf:termlink
   builtin-IO.randomBytes
@@ -147,18 +33,6 @@
   builtin-Scope.bytearrayOf
   builtin-Scope.bytearrayOf:termlink
 
-  builtin-Universal.==
-  builtin-Universal.==:termlink
-  builtin-Universal.>
-  builtin-Universal.>:termlink
-  builtin-Universal.>=
-  builtin-Universal.>=:termlink
-  builtin-Universal.<
-  builtin-Universal.<:termlink
-  builtin-Universal.<=
-  builtin-Universal.<=:termlink
-  builtin-Universal.compare
-  builtin-Universal.compare:termlink
   builtin-Universal.murmurHash:termlink
 
   builtin-unsafe.coerceAbilities
@@ -799,53 +673,6 @@
       [(unison-sum 0 fs) ref-seqview-empty]
       [(unison-sum 1 (list l r)) (ref-seqview-elem l r)]))
 
-  (define-unison-builtin (builtin-Float.> x y) (fl> x y))
-  (define-unison-builtin (builtin-Float.< x y) (fl< x y))
-  (define-unison-builtin (builtin-Float.>= x y) (fl>= x y))
-  (define-unison-builtin (builtin-Float.<= x y) (fl<= x y))
-  (define-unison-builtin (builtin-Float.== x y) (fl= x y))
-
-  (define-unison-builtin (builtin-Int.> x y) (> x y))
-  (define-unison-builtin (builtin-Int.< x y) (< x y))
-  (define-unison-builtin (builtin-Int.>= x y) (>= x y))
-  (define-unison-builtin (builtin-Int.<= x y) (<= x y))
-  (define-unison-builtin (builtin-Int.== x y) (= x y))
-  (define-unison-builtin (builtin-Int.isEven x) (even? x))
-  (define-unison-builtin (builtin-Int.isOdd x) (odd? x))
-
-  (define-unison-builtin (builtin-Nat.> x y) (> x y))
-  (define-unison-builtin (builtin-Nat.< x y) (< x y))
-  (define-unison-builtin (builtin-Nat.>= x y) (>= x y))
-  (define-unison-builtin (builtin-Nat.<= x y) (<= x y))
-  (begin-encourage-inline
-    (define-unison-builtin (builtin-Nat.== x y) (= x y)))
-
-  (define-unison-builtin (builtin-Nat.isEven x) (even? x))
-  (define-unison-builtin (builtin-Nat.isOdd x) (odd? x))
-
-  ; Note: chunked-string<? is actually <=
-  (define-unison-builtin (builtin-Text.> x y)
-    (not (chunked-string<? x y)))
-  (define-unison-builtin (builtin-Text.< x y)
-    (not (chunked-string<? y x)))
-  (define-unison-builtin (builtin-Text.>= x y) (chunked-string<? y x))
-  (define-unison-builtin (builtin-Text.<= x y) (chunked-string<? x y))
-  (define-unison-builtin (builtin-Text.== x y) (equal? x y))
-  (define-unison-builtin (builtin-Text.!= x y) (not (equal? x y)))
-
-  (define-unison-builtin (builtin-Universal.== x y) (universal=? x y))
-  (define-unison-builtin (builtin-Universal.> x y)
-    (case (universal-compare x y) [(>) #t] [else #f]))
-  (define-unison-builtin (builtin-Universal.< x y)
-    (case (universal-compare x y) [(<) #t] [else #f]))
-  (define-unison-builtin (builtin-Universal.<= x y)
-    (case (universal-compare x y) [(>) #f] [else #t]))
-  (define-unison-builtin (builtin-Universal.>= x y)
-    (case (universal-compare x y) [(<) #f] [else #t]))
-  (define-unison-builtin (builtin-Universal.compare x y)
-    (case (universal-compare x y)
-      [(>) 1] [(<) -1] [else 0]))
-
   (define-unison-builtin (builtin-Scope.bytearrayOf i n)
     (make-bytes n i))
 
@@ -963,16 +790,6 @@
   (define (unison-POp-TAKS n s) (chunked-list-take s n))
   (define (unison-POp-TAKT n t) (chunked-string-take t n))
   (define (unison-POp-TAKB n t) (chunked-bytes-take t n))
-
-  (define (->optional v)
-    (if v
-        (ref-optional-some v)
-        ref-optional-none))
-
-  (define-unison-builtin (builtin-Text.indexOf n h)
-    (->optional (chunked-string-index-of h n)))
-  (define-unison-builtin (builtin-Bytes.indexOf n h)
-    (->optional (chunked-bytes-index-of h n)))
 
   ;; TODO currently only runs in low-level tracing support
   (define (unison-POp-DBTX x)
