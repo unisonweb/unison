@@ -424,6 +424,7 @@ data Output
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
+  | MergeFailureWithMergetool !Text !MergeSourceAndTarget !ProjectBranchName
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
@@ -663,6 +664,7 @@ isFailure o = case o of
   UpgradeFailure {} -> True
   UpgradeSuccess {} -> False
   MergeFailure {} -> True
+  MergeFailureWithMergetool {} -> True
   MergeSuccess {} -> False
   MergeSuccessFastForward {} -> False
   MergeConflictedAliases {} -> True

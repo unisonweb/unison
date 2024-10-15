@@ -2031,6 +2031,33 @@ notifyUser dir = \case
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
         ]
+  MergeFailureWithMergetool mergetool aliceAndBob temp ->
+    pure $
+      P.lines $
+        [ P.wrap $
+            "I couldn't automatically merge"
+              <> prettyMergeSource aliceAndBob.bob
+              <> "into"
+              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+              <> "However, I've written a few files to help you resolve the conflicts with",
+          "",
+          P.indentN 2 (P.text mergetool),
+          "",
+          P.wrap "When you're done, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          "",
+          P.wrap $
+            "to merge your changes back into"
+              <> prettyProjectBranchName aliceAndBob.alice.branch
+              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
+          "",
+          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          "",
+          P.wrap $
+            "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
+        ]
   MergeSuccess aliceAndBob ->
     pure . P.wrap $
       "I merged"

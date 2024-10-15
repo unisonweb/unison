@@ -21,6 +21,8 @@ import Data.Semialign (zipWith)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
+import System.Directory (removeFile)
+import System.Environment (lookupEnv)
 import Text.ANSI qualified as Text
 import Text.Builder qualified
 import Text.Builder qualified as Text (Builder)
@@ -28,7 +30,7 @@ import U.Codebase.Branch qualified as V2 (Branch (..), CausalBranch)
 import U.Codebase.Branch qualified as V2.Branch
 import U.Codebase.Causal qualified as V2.Causal
 import U.Codebase.HashTags (CausalHash, unCausalHash)
-import U.Codebase.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
+import U.Codebase.Reference (TermReferenceId, TypeReference, TypeReferenceId)
 import U.Codebase.Sqlite.DbId (ProjectId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
@@ -60,7 +62,6 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
-import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
@@ -276,9 +277,21 @@ doMerge info = do
           for ((,) <$> ThreeWay.forgetLca blob2.defns <*> blob2.coreDependencies) \(defns, deps) ->
             getNamespaceDependentsOf3 defns deps
 
-      -- Load and merge Alice's and Bob's libdeps
-      mergedLibdeps <-
-        Cli.runTransaction (libdepsToBranch0 (Codebase.getDeclType env.codebase) blob2.libdeps)
+      -- Load libdeps
+      (mergedLibdeps, lcaLibdeps) <- do
+        -- We make a fresh branch cache to load the branch of libdeps.
+        -- It would probably be better to reuse the codebase's branch cache.
+        -- FIXME how slow/bad is this without that branch cache?
+        Cli.runTransaction do
+          branchCache <- Sqlite.unsafeIO newBranchCache
+          let load children =
+                Conversions.branch2to1
+                  branchCache
+                  (Codebase.getDeclType env.codebase)
+                  V2.Branch {terms = Map.empty, types = Map.empty, patches = Map.empty, children}
+          mergedLibdeps <- load blob2.libdeps
+          lcaLibdeps <- load blob2.lcaLibdeps
+          pure (mergedLibdeps, lcaLibdeps)
 
       let hasConflicts =
             blob2.hasConflicts
@@ -288,6 +301,7 @@ doMerge info = do
               blob2
               dependents0
               (Branch.toNames mergedLibdeps)
+              (Branch.toNames lcaLibdeps)
               Merge.TwoWay
                 { alice = into @Text aliceBranchNames,
                   bob =
@@ -318,7 +332,7 @@ doMerge info = do
 
       blob5 <-
         maybeBlob5 & onNothing do
-          Cli.Env {writeSource} <- ask
+          env <- ask
           (_temporaryBranchId, temporaryBranchName) <-
             HandleInput.Branch.createBranch
               info.description
@@ -332,12 +346,54 @@ doMerge info = do
               )
               info.alice.projectAndBranch.project
               (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
-          scratchFilePath <-
-            Cli.getLatestFile <&> \case
-              Nothing -> "scratch.u"
-              Just (file, _) -> file
-          liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile)
-          done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
+
+          --   Merge conflicts?    Have MERGETOOL?    Result
+          --   ----------------    ---------------    ------------------------------------------------------------
+          --                 No                 No           Put code that doesn't parse or typecheck in scratch.u
+          --                 No                Yes           Put code that doesn't parse or typecheck in scratch.u
+          --                Yes                 No    Put code that doesn't parse (because conflicts) in scratch.u
+          --                Yes                Yes                                              Run that cool tool
+
+          maybeMergetool <-
+            if hasConflicts
+              then liftIO (lookupEnv "MERGETOOL")
+              else pure Nothing
+
+          case maybeMergetool of
+            Nothing -> do
+              scratchFilePath <-
+                Cli.getLatestFile <&> \case
+                  Nothing -> "scratch.u"
+                  Just (file, _) -> file
+              liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile)
+              done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
+            Just mergetool0 -> do
+              -- Name the three input files ".u.tmp", not ".u", so that ucm's file watcher doesn't provide unwanted
+              -- feedback. Once the conflicts are resolved, then the resolution will be put to a proper ".u" file.
+              let aliceFilenameSlug = mangleBranchName mergeSourceAndTarget.alice.branch
+              let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
+              let lcaFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-base.u.tmp")
+              let aliceFilename = Text.Builder.run (aliceFilenameSlug <> ".u.tmp")
+              let bobFilename = Text.Builder.run (bobFilenameSlug <> ".u.tmp")
+              let outputFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-merged.u")
+              let mergetool =
+                    mergetool0
+                      & Text.pack
+                      & Text.replace "$BASE" lcaFilename
+                      & Text.replace "$LOCAL" aliceFilename
+                      & Text.replace "$MERGED" outputFilename
+                      & Text.replace "$REMOTE" bobFilename
+              liftIO do
+                -- We want these files empty before prepending source code, so the diffs are clean. It seems reasonable
+                -- to assume these ".u.tmp" filenames are not important, and can be truncated without consequence.
+                -- Alternatively, we could try to pick filenames that don't correspond to file that already exist.
+                removeFile (Text.unpack lcaFilename) <|> pure ()
+                removeFile (Text.unpack aliceFilename) <|> pure ()
+                removeFile (Text.unpack bobFilename) <|> pure ()
+                env.writeSource lcaFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.lca))
+                env.writeSource aliceFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.alice))
+                env.writeSource bobFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.bob))
+              done (Output.MergeFailureWithMergetool mergetool mergeSourceAndTarget temporaryBranchName)
 
       Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)
       Cli.updateProjectBranchRoot_
@@ -481,26 +537,27 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
             <> "-into-"
             <> mangleBranchName mergeSourceAndTarget.alice.branch
 
-    mangleMergeSource :: MergeSource -> Text.Builder
-    mangleMergeSource = \case
-      MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
-      MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
-      MergeSource'RemoteLooseCode info -> manglePath info.path
-    mangleBranchName :: ProjectBranchName -> Text.Builder
-    mangleBranchName name =
-      case classifyProjectBranchName name of
-        ProjectBranchNameKind'Contributor user name1 ->
-          Text.Builder.text user
-            <> Text.Builder.char '-'
-            <> mangleBranchName name1
-        ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
-        ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
-        ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
-
+mangleMergeSource :: MergeSource -> Text.Builder
+mangleMergeSource = \case
+  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
+  MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
+  MergeSource'RemoteLooseCode info -> manglePath info.path
+  where
     manglePath :: Path -> Text.Builder
     manglePath =
       Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
 
+mangleBranchName :: ProjectBranchName -> Text.Builder
+mangleBranchName name =
+  case classifyProjectBranchName name of
+    ProjectBranchNameKind'Contributor user name1 ->
+      Text.Builder.text user
+        <> Text.Builder.char '-'
+        <> mangleBranchName name1
+    ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
+    ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
+    ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+  where
     mangleSemver :: Semver -> Text.Builder
     mangleSemver (Semver x y z) =
       Text.Builder.decimal x
@@ -508,26 +565,6 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
         <> Text.Builder.decimal y
         <> Text.Builder.char '.'
         <> Text.Builder.decimal z
-
-libdepsToBranch0 ::
-  (Reference -> Transaction ConstructorType) ->
-  Map NameSegment (V2.CausalBranch Transaction) ->
-  Transaction (Branch0 Transaction)
-libdepsToBranch0 loadDeclType libdeps = do
-  let branch :: V2.Branch Transaction
-      branch =
-        V2.Branch
-          { terms = Map.empty,
-            types = Map.empty,
-            patches = Map.empty,
-            children = libdeps
-          }
-
-  -- We make a fresh branch cache to load the branch of libdeps.
-  -- It would probably be better to reuse the codebase's branch cache.
-  -- FIXME how slow/bad is this without that branch cache?
-  branchCache <- Sqlite.unsafeIO newBranchCache
-  Conversions.branch2to1 branchCache loadDeclType branch
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do
