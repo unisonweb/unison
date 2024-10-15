@@ -10,102 +10,119 @@
          unison/core)
 
 (provide
- socket-pair-input
- socket-pair-output
- (prefix-out
-  unison-FOp-IO.
-  (combine-out
-   clientSocket.impl.v3
-   closeSocket.impl.v3
-   socketReceive.impl.v3
-   socketPort.impl.v3
-   serverSocket.impl.v3
-   listen.impl.v3
-   socketAccept.impl.v3
-   socketSend.impl.v3)))
+  builtin-IO.clientSocket.impl.v3
+  builtin-IO.clientSocket.impl.v3:termlink
+  builtin-IO.closeSocket.impl.v3
+  builtin-IO.closeSocket.impl.v3:termlink
+  builtin-IO.listen.impl.v3
+  builtin-IO.listen.impl.v3:termlink
+  builtin-IO.serverSocket.impl.v3
+  builtin-IO.serverSocket.impl.v3:termlink
+  builtin-IO.socketAccept.impl.v3
+  builtin-IO.socketAccept.impl.v3:termlink
+  builtin-IO.socketPort.impl.v3
+  builtin-IO.socketPort.impl.v3:termlink
+  builtin-IO.socketReceive.impl.v3
+  builtin-IO.socketReceive.impl.v3:termlink
+  builtin-IO.socketSend.impl.v3
+  builtin-IO.socketSend.impl.v3:termlink)
 
-(struct socket-pair (input output))
-
-(define (closeSocket.impl.v3 socket)
+(define-unison-builtin (builtin-IO.closeSocket.impl.v3 socket)
   (handle-errors
-   (lambda ()
-     (if (socket-pair? socket)
-         (begin
-           (close-input-port (socket-pair-input socket))
-           (close-output-port (socket-pair-output socket)))
-         (tcp-close socket))
-     (right none))))
+    (if (socket-pair? socket)
+      (begin
+        (close-input-port (socket-pair-input socket))
+        (close-output-port (socket-pair-output socket)))
+      (tcp-close socket))
+    (ref-either-right ref-unit-unit)))
 
-(define (clientSocket.impl.v3 host port) ; string string -> socket-pair
+; string string -> either failure socket-pair
+(define-unison-builtin (builtin-IO.clientSocket.impl.v3 host port)
   (handle-errors
-   (lambda ()
-     (let-values ([(input output) (tcp-connect (chunked-string->string host) (string->number (chunked-string->string port)))])
-       (right (socket-pair input output))))))
+    (let-values
+      ([(input output) (tcp-connect
+                         (chunked-string->string host)
+                         (string->number
+                           (chunked-string->string port)))])
+      (ref-either-right (socket-pair input output)))))
 
-(define (socketSend.impl.v3 socket data) ; socket bytes -> ()
+; socket bytes -> either failure ()
+(define-unison-builtin (builtin-IO.socketSend.impl.v3 socket data)
   (if (not (socket-pair? socket))
-      (exception
-        ref-iofailure:typelink
-        (string->chunked-string "Cannot send on a server socket")
-        ref-unit-unit)
+      (ref-either-left
+        (ref-failure-failure
+          ref-iofailure:typelink
+          (string->chunked-string "Cannot send on a server socket")
+          (ref-any-any ref-unit-unit)))
       (begin
         (write-bytes (chunked-bytes->bytes data) (socket-pair-output socket))
         (flush-output (socket-pair-output socket))
-        (right none))))
+        (ref-either-right ref-unit-unit))))
 
-(define (socketReceive.impl.v3 socket amt) ; socket int -> bytes
+; socket int -> either failure bytes
+(define-unison-builtin (builtin-IO.socketReceive.impl.v3 socket amt)
   (if (not (socket-pair? socket))
-      (exception
-        ref-iofailure:typelink
-        (string->chunked-string "Cannot receive on a server socket"))
+      (ref-either-left
+        (ref-failure-failure
+          ref-iofailure:typelink
+          (string->chunked-string "Cannot receive on a server socket")
+          (ref-any-any ref-unit-unit)))
+
       (handle-errors
-       (lambda ()
-         (begin
-           (let* ([buffer (make-bytes amt)]
-                  [read (read-bytes-avail! buffer (socket-pair-input socket))])
-             (right (bytes->chunked-bytes (subbytes buffer 0 read)))))))))
+        (define buffer (make-bytes amt))
+        (define read
+          (read-bytes-avail! buffer (socket-pair-input socket)))
 
-(define (socketPort.impl.v3 socket)
-  (let-values ([(_ local-port __ ___) (tcp-addresses
-                                       (if (socket-pair? socket)
-                                           (socket-pair-input socket)
-                                           socket) #t)])
-    (right local-port)))
+        (ref-either-right
+          (bytes->chunked-bytes (subbytes buffer 0 read))))))
 
-(define serverSocket.impl.v3 ; string -> socket (or) string string -> socket
-  (lambda args
-    (let-values ([(hostname port)
-                  (match args
-                    [(list _ port) (values #f (chunked-string->string port))]
-                    [(list _ hostname port) (values
-                                             (chunked-string->string hostname)
-                                             (chunked-string->string port))])])
+; socket -> either failure nat
+(define-unison-builtin (builtin-IO.socketPort.impl.v3 socket)
+  (define-values (_ local-port __ ___)
+    (tcp-addresses
+      (if (socket-pair? socket)
+        (socket-pair-input socket)
+        socket)
+      #t))
 
-      (with-handlers
-          [[exn:fail:network?
-             (lambda (e)
-               (exception
-                 ref-iofailure:typelink
-                 (exception->string e)
-                 ref-unit-unit))]
-           [exn:fail:contract?
-             (lambda (e)
-               (exception
-                 ref-iofailure:typelink
-                 (exception->string e)
-                 ref-unit-unit))]
-           [(lambda _ #t)
-            (lambda (e)
-              (exception
-                ref-miscfailure:typelink
-                (string->chunked-string "Unknown exception")
-                ref-unit-unit))] ]
-        (let ([listener (tcp-listen
-                          (string->number port)
-                          2048
-                          #t
-                          (if (equal? 0 hostname) #f hostname))])
-          (right listener))))))
+  (ref-either-right local-port))
+
+(define (left-fail-exn e)
+  (ref-either-left
+    (ref-failure-failure
+      ref-iofailure:typelink
+      (exception->string e)
+      (ref-any-any ref-unit-unit))))
+
+(define (left-fail-k e)
+  (ref-either-left
+    (ref-failure-failure
+      ref-miscfailure:typelink
+      (string->chunked-string "Unknown exception")
+      (ref-any-any ref-unit-unit))))
+
+; optional string -> string -> either failure socket
+(define-unison-builtin (builtin-IO.serverSocket.impl.v3 mhost cport)
+  (define hostname
+    (match mhost
+      [(unison-data r t (list host))
+       #:when (= t ref-optional-some)
+       (chunked-string->string host)]
+      [else #f]))
+
+  (define port (chunked-string->string cport))
+
+  (with-handlers
+    [[exn:fail:network? left-fail-exn]
+     [exn:fail:contract? left-fail-exn]
+     [(lambda _ #t) left-fail-k]]
+
+    (ref-either-right
+      (tcp-listen
+        (string->number port)
+        2048
+        #t
+        (if (= 0 hostname) #f hostname)))))
 
 ; NOTE: This is a no-op because racket's public TCP stack doesn't have separate operations for
 ; "bind" vs "listen". We've decided to have `serverSocket` do the "bind & listen", and have
@@ -113,15 +130,16 @@
 ; If we want ~a little better parity with the haskell implementation, we might set a flag or
 ; something on the listener, and error if you try to `accept` on a server socket that you haven't
 ; called `listen` on yet.
-(define (listen.impl.v3 _listener)
-  (right none))
+(define-unison-builtin (listen.impl.v3 _listener)
+  (ref-either-right ref-unit-unit))
 
-(define (socketAccept.impl.v3 listener)
+(define-unison-builtin (socketAccept.impl.v3 listener)
   (if (socket-pair? listener)
-      (exception
+    (ref-either-left
+      (ref-failure-failure
         ref-iofailure:typelink
         (string->chunked-string "Cannot accept on a non-server socket")
-        ref-unit-unit)
-      (begin
-        (let-values ([(input output) (tcp-accept listener)])
-          (right (socket-pair input output))))))
+        (ref-any-any ref-unit-unit)))
+
+    (let-values ([(input output) (tcp-accept listener)])
+      (ref-either-right (socket-pair input output)))))
