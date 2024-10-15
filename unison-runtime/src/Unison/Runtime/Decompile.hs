@@ -164,7 +164,6 @@ decompile backref topTerms = \case
     -- Only match lists of boxed args.
     | ([], bs) <- partitionEithers vs ->
         apps' (con rf ct) <$> traverse (decompile backref topTerms) bs
-  (DataC rf _ _) -> err (BadData rf) $ bug "<Data>"
   (PApV (CIx rf rt k) _ (partitionEithers -> ([], bs)))
     | rf == Builtin "jumpCont" ->
         err Cont $ bug "<Continuation>"
@@ -179,6 +178,7 @@ decompile backref topTerms = \case
     | otherwise -> err (UnkComb rf) $ ref () rf
   (PAp (CIx rf _ _) _ _) ->
     err (BadPAp rf) $ bug "<Unknown>"
+  (DataC rf _ _) -> err (BadData rf) $ bug "<Data>"
   BlackHole -> err Exn $ bug "<Exception>"
   (Captured {}) -> err Cont $ bug "<Continuation>"
   (Foreign f) ->

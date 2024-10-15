@@ -1535,8 +1535,11 @@ type ANFD v = Compose (ANFM v) (Directed ())
 data GroupRef = GR Reference Word64
   deriving (Show)
 
+-- | A value which is either unboxed or boxed.
 type UBValue = Either Word64 Value
 
+-- | A list of either unboxed or boxed values.
+-- Each slot is one of unboxed or boxed but not both.
 type ValList = [UBValue]
 
 data Value

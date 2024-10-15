@@ -264,7 +264,7 @@ instance Tag ArgsT where
 putArgs :: (MonadPut m) => Args -> m ()
 putArgs ZArgs = putTag ZArgsT
 putArgs (VArg1 i) = putTag Arg1T *> pInt i
-putArgs (VArg2 i j) = putTag Arg1T *> pInt i *> pInt j
+putArgs (VArg2 i j) = putTag Arg2T *> pInt i *> pInt j
 putArgs (VArgR i j) = putTag ArgRT *> pInt i *> pInt j
 putArgs (VArgN pa) = putTag ArgNT *> putIntArr pa
 putArgs (VArgV i) = putTag ArgVT *> pInt i

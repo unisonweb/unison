@@ -267,8 +267,7 @@ data Args
   | VArg2 !Int !Int
   | VArgR !Int !Int
   | VArgN {-# UNPACK #-} !(PrimArray Int)
-  | -- TODO: What do I do with this?
-    VArgV !Int
+  | VArgV !Int
   deriving (Show, Eq, Ord)
 
 argsToLists :: Args -> [Int]
