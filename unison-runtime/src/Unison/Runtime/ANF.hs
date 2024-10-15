@@ -1533,7 +1533,7 @@ type ANFM v =
 type ANFD v = Compose (ANFM v) (Directed ())
 
 data GroupRef = GR Reference Word64
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | A value which is either unboxed or boxed.
 type UBValue = Either Word64 Value
@@ -1547,7 +1547,7 @@ data Value
   | Data Reference Word64 ValList
   | Cont ValList Cont
   | BLit BLit
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- Since we can now track cacheability of supergroups, this type
 -- pairs the two together. This is the type that should be used
@@ -1587,7 +1587,7 @@ data Cont
       Word64 -- Pending args
       GroupRef
       Cont
-  deriving (Show)
+  deriving (Show, Eq)
 
 data BLit
   = Text Util.Text.Text
@@ -1603,7 +1603,7 @@ data BLit
   | Char Char
   | Float Double
   | Arr (PA.Array Value)
-  deriving (Show)
+  deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
 groupVars = ask
