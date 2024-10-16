@@ -22,7 +22,10 @@
     unison/primops/text
     unison/primops/tls
     unison/primops/udp
-    unison/primops/universal))
+    unison/primops/universal)
+
+  unison-POp-BLDS
+  unison-FOp-internal.dataTag)
 
 (require
   unison/primops/array
@@ -42,3 +45,18 @@
   unison/primops/udp
   unison/primops/universal)
 
+(require unison/chunked-seq
+         unison/core
+         unison/data
+         racket/match)
+
+; BLDS occurs directly in list literal code
+(define (unison-POp-BLDS . xs)
+  (vector->chunked-list (list->vector xs)))
+
+; occurs in some replacement code for the racket compiler
+(define (unison-FOp-internal.dataTag v)
+  (match v
+    [(unison-data r t fs) t]
+    [else
+      (raise (make-exn:bug "dataTag: not a data type" v))]))
