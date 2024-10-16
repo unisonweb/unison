@@ -804,13 +804,7 @@
     (not (hash-has-key? runtime-module-type-map ln))))
 
 (define (resolve-builtin nm)
-  (dynamic-require
-    'unison/primops
-    nm
-    (lambda ()
-      (dynamic-require
-        'unison/simple-wrappers
-        nm))))
+  (dynamic-require 'unison/primops nm))
 
 (define (termlink->proc tl)
   (match tl
@@ -862,7 +856,6 @@
              unison/primops
              unison/primops-generated
              unison/builtin-generated
-             unison/simple-wrappers
              unison/compound-wrappers
              ,@(if profile? '(profile profile/render-text) '()))
 
@@ -915,7 +908,6 @@
               unison/primops
               unison/primops-generated
               unison/builtin-generated
-              unison/simple-wrappers
               unison/compound-wrappers
               ,@(map (lambda (s) `(quote ,s)) reqs))
 
