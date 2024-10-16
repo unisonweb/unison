@@ -22,7 +22,7 @@ import Data.Semialign (zipWith)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
-import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
+import System.Directory (canonicalizePath, getTemporaryDirectory)
 import System.Environment (lookupEnv)
 import System.IO qualified as IO
 import System.Process qualified as Process
