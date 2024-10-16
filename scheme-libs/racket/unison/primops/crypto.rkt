@@ -11,22 +11,33 @@
 
          )
 
-(provide (prefix-out unison-FOp-crypto.
-    (combine-out
-        HashAlgorithm.Md5
-        HashAlgorithm.Sha1
-        HashAlgorithm.Sha2_256
-        HashAlgorithm.Sha2_512
-        HashAlgorithm.Sha3_256
-        HashAlgorithm.Sha3_512
-        HashAlgorithm.Blake2s_256
-        HashAlgorithm.Blake2b_256
-        HashAlgorithm.Blake2b_512
-        hashBytes
-        hmacBytes
-        Ed25519.sign.impl
-        Ed25519.verify.impl
-        )))
+(provide
+  builtin-crypto.HashAlgorithm.Blake2b_256
+  builtin-crypto.HashAlgorithm.Blake2b_256:termlink
+  builtin-crypto.HashAlgorithm.Blake2b_512
+  builtin-crypto.HashAlgorithm.Blake2b_512:termlink
+  builtin-crypto.HashAlgorithm.Blake2s_256
+  builtin-crypto.HashAlgorithm.Blake2s_256:termlink
+  builtin-crypto.HashAlgorithm.Md5
+  builtin-crypto.HashAlgorithm.Md5:termlink
+  builtin-crypto.HashAlgorithm.Sha1
+  builtin-crypto.HashAlgorithm.Sha1:termlink
+  builtin-crypto.HashAlgorithm.Sha2_256
+  builtin-crypto.HashAlgorithm.Sha2_256:termlink
+  builtin-crypto.HashAlgorithm.Sha2_512
+  builtin-crypto.HashAlgorithm.Sha2_512:termlink
+  builtin-crypto.HashAlgorithm.Sha3_256
+  builtin-crypto.HashAlgorithm.Sha3_256:termlink
+  builtin-crypto.HashAlgorithm.Sha3_512
+  builtin-crypto.HashAlgorithm.Sha3_512:termlink
+  builtin-crypto.hashBytes
+  builtin-crypto.hashBytes:termlink
+  builtin-crypto.hmacBytes
+  builtin-crypto.hmacBytes:termlink
+  builtin-crypto.Ed25519.verify.impl
+  builtin-crypto.Ed25519.verify.impl:termlink
+  builtin-crypto.Ed25519.sign.impl
+  builtin-crypto.Ed25519.sign.impl:termlink)
 
 (define-runtime-path libb2-so '(so "libb2" ("1" #f)))
 
@@ -98,12 +109,29 @@
 (define blake2b-raw (libb2-raw "blake2b"))
 (define blake2s-raw (libb2-raw "blake2s"))
 
-(define HashAlgorithm.Md5 (lc-algo "EVP_md5" 128))
-(define HashAlgorithm.Sha1 (lc-algo "EVP_sha1" 160))
-(define HashAlgorithm.Sha2_256 (lc-algo "EVP_sha256" 256))
-(define HashAlgorithm.Sha2_512 (lc-algo "EVP_sha512" 512))
-(define HashAlgorithm.Sha3_256 (lc-algo "EVP_sha3_256" 256))
-(define HashAlgorithm.Sha3_512 (lc-algo "EVP_sha3_512" 512))
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Md5)
+  (lc-algo "EVP_md5" 128))
+
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Sha1)
+  (lc-algo "EVP_sha1" 160))
+
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Sha2_256)
+  (lc-algo "EVP_sha256" 256))
+
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Sha2_512)
+  (lc-algo "EVP_sha512" 512))
+
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Sha3_256)
+  (lc-algo "EVP_sha3_256" 256))
+
+(define-unison-builtin #:hints [value]
+  (HashAlgorithm.Sha3_512)
+  (lc-algo "EVP_sha3_512" 512))
 
 (define _EVP_PKEY-pointer (_cpointer 'EVP_PKEY))
 (define _EVP_MD_CTX-pointer (_cpointer 'EVP_MD_CTX))
@@ -224,25 +252,38 @@
           #f
           #t)))))
 
-(define (Ed25519.sign.impl seed _ignored_pubkey input)
-    (bytes->chunked-bytes (evpSign-raw (chunked-bytes->bytes seed) (chunked-bytes->bytes input))))
+(define-unison-builtin
+  (builtin-crypto.Ed25519.sign.impl seed _ignored_pubkey input)
+  (bytes->chunked-bytes
+    (evpSign-raw
+      (chunked-bytes->bytes seed)
+      (chunked-bytes->bytes input))))
 
-(define (Ed25519.verify.impl public-key input signature)
-    (evpVerify-raw
-        (chunked-bytes->bytes public-key)
-        (chunked-bytes->bytes input)
-        (chunked-bytes->bytes signature)))
+(define-unison-builtin
+  (builtin-crypto.Ed25519.verify.impl public-key input signature)
+  (evpVerify-raw
+    (chunked-bytes->bytes public-key)
+    (chunked-bytes->bytes input)
+    (chunked-bytes->bytes signature)))
 
-(define (HashAlgorithm.Blake2s_256) (cons 'blake2s 256))
-(define (HashAlgorithm.Blake2b_512) (cons 'blake2b 512))
+(define-unison-builtin #:hints [value]
+  (builtin-crypto.HashAlgorithm.Blake2s_256)
+  (cons 'blake2s 256))
+(define-unison-builtin #:hints [value]
+  (builtin-crypto.HashAlgorithm.Blake2b_512)
+  (cons 'blake2b 512))
+
 ; This one isn't provided by libcrypto, for some reason
-(define (HashAlgorithm.Blake2b_256) (cons 'blake2b 256))
+(define-unison-builtin #:hints [value]
+  (builtin-crypto.HashAlgorithm.Blake2b_256)
+  (cons 'blake2b 256))
 
 ; kind is a pair of (algorithm bits)
 ; where algorithm is either an EVP_pointer for libcrypto functions,
 ; or the tag 'blake2b for libb2 function.
-(define (hashBytes kind input)
-  (bytes->chunked-bytes (hashBytes-raw kind (chunked-bytes->bytes input))))
+(define-unison-builtin (builtin-crypto.hashBytes kind input)
+  (bytes->chunked-bytes
+    (hashBytes-raw kind (chunked-bytes->bytes input))))
 
 ; kind is a pair of (algorithm bits)
 ; where algorithm is either an EVP_pointer for libcrypto functions,
@@ -290,8 +331,12 @@
               (hashBytes-raw kind (bytes-append ipad input)))])
     (hashBytes-raw kind full)))
 
-(define (hmacBytes kind key input)
-    (bytes->chunked-bytes (hmacBytes-raw kind (chunked-bytes->bytes key) (chunked-bytes->bytes input))))
+(define-unison-builtin (builtin-crypto.hmacBytes kind key input)
+  (bytes->chunked-bytes
+    (hmacBytes-raw
+      kind
+      (chunked-bytes->bytes key)
+      (chunked-bytes->bytes input))))
 
 (define (hmacBytes-raw kind key input)
   (case (car kind)
