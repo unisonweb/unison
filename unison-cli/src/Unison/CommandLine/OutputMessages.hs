@@ -2039,7 +2039,7 @@ notifyUser dir = \case
               <> prettyMergeSource aliceAndBob.bob
               <> "into"
               <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ",")
-              <> "so I'm running your MERGETOOL environment variable as",
+              <> "so I'm running your UCM_MERGETOOL environment variable as",
           "",
           P.indentN 2 (P.text mergetool),
           "",

@@ -15,14 +15,16 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
+import Control.Exception (bracket)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
-import System.Directory (removeFile)
+import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
 import System.Environment (lookupEnv)
+import System.IO qualified as IO
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
 import Text.Builder qualified
@@ -348,16 +350,16 @@ doMerge info = do
               info.alice.projectAndBranch.project
               (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
 
-          --   Merge conflicts?    Have MERGETOOL?    Result
-          --   ----------------    ---------------    ------------------------------------------------------------
-          --                 No                 No           Put code that doesn't parse or typecheck in scratch.u
-          --                 No                Yes           Put code that doesn't parse or typecheck in scratch.u
-          --                Yes                 No    Put code that doesn't parse (because conflicts) in scratch.u
-          --                Yes                Yes                                              Run that cool tool
+          --   Merge conflicts?    Have UCM_MERGETOOL?    Result
+          --   ----------------    -------------------    ------------------------------------------------------------
+          --                 No                     No           Put code that doesn't parse or typecheck in scratch.u
+          --                 No                    Yes           Put code that doesn't parse or typecheck in scratch.u
+          --                Yes                     No    Put code that doesn't parse (because conflicts) in scratch.u
+          --                Yes                    Yes                                              Run that cool tool
 
           maybeMergetool <-
             if hasConflicts
-              then liftIO (lookupEnv "MERGETOOL")
+              then liftIO (lookupEnv "UCM_MERGETOOL")
               else pure Nothing
 
           case maybeMergetool of
@@ -369,13 +371,18 @@ doMerge info = do
               liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile)
               done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
             Just mergetool0 -> do
-              -- Name the three input files ".u.tmp", not ".u", so that ucm's file watcher doesn't provide unwanted
-              -- feedback. Once the conflicts are resolved, then the resolution will be put to a proper ".u" file.
+              tmpdir <- liftIO (canonicalizePath =<< getTemporaryDirectory)
+              let makeTempFile template =
+                    liftIO do
+                      bracket
+                        (IO.openTempFile tmpdir (Text.unpack template))
+                        (IO.hClose . snd)
+                        (pure . Text.pack . fst)
               let aliceFilenameSlug = mangleBranchName mergeSourceAndTarget.alice.branch
               let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
-              let lcaFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-base.u.tmp")
-              let aliceFilename = Text.Builder.run (aliceFilenameSlug <> ".u.tmp")
-              let bobFilename = Text.Builder.run (bobFilenameSlug <> ".u.tmp")
+              lcaFilename <- makeTempFile (Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-base.u"))
+              aliceFilename <- makeTempFile (Text.Builder.run (aliceFilenameSlug <> ".u"))
+              bobFilename <- makeTempFile (Text.Builder.run (bobFilenameSlug <> ".u"))
               let outputFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-merged.u")
               let mergetool =
                     mergetool0
@@ -385,12 +392,6 @@ doMerge info = do
                       & Text.replace "$MERGED" outputFilename
                       & Text.replace "$REMOTE" bobFilename
               liftIO do
-                -- We want these files empty before prepending source code, so the diffs are clean. It seems reasonable
-                -- to assume these ".u.tmp" filenames are not important, and can be truncated without consequence.
-                -- Alternatively, we could try to pick filenames that don't correspond to file that already exist.
-                removeFile (Text.unpack lcaFilename) <|> pure ()
-                removeFile (Text.unpack aliceFilename) <|> pure ()
-                removeFile (Text.unpack bobFilename) <|> pure ()
                 env.writeSource lcaFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.lca))
                 env.writeSource aliceFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.alice))
                 env.writeSource bobFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.bob))
