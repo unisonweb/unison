@@ -66,7 +66,11 @@ genGRef :: Gen Ref
 genGRef =
   Gen.choice
     [ Stk <$> genSmallInt,
-      Env <$> genCombIx <*> genCombIx,
+      -- For Env, we discard the comb when serializing and replace it with the CombIx anyways, so we do
+      -- the same during generation to prevent false negatives in roundtrip tests.
+      do
+        cix <- genCombIx
+        pure $ Env cix cix,
       Dyn <$> genSmallWord64
     ]
 
@@ -133,7 +137,13 @@ genSection = do
       pure Exit
     ]
     [ App <$> Gen.bool <*> genGRef <*> genArgs,
-      Call <$> Gen.bool <*> genCombIx <*> genCombIx <*> genArgs,
+      do
+        b <- Gen.bool
+        cix <- genCombIx
+        args <- genArgs
+        -- For Call, we discard the comb when serializing and replace it with the CombIx anyways, so we do
+        -- the same during generation to prevent false negatives in roundtrip tests.
+        pure $ Call b cix cix args,
       Match <$> genSmallInt <*> genBranch,
       Ins <$> genInstr <*> genSection,
       Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection,
