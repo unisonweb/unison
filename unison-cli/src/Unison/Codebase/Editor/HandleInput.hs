@@ -36,6 +36,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils (getCurrentProjectBranch)
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.NameResolutionUtils (resolveHQToLabeledDependencies)
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase qualified as Codebase
@@ -59,6 +60,7 @@ import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFold
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
@@ -771,7 +773,7 @@ loop e = do
                 names <- lift Cli.currentNames
                 let buildPPED uf tf =
                       let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
-                      in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
+                       in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
                 let formatWidth = 80
                 currentPath <- lift $ Cli.getCurrentPath
                 updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
@@ -1226,44 +1228,6 @@ handleDependencies hq = do
   Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
   Cli.respond $ ListDependencies suffixifiedPPE lds types terms
 
-handleDependents :: HQ.HashQualified Name -> Cli ()
-handleDependents hq = do
-  -- todo: add flag to handle transitive efficiently
-  lds <- resolveHQToLabeledDependencies hq
-  -- Use an unsuffixified PPE here, so we display full names (relative to the current path),
-  -- rather than the shortest possible unambiguous name.
-  names <- Cli.currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  let fqppe = PPE.unsuffixifiedPPE pped
-  let ppe = PPE.suffixifiedPPE pped
-  when (null lds) do
-    Cli.returnEarly (LabeledReferenceNotFound hq)
-
-  results <- for (toList lds) \ld -> do
-    -- The full set of dependent references, any number of which may not have names in the current namespace.
-    dependents <-
-      let tp = Codebase.dependents Queries.ExcludeOwnComponent
-          tm = \case
-            Referent.Ref r -> Codebase.dependents Queries.ExcludeOwnComponent r
-            Referent.Con (ConstructorReference r _cid) _ct ->
-              Codebase.dependents Queries.ExcludeOwnComponent r
-       in Cli.runTransaction (LD.fold tp tm ld)
-    let -- True is term names, False is type names
-        results :: [(Bool, HQ.HashQualified Name, Reference)]
-        results = do
-          r <- Set.toList dependents
-          Just (isTerm, hq) <- [(True,) <$> PPE.terms fqppe (Referent.Ref r), (False,) <$> PPE.types fqppe r]
-          fullName <- [HQ'.toName hq]
-          guard (not (Name.beginsWithSegment fullName NameSegment.libSegment))
-          Just shortName <- pure $ PPE.terms ppe (Referent.Ref r) <|> PPE.types ppe r
-          pure (isTerm, HQ'.toHQ shortName, r)
-    pure results
-  let sort = fmap fst . nubOrdOn snd . Name.sortByText (HQ.toText . fst)
-  let types = sort [(n, r) | (False, n, r) <- join results]
-  let terms = sort [(n, r) | (True, n, r) <- join results]
-  Cli.setNumberedArgs . map SA.HashQualified $ types <> terms
-  Cli.respond (ListDependents ppe lds types terms)
-
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: OutputLocation -> ShowDefinitionScope -> NonEmpty (HQ.HashQualified Name) -> Cli ()
 handleShowDefinition outputLoc showDefinitionScope query = do
@@ -1307,28 +1271,6 @@ handleShowDefinition outputLoc showDefinitionScope query = do
         ConsoleLocation -> Backend.DontIncludeCycles
         FileLocation _ -> Backend.IncludeCycles
         LatestFileLocation -> Backend.IncludeCycles
-
--- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
-resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)
-resolveHQToLabeledDependencies = \case
-  HQ.NameOnly n -> do
-    names <- Cli.currentNames
-    let terms, types :: Set LabeledDependency
-        terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms names
-        types = Set.map LD.typeRef . Name.searchBySuffix n $ Names.types names
-    pure $ terms <> types
-  -- rationale: the hash should be unique enough that the name never helps
-  HQ.HashQualified _n sh -> resolveHashOnly sh
-  HQ.HashOnly sh -> resolveHashOnly sh
-  where
-    resolveHashOnly sh = do
-      Cli.Env {codebase} <- ask
-      (terms, types) <-
-        Cli.runTransaction do
-          terms <- Backend.termReferentsByShortHash codebase sh
-          types <- Backend.typeReferencesByShortHash sh
-          pure (terms, types)
-      pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
 doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
 doDisplay outputLoc names tm = do
@@ -1475,7 +1417,7 @@ doCompile profile native output main = do
       outf
         | native = output
         | otherwise = output <> ".uc"
-      copts = Runtime.defaultCompileOpts { Runtime.profile = profile }
+      copts = Runtime.defaultCompileOpts {Runtime.profile = profile}
   whenJustM
     ( liftIO $
         Runtime.compileTo theRuntime copts codeLookup ppe ref outf

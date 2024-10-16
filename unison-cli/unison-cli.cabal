@@ -38,6 +38,7 @@ library
       Unison.Cli.MergeTypes
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
+      Unison.Cli.NameResolutionUtils
       Unison.Cli.NamesUtils
       Unison.Cli.Pretty
       Unison.Cli.ProjectUtils
@@ -61,6 +62,7 @@ library
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.Dependents
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
