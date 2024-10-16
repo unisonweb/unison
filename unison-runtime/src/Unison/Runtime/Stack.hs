@@ -96,6 +96,8 @@ module Unison.Runtime.Stack
 where
 
 import Control.Monad.Primitive
+import Data.IORef (IORef)
+import Data.Tagged (Tagged (..))
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import Unison.Prelude
@@ -158,6 +160,8 @@ instance Ord K where
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Closure))}
   deriving stock (Show, Eq, Ord)
+
+instance BuiltinForeign (IORef Closure) where foreignRef = Tagged Ty.refRef
 
 type IxClosure = GClosure CombIx
 

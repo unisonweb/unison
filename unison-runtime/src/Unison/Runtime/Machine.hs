@@ -13,6 +13,8 @@ import Control.Exception
 import Control.Lens
 import Data.Bitraversable (Bitraversable (..))
 import Data.Bits
+import Data.IORef (IORef)
+import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
 import Data.Primitive.ByteArray qualified as BA
@@ -61,7 +63,6 @@ import Unison.Util.Bytes qualified as By
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.Text qualified as Util.Text
-import UnliftIO (IORef)
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
@@ -1519,6 +1520,21 @@ bprim1 !stk FLTB i = do
   stk <- bump stk
   pokeBi stk $ By.flatten b
   pure stk
+
+-- The docs for IORef state that IORef operations can be observed
+-- out of order ([1]) but actually GHC does emit the appropriate
+-- load and store barriers nowadays ([2], [3]).
+--
+-- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
+-- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
+-- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
+bprim1 !stk RREF i = do
+  (ref :: IORef Closure) <- peekOffBi stk i
+  v <- IORef.readIORef ref
+  stk <- bump stk
+  bpoke stk v
+  pure stk
+
 -- impossible
 bprim1 !stk MISS _ = pure stk
 bprim1 !stk CACH _ = pure stk
@@ -1728,6 +1744,13 @@ bprim2 !stk CATB i j = do
   r <- peekOffBi stk j
   stk <- bump stk
   pokeBi stk (l <> r :: By.Bytes)
+  pure stk
+bprim2 !stk WREF i j = do
+  (ref :: IORef Closure) <- peekOffBi stk i
+  v <- bpeekOff stk j
+  IORef.writeIORef ref v
+  stk <- bump stk
+  bpoke stk unitValue
   pure stk
 bprim2 !stk THRO _ _ = pure stk -- impossible
 bprim2 !stk TRCE _ _ = pure stk -- impossible
