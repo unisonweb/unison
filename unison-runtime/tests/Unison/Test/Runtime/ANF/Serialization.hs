@@ -141,11 +141,18 @@ genValue = Gen.sized \n -> do
 
 valueRoundtrip :: Property
 valueRoundtrip =
-  getPutRoundtrip (getValue (Hash valueVersion)) (putValue (Hash valueVersion)) genValue
+  getPutRoundtrip getValue putValue genValue
 
-getPutRoundtrip :: (Eq a, Show a) => Get a -> (a -> Put) -> Gen a -> Property
+getPutRoundtrip :: (Eq a, Show a) => (Version -> Get a) -> (Version -> a -> Put) -> Gen a -> Property
 getPutRoundtrip get put builder =
   property $ do
     v <- forAll builder
-    let bytes = runPutS (put v)
-    runGetS get bytes === Right v
+    version <- forAll versionToTest
+    let bytes = runPutS (put version v)
+    runGetS (get version) bytes === Right v
+  where
+    versionToTest = do
+      Gen.choice
+        [ Transfer <$> Gen.enum 4 valueVersion,
+          Hash <$> Gen.enum 4 valueVersion
+        ]
