@@ -147,10 +147,12 @@ test-suite runtime-tests
   main-is: Suite.hs
   other-modules:
       Unison.Test.Common
+      Unison.Test.Gen
       Unison.Test.Runtime.ANF
       Unison.Test.Runtime.ANF.Serialization
       Unison.Test.Runtime.Crypto.Rsa
       Unison.Test.Runtime.MCode
+      Unison.Test.Runtime.MCode.Serialization
       Unison.Test.UnisonSources
       Paths_unison_runtime
   hs-source-dirs:
