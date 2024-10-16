@@ -72,7 +72,7 @@
              (if ok sum-true (loop)))]))))
 
   (define (ref-cas ref ticket value)
-    (if (box-cas! ref ticket value) sum-true sum-false))
+    (if (box-cas! ref ticket value) #t #f))
 
   (define (sleep n)
     (sleep-secs (/ n 1000000))

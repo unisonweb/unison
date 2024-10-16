@@ -25,7 +25,9 @@
   builtin-IO.socketReceive.impl.v3
   builtin-IO.socketReceive.impl.v3:termlink
   builtin-IO.socketSend.impl.v3
-  builtin-IO.socketSend.impl.v3:termlink)
+  builtin-IO.socketSend.impl.v3:termlink
+  builtin-Socket.toText
+  builtin-Socket.toText:termlink)
 
 (define-unison-builtin (builtin-IO.closeSocket.impl.v3 socket)
   (handle-errors
@@ -143,3 +145,6 @@
 
     (let-values ([(input output) (tcp-accept listener)])
       (ref-either-right (socket-pair input output)))))
+
+(define-unison-builtin (builtin-Socket.toText s)
+  (string->chunked-string (describe-value s)))

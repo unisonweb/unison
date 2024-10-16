@@ -65,7 +65,14 @@
   builtin-MutableByteArray.write64be
   builtin-MutableByteArray.write64be:termlink
   builtin-MutableByteArray.write8
-  builtin-MutableByteArray.write8:termlink)
+  builtin-MutableByteArray.write8:termlink
+
+  builtin-Scope.array
+  builtin-Scope.array:termlink
+  builtin-Scope.arrayOf
+  builtin-Scope.arrayOf:termlink
+  builtin-Scope.bytearray
+  builtin-Scope.bytearray:termlink)
 
 (define (handle-with-ability thunk)
   (with-handlers
@@ -195,3 +202,12 @@
   (handle-array
     (bytevector-u8-set! arr i m)
     ref-unit-unit))
+
+(define-unison-builtin (builtin-Scope.array n)
+  (make-vector n))
+
+(define-unison-builtin (builtin-Scope.arrayOf v n)
+  (make-vector n v))
+
+(define-unison-builtin (builtin-Scope.bytearray n)
+  (make-bytes n))

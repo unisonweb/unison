@@ -21,6 +21,9 @@
   builtin-Debug.watch
   builtin-Debug.watch:termlink
 
+  builtin-Scope.run
+  builtin-Scope.run:termlink
+
   builtin-bug
   builtin-bug:termlink
 
@@ -62,3 +65,6 @@
 
 (define-unison-builtin (builtin-todo x)
   (raise (make-exn:bug "builtin.todo" x)))
+
+(define-unison-builtin (builtin-Scope.run k)
+  (k ref-unit-unit))
