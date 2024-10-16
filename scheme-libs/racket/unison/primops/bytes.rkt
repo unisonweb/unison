@@ -54,6 +54,8 @@
   builtin-Bytes.gzip.compress:termlink
   builtin-Bytes.gzip.decompress
   builtin-Bytes.gzip.decompress:termlink
+  builtin-Bytes.indexOf
+  builtin-Bytes.indexOf:termlink
   builtin-Bytes.size
   builtin-Bytes.size:termlink
   builtin-Bytes.take
@@ -206,3 +208,9 @@
         (zlib-inflate-bytes
           (chunked-bytes->bytes bs))))))
 
+(define-unison-builtin (builtin-Bytes.indexOf n h)
+  (define v (chunked-bytes-index-of h n))
+
+  (if v
+    (ref-optional-some v)
+    ref-optional-none))

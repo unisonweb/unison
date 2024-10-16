@@ -139,9 +139,6 @@
 (define-unison-builtin (builtin-Text.indexOf n h)
   (->optional (chunked-string-index-of h n)))
 
-(define-unison-builtin (builtin-Bytes.indexOf n h)
-  (->optional (chunked-bytes-index-of h n)))
-
 (define-unison-builtin (builtin-Text.++ t u)
   (chunked-string-append t u))
 
