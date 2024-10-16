@@ -2,8 +2,14 @@
 #lang racket/base
 
 (require unison/boot
+         unison/bytes-nat
+         unison/chunked-bytes
+         unison/chunked-seq
          unison/data
-         unison/data-info)
+         unison/data-info
+         unison/gzip
+         unison/string-search
+         unison/zlib)
 
 (provide
   builtin-Bytes.++
@@ -128,7 +134,7 @@
 ; Note: the current implementation has no mechanism for
 ; flattening the representation, but in the event this changes,
 ; this should be revisited.
-(define-unison-builtin (builtin-Bytes.flatten bs)
+(define-unison-builtin (builtin-Bytes.flatten bs) bs)
 
 (define-unison-builtin (builtin-Bytes.fromBase16 bs)
   (with-handlers

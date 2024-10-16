@@ -3,11 +3,11 @@
 (require racket/exn
          racket/match
          racket/tcp
+         unison/boot
          unison/data
          unison/data-info
          unison/chunked-seq
-         unison/network-utils
-         unison/core)
+         unison/network-utils)
 
 (provide
   builtin-IO.clientSocket.impl.v3
@@ -55,7 +55,7 @@
         (ref-failure-failure
           ref-iofailure:typelink
           (string->chunked-string "Cannot send on a server socket")
-          (ref-any-any ref-unit-unit)))
+          (unison-any-any ref-unit-unit)))
       (begin
         (write-bytes (chunked-bytes->bytes data) (socket-pair-output socket))
         (flush-output (socket-pair-output socket))
@@ -68,7 +68,7 @@
         (ref-failure-failure
           ref-iofailure:typelink
           (string->chunked-string "Cannot receive on a server socket")
-          (ref-any-any ref-unit-unit)))
+          (unison-any-any ref-unit-unit)))
 
       (handle-errors
         (define buffer (make-bytes amt))
@@ -94,14 +94,14 @@
     (ref-failure-failure
       ref-iofailure:typelink
       (exception->string e)
-      (ref-any-any ref-unit-unit))))
+      (unison-any-any ref-unit-unit))))
 
 (define (left-fail-k e)
   (ref-either-left
     (ref-failure-failure
       ref-miscfailure:typelink
       (string->chunked-string "Unknown exception")
-      (ref-any-any ref-unit-unit))))
+      (unison-any-any ref-unit-unit))))
 
 ; optional string -> string -> either failure socket
 (define-unison-builtin (builtin-IO.serverSocket.impl.v3 mhost cport)
@@ -132,16 +132,16 @@
 ; If we want ~a little better parity with the haskell implementation, we might set a flag or
 ; something on the listener, and error if you try to `accept` on a server socket that you haven't
 ; called `listen` on yet.
-(define-unison-builtin (listen.impl.v3 _listener)
+(define-unison-builtin (builtin-IO.listen.impl.v3 _listener)
   (ref-either-right ref-unit-unit))
 
-(define-unison-builtin (socketAccept.impl.v3 listener)
+(define-unison-builtin (builtin-IO.socketAccept.impl.v3 listener)
   (if (socket-pair? listener)
     (ref-either-left
       (ref-failure-failure
         ref-iofailure:typelink
         (string->chunked-string "Cannot accept on a non-server socket")
-        (ref-any-any ref-unit-unit)))
+        (unison-any-any ref-unit-unit)))
 
     (let-values ([(input output) (tcp-accept listener)])
       (ref-either-right (socket-pair input output)))))

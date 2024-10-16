@@ -2,8 +2,15 @@
 #lang racket/base
 
 (require unison/boot
+         unison/chunked-seq
+         (only-in unison/core
+                  chunked-string-foldMap-chunks
+                  chunked-string<?)
          unison/data
-         unison/data-info)
+         unison/data-info
+         unison/string-search)
+
+(require (only-in srfi/13 string-reverse))
 
 (provide
   builtin-Char.fromNat
@@ -66,8 +73,7 @@
   (char->integer c))
 
 (define-unison-builtin (builtin-Char.toText c)
-  (char.totext c))
-
+  (string->chunked-string (string c)))
 
 (define-unison-builtin (builtin-Text.repeat n t)
   (let loop ([i 0]
@@ -100,7 +106,7 @@
 (define-unison-builtin (builtin-Text.toUtf8 t)
   (bytes->chunked-bytes
     (string->bytes/utf-8
-      (chunked-string->string s))))
+      (chunked-string->string t))))
 
 (define-unison-builtin (builtin-Text.uncons s)
   (cond
@@ -150,12 +156,10 @@
 
 (define-unison-builtin (builtin-Text.fromCharList cs)
   (build-chunked-string
-    (chunked-list-length l)
-    (lambda (i) (chunked-list-ref l i))))
+    (chunked-list-length cs)
+    (lambda (i) (chunked-list-ref cs i))))
 
 (define-unison-builtin (builtin-Text.fromUtf8.impl.v3 bs)
-  (define r (FOP-Text.fromUtf8.impl.v3 bs))
-
   (with-handlers
     ([exn:fail:contract?
        (lambda (e)
@@ -166,7 +170,7 @@
                (string-append
                  "Invalid UTF-8 stream: "
                  (describe-value bs)))
-             (ref-any-any (exception->string e)))))])
+             (unison-any-any (exception->string e)))))])
     (ref-either-right
       (string->chunked-string
         (bytes->string/utf-8

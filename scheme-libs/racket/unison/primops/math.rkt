@@ -1,11 +1,18 @@
 #lang racket/base
 
 (require unison/boot
+         unison/chunked-seq
          unison/data
          unison/data-info
 
+         (except-in math/base sum)
+
          racket/fixnum
          racket/flonum
+
+         (only-in racket/string
+                  string-contains?
+                  string-replace)
 
          (only-in rnrs/arithmetic/bitwise-6
                   bitwise-bit-count
@@ -273,12 +280,12 @@
 
 (define-unison-builtin (builtin-Float.truncate x)
   (cond
-    [(or (= f +inf.0)
-         (= f -inf.0)
-         (eqv? f +nan.0)
-         (eqv? f +nan.f))
+    [(or (= x +inf.0)
+         (= x -inf.0)
+         (eqv? x +nan.0)
+         (eqv? x +nan.f))
      0]
-    [else (clamp-integer (inexact->exact (truncate f)))]))
+    [else (clamp-integer (inexact->exact (truncate x)))]))
 
 (define-unison-builtin (builtin-Float.logBase base num)
   (log num base))

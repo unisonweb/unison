@@ -5,11 +5,11 @@
          racket/file
          (only-in racket empty?)
          compatibility/mlist
+         unison/boot
          unison/data
          unison/data-info
          unison/chunked-seq
-         unison/core
-         unison/tcp
+         unison/network-utils
          unison/pem
          x509
          openssl)
@@ -99,7 +99,7 @@
 (struct tls (config input output))
 
 ; tlsServerConfig socket -> {io} tls
-(define-unison-builtin (newServer.impl.v3 config socket-pair)
+(define-unison-builtin (builtin-Tls.newServer.impl.v3 config socket-pair)
   (handle-errors
     (let* ([input (socket-pair-input socket-pair)]
            [output (socket-pair-output socket-pair)]
@@ -160,7 +160,7 @@
 
 (define-syntax handle-errors
   (syntax-rules ()
-    [(handle-errors e ...)
+    [(handle-errors ex ...)
      (with-handlers
        [[exn:fail:network? (left-fail-exn ref-iofailure:typelink)]
         [exn:fail:contract? (left-fail-exn ref-miscfailure:typelink)]
@@ -175,9 +175,9 @@
              ref-miscfailure:typelink
              (format "Unknown exception ~a" (exn->string e))
              ref-unit-unit))]]
-       e ...)]))
+       ex ...)]))
 
-(define-unison-builtin (newClient.impl.v3 config socket)
+(define-unison-builtin (builtin-Tls.newClient.impl.v3 config socket)
   (handle-errors
     (let* ([input (socket-pair-input socket)]
            [output (socket-pair-output socket)]
@@ -246,3 +246,4 @@
     (ssl-abandon-port (tls-input tls))
     (ssl-abandon-port (tls-output tls))
     (ref-either-right ref-unit-unit)))
+

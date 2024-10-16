@@ -2,6 +2,7 @@
 #lang racket/base
 
 (require unison/boot
+         unison/chunked-seq
          unison/data
          unison/data-info)
 
@@ -18,6 +19,10 @@
   builtin-List.size:termlink
   builtin-List.snoc
   builtin-List.snoc:termlink
+  builtin-List.splitLeft
+  builtin-List.splitLeft:termlink
+  builtin-List.splitRight
+  builtin-List.splitRight:termlink
   builtin-List.take
   builtin-List.take:termlink
   builtin-List.viewl
@@ -60,3 +65,19 @@
     ref-seqview-empty
     (let-values ([(t h) (chunked-list-pop-last xs)])
       (ref-seqview-elem t h))))
+
+(define-unison-builtin (builtin-List.splitLeft n s)
+  (if (< (chunked-list-length s) n)
+    ref-seqview-empty
+    (let-values ([(l r) (chunked-list-split-at s n)])
+      (ref-seqview-elem l r))))
+
+; Copied TODO: write test that stresses this
+(define-unison-builtin (builtin-List.splitRight n s)
+  (define len (chunked-list-length s))
+
+  (if (< len n)
+    ref-seqview-empty
+    (let-values ([(l r) (chunked-list-split-at s (- len n))])
+      (ref-seqview-elem l r))))
+

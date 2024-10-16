@@ -1,8 +1,14 @@
 #lang racket/base
 
 (require unison/boot
+         unison/bytevector
          unison/data
          unison/data-info)
+
+(require
+  rnrs/bytevectors-6
+  (only-in racket/unsafe/ops
+           [unsafe-vector*->immutable-vector! freeze-vector!]))
 
 (provide
   builtin-ImmutableArray.copyTo!
@@ -72,7 +78,10 @@
   builtin-Scope.arrayOf
   builtin-Scope.arrayOf:termlink
   builtin-Scope.bytearray
-  builtin-Scope.bytearray:termlink)
+  builtin-Scope.bytearray:termlink
+  builtin-Scope.bytearrayOf
+  builtin-Scope.bytearrayOf:termlink)
+
 
 (define (handle-with-ability thunk)
   (with-handlers
@@ -91,114 +100,114 @@
   (syntax-rules ()
     [(_ . es) (handle-with-ability (lambda () . es))]))
 
-(define-unsion-builtin
+(define-unison-builtin
   (builtin-ImmutableArray.copyTo! dst doff src soff n)
   (handle-array
     (vector-copy! dst doff src soff n)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-ImmutableArray.read arr i)
+(define-unison-builtin (builtin-ImmutableArray.read arr i)
   (handle-array (vector-ref arr i)))
 
-(define-unsion-builtin (builtin-ImmutableArray.size arr)
+(define-unison-builtin (builtin-ImmutableArray.size arr)
   (vector-length arr))
 
-(define-unsion-builtin
+(define-unison-builtin
   (builtin-ImmutableByteArray.copyTo! dst doff src soff n)
   (handle-array
     (bytes-copy! dst doff src soff n)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read16be arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read16be arr i)
   (handle-array (bytevector-u16-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read24be arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read24be arr i)
   (handle-array (bytevector-u24-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read32be arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read32be arr i)
   (handle-array (bytevector-u32-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read40be arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read40be arr i)
   (handle-array (bytevector-u40-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read64be arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read64be arr i)
   (handle-array (bytevector-u64-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.read8 arr i)
+(define-unison-builtin (builtin-ImmutableByteArray.read8 arr i)
   (handle-array (bytevector-u8-ref arr i)))
 
-(define-unsion-builtin (builtin-ImmutableByteArray.size arr)
+(define-unison-builtin (builtin-ImmutableByteArray.size arr)
   (bytevector-length arr))
 
-(define-unsion-builtin (builtin-MutableArray.copyTo! dst doff src soff l)
+(define-unison-builtin (builtin-MutableArray.copyTo! dst doff src soff l)
   (handle-array
     (vector-copy! dst doff src soff l)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-MutableArray.freeze arr i j)
+(define-unison-builtin (builtin-MutableArray.freeze arr i j)
   (handle-array
     (freeze-subvector arr i j)))
 
-(define-unsion-builtin (builtin-MutableArray.freeze! arr)
+(define-unison-builtin (builtin-MutableArray.freeze! arr)
   (freeze-vector! arr))
 
-(define-unsion-builtin (builtin-MutableArray.read arr i)
+(define-unison-builtin (builtin-MutableArray.read arr i)
   (handle-array (vector-ref arr i)))
 
-(define-unsion-builtin (builtin-MutableArray.size arr)
+(define-unison-builtin (builtin-MutableArray.size arr)
   (vector-length arr))
 
-(define-unsion-builtin (builtin-MutableArray.write dst i x)
+(define-unison-builtin (builtin-MutableArray.write dst i x)
   (handle-array
     (vector-set! dst i x)
     ref-unit-unit))
 
-(define-unsion-builtin
+(define-unison-builtin
   (builtin-MutableByteArray.copyTo! dst doff src soff l)
   (handle-array
     (bytes-copy! dst doff src soff l)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-MutableByteArray.freeze! arr)
+(define-unison-builtin (builtin-MutableByteArray.freeze! arr)
   (freeze-bytevector! arr))
 
-(define-unsion-builtin (builtin-MutableByteArray.read16be arr i)
+(define-unison-builtin (builtin-MutableByteArray.read16be arr i)
   (handle-array (bytevector-u16-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-MutableByteArray.read24be arr i)
+(define-unison-builtin (builtin-MutableByteArray.read24be arr i)
   (handle-array (bytevector-u24-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-MutableByteArray.read32be arr i)
+(define-unison-builtin (builtin-MutableByteArray.read32be arr i)
   (handle-array (bytevector-u32-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-MutableByteArray.read40be arr i)
+(define-unison-builtin (builtin-MutableByteArray.read40be arr i)
   (handle-array (bytevector-u40-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-MutableByteArray.read64be arr i)
+(define-unison-builtin (builtin-MutableByteArray.read64be arr i)
   (handle-array (bytevector-u64-ref arr i 'big)))
 
-(define-unsion-builtin (builtin-MutableByteArray.read8 arr i)
+(define-unison-builtin (builtin-MutableByteArray.read8 arr i)
   (handle-array (bytevector-u8-ref arr i)))
 
-(define-unsion-builtin (builtin-MutableByteArray.size arr)
+(define-unison-builtin (builtin-MutableByteArray.size arr)
   (bytevector-length arr))
 
-(define-unsion-builtin (builtin-MutableByteArray.write16be arr i m)
+(define-unison-builtin (builtin-MutableByteArray.write16be arr i m)
   (handle-array
     (bytevector-u16-set! arr i m 'big)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-MutableByteArray.write32be arr i m)
+(define-unison-builtin (builtin-MutableByteArray.write32be arr i m)
   (handle-array
     (bytevector-u32-set! arr i m 'big)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-MutableByteArray.write64be arr i m)
+(define-unison-builtin (builtin-MutableByteArray.write64be arr i m)
   (handle-array
     (bytevector-u64-set! arr i m 'big)
     ref-unit-unit))
 
-(define-unsion-builtin (builtin-MutableByteArray.write8 arr i m)
+(define-unison-builtin (builtin-MutableByteArray.write8 arr i m)
   (handle-array
     (bytevector-u8-set! arr i m)
     ref-unit-unit))
@@ -211,3 +220,18 @@
 
 (define-unison-builtin (builtin-Scope.bytearray n)
   (make-bytes n))
+
+(define-unison-builtin (builtin-Scope.bytearrayOf i n)
+  (make-bytes n i))
+
+(define (freeze-subvector src off len)
+  (let ([dst (make-vector len)])
+    (let next ([i (sub1 len)])
+      (if (< i 0)
+        (begin
+          (freeze-vector! dst)
+          (sum 1 dst))
+        (begin
+          (vector-set! dst i (vector-ref src (+ off i)))
+          (next (sub1 i)))))))
+

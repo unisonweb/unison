@@ -1,15 +1,19 @@
 #lang racket/base
-(require unison/data
+(require unison/boot
          unison/chunked-seq
-         unison/core
+         unison/data
          unison/data-info
+         racket/exn
          racket/file
+         racket/fixnum
          racket/flonum
          (only-in racket
            date-dst?
            date-time-zone-offset
-           date*-time-zone-name)
-         (only-in unison/boot data-case define-unison-builtin)
+           date*-time-zone-name
+           false?
+           vector-map)
+         racket/random
          (only-in
            rnrs/arithmetic/flonums-6
            flmod))
@@ -17,6 +21,7 @@
 
 (provide
   builtin-Clock.internals.systemTimeZone.v1
+  builtin-Clock.internals.systemTimeZone.v1:termlink
   builtin-Clock.internals.monotonic.v1
   builtin-Clock.internals.monotonic.v1:termlink
   builtin-Clock.internals.nsec.v1
@@ -36,13 +41,17 @@
   builtin-IO.getFileSize.impl.v3:termlink
   builtin-IO.getTempDirectory.impl.v3
   builtin-IO.getTempDirectory.impl.v3:termlink
+  builtin-IO.randomBytes
+  builtin-IO.randomBytes:termlink
   builtin-IO.removeFile.impl.v3
   builtin-IO.removeFile.impl.v3:termlink
-  builtin-IO.stdHandle
-  builtin-IO.stdHandle:termlink
   builtin-IO.systemTimeMicroseconds.v1
   builtin-IO.systemTimeMicroseconds.v1:termlink
+  builtin-IO.tryEval
+  builtin-IO.tryEval:termlink
 
+  builtin-IO.isFileEOF.impl.v3
+  builtin-IO.isFileEOF.impl.v3:termlink
   builtin-IO.fileExists.impl.v3
   builtin-IO.fileExists.impl.v3:termlink
   builtin-IO.renameFile.impl.v3
@@ -64,7 +73,16 @@
   builtin-IO.systemTimeMicroseconds.impl.v3
   builtin-IO.systemTimeMicroseconds.impl.v3:termlink
   builtin-IO.createTempDirectory.impl.v3
-  builtin-IO.createTempDirectory.impl.v3:termlink)
+  builtin-IO.createTempDirectory.impl.v3:termlink
+
+  builtin-IO.getArgs.impl.v1
+  builtin-IO.getArgs.impl.v1:termlink
+  builtin-IO.getEnv.impl.v1
+  builtin-IO.getEnv.impl.v1:termlink
+  builtin-IO.getCurrentDirectory.impl.v3
+  builtin-IO.getCurrentDirectory.impl.v3:termlink
+
+  )
 
 (define (failure-result ty msg vl)
   (ref-either-left
@@ -219,10 +237,84 @@
 ;
 (define (trunc f) (inexact->exact (truncate f)))
 
-(define-unison-builtin (sec.v1 ts) (unison-timespec-sec ts))
+(define-unison-builtin (builtin-Clock.internals.sec.v1 ts)
+  (unison-timespec-sec ts))
 
-(define-unison-builtin (nsec.v1 ts) (unison-timespec-nsec ts))
+(define-unison-builtin (builtin-Clock.internals.nsec.v1 ts)
+  (unison-timespec-nsec ts))
 
 (define-unison-builtin (builtin-IO.systemTimeMicroseconds.v1 _)
   (current-microseconds))
+
+(define-unison-builtin (builtin-IO.tryEval thunk)
+  (with-handlers
+    ([exn:break?
+      (lambda (e)
+        (raise-unison-exception
+          ref-threadkilledfailure:typelink
+          (string->chunked-string "thread killed")
+          ref-unit-unit))]
+     [exn:io?
+       (lambda (e)
+         (raise-unison-exception
+           ref-iofailure:typelink
+           (exception->string e)
+           ref-unit-unit))]
+     [exn:arith?
+       (lambda (e)
+         (raise-unison-exception
+           ref-arithfailure:typelink
+           (exception->string e)
+           ref-unit-unit))]
+     [exn:bug? (lambda (e) (exn:bug->exception e))]
+     [exn:fail?
+       (lambda (e)
+         (raise-unison-exception
+           ref-runtimefailure:typelink
+           (exception->string e)
+           ref-unit-unit))]
+     [(lambda (x) #t)
+      (lambda (e)
+        (raise-unison-exception
+          ref-miscfailure:typelink
+          (exception->string e)
+          ref-unit-unit))])
+    (thunk ref-unit-unit)))
+
+(define-unison-builtin (builtin-IO.randomBytes n)
+  (bytes->chunked-bytes (crypto-random-bytes n)))
+
+(define-unison-builtin (builtin-IO.isFileEOF.impl.v3 p)
+  (ref-either-right (eof-object? (peek-byte p))))
+
+(define-unison-builtin (builtin-IO.getArgs.impl.v1 unit)
+  (ref-either-right
+    (vector->chunked-list
+      (vector-map string->chunked-string
+                  (current-command-line-arguments)))))
+
+(define-unison-builtin (builtin-IO.getEnv.impl.v1 key)
+  (define value
+    (environment-variables-ref
+      (current-environment-variables)
+      (string->bytes/utf-8 (chunked-string->string key))))
+
+  (if (false? value)
+    (ref-either-left
+      (ref-failure-failure
+        ref-iofailure:typelink
+        "environmental variable not found"
+        (unison-any-any key)))
+
+    (ref-either-right
+      (string->chunked-string (bytes->string/utf-8 value)))))
+
+(define-unison-builtin (builtin-IO.getCurrentDirectory.impl.v3 unit)
+  (ref-either-right
+    (string->chunked-string (path->string (current-directory)))))
+
+
+
+(define (current-microseconds)
+  (fl->fx (* 1000 (current-inexact-milliseconds))))
 

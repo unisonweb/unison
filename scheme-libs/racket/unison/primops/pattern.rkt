@@ -1,6 +1,6 @@
-#lang racket/builtin
+#lang racket/base
 
-(require unison/boot
+(require (except-in unison/boot control)
          unison/data
          unison/data-info
          unison/pattern)
@@ -55,6 +55,15 @@
   builtin-Pattern.replicate:termlink
   builtin-Pattern.run
   builtin-Pattern.run:termlink
+
+  builtin-Char.Class.is
+  builtin-Char.Class.is:termlink
+  builtin-Pattern.captureAs
+  builtin-Pattern.captureAs:termlink
+  builtin-Pattern.many.corrected
+  builtin-Pattern.many.corrected:termlink
+  builtin-Pattern.isMatch
+  builtin-Pattern.isMatch:termlink
 
   builtin-Text.patterns.anyChar
   builtin-Text.patterns.anyChar:termlink
@@ -134,7 +143,7 @@
   upper)
 
 (define-unison-builtin #:hints [value] (builtin-Char.Class.whitespace)
-  whitespace)
+  space)
 
 
 (define-unison-builtin (builtin-Pattern.capture p) (capture p))
@@ -190,3 +199,15 @@
 
 (define-unison-builtin #:hints [value] (builtin-Text.patterns.space)
   space)
+
+(define-unison-builtin (builtin-Char.Class.is cc c)
+  (pattern-match? cc (string->chunked-string (string c))))
+
+(define-unison-builtin (builtin-Pattern.captureAs c p)
+  (capture-as c p))
+
+(define-unison-builtin (builtin-Pattern.many.corrected p) (many p))
+
+(define-unison-builtin (builtin-Pattern.isMatch p s)
+  (pattern-match? p s))
+

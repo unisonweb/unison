@@ -13,7 +13,7 @@
 
 (define-syntax handle-errors
   (syntax-rules ()
-    [(_ e ...)
+    [(_ ex ...)
      (with-handlers
        [[exn:fail:network?
           (lambda (e)
@@ -34,5 +34,5 @@
              (string->chunked-string
                (format "Unknown exception ~a" (exn->string e)))
              ref-unit-unit))]]
-       e ...)]))
+       ex ...)]))
 

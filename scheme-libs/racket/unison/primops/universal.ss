@@ -1,6 +1,9 @@
 #lang racket/base
 
 (require unison/boot
+         (only-in unison/core
+                  universal=?
+                  universal-compare)
          unison/data
          unison/data-info)
 

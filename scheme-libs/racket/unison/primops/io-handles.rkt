@@ -2,9 +2,15 @@
 
 (require racket/string
          rnrs/io/ports-6
-         (only-in rnrs standard-error-port standard-input-port standard-output-port vector-map)
-         (only-in racket empty? with-output-to-string system/exit-code system false?)
-         (only-in unison/boot data-case define-unison-builtin)
+         (only-in rnrs standard-error-port standard-input-port standard-output-port)
+         (only-in racket
+                  empty?
+                  match
+                  with-output-to-string
+                  system/exit-code
+                  system
+                  false?)
+         unison/boot
          unison/data
          unison/chunked-seq
          unison/data
@@ -41,10 +47,6 @@
   builtin-IO.getEcho.impl.v1:termlink
   builtin-IO.setEcho.impl.v1
   builtin-IO.setEcho.impl.v1:termlink
-  builtin-IO.getArgs.impl.v1
-  builtin-IO.getArgs.impl.v1:termlink
-  builtin-IO.getEnv.impl.v1
-  builtin-IO.getEnv.impl.v1:termlink
   builtin-IO.getChar.impl.v1
   builtin-IO.getChar.impl.v1:termlink
   builtin-IO.isFileOpen.impl.v3
@@ -55,8 +57,6 @@
   builtin-IO.handlePosition.impl.v3:termlink
   builtin-IO.process.call
   builtin-IO.process.call:termlink
-  builtin-IO.getCurrentDirectory.impl.v3
-  builtin-IO.getCurrentDirectory.impl.v3:termlink
   builtin-IO.ready.impl.v1
   builtin-IO.ready.impl.v1:termlink
 
@@ -84,11 +84,6 @@
         (if (port-eof? port)
             (Exception ref-iofailure:typelink "EOF" port)
             (ref-either-right #f))))
-
-(define-unison-builtin
-  (builtin-IO.getCurrentDirectory.impl.v3 unit)
-    (ref-either-right
-      (string->chunked-string (path->string (current-directory)))))
 
 (define-unison-builtin
   (builtin-IO.isSeekable.impl.v3 handle)
@@ -233,29 +228,11 @@
   (let ([current (with-output-to-string (lambda () (system "stty -a")))])
     (string-contains? current " echo ")))
 
-(define-unison-builtin
-  (builtin-IO.getArgs.impl.v1 unit)
-    (ref-either-right
-      (vector->chunked-list
-        (vector-map string->chunked-string (current-command-line-arguments)))))
-
-(define-unison-builtin
-  (builtin-IO.getEnv.impl.v1 key)
-    (let ([value (environment-variables-ref (current-environment-variables) (string->bytes/utf-8 (chunked-string->string key)))])
-        (if (false? value)
-            (Exception
-              ref-iofailure:typelink
-              "environmental variable not found"
-              key)
-            (ref-either-right
-              (string->chunked-string (bytes->string/utf-8 value))))))
-
-
 (define-unison-builtin (builtin-IO.openFile.impl.v3 name mode)
   (define fn (chunked-string->string name))
 
   (match mode
-    [(unison-data? r t _)
+    [(unison-data r t _)
      (=> break)
      (ref-either-right
        (cond
@@ -274,7 +251,7 @@
         (ref-failure-failure
           ref-iofailure:typelink
           (string->chunked-string "invalid file mode")
-          (ref-any-any mode)))]))
+          (unison-any-any mode)))]))
 
 ;; From https://github.com/sorawee/shlex/blob/5de06500e8c831cfc8dffb99d57a76decc02c569/main.rkt (MIT License)
 ;; with is a port of https://github.com/python/cpython/blob/bf2f76ec0976c09de79c8827764f30e3b6fba776/Lib/shlex.py#L325
@@ -301,17 +278,26 @@
 
 (define-unison-builtin (builtin-IO.getBytes.impl.v3 h n)
   (with-handlers
-    ; todo: seems like we should catch more
-    [[exn:fail:contract? exn-failure]]
+    ; TODO: seems like we should catch more
+    [[exn:fail:contract?
+       (lambda (e)
+         (ref-either-left
+           (ref-failure-failure
+             ref-iofailure:typelink
+             (exception->string e)
+             ref-unit-unit)))]]
     (ref-either-right
       (bytes->chunked-bytes
         (read-bytes n h)))))
 
 (define-unison-builtin (builtin-IO.putBytes.impl.v3 h bs)
-  ()
+  ; TODO: error checking?
+  (write-bytes (chunked-bytes->bytes bs) h)
+  (flush-output h)
+  (ref-either-right ref-unit-unit))
 
 (define-unison-builtin (builtin-IO.closeFile.impl.v3 h)
-  ; todo: review this implementation; moved from primops.ss
+  ; TODO: review this implementation; moved from primops.ss
   (if (input-port? h)
     (close-input-port h)
     (close-output-port h))

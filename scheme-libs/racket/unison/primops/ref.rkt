@@ -25,7 +25,7 @@
 (define-unison-builtin (builtin-IO.ref v)
   (ref-new v))
 
-(define-unison-builtin (builtin-Ref.Ticket.read r)
+(define-unison-builtin (builtin-Ref.Ticket.read r) r)
 
 (define-unison-builtin (builtin-Ref.cas ref ticket value)
   (ref-cas ref ticket value))
