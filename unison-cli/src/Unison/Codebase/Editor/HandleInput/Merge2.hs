@@ -72,6 +72,7 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project
@@ -228,6 +229,15 @@ doMerge info = do
         Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))
           & onLeftM (done . Output.ConflictedDefn "merge")
 
+      names3 :: Merge.ThreeWay Names <- do
+        let causalHashes = Merge.TwoOrThreeWay {alice = info.alice.causalHash, bob = info.bob.causalHash, lca = info.lca.causalHash}
+        branches <- for causalHashes \ch -> do
+          liftIO (Codebase.getBranchForHash env.codebase ch) >>= \case
+            Nothing -> done (Output.CouldntLoadBranch ch)
+            Just b -> pure b
+        let names = fmap (Branch.toNames . Branch.head) branches
+        pure Merge.ThreeWay {alice = names.alice, bob = names.bob, lca = fromMaybe mempty names.lca}
+
       libdeps3 <- Cli.runTransaction (loadLibdeps branches)
 
       let blob0 = Merge.makeMergeblob0 nametrees3 libdeps3
@@ -252,11 +262,11 @@ doMerge info = do
             )
 
       blob1 <-
-        Merge.makeMergeblob1 blob0 hydratedDefns & onLeft \case
+        Merge.makeMergeblob1 blob0 names3 hydratedDefns & onLeft \case
           Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
           Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
-      liftIO (debugFunctions.debugDiffs blob1.diffs)
+      liftIO (debugFunctions.debugDiffs blob1.diffsFromLCA)
 
       liftIO (debugFunctions.debugCombinedDiff blob1.diff)
 
