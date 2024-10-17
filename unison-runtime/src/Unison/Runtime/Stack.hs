@@ -574,32 +574,23 @@ grab (Stack _ fp sp ustk bstk) sze = do
 {-# INLINE grab #-}
 
 ensure :: Stack -> SZ -> IO Stack
-ensure (Stack ap fp sp ustk bstk) sze = do
-  ustk <- ensureUStk
-  bstk <- ensureBStk
-  pure $ Stack ap fp sp ustk bstk
+ensure stk@(Stack ap fp sp ustk bstk) sze
+  | sze <= 0 = pure stk
+  | sp + sze + 1 < bsz = pure stk
+  | otherwise = do
+      bstk' <- newArray (bsz + bext) BlackHole
+      copyMutableArray bstk' 0 bstk 0 (sp + 1)
+      ustk' <- resizeMutableByteArray ustk (usz + uext)
+      pure $ Stack ap fp sp ustk' bstk'
   where
-    ensureUStk
-      | sze <= 0 || bytes (sp + sze + 1) < ssz = pure ustk
-      | otherwise = do
-          resizeMutableByteArray ustk (ssz + ext)
-      where
-        ssz = sizeofMutableByteArray ustk
-        ext
-          | bytes sze > 10240 = bytes sze + 4096
-          | otherwise = 10240
-    ensureBStk
-      | sze <= 0 = pure bstk
-      | sp + sze + 1 < ssz = pure bstk
-      | otherwise = do
-          bstk' <- newArray (ssz + ext) BlackHole
-          copyMutableArray bstk' 0 bstk 0 (sp + 1)
-          pure bstk'
-      where
-        ssz = sizeofMutableArray bstk
-        ext
-          | sze > 1280 = sze + 512
-          | otherwise = 1280
+    usz = sizeofMutableByteArray ustk
+    bsz = sizeofMutableArray bstk
+    bext
+      | sze > 1280 = sze + 512
+      | otherwise = 1280
+    uext
+      | bytes sze > 10240 = bytes sze + 4096
+      | otherwise = 10240
 {-# INLINE ensure #-}
 
 bump :: Stack -> IO Stack
@@ -668,19 +659,21 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
   bseg' <- boxedSeg
   pure (useg', bseg')
   where
+    bpsz
+      | I <- mode = 0
+      | otherwise = fp - ap
     unboxedSeg = do
-      cop <- newByteArray $ ssz + psz + asz
+      cop <- newByteArray $ ssz + upsz + asz
       copyByteArray cop soff useg 0 ssz
-      copyMutableByteArray cop 0 ustk (bytes $ ap + 1) psz
-      for_ margs $ uargOnto ustk sp cop (words poff + pix - 1)
+      copyMutableByteArray cop 0 ustk (bytes $ ap + 1) upsz
+      for_ margs $ uargOnto ustk sp cop (words poff + upsz - 1)
       unsafeFreezeByteArray cop
       where
         ssz = sizeofByteArray useg
-        pix | I <- mode = 0 | otherwise = fp - ap
         (poff, soff)
           | K <- mode = (ssz, 0)
-          | otherwise = (0, psz + asz)
-        psz = bytes pix
+          | otherwise = (0, upsz + asz)
+        upsz = bytes bpsz
         asz = case margs of
           Nothing -> 0
           Just (Arg1 _) -> 8
@@ -688,17 +681,16 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
           Just (ArgN v) -> bytes $ sizeofPrimArray v
           Just (ArgR _ l) -> bytes l
     boxedSeg = do
-      cop <- newArray (ssz + psz + asz) BlackHole
+      cop <- newArray (ssz + bpsz + asz) BlackHole
       copyArray cop soff bseg 0 ssz
-      copyMutableArray cop poff bstk (ap + 1) psz
-      for_ margs $ bargOnto bstk sp cop (poff + psz - 1)
+      copyMutableArray cop poff bstk (ap + 1) bpsz
+      for_ margs $ bargOnto bstk sp cop (poff + bpsz - 1)
       unsafeFreezeArray cop
       where
         ssz = sizeofArray bseg
-        psz | I <- mode = 0 | otherwise = fp - ap
         (poff, soff)
           | K <- mode = (ssz, 0)
-          | otherwise = (0, psz + asz)
+          | otherwise = (0, bpsz + asz)
         asz = case margs of
           Nothing -> 0
           Just (Arg1 _) -> 1
