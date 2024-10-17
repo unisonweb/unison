@@ -320,7 +320,7 @@ data UPrim1
   | FLOR -- intToFloat,natToFloat,ceiling,floor
   | TRNF
   | RNDF -- truncate,round
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data UPrim2
   = -- integral
@@ -353,7 +353,7 @@ data UPrim2
   | LOGB
   | MAXF
   | MINF -- pow,low,max,min
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data BPrim1
   = -- text
@@ -387,7 +387,7 @@ data BPrim1
   -- debug
   | DBTX -- debug text
   | SDBL -- sandbox link list
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data BPrim2
   = -- universal
@@ -422,7 +422,7 @@ data BPrim2
   -- code
   | SDBX -- sandbox
   | SDBV -- sandbox Value
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data MLit
   = MI !Int
