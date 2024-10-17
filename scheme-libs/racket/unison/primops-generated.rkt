@@ -857,7 +857,6 @@
              unison/primops
              unison/primops-generated
              unison/builtin-generated
-             unison/compound-wrappers
              ,@(if profile? '(profile profile/render-text) '()))
 
     ,@(typelink-defns-code tylinks)
@@ -909,7 +908,6 @@
               unison/primops
               unison/primops-generated
               unison/builtin-generated
-              unison/compound-wrappers
               ,@(map (lambda (s) `(quote ,s)) reqs))
 
      (provide
