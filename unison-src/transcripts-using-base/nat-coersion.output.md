@@ -32,14 +32,14 @@ test = 'let
    runTest testABunchOfNats
 ```
 
-``` ucm
+``` ucm :added-by-ucm
 
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       test    : '{IO} [Result]
@@ -47,23 +47,22 @@ test = 'let
                 -> Optional Int
                 -> Optional Float
                 ->{Stream Result} ()
-
 ```
+
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     test    : '{IO} [Result]
     testNat : Nat
               -> Optional Int
               -> Optional Float
               ->{Stream Result} ()
-
 scratch/main> io.test test
 
     New test results:
-  
+
     1. test   ◉ expected 0.0 got 0.0
               ◉ round trip though float, expected 0 got 0
               ◉ expected 0 got 0
@@ -78,9 +77,8 @@ scratch/main> io.test test
               ◉ round trip though float, expected 4607182418800017409 got 4607182418800017409
               ◉ expected 4607182418800017409 got 4607182418800017409
               ◉ round trip though Int, expected 4607182418800017409 got 4607182418800017409
-  
-  ✅ 14 test(s) passing
-  
-  Tip: Use view 1 to view the source of a test.
 
+  ✅ 14 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

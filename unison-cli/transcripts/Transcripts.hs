@@ -25,6 +25,7 @@ import System.IO.Silently (silence)
 import Text.Megaparsec qualified as MP
 import Unison.Codebase.Init (withTemporaryUcmCodebase)
 import Unison.Codebase.SqliteCodebase qualified as SC
+import Unison.Codebase.Transcript.Parser as Transcript
 import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
@@ -40,20 +41,21 @@ type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
 testBuilder ::
   Bool ->
+  Bool ->
   ((FilePath, Text) -> IO ()) ->
   FilePath ->
   FilePath ->
   [String] ->
   String ->
   Test ()
-testBuilder expectFailure recordFailure runtimePath dir prelude transcript = scope transcript $ do
-  outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) -> do
+testBuilder expectFailure replaceOriginal recordFailure runtimePath dir prelude transcript = scope transcript $ do
+  outputs <- io . withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock $ \(codebasePath, codebase) ->
     let isTest = True
-    Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath \runTranscript -> do
-      for files \filePath -> do
-        transcriptSrc <- readUtf8 filePath
-        out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
-        pure (filePath, out)
+     in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath \runTranscript ->
+          for files \filePath -> do
+            transcriptSrc <- readUtf8 filePath
+            out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
+            pure (filePath, out)
   for_ outputs \case
     (filePath, Left err) -> do
       let outputFile = outputFileForTranscript filePath
@@ -67,14 +69,15 @@ testBuilder expectFailure recordFailure runtimePath dir prelude transcript = sco
             io $ recordFailure (filePath, Text.pack errMsg)
             crash errMsg
         Transcript.RunFailure errOutput -> do
-          io $ writeUtf8 outputFile errOutput
+          let errText = Transcript.formatStanzas $ toList errOutput
+          io $ writeUtf8 outputFile errText
           when (not expectFailure) $ do
-            io $ Text.putStrLn errOutput
-            io $ recordFailure (filePath, errOutput)
+            io $ Text.putStrLn errText
+            io $ recordFailure (filePath, errText)
             crash $ "Failure in " <> filePath
     (filePath, Right out) -> do
-      let outputFile = outputFileForTranscript filePath
-      io $ writeUtf8 outputFile out
+      let outputFile = if replaceOriginal then filePath else outputFileForTranscript filePath
+      io . writeUtf8 outputFile . Transcript.formatStanzas $ toList out
       when expectFailure $ do
         let errMsg = "Expected a failure, but transcript was successful."
         io $ recordFailure (filePath, Text.pack errMsg)
@@ -89,19 +92,17 @@ outputFileForTranscript filePath =
 
 buildTests :: TestConfig -> TestBuilder -> FilePath -> Test ()
 buildTests TestConfig {..} testBuilder dir = do
-  io
-    . putStrLn
-    . unlines
-    $ [ "",
-        "Searching for transcripts to run in: " ++ dir
-      ]
+  io . putStrLn . unlines $
+    [ "",
+      "Searching for transcripts to run in: " ++ dir
+    ]
   files <- io $ listDirectory dir
   -- Any files that start with _ are treated as prelude
   let (prelude, transcripts) =
         files
           & sort
           & filter (\f -> takeExtensions f == ".md")
-          & partition ((isPrefixOf "_") . snd . splitFileName)
+          & partition (isPrefixOf "_" . snd . splitFileName)
           -- if there is a matchPrefix set, filter non-prelude files by that prefix - or return True
           & second (filter (\f -> maybe True (`isPrefixOf` f) matchPrefix))
 
@@ -125,13 +126,11 @@ cleanup = do
   unless (null dirs) $ do
     io $ createDirectoryIfMissing True "test-output"
     io $ for_ dirs (\d -> renameDirectory d ("test-output" </> d))
-    io
-      . putStrLn
-      . unlines
-      $ [ "",
-          "NOTE: All transcript codebases have been moved into",
-          "the `test-output` directory. Feel free to delete it."
-        ]
+    io . putStrLn . unlines $
+      [ "",
+        "NOTE: All transcript codebases have been moved into",
+        "the `test-output` directory. Feel free to delete it."
+      ]
 
 test :: TestConfig -> Test ()
 test config = do
@@ -139,12 +138,10 @@ test config = do
   -- what went wrong in CI
   failuresVar <- io $ STM.newTVarIO []
   let recordFailure failure = STM.atomically $ STM.modifyTVar' failuresVar (failure :)
-  buildTests config (testBuilder False recordFailure) $
-    "unison-src" </> "transcripts"
-  buildTests config (testBuilder False recordFailure) $
-    "unison-src" </> "transcripts-using-base"
-  buildTests config (testBuilder True recordFailure) $
-    "unison-src" </> "transcripts" </> "errors"
+  buildTests config (testBuilder False False recordFailure) $ "unison-src" </> "transcripts"
+  buildTests config (testBuilder False True recordFailure) $ "unison-src" </> "transcripts" </> "idempotent"
+  buildTests config (testBuilder False False recordFailure) $ "unison-src" </> "transcripts-using-base"
+  buildTests config (testBuilder True False recordFailure) $ "unison-src" </> "transcripts" </> "errors"
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"
@@ -155,8 +152,7 @@ test config = do
   cleanup
 
 handleArgs :: TestConfig -> [String] -> TestConfig
-handleArgs acc ("--runtime-path" : p : rest) =
-  handleArgs (acc {runtimePath = p}) rest
+handleArgs acc ("--runtime-path" : p : rest) = handleArgs (acc {runtimePath = p}) rest
 handleArgs acc [prefix] = acc {matchPrefix = Just prefix}
 handleArgs acc _ = acc
 
@@ -168,7 +164,4 @@ defaultConfig = TestConfig Nothing <$> defaultRTP
       pure (takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
 
 main :: IO ()
-main = withCP65001 do
-  dcfg <- defaultConfig
-  testConfig <- handleArgs dcfg <$> getArgs
-  run (test testConfig)
+main = withCP65001 $ run . test =<< handleArgs <$> defaultConfig <*> getArgs

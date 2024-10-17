@@ -67,14 +67,14 @@ mkTestCase = do
   saveTestCase "case-00" "v4" f tup
 ```
 
-``` ucm
+``` ucm :added-by-ucm
 
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural type Tree a
@@ -92,13 +92,13 @@ mkTestCase = do
       tree1      : Tree Nat
       tree2      : Tree Nat
       tree3      : Tree Text
-
 ```
+
 ``` ucm
 scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural type Tree a
     evaluate   : (Tree Nat -> Nat)
                  -> (Tree Text -> Text)
@@ -114,9 +114,7 @@ scratch/main> add
     tree1      : Tree Nat
     tree2      : Tree Nat
     tree3      : Tree Text
-
 scratch/main> run mkTestCase
 
   ()
-
 ```
