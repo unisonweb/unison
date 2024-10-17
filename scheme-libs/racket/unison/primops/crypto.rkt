@@ -53,11 +53,10 @@
 ; 1) raises an exception, if libcrypto failed to load, or
 ; 2) returns a pair of (_EVP-pointer bits)
 (define (lc-algo name bits)
-    (if (string? libcrypto)
-        (lambda _ (raise (error 'libcrypto "~a\n~a" name libcrypto)))
-        (let ([getter (get-ffi-obj name libcrypto (_fun -> _EVP-pointer))])
-            (lambda []
-                (cons (getter) bits)))))
+  (if (string? libcrypto)
+    (raise (error 'libcrypto "~a\n~a" name libcrypto))
+    (let ([getter (get-ffi-obj name libcrypto (_fun -> _EVP-pointer))])
+      (cons (getter) bits))))
 
 (define (check v who)
   (unless (= 1 v)

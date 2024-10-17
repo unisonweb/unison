@@ -83,22 +83,20 @@
   builtin-Scope.bytearrayOf:termlink)
 
 
-(define (handle-with-ability thunk)
-  (with-handlers
-    ([exn:fail:contract?
-       (lambda (e)
-         (request
-           ref-exception
-           0
-           (ref-failure-failure
-             ref-arrayfailure:typelink
-             (string->chunked-string (exception->string e))
-             (unison-any-any ref-unit-unit))))])
-    (thunk)))
-
 (define-syntax handle-array
   (syntax-rules ()
-    [(_ . es) (handle-with-ability (lambda () . es))]))
+    [(_ ex ...)
+     (with-handlers
+       ([exn:fail:contract?
+          (lambda (e)
+            (request
+              ref-exception
+              0
+              (ref-failure-failure
+                ref-arrayfailure:typelink
+                (string->chunked-string (exception->string e))
+                (unison-any-any ref-unit-unit))))])
+       ex ...)]))
 
 (define-unison-builtin
   (builtin-ImmutableArray.copyTo! dst doff src soff n)
@@ -145,8 +143,7 @@
     ref-unit-unit))
 
 (define-unison-builtin (builtin-MutableArray.freeze arr i j)
-  (handle-array
-    (freeze-subvector arr i j)))
+  (freeze-subvector arr i j))
 
 (define-unison-builtin (builtin-MutableArray.freeze! arr)
   (freeze-vector! arr))
@@ -224,14 +221,9 @@
 (define-unison-builtin (builtin-Scope.bytearrayOf i n)
   (make-bytes n i))
 
-(define (freeze-subvector src off len)
-  (let ([dst (make-vector len)])
-    (let next ([i (sub1 len)])
-      (if (< i 0)
-        (begin
-          (freeze-vector! dst)
-          (sum 1 dst))
-        (begin
-          (vector-set! dst i (vector-ref src (+ off i)))
-          (next (sub1 i)))))))
+(define (freeze-subvector src off len0)
+  (define len (min len0 (- (vector-length src) off)))
+  (define dst (make-vector len))
 
+  (vector-copy! dst 0 src off len)
+  (freeze-vector! dst))

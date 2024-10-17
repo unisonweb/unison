@@ -367,12 +367,7 @@
 (define-unison-builtin (builtin-Int.toFloat i) (exact->inexact i))
 
 (define-unison-builtin (builtin-Int.toText i)
-  (define str (number->string i))
-
-  (string->chunked-string
-    (if (>= i 0)
-      (string-append "+" str)
-      str)))
+  (string->chunked-string (number->string i)))
 
 (define-unison-builtin (builtin-Int.truncate0 i) (if (< i 0) 0 i))
 
