@@ -26,7 +26,7 @@
   builtin-ThreadId.toText:termlink)
 
 
-(define-unison-builtin (builtin-Promise.new) (promise-new))
+(define-unison-builtin (builtin-Promise.new _) (promise-new))
 
 (define-unison-builtin (builtin-Promise.read p) (promise-read p))
 
