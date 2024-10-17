@@ -474,7 +474,7 @@
   (clamp-natural (arithmetic-shift m k)))
 
 (define-unison-builtin (builtin-Nat.shiftRight m k)
-  (arithmetic-shift m k))
+  (arithmetic-shift m (- k)))
 
 (define-unison-builtin (builtin-Nat.sub m n)
   (clamp-integer (- m n)))
