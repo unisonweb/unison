@@ -108,7 +108,7 @@
   (define hostname
     (match mhost
       [(unison-data r t (list host))
-       #:when (= t ref-optional-some)
+       #:when (= t ref-optional-some:tag)
        (chunked-string->string host)]
       [else #f]))
 
@@ -124,7 +124,7 @@
         (string->number port)
         2048
         #t
-        (if (= 0 hostname) #f hostname)))))
+        (if (equal? "0" hostname) #f hostname)))))
 
 ; NOTE: This is a no-op because racket's public TCP stack doesn't have separate operations for
 ; "bind" vs "listen". We've decided to have `serverSocket` do the "bind & listen", and have

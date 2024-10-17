@@ -195,9 +195,9 @@
     [(unison-data r t (list))
      (=> break)
      (cond
-       [(= t ref-stdhandle-stdin) stdin]
-       [(= t ref-stdhandle-stdout) stdout]
-       [(= t ref-stdhandle-stderr) stderr]
+       [(= t ref-stdhandle-stdin:tag) stdin]
+       [(= t ref-stdhandle-stdout:tag) stdout]
+       [(= t ref-stdhandle-stderr:tag) stderr]
        [else (break)])]
     [else
      (raise (make-exn:bug "invalid standard handle" sth))]))
