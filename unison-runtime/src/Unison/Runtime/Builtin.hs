@@ -51,8 +51,6 @@ import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IORef as SYS
   ( IORef,
     newIORef,
-    readIORef,
-    writeIORef,
   )
 import Data.IP (IP)
 import Data.Map qualified as Map
@@ -1088,6 +1086,16 @@ any'extract =
     \[v, v1] ->
       TMatch v $
         MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
+
+-- Refs
+
+ref'read :: SuperNormal Symbol
+ref'read =
+  unop0 0 $ \[ref] -> (TPrm RREF [ref])
+
+ref'write :: SuperNormal Symbol
+ref'write =
+  binop0 0 $ \[ref, val] -> (TPrm WREF [ref, val])
 
 seek'handle :: ForeignOp
 seek'handle instr =
@@ -2253,7 +2261,9 @@ builtinLookup =
         ("validateSandboxed", (Untracked, check'sandbox)),
         ("Value.validateSandboxed", (Tracked, value'sandbox)),
         ("sandboxLinks", (Tracked, sandbox'links)),
-        ("IO.tryEval", (Tracked, try'eval))
+        ("IO.tryEval", (Tracked, try'eval)),
+        ("Ref.read", (Tracked, ref'read)),
+        ("Ref.write", (Tracked, ref'write))
       ]
       ++ foreignWrappers
 
@@ -2760,19 +2770,6 @@ declareForeigns = do
   declareForeign Tracked "IO.ref" boxDirect
     . mkForeign
     $ \(c :: Closure) -> evaluate c >>= newIORef
-
-  -- The docs for IORef state that IORef operations can be observed
-  -- out of order ([1]) but actually GHC does emit the appropriate
-  -- load and store barriers nowadays ([2], [3]).
-  --
-  -- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
-  -- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
-  -- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
-  declareForeign Untracked "Ref.read" boxDirect . mkForeign $
-    \(r :: IORef Closure) -> readIORef r
-
-  declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
-    \(r :: IORef Closure, c :: Closure) -> evaluate c >>= writeIORef r
 
   declareForeign Tracked "Ref.readForCas" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readForCAS r

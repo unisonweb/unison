@@ -256,6 +256,7 @@ instance BuiltinForeign FilePath where foreignRef = Tagged Ty.filePathRef
 instance BuiltinForeign TLS.Context where foreignRef = Tagged Ty.tlsRef
 
 instance BuiltinForeign Code where foreignRef = Tagged Ty.codeRef
+
 instance BuiltinForeign Value where foreignRef = Tagged Ty.valueRef
 
 instance BuiltinForeign TimeSpec where foreignRef = Tagged Ty.timeSpecRef
