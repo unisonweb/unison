@@ -249,7 +249,7 @@
 
 (define-unison-builtin (builtin-Float.atan x) (flatan x))
 
-(define-unison-builtin (builtin-Float.atan2 x) (raise "todo: atan2"))
+(define-unison-builtin (builtin-Float.atan2 y x) (atan y x))
 
 (define-unison-builtin (builtin-Float.atanh x) (atanh x))
 
