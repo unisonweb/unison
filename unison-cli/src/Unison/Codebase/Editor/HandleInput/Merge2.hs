@@ -391,13 +391,14 @@ doMerge info = do
                       & Text.replace "$LOCAL" aliceFilename
                       & Text.replace "$MERGED" outputFilename
                       & Text.replace "$REMOTE" bobFilename
-              liftIO do
-                env.writeSource lcaFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.lca))
-                env.writeSource aliceFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.alice))
-                env.writeSource bobFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.bob))
-                -- Execute the process, silencing IO errors due to non-zero exit code
-                Process.callCommand (Text.unpack mergetool) <|> pure ()
-              done (Output.MergeFailureWithMergetool mergetool mergeSourceAndTarget temporaryBranchName)
+              exitCode <-
+                liftIO do
+                  env.writeSource lcaFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.lca))
+                  env.writeSource aliceFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.alice))
+                  env.writeSource bobFilename (Text.pack (Pretty.toPlain 80 blob3.unparsedSoloFiles.bob))
+                  let createProcess = (Process.shell (Text.unpack mergetool)) {Process.delegate_ctlc = True}
+                  Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
+              done (Output.MergeFailureWithMergetool mergeSourceAndTarget temporaryBranchName mergetool exitCode)
 
       Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)
       Cli.updateProjectBranchRoot_
