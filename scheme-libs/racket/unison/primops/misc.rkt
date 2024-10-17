@@ -92,7 +92,7 @@
 (define-unison-builtin (builtin-bug x)
   (raise (make-exn:bug "builtin.bug" x)))
 
-(define-unison-builtin (builtin-jumpCont k) k)
+(define-unison-builtin (builtin-jumpCont k v) (k v))
 
 (define-unison-builtin (builtin-todo x)
   (raise (make-exn:bug "builtin.todo" x)))
