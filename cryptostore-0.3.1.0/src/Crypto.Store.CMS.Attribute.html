@@ -1,0 +1,523 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.CMS.Attribute</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- CMS attributes</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.CMS.Attribute</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier">Attribute</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier">attributesASN1S</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#parseAttributes"><span class="hs-identifier">parseAttributes</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Generic attribute</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#findAttribute"><span class="hs-identifier">findAttribute</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setAttribute"><span class="hs-identifier">setAttribute</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#filterAttributes"><span class="hs-identifier">filterAttributes</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Implementing attributes</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier">setAttributeASN1S</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier">runParseAttribute</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Standard attributes</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getContentTypeAttr"><span class="hs-identifier">getContentTypeAttr</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setContentTypeAttr"><span class="hs-identifier">setContentTypeAttr</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getMessageDigestAttr"><span class="hs-identifier">getMessageDigestAttr</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setMessageDigestAttr"><span class="hs-identifier">setMessageDigestAttr</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getSigningTimeAttr"><span class="hs-identifier">getSigningTimeAttr</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttr"><span class="hs-identifier">setSigningTimeAttr</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttrCurrent"><span class="hs-identifier">setSigningTimeAttrCurrent</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hourglass</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Hourglass</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">dateCurrent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html"><span class="hs-identifier">Crypto.Store.CMS.Type</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | An attribute extending the parent structure with arbitrary data.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">data</span><span> </span><span id="Attribute"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-var">Attribute</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Attribute"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-var">Attribute</span></a></span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="attrType"><span class="annot"><span class="annottext">Attribute -&gt; OID
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-identifier hs-var hs-var">attrType</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Attribute type</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="attrValues"><span class="annot"><span class="annottext">Attribute -&gt; [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#attrValues"><span class="hs-identifier hs-var hs-var">attrValues</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Attribute values</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145668"><span id="local-6989586621679145677"><span id="local-6989586621679145681"><span class="annot"><span class="annottext">Int -&gt; Attribute -&gt; ShowS
+[Attribute] -&gt; ShowS
+Attribute -&gt; String
+(Int -&gt; Attribute -&gt; ShowS)
+-&gt; (Attribute -&gt; String)
+-&gt; ([Attribute] -&gt; ShowS)
+-&gt; Show Attribute
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Attribute -&gt; ShowS
+showsPrec :: Int -&gt; Attribute -&gt; ShowS
+$cshow :: Attribute -&gt; String
+show :: Attribute -&gt; String
+$cshowList :: [Attribute] -&gt; ShowS
+showList :: [Attribute] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145687"><span id="local-6989586621679145692"><span class="annot"><span class="annottext">Attribute -&gt; Attribute -&gt; Bool
+(Attribute -&gt; Attribute -&gt; Bool)
+-&gt; (Attribute -&gt; Attribute -&gt; Bool) -&gt; Eq Attribute
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Attribute -&gt; Attribute -&gt; Bool
+== :: Attribute -&gt; Attribute -&gt; Bool
+$c/= :: Attribute -&gt; Attribute -&gt; Bool
+/= :: Attribute -&gt; Attribute -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679145542"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145542"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145542"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679145705"><span class="annot"><span class="annottext">asn1s :: Attribute -&gt; ASN1Stream e
+</span><a href="#local-6989586621679145705"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">{</span><span id="local-6989586621679145707"><span id="local-6989586621679145708"><span class="annot"><span class="annottext">OID
+[ASN1]
+attrType :: Attribute -&gt; OID
+attrValues :: Attribute -&gt; [ASN1]
+attrType :: OID
+attrValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-57"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OID -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var">gOID</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145707"><span class="hs-identifier hs-var">attrType</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; [ASN1] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var">gMany</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145708"><span class="hs-identifier hs-var">attrValues</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679145553"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679145553"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145553"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679145729"><span class="annot"><span class="annottext">parse :: ParseASN1 e Attribute
+</span><a href="#local-6989586621679145729"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e Attribute -&gt; ParseASN1 e Attribute
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e Attribute -&gt; ParseASN1 e Attribute)
+-&gt; ParseASN1 e Attribute -&gt; ParseASN1 e Attribute
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span id="local-6989586621679145733"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145733"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span id="local-6989586621679145735"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145735"><span class="hs-identifier hs-var">vals</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e [ASN1] -&gt; ParseASN1 e [ASN1]
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ParseASN1 e ASN1 -&gt; ParseASN1 e [ASN1]
+forall e a. ParseASN1 e a -&gt; ParseASN1 e [a]
+</span><a href="Crypto.Store.ASN1.Parse.html#getMany"><span class="hs-identifier hs-var">getMany</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">Attribute -&gt; ParseASN1 e Attribute
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">attrType :: OID
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-identifier hs-var">attrType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145733"><span class="hs-identifier hs-var">oid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">attrValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#attrValues"><span class="hs-identifier hs-var">attrValues</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145735"><span class="hs-identifier hs-var">vals</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">-- | Produce the ASN.1 stream for a list of attributes.</span></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679145564"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier hs-type">attributesASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145564"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-67"></span><span>                </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145564"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-68"></span><span id="attributesASN1S"><span class="annot"><span class="annottext">attributesASN1S :: forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; [Attribute] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier hs-var hs-var">attributesASN1S</span></a></span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[e] -&gt; [e]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier hs-var">attributesASN1S</span></a></span><span> </span><span id="local-6989586621679145743"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145743"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621679145744"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145744"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ([e] -&gt; [e]) -&gt; [e] -&gt; [e]
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145743"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Attribute] -&gt; [e] -&gt; [e]
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145744"><span class="hs-identifier hs-var">attrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><span class="hs-comment">-- | Parse a list of attributes.</span></span><span>
+</span><span id="line-72"></span><span id="local-6989586621679145569"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#parseAttributes"><span class="hs-identifier hs-type">parseAttributes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679145569"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145569"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-73"></span><span id="parseAttributes"><span class="annot"><span class="annottext">parseAttributes :: forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#parseAttributes"><span class="hs-identifier hs-var hs-var">parseAttributes</span></a></span></span><span> </span><span id="local-6989586621679145752"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145752"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Attribute] -&gt; Maybe [Attribute] -&gt; [Attribute]
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(Maybe [Attribute] -&gt; [Attribute])
+-&gt; ParseASN1 e (Maybe [Attribute]) -&gt; ParseASN1 e [Attribute]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e [Attribute] -&gt; ParseASN1 e (Maybe [Attribute])
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e (Maybe a)
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainerMaybe"><span class="hs-identifier hs-var">onNextContainerMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145752"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e [Attribute]
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><span class="hs-comment">-- | Return the values for the first attribute with the specified type.</span></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#findAttribute"><span class="hs-identifier hs-type">findAttribute</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-77"></span><span id="findAttribute"><span class="annot"><span class="annottext">findAttribute :: OID -&gt; [Attribute] -&gt; Maybe [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#findAttribute"><span class="hs-identifier hs-var hs-var">findAttribute</span></a></span></span><span> </span><span id="local-6989586621679145755"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145755"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span id="local-6989586621679145756"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145756"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Attribute -&gt; [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#attrValues"><span class="hs-identifier hs-var">attrValues</span></a></span><span> </span><span class="annot"><span class="annottext">Attribute
+</span><a href="#local-6989586621679145757"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679145757"><span class="annot"><span class="annottext">Attribute
+</span><a href="#local-6989586621679145757"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145756"><span class="hs-identifier hs-var">attrs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Attribute -&gt; OID
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-identifier hs-var">attrType</span></a></span><span> </span><span class="annot"><span class="annottext">Attribute
+</span><a href="#local-6989586621679145757"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">OID -&gt; OID -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145755"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="hs-special">]</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-79"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe [ASN1]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679145758"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145758"><span class="hs-identifier hs-var">v</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[[ASN1]]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; Maybe [ASN1]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145758"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="annot"><span class="hs-comment">-- | Filter a list of attributes based on a predicate applied to attribute type.</span></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#filterAttributes"><span class="hs-identifier hs-type">filterAttributes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span id="filterAttributes"><span class="annot"><span class="annottext">filterAttributes :: (OID -&gt; Bool) -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#filterAttributes"><span class="hs-identifier hs-var hs-var">filterAttributes</span></a></span></span><span> </span><span id="local-6989586621679145759"><span class="annot"><span class="annottext">OID -&gt; Bool
+</span><a href="#local-6989586621679145759"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Attribute -&gt; Bool) -&gt; [Attribute] -&gt; [Attribute]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OID -&gt; Bool
+</span><a href="#local-6989586621679145759"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(OID -&gt; Bool) -&gt; (Attribute -&gt; OID) -&gt; Attribute -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Attribute -&gt; OID
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-identifier hs-var">attrType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><span class="hs-comment">-- | Add or replace an attribute in a list of attributes.</span></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setAttribute"><span class="hs-identifier hs-type">setAttribute</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-88"></span><span id="setAttribute"><span class="annot"><span class="annottext">setAttribute :: OID -&gt; [ASN1] -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttribute"><span class="hs-identifier hs-var hs-var">setAttribute</span></a></span></span><span> </span><span id="local-6989586621679145760"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145760"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span id="local-6989586621679145761"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145761"><span class="hs-identifier hs-var">vals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Attribute
+</span><a href="#local-6989586621679145762"><span class="hs-identifier hs-var">attr</span></a></span><span> </span><span class="annot"><span class="annottext">([Attribute] -&gt; [Attribute])
+-&gt; ([Attribute] -&gt; [Attribute]) -&gt; [Attribute] -&gt; [Attribute]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(OID -&gt; Bool) -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#filterAttributes"><span class="hs-identifier hs-var">filterAttributes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OID -&gt; OID -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145760"><span class="hs-identifier hs-var">oid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679145762"><span class="annot"><span class="annottext">attr :: Attribute
+</span><a href="#local-6989586621679145762"><span class="hs-identifier hs-var hs-var">attr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">attrType :: OID
+</span><a href="Crypto.Store.CMS.Attribute.html#attrType"><span class="hs-identifier hs-var">attrType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145760"><span class="hs-identifier hs-var">oid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">attrValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#attrValues"><span class="hs-identifier hs-var">attrValues</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145761"><span class="hs-identifier hs-var">vals</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Find an attribute with the specified attribute and run a parser on the</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- attribute value when found.  'Nothing' is returned if the attribute could not</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- be found but also when the parse failed.</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679145582"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier hs-type">runParseAttribute</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679145582"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679145582"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-95"></span><span id="runParseAttribute"><span class="annot"><span class="annottext">runParseAttribute :: forall a. OID -&gt; [Attribute] -&gt; ParseASN1 () a -&gt; Maybe a
+</span><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier hs-var hs-var">runParseAttribute</span></a></span></span><span> </span><span id="local-6989586621679145764"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145764"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span id="local-6989586621679145765"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145765"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span id="local-6989586621679145766"><span class="annot"><span class="annottext">ParseASN1 () a
+</span><a href="#local-6989586621679145766"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OID -&gt; [Attribute] -&gt; Maybe [ASN1]
+</span><a href="Crypto.Store.CMS.Attribute.html#findAttribute"><span class="hs-identifier hs-var">findAttribute</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145764"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145765"><span class="hs-identifier hs-var">attrs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><span class="annottext">Maybe [ASN1]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679145767"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145767"><span class="hs-identifier hs-var">s</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String -&gt; Maybe a) -&gt; (a -&gt; Maybe a) -&gt; Either String a -&gt; Maybe a
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe a -&gt; String -&gt; Maybe a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ParseASN1 () a -&gt; [ASN1] -&gt; Either String a
+forall a. ParseASN1 () a -&gt; [ASN1] -&gt; Either String a
+</span><a href="Crypto.Store.ASN1.Parse.html#runParseASN1"><span class="hs-identifier hs-var">runParseASN1</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 () a
+</span><a href="#local-6989586621679145766"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145767"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | Add or replace an attribute in a list of attributes, using 'ASN1S'.</span></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier hs-type">setAttributeASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1S</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span id="setAttributeASN1S"><span class="annot"><span class="annottext">setAttributeASN1S :: OID -&gt; ASN1S -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier hs-var hs-var">setAttributeASN1S</span></a></span></span><span> </span><span id="local-6989586621679145771"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145771"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span id="local-6989586621679145772"><span class="annot"><span class="annottext">ASN1S
+</span><a href="#local-6989586621679145772"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; [ASN1] -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttribute"><span class="hs-identifier hs-var">setAttribute</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145771"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1S
+</span><a href="#local-6989586621679145772"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- Content type</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#contentType"><span class="hs-identifier hs-type">contentType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>
+</span><span id="line-108"></span><span id="contentType"><span class="annot"><span class="annottext">contentType :: OID
+</span><a href="Crypto.Store.CMS.Attribute.html#contentType"><span class="hs-identifier hs-var hs-var">contentType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><span class="hs-comment">-- | Return the value of the @contentType@ attribute.</span></span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getContentTypeAttr"><span class="hs-identifier hs-type">getContentTypeAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html#ContentType"><span class="hs-identifier hs-type">ContentType</span></a></span><span>
+</span><span id="line-112"></span><span id="getContentTypeAttr"><span class="annot"><span class="annottext">getContentTypeAttr :: [Attribute] -&gt; Maybe ContentType
+</span><a href="Crypto.Store.CMS.Attribute.html#getContentTypeAttr"><span class="hs-identifier hs-var hs-var">getContentTypeAttr</span></a></span></span><span> </span><span id="local-6989586621679145774"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145774"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; [Attribute] -&gt; ParseASN1 () ContentType -&gt; Maybe ContentType
+forall a. OID -&gt; [Attribute] -&gt; ParseASN1 () a -&gt; Maybe a
+</span><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier hs-var">runParseAttribute</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#contentType"><span class="hs-identifier hs-var">contentType</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145774"><span class="hs-identifier hs-var">attrs</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 () ContentType -&gt; Maybe ContentType)
+-&gt; ParseASN1 () ContentType -&gt; Maybe ContentType
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span id="local-6989586621679145775"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145775"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 () ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="annottext">String
+-&gt; OID
+-&gt; (ContentType -&gt; ParseASN1 () ContentType)
+-&gt; ParseASN1 () ContentType
+forall a e b.
+OIDNameable a =&gt;
+String -&gt; OID -&gt; (a -&gt; ParseASN1 e b) -&gt; ParseASN1 e b
+</span><a href="Crypto.Store.CMS.Util.html#withObjectID"><span class="hs-identifier hs-var">withObjectID</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;content type&quot;</span></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145775"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; ParseASN1 () ContentType
+forall a. a -&gt; ParseASN1 () a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | Add or replace the @contentType@ attribute in a list of attributes.</span></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setContentTypeAttr"><span class="hs-identifier hs-type">setContentTypeAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html#ContentType"><span class="hs-identifier hs-type">ContentType</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-118"></span><span id="setContentTypeAttr"><span class="annot"><span class="annottext">setContentTypeAttr :: ContentType -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setContentTypeAttr"><span class="hs-identifier hs-var hs-var">setContentTypeAttr</span></a></span></span><span> </span><span id="local-6989586621679145777"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679145777"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1S -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier hs-var">setAttributeASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#contentType"><span class="hs-identifier hs-var">contentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OID -&gt; ASN1S
+forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var">gOID</span></a></span><span> </span><span class="annot"><span class="annottext">(OID -&gt; ASN1S) -&gt; OID -&gt; ASN1S
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; OID
+forall a. OIDable a =&gt; a -&gt; OID
+</span><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679145777"><span class="hs-identifier hs-var">ct</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- Message digest</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#messageDigest"><span class="hs-identifier hs-type">messageDigest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>
+</span><span id="line-124"></span><span id="messageDigest"><span class="annot"><span class="annottext">messageDigest :: OID
+</span><a href="Crypto.Store.CMS.Attribute.html#messageDigest"><span class="hs-identifier hs-var hs-var">messageDigest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">4</span></span><span class="hs-special">]</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="annot"><span class="hs-comment">-- | Return the value of the @messageDigest@ attribute.</span></span><span>
+</span><span id="line-127"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getMessageDigestAttr"><span class="hs-identifier hs-type">getMessageDigestAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-128"></span><span id="getMessageDigestAttr"><span class="annot"><span class="annottext">getMessageDigestAttr :: [Attribute] -&gt; Maybe ByteString
+</span><a href="Crypto.Store.CMS.Attribute.html#getMessageDigestAttr"><span class="hs-identifier hs-var hs-var">getMessageDigestAttr</span></a></span></span><span> </span><span id="local-6989586621679145780"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145780"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; [Attribute] -&gt; ParseASN1 () ByteString -&gt; Maybe ByteString
+forall a. OID -&gt; [Attribute] -&gt; ParseASN1 () a -&gt; Maybe a
+</span><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier hs-var">runParseAttribute</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#messageDigest"><span class="hs-identifier hs-var">messageDigest</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145780"><span class="hs-identifier hs-var">attrs</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 () ByteString -&gt; Maybe ByteString)
+-&gt; ParseASN1 () ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">OctetString</span></span><span> </span><span id="local-6989586621679145782"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679145782"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 () ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-130"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; ParseASN1 () ByteString
+forall a. a -&gt; ParseASN1 () a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679145782"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | Add or replace the @messageDigest@ attribute in a list of attributes.</span></span><span>
+</span><span id="line-133"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setMessageDigestAttr"><span class="hs-identifier hs-type">setMessageDigestAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-134"></span><span id="setMessageDigestAttr"><span class="annot"><span class="annottext">setMessageDigestAttr :: ByteString -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setMessageDigestAttr"><span class="hs-identifier hs-var hs-var">setMessageDigestAttr</span></a></span></span><span> </span><span id="local-6989586621679145783"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679145783"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1S -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier hs-var">setAttributeASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#messageDigest"><span class="hs-identifier hs-var">messageDigest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ASN1S
+forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var">gOctetString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679145783"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- Signing time</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#signingTime"><span class="hs-identifier hs-type">signingTime</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>
+</span><span id="line-140"></span><span id="signingTime"><span class="annot"><span class="annottext">signingTime :: OID
+</span><a href="Crypto.Store.CMS.Attribute.html#signingTime"><span class="hs-identifier hs-var hs-var">signingTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span class="hs-special">]</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><span class="hs-comment">-- | Return the value of the @signingTime@ attribute.</span></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#getSigningTimeAttr"><span class="hs-identifier hs-type">getSigningTimeAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DateTime</span></span><span>
+</span><span id="line-144"></span><span id="getSigningTimeAttr"><span class="annot"><span class="annottext">getSigningTimeAttr :: [Attribute] -&gt; Maybe DateTime
+</span><a href="Crypto.Store.CMS.Attribute.html#getSigningTimeAttr"><span class="hs-identifier hs-var hs-var">getSigningTimeAttr</span></a></span></span><span> </span><span id="local-6989586621679145786"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145786"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; [Attribute] -&gt; ParseASN1 () DateTime -&gt; Maybe DateTime
+forall a. OID -&gt; [Attribute] -&gt; ParseASN1 () a -&gt; Maybe a
+</span><a href="Crypto.Store.CMS.Attribute.html#runParseAttribute"><span class="hs-identifier hs-var">runParseAttribute</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#signingTime"><span class="hs-identifier hs-var">signingTime</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145786"><span class="hs-identifier hs-var">attrs</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 () DateTime -&gt; Maybe DateTime)
+-&gt; ParseASN1 () DateTime -&gt; Maybe DateTime
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ASN1Time</span></span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679145788"><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145788"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679145789"><span class="annot"><span class="annottext">Maybe TimezoneOffset
+</span><a href="#local-6989586621679145789"><span class="hs-identifier hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 () ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679145792"><span class="annot"><span class="annottext">validOffset :: Bool
+</span><a href="#local-6989586621679145792"><span class="hs-identifier hs-var hs-var">validOffset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; (TimezoneOffset -&gt; Bool) -&gt; Maybe TimezoneOffset -&gt; Bool
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TimezoneOffset -&gt; TimezoneOffset -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; TimezoneOffset
+</span><span class="hs-identifier hs-var">TimezoneOffset</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe TimezoneOffset
+</span><a href="#local-6989586621679145789"><span class="hs-identifier hs-var">offset</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679145792"><span class="hs-identifier hs-var">validOffset</span></a></span><span>
+</span><span id="line-148"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">DateTime -&gt; ParseASN1 () DateTime
+forall a. a -&gt; ParseASN1 () a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145788"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-149"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParseASN1 () DateTime
+forall a. String -&gt; ParseASN1 () a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;getSigningTimeAttr: invalid timezone&quot;</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><span class="hs-comment">-- | Add or replace the @signingTime@ attribute in a list of attributes.</span></span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttr"><span class="hs-identifier hs-type">setSigningTimeAttr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DateTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-153"></span><span id="setSigningTimeAttr"><span class="annot"><span class="annottext">setSigningTimeAttr :: DateTime -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttr"><span class="hs-identifier hs-var hs-var">setSigningTimeAttr</span></a></span></span><span> </span><span id="local-6989586621679145795"><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145795"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679145798"><span class="annot"><span class="annottext">normalize :: DateTime -&gt; DateTime
+</span><a href="#local-6989586621679145798"><span class="hs-identifier hs-var hs-var">normalize</span></a></span></span><span> </span><span id="local-6989586621679145799"><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145799"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145799"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">dtTime</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">dtTime</span></span><span> </span><span class="annot"><a href="#local-6989586621679145799"><span class="hs-identifier hs-type">val</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">todNSec</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-155"></span><span>        </span><span id="local-6989586621679145802"><span class="annot"><span class="annottext">offset :: Maybe TimezoneOffset
+</span><a href="#local-6989586621679145802"><span class="hs-identifier hs-var hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimezoneOffset -&gt; Maybe TimezoneOffset
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; TimezoneOffset
+</span><span class="hs-identifier hs-var">TimezoneOffset</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>        </span><span id="local-6989586621679145812"><span class="annot"><span class="annottext">ty :: ASN1TimeType
+</span><a href="#local-6989586621679145812"><span class="hs-identifier hs-var hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145795"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">DateTime -&gt; DateTime -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Date -&gt; DateTime
+forall t1 t2. (Timeable t1, Time t2) =&gt; t1 -&gt; t2
+</span><span class="hs-identifier hs-var">timeConvert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Month -&gt; Int -&gt; Date
+</span><span class="hs-identifier hs-var">Date</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2050</span></span><span> </span><span class="annot"><span class="annottext">Month
+</span><span class="hs-identifier hs-var">January</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><span class="hs-identifier hs-var">TimeGeneralized</span></span><span>
+</span><span id="line-157"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145795"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">DateTime -&gt; DateTime -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span>  </span><span class="annot"><span class="annottext">Date -&gt; DateTime
+forall t1 t2. (Timeable t1, Time t2) =&gt; t1 -&gt; t2
+</span><span class="hs-identifier hs-var">timeConvert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Month -&gt; Int -&gt; Date
+</span><span class="hs-identifier hs-var">Date</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1950</span></span><span> </span><span class="annot"><span class="annottext">Month
+</span><span class="hs-identifier hs-var">January</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><span class="hs-identifier hs-var">TimeGeneralized</span></span><span>
+</span><span id="line-158"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><span class="hs-identifier hs-var">TimeUTC</span></span><span>
+</span><span id="line-159"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1S -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setAttributeASN1S"><span class="hs-identifier hs-var">setAttributeASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="Crypto.Store.CMS.Attribute.html#signingTime"><span class="hs-identifier hs-var">signingTime</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1TimeType -&gt; DateTime -&gt; Maybe TimezoneOffset -&gt; ASN1S
+forall e.
+ASN1Elem e =&gt;
+ASN1TimeType -&gt; DateTime -&gt; Maybe TimezoneOffset -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gASN1Time"><span class="hs-identifier hs-var">gASN1Time</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><a href="#local-6989586621679145812"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DateTime -&gt; DateTime
+</span><a href="#local-6989586621679145798"><span class="hs-identifier hs-var">normalize</span></a></span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145795"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe TimezoneOffset
+</span><a href="#local-6989586621679145802"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- | Add or replace the @signingTime@ attribute in a list of attributes with the</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- current time.  This is equivalent to calling 'setSigningTimeAttr' with the</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- result of 'dateCurrent'.</span><span>
+</span><span id="line-164"></span><span id="local-6989586621679145614"><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttrCurrent"><span class="hs-identifier hs-type">setSigningTimeAttrCurrent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679145614"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679145614"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-165"></span><span id="setSigningTimeAttrCurrent"><span class="annot"><span class="annottext">setSigningTimeAttrCurrent :: forall (m :: * -&gt; *). MonadIO m =&gt; [Attribute] -&gt; m [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttrCurrent"><span class="hs-identifier hs-var hs-var">setSigningTimeAttrCurrent</span></a></span></span><span> </span><span id="local-6989586621679145826"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145826"><span class="hs-identifier hs-var">attrs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679145827"><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145827"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO DateTime -&gt; m DateTime
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO DateTime
+</span><span class="hs-identifier hs-var">dateCurrent</span></span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><span class="annottext">[Attribute] -&gt; m [Attribute]
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DateTime -&gt; [Attribute] -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#setSigningTimeAttr"><span class="hs-identifier hs-var">setSigningTimeAttr</span></a></span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679145827"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679145826"><span class="hs-identifier hs-var">attrs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span></pre></body></html>

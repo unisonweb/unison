@@ -1,0 +1,1318 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Data.Store.PKCS5</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Password-Based Cryptography, aka PKCS #5.</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.PKCS5</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier">ProtectionPassword</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#emptyNotTerminated"><span class="hs-identifier">emptyNotTerminated</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#fromProtectionPassword"><span class="hs-identifier">fromProtectionPassword</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#toProtectionPassword"><span class="hs-identifier">toProtectionPassword</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier">EncryptedContent</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-comment">-- * High-level API</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier">PKCS5</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#encrypt"><span class="hs-identifier">encrypt</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#decrypt"><span class="hs-identifier">decrypt</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Encryption schemes</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier">EncryptionScheme</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier">PBEParameter</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier">PBES2Parameter</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Key derivation</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#KeyDerivationFunc"><span class="hs-identifier">KeyDerivationFunc</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#PBKDF2_PRF"><span class="hs-identifier">PBKDF2_PRF</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#Salt"><span class="hs-identifier">Salt</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#generateSalt"><span class="hs-identifier">generateSalt</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Content encryption</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#ContentEncryptionParams"><span class="hs-identifier">ContentEncryptionParams</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#ContentEncryptionAlg"><span class="hs-identifier">ContentEncryptionAlg</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#ContentEncryptionCipher"><span class="hs-identifier">ContentEncryptionCipher</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#generateEncryptionParams"><span class="hs-identifier">generateEncryptionParams</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#getContentEncryptionAlg"><span class="hs-identifier">getContentEncryptionAlg</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Low-level API</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier">pbEncrypt</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier">pbDecrypt</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html"><span class="hs-identifier">Crypto.Store.CMS.Algorithms</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html"><span class="hs-identifier">Crypto.Store.CMS.Encrypted</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.Error.html"><span class="hs-identifier">Crypto.Store.Error</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html"><span class="hs-identifier">Crypto.Store.PKCS5.PBES1</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="EncryptionSchemeType"><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionSchemeType"><span class="hs-identifier hs-var">EncryptionSchemeType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Type_PBES2"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBES2"><span class="hs-identifier hs-var">Type_PBES2</span></a></span></span><span>
+</span><span id="line-56"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_MD5_DES_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_MD5_DES_CBC</span></a></span></span><span>
+</span><span id="line-57"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_DES_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_CBC</span></a></span></span><span>
+</span><span id="line-58"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_RC4_128"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_128</span></a></span></span><span>
+</span><span id="line-59"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_RC4_40"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_40</span></a></span></span><span>
+</span><span id="line-60"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_DES_EDE3_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE3_CBC</span></a></span></span><span>
+</span><span id="line-61"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_DES_EDE2_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE2_CBC</span></a></span></span><span>
+</span><span id="line-62"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_RC2_128"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_128</span></a></span></span><span>
+</span><span id="line-63"></span><span>                          </span><span class="hs-glyph">|</span><span> </span><span id="Type_PBE_SHA1_RC2_40"><span class="annot"><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_40</span></a></span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#Enumerable"><span class="hs-identifier hs-type">Enumerable</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionSchemeType"><span class="hs-identifier hs-type">EncryptionSchemeType</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679154742"><span class="annot"><span class="annottext">values :: [EncryptionSchemeType]
+</span><a href="#local-6989586621679154742"><span class="hs-identifier hs-var hs-var hs-var hs-var">values</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBES2"><span class="hs-identifier hs-var">Type_PBES2</span></a></span><span>
+</span><span id="line-67"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_MD5_DES_CBC</span></a></span><span>
+</span><span id="line-68"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_CBC</span></a></span><span>
+</span><span id="line-69"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_128</span></a></span><span>
+</span><span id="line-70"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_40</span></a></span><span>
+</span><span id="line-71"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE3_CBC</span></a></span><span>
+</span><span id="line-72"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE2_CBC</span></a></span><span>
+</span><span id="line-73"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_128</span></a></span><span>
+</span><span id="line-74"></span><span>             </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_40</span></a></span><span>
+</span><span id="line-75"></span><span>             </span><span class="hs-special">]</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OIDable</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionSchemeType"><span class="hs-identifier hs-type">EncryptionSchemeType</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679154747"><span class="annot"><span class="annottext">getObjectID :: EncryptionSchemeType -&gt; OID
+</span><a href="#local-6989586621679154747"><span class="hs-identifier hs-var hs-var hs-var hs-var">getObjectID</span></a></span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBES2"><span class="hs-identifier hs-var">Type_PBES2</span></a></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">13</span></span><span class="hs-special">]</span><span>
+</span><span id="line-79"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_MD5_DES_CBC</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_CBC</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_128</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_40</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">4</span></span><span class="hs-special">]</span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_128</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">5</span></span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_40</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">840</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">113549</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">12</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">6</span></span><span class="hs-special">]</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OIDNameable</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionSchemeType"><span class="hs-identifier hs-type">EncryptionSchemeType</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679154758"><span class="annot"><span class="annottext">fromObjectID :: OID -&gt; Maybe EncryptionSchemeType
+</span><a href="#local-6989586621679154758"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromObjectID</span></a></span></span><span> </span><span id="local-6989586621679154760"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679154760"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OIDNameableWrapper EncryptionSchemeType -&gt; EncryptionSchemeType
+forall a. OIDNameableWrapper a -&gt; a
+</span><a href="Crypto.Store.CMS.Util.html#unOIDNW"><span class="hs-identifier hs-var">unOIDNW</span></a></span><span> </span><span class="annot"><span class="annottext">(OIDNameableWrapper EncryptionSchemeType -&gt; EncryptionSchemeType)
+-&gt; Maybe (OIDNameableWrapper EncryptionSchemeType)
+-&gt; Maybe EncryptionSchemeType
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">OID -&gt; Maybe (OIDNameableWrapper EncryptionSchemeType)
+forall a. OIDNameable a =&gt; OID -&gt; Maybe a
+</span><span class="hs-identifier hs-var">fromObjectID</span></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679154760"><span class="hs-identifier hs-var">oid</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Password-Based Encryption Scheme (PBES).</span></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">data</span><span> </span><span id="EncryptionScheme"><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-var">EncryptionScheme</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PBES2"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-var">PBES2</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span><span>               </span><span class="annot"><span class="hs-comment">-- ^ PBES2</span></span><span>
+</span><span id="line-93"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_MD5_DES_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">PBE_MD5_DES_CBC</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ pbeWithMD5AndDES-CBC</span></span><span>
+</span><span id="line-94"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_DES_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_CBC</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHA1AndDES-CBC</span></span><span>
+</span><span id="line-95"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_RC4_128"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">PBE_SHA1_RC4_128</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHAAnd128BitRC4</span></span><span>
+</span><span id="line-96"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_RC4_40"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">PBE_SHA1_RC4_40</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHAAnd40BitRC4</span></span><span>
+</span><span id="line-97"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_DES_EDE3_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_EDE3_CBC</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHAAnd3-KeyTripleDES-CBC</span></span><span>
+</span><span id="line-98"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_DES_EDE2_CBC"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_EDE2_CBC</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHAAnd2-KeyTripleDES-CBC</span></span><span>
+</span><span id="line-99"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_RC2_128"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">PBE_SHA1_RC2_128</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ pbeWithSHAAnd128BitRC2-CBC</span></span><span>
+</span><span id="line-100"></span><span>                      </span><span class="hs-glyph">|</span><span> </span><span id="PBE_SHA1_RC2_40"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">PBE_SHA1_RC2_40</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#PBEParameter"><span class="hs-identifier hs-type">PBEParameter</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ pbewithSHAAnd40BitRC2-CBC</span></span><span>
+</span><span id="line-101"></span><span>                      </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154773"><span id="local-6989586621679154796"><span id="local-6989586621679154800"><span class="annot"><span class="annottext">Int -&gt; EncryptionScheme -&gt; ShowS
+[EncryptionScheme] -&gt; ShowS
+EncryptionScheme -&gt; String
+(Int -&gt; EncryptionScheme -&gt; ShowS)
+-&gt; (EncryptionScheme -&gt; String)
+-&gt; ([EncryptionScheme] -&gt; ShowS)
+-&gt; Show EncryptionScheme
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; EncryptionScheme -&gt; ShowS
+showsPrec :: Int -&gt; EncryptionScheme -&gt; ShowS
+$cshow :: EncryptionScheme -&gt; String
+show :: EncryptionScheme -&gt; String
+$cshowList :: [EncryptionScheme] -&gt; ShowS
+showList :: [EncryptionScheme] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679154804"><span id="local-6989586621679154817"><span class="annot"><span class="annottext">EncryptionScheme -&gt; EncryptionScheme -&gt; Bool
+(EncryptionScheme -&gt; EncryptionScheme -&gt; Bool)
+-&gt; (EncryptionScheme -&gt; EncryptionScheme -&gt; Bool)
+-&gt; Eq EncryptionScheme
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: EncryptionScheme -&gt; EncryptionScheme -&gt; Bool
+== :: EncryptionScheme -&gt; EncryptionScheme -&gt; Bool
+$c/= :: EncryptionScheme -&gt; EncryptionScheme -&gt; Bool
+/= :: EncryptionScheme -&gt; EncryptionScheme -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="annot"><span class="hs-comment">-- | PBES2 parameters.</span></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">data</span><span> </span><span id="PBES2Parameter"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-var">PBES2Parameter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PBES2Parameter"><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-var">PBES2Parameter</span></a></span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="pbes2KDF"><span class="annot"><span class="annottext">PBES2Parameter -&gt; KeyDerivationFunc
+</span><a href="Crypto.Store.PKCS5.html#pbes2KDF"><span class="hs-identifier hs-var hs-var">pbes2KDF</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#KeyDerivationFunc"><span class="hs-identifier hs-type">KeyDerivationFunc</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Key derivation function</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="pbes2EScheme"><span class="annot"><span class="annottext">PBES2Parameter -&gt; ContentEncryptionParams
+</span><a href="Crypto.Store.PKCS5.html#pbes2EScheme"><span class="hs-identifier hs-var hs-var">pbes2EScheme</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#ContentEncryptionParams"><span class="hs-identifier hs-type">ContentEncryptionParams</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Underlying encryption scheme</span></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154825"><span id="local-6989586621679154832"><span id="local-6989586621679154835"><span class="annot"><span class="annottext">Int -&gt; PBES2Parameter -&gt; ShowS
+[PBES2Parameter] -&gt; ShowS
+PBES2Parameter -&gt; String
+(Int -&gt; PBES2Parameter -&gt; ShowS)
+-&gt; (PBES2Parameter -&gt; String)
+-&gt; ([PBES2Parameter] -&gt; ShowS)
+-&gt; Show PBES2Parameter
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PBES2Parameter -&gt; ShowS
+showsPrec :: Int -&gt; PBES2Parameter -&gt; ShowS
+$cshow :: PBES2Parameter -&gt; String
+show :: PBES2Parameter -&gt; String
+$cshowList :: [PBES2Parameter] -&gt; ShowS
+showList :: [PBES2Parameter] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679154838"><span id="local-6989586621679154844"><span class="annot"><span class="annottext">PBES2Parameter -&gt; PBES2Parameter -&gt; Bool
+(PBES2Parameter -&gt; PBES2Parameter -&gt; Bool)
+-&gt; (PBES2Parameter -&gt; PBES2Parameter -&gt; Bool) -&gt; Eq PBES2Parameter
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PBES2Parameter -&gt; PBES2Parameter -&gt; Bool
+== :: PBES2Parameter -&gt; PBES2Parameter -&gt; Bool
+$c/= :: PBES2Parameter -&gt; PBES2Parameter -&gt; Bool
+/= :: PBES2Parameter -&gt; PBES2Parameter -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154562"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154562"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154562"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621679154859"><span class="annot"><span class="annottext">asn1s :: PBES2Parameter -&gt; ASN1Stream e
+</span><a href="#local-6989586621679154859"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span><span class="hs-special">{</span><span id="local-6989586621679154861"><span id="local-6989586621679154862"><span class="annot"><span class="annottext">KeyDerivationFunc
+ContentEncryptionParams
+pbes2KDF :: PBES2Parameter -&gt; KeyDerivationFunc
+pbes2EScheme :: PBES2Parameter -&gt; ContentEncryptionParams
+pbes2KDF :: KeyDerivationFunc
+pbes2EScheme :: ContentEncryptionParams
+</span><a href="Crypto.Store.PKCS5.html#pbes2KDF"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-112"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679154863"><span class="annot"><span class="annottext">kdFunc :: ASN1Stream e
+</span><a href="#local-6989586621679154863"><span class="hs-identifier hs-var hs-var">kdFunc</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; KeyDerivationFunc -&gt; ASN1Stream e
+forall e param.
+(ASN1Elem e, AlgorithmId param, OIDable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; param -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#algorithmASN1S"><span class="hs-identifier hs-var">algorithmASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679154861"><span class="hs-identifier hs-var">pbes2KDF</span></a></span><span>
+</span><span id="line-113"></span><span>            </span><span id="local-6989586621679154866"><span class="annot"><span class="annottext">eScheme :: ASN1Stream e
+</span><a href="#local-6989586621679154866"><span class="hs-identifier hs-var hs-var">eScheme</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679154862"><span class="hs-identifier hs-var">pbes2EScheme</span></a></span><span>
+</span><span id="line-114"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679154863"><span class="hs-identifier hs-var">kdFunc</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679154866"><span class="hs-identifier hs-var">eScheme</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154579"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679154579"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154579"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>    </span><span id="local-6989586621679154892"><span class="annot"><span class="annottext">parse :: ParseASN1 e PBES2Parameter
+</span><a href="#local-6989586621679154892"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e PBES2Parameter -&gt; ParseASN1 e PBES2Parameter
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e PBES2Parameter -&gt; ParseASN1 e PBES2Parameter)
+-&gt; ParseASN1 e PBES2Parameter -&gt; ParseASN1 e PBES2Parameter
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-118"></span><span>        </span><span id="local-6989586621679154895"><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679154895"><span class="hs-identifier hs-var">kdFunc</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e KeyDerivationFunc
+forall e param.
+(Monoid e, AlgorithmId param, OIDNameable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e param
+</span><a href="Crypto.Store.CMS.Util.html#parseAlgorithm"><span class="hs-identifier hs-var">parseAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-119"></span><span>        </span><span id="local-6989586621679154897"><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679154897"><span class="hs-identifier hs-var">eScheme</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ContentEncryptionParams
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-120"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc -&gt; Maybe Int
+</span><a href="Crypto.Store.CMS.Algorithms.html#kdfKeyLength"><span class="hs-identifier hs-var">kdfKeyLength</span></a></span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679154895"><span class="hs-identifier hs-var">kdFunc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-121"></span><span>            </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; ParseASN1 e ()
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679154899"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679154899"><span class="hs-identifier hs-var">sz</span></a></span></span><span>
+</span><span id="line-123"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams -&gt; Int -&gt; Bool
+forall params. HasKeySize params =&gt; params -&gt; Int -&gt; Bool
+</span><a href="Crypto.Store.CMS.Algorithms.html#validateKeySize"><span class="hs-identifier hs-var">validateKeySize</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679154897"><span class="hs-identifier hs-var">eScheme</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679154899"><span class="hs-identifier hs-var">sz</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; ParseASN1 e ()
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParseASN1 e ()
+forall e a. String -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#throwParseError"><span class="hs-identifier hs-var">throwParseError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PBES2Parameter: parsed key length incompatible with encryption scheme&quot;</span></span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="annottext">PBES2Parameter -&gt; ParseASN1 e PBES2Parameter
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pbes2KDF :: KeyDerivationFunc
+</span><a href="Crypto.Store.PKCS5.html#pbes2KDF"><span class="hs-identifier hs-var">pbes2KDF</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679154895"><span class="hs-identifier hs-var">kdFunc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pbes2EScheme :: ContentEncryptionParams
+</span><a href="Crypto.Store.PKCS5.html#pbes2EScheme"><span class="hs-identifier hs-var">pbes2EScheme</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679154897"><span class="hs-identifier hs-var">eScheme</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#AlgorithmId"><span class="hs-identifier hs-type">AlgorithmId</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="AlgorithmType"><span class="annot"><a href="Crypto.Store.CMS.Util.html#AlgorithmType"><span class="hs-identifier hs-var">AlgorithmType</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionSchemeType"><span class="hs-identifier hs-type">EncryptionSchemeType</span></a></span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621679154908"><span class="annot"><span class="annottext">algorithmName :: EncryptionScheme -&gt; String
+</span><a href="#local-6989586621679154908"><span class="hs-identifier hs-var hs-var hs-var hs-var">algorithmName</span></a></span></span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;encryption scheme&quot;</span></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679154910"><span class="annot"><span class="annottext">algorithmType :: EncryptionScheme -&gt; AlgorithmType EncryptionScheme
+</span><a href="#local-6989586621679154910"><span class="hs-identifier hs-var hs-var hs-var hs-var">algorithmType</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-type">PBES2</span></a></span><span> </span><span class="annot"><span class="annottext">PBES2Parameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBES2"><span class="hs-identifier hs-var">Type_PBES2</span></a></span><span>
+</span><span id="line-132"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-type">PBE_MD5_DES_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_MD5_DES_CBC</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_CBC</span></a></span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-type">PBE_SHA1_RC4_128</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_128</span></a></span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-type">PBE_SHA1_RC4_40</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_40</span></a></span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE3_CBC</span></a></span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE2_CBC</span></a></span><span>
+</span><span id="line-138"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-type">PBE_SHA1_RC2_128</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_128</span></a></span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#algorithmType"><span class="hs-identifier hs-var">algorithmType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-type">PBE_SHA1_RC2_40</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_40</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679154923"><span class="annot"><span class="annottext">parameterASN1S :: forall e. ASN1Elem e =&gt; EncryptionScheme -&gt; ASN1Stream e
+</span><a href="#local-6989586621679154923"><span class="hs-identifier hs-var hs-var hs-var hs-var">parameterASN1S</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-type">PBES2</span></a></span><span> </span><span id="local-6989586621679154925"><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679154925"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBES2Parameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679154925"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-142"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-type">PBE_MD5_DES_CBC</span></a></span><span> </span><span id="local-6989586621679154926"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154926"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154926"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_CBC</span></a></span><span> </span><span id="local-6989586621679154927"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154927"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154927"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-type">PBE_SHA1_RC4_128</span></a></span><span> </span><span id="local-6989586621679154928"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154928"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154928"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-type">PBE_SHA1_RC4_40</span></a></span><span> </span><span id="local-6989586621679154929"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154929"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154929"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span id="local-6989586621679154930"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154930"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154930"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span id="local-6989586621679154931"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154931"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154931"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-type">PBE_SHA1_RC2_128</span></a></span><span> </span><span id="local-6989586621679154932"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154932"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154932"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parameterASN1S"><span class="hs-identifier hs-var">parameterASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-type">PBE_SHA1_RC2_40</span></a></span><span> </span><span id="local-6989586621679154933"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154933"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679154933"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621679154955"><span class="annot"><span class="annottext">parseParameter :: forall e.
+Monoid e =&gt;
+AlgorithmType EncryptionScheme -&gt; ParseASN1 e EncryptionScheme
+</span><a href="#local-6989586621679154955"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseParameter</span></a></span></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBES2"><span class="hs-identifier hs-var">Type_PBES2</span></a></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBES2Parameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-var">PBES2</span></a></span><span> </span><span class="annot"><span class="annottext">(PBES2Parameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBES2Parameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBES2Parameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_MD5_DES_CBC</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-var">PBE_MD5_DES_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_CBC</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_128</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-var">PBE_SHA1_RC4_128</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC4_40</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-var">PBE_SHA1_RC4_40</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">Type_PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-var">PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_128</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-var">PBE_SHA1_RC2_128</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-159"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#parseParameter"><span class="hs-identifier hs-var">parseParameter</span></a></span><span> </span><span class="annot"><span class="annottext">AlgorithmType EncryptionScheme
+EncryptionSchemeType
+</span><a href="Crypto.Store.PKCS5.html#Type_PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">Type_PBE_SHA1_RC2_40</span></a></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PBEParameter -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-var">PBE_SHA1_RC2_40</span></a></span><span> </span><span class="annot"><span class="annottext">(PBEParameter -&gt; EncryptionScheme)
+-&gt; ParseASN1 e PBEParameter -&gt; ParseASN1 e EncryptionScheme
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e PBEParameter
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154604"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154604"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154604"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679154964"><span class="annot"><span class="annottext">asn1s :: EncryptionScheme -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; EncryptionScheme -&gt; ASN1Stream e
+forall e param.
+(ASN1Elem e, AlgorithmId param, OIDable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; param -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#algorithmASN1S"><span class="hs-identifier hs-var">algorithmASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154606"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679154606"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154606"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span id="local-6989586621679154974"><span class="annot"><span class="annottext">parse :: ParseASN1 e EncryptionScheme
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e EncryptionScheme
+forall e param.
+(Monoid e, AlgorithmId param, OIDNameable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e param
+</span><a href="Crypto.Store.CMS.Util.html#parseAlgorithm"><span class="hs-identifier hs-var">parseAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- High-level API</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Content encrypted with a Password-Based Encryption Scheme (PBES).</span><span>
+</span><span id="line-171"></span><span class="hs-comment">--</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- The content will usually be the binary representation of an ASN.1 object,</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- however the transformation may be applied to any bytestring.</span><span>
+</span><span id="line-174"></span><span class="hs-keyword">data</span><span> </span><span id="PKCS5"><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-var">PKCS5</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PKCS5"><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-var">PKCS5</span></a></span></span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="encryptionAlgorithm"><span class="annot"><span class="annottext">PKCS5 -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#encryptionAlgorithm"><span class="hs-identifier hs-var hs-var">encryptionAlgorithm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Scheme used to encrypt content</span></span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="encryptedData"><span class="annot"><span class="annottext">PKCS5 -&gt; ByteString
+</span><a href="Crypto.Store.PKCS5.html#encryptedData"><span class="hs-identifier hs-var hs-var">encryptedData</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Encrypted content</span></span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154979"><span id="local-6989586621679154985"><span id="local-6989586621679154989"><span class="annot"><span class="annottext">Int -&gt; PKCS5 -&gt; ShowS
+[PKCS5] -&gt; ShowS
+PKCS5 -&gt; String
+(Int -&gt; PKCS5 -&gt; ShowS)
+-&gt; (PKCS5 -&gt; String) -&gt; ([PKCS5] -&gt; ShowS) -&gt; Show PKCS5
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PKCS5 -&gt; ShowS
+showsPrec :: Int -&gt; PKCS5 -&gt; ShowS
+$cshow :: PKCS5 -&gt; String
+show :: PKCS5 -&gt; String
+$cshowList :: [PKCS5] -&gt; ShowS
+showList :: [PKCS5] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679154992"><span id="local-6989586621679154997"><span class="annot"><span class="annottext">PKCS5 -&gt; PKCS5 -&gt; Bool
+(PKCS5 -&gt; PKCS5 -&gt; Bool) -&gt; (PKCS5 -&gt; PKCS5 -&gt; Bool) -&gt; Eq PKCS5
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PKCS5 -&gt; PKCS5 -&gt; Bool
+== :: PKCS5 -&gt; PKCS5 -&gt; Bool
+$c/= :: PKCS5 -&gt; PKCS5 -&gt; Bool
+/= :: PKCS5 -&gt; PKCS5 -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154609"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154609"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154609"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-181"></span><span>    </span><span id="local-6989586621679155006"><span class="annot"><span class="annottext">asn1s :: PKCS5 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span class="hs-special">{</span><span id="local-6989586621679155007"><span id="local-6989586621679155008"><span class="annot"><span class="annottext">ByteString
+EncryptionScheme
+encryptionAlgorithm :: PKCS5 -&gt; EncryptionScheme
+encryptedData :: PKCS5 -&gt; ByteString
+encryptionAlgorithm :: EncryptionScheme
+encryptedData :: ByteString
+</span><a href="Crypto.Store.PKCS5.html#encryptionAlgorithm"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679155009"><span class="hs-identifier hs-var">alg</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679155010"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679155009"><span class="annot"><span class="annottext">alg :: ASN1Stream e
+</span><a href="#local-6989586621679155009"><span class="hs-identifier hs-var hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptionScheme -&gt; ASN1Stream e
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155007"><span class="hs-identifier hs-var">encryptionAlgorithm</span></a></span><span>
+</span><span id="line-183"></span><span>            </span><span id="local-6989586621679155010"><span class="annot"><span class="annottext">bs :: ASN1Stream e
+</span><a href="#local-6989586621679155010"><span class="hs-identifier hs-var hs-var">bs</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var">gOctetString</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155008"><span class="hs-identifier hs-var">encryptedData</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154612"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679154612"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154612"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621679155025"><span class="annot"><span class="annottext">parse :: ParseASN1 e PKCS5
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e PKCS5 -&gt; ParseASN1 e PKCS5
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e PKCS5 -&gt; ParseASN1 e PKCS5)
+-&gt; ParseASN1 e PKCS5 -&gt; ParseASN1 e PKCS5
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-187"></span><span>        </span><span id="local-6989586621679155026"><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155026"><span class="hs-identifier hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e EncryptionScheme
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-188"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">OctetString</span></span><span> </span><span id="local-6989586621679155028"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155028"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-189"></span><span>        </span><span class="annot"><span class="annottext">PKCS5 -&gt; ParseASN1 e PKCS5
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">encryptionAlgorithm :: EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#encryptionAlgorithm"><span class="hs-identifier hs-var">encryptionAlgorithm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155026"><span class="hs-identifier hs-var">alg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">encryptedData :: ByteString
+</span><a href="Crypto.Store.PKCS5.html#encryptedData"><span class="hs-identifier hs-var">encryptedData</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155028"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1Object</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621679155037"><span class="annot"><span class="annottext">toASN1 :: PKCS5 -&gt; ASN1S
+</span><a href="#local-6989586621679155037"><span class="hs-identifier hs-var hs-var hs-var hs-var">toASN1</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PKCS5 -&gt; ASN1S
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679155042"><span class="annot"><span class="annottext">fromASN1 :: [ASN1] -&gt; Either String (PKCS5, [ASN1])
+</span><a href="#local-6989586621679155042"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromASN1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParseASN1 () PKCS5 -&gt; [ASN1] -&gt; Either String (PKCS5, [ASN1])
+forall a. ParseASN1 () a -&gt; [ASN1] -&gt; Either String (a, [ASN1])
+</span><a href="Crypto.Store.ASN1.Parse.html#runParseASN1State"><span class="hs-identifier hs-var">runParseASN1State</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 () PKCS5
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="annot"><span class="hs-comment">-- | Encrypt a bytestring with the specified encryption scheme and password.</span></span><span>
+</span><span id="line-196"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#encrypt"><span class="hs-identifier hs-type">encrypt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier hs-type">ProtectionPassword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span>
+</span><span id="line-197"></span><span id="encrypt"><span class="annot"><span class="annottext">encrypt :: EncryptionScheme
+-&gt; ProtectionPassword -&gt; ByteString -&gt; Either StoreError PKCS5
+</span><a href="Crypto.Store.PKCS5.html#encrypt"><span class="hs-identifier hs-var hs-var">encrypt</span></a></span></span><span> </span><span id="local-6989586621679155045"><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155045"><span class="hs-identifier hs-var">alg</span></a></span></span><span> </span><span id="local-6989586621679155046"><span class="annot"><span class="annottext">ProtectionPassword
+</span><a href="#local-6989586621679155046"><span class="hs-identifier hs-var">pwd</span></a></span></span><span> </span><span id="local-6989586621679155047"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155047"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; PKCS5
+</span><a href="#local-6989586621679155048"><span class="hs-identifier hs-var">build</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; PKCS5)
+-&gt; Either StoreError ByteString -&gt; Either StoreError PKCS5
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+-&gt; ByteString -&gt; ProtectionPassword -&gt; Either StoreError ByteString
+</span><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155045"><span class="hs-identifier hs-var">alg</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155047"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">ProtectionPassword
+</span><a href="#local-6989586621679155046"><span class="hs-identifier hs-var">pwd</span></a></span><span>
+</span><span id="line-198"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679155048"><span class="annot"><span class="annottext">build :: ByteString -&gt; PKCS5
+</span><a href="#local-6989586621679155048"><span class="hs-identifier hs-var hs-var">build</span></a></span></span><span> </span><span id="local-6989586621679155049"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155049"><span class="hs-identifier hs-var">ed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155049"><span class="hs-identifier hs-var">ed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; PKCS5 -&gt; PKCS5
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">encryptionAlgorithm :: EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#encryptionAlgorithm"><span class="hs-identifier hs-var">encryptionAlgorithm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+</span><a href="#local-6989586621679155045"><span class="hs-identifier hs-var">alg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">encryptedData :: ByteString
+</span><a href="Crypto.Store.PKCS5.html#encryptedData"><span class="hs-identifier hs-var">encryptedData</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155049"><span class="hs-identifier hs-var">ed</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span class="annot"><span class="hs-comment">-- | Decrypt the PKCS #5 content with the specified password.</span></span><span>
+</span><span id="line-202"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#decrypt"><span class="hs-identifier hs-type">decrypt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PKCS5"><span class="hs-identifier hs-type">PKCS5</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier hs-type">ProtectionPassword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-203"></span><span id="decrypt"><span class="annot"><span class="annottext">decrypt :: PKCS5 -&gt; ProtectionPassword -&gt; Either StoreError ByteString
+</span><a href="Crypto.Store.PKCS5.html#decrypt"><span class="hs-identifier hs-var hs-var">decrypt</span></a></span></span><span> </span><span id="local-6989586621679155050"><span class="annot"><span class="annottext">PKCS5
+</span><a href="#local-6989586621679155050"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptionScheme
+-&gt; ByteString -&gt; ProtectionPassword -&gt; Either StoreError ByteString
+</span><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PKCS5 -&gt; EncryptionScheme
+</span><a href="Crypto.Store.PKCS5.html#encryptionAlgorithm"><span class="hs-identifier hs-var">encryptionAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">PKCS5
+</span><a href="#local-6989586621679155050"><span class="hs-identifier hs-var">obj</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PKCS5 -&gt; ByteString
+</span><a href="Crypto.Store.PKCS5.html#encryptedData"><span class="hs-identifier hs-var">encryptedData</span></a></span><span> </span><span class="annot"><span class="annottext">PKCS5
+</span><a href="#local-6989586621679155050"><span class="hs-identifier hs-var">obj</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- Encryption Schemes</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="annot"><span class="hs-comment">-- | Encrypt a bytestring with the specified encryption scheme and password.</span></span><span>
+</span><span id="line-209"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-type">pbEncrypt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier hs-type">ProtectionPassword</span></a></span><span>
+</span><span id="line-210"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span>
+</span><span id="line-211"></span><span id="pbEncrypt"><span class="annot"><span class="annottext">pbEncrypt :: EncryptionScheme
+-&gt; ByteString -&gt; ProtectionPassword -&gt; Either StoreError ByteString
+</span><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var hs-var">pbEncrypt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-type">PBES2</span></a></span><span> </span><span id="local-6989586621679155051"><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679155051"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Key
+ -&gt; ContentEncryptionParams
+ -&gt; ByteString
+ -&gt; Either StoreError ByteString)
+-&gt; PBES2Parameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall result.
+(Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; PBES2Parameter -&gt; ByteString -&gt; ProtectionPassword -&gt; result
+</span><a href="Crypto.Store.PKCS5.html#pbes2"><span class="hs-identifier hs-var">pbes2</span></a></span><span>  </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679155051"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-212"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-type">PBE_MD5_DES_CBC</span></a></span><span> </span><span id="local-6989586621679155054"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155054"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy MD5
+-&gt; ContentEncryptionCipher DES
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs5"><span class="hs-identifier hs-var">pkcs5</span></a></span><span>  </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy MD5
+</span><a href="Crypto.Store.CMS.Algorithms.html#MD5"><span class="hs-identifier hs-var">MD5</span></a></span><span>  </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES"><span class="hs-identifier hs-var">DES</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155054"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-213"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_CBC</span></a></span><span> </span><span id="local-6989586621679155058"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155058"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs5"><span class="hs-identifier hs-var">pkcs5</span></a></span><span>  </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES"><span class="hs-identifier hs-var">DES</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155058"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-214"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-type">PBE_SHA1_RC4_128</span></a></span><span> </span><span id="local-6989586621679155060"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155060"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key -&gt; ByteString -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12stream"><span class="hs-identifier hs-var">pkcs12stream</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ByteString -&gt; Either StoreError ByteString
+forall key ba.
+(ByteArrayAccess key, ByteArray ba) =&gt;
+key -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.PKCS5.PBES1.html#rc4Combine"><span class="hs-identifier hs-var">rc4Combine</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155060"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-215"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-type">PBE_SHA1_RC4_40</span></a></span><span> </span><span id="local-6989586621679155063"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155063"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key -&gt; ByteString -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12stream"><span class="hs-identifier hs-var">pkcs12stream</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ByteString -&gt; Either StoreError ByteString
+forall key ba.
+(ByteArrayAccess key, ByteArray ba) =&gt;
+key -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.PKCS5.PBES1.html#rc4Combine"><span class="hs-identifier hs-var">rc4Combine</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155063"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-216"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span id="local-6989586621679155064"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155064"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES_EDE3
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12"><span class="hs-identifier hs-var">pkcs12</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES_EDE3
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES_EDE3"><span class="hs-identifier hs-var">DES_EDE3</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155064"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-217"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span id="local-6989586621679155067"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155067"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES_EDE2
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12"><span class="hs-identifier hs-var">pkcs12</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES_EDE2
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES_EDE2"><span class="hs-identifier hs-var">DES_EDE2</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155067"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-218"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-type">PBE_SHA1_RC2_128</span></a></span><span> </span><span id="local-6989586621679155069"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155069"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12rc2"><span class="hs-identifier hs-var">pkcs12rc2</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">128</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155069"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-219"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbEncrypt"><span class="hs-identifier hs-var">pbEncrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-type">PBE_SHA1_RC2_40</span></a></span><span> </span><span id="local-6989586621679155071"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155071"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12rc2"><span class="hs-identifier hs-var">pkcs12rc2</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentEncrypt"><span class="hs-identifier hs-var">contentEncrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155071"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- | Decrypt an encrypted bytestring with the specified encryption scheme and</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- password.</span><span>
+</span><span id="line-223"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-type">pbDecrypt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#EncryptionScheme"><span class="hs-identifier hs-type">EncryptionScheme</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier hs-type">ProtectionPassword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-224"></span><span id="pbDecrypt"><span class="annot"><span class="annottext">pbDecrypt :: EncryptionScheme
+-&gt; ByteString -&gt; ProtectionPassword -&gt; Either StoreError ByteString
+</span><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var hs-var">pbDecrypt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2"><span class="hs-identifier hs-type">PBES2</span></a></span><span> </span><span id="local-6989586621679155072"><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679155072"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Key
+ -&gt; ContentEncryptionParams
+ -&gt; ByteString
+ -&gt; Either StoreError ByteString)
+-&gt; PBES2Parameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall result.
+(Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; PBES2Parameter -&gt; ByteString -&gt; ProtectionPassword -&gt; result
+</span><a href="Crypto.Store.PKCS5.html#pbes2"><span class="hs-identifier hs-var">pbes2</span></a></span><span>  </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">PBES2Parameter
+</span><a href="#local-6989586621679155072"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-225"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_MD5_DES_CBC"><span class="hs-identifier hs-type">PBE_MD5_DES_CBC</span></a></span><span> </span><span id="local-6989586621679155074"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155074"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy MD5
+-&gt; ContentEncryptionCipher DES
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs5"><span class="hs-identifier hs-var">pkcs5</span></a></span><span>  </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy MD5
+</span><a href="Crypto.Store.CMS.Algorithms.html#MD5"><span class="hs-identifier hs-var">MD5</span></a></span><span>  </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES"><span class="hs-identifier hs-var">DES</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155074"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-226"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_CBC</span></a></span><span> </span><span id="local-6989586621679155075"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155075"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs5"><span class="hs-identifier hs-var">pkcs5</span></a></span><span>  </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES"><span class="hs-identifier hs-var">DES</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155075"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-227"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_128"><span class="hs-identifier hs-type">PBE_SHA1_RC4_128</span></a></span><span> </span><span id="local-6989586621679155076"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155076"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key -&gt; ByteString -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12stream"><span class="hs-identifier hs-var">pkcs12stream</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ByteString -&gt; Either StoreError ByteString
+forall key ba.
+(ByteArrayAccess key, ByteArray ba) =&gt;
+key -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.PKCS5.PBES1.html#rc4Combine"><span class="hs-identifier hs-var">rc4Combine</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155076"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-228"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC4_40"><span class="hs-identifier hs-type">PBE_SHA1_RC4_40</span></a></span><span> </span><span id="local-6989586621679155077"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155077"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key -&gt; ByteString -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12stream"><span class="hs-identifier hs-var">pkcs12stream</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ByteString -&gt; Either StoreError ByteString
+forall key ba.
+(ByteArrayAccess key, ByteArray ba) =&gt;
+key -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.PKCS5.PBES1.html#rc4Combine"><span class="hs-identifier hs-var">rc4Combine</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155077"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-229"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE3_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE3_CBC</span></a></span><span> </span><span id="local-6989586621679155078"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155078"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES_EDE3
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12"><span class="hs-identifier hs-var">pkcs12</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES_EDE3
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES_EDE3"><span class="hs-identifier hs-var">DES_EDE3</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155078"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-230"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_DES_EDE2_CBC"><span class="hs-identifier hs-type">PBE_SHA1_DES_EDE2_CBC</span></a></span><span> </span><span id="local-6989586621679155079"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155079"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; ContentEncryptionCipher DES_EDE2
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash cipher result.
+(HashAlgorithm hash, BlockCipher cipher) =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; ContentEncryptionCipher cipher
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12"><span class="hs-identifier hs-var">pkcs12</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionCipher DES_EDE2
+</span><a href="Crypto.Store.CMS.Algorithms.html#DES_EDE2"><span class="hs-identifier hs-var">DES_EDE2</span></a></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155079"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-231"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_128"><span class="hs-identifier hs-type">PBE_SHA1_RC2_128</span></a></span><span> </span><span id="local-6989586621679155080"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155080"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12rc2"><span class="hs-identifier hs-var">pkcs12rc2</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">128</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155080"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-232"></span><span class="annot"><a href="Crypto.Store.PKCS5.html#pbDecrypt"><span class="hs-identifier hs-var">pbDecrypt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBE_SHA1_RC2_40"><span class="hs-identifier hs-type">PBE_SHA1_RC2_40</span></a></span><span> </span><span id="local-6989586621679155081"><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155081"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StoreError -&gt; Either StoreError ByteString)
+-&gt; (Key
+    -&gt; ContentEncryptionParams
+    -&gt; ByteString
+    -&gt; Either StoreError ByteString)
+-&gt; DigestProxy SHA1
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; Either StoreError ByteString
+forall hash result.
+HashAlgorithm hash =&gt;
+(StoreError -&gt; result)
+-&gt; (Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; DigestProxy hash
+-&gt; Int
+-&gt; PBEParameter
+-&gt; ByteString
+-&gt; ProtectionPassword
+-&gt; result
+</span><a href="Crypto.Store.PKCS5.PBES1.html#pkcs12rc2"><span class="hs-identifier hs-var">pkcs12rc2</span></a></span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ByteString
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">Key
+-&gt; ContentEncryptionParams
+-&gt; ByteString
+-&gt; Either StoreError ByteString
+forall cek ba.
+(ByteArray cek, ByteArray ba) =&gt;
+cek -&gt; ContentEncryptionParams -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.CMS.Algorithms.html#contentDecrypt"><span class="hs-identifier hs-var">contentDecrypt</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy SHA1
+</span><a href="Crypto.Store.CMS.Algorithms.html#SHA1"><span class="hs-identifier hs-var">SHA1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span> </span><span class="annot"><span class="annottext">PBEParameter
+</span><a href="#local-6989586621679155081"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span id="local-6989586621679154624"><span class="annot"><a href="Crypto.Store.PKCS5.html#pbes2"><span class="hs-identifier hs-type">pbes2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#ContentEncryptionParams"><span class="hs-identifier hs-type">ContentEncryptionParams</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679154624"><span class="hs-identifier hs-type">result</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#ProtectionPassword"><span class="hs-identifier hs-type">ProtectionPassword</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679154624"><span class="hs-identifier hs-type">result</span></a></span></span><span>
+</span><span id="line-236"></span><span id="pbes2"><span class="annot"><span class="annottext">pbes2 :: forall result.
+(Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result)
+-&gt; PBES2Parameter -&gt; ByteString -&gt; ProtectionPassword -&gt; result
+</span><a href="Crypto.Store.PKCS5.html#pbes2"><span class="hs-identifier hs-var hs-var">pbes2</span></a></span></span><span> </span><span id="local-6989586621679155086"><span class="annot"><span class="annottext">Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result
+</span><a href="#local-6989586621679155086"><span class="hs-identifier hs-var">encdec</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.html#PBES2Parameter"><span class="hs-identifier hs-type">PBES2Parameter</span></a></span><span class="hs-special">{</span><span id="local-6989586621679155087"><span id="local-6989586621679155088"><span class="annot"><span class="annottext">KeyDerivationFunc
+ContentEncryptionParams
+pbes2KDF :: PBES2Parameter -&gt; KeyDerivationFunc
+pbes2EScheme :: PBES2Parameter -&gt; ContentEncryptionParams
+pbes2KDF :: KeyDerivationFunc
+pbes2EScheme :: ContentEncryptionParams
+</span><a href="Crypto.Store.PKCS5.html#pbes2KDF"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679155089"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155089"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span id="local-6989586621679155090"><span class="annot"><span class="annottext">ProtectionPassword
+</span><a href="#local-6989586621679155090"><span class="hs-identifier hs-var">pwd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key -&gt; ContentEncryptionParams -&gt; ByteString -&gt; result
+</span><a href="#local-6989586621679155086"><span class="hs-identifier hs-var">encdec</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679155091"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679155088"><span class="hs-identifier hs-var">pbes2EScheme</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679155089"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-237"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679155091"><span class="annot"><span class="annottext">key :: Key
+</span><a href="#local-6989586621679155091"><span class="hs-identifier hs-var hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc -&gt; Int -&gt; ByteString -&gt; Key
+forall password out.
+(ByteArrayAccess password, ByteArray out) =&gt;
+KeyDerivationFunc -&gt; Int -&gt; password -&gt; out
+</span><a href="Crypto.Store.CMS.Algorithms.html#kdfDerive"><span class="hs-identifier hs-var">kdfDerive</span></a></span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679155087"><span class="hs-identifier hs-var">pbes2KDF</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679155093"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ProtectionPassword -&gt; ByteString
+</span><a href="Crypto.Store.PKCS5.PBES1.html#fromProtectionPassword"><span class="hs-identifier hs-var">fromProtectionPassword</span></a></span><span> </span><span class="annot"><span class="annottext">ProtectionPassword
+</span><a href="#local-6989586621679155090"><span class="hs-identifier hs-var">pwd</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.PKCS5.PBES1.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span>
+</span><span id="line-238"></span><span>        </span><span id="local-6989586621679155093"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621679155093"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ContentEncryptionParams -&gt; Int
+forall params. HasKeySize params =&gt; params -&gt; Int
+</span><a href="Crypto.Store.CMS.Algorithms.html#getMaximumKeySize"><span class="hs-identifier hs-var">getMaximumKeySize</span></a></span><span> </span><span class="annot"><span class="annottext">ContentEncryptionParams
+</span><a href="#local-6989586621679155088"><span class="hs-identifier hs-var">pbes2EScheme</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">KeyDerivationFunc -&gt; Maybe Int
+</span><a href="Crypto.Store.CMS.Algorithms.html#kdfKeyLength"><span class="hs-identifier hs-var">kdfKeyLength</span></a></span><span> </span><span class="annot"><span class="annottext">KeyDerivationFunc
+</span><a href="#local-6989586621679155087"><span class="hs-identifier hs-var">pbes2KDF</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span></pre></body></html>

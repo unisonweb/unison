@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.Error</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Error data type.</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.Error</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier">StoreError</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#fromCryptoFailable"><span class="hs-identifier">fromCryptoFailable</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Error</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.RSA.Types</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">RSA</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Error</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><span class="hs-comment">-- | Error type in cryptostore.</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">data</span><span> </span><span id="StoreError"><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-var">StoreError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-21"></span><span>      </span><span id="CryptoError"><span class="annot"><a href="Crypto.Store.Error.html#CryptoError"><span class="hs-identifier hs-var">CryptoError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CryptoError</span></span><span>
+</span><span id="line-22"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Wraps a cryptonite error</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="RSAError"><span class="annot"><a href="Crypto.Store.Error.html#RSAError"><span class="hs-identifier hs-var">RSAError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RSA.Error</span></span><span>
+</span><span id="line-24"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Wraps an RSA crypto error</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="DecodingError"><span class="annot"><a href="Crypto.Store.Error.html#DecodingError"><span class="hs-identifier hs-var">DecodingError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1Error</span></span><span>
+</span><span id="line-26"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Error while decoding ASN.1 content</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ParseFailure"><span class="annot"><a href="Crypto.Store.Error.html#ParseFailure"><span class="hs-identifier hs-var">ParseFailure</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-28"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Error while parsing an ASN.1 object</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="DecryptionFailed"><span class="annot"><a href="Crypto.Store.Error.html#DecryptionFailed"><span class="hs-identifier hs-var">DecryptionFailed</span></a></span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Unable to decrypt, incorrect key or password?</span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="BadContentMAC"><span class="annot"><a href="Crypto.Store.Error.html#BadContentMAC"><span class="hs-identifier hs-var">BadContentMAC</span></a></span></span><span>
+</span><span id="line-32"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ MAC verification failed, incorrect key or password?</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="BadChecksum"><span class="annot"><a href="Crypto.Store.Error.html#BadChecksum"><span class="hs-identifier hs-var">BadChecksum</span></a></span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Checksum verification failed, incorrect key or password?</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="DigestMismatch"><span class="annot"><a href="Crypto.Store.Error.html#DigestMismatch"><span class="hs-identifier hs-var">DigestMismatch</span></a></span></span><span>
+</span><span id="line-36"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Digest verification failed</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="SignatureNotVerified"><span class="annot"><a href="Crypto.Store.Error.html#SignatureNotVerified"><span class="hs-identifier hs-var">SignatureNotVerified</span></a></span></span><span>
+</span><span id="line-38"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Signature verification failed</span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="InvalidInput"><span class="annot"><a href="Crypto.Store.Error.html#InvalidInput"><span class="hs-identifier hs-var">InvalidInput</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Some condition is not met about input to algorithm</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="InvalidPassword"><span class="annot"><a href="Crypto.Store.Error.html#InvalidPassword"><span class="hs-identifier hs-var">InvalidPassword</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Some condition is not met about input password</span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="InvalidParameter"><span class="annot"><a href="Crypto.Store.Error.html#InvalidParameter"><span class="hs-identifier hs-var">InvalidParameter</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Some condition is not met about algorithm parameters</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnexpectedPublicKeyType"><span class="annot"><a href="Crypto.Store.Error.html#UnexpectedPublicKeyType"><span class="hs-identifier hs-var">UnexpectedPublicKeyType</span></a></span></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The algorithm expects another public key type</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnexpectedPrivateKeyType"><span class="annot"><a href="Crypto.Store.Error.html#UnexpectedPrivateKeyType"><span class="hs-identifier hs-var">UnexpectedPrivateKeyType</span></a></span></span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The algorithm expects another private key type</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="RecipientTypeMismatch"><span class="annot"><a href="Crypto.Store.Error.html#RecipientTypeMismatch"><span class="hs-identifier hs-var">RecipientTypeMismatch</span></a></span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-comment">-- ^ Returned when the type of recipient info does not match the consumer</span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-comment">-- function</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="RecipientKeyNotFound"><span class="annot"><a href="Crypto.Store.Error.html#RecipientKeyNotFound"><span class="hs-identifier hs-var">RecipientKeyNotFound</span></a></span></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The certificate provided does not match any encrypted key found</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NoRecipientInfoFound"><span class="annot"><a href="Crypto.Store.Error.html#NoRecipientInfoFound"><span class="hs-identifier hs-var">NoRecipientInfoFound</span></a></span></span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ No recipient info is available in the enveloped data</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NoRecipientInfoMatched"><span class="annot"><a href="Crypto.Store.Error.html#NoRecipientInfoMatched"><span class="hs-identifier hs-var">NoRecipientInfoMatched</span></a></span></span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ No recipient info could be used with the consumer function</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnsupportedOriginatorFormat"><span class="annot"><a href="Crypto.Store.Error.html#UnsupportedOriginatorFormat"><span class="hs-identifier hs-var">UnsupportedOriginatorFormat</span></a></span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Only anonymous public key is supported</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnsupportedEllipticCurve"><span class="annot"><a href="Crypto.Store.Error.html#UnsupportedEllipticCurve"><span class="hs-identifier hs-var">UnsupportedEllipticCurve</span></a></span></span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The elliptic curve used is not supported</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="NamedCurveRequired"><span class="annot"><a href="Crypto.Store.Error.html#NamedCurveRequired"><span class="hs-identifier hs-var">NamedCurveRequired</span></a></span></span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The algorithm requires a named elliptic curve</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679144097"><span id="local-6989586621679144119"><span id="local-6989586621679144123"><span class="annot"><span class="annottext">Int -&gt; StoreError -&gt; ShowS
+[StoreError] -&gt; ShowS
+StoreError -&gt; String
+(Int -&gt; StoreError -&gt; ShowS)
+-&gt; (StoreError -&gt; String)
+-&gt; ([StoreError] -&gt; ShowS)
+-&gt; Show StoreError
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; StoreError -&gt; ShowS
+showsPrec :: Int -&gt; StoreError -&gt; ShowS
+$cshow :: StoreError -&gt; String
+show :: StoreError -&gt; String
+$cshowList :: [StoreError] -&gt; ShowS
+showList :: [StoreError] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679144128"><span id="local-6989586621679144142"><span class="annot"><span class="annottext">StoreError -&gt; StoreError -&gt; Bool
+(StoreError -&gt; StoreError -&gt; Bool)
+-&gt; (StoreError -&gt; StoreError -&gt; Bool) -&gt; Eq StoreError
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: StoreError -&gt; StoreError -&gt; Bool
+== :: StoreError -&gt; StoreError -&gt; Bool
+$c/= :: StoreError -&gt; StoreError -&gt; Bool
+/= :: StoreError -&gt; StoreError -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- | Turn a 'CryptoFailed' into a 'StoreError'.</span></span><span>
+</span><span id="line-67"></span><span id="local-6989586621679144069"><span class="annot"><a href="Crypto.Store.Error.html#fromCryptoFailable"><span class="hs-identifier hs-type">fromCryptoFailable</span></a></span><span> </span><span class="hs-glyph">::</span><span class="annot"><span class="hs-identifier hs-type">CryptoFailable</span></span><span> </span><span class="annot"><a href="#local-6989586621679144069"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679144069"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-68"></span><span id="fromCryptoFailable"><span class="annot"><span class="annottext">fromCryptoFailable :: forall a. CryptoFailable a -&gt; Either StoreError a
+</span><a href="Crypto.Store.Error.html#fromCryptoFailable"><span class="hs-identifier hs-var hs-var">fromCryptoFailable</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CryptoPassed</span></span><span> </span><span id="local-6989586621679144149"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679144149"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either StoreError a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679144149"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Crypto.Store.Error.html#fromCryptoFailable"><span class="hs-identifier hs-var">fromCryptoFailable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">CryptoFailed</span></span><span> </span><span id="local-6989586621679144150"><span class="annot"><span class="annottext">CryptoError
+</span><a href="#local-6989586621679144150"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CryptoError -&gt; StoreError
+</span><a href="Crypto.Store.Error.html#CryptoError"><span class="hs-identifier hs-var">CryptoError</span></a></span><span> </span><span class="annot"><span class="annottext">CryptoError
+</span><a href="#local-6989586621679144150"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span></pre></body></html>

@@ -1,0 +1,410 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.ASN1.Generate</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Generating ASN.1</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.ASN1.Generate</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier">ASN1Stream</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier">ASN1Elem</span></a></span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier">ASN1P</span></a></span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1PS"><span class="hs-identifier">ASN1PS</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier">asn1Container</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gNull"><span class="hs-identifier">gNull</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier">gIntVal</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier">gOID</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gASN1String"><span class="hs-identifier">gASN1String</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gBMPString"><span class="hs-identifier">gBMPString</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier">gOctetString</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gBitString"><span class="hs-identifier">gBitString</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gASN1Time"><span class="hs-identifier">gASN1Time</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier">gMany</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gEncoded"><span class="hs-identifier">gEncoded</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#optASN1S"><span class="hs-identifier">optASN1S</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#encodeASN1S"><span class="hs-identifier">encodeASN1S</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.BinaryEncoding</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.BinaryEncoding.Raw</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.BitArray</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.Encoding</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.OID</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Time.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DateTime</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TimezoneOffset</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- | A stream of ASN.1 elements.</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">type</span><span> </span><span id="ASN1Stream"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-var">ASN1Stream</span></a></span></span><span> </span><span id="local-6989586621679142743"><span class="annot"><a href="#local-6989586621679142743"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679142743"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679142743"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- | Elements in an ASN.1 stream.</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">class</span><span> </span><span id="ASN1Elem"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-var">ASN1Elem</span></a></span></span><span> </span><span id="local-6989586621679142672"><span class="annot"><a href="#local-6989586621679142672"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-comment">-- | Create a container from an inner ASN.1 stream.</span><span>
+</span><span id="line-46"></span><span>    </span><span id="asn1Container"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-type">asn1Container</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142672"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142672"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- | Generate a list of ASN.1 elements.</span><span>
+</span><span id="line-48"></span><span>    </span><span id="gMany"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-type">gMany</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142672"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">-- | Generate one ASN.1 element.</span><span>
+</span><span id="line-50"></span><span>    </span><span id="gOne"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-type">gOne</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142672"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679142750"><span class="annot"><span class="annottext">asn1Container :: ASN1ConstructionType -&gt; ASN1Stream ASN1 -&gt; ASN1Stream ASN1
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1Container</span></a></span></span><span> </span><span id="local-6989586621679142751"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142751"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621679142752"><span class="annot"><span class="annottext">ASN1Stream ASN1
+</span><a href="#local-6989586621679142752"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1
+</span><span class="hs-identifier hs-var">Start</span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142751"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream ASN1
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1 -&gt; ASN1Stream ASN1 -&gt; ASN1Stream ASN1
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1
+</span><a href="#local-6989586621679142752"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1 -&gt; ASN1Stream ASN1 -&gt; ASN1Stream ASN1
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1
+</span><span class="hs-identifier hs-var">End</span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142751"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream ASN1
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679142756"><span class="annot"><span class="annottext">gMany :: [ASN1] -&gt; ASN1Stream ASN1
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var hs-var hs-var hs-var">gMany</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1Stream ASN1
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">(++)</span></span><span>
+</span><span id="line-55"></span><span>    </span><span id="local-6989586621679142757"><span class="annot"><span class="annottext">gOne :: ASN1 -&gt; ASN1Stream ASN1
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var hs-var hs-var hs-var">gOne</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Extend the 'ASN1' type to be able to encode to ASN.1 even when some parts</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- of the stream have already been encoded.</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">data</span><span> </span><span id="ASN1P"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-var">ASN1P</span></a></span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="ASN1Prim"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Prim"><span class="hs-identifier hs-var">ASN1Prim</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Primitive elements (or constructed types that are fully terminated)</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ASN1Container"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Container"><span class="hs-identifier hs-var">ASN1Container</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Constructed type with inner structure kept</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ASN1Encoded"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Encoded"><span class="hs-identifier hs-var">ASN1Encoded</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ A part which has already been encoded</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679142765"><span class="annot"><span class="annottext">asn1Container :: ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1Container</span></a></span></span><span> </span><span id="local-6989586621679142766"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142766"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621679142767"><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679142767"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; [ASN1P] -&gt; ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#ASN1Container"><span class="hs-identifier hs-var">ASN1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142766"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679142767"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ASN1P -&gt; ASN1Stream ASN1P
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679142768"><span class="annot"><span class="annottext">gMany :: [ASN1] -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var hs-var hs-var hs-var">gMany</span></a></span></span><span> </span><span id="local-6989586621679142769"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679142769"><span class="hs-identifier hs-var">asn1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#ASN1Prim"><span class="hs-identifier hs-var">ASN1Prim</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679142769"><span class="hs-identifier hs-var">asn1</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1P -&gt; ASN1Stream ASN1P
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679142771"><span class="annot"><span class="annottext">gOne :: ASN1 -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var hs-var hs-var hs-var">gOne</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1Stream ASN1P
+forall e. ASN1Elem e =&gt; [ASN1] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var">gMany</span></a></span><span> </span><span class="annot"><span class="annottext">([ASN1] -&gt; ASN1Stream ASN1P)
+-&gt; (ASN1 -&gt; [ASN1]) -&gt; ASN1 -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream ASN1
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Prepend a list of 'ASN1P'.</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">type</span><span> </span><span id="ASN1PS"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1PS"><span class="hs-identifier hs-var">ASN1PS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- | Encode to ASN.1 a list of 'ASN1P' elements.  Outer encoding will be DER,</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- but partially encoded inner 'ASN1Encoded' elements many have any encoding.</span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#pEncode"><span class="hs-identifier hs-type">pEncode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-78"></span><span id="pEncode"><span class="annot"><span class="annottext">pEncode :: [ASN1P] -&gt; ByteString
+</span><a href="Crypto.Store.ASN1.Generate.html#pEncode"><span class="hs-identifier hs-var hs-var">pEncode</span></a></span></span><span> </span><span id="local-6989586621679142773"><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142773"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142774"><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142774"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142773"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142774"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. ByteArray a =&gt; a
+</span><span class="hs-identifier hs-var">B.empty</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679142775"><span class="annot"><span class="annottext">run :: [ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Prim"><span class="hs-identifier hs-type">ASN1Prim</span></a></span><span> </span><span id="local-6989586621679142791"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679142791"><span class="hs-identifier hs-var">asn1</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679142792"><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142792"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142794"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142796"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142794"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteString)
+-&gt; (ByteString -&gt; ByteString) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142798"><span class="hs-identifier hs-var">ps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679142794"><span class="annot"><span class="annottext">p :: ByteString
+</span><a href="#local-6989586621679142794"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DER -&gt; [ASN1] -&gt; ByteString
+forall a. ASN1Encoding a =&gt; a -&gt; [ASN1] -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeASN1'</span></span><span> </span><span class="annot"><span class="annottext">DER
+</span><span class="hs-identifier hs-var">DER</span></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679142791"><span class="hs-identifier hs-var">asn1</span></a></span><span>
+</span><span id="line-83"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679142796"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142796"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142798"><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142798"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142792"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Encoded"><span class="hs-identifier hs-type">ASN1Encoded</span></a></span><span> </span><span id="local-6989586621679142803"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142803"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679142804"><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142804"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142803"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142805"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142803"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteString)
+-&gt; (ByteString -&gt; ByteString) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142806"><span class="hs-identifier hs-var">ps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679142805"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142805"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142806"><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142806"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142804"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Container"><span class="hs-identifier hs-type">ASN1Container</span></a></span><span> </span><span id="local-6989586621679142807"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142807"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621679142808"><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142808"><span class="hs-identifier hs-var">children</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679142809"><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142809"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-87"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142810"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142811"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142812"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679142810"><span class="hs-identifier hs-var">header</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteString)
+-&gt; (ByteString -&gt; ByteString) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142813"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteString)
+-&gt; (ByteString -&gt; ByteString) -&gt; ByteString -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142814"><span class="hs-identifier hs-var">ps</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679142811"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142811"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142813"><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142813"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142808"><span class="hs-identifier hs-var">children</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679142812"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142812"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142814"><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="#local-6989586621679142814"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; (Int, ByteString -&gt; ByteString)
+</span><a href="#local-6989586621679142775"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1P]
+</span><a href="#local-6989586621679142809"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-90"></span><span>            </span><span id="local-6989586621679142810"><span class="annot"><span class="annottext">header :: ByteString
+</span><a href="#local-6989586621679142810"><span class="hs-identifier hs-var hs-var">header</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1Event] -&gt; ByteString
+</span><span class="hs-identifier hs-var">toByteString</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ASN1Header -&gt; ASN1Event
+</span><span class="hs-identifier hs-var">Header</span></span><span> </span><span class="annot"><span class="annottext">(ASN1Header -&gt; ASN1Event) -&gt; ASN1Header -&gt; ASN1Event
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; Bool -&gt; ASN1Length -&gt; ASN1Header
+</span><span class="hs-identifier hs-var">ASN1Header</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><a href="#local-6989586621679142818"><span class="hs-identifier hs-var">cl</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142819"><span class="hs-identifier hs-var">tg</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">(ASN1Length -&gt; ASN1Header) -&gt; ASN1Length -&gt; ASN1Header
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ASN1Length
+</span><a href="#local-6989586621679142820"><span class="hs-identifier hs-var">makeLen</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142811"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-91"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679142818"><span class="annot"><span class="annottext">ASN1Class
+</span><a href="#local-6989586621679142818"><span class="hs-identifier hs-var">cl</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679142819"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142819"><span class="hs-identifier hs-var">tg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679142807"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-93"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">Container</span></span><span> </span><span id="local-6989586621679142824"><span class="annot"><span class="annottext">ASN1Class
+</span><a href="#local-6989586621679142824"><span class="hs-identifier hs-var">tyClass</span></a></span></span><span> </span><span id="local-6989586621679142825"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142825"><span class="hs-identifier hs-var">tyTag</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class
+</span><a href="#local-6989586621679142824"><span class="hs-identifier hs-var">tyClass</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142825"><span class="hs-identifier hs-var">tyTag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>                    </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Universal</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>                    </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Set</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Universal</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x11</span></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679142820"><span class="annot"><span class="annottext">makeLen :: Int -&gt; ASN1Length
+</span><a href="#local-6989586621679142820"><span class="hs-identifier hs-var hs-var">makeLen</span></a></span></span><span> </span><span id="local-6989586621679142835"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142835"><span class="hs-identifier hs-var">len</span></a></span></span><span>
+</span><span id="line-98"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142835"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x80</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ASN1Length
+</span><span class="hs-identifier hs-var">LenShort</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142835"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; ASN1Length
+</span><span class="hs-identifier hs-var">LenLong</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall {t} {a}. (Num a, Integral t) =&gt; t -&gt; a
+</span><a href="#local-6989586621679142839"><span class="hs-identifier hs-var">nbBytes</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142835"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679142835"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679142839"><span class="annot"><span class="annottext">nbBytes :: t -&gt; a
+</span><a href="#local-6989586621679142839"><span class="hs-identifier hs-var hs-var">nbBytes</span></a></span></span><span> </span><span id="local-6989586621679142865"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679142865"><span class="hs-identifier hs-var">nb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679142865"><span class="hs-identifier hs-var">nb</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">255</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; a
+</span><a href="#local-6989586621679142839"><span class="hs-identifier hs-var">nbBytes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679142865"><span class="hs-identifier hs-var">nb</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; t
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><span class="hs-number">256</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><span class="hs-comment">-- | Generate a 'Null' ASN.1 element.</span></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679142700"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gNull"><span class="hs-identifier hs-type">gNull</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142700"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142700"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-104"></span><span id="gNull"><span class="annot"><span class="annottext">gNull :: forall e. ASN1Elem e =&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gNull"><span class="hs-identifier hs-var hs-var">gNull</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1
+</span><span class="hs-identifier hs-var">Null</span></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><span class="hs-comment">-- | Generate an 'IntVal' ASN.1 element.</span></span><span>
+</span><span id="line-107"></span><span id="local-6989586621679142702"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-type">gIntVal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142702"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142702"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-108"></span><span id="gIntVal"><span class="annot"><span class="annottext">gIntVal :: forall e. ASN1Elem e =&gt; Integer -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-var hs-var">gIntVal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1 -&gt; ASN1Stream e)
+-&gt; (Integer -&gt; ASN1) -&gt; Integer -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; ASN1
+</span><span class="hs-identifier hs-var">IntVal</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><span class="hs-comment">-- | Generate an 'OID' ASN.1 element.</span></span><span>
+</span><span id="line-111"></span><span id="local-6989586621679142704"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-type">gOID</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142704"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142704"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-112"></span><span id="gOID"><span class="annot"><span class="annottext">gOID :: forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var hs-var">gOID</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1 -&gt; ASN1Stream e) -&gt; (OID -&gt; ASN1) -&gt; OID -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1
+</span><span class="hs-identifier hs-var">OID</span></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><span class="hs-comment">-- | Generate an 'ASN1String' ASN.1 element.</span></span><span>
+</span><span id="line-115"></span><span id="local-6989586621679142707"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gASN1String"><span class="hs-identifier hs-type">gASN1String</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142707"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1CharacterString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142707"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-116"></span><span id="gASN1String"><span class="annot"><span class="annottext">gASN1String :: forall e. ASN1Elem e =&gt; ASN1CharacterString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gASN1String"><span class="hs-identifier hs-var hs-var">gASN1String</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1 -&gt; ASN1Stream e)
+-&gt; (ASN1CharacterString -&gt; ASN1)
+-&gt; ASN1CharacterString
+-&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1CharacterString -&gt; ASN1
+</span><span class="hs-identifier hs-var">ASN1String</span></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="annot"><span class="hs-comment">-- | Generate an @BMPString@ ASN.1 element.</span></span><span>
+</span><span id="line-119"></span><span id="local-6989586621679142710"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gBMPString"><span class="hs-identifier hs-type">gBMPString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142710"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142710"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-120"></span><span id="gBMPString"><span class="annot"><span class="annottext">gBMPString :: forall e. ASN1Elem e =&gt; String -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gBMPString"><span class="hs-identifier hs-var hs-var">gBMPString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1CharacterString -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1CharacterString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gASN1String"><span class="hs-identifier hs-var">gASN1String</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1CharacterString -&gt; ASN1Stream e)
+-&gt; (String -&gt; ASN1CharacterString) -&gt; String -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1StringEncoding -&gt; String -&gt; ASN1CharacterString
+</span><span class="hs-identifier hs-var">asn1CharacterString</span></span><span> </span><span class="annot"><span class="annottext">ASN1StringEncoding
+</span><span class="hs-identifier hs-var">BMP</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><span class="hs-comment">-- | Generate an 'OctetString' ASN.1 element.</span></span><span>
+</span><span id="line-123"></span><span id="local-6989586621679142713"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-type">gOctetString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142713"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142713"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-124"></span><span id="gOctetString"><span class="annot"><span class="annottext">gOctetString :: forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var hs-var">gOctetString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1 -&gt; ASN1Stream e)
+-&gt; (ByteString -&gt; ASN1) -&gt; ByteString -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ASN1
+</span><span class="hs-identifier hs-var">OctetString</span></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="annot"><span class="hs-comment">-- | Generate a 'BitString' ASN.1 element.</span></span><span>
+</span><span id="line-127"></span><span id="local-6989586621679142715"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gBitString"><span class="hs-identifier hs-type">gBitString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142715"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BitArray</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142715"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-128"></span><span id="gBitString"><span class="annot"><span class="annottext">gBitString :: forall e. ASN1Elem e =&gt; BitArray -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gBitString"><span class="hs-identifier hs-var hs-var">gBitString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1 -&gt; ASN1Stream e)
+-&gt; (BitArray -&gt; ASN1) -&gt; BitArray -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BitArray -&gt; ASN1
+</span><span class="hs-identifier hs-var">BitString</span></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><span class="hs-comment">-- | Generate an 'ASN1Time' ASN.1 element.</span></span><span>
+</span><span id="line-131"></span><span id="local-6989586621679142718"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gASN1Time"><span class="hs-identifier hs-type">gASN1Time</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142718"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-132"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1TimeType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DateTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TimezoneOffset</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142718"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-133"></span><span id="gASN1Time"><span class="annot"><span class="annottext">gASN1Time :: forall e.
+ASN1Elem e =&gt;
+ASN1TimeType -&gt; DateTime -&gt; Maybe TimezoneOffset -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gASN1Time"><span class="hs-identifier hs-var hs-var">gASN1Time</span></a></span></span><span> </span><span id="local-6989586621679142893"><span class="annot"><span class="annottext">ASN1TimeType
+</span><a href="#local-6989586621679142893"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679142894"><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679142894"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679142895"><span class="annot"><span class="annottext">Maybe TimezoneOffset
+</span><a href="#local-6989586621679142895"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1 -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ASN1 -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOne"><span class="hs-identifier hs-var">gOne</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1TimeType -&gt; DateTime -&gt; Maybe TimezoneOffset -&gt; ASN1
+</span><span class="hs-identifier hs-var">ASN1Time</span></span><span> </span><span class="annot"><span class="annottext">ASN1TimeType
+</span><a href="#local-6989586621679142893"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">DateTime
+</span><a href="#local-6989586621679142894"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe TimezoneOffset
+</span><a href="#local-6989586621679142895"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">-- | Generate ASN.1 for an optional value.</span></span><span>
+</span><span id="line-136"></span><span id="local-6989586621679142723"><span id="local-6989586621679142724"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#optASN1S"><span class="hs-identifier hs-type">optASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679142723"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679142723"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142724"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679142724"><span class="hs-identifier hs-type">e</span></a></span></span></span><span>
+</span><span id="line-137"></span><span id="optASN1S"><span class="annot"><span class="annottext">optASN1S :: forall a e. Maybe a -&gt; (a -&gt; ASN1Stream e) -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#optASN1S"><span class="hs-identifier hs-var hs-var">optASN1S</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>    </span><span class="annot"><span class="annottext">a -&gt; ASN1Stream e
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-138"></span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#optASN1S"><span class="hs-identifier hs-var">optASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679142896"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679142896"><span class="hs-identifier hs-var">val</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679142897"><span class="annot"><span class="annottext">a -&gt; ASN1Stream e
+</span><a href="#local-6989586621679142897"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; ASN1Stream e
+</span><a href="#local-6989586621679142897"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679142896"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><span class="hs-comment">-- | Generate ASN.1 for a part of the stream which is already encoded.</span></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#gEncoded"><span class="hs-identifier hs-type">gEncoded</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1PS"><span class="hs-identifier hs-type">ASN1PS</span></a></span><span>
+</span><span id="line-142"></span><span id="gEncoded"><span class="annot"><span class="annottext">gEncoded :: ByteString -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#gEncoded"><span class="hs-identifier hs-var hs-var">gEncoded</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ASN1P -&gt; ASN1Stream ASN1P)
+-&gt; (ByteString -&gt; ASN1P) -&gt; ByteString -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ASN1P
+</span><a href="Crypto.Store.ASN1.Generate.html#ASN1Encoded"><span class="hs-identifier hs-var">ASN1Encoded</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- | Encode the ASN.1 stream to DER format (except for inner parts that are</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- already encoded and may use another format).</span><span>
+</span><span id="line-146"></span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#encodeASN1S"><span class="hs-identifier hs-type">encodeASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1PS"><span class="hs-identifier hs-type">ASN1PS</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-147"></span><span id="encodeASN1S"><span class="annot"><span class="annottext">encodeASN1S :: ASN1Stream ASN1P -&gt; ByteString
+</span><a href="Crypto.Store.ASN1.Generate.html#encodeASN1S"><span class="hs-identifier hs-var hs-var">encodeASN1S</span></a></span></span><span> </span><span id="local-6989586621679142898"><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679142898"><span class="hs-identifier hs-var">asn1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1P] -&gt; ByteString
+</span><a href="Crypto.Store.ASN1.Generate.html#pEncode"><span class="hs-identifier hs-var">pEncode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679142898"><span class="hs-identifier hs-var">asn1</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span></pre></body></html>

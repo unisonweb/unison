@@ -1,0 +1,255 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ConstraintKinds #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.PrettyPrintEnv.MonadPretty</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">views</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadReader</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Reader</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">local</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runReader</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html"><span class="hs-identifier">Unison.PrettyPrintEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier">PrettyPrintEnv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Var</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Var</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">type</span><span> </span><span id="MonadPretty"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-var">MonadPretty</span></a></span></span><span> </span><span id="local-6989586621680483055"><span class="annot"><a href="#local-6989586621680483055"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621680483056"><span class="annot"><a href="#local-6989586621680483056"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680483055"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621680483055"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680483056"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span id="local-6989586621680482928"><span id="local-6989586621680482929"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#getPPE"><span class="hs-identifier hs-type">getPPE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482928"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482929"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482929"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span></span></span><span>
+</span><span id="line-15"></span><span id="getPPE"><span class="annot"><span class="annottext">getPPE :: forall v (m :: * -&gt; *). MonadPretty v m =&gt; m PrettyPrintEnv
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#getPPE"><span class="hs-identifier hs-var hs-var">getPPE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Getting PrettyPrintEnv (PrettyPrintEnv, Set v) PrettyPrintEnv
+-&gt; m PrettyPrintEnv
+forall s (m :: * -&gt; *) a. MonadReader s m =&gt; Getting a s a -&gt; m a
+</span><span class="hs-identifier hs-var">view</span></span><span> </span><span class="annot"><span class="annottext">Getting PrettyPrintEnv (PrettyPrintEnv, Set v) PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- | Run a computation with a modified PrettyPrintEnv, restoring the original</span></span><span>
+</span><span id="line-18"></span><span id="local-6989586621680482953"><span id="local-6989586621680482954"><span id="local-6989586621680482955"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#withPPE"><span class="hs-identifier hs-type">withPPE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482953"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482954"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482954"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482955"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482954"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482955"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-19"></span><span id="withPPE"><span class="annot"><span class="annottext">withPPE :: forall v (m :: * -&gt; *) a.
+MonadPretty v m =&gt;
+PrettyPrintEnv -&gt; m a -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#withPPE"><span class="hs-identifier hs-var hs-var">withPPE</span></a></span></span><span> </span><span id="local-6989586621680483073"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483073"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall a.
+((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+-&gt; PrettyPrintEnv
+-&gt; (PrettyPrintEnv, Set v)
+-&gt; (PrettyPrintEnv, Set v)
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483073"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span id="local-6989586621680482968"><span id="local-6989586621680482969"><span id="local-6989586621680482970"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE"><span class="hs-identifier hs-type">applyPPE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482968"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482969"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482970"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482969"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482970"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-22"></span><span id="applyPPE"><span class="annot"><span class="annottext">applyPPE :: forall v (m :: * -&gt; *) a.
+MonadPretty v m =&gt;
+(PrettyPrintEnv -&gt; a) -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE"><span class="hs-identifier hs-var hs-var">applyPPE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LensLike' (Const a) (PrettyPrintEnv, Set v) PrettyPrintEnv
+-&gt; (PrettyPrintEnv -&gt; a) -&gt; m a
+forall s (m :: * -&gt; *) r a.
+MonadReader s m =&gt;
+LensLike' (Const r) s a -&gt; (a -&gt; r) -&gt; m r
+</span><span class="hs-identifier hs-var">views</span></span><span> </span><span class="annot"><span class="annottext">LensLike' (Const a) (PrettyPrintEnv, Set v) PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span id="local-6989586621680482979"><span id="local-6989586621680482980"><span id="local-6989586621680482981"><span id="local-6989586621680482982"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE2"><span class="hs-identifier hs-type">applyPPE2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482979"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482980"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482981"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482982"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482981"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482980"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482982"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-25"></span><span id="applyPPE2"><span class="annot"><span class="annottext">applyPPE2 :: forall v (m :: * -&gt; *) a b.
+MonadPretty v m =&gt;
+(PrettyPrintEnv -&gt; a -&gt; b) -&gt; a -&gt; m b
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE2"><span class="hs-identifier hs-var hs-var">applyPPE2</span></a></span></span><span> </span><span id="local-6989586621680483087"><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; a -&gt; b
+</span><a href="#local-6989586621680483087"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680483088"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680483088"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LensLike' (Const b) (PrettyPrintEnv, Set v) PrettyPrintEnv
+-&gt; (PrettyPrintEnv -&gt; b) -&gt; m b
+forall s (m :: * -&gt; *) r a.
+MonadReader s m =&gt;
+LensLike' (Const r) s a -&gt; (a -&gt; r) -&gt; m r
+</span><span class="hs-identifier hs-var">views</span></span><span> </span><span class="annot"><span class="annottext">LensLike' (Const b) (PrettyPrintEnv, Set v) PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; a -&gt; b
+</span><a href="#local-6989586621680483087"><span class="hs-operator hs-var">`f`</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680483088"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span id="local-6989586621680482987"><span id="local-6989586621680482988"><span id="local-6989586621680482989"><span id="local-6989586621680482990"><span id="local-6989586621680482991"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE3"><span class="hs-identifier hs-type">applyPPE3</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482987"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482988"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482989"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482990"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482991"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482989"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482990"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482988"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482991"><span class="hs-identifier hs-type">c</span></a></span></span></span></span></span></span><span>
+</span><span id="line-28"></span><span id="applyPPE3"><span class="annot"><span class="annottext">applyPPE3 :: forall v (m :: * -&gt; *) a b c.
+MonadPretty v m =&gt;
+(PrettyPrintEnv -&gt; a -&gt; b -&gt; c) -&gt; a -&gt; b -&gt; m c
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#applyPPE3"><span class="hs-identifier hs-var hs-var">applyPPE3</span></a></span></span><span> </span><span id="local-6989586621680483095"><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; a -&gt; b -&gt; c
+</span><a href="#local-6989586621680483095"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680483096"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680483096"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680483097"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621680483097"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LensLike' (Const c) (PrettyPrintEnv, Set v) PrettyPrintEnv
+-&gt; (PrettyPrintEnv -&gt; c) -&gt; m c
+forall s (m :: * -&gt; *) r a.
+MonadReader s m =&gt;
+LensLike' (Const r) s a -&gt; (a -&gt; r) -&gt; m r
+</span><span class="hs-identifier hs-var">views</span></span><span> </span><span class="annot"><span class="annottext">LensLike' (Const c) (PrettyPrintEnv, Set v) PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680483098"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483098"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; a -&gt; b -&gt; c
+</span><a href="#local-6989586621680483095"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483098"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680483096"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621680483097"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><span class="hs-comment">-- | Run a computation with a modified PrettyPrintEnv, restoring the original</span></span><span>
+</span><span id="line-31"></span><span id="local-6989586621680482997"><span id="local-6989586621680482998"><span id="local-6989586621680482999"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#modifyPPE"><span class="hs-identifier hs-type">modifyPPE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482997"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482998"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482998"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482999"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680482998"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680482999"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-32"></span><span id="modifyPPE"><span class="annot"><span class="annottext">modifyPPE :: forall v (m :: * -&gt; *) a.
+MonadPretty v m =&gt;
+(PrettyPrintEnv -&gt; PrettyPrintEnv) -&gt; m a -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#modifyPPE"><span class="hs-identifier hs-var hs-var">modifyPPE</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall a.
+((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">(((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v))
+ -&gt; m a -&gt; m a)
+-&gt; ((PrettyPrintEnv -&gt; PrettyPrintEnv)
+    -&gt; (PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v))
+-&gt; (PrettyPrintEnv -&gt; PrettyPrintEnv)
+-&gt; m a
+-&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+-&gt; (PrettyPrintEnv -&gt; PrettyPrintEnv)
+-&gt; (PrettyPrintEnv, Set v)
+-&gt; (PrettyPrintEnv, Set v)
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+forall s t a b. Field1 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v)
+  (PrettyPrintEnv, Set v)
+  PrettyPrintEnv
+  PrettyPrintEnv
+</span><span class="hs-identifier hs-var">_1</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621680483010"><span id="local-6989586621680483011"><span id="local-6989586621680483012"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#modifyTypeVars"><span class="hs-identifier hs-type">modifyTypeVars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483010"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483011"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621680483010"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621680483010"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483011"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483012"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483011"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483012"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-35"></span><span id="modifyTypeVars"><span class="annot"><span class="annottext">modifyTypeVars :: forall v (m :: * -&gt; *) a.
+MonadPretty v m =&gt;
+(Set v -&gt; Set v) -&gt; m a -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#modifyTypeVars"><span class="hs-identifier hs-var hs-var">modifyTypeVars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall a.
+((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v)) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">(((PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v))
+ -&gt; m a -&gt; m a)
+-&gt; ((Set v -&gt; Set v)
+    -&gt; (PrettyPrintEnv, Set v) -&gt; (PrettyPrintEnv, Set v))
+-&gt; (Set v -&gt; Set v)
+-&gt; m a
+-&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v) (PrettyPrintEnv, Set v) (Set v) (Set v)
+-&gt; (Set v -&gt; Set v)
+-&gt; (PrettyPrintEnv, Set v)
+-&gt; (PrettyPrintEnv, Set v)
+forall s t a b. ASetter s t a b -&gt; (a -&gt; b) -&gt; s -&gt; t
+</span><span class="hs-identifier hs-var">over</span></span><span> </span><span class="annot"><span class="annottext">ASetter
+  (PrettyPrintEnv, Set v) (PrettyPrintEnv, Set v) (Set v) (Set v)
+forall s t a b. Field2 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v) (PrettyPrintEnv, Set v) (Set v) (Set v)
+</span><span class="hs-identifier hs-var">_2</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- | Add type variables to the set of variables that need to be avoided</span></span><span>
+</span><span id="line-38"></span><span id="local-6989586621680483024"><span id="local-6989586621680483025"><span id="local-6989586621680483026"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#addTypeVars"><span class="hs-identifier hs-type">addTypeVars</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483024"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483025"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680483024"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483025"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483026"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483025"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483026"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-39"></span><span id="addTypeVars"><span class="annot"><span class="annottext">addTypeVars :: forall v (m :: * -&gt; *) a. MonadPretty v m =&gt; [v] -&gt; m a -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#addTypeVars"><span class="hs-identifier hs-var hs-var">addTypeVars</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Set v -&gt; Set v) -&gt; m a -&gt; m a
+forall v (m :: * -&gt; *) a.
+MonadPretty v m =&gt;
+(Set v -&gt; Set v) -&gt; m a -&gt; m a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#modifyTypeVars"><span class="hs-identifier hs-var">modifyTypeVars</span></a></span><span> </span><span class="annot"><span class="annottext">((Set v -&gt; Set v) -&gt; m a -&gt; m a)
+-&gt; ([v] -&gt; Set v -&gt; Set v) -&gt; [v] -&gt; m a -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.union</span></span><span> </span><span class="annot"><span class="annottext">(Set v -&gt; Set v -&gt; Set v)
+-&gt; ([v] -&gt; Set v) -&gt; [v] -&gt; Set v -&gt; Set v
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[v] -&gt; Set v
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Check if a list of type variables contains any variables that need to be</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- avoided</span><span>
+</span><span id="line-43"></span><span id="local-6989586621680483036"><span id="local-6989586621680483037"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#willCapture"><span class="hs-identifier hs-type">willCapture</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#MonadPretty"><span class="hs-identifier hs-type">MonadPretty</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483036"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680483037"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680483036"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483037"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-44"></span><span id="willCapture"><span class="annot"><span class="annottext">willCapture :: forall v (m :: * -&gt; *). MonadPretty v m =&gt; [v] -&gt; m Bool
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#willCapture"><span class="hs-identifier hs-var hs-var">willCapture</span></a></span></span><span> </span><span id="local-6989586621680483137"><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621680483137"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LensLike' (Const Bool) (PrettyPrintEnv, Set v) (Set v)
+-&gt; (Set v -&gt; Bool) -&gt; m Bool
+forall s (m :: * -&gt; *) r a.
+MonadReader s m =&gt;
+LensLike' (Const r) s a -&gt; (a -&gt; r) -&gt; m r
+</span><span class="hs-identifier hs-var">views</span></span><span> </span><span class="annot"><span class="annottext">LensLike' (Const Bool) (PrettyPrintEnv, Set v) (Set v)
+forall s t a b. Field2 s t a b =&gt; Lens s t a b
+Lens
+  (PrettyPrintEnv, Set v) (PrettyPrintEnv, Set v) (Set v) (Set v)
+</span><span class="hs-identifier hs-var">_2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Set v -&gt; Bool) -&gt; Set v -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set v -&gt; Bool
+forall a. Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.null</span></span><span> </span><span class="annot"><span class="annottext">(Set v -&gt; Bool) -&gt; (Set v -&gt; Set v) -&gt; Set v -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set v -&gt; Set v -&gt; Set v
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.intersection</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[v] -&gt; Set v
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="annot"><span class="annottext">[v]
+</span><a href="#local-6989586621680483137"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="local-6989586621680483041"><span id="local-6989586621680483042"><span class="annot"><a href="Unison.PrettyPrintEnv.MonadPretty.html#runPretty"><span class="hs-identifier hs-type">runPretty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span class="annot"><a href="#local-6989586621680483041"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Reader</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.PrettyPrintEnv.html#PrettyPrintEnv"><span class="hs-identifier hs-type">PrettyPrintEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621680483041"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680483042"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680483042"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-47"></span><span id="runPretty"><span class="annot"><span class="annottext">runPretty :: forall v a.
+Var v =&gt;
+PrettyPrintEnv -&gt; Reader (PrettyPrintEnv, Set v) a -&gt; a
+</span><a href="Unison.PrettyPrintEnv.MonadPretty.html#runPretty"><span class="hs-identifier hs-var hs-var">runPretty</span></a></span></span><span> </span><span id="local-6989586621680483147"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483147"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span id="local-6989586621680483148"><span class="annot"><span class="annottext">Reader (PrettyPrintEnv, Set v) a
+</span><a href="#local-6989586621680483148"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Reader (PrettyPrintEnv, Set v) a -&gt; (PrettyPrintEnv, Set v) -&gt; a
+forall r a. Reader r a -&gt; r -&gt; a
+</span><span class="hs-identifier hs-var">runReader</span></span><span> </span><span class="annot"><span class="annottext">Reader (PrettyPrintEnv, Set v) a
+</span><a href="#local-6989586621680483148"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621680483147"><span class="hs-identifier hs-var">ppe</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set v
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span></pre></body></html>

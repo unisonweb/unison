@@ -1,0 +1,685 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.CMS.Info</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- CMS content information.</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.CMS.Info</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier">ContentInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier">getContentType</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier">Encapsulates</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#isAttached"><span class="hs-identifier">isAttached</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#fromAttached"><span class="hs-identifier">fromAttached</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#toAttachedCI"><span class="hs-identifier">toAttachedCI</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#isDetached"><span class="hs-identifier">isDetached</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#fromDetached"><span class="hs-identifier">fromDetached</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#toDetachedCI"><span class="hs-identifier">toDetachedCI</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadFail</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isJust</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isNothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html"><span class="hs-identifier">Crypto.Store.CMS.Authenticated</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.AuthEnveloped.html"><span class="hs-identifier">Crypto.Store.CMS.AuthEnveloped</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html"><span class="hs-identifier">Crypto.Store.CMS.Digested</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html"><span class="hs-identifier">Crypto.Store.CMS.Encrypted</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html"><span class="hs-identifier">Crypto.Store.CMS.Enveloped</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html"><span class="hs-identifier">Crypto.Store.CMS.Signed</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html"><span class="hs-identifier">Crypto.Store.CMS.Type</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- | Get the type of a content info.</span></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-type">getContentType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html#ContentType"><span class="hs-identifier hs-type">ContentType</span></a></span><span>
+</span><span id="line-44"></span><span id="getContentType"><span class="annot"><span class="annottext">getContentType :: ContentInfo -&gt; ContentType
+</span><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var hs-var">getContentType</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#DataCI"><span class="hs-identifier hs-type">DataCI</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#DataType"><span class="hs-identifier hs-var">DataType</span></a></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#SignedDataCI"><span class="hs-identifier hs-type">SignedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">SignedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#SignedDataType"><span class="hs-identifier hs-var">SignedDataType</span></a></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#EnvelopedDataCI"><span class="hs-identifier hs-type">EnvelopedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#EnvelopedDataType"><span class="hs-identifier hs-var">EnvelopedDataType</span></a></span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#DigestedDataCI"><span class="hs-identifier hs-type">DigestedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">DigestedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#DigestedDataType"><span class="hs-identifier hs-var">DigestedDataType</span></a></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#EncryptedDataCI"><span class="hs-identifier hs-type">EncryptedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">EncryptedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#EncryptedDataType"><span class="hs-identifier hs-var">EncryptedDataType</span></a></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthenticatedDataCI"><span class="hs-identifier hs-type">AuthenticatedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#AuthenticatedDataType"><span class="hs-identifier hs-var">AuthenticatedDataType</span></a></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthEnvelopedDataCI"><span class="hs-identifier hs-type">AuthEnvelopedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#AuthEnvelopedDataType"><span class="hs-identifier hs-var">AuthEnvelopedDataType</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- ContentInfo</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- | CMS content information.</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">data</span><span> </span><span id="ContentInfo"><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-var">ContentInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#DataCI"><span class="hs-identifier hs-var">DataCI</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-57"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Arbitrary octet string</span></span><span>
+</span><span id="line-58"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="SignedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#SignedDataCI"><span class="hs-identifier hs-var">SignedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#SignedData"><span class="hs-identifier hs-type">SignedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Signed content info</span></span><span>
+</span><span id="line-60"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="EnvelopedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#EnvelopedDataCI"><span class="hs-identifier hs-var">EnvelopedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html#EnvelopedData"><span class="hs-identifier hs-type">EnvelopedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Enveloped content info</span></span><span>
+</span><span id="line-62"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="DigestedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#DigestedDataCI"><span class="hs-identifier hs-var">DigestedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Content info with associated digest</span></span><span>
+</span><span id="line-64"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="EncryptedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#EncryptedDataCI"><span class="hs-identifier hs-var">EncryptedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedData"><span class="hs-identifier hs-type">EncryptedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Encrypted content info</span></span><span>
+</span><span id="line-66"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="AuthenticatedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthenticatedDataCI"><span class="hs-identifier hs-var">AuthenticatedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Authenticatedcontent info</span></span><span>
+</span><span id="line-68"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="AuthEnvelopedDataCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthEnvelopedDataCI"><span class="hs-identifier hs-var">AuthEnvelopedDataCI</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.AuthEnveloped.html#AuthEnvelopedData"><span class="hs-identifier hs-type">AuthEnvelopedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedContent"><span class="hs-identifier hs-type">EncryptedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Authenticated-enveloped content info</span></span><span>
+</span><span id="line-70"></span><span>                 </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679160237"><span id="local-6989586621679160262"><span id="local-6989586621679160266"><span class="annot"><span class="annottext">Int -&gt; ContentInfo -&gt; ShowS
+[ContentInfo] -&gt; ShowS
+ContentInfo -&gt; String
+(Int -&gt; ContentInfo -&gt; ShowS)
+-&gt; (ContentInfo -&gt; String)
+-&gt; ([ContentInfo] -&gt; ShowS)
+-&gt; Show ContentInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ContentInfo -&gt; ShowS
+showsPrec :: Int -&gt; ContentInfo -&gt; ShowS
+$cshow :: ContentInfo -&gt; String
+show :: ContentInfo -&gt; String
+$cshowList :: [ContentInfo] -&gt; ShowS
+showList :: [ContentInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679160271"><span id="local-6989586621679160288"><span class="annot"><span class="annottext">ContentInfo -&gt; ContentInfo -&gt; Bool
+(ContentInfo -&gt; ContentInfo -&gt; Bool)
+-&gt; (ContentInfo -&gt; ContentInfo -&gt; Bool) -&gt; Eq ContentInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ContentInfo -&gt; ContentInfo -&gt; Bool
+== :: ContentInfo -&gt; ContentInfo -&gt; Bool
+$c/= :: ContentInfo -&gt; ContentInfo -&gt; Bool
+/= :: ContentInfo -&gt; ContentInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679160298"><span class="annot"><span class="annottext">asn1s :: ContentInfo -&gt; ASN1Stream ASN1P
+</span><a href="#local-6989586621679160298"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span id="local-6989586621679160300"><span class="annot"><span class="annottext">ContentInfo
+</span><a href="#local-6989586621679160300"><span class="hs-identifier hs-var">ci</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679160303"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679160305"><span class="hs-identifier hs-var">cont</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679160303"><span class="annot"><span class="annottext">oid :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679160303"><span class="hs-identifier hs-var hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1Stream ASN1P
+forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var">gOID</span></a></span><span> </span><span class="annot"><span class="annottext">(OID -&gt; ASN1Stream ASN1P) -&gt; OID -&gt; ASN1Stream ASN1P
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; OID
+forall a. OIDable a =&gt; a -&gt; OID
+</span><span class="hs-identifier hs-var">getObjectID</span></span><span> </span><span class="annot"><span class="annottext">(ContentType -&gt; OID) -&gt; ContentType -&gt; OID
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ContentInfo -&gt; ContentType
+</span><a href="Crypto.Store.CMS.Info.html#getContentType"><span class="hs-identifier hs-var">getContentType</span></a></span><span> </span><span class="annot"><span class="annottext">ContentInfo
+</span><a href="#local-6989586621679160300"><span class="hs-identifier hs-var">ci</span></a></span><span>
+</span><span id="line-75"></span><span>            </span><span id="local-6989586621679160305"><span class="annot"><span class="annottext">cont :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679160305"><span class="hs-identifier hs-var hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679160314"><span class="hs-identifier hs-var">inner</span></a></span><span>
+</span><span id="line-76"></span><span>            </span><span id="local-6989586621679160314"><span class="annot"><span class="annottext">inner :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679160314"><span class="hs-identifier hs-var hs-var">inner</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-77"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ContentInfo
+</span><a href="#local-6989586621679160300"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-78"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#DataCI"><span class="hs-identifier hs-type">DataCI</span></a></span><span> </span><span id="local-6989586621679160328"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679160328"><span class="hs-identifier hs-var">bs</span></a></span></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ASN1Stream ASN1P
+forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Info.html#dataASN1S"><span class="hs-identifier hs-var">dataASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679160328"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-79"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#SignedDataCI"><span class="hs-identifier hs-type">SignedDataCI</span></a></span><span> </span><span id="local-6989586621679160330"><span class="annot"><span class="annottext">SignedData (Encap ByteString)
+</span><a href="#local-6989586621679160330"><span class="hs-identifier hs-var">ed</span></a></span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SignedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">SignedData (Encap ByteString)
+</span><a href="#local-6989586621679160330"><span class="hs-identifier hs-var">ed</span></a></span><span>
+</span><span id="line-80"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#EnvelopedDataCI"><span class="hs-identifier hs-type">EnvelopedDataCI</span></a></span><span> </span><span id="local-6989586621679160331"><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString)
+</span><a href="#local-6989586621679160331"><span class="hs-identifier hs-var">ed</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString)
+</span><a href="#local-6989586621679160331"><span class="hs-identifier hs-var">ed</span></a></span><span>
+</span><span id="line-81"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#DigestedDataCI"><span class="hs-identifier hs-type">DigestedDataCI</span></a></span><span> </span><span id="local-6989586621679160332"><span class="annot"><span class="annottext">DigestedData (Encap ByteString)
+</span><a href="#local-6989586621679160332"><span class="hs-identifier hs-var">dd</span></a></span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DigestedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">DigestedData (Encap ByteString)
+</span><a href="#local-6989586621679160332"><span class="hs-identifier hs-var">dd</span></a></span><span>
+</span><span id="line-82"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#EncryptedDataCI"><span class="hs-identifier hs-type">EncryptedDataCI</span></a></span><span> </span><span id="local-6989586621679160333"><span class="annot"><span class="annottext">EncryptedData (Encap ByteString)
+</span><a href="#local-6989586621679160333"><span class="hs-identifier hs-var">ed</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EncryptedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">EncryptedData (Encap ByteString)
+</span><a href="#local-6989586621679160333"><span class="hs-identifier hs-var">ed</span></a></span><span>
+</span><span id="line-83"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthenticatedDataCI"><span class="hs-identifier hs-type">AuthenticatedDataCI</span></a></span><span> </span><span id="local-6989586621679160334"><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString)
+</span><a href="#local-6989586621679160334"><span class="hs-identifier hs-var">ad</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString)
+</span><a href="#local-6989586621679160334"><span class="hs-identifier hs-var">ad</span></a></span><span>
+</span><span id="line-84"></span><span>                    </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#AuthEnvelopedDataCI"><span class="hs-identifier hs-type">AuthEnvelopedDataCI</span></a></span><span> </span><span id="local-6989586621679160335"><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString)
+</span><a href="#local-6989586621679160335"><span class="hs-identifier hs-var">ae</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString) -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString)
+</span><a href="#local-6989586621679160335"><span class="hs-identifier hs-var">ae</span></a></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621679160359"><span class="annot"><span class="annottext">parse :: ParseASN1 [ASN1Event] ContentInfo
+</span><a href="#local-6989586621679160359"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 [ASN1Event] ContentInfo
+ -&gt; ParseASN1 [ASN1Event] ContentInfo)
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-89"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span id="local-6989586621679160363"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679160363"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><span class="annottext">String
+-&gt; OID
+-&gt; (ContentType -&gt; ParseASN1 [ASN1Event] ContentInfo)
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+forall a e b.
+OIDNameable a =&gt;
+String -&gt; OID -&gt; (a -&gt; ParseASN1 e b) -&gt; ParseASN1 e b
+</span><a href="Crypto.Store.CMS.Util.html#withObjectID"><span class="hs-identifier hs-var">withObjectID</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;content type&quot;</span></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679160363"><span class="hs-identifier hs-var">oid</span></a></span><span> </span><span class="annot"><span class="annottext">((ContentType -&gt; ParseASN1 [ASN1Event] ContentInfo)
+ -&gt; ParseASN1 [ASN1Event] ContentInfo)
+-&gt; (ContentType -&gt; ParseASN1 [ASN1Event] ContentInfo)
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679160366"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679160366"><span class="hs-identifier hs-var">ct</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-91"></span><span>                </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+-&gt; ParseASN1 [ASN1Event] ContentInfo
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ContentType -&gt; ParseASN1 [ASN1Event] ContentInfo
+forall {e}.
+(ParseASN1Object e (SignedData (Encap ByteString)),
+ ParseASN1Object e (EnvelopedData (Encap ByteString)),
+ ParseASN1Object e (AuthenticatedData (Encap ByteString)),
+ ParseASN1Object e (AuthEnvelopedData (Encap ByteString))) =&gt;
+ContentType -&gt; ParseASN1 e ContentInfo
+</span><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679160366"><span class="hs-identifier hs-var">ct</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>        </span><span id="local-6989586621679160367"><span class="annot"><span class="annottext">parseInner :: ContentType -&gt; ParseASN1 e ContentInfo
+</span><a href="#local-6989586621679160367"><span class="hs-identifier hs-var hs-var">parseInner</span></a></span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#DataType"><span class="hs-identifier hs-var">DataType</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#DataCI"><span class="hs-identifier hs-var">DataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ContentInfo)
+-&gt; ParseASN1 e ByteString -&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ByteString
+forall e. Monoid e =&gt; ParseASN1 e ByteString
+</span><a href="Crypto.Store.CMS.Info.html#parseData"><span class="hs-identifier hs-var">parseData</span></a></span><span>
+</span><span id="line-94"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#SignedDataType"><span class="hs-identifier hs-var">SignedDataType</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#SignedDataCI"><span class="hs-identifier hs-var">SignedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(SignedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (SignedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (SignedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#EnvelopedDataType"><span class="hs-identifier hs-var">EnvelopedDataType</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#EnvelopedDataCI"><span class="hs-identifier hs-var">EnvelopedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(EnvelopedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (EnvelopedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (EnvelopedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#DigestedDataType"><span class="hs-identifier hs-var">DigestedDataType</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DigestedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#DigestedDataCI"><span class="hs-identifier hs-var">DigestedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(DigestedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (DigestedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (DigestedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-97"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#EncryptedDataType"><span class="hs-identifier hs-var">EncryptedDataType</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#EncryptedDataCI"><span class="hs-identifier hs-var">EncryptedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(EncryptedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (EncryptedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (EncryptedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-98"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#AuthenticatedDataType"><span class="hs-identifier hs-var">AuthenticatedDataType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#AuthenticatedDataCI"><span class="hs-identifier hs-var">AuthenticatedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(AuthenticatedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (AuthenticatedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (AuthenticatedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><a href="#local-6989586621679160367"><span class="hs-identifier hs-var">parseInner</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#AuthEnvelopedDataType"><span class="hs-identifier hs-var">AuthEnvelopedDataType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#AuthEnvelopedDataCI"><span class="hs-identifier hs-var">AuthEnvelopedDataCI</span></a></span><span> </span><span class="annot"><span class="annottext">(AuthEnvelopedData (Encap ByteString) -&gt; ContentInfo)
+-&gt; ParseASN1 e (AuthEnvelopedData (Encap ByteString))
+-&gt; ParseASN1 e ContentInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (AuthEnvelopedData (Encap ByteString))
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- Data</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span id="local-6989586621679160092"><span class="annot"><a href="Crypto.Store.CMS.Info.html#dataASN1S"><span class="hs-identifier hs-type">dataASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160092"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160092"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-105"></span><span id="dataASN1S"><span class="annot"><span class="annottext">dataASN1S :: forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Info.html#dataASN1S"><span class="hs-identifier hs-var hs-var">dataASN1S</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; ByteString -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var">gOctetString</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span id="local-6989586621679160117"><span class="annot"><a href="Crypto.Store.CMS.Info.html#parseData"><span class="hs-identifier hs-type">parseData</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679160117"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160117"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span></span><span>
+</span><span id="line-108"></span><span id="parseData"><span class="annot"><span class="annottext">parseData :: forall e. Monoid e =&gt; ParseASN1 e ByteString
+</span><a href="Crypto.Store.CMS.Info.html#parseData"><span class="hs-identifier hs-var hs-var">parseData</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ByteString
+forall e. Monoid e =&gt; ParseASN1 e ByteString
+</span><a href="Crypto.Store.CMS.Util.html#parseOctetString"><span class="hs-identifier hs-var">parseOctetString</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- Encapsulation</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Class of data structures with inner content that may be stored externally.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- This class has instances for each CMS content type containing other</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- encapsulated or encrypted content info.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- Functions 'fromAttached' and 'fromDetached' are used to introspect</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- encapsulation state (attached or detached), and recover a data structure with</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- actionable content.</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- Functions 'toAttachedCI' and 'toDetachedCI' are needed to decide about the</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- outer encapsulation state and build a 'ContentInfo'.</span><span>
+</span><span id="line-122"></span><span class="hs-keyword">class</span><span> </span><span id="Encapsulates"><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-var">Encapsulates</span></a></span></span><span> </span><span id="local-6989586621679160124"><span class="annot"><a href="#local-6989586621679160124"><span class="hs-identifier hs-type">struct</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>    </span><span id="lens"><span class="annot"><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-type">lens</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679160120"><span id="local-6989586621679160121"><span id="local-6989586621679160122"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679160120"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679160121"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160120"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160124"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160121"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160120"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679160124"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-124"></span><span>    </span><span id="toCI"><span class="annot"><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-type">toCI</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679160124"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#SignedData"><span class="hs-identifier hs-type">SignedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679160418"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; SignedData a -&gt; f (SignedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160419"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160419"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160420"><span class="annot"><span class="annottext">SignedData a
+</span><a href="#local-6989586621679160420"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160421"><span class="annot"><span class="annottext">g :: content -&gt; SignedData content
+</span><a href="#local-6989586621679160421"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160422"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160422"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedData a
+</span><a href="#local-6989586621679160420"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#sdEncapsulatedContent"><span class="hs-identifier hs-var">sdEncapsulatedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160422"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-128"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; SignedData b) -&gt; f b -&gt; f (SignedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; SignedData b
+forall {content}. content -&gt; SignedData content
+</span><a href="#local-6989586621679160421"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160419"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SignedData a -&gt; a
+forall content. SignedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Signed.html#sdEncapsulatedContent"><span class="hs-identifier hs-var">sdEncapsulatedContent</span></a></span><span> </span><span class="annot"><span class="annottext">SignedData a
+</span><a href="#local-6989586621679160420"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621679160424"><span class="annot"><span class="annottext">toCI :: SignedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#SignedDataCI"><span class="hs-identifier hs-var">SignedDataCI</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html#EnvelopedData"><span class="hs-identifier hs-type">EnvelopedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679160430"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; EnvelopedData a -&gt; f (EnvelopedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160431"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160431"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160432"><span class="annot"><span class="annottext">EnvelopedData a
+</span><a href="#local-6989586621679160432"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160433"><span class="annot"><span class="annottext">g :: content -&gt; EnvelopedData content
+</span><a href="#local-6989586621679160433"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160434"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160434"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EnvelopedData a
+</span><a href="#local-6989586621679160432"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html#evEncryptedContent"><span class="hs-identifier hs-var">evEncryptedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160434"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-133"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; EnvelopedData b) -&gt; f b -&gt; f (EnvelopedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; EnvelopedData b
+forall {content}. content -&gt; EnvelopedData content
+</span><a href="#local-6989586621679160433"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160431"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EnvelopedData a -&gt; a
+forall content. EnvelopedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Enveloped.html#evEncryptedContent"><span class="hs-identifier hs-var">evEncryptedContent</span></a></span><span> </span><span class="annot"><span class="annottext">EnvelopedData a
+</span><a href="#local-6989586621679160432"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621679160436"><span class="annot"><span class="annottext">toCI :: EnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#EnvelopedDataCI"><span class="hs-identifier hs-var">EnvelopedDataCI</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621679160442"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; DigestedData a -&gt; f (DigestedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160443"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160443"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160444"><span class="annot"><span class="annottext">DigestedData a
+</span><a href="#local-6989586621679160444"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160445"><span class="annot"><span class="annottext">g :: content -&gt; DigestedData content
+</span><a href="#local-6989586621679160445"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160446"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160446"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DigestedData a
+</span><a href="#local-6989586621679160444"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#ddEncapsulatedContent"><span class="hs-identifier hs-var">ddEncapsulatedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160446"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-138"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; DigestedData b) -&gt; f b -&gt; f (DigestedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; DigestedData b
+forall {content}. content -&gt; DigestedData content
+</span><a href="#local-6989586621679160445"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160443"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DigestedData a -&gt; a
+forall content. DigestedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Digested.html#ddEncapsulatedContent"><span class="hs-identifier hs-var">ddEncapsulatedContent</span></a></span><span> </span><span class="annot"><span class="annottext">DigestedData a
+</span><a href="#local-6989586621679160444"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621679160448"><span class="annot"><span class="annottext">toCI :: DigestedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DigestedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#DigestedDataCI"><span class="hs-identifier hs-var">DigestedDataCI</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#EncryptedData"><span class="hs-identifier hs-type">EncryptedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-142"></span><span>    </span><span id="local-6989586621679160454"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; EncryptedData a -&gt; f (EncryptedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160455"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160455"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160456"><span class="annot"><span class="annottext">EncryptedData a
+</span><a href="#local-6989586621679160456"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160457"><span class="annot"><span class="annottext">g :: content -&gt; EncryptedData content
+</span><a href="#local-6989586621679160457"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160458"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160458"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptedData a
+</span><a href="#local-6989586621679160456"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Encrypted.html#edEncryptedContent"><span class="hs-identifier hs-var">edEncryptedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160458"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-143"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; EncryptedData b) -&gt; f b -&gt; f (EncryptedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; EncryptedData b
+forall {content}. content -&gt; EncryptedData content
+</span><a href="#local-6989586621679160457"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160455"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EncryptedData a -&gt; a
+forall content. EncryptedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Encrypted.html#edEncryptedContent"><span class="hs-identifier hs-var">edEncryptedContent</span></a></span><span> </span><span class="annot"><span class="annottext">EncryptedData a
+</span><a href="#local-6989586621679160456"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span id="local-6989586621679160460"><span class="annot"><span class="annottext">toCI :: EncryptedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncryptedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#EncryptedDataCI"><span class="hs-identifier hs-var">EncryptedDataCI</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679160466"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; AuthenticatedData a -&gt; f (AuthenticatedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160467"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160467"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160468"><span class="annot"><span class="annottext">AuthenticatedData a
+</span><a href="#local-6989586621679160468"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160469"><span class="annot"><span class="annottext">g :: content -&gt; AuthenticatedData content
+</span><a href="#local-6989586621679160469"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160470"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160470"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthenticatedData a
+</span><a href="#local-6989586621679160468"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#adEncapsulatedContent"><span class="hs-identifier hs-var">adEncapsulatedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160470"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-148"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; AuthenticatedData b) -&gt; f b -&gt; f (AuthenticatedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; AuthenticatedData b
+forall {content}. content -&gt; AuthenticatedData content
+</span><a href="#local-6989586621679160469"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160467"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AuthenticatedData a -&gt; a
+forall content. AuthenticatedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Authenticated.html#adEncapsulatedContent"><span class="hs-identifier hs-var">adEncapsulatedContent</span></a></span><span> </span><span class="annot"><span class="annottext">AuthenticatedData a
+</span><a href="#local-6989586621679160468"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679160472"><span class="annot"><span class="annottext">toCI :: AuthenticatedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthenticatedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#AuthenticatedDataCI"><span class="hs-identifier hs-var">AuthenticatedDataCI</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.AuthEnveloped.html#AuthEnvelopedData"><span class="hs-identifier hs-type">AuthEnvelopedData</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-152"></span><span>    </span><span id="local-6989586621679160478"><span class="annot"><span class="annottext">lens :: forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; AuthEnvelopedData a -&gt; f (AuthEnvelopedData b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var hs-var hs-var hs-var">lens</span></a></span></span><span> </span><span id="local-6989586621679160479"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160479"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160480"><span class="annot"><span class="annottext">AuthEnvelopedData a
+</span><a href="#local-6989586621679160480"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160481"><span class="annot"><span class="annottext">g :: content -&gt; AuthEnvelopedData content
+</span><a href="#local-6989586621679160481"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679160482"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679160482"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData a
+</span><a href="#local-6989586621679160480"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.AuthEnveloped.html#aeEncryptedContent"><span class="hs-identifier hs-var">aeEncryptedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679160482"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-153"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(b -&gt; AuthEnvelopedData b) -&gt; f b -&gt; f (AuthEnvelopedData b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; AuthEnvelopedData b
+forall {content}. content -&gt; AuthEnvelopedData content
+</span><a href="#local-6989586621679160481"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679160479"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; a -&gt; f b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData a -&gt; a
+forall content. AuthEnvelopedData content -&gt; content
+</span><a href="Crypto.Store.CMS.AuthEnveloped.html#aeEncryptedContent"><span class="hs-identifier hs-var">aeEncryptedContent</span></a></span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData a
+</span><a href="#local-6989586621679160480"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span id="local-6989586621679160484"><span class="annot"><span class="annottext">toCI :: AuthEnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AuthEnvelopedData (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#AuthEnvelopedDataCI"><span class="hs-identifier hs-var">AuthEnvelopedDataCI</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="annot"><span class="hs-comment">-- | Return 'True' when the encapsulated content is attached.</span></span><span>
+</span><span id="line-157"></span><span id="local-6989586621679160158"><span id="local-6989586621679160159"><span class="annot"><a href="Crypto.Store.CMS.Info.html#isAttached"><span class="hs-identifier hs-type">isAttached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160158"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160158"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-158"></span><span id="isAttached"><span class="annot"><span class="annottext">isAttached :: forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct (Encap a) -&gt; Bool
+</span><a href="Crypto.Store.CMS.Info.html#isAttached"><span class="hs-identifier hs-var hs-var">isAttached</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (struct a) -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (struct a) -&gt; Bool)
+-&gt; (struct (Encap a) -&gt; Maybe (struct a))
+-&gt; struct (Encap a)
+-&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">struct (Encap a) -&gt; Maybe (struct a)
+forall (m :: * -&gt; *) (struct :: * -&gt; *) a.
+(MonadFail m, Encapsulates struct) =&gt;
+struct (Encap a) -&gt; m (struct a)
+</span><a href="Crypto.Store.CMS.Info.html#fromAttached"><span class="hs-identifier hs-var">fromAttached</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | Unwrap the encapsulation, assuming the inner content is inside the data</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- structure.  The monadic computation fails if the content was detached.</span><span>
+</span><span id="line-162"></span><span id="local-6989586621679160163"><span id="local-6989586621679160164"><span id="local-6989586621679160165"><span class="annot"><a href="Crypto.Store.CMS.Info.html#fromAttached"><span class="hs-identifier hs-type">fromAttached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadFail</span></span><span> </span><span class="annot"><a href="#local-6989586621679160163"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160164"><span class="hs-identifier hs-type">struct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160164"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160165"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160163"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679160164"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160165"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-163"></span><span id="fromAttached"><span class="annot"><span class="annottext">fromAttached :: forall (m :: * -&gt; *) (struct :: * -&gt; *) a.
+(MonadFail m, Encapsulates struct) =&gt;
+struct (Encap a) -&gt; m (struct a)
+</span><a href="Crypto.Store.CMS.Info.html#fromAttached"><span class="hs-identifier hs-var hs-var">fromAttached</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Encap a -&gt; m a) -&gt; struct (Encap a) -&gt; m (struct a)
+forall (struct :: * -&gt; *) (f :: * -&gt; *) a b.
+(Encapsulates struct, Functor f) =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var">lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; (a -&gt; m a) -&gt; Encap a -&gt; m a
+forall b a. b -&gt; (a -&gt; b) -&gt; Encap a -&gt; b
+</span><a href="Crypto.Store.CMS.Type.html#fromEncap"><span class="hs-identifier hs-var">fromEncap</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+forall {a}. m a
+</span><a href="#local-6989586621679160501"><span class="hs-identifier hs-var">err</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m a
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679160501"><span class="annot"><span class="annottext">err :: m a
+</span><a href="#local-6989586621679160501"><span class="hs-identifier hs-var hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;fromAttached: detached&quot;</span></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="annot"><span class="hs-comment">-- | Keep the content inside the data structure.</span></span><span>
+</span><span id="line-167"></span><span id="local-6989586621679160177"><span id="local-6989586621679160178"><span class="annot"><a href="Crypto.Store.CMS.Info.html#toAttached"><span class="hs-identifier hs-type">toAttached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160177"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160177"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160178"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160177"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160178"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-168"></span><span id="toAttached"><span class="annot"><span class="annottext">toAttached :: forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct a -&gt; struct (Encap a)
+</span><a href="Crypto.Store.CMS.Info.html#toAttached"><span class="hs-identifier hs-var hs-var">toAttached</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (struct (Encap a)) -&gt; struct (Encap a)
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity (struct (Encap a)) -&gt; struct (Encap a))
+-&gt; (struct a -&gt; Identity (struct (Encap a)))
+-&gt; struct a
+-&gt; struct (Encap a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Identity (Encap a))
+-&gt; struct a -&gt; Identity (struct (Encap a))
+forall (struct :: * -&gt; *) (f :: * -&gt; *) a b.
+(Encapsulates struct, Functor f) =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var">lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Encap a -&gt; Identity (Encap a)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">(Encap a -&gt; Identity (Encap a))
+-&gt; (a -&gt; Encap a) -&gt; a -&gt; Identity (Encap a)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Encap a
+forall a. a -&gt; Encap a
+</span><a href="Crypto.Store.CMS.Type.html#Attached"><span class="hs-identifier hs-var">Attached</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Transform the data structure into a content info, keeping the encapsulated</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- content attached.  May be applied to structures with 'EncapsulatedContent' or</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- 'EncryptedContent'.</span><span>
+</span><span id="line-173"></span><span id="local-6989586621679160185"><span class="annot"><a href="Crypto.Store.CMS.Info.html#toAttachedCI"><span class="hs-identifier hs-type">toAttachedCI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160185"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160185"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span></span><span>
+</span><span id="line-174"></span><span id="toAttachedCI"><span class="annot"><span class="annottext">toAttachedCI :: forall (struct :: * -&gt; *).
+Encapsulates struct =&gt;
+struct ByteString -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toAttachedCI"><span class="hs-identifier hs-var hs-var">toAttachedCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">struct (Encap ByteString) -&gt; ContentInfo
+forall (struct :: * -&gt; *).
+Encapsulates struct =&gt;
+struct (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var">toCI</span></a></span><span> </span><span class="annot"><span class="annottext">(struct (Encap ByteString) -&gt; ContentInfo)
+-&gt; (struct ByteString -&gt; struct (Encap ByteString))
+-&gt; struct ByteString
+-&gt; ContentInfo
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">struct ByteString -&gt; struct (Encap ByteString)
+forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct a -&gt; struct (Encap a)
+</span><a href="Crypto.Store.CMS.Info.html#toAttached"><span class="hs-identifier hs-var">toAttached</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="annot"><span class="hs-comment">-- | Return 'True' when the encapsulated content is detached.</span></span><span>
+</span><span id="line-177"></span><span id="local-6989586621679160517"><span id="local-6989586621679160518"><span class="annot"><a href="Crypto.Store.CMS.Info.html#isDetached"><span class="hs-identifier hs-type">isDetached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160517"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160517"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160518"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-178"></span><span id="isDetached"><span class="annot"><span class="annottext">isDetached :: forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct (Encap a) -&gt; Bool
+</span><a href="Crypto.Store.CMS.Info.html#isDetached"><span class="hs-identifier hs-var hs-var">isDetached</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (struct a) -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNothing</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (struct a) -&gt; Bool)
+-&gt; (struct (Encap a) -&gt; Maybe (struct a))
+-&gt; struct (Encap a)
+-&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">struct (Encap a) -&gt; Maybe (struct a)
+forall (m :: * -&gt; *) (struct :: * -&gt; *) a.
+(MonadFail m, Encapsulates struct) =&gt;
+struct (Encap a) -&gt; m (struct a)
+</span><a href="Crypto.Store.CMS.Info.html#fromAttached"><span class="hs-identifier hs-var">fromAttached</span></a></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- | Recover the original data structure from a detached encapsulation and the</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- external content.  The monadic computation fails if the content was attached.</span><span>
+</span><span id="line-182"></span><span id="local-6989586621679160189"><span id="local-6989586621679160190"><span id="local-6989586621679160191"><span id="local-6989586621679160192"><span class="annot"><a href="Crypto.Store.CMS.Info.html#fromDetached"><span class="hs-identifier hs-type">fromDetached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadFail</span></span><span> </span><span class="annot"><a href="#local-6989586621679160189"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160190"><span class="hs-identifier hs-type">struct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160191"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160190"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160192"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160189"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679160190"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160191"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-183"></span><span id="fromDetached"><span class="annot"><span class="annottext">fromDetached :: forall (m :: * -&gt; *) (struct :: * -&gt; *) b a.
+(MonadFail m, Encapsulates struct) =&gt;
+b -&gt; struct (Encap a) -&gt; m (struct b)
+</span><a href="Crypto.Store.CMS.Info.html#fromDetached"><span class="hs-identifier hs-var hs-var">fromDetached</span></a></span></span><span> </span><span id="local-6989586621679160531"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679160531"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Encap a -&gt; m b) -&gt; struct (Encap a) -&gt; m (struct b)
+forall (struct :: * -&gt; *) (f :: * -&gt; *) a b.
+(Encapsulates struct, Functor f) =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var">lens</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m b -&gt; (a -&gt; m b) -&gt; Encap a -&gt; m b
+forall b a. b -&gt; (a -&gt; b) -&gt; Encap a -&gt; b
+</span><a href="Crypto.Store.CMS.Type.html#fromEncap"><span class="hs-identifier hs-var">fromEncap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; m b
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679160531"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+forall {m :: * -&gt; *} {p} {a}. MonadFail m =&gt; p -&gt; m a
+</span><a href="#local-6989586621679160532"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679160532"><span class="annot"><span class="annottext">err :: p -&gt; m a
+</span><a href="#local-6989586621679160532"><span class="hs-identifier hs-var hs-var">err</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; m a
+forall a. String -&gt; m a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;fromDetached: attached&quot;</span></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="annot"><span class="hs-comment">-- | Remove the content from the data structure to store it externally.</span></span><span>
+</span><span id="line-187"></span><span id="local-6989586621679160200"><span id="local-6989586621679160201"><span class="annot"><a href="Crypto.Store.CMS.Info.html#toDetached"><span class="hs-identifier hs-type">toDetached</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160200"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160200"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160201"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679160201"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679160200"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160201"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-188"></span><span id="toDetached"><span class="annot"><span class="annottext">toDetached :: forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct a -&gt; (a, struct (Encap a))
+</span><a href="Crypto.Store.CMS.Info.html#toDetached"><span class="hs-identifier hs-var hs-var">toDetached</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679160546"><span class="annot"><span class="annottext">f :: a -&gt; (a, Encap a)
+</span><a href="#local-6989586621679160546"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679160547"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679160547"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679160547"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Encap a
+forall a. Encap a
+</span><a href="Crypto.Store.CMS.Type.html#Detached"><span class="hs-identifier hs-var">Detached</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Encap a)) -&gt; struct a -&gt; (a, struct (Encap a))
+forall (struct :: * -&gt; *) (f :: * -&gt; *) a b.
+(Encapsulates struct, Functor f) =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+forall (f :: * -&gt; *) a b.
+Functor f =&gt;
+(a -&gt; f b) -&gt; struct a -&gt; f (struct b)
+</span><a href="Crypto.Store.CMS.Info.html#lens"><span class="hs-identifier hs-var">lens</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; (a, Encap a)
+forall {a} {a}. a -&gt; (a, Encap a)
+</span><a href="#local-6989586621679160546"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- | Transform the data structure into a content info, detaching the</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- encapsulated content.  May be applied to structures with</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- 'EncapsulatedContent' or 'EncryptedContent'.</span><span>
+</span><span id="line-193"></span><span id="local-6989586621679160207"><span class="annot"><a href="Crypto.Store.CMS.Info.html#toDetachedCI"><span class="hs-identifier hs-type">toDetachedCI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#Encapsulates"><span class="hs-identifier hs-type">Encapsulates</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679160207"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679160207"><span class="hs-identifier hs-type">struct</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Info.html#ContentInfo"><span class="hs-identifier hs-type">ContentInfo</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-194"></span><span id="toDetachedCI"><span class="annot"><span class="annottext">toDetachedCI :: forall (struct :: * -&gt; *).
+Encapsulates struct =&gt;
+struct ByteString -&gt; (ByteString, ContentInfo)
+</span><a href="Crypto.Store.CMS.Info.html#toDetachedCI"><span class="hs-identifier hs-var hs-var">toDetachedCI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(struct (Encap ByteString) -&gt; ContentInfo)
+-&gt; (ByteString, struct (Encap ByteString))
+-&gt; (ByteString, ContentInfo)
+forall a b. (a -&gt; b) -&gt; (ByteString, a) -&gt; (ByteString, b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">struct (Encap ByteString) -&gt; ContentInfo
+forall (struct :: * -&gt; *).
+Encapsulates struct =&gt;
+struct (Encap ByteString) -&gt; ContentInfo
+</span><a href="Crypto.Store.CMS.Info.html#toCI"><span class="hs-identifier hs-var">toCI</span></a></span><span> </span><span class="annot"><span class="annottext">((ByteString, struct (Encap ByteString))
+ -&gt; (ByteString, ContentInfo))
+-&gt; (struct ByteString -&gt; (ByteString, struct (Encap ByteString)))
+-&gt; struct ByteString
+-&gt; (ByteString, ContentInfo)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">struct ByteString -&gt; (ByteString, struct (Encap ByteString))
+forall (struct :: * -&gt; *) a.
+Encapsulates struct =&gt;
+struct a -&gt; (a, struct (Encap a))
+</span><a href="Crypto.Store.CMS.Info.html#toDetached"><span class="hs-identifier hs-var">toDetached</span></a></span><span>
+</span><span id="line-195"></span></pre></body></html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Util.Defns</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier">DefnsF</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF2"><span class="hs-identifier">DefnsF2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF3"><span class="hs-identifier">DefnsF3</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF4"><span class="hs-identifier">DefnsF4</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#alignDefnsWith"><span class="hs-identifier">alignDefnsWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#defnsAreEmpty"><span class="hs-identifier">defnsAreEmpty</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#hoistDefnsF"><span class="hs-identifier">hoistDefnsF</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#mapDefns"><span class="hs-identifier">mapDefns</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#unzipDefns"><span class="hs-identifier">unzipDefns</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#unzipDefnsWith"><span class="hs-identifier">unzipDefnsWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#zipDefns"><span class="hs-identifier">zipDefns</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier">zipDefnsWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith3"><span class="hs-identifier">zipDefnsWith3</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith4"><span class="hs-identifier">zipDefnsWith4</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Align</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Semialign</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">alignWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifoldable</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">bifoldMap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bitraversable</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">bitraverse</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup.Generic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GenericSemigroupMonoid</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.These</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">These</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><span class="hs-comment">-- | Definitions (terms and types) in a namespace.</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="Defns"><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span></span><span> </span><span id="local-6989586621679246000"><span class="annot"><a href="#local-6989586621679246000"><span class="hs-identifier hs-type">terms</span></a></span></span><span> </span><span id="local-6989586621679246001"><span class="annot"><a href="#local-6989586621679246001"><span class="hs-identifier hs-type">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Defns"><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aterms%3ADefns"><span class="annot"><span class="annottext">forall terms types. Defns terms types -&gt; terms
+</span><a href="Unison.Util.Defns.html#%24sel%3Aterms%3ADefns"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679246000"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span id="%24sel%3Atypes%3ADefns"><span class="annot"><span class="annottext">forall terms types. Defns terms types -&gt; types
+</span><a href="Unison.Util.Defns.html#%24sel%3Atypes%3ADefns"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679246001"><span class="hs-identifier hs-type">types</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679246249"><span id="local-6989586621679246251"><span class="annot"><span class="annottext">(forall x. Defns terms types -&gt; Rep (Defns terms types) x)
+-&gt; (forall x. Rep (Defns terms types) x -&gt; Defns terms types)
+-&gt; Generic (Defns terms types)
+forall x. Rep (Defns terms types) x -&gt; Defns terms types
+forall x. Defns terms types -&gt; Rep (Defns terms types) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall terms types x.
+Rep (Defns terms types) x -&gt; Defns terms types
+forall terms types x.
+Defns terms types -&gt; Rep (Defns terms types) x
+$cfrom :: forall terms types x.
+Defns terms types -&gt; Rep (Defns terms types) x
+from :: forall x. Defns terms types -&gt; Rep (Defns terms types) x
+$cto :: forall terms types x.
+Rep (Defns terms types) x -&gt; Defns terms types
+to :: forall x. Rep (Defns terms types) x -&gt; Defns terms types
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679246255"><span id="local-6989586621679246257"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Defns terms a -&gt; Defns terms b)
+-&gt; (forall a b. a -&gt; Defns terms b -&gt; Defns terms a)
+-&gt; Functor (Defns terms)
+forall a b. a -&gt; Defns terms b -&gt; Defns terms a
+forall a b. (a -&gt; b) -&gt; Defns terms a -&gt; Defns terms b
+forall terms a b. a -&gt; Defns terms b -&gt; Defns terms a
+forall terms a b. (a -&gt; b) -&gt; Defns terms a -&gt; Defns terms b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall terms a b. (a -&gt; b) -&gt; Defns terms a -&gt; Defns terms b
+fmap :: forall a b. (a -&gt; b) -&gt; Defns terms a -&gt; Defns terms b
+$c&lt;$ :: forall terms a b. a -&gt; Defns terms b -&gt; Defns terms a
+&lt;$ :: forall a b. a -&gt; Defns terms b -&gt; Defns terms a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679246263"><span id="local-6989586621679246269"><span id="local-6989586621679246273"><span class="annot"><span class="annottext">Int -&gt; Defns terms types -&gt; ShowS
+[Defns terms types] -&gt; ShowS
+Defns terms types -&gt; String
+(Int -&gt; Defns terms types -&gt; ShowS)
+-&gt; (Defns terms types -&gt; String)
+-&gt; ([Defns terms types] -&gt; ShowS)
+-&gt; Show (Defns terms types)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall terms types.
+(Show terms, Show types) =&gt;
+Int -&gt; Defns terms types -&gt; ShowS
+forall terms types.
+(Show terms, Show types) =&gt;
+[Defns terms types] -&gt; ShowS
+forall terms types.
+(Show terms, Show types) =&gt;
+Defns terms types -&gt; String
+$cshowsPrec :: forall terms types.
+(Show terms, Show types) =&gt;
+Int -&gt; Defns terms types -&gt; ShowS
+showsPrec :: Int -&gt; Defns terms types -&gt; ShowS
+$cshow :: forall terms types.
+(Show terms, Show types) =&gt;
+Defns terms types -&gt; String
+show :: Defns terms types -&gt; String
+$cshowList :: forall terms types.
+(Show terms, Show types) =&gt;
+[Defns terms types] -&gt; ShowS
+showList :: [Defns terms types] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679246284"><span id="local-6989586621679246291"><span id="local-6989586621679246297"><span class="annot"><span class="annottext">Semigroup (Defns terms types)
+Defns terms types
+Semigroup (Defns terms types) =&gt;
+Defns terms types
+-&gt; (Defns terms types -&gt; Defns terms types -&gt; Defns terms types)
+-&gt; ([Defns terms types] -&gt; Defns terms types)
+-&gt; Monoid (Defns terms types)
+[Defns terms types] -&gt; Defns terms types
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall terms types.
+(Monoid terms, Monoid types) =&gt;
+Semigroup (Defns terms types)
+forall terms types.
+(Monoid terms, Monoid types) =&gt;
+Defns terms types
+forall terms types.
+(Monoid terms, Monoid types) =&gt;
+[Defns terms types] -&gt; Defns terms types
+forall terms types.
+(Monoid terms, Monoid types) =&gt;
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+$cmempty :: forall terms types.
+(Monoid terms, Monoid types) =&gt;
+Defns terms types
+mempty :: Defns terms types
+$cmappend :: forall terms types.
+(Monoid terms, Monoid types) =&gt;
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+mappend :: Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+$cmconcat :: forall terms types.
+(Monoid terms, Monoid types) =&gt;
+[Defns terms types] -&gt; Defns terms types
+mconcat :: [Defns terms types] -&gt; Defns terms types
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679246332"><span id="local-6989586621679246339"><span id="local-6989586621679246347"><span class="annot"><span class="annottext">NonEmpty (Defns terms types) -&gt; Defns terms types
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+(Defns terms types -&gt; Defns terms types -&gt; Defns terms types)
+-&gt; (NonEmpty (Defns terms types) -&gt; Defns terms types)
+-&gt; (forall b.
+    Integral b =&gt;
+    b -&gt; Defns terms types -&gt; Defns terms types)
+-&gt; Semigroup (Defns terms types)
+forall b. Integral b =&gt; b -&gt; Defns terms types -&gt; Defns terms types
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall terms types.
+(Semigroup terms, Semigroup types) =&gt;
+NonEmpty (Defns terms types) -&gt; Defns terms types
+forall terms types.
+(Semigroup terms, Semigroup types) =&gt;
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+forall terms types b.
+(Semigroup terms, Semigroup types, Integral b) =&gt;
+b -&gt; Defns terms types -&gt; Defns terms types
+$c&lt;&gt; :: forall terms types.
+(Semigroup terms, Semigroup types) =&gt;
+Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+&lt;&gt; :: Defns terms types -&gt; Defns terms types -&gt; Defns terms types
+$csconcat :: forall terms types.
+(Semigroup terms, Semigroup types) =&gt;
+NonEmpty (Defns terms types) -&gt; Defns terms types
+sconcat :: NonEmpty (Defns terms types) -&gt; Defns terms types
+$cstimes :: forall terms types b.
+(Semigroup terms, Semigroup types, Integral b) =&gt;
+b -&gt; Defns terms types -&gt; Defns terms types
+stimes :: forall b. Integral b =&gt; b -&gt; Defns terms types -&gt; Defns terms types
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="annot"><span class="hs-identifier hs-type">GenericSemigroupMonoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246000"><span class="hs-identifier hs-type">terms</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246001"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679246380"><span id="local-6989586621679246387"><span id="local-6989586621679246390"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679246396"><span class="annot"><span class="annottext">bifoldMap :: forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; Defns a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679246397"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679246397"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246398"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679246398"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246399"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246399"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679246400"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679246400"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679246397"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246399"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679246398"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679246400"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679246405"><span id="local-6989586621679246409"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679246412"><span class="annot"><span class="annottext">bimap :: forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+</span><a href="#local-6989586621679246412"><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></a></span></span><span> </span><span id="local-6989586621679246414"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679246414"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246415"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679246415"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246416"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246416"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679246417"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679246417"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">b -&gt; d -&gt; Defns b d
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679246414"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246416"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679246415"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679246417"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679246430"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Defns a b -&gt; f (Defns c d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679246431"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679246431"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246432"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679246432"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246433"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246433"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679246434"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679246434"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">c -&gt; d -&gt; Defns c d
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; d -&gt; Defns c d) -&gt; f c -&gt; f (d -&gt; Defns c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679246431"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679246433"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">f (d -&gt; Defns c d) -&gt; f d -&gt; f (Defns c d)
+forall a b. f (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679246432"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679246434"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | A common shape of definitions - terms and types are stored in the same structure.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">type</span><span> </span><span id="DefnsF"><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-var">DefnsF</span></a></span></span><span> </span><span id="local-6989586621679246436"><span class="annot"><a href="#local-6989586621679246436"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679246437"><span class="annot"><a href="#local-6989586621679246437"><span class="hs-identifier hs-type">terms</span></a></span></span><span> </span><span id="local-6989586621679246438"><span class="annot"><a href="#local-6989586621679246438"><span class="hs-identifier hs-type">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246436"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246437"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246436"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246438"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">type</span><span> </span><span id="DefnsF2"><span class="annot"><a href="Unison.Util.Defns.html#DefnsF2"><span class="hs-identifier hs-var">DefnsF2</span></a></span></span><span> </span><span id="local-6989586621679246439"><span class="annot"><a href="#local-6989586621679246439"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679246440"><span class="annot"><a href="#local-6989586621679246440"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679246441"><span class="annot"><a href="#local-6989586621679246441"><span class="hs-identifier hs-type">terms</span></a></span></span><span> </span><span id="local-6989586621679246442"><span class="annot"><a href="#local-6989586621679246442"><span class="hs-identifier hs-type">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246439"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246440"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246441"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246439"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246440"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246442"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">type</span><span> </span><span id="DefnsF3"><span class="annot"><a href="Unison.Util.Defns.html#DefnsF3"><span class="hs-identifier hs-var">DefnsF3</span></a></span></span><span> </span><span id="local-6989586621679246443"><span class="annot"><a href="#local-6989586621679246443"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679246444"><span class="annot"><a href="#local-6989586621679246444"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679246445"><span class="annot"><a href="#local-6989586621679246445"><span class="hs-identifier hs-type">h</span></a></span></span><span> </span><span id="local-6989586621679246446"><span class="annot"><a href="#local-6989586621679246446"><span class="hs-identifier hs-type">terms</span></a></span></span><span> </span><span id="local-6989586621679246447"><span class="annot"><a href="#local-6989586621679246447"><span class="hs-identifier hs-type">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246443"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246444"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246445"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246446"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246443"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246444"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246445"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246447"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">type</span><span> </span><span id="DefnsF4"><span class="annot"><a href="Unison.Util.Defns.html#DefnsF4"><span class="hs-identifier hs-var">DefnsF4</span></a></span></span><span> </span><span id="local-6989586621679246448"><span class="annot"><a href="#local-6989586621679246448"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679246449"><span class="annot"><a href="#local-6989586621679246449"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679246450"><span class="annot"><a href="#local-6989586621679246450"><span class="hs-identifier hs-type">h</span></a></span></span><span> </span><span id="local-6989586621679246451"><span class="annot"><a href="#local-6989586621679246451"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679246452"><span class="annot"><a href="#local-6989586621679246452"><span class="hs-identifier hs-type">terms</span></a></span></span><span> </span><span id="local-6989586621679246453"><span class="annot"><a href="#local-6989586621679246453"><span class="hs-identifier hs-type">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246448"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246449"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246450"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246451"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246452"><span class="hs-identifier hs-type">terms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246448"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246449"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246450"><span class="hs-identifier hs-type">h</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246451"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246453"><span class="hs-identifier hs-type">types</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span id="local-6989586621679246114"><span id="local-6989586621679246116"><span id="local-6989586621679246117"><span id="local-6989586621679246119"><span class="annot"><a href="Unison.Util.Defns.html#alignDefnsWith"><span class="hs-identifier hs-type">alignDefnsWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Semialign</span></span><span> </span><span class="annot"><a href="#local-6989586621679246114"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span class="annot"><a href="#local-6989586621679246116"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246117"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246119"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246114"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246116"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246114"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246117"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246114"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246119"><span class="hs-identifier hs-type">c</span></a></span></span></span></span></span><span>
+</span><span id="line-61"></span><span id="alignDefnsWith"><span class="annot"><span class="annottext">alignDefnsWith :: forall (f :: * -&gt; *) a b c.
+Semialign f =&gt;
+(These a b -&gt; c) -&gt; Defns (f a) (f b) -&gt; f c
+</span><a href="Unison.Util.Defns.html#alignDefnsWith"><span class="hs-identifier hs-var hs-var">alignDefnsWith</span></a></span></span><span> </span><span id="local-6989586621679246458"><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679246458"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246459"><span class="annot"><span class="annottext">Defns (f a) (f b)
+</span><a href="#local-6989586621679246459"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">(These a b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+forall a b c. (These a b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+forall (f :: * -&gt; *) a b c.
+Semialign f =&gt;
+(These a b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">alignWith</span></span><span> </span><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679246458"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (f a) (f b)
+</span><a href="#local-6989586621679246459"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Defns (f a) (f b)
+</span><a href="#local-6989586621679246459"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679246128"><span id="local-6989586621679246129"><span id="local-6989586621679246130"><span id="local-6989586621679246131"><span class="annot"><a href="Unison.Util.Defns.html#defnsAreEmpty"><span class="hs-identifier hs-type">defnsAreEmpty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679246128"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679246129"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246128"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246130"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246129"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246131"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span></span></span><span>
+</span><span id="line-65"></span><span id="defnsAreEmpty"><span class="annot"><span class="annottext">defnsAreEmpty :: forall (f :: * -&gt; *) (g :: * -&gt; *) a b.
+(Foldable f, Foldable g) =&gt;
+Defns (f a) (g b) -&gt; Bool
+</span><a href="Unison.Util.Defns.html#defnsAreEmpty"><span class="hs-identifier hs-var hs-var">defnsAreEmpty</span></a></span></span><span> </span><span id="local-6989586621679246466"><span class="annot"><span class="annottext">Defns (f a) (g b)
+</span><a href="#local-6989586621679246466"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">f a -&gt; Bool
+forall a. f a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">Defns (f a) (g b)
+</span><a href="#local-6989586621679246466"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">g b -&gt; Bool
+forall a. g a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">Defns (f a) (g b)
+</span><a href="#local-6989586621679246466"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span id="local-6989586621679246138"><span id="local-6989586621679246140"><span id="local-6989586621679246141"><span id="local-6989586621679246142"><span class="annot"><a href="Unison.Util.Defns.html#hoistDefnsF"><span class="hs-identifier hs-type">hoistDefnsF</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679246139"><span class="annot"><a href="#local-6989586621679246139"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679246138"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246139"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246140"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246139"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246138"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246141"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246142"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#DefnsF"><span class="hs-identifier hs-type">DefnsF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246140"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246141"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246142"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-69"></span><span id="hoistDefnsF"><span class="annot"><span class="annottext">hoistDefnsF :: forall (f :: * -&gt; *) (g :: * -&gt; *) a b.
+(forall x. f x -&gt; g x) -&gt; DefnsF f a b -&gt; DefnsF g a b
+</span><a href="Unison.Util.Defns.html#hoistDefnsF"><span class="hs-identifier hs-var hs-var">hoistDefnsF</span></a></span></span><span> </span><span id="local-6989586621679246469"><span class="annot"><span class="annottext">forall x. f x -&gt; g x
+</span><a href="#local-6989586621679246469"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246470"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679246470"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679246471"><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679246471"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">g a -&gt; g b -&gt; Defns (g a) (g b)
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f a -&gt; g a
+forall x. f x -&gt; g x
+</span><a href="#local-6989586621679246469"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679246470"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f b -&gt; g b
+forall x. f x -&gt; g x
+</span><a href="#local-6989586621679246469"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f b
+</span><a href="#local-6989586621679246471"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span id="local-6989586621679246148"><span id="local-6989586621679246149"><span class="annot"><a href="Unison.Util.Defns.html#mapDefns"><span class="hs-identifier hs-type">mapDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246149"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246149"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246149"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-73"></span><span id="mapDefns"><span class="annot"><span class="annottext">mapDefns :: forall a b. (a -&gt; b) -&gt; Defns a a -&gt; Defns b b
+</span><a href="Unison.Util.Defns.html#mapDefns"><span class="hs-identifier hs-var hs-var">mapDefns</span></a></span></span><span> </span><span id="local-6989586621679246473"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679246473"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (a -&gt; b) -&gt; Defns a a -&gt; Defns b b
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679246473"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679246473"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span id="local-6989586621679246152"><span id="local-6989586621679246153"><span id="local-6989586621679246154"><span id="local-6989586621679246155"><span class="annot"><a href="Unison.Util.Defns.html#unzipDefns"><span class="hs-identifier hs-type">unzipDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246152"><span class="hs-identifier hs-type">tm1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246153"><span class="hs-identifier hs-type">tm2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246154"><span class="hs-identifier hs-type">ty1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246155"><span class="hs-identifier hs-type">ty2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246152"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246154"><span class="hs-identifier hs-type">ty1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246153"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246155"><span class="hs-identifier hs-type">ty2</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-77"></span><span id="unzipDefns"><span class="annot"><span class="annottext">unzipDefns :: forall tm1 tm2 ty1 ty2.
+Defns (tm1, tm2) (ty1, ty2) -&gt; (Defns tm1 ty1, Defns tm2 ty2)
+</span><a href="Unison.Util.Defns.html#unzipDefns"><span class="hs-identifier hs-var hs-var">unzipDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="annottext">((tm1, tm2) -&gt; (tm1, tm2))
+-&gt; ((ty1, ty2) -&gt; (ty1, ty2))
+-&gt; Defns (tm1, tm2) (ty1, ty2)
+-&gt; (Defns tm1 ty1, Defns tm2 ty2)
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; (tm2, tm3))
+-&gt; (ty1 -&gt; (ty2, ty3))
+-&gt; Defns tm1 ty1
+-&gt; (Defns tm2 ty2, Defns tm3 ty3)
+</span><a href="Unison.Util.Defns.html#unzipDefnsWith"><span class="hs-identifier hs-var">unzipDefnsWith</span></a></span><span> </span><span class="annot"><span class="annottext">(tm1, tm2) -&gt; (tm1, tm2)
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="annot"><span class="annottext">(ty1, ty2) -&gt; (ty1, ty2)
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679246160"><span id="local-6989586621679246161"><span id="local-6989586621679246162"><span id="local-6989586621679246163"><span id="local-6989586621679246164"><span id="local-6989586621679246165"><span class="annot"><a href="Unison.Util.Defns.html#unzipDefnsWith"><span class="hs-identifier hs-type">unzipDefnsWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246160"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246161"><span class="hs-identifier hs-type">tm2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246162"><span class="hs-identifier hs-type">tm3</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246163"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246164"><span class="hs-identifier hs-type">ty2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246165"><span class="hs-identifier hs-type">ty3</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246160"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246163"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246161"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246164"><span class="hs-identifier hs-type">ty2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246162"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246165"><span class="hs-identifier hs-type">ty3</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-81"></span><span id="unzipDefnsWith"><span class="annot"><span class="annottext">unzipDefnsWith :: forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; (tm2, tm3))
+-&gt; (ty1 -&gt; (ty2, ty3))
+-&gt; Defns tm1 ty1
+-&gt; (Defns tm2 ty2, Defns tm3 ty3)
+</span><a href="Unison.Util.Defns.html#unzipDefnsWith"><span class="hs-identifier hs-var hs-var">unzipDefnsWith</span></a></span></span><span> </span><span id="local-6989586621679246475"><span class="annot"><span class="annottext">tm1 -&gt; (tm2, tm3)
+</span><a href="#local-6989586621679246475"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246476"><span class="annot"><span class="annottext">ty1 -&gt; (ty2, ty3)
+</span><a href="#local-6989586621679246476"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246477"><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246477"><span class="hs-identifier hs-var">terms1</span></a></span></span><span> </span><span id="local-6989586621679246478"><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246478"><span class="hs-identifier hs-var">types1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679246479"><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246479"><span class="hs-identifier hs-var">terms2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679246480"><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246480"><span class="hs-identifier hs-var">terms3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">tm1 -&gt; (tm2, tm3)
+</span><a href="#local-6989586621679246475"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246477"><span class="hs-identifier hs-var">terms1</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679246481"><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246481"><span class="hs-identifier hs-var">types2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679246482"><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246482"><span class="hs-identifier hs-var">types3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ty1 -&gt; (ty2, ty3)
+</span><a href="#local-6989586621679246476"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246478"><span class="hs-identifier hs-var">types1</span></a></span><span>
+</span><span id="line-84"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">tm2 -&gt; ty2 -&gt; Defns tm2 ty2
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246479"><span class="hs-identifier hs-var">terms2</span></a></span><span> </span><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246481"><span class="hs-identifier hs-var">types2</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">tm3 -&gt; ty3 -&gt; Defns tm3 ty3
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246480"><span class="hs-identifier hs-var">terms3</span></a></span><span> </span><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246482"><span class="hs-identifier hs-var">types3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span id="local-6989586621679246173"><span id="local-6989586621679246174"><span id="local-6989586621679246175"><span id="local-6989586621679246176"><span class="annot"><a href="Unison.Util.Defns.html#zipDefns"><span class="hs-identifier hs-type">zipDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246173"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246174"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246175"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246176"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246173"><span class="hs-identifier hs-type">tm1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246175"><span class="hs-identifier hs-type">tm2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246174"><span class="hs-identifier hs-type">ty1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679246176"><span class="hs-identifier hs-type">ty2</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-87"></span><span id="zipDefns"><span class="annot"><span class="annottext">zipDefns :: forall tm1 ty1 tm2 ty2.
+Defns tm1 ty1 -&gt; Defns tm2 ty2 -&gt; Defns (tm1, tm2) (ty1, ty2)
+</span><a href="Unison.Util.Defns.html#zipDefns"><span class="hs-identifier hs-var hs-var">zipDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="annottext">(tm1 -&gt; tm2 -&gt; (tm1, tm2))
+-&gt; (ty1 -&gt; ty2 -&gt; (ty1, ty2))
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns (tm1, tm2) (ty1, ty2)
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier hs-var">zipDefnsWith</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span id="local-6989586621679246181"><span id="local-6989586621679246182"><span id="local-6989586621679246183"><span id="local-6989586621679246184"><span id="local-6989586621679246185"><span id="local-6989586621679246186"><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier hs-type">zipDefnsWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246181"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246182"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246183"><span class="hs-identifier hs-type">tm3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246184"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246185"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246186"><span class="hs-identifier hs-type">ty3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246181"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246184"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246182"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246185"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246183"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246186"><span class="hs-identifier hs-type">ty3</span></a></span></span></span></span></span></span></span><span>
+</span><span id="line-91"></span><span id="zipDefnsWith"><span class="annot"><span class="annottext">zipDefnsWith :: forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><a href="Unison.Util.Defns.html#zipDefnsWith"><span class="hs-identifier hs-var hs-var">zipDefnsWith</span></a></span></span><span> </span><span id="local-6989586621679246483"><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3
+</span><a href="#local-6989586621679246483"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246484"><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3
+</span><a href="#local-6989586621679246484"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246485"><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246485"><span class="hs-identifier hs-var">terms1</span></a></span></span><span> </span><span id="local-6989586621679246486"><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246486"><span class="hs-identifier hs-var">types1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246487"><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246487"><span class="hs-identifier hs-var">terms2</span></a></span></span><span> </span><span id="local-6989586621679246488"><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246488"><span class="hs-identifier hs-var">types2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><span class="annottext">tm3 -&gt; ty3 -&gt; Defns tm3 ty3
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3
+</span><a href="#local-6989586621679246483"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246485"><span class="hs-identifier hs-var">terms1</span></a></span><span> </span><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246487"><span class="hs-identifier hs-var">terms2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3
+</span><a href="#local-6989586621679246484"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246486"><span class="hs-identifier hs-var">types1</span></a></span><span> </span><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246488"><span class="hs-identifier hs-var">types2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span id="local-6989586621679246193"><span id="local-6989586621679246194"><span id="local-6989586621679246195"><span id="local-6989586621679246196"><span id="local-6989586621679246197"><span id="local-6989586621679246198"><span id="local-6989586621679246199"><span id="local-6989586621679246200"><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith3"><span class="hs-identifier hs-type">zipDefnsWith3</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246193"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246194"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246195"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246196"><span class="hs-identifier hs-type">tm4</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246197"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246198"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246199"><span class="hs-identifier hs-type">ty3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246200"><span class="hs-identifier hs-type">ty4</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246193"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246197"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246194"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246198"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246195"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246199"><span class="hs-identifier hs-type">ty3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246196"><span class="hs-identifier hs-type">tm4</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246200"><span class="hs-identifier hs-type">ty4</span></a></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-101"></span><span id="zipDefnsWith3"><span class="annot"><span class="annottext">zipDefnsWith3 :: forall tm1 tm2 tm3 tm4 ty1 ty2 ty3 ty4.
+(tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+-&gt; Defns tm4 ty4
+</span><a href="Unison.Util.Defns.html#zipDefnsWith3"><span class="hs-identifier hs-var hs-var">zipDefnsWith3</span></a></span></span><span> </span><span id="local-6989586621679246489"><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4
+</span><a href="#local-6989586621679246489"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246490"><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4
+</span><a href="#local-6989586621679246490"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246491"><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246491"><span class="hs-identifier hs-var">terms1</span></a></span></span><span> </span><span id="local-6989586621679246492"><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246492"><span class="hs-identifier hs-var">types1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246493"><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246493"><span class="hs-identifier hs-var">terms2</span></a></span></span><span> </span><span id="local-6989586621679246494"><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246494"><span class="hs-identifier hs-var">types2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246495"><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246495"><span class="hs-identifier hs-var">terms3</span></a></span></span><span> </span><span id="local-6989586621679246496"><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246496"><span class="hs-identifier hs-var">types3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">tm4 -&gt; ty4 -&gt; Defns tm4 ty4
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4
+</span><a href="#local-6989586621679246489"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246491"><span class="hs-identifier hs-var">terms1</span></a></span><span> </span><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246493"><span class="hs-identifier hs-var">terms2</span></a></span><span> </span><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246495"><span class="hs-identifier hs-var">terms3</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4
+</span><a href="#local-6989586621679246490"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246492"><span class="hs-identifier hs-var">types1</span></a></span><span> </span><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246494"><span class="hs-identifier hs-var">types2</span></a></span><span> </span><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246496"><span class="hs-identifier hs-var">types3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span id="local-6989586621679246209"><span id="local-6989586621679246210"><span id="local-6989586621679246211"><span id="local-6989586621679246212"><span id="local-6989586621679246213"><span id="local-6989586621679246214"><span id="local-6989586621679246215"><span id="local-6989586621679246216"><span id="local-6989586621679246217"><span id="local-6989586621679246218"><span class="annot"><a href="Unison.Util.Defns.html#zipDefnsWith4"><span class="hs-identifier hs-type">zipDefnsWith4</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246209"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246210"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246211"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246212"><span class="hs-identifier hs-type">tm4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246213"><span class="hs-identifier hs-type">tm5</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679246214"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246215"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246216"><span class="hs-identifier hs-type">ty3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246217"><span class="hs-identifier hs-type">ty4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679246218"><span class="hs-identifier hs-type">ty5</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246209"><span class="hs-identifier hs-type">tm1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246214"><span class="hs-identifier hs-type">ty1</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246210"><span class="hs-identifier hs-type">tm2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246215"><span class="hs-identifier hs-type">ty2</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246211"><span class="hs-identifier hs-type">tm3</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246216"><span class="hs-identifier hs-type">ty3</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246212"><span class="hs-identifier hs-type">tm4</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246217"><span class="hs-identifier hs-type">ty4</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246213"><span class="hs-identifier hs-type">tm5</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679246218"><span class="hs-identifier hs-type">ty5</span></a></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-112"></span><span id="zipDefnsWith4"><span class="annot"><span class="annottext">zipDefnsWith4 :: forall tm1 tm2 tm3 tm4 tm5 ty1 ty2 ty3 ty4 ty5.
+(tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4 -&gt; tm5)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4 -&gt; ty5)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+-&gt; Defns tm4 ty4
+-&gt; Defns tm5 ty5
+</span><a href="Unison.Util.Defns.html#zipDefnsWith4"><span class="hs-identifier hs-var hs-var">zipDefnsWith4</span></a></span></span><span> </span><span id="local-6989586621679246497"><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4 -&gt; tm5
+</span><a href="#local-6989586621679246497"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679246498"><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4 -&gt; ty5
+</span><a href="#local-6989586621679246498"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246499"><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246499"><span class="hs-identifier hs-var">terms1</span></a></span></span><span> </span><span id="local-6989586621679246500"><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246500"><span class="hs-identifier hs-var">types1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246501"><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246501"><span class="hs-identifier hs-var">terms2</span></a></span></span><span> </span><span id="local-6989586621679246502"><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246502"><span class="hs-identifier hs-var">types2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246503"><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246503"><span class="hs-identifier hs-var">terms3</span></a></span></span><span> </span><span id="local-6989586621679246504"><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246504"><span class="hs-identifier hs-var">types3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-type">Defns</span></a></span><span> </span><span id="local-6989586621679246505"><span class="annot"><span class="annottext">tm4
+</span><a href="#local-6989586621679246505"><span class="hs-identifier hs-var">terms4</span></a></span></span><span> </span><span id="local-6989586621679246506"><span class="annot"><span class="annottext">ty4
+</span><a href="#local-6989586621679246506"><span class="hs-identifier hs-var">types4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><span class="annottext">tm5 -&gt; ty5 -&gt; Defns tm5 ty5
+forall terms types. terms -&gt; types -&gt; Defns terms types
+</span><a href="Unison.Util.Defns.html#Defns"><span class="hs-identifier hs-var">Defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">tm1 -&gt; tm2 -&gt; tm3 -&gt; tm4 -&gt; tm5
+</span><a href="#local-6989586621679246497"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">tm1
+</span><a href="#local-6989586621679246499"><span class="hs-identifier hs-var">terms1</span></a></span><span> </span><span class="annot"><span class="annottext">tm2
+</span><a href="#local-6989586621679246501"><span class="hs-identifier hs-var">terms2</span></a></span><span> </span><span class="annot"><span class="annottext">tm3
+</span><a href="#local-6989586621679246503"><span class="hs-identifier hs-var">terms3</span></a></span><span> </span><span class="annot"><span class="annottext">tm4
+</span><a href="#local-6989586621679246505"><span class="hs-identifier hs-var">terms4</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ty1 -&gt; ty2 -&gt; ty3 -&gt; ty4 -&gt; ty5
+</span><a href="#local-6989586621679246498"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ty1
+</span><a href="#local-6989586621679246500"><span class="hs-identifier hs-var">types1</span></a></span><span> </span><span class="annot"><span class="annottext">ty2
+</span><a href="#local-6989586621679246502"><span class="hs-identifier hs-var">types2</span></a></span><span> </span><span class="annot"><span class="annottext">ty3
+</span><a href="#local-6989586621679246504"><span class="hs-identifier hs-var">types3</span></a></span><span> </span><span class="annot"><span class="annottext">ty4
+</span><a href="#local-6989586621679246506"><span class="hs-identifier hs-var">types4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span></pre></body></html>

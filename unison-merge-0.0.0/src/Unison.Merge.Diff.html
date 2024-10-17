@@ -1,0 +1,814 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Merge.Diff</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Diff.html#nameBasedNamespaceDiff"><span class="hs-identifier">nameBasedNamespaceDiff</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semialign</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">alignWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.These</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">These</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">U.Codebase.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.ConstructorReference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GConstructorReference</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Decl</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DataDeclaration</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DataDeclaration</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DeclNameLookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DeclNameLookup</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.DeclNameLookup</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DeclNameLookup</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.HashQualifiedPrime</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HQ'</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html"><span class="hs-identifier">Unison.Merge.DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.PartialDeclNameLookup.html"><span class="hs-identifier">Unison.Merge.PartialDeclNameLookup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.PartialDeclNameLookup.html#PartialDeclNameLookup"><span class="hs-identifier">PartialDeclNameLookup</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Synhash.html"><span class="hs-identifier">Unison.Merge.Synhash</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Synhash</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html"><span class="hs-identifier">Unison.Merge.Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier">Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.ThreeWay.html"><span class="hs-identifier">Unison.Merge.ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.ThreeWay.html#ThreeWay"><span class="hs-identifier">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.ThreeWay.html"><span class="hs-identifier">Unison.Merge.ThreeWay</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ThreeWay</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.TwoWay.html"><span class="hs-identifier">Unison.Merge.TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.TwoWay.html#TwoWay"><span class="hs-identifier">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html"><span class="hs-identifier">Unison.Merge.Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier">Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Parser.Ann</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ann</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catMaybes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ppe</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TermReference</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TermReferenceId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TypeReferenceId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Referent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Referent</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Referent</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Symbol</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Syntax.Name</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Name</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Term</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Term</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.BiMultimap</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BiMultimap</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Defns</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF2</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DefnsF3</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipDefnsWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | @nameBasedNamespaceDiff db declNameLookups defns@ returns Alice's and Bob's name-based namespace diffs, each in the</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- form:</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt; terms :: Map Name (DiffOp (Synhashed Referent))</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt; types :: Map Name (DiffOp (Synhashed TypeReference))</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- where each name is paired with its diff-op (added, deleted, or updated), relative to the LCA between Alice and Bob's</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- branches. If the hash of a name did not change, it will not appear in the map.</span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.Merge.Diff.html#nameBasedNamespaceDiff"><span class="hs-identifier hs-type">nameBasedNamespaceDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Unison.Merge.TwoWay.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">DeclNameLookup</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Unison.Merge.PartialDeclNameLookup.html#PartialDeclNameLookup"><span class="hs-identifier hs-type">PartialDeclNameLookup</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Unison.Merge.ThreeWay.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Unison.Merge.TwoWay.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DefnsF3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span id="nameBasedNamespaceDiff"><span class="annot"><span class="annottext">nameBasedNamespaceDiff :: HasCallStack =&gt;
+TwoWay DeclNameLookup
+-&gt; PartialDeclNameLookup
+-&gt; ThreeWay
+     (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent Reference)
+</span><a href="Unison.Merge.Diff.html#nameBasedNamespaceDiff"><span class="hs-identifier hs-var hs-var">nameBasedNamespaceDiff</span></a></span></span><span> </span><span id="local-6989586621679189155"><span class="annot"><span class="annottext">TwoWay DeclNameLookup
+</span><a href="#local-6989586621679189155"><span class="hs-identifier hs-var">declNameLookups</span></a></span></span><span> </span><span id="local-6989586621679189156"><span class="annot"><span class="annottext">PartialDeclNameLookup
+</span><a href="#local-6989586621679189156"><span class="hs-identifier hs-var">lcaDeclNameLookup</span></a></span></span><span> </span><span id="local-6989586621679189157"><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span id="local-6989586621679189158"><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189158"><span class="hs-identifier hs-var">hydratedDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679189159"><span class="annot"><span class="annottext">lcaHashes :: DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="#local-6989586621679189159"><span class="hs-identifier hs-var hs-var">lcaHashes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; PartialDeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+PrettyPrintEnv
+-&gt; PartialDeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="Unison.Merge.Diff.html#synhashLcaDefns"><span class="hs-identifier hs-var">synhashLcaDefns</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189161"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">PartialDeclNameLookup
+</span><a href="#local-6989586621679189156"><span class="hs-identifier hs-var">lcaDeclNameLookup</span></a></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">lca</span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189158"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span>
+</span><span id="line-58"></span><span>      </span><span id="local-6989586621679189162"><span class="annot"><span class="annottext">hashes :: TwoWay (DefnsF2 (Map Name) Synhashed Referent Reference)
+</span><a href="#local-6989586621679189162"><span class="hs-identifier hs-var hs-var">hashes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+PrettyPrintEnv
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="Unison.Merge.Diff.html#synhashDefns"><span class="hs-identifier hs-var">synhashDefns</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189161"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189158"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span> </span><span class="annot"><span class="annottext">(DeclNameLookup
+ -&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+ -&gt; DefnsF2 (Map Name) Synhashed Referent Reference)
+-&gt; TwoWay DeclNameLookup
+-&gt; TwoWay
+     (Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+      -&gt; DefnsF2 (Map Name) Synhashed Referent Reference)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TwoWay DeclNameLookup
+</span><a href="#local-6989586621679189155"><span class="hs-identifier hs-var">declNameLookups</span></a></span><span> </span><span class="annot"><span class="annottext">TwoWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+   -&gt; DefnsF2 (Map Name) Synhashed Referent Reference)
+-&gt; TwoWay
+     (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+-&gt; TwoWay (DefnsF2 (Map Name) Synhashed Referent Reference)
+forall a b. TwoWay (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+-&gt; TwoWay
+     (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+forall a. ThreeWay a -&gt; TwoWay a
+</span><a href="Unison.Merge.ThreeWay.html#forgetLca"><span class="hs-identifier hs-var">ThreeWay.forgetLca</span></a></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span><span>
+</span><span id="line-59"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">DefnsF2 (Map Name) Synhashed Referent Reference
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+-&gt; DefnsF3 (Map Name) DiffOp Synhashed Referent Reference
+forall term typ.
+DefnsF2 (Map Name) Synhashed term typ
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+-&gt; DefnsF3 (Map Name) DiffOp Synhashed term typ
+</span><a href="Unison.Merge.Diff.html#diffHashedNamespaceDefns"><span class="hs-identifier hs-var">diffHashedNamespaceDefns</span></a></span><span> </span><span class="annot"><span class="annottext">DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="#local-6989586621679189159"><span class="hs-identifier hs-var">lcaHashes</span></a></span><span> </span><span class="annot"><span class="annottext">(DefnsF2 (Map Name) Synhashed Referent Reference
+ -&gt; DefnsF3 (Map Name) DiffOp Synhashed Referent Reference)
+-&gt; TwoWay (DefnsF2 (Map Name) Synhashed Referent Reference)
+-&gt; TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent Reference)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TwoWay (DefnsF2 (Map Name) Synhashed Referent Reference)
+</span><a href="#local-6989586621679189162"><span class="hs-identifier hs-var">hashes</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><a href="#local-6989586621679189161"><span class="hs-identifier hs-type">ppe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679189161"><span class="annot"><span class="annottext">ppe :: PrettyPrintEnv
+</span><a href="#local-6989586621679189161"><span class="hs-identifier hs-var hs-var">ppe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-63"></span><span>      </span><span class="hs-comment">-- The order between Alice and Bob isn't important here for syntactic hashing; not sure right now if it matters</span><span>
+</span><span id="line-64"></span><span>      </span><span class="hs-comment">-- that the LCA is added last</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; PrettyPrintEnv
+</span><a href="Unison.Merge.Diff.html#deepNamespaceDefinitionsToPpe"><span class="hs-identifier hs-var">deepNamespaceDefinitionsToPpe</span></a></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">alice</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><span class="hs-operator hs-var">`Ppe.addFallback`</span></span><span> </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; PrettyPrintEnv
+</span><a href="Unison.Merge.Diff.html#deepNamespaceDefinitionsToPpe"><span class="hs-identifier hs-var">deepNamespaceDefinitionsToPpe</span></a></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">bob</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; PrettyPrintEnv -&gt; PrettyPrintEnv
+</span><span class="hs-operator hs-var">`Ppe.addFallback`</span></span><span> </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; PrettyPrintEnv
+</span><a href="Unison.Merge.Diff.html#deepNamespaceDefinitionsToPpe"><span class="hs-identifier hs-var">deepNamespaceDefinitionsToPpe</span></a></span><span> </span><span class="annot"><span class="annottext">ThreeWay
+  (Defns (BiMultimap Referent Name) (BiMultimap Reference Name))
+</span><a href="#local-6989586621679189157"><span class="hs-identifier hs-var">defns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">lca</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="local-6989586621679189011"><span id="local-6989586621679189012"><span class="annot"><a href="Unison.Merge.Diff.html#diffHashedNamespaceDefns"><span class="hs-identifier hs-type">diffHashedNamespaceDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189011"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189012"><span class="hs-identifier hs-type">typ</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189011"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189012"><span class="hs-identifier hs-type">typ</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189011"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189012"><span class="hs-identifier hs-type">typ</span></a></span></span></span><span>
+</span><span id="line-73"></span><span id="diffHashedNamespaceDefns"><span class="annot"><span class="annottext">diffHashedNamespaceDefns :: forall term typ.
+DefnsF2 (Map Name) Synhashed term typ
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+-&gt; DefnsF3 (Map Name) DiffOp Synhashed term typ
+</span><a href="Unison.Merge.Diff.html#diffHashedNamespaceDefns"><span class="hs-identifier hs-var hs-var">diffHashedNamespaceDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="annottext">(Map Name (Synhashed term)
+ -&gt; Map Name (Synhashed term) -&gt; Map Name (DiffOp (Synhashed term)))
+-&gt; (Map Name (Synhashed typ)
+    -&gt; Map Name (Synhashed typ) -&gt; Map Name (DiffOp (Synhashed typ)))
+-&gt; Defns (Map Name (Synhashed term)) (Map Name (Synhashed typ))
+-&gt; Defns (Map Name (Synhashed term)) (Map Name (Synhashed typ))
+-&gt; Defns
+     (Map Name (DiffOp (Synhashed term)))
+     (Map Name (DiffOp (Synhashed typ)))
+forall tm1 tm2 tm3 ty1 ty2 ty3.
+(tm1 -&gt; tm2 -&gt; tm3)
+-&gt; (ty1 -&gt; ty2 -&gt; ty3)
+-&gt; Defns tm1 ty1
+-&gt; Defns tm2 ty2
+-&gt; Defns tm3 ty3
+</span><span class="hs-identifier hs-var">zipDefnsWith</span></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed term)
+-&gt; Map Name (Synhashed term) -&gt; Map Name (DiffOp (Synhashed term))
+forall ref.
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp (Synhashed ref))
+</span><a href="#local-6989586621679189169"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed typ)
+-&gt; Map Name (Synhashed typ) -&gt; Map Name (DiffOp (Synhashed typ))
+forall ref.
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp (Synhashed ref))
+</span><a href="#local-6989586621679189169"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679189021"><span class="annot"><a href="#local-6989586621679189169"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189021"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189021"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189021"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679189169"><span class="annot"><span class="annottext">f :: forall ref.
+Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref) -&gt; Map Name (DiffOp (Synhashed ref))
+</span><a href="#local-6989586621679189169"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679189176"><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679189176"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679189177"><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679189177"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="annottext">(Maybe (DiffOp (Synhashed ref)) -&gt; Maybe (DiffOp (Synhashed ref)))
+-&gt; Map Name (Maybe (DiffOp (Synhashed ref)))
+-&gt; Map Name (DiffOp (Synhashed ref))
+forall a b k. (a -&gt; Maybe b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">Maybe (DiffOp (Synhashed ref)) -&gt; Maybe (DiffOp (Synhashed ref))
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(These (Synhashed ref) (Synhashed ref)
+ -&gt; Maybe (DiffOp (Synhashed ref)))
+-&gt; Map Name (Synhashed ref)
+-&gt; Map Name (Synhashed ref)
+-&gt; Map Name (Maybe (DiffOp (Synhashed ref)))
+forall a b c.
+(These a b -&gt; c) -&gt; Map Name a -&gt; Map Name b -&gt; Map Name c
+forall (f :: * -&gt; *) a b c.
+Semialign f =&gt;
+(These a b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">alignWith</span></span><span> </span><span class="annot"><span class="annottext">These (Synhashed ref) (Synhashed ref)
+-&gt; Maybe (DiffOp (Synhashed ref))
+forall x. Eq x =&gt; These x x -&gt; Maybe (DiffOp x)
+</span><a href="#local-6989586621679189180"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679189176"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Map Name (Synhashed ref)
+</span><a href="#local-6989586621679189177"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679189035"><span class="annot"><a href="#local-6989586621679189180"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679189035"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span class="annot"><a href="#local-6989586621679189035"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189035"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-type">DiffOp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189035"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679189180"><span class="annot"><span class="annottext">g :: forall x. Eq x =&gt; These x x -&gt; Maybe (DiffOp x)
+</span><a href="#local-6989586621679189180"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">This</span></span><span> </span><span id="local-6989586621679189184"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189184"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp x -&gt; Maybe (DiffOp x)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">x -&gt; DiffOp x
+forall a. a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Delete"><span class="hs-identifier hs-var">DiffOp'Delete</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189184"><span class="hs-identifier hs-var">old</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">That</span></span><span> </span><span id="local-6989586621679189187"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189187"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp x -&gt; Maybe (DiffOp x)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">x -&gt; DiffOp x
+forall a. a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Add"><span class="hs-identifier hs-var">DiffOp'Add</span></a></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189187"><span class="hs-identifier hs-var">new</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span id="local-6989586621679189190"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189190"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679189191"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189191"><span class="hs-identifier hs-var">new</span></a></span></span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189190"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">x -&gt; x -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679189191"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (DiffOp x)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DiffOp x -&gt; Maybe (DiffOp x)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Updated x -&gt; DiffOp x
+forall a. Updated a -&gt; DiffOp a
+</span><a href="Unison.Merge.DiffOp.html#DiffOp%27Update"><span class="hs-identifier hs-var">DiffOp'Update</span></a></span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">x
+old :: x
+$sel:old:Updated :: x
+</span><a href="#local-6989586621679189190"><span class="hs-identifier hs-var hs-var">old</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">x
+new :: x
+$sel:new:Updated :: x
+</span><a href="#local-6989586621679189191"><span class="hs-identifier hs-var hs-var">new</span></a></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">------------------------------------------------------------------------------------------------------------------------</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- Syntactic hashing</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Unison.Merge.Diff.html#synhashLcaDefns"><span class="hs-identifier hs-type">synhashLcaDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-93"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><a href="Unison.Merge.PartialDeclNameLookup.html#PartialDeclNameLookup"><span class="hs-identifier hs-type">PartialDeclNameLookup</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-95"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-96"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-98"></span><span id="synhashLcaDefns"><span class="annot"><span class="annottext">synhashLcaDefns :: HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; PartialDeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="Unison.Merge.Diff.html#synhashLcaDefns"><span class="hs-identifier hs-var hs-var">synhashLcaDefns</span></a></span></span><span> </span><span id="local-6989586621679189216"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189216"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span id="local-6989586621679189217"><span class="annot"><span class="annottext">PartialDeclNameLookup
+</span><a href="#local-6989586621679189217"><span class="hs-identifier hs-var">declNameLookup</span></a></span></span><span> </span><span id="local-6989586621679189218"><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+</span><a href="#local-6989586621679189218"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span id="local-6989586621679189219"><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189219"><span class="hs-identifier hs-var">hydratedDefns</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="annottext">(Name -&gt; Referent -&gt; Hash)
+-&gt; (Name -&gt; Reference -&gt; Hash)
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+forall term typ.
+HasCallStack =&gt;
+(Name -&gt; term -&gt; Hash)
+-&gt; (Name -&gt; typ -&gt; Hash)
+-&gt; Defns (BiMultimap term Name) (BiMultimap typ Name)
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+</span><a href="Unison.Merge.Diff.html#synhashDefnsWith"><span class="hs-identifier hs-var">synhashDefnsWith</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Referent -&gt; Hash
+</span><a href="#local-6989586621679189221"><span class="hs-identifier hs-var">hashReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189222"><span class="hs-identifier hs-var">hashType</span></a></span><span> </span><span class="annot"><span class="annottext">Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+</span><a href="#local-6989586621679189218"><span class="hs-identifier hs-var">defns</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">-- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">-- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- This is safe and correct; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-comment">-- that we accidentally get an equal hash and classify a real update as unchanged.</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><a href="#local-6989586621679189221"><span class="hs-identifier hs-type">hashReferent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679189221"><span class="annot"><span class="annottext">hashReferent :: Name -&gt; Referent -&gt; Hash
+</span><a href="#local-6989586621679189221"><span class="hs-identifier hs-var hs-var">hashReferent</span></a></span></span><span> </span><span id="local-6989586621679189223"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189223"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-109"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Referent.Con</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span id="local-6989586621679189226"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189226"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Map Name Name -&gt; Maybe Name
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189223"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">PartialDeclNameLookup
+</span><a href="#local-6989586621679189217"><span class="hs-identifier hs-var">declNameLookup</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">constructorToDecl</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-111"></span><span>          </span><span class="annot"><span class="annottext">Maybe Name
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; Hash
+</span><span class="hs-identifier hs-var">Hash</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-comment">-- see note above</span><span>
+</span><span id="line-112"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679189228"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189228"><span class="hs-identifier hs-var">declName</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189222"><span class="hs-identifier hs-var">hashType</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189228"><span class="hs-identifier hs-var">declName</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189226"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-113"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Referent.Ref</span></span><span> </span><span id="local-6989586621679189230"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189230"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Reference -&gt; Hash
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Reference -&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashTermReference"><span class="hs-identifier hs-var">synhashTermReference</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189216"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189219"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189230"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><a href="#local-6989586621679189222"><span class="hs-identifier hs-type">hashType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679189222"><span class="annot"><span class="annottext">hashType :: Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189222"><span class="hs-identifier hs-var hs-var">hashType</span></a></span></span><span> </span><span id="local-6989586621679189232"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189232"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-117"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ReferenceBuiltin</span></span><span> </span><span id="local-6989586621679189234"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189234"><span class="hs-identifier hs-var">builtin</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Hash
+</span><a href="Unison.Merge.Synhash.html#synhashBuiltinDecl"><span class="hs-identifier hs-var">Synhash.synhashBuiltinDecl</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189234"><span class="hs-identifier hs-var">builtin</span></a></span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ReferenceDerived</span></span><span> </span><span id="local-6989586621679189237"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189237"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Maybe Name] -&gt; Maybe [Name]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Traversable t, Monad m) =&gt;
+t (m a) -&gt; m (t a)
+forall (m :: * -&gt; *) a. Monad m =&gt; [m a] -&gt; m [a]
+</span><span class="hs-identifier hs-var">sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PartialDeclNameLookup
+</span><a href="#local-6989586621679189217"><span class="hs-identifier hs-var">declNameLookup</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">declToConstructors</span><span> </span><span class="annot"><span class="annottext">Map Name [Maybe Name] -&gt; Name -&gt; [Maybe Name]
+forall k a. Ord k =&gt; Map k a -&gt; k -&gt; a
+</span><span class="hs-operator hs-var">Map.!</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189232"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-120"></span><span>          </span><span class="annot"><span class="annottext">Maybe [Name]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; Hash
+</span><span class="hs-identifier hs-var">Hash</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-comment">-- see note above</span><span>
+</span><span id="line-121"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679189240"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679189240"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Decl Symbol Ann)
+-&gt; [Name]
+-&gt; Name
+-&gt; TermReferenceId
+-&gt; Hash
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Decl Symbol Ann)
+-&gt; [Name]
+-&gt; Name
+-&gt; TermReferenceId
+-&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashDerivedDecl"><span class="hs-identifier hs-var">synhashDerivedDecl</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189216"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189219"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679189240"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189232"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189237"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="annot"><a href="Unison.Merge.Diff.html#synhashDefns"><span class="hs-identifier hs-type">synhashDefns</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DeclNameLookup</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-128"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-129"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span>
+</span><span id="line-130"></span><span id="synhashDefns"><span class="annot"><span class="annottext">synhashDefns :: HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Defns
+     (Map TermReferenceId (Term Symbol Ann))
+     (Map TermReferenceId (Decl Symbol Ann))
+-&gt; DeclNameLookup
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+</span><a href="Unison.Merge.Diff.html#synhashDefns"><span class="hs-identifier hs-var hs-var">synhashDefns</span></a></span></span><span> </span><span id="local-6989586621679189255"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189255"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span id="local-6989586621679189256"><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189256"><span class="hs-identifier hs-var">hydratedDefns</span></a></span></span><span> </span><span id="local-6989586621679189257"><span class="annot"><span class="annottext">DeclNameLookup
+</span><a href="#local-6989586621679189257"><span class="hs-identifier hs-var">declNameLookup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><span class="annottext">(Name -&gt; Referent -&gt; Hash)
+-&gt; (Name -&gt; Reference -&gt; Hash)
+-&gt; Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; DefnsF2 (Map Name) Synhashed Referent Reference
+forall term typ.
+HasCallStack =&gt;
+(Name -&gt; term -&gt; Hash)
+-&gt; (Name -&gt; typ -&gt; Hash)
+-&gt; Defns (BiMultimap term Name) (BiMultimap typ Name)
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+</span><a href="Unison.Merge.Diff.html#synhashDefnsWith"><span class="hs-identifier hs-var">synhashDefnsWith</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Referent -&gt; Hash
+</span><a href="#local-6989586621679189258"><span class="hs-identifier hs-var">hashReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189259"><span class="hs-identifier hs-var">hashType</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="#local-6989586621679189258"><span class="hs-identifier hs-type">hashReferent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621679189258"><span class="annot"><span class="annottext">hashReferent :: Name -&gt; Referent -&gt; Hash
+</span><a href="#local-6989586621679189258"><span class="hs-identifier hs-var hs-var">hashReferent</span></a></span></span><span> </span><span id="local-6989586621679189260"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189260"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-135"></span><span>      </span><span class="hs-comment">-- We say that a referent constructor *in the namespace* (distinct from a referent that is in a term body) has a</span><span>
+</span><span id="line-136"></span><span>      </span><span class="hs-comment">-- synhash that is simply equal to the synhash of its type declaration. This is because the type declaration and</span><span>
+</span><span id="line-137"></span><span>      </span><span class="hs-comment">-- constructors are changed in lock-step: it is not possible to change one, but not the other.</span><span>
+</span><span id="line-138"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span>      </span><span class="hs-comment">-- For example, if Alice updates `type Foo = Bar Nat` to `type Foo = Bar Nat Nat`, we want different synhashes on</span><span>
+</span><span id="line-140"></span><span>      </span><span class="hs-comment">-- both the type (Foo) and the constructor (Foo.Bar).</span><span>
+</span><span id="line-141"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Referent.Con</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConstructorReference</span></span><span> </span><span id="local-6989586621679189261"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189261"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConstructorId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ConstructorType
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189259"><span class="hs-identifier hs-var">hashType</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasCallStack =&gt; DeclNameLookup -&gt; Name -&gt; Name
+DeclNameLookup -&gt; Name -&gt; Name
+</span><span class="hs-identifier hs-var">DeclNameLookup.expectDeclName</span></span><span> </span><span class="annot"><span class="annottext">DeclNameLookup
+</span><a href="#local-6989586621679189257"><span class="hs-identifier hs-var">declNameLookup</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189260"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189261"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-142"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Referent.Ref</span></span><span> </span><span id="local-6989586621679189263"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189263"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Reference -&gt; Hash
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Reference -&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashTermReference"><span class="hs-identifier hs-var">synhashTermReference</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189255"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189256"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">terms</span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621679189263"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><a href="#local-6989586621679189259"><span class="hs-identifier hs-type">hashType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679189259"><span class="annot"><span class="annottext">hashType :: Name -&gt; Reference -&gt; Hash
+</span><a href="#local-6989586621679189259"><span class="hs-identifier hs-var hs-var">hashType</span></a></span></span><span> </span><span id="local-6989586621679189264"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189264"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-146"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ReferenceBuiltin</span></span><span> </span><span id="local-6989586621679189265"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189265"><span class="hs-identifier hs-var">builtin</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Hash
+</span><a href="Unison.Merge.Synhash.html#synhashBuiltinDecl"><span class="hs-identifier hs-var">Synhash.synhashBuiltinDecl</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189265"><span class="hs-identifier hs-var">builtin</span></a></span><span>
+</span><span id="line-147"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">ReferenceDerived</span></span><span> </span><span id="local-6989586621679189266"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189266"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-148"></span><span>        </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Decl Symbol Ann)
+-&gt; [Name]
+-&gt; Name
+-&gt; TermReferenceId
+-&gt; Hash
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Decl Symbol Ann)
+-&gt; [Name]
+-&gt; Name
+-&gt; TermReferenceId
+-&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashDerivedDecl"><span class="hs-identifier hs-var">synhashDerivedDecl</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189255"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Defns
+  (Map TermReferenceId (Term Symbol Ann))
+  (Map TermReferenceId (Decl Symbol Ann))
+</span><a href="#local-6989586621679189256"><span class="hs-identifier hs-var">hydratedDefns</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">types</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasCallStack =&gt; DeclNameLookup -&gt; Name -&gt; [Name]
+DeclNameLookup -&gt; Name -&gt; [Name]
+</span><span class="hs-identifier hs-var">DeclNameLookup.expectConstructorNames</span></span><span> </span><span class="annot"><span class="annottext">DeclNameLookup
+</span><a href="#local-6989586621679189257"><span class="hs-identifier hs-var">declNameLookup</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189264"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189264"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189266"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="Unison.Merge.Diff.html#synhashDerivedDecl"><span class="hs-identifier hs-type">synhashDerivedDecl</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-158"></span><span id="synhashDerivedDecl"><span class="annot"><span class="annottext">synhashDerivedDecl :: HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Decl Symbol Ann)
+-&gt; [Name]
+-&gt; Name
+-&gt; TermReferenceId
+-&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashDerivedDecl"><span class="hs-identifier hs-var hs-var">synhashDerivedDecl</span></a></span></span><span> </span><span id="local-6989586621679189274"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189274"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span id="local-6989586621679189275"><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621679189275"><span class="hs-identifier hs-var">declsById</span></a></span></span><span> </span><span id="local-6989586621679189276"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679189276"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621679189277"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189277"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679189278"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189278"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621679189275"><span class="hs-identifier hs-var">declsById</span></a></span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+-&gt; (Map TermReferenceId (Decl Symbol Ann) -&gt; Decl Symbol Ann)
+-&gt; Decl Symbol Ann
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">HasCallStack =&gt;
+TermReferenceId
+-&gt; Map TermReferenceId (Decl Symbol Ann) -&gt; Decl Symbol Ann
+TermReferenceId
+-&gt; Map TermReferenceId (Decl Symbol Ann) -&gt; Decl Symbol Ann
+</span><a href="Unison.Merge.Diff.html#expectDecl"><span class="hs-identifier hs-var">expectDecl</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189278"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">Decl Symbol Ann
+-&gt; (Decl Symbol Ann -&gt; Decl Symbol Ann) -&gt; Decl Symbol Ann
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Symbol] -&gt; Decl Symbol Ann -&gt; Decl Symbol Ann
+forall v a. [v] -&gt; Decl v a -&gt; Decl v a
+</span><span class="hs-identifier hs-var">DataDeclaration.setConstructorNames</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; Symbol) -&gt; [Name] -&gt; [Symbol]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Symbol
+forall v. Var v =&gt; Name -&gt; v
+</span><span class="hs-identifier hs-var">Name.toVar</span></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679189276"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><span class="annottext">Decl Symbol Ann -&gt; (Decl Symbol Ann -&gt; Hash) -&gt; Hash
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; Name -&gt; Decl Symbol Ann -&gt; Hash
+forall v a. Var v =&gt; PrettyPrintEnv -&gt; Name -&gt; Decl v a -&gt; Hash
+</span><a href="Unison.Merge.Synhash.html#synhashDerivedDecl"><span class="hs-identifier hs-var">Synhash.synhashDerivedDecl</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189274"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189277"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><a href="Unison.Merge.Diff.html#synhashTermReference"><span class="hs-identifier hs-type">synhashTermReference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReference</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span>
+</span><span id="line-165"></span><span id="synhashTermReference"><span class="annot"><span class="annottext">synhashTermReference :: HasCallStack =&gt;
+PrettyPrintEnv
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Reference -&gt; Hash
+</span><a href="Unison.Merge.Diff.html#synhashTermReference"><span class="hs-identifier hs-var hs-var">synhashTermReference</span></a></span></span><span> </span><span id="local-6989586621679189288"><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189288"><span class="hs-identifier hs-var">ppe</span></a></span></span><span> </span><span id="local-6989586621679189289"><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann)
+</span><a href="#local-6989586621679189289"><span class="hs-identifier hs-var">termsById</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ReferenceBuiltin</span></span><span> </span><span id="local-6989586621679189290"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189290"><span class="hs-identifier hs-var">builtin</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Hash
+</span><a href="Unison.Merge.Synhash.html#synhashBuiltinTerm"><span class="hs-identifier hs-var">Synhash.synhashBuiltinTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679189290"><span class="hs-identifier hs-var">builtin</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ReferenceDerived</span></span><span> </span><span id="local-6989586621679189292"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189292"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv -&gt; Term Symbol Ann -&gt; Hash
+forall v a. Var v =&gt; PrettyPrintEnv -&gt; Term v a -&gt; Hash
+</span><a href="Unison.Merge.Synhash.html#synhashDerivedTerm"><span class="hs-identifier hs-var">Synhash.synhashDerivedTerm</span></a></span><span> </span><span class="annot"><span class="annottext">PrettyPrintEnv
+</span><a href="#local-6989586621679189288"><span class="hs-identifier hs-var">ppe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HasCallStack =&gt;
+TermReferenceId
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Term Symbol Ann
+TermReferenceId
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Term Symbol Ann
+</span><a href="Unison.Merge.Diff.html#expectTerm"><span class="hs-identifier hs-var">expectTerm</span></a></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189292"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann)
+</span><a href="#local-6989586621679189289"><span class="hs-identifier hs-var">termsById</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span id="local-6989586621679189042"><span id="local-6989586621679189043"><span class="annot"><a href="Unison.Merge.Diff.html#synhashDefnsWith"><span class="hs-identifier hs-type">synhashDefnsWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679189042"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679189043"><span class="hs-identifier hs-type">typ</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Hash</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679189042"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679189043"><span class="hs-identifier hs-type">typ</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-174"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">DefnsF2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-type">Synhashed</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189042"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679189043"><span class="hs-identifier hs-type">typ</span></a></span></span></span><span>
+</span><span id="line-175"></span><span id="synhashDefnsWith"><span class="annot"><span class="annottext">synhashDefnsWith :: forall term typ.
+HasCallStack =&gt;
+(Name -&gt; term -&gt; Hash)
+-&gt; (Name -&gt; typ -&gt; Hash)
+-&gt; Defns (BiMultimap term Name) (BiMultimap typ Name)
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+</span><a href="Unison.Merge.Diff.html#synhashDefnsWith"><span class="hs-identifier hs-var hs-var">synhashDefnsWith</span></a></span></span><span> </span><span id="local-6989586621679189298"><span class="annot"><span class="annottext">Name -&gt; term -&gt; Hash
+</span><a href="#local-6989586621679189298"><span class="hs-identifier hs-var">hashTerm</span></a></span></span><span> </span><span id="local-6989586621679189299"><span class="annot"><span class="annottext">Name -&gt; typ -&gt; Hash
+</span><a href="#local-6989586621679189299"><span class="hs-identifier hs-var">hashType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><span class="annottext">(BiMultimap term Name -&gt; Map Name (Synhashed term))
+-&gt; (BiMultimap typ Name -&gt; Map Name (Synhashed typ))
+-&gt; Defns (BiMultimap term Name) (BiMultimap typ Name)
+-&gt; DefnsF2 (Map Name) Synhashed term typ
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; Defns a c -&gt; Defns b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; term -&gt; Synhashed term)
+-&gt; Map Name term -&gt; Map Name (Synhashed term)
+forall k a b. (k -&gt; a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.mapWithKey</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; term -&gt; Synhashed term
+</span><a href="#local-6989586621679189302"><span class="hs-identifier hs-var">hashTerm1</span></a></span><span> </span><span class="annot"><span class="annottext">(Map Name term -&gt; Map Name (Synhashed term))
+-&gt; (BiMultimap term Name -&gt; Map Name term)
+-&gt; BiMultimap term Name
+-&gt; Map Name (Synhashed term)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap term Name -&gt; Map Name term
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; typ -&gt; Synhashed typ)
+-&gt; Map Name typ -&gt; Map Name (Synhashed typ)
+forall k a b. (k -&gt; a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.mapWithKey</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; typ -&gt; Synhashed typ
+</span><a href="#local-6989586621679189305"><span class="hs-identifier hs-var">hashType1</span></a></span><span> </span><span class="annot"><span class="annottext">(Map Name typ -&gt; Map Name (Synhashed typ))
+-&gt; (BiMultimap typ Name -&gt; Map Name typ)
+-&gt; BiMultimap typ Name
+-&gt; Map Name (Synhashed typ)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BiMultimap typ Name -&gt; Map Name typ
+forall a b. BiMultimap a b -&gt; Map b a
+</span><span class="hs-identifier hs-var">BiMultimap.range</span></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621679189302"><span class="annot"><span class="annottext">hashTerm1 :: Name -&gt; term -&gt; Synhashed term
+</span><a href="#local-6989586621679189302"><span class="hs-identifier hs-var hs-var">hashTerm1</span></a></span></span><span> </span><span id="local-6989586621679189306"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189306"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679189307"><span class="annot"><span class="annottext">term
+</span><a href="#local-6989586621679189307"><span class="hs-identifier hs-var">term</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>      </span><span class="annot"><span class="annottext">Hash -&gt; term -&gt; Synhashed term
+forall a. Hash -&gt; a -&gt; Synhashed a
+</span><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-var">Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; term -&gt; Hash
+</span><a href="#local-6989586621679189298"><span class="hs-identifier hs-var">hashTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189306"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">term
+</span><a href="#local-6989586621679189307"><span class="hs-identifier hs-var">term</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">term
+</span><a href="#local-6989586621679189307"><span class="hs-identifier hs-var">term</span></a></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span>    </span><span id="local-6989586621679189305"><span class="annot"><span class="annottext">hashType1 :: Name -&gt; typ -&gt; Synhashed typ
+</span><a href="#local-6989586621679189305"><span class="hs-identifier hs-var hs-var">hashType1</span></a></span></span><span> </span><span id="local-6989586621679189309"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189309"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679189310"><span class="annot"><span class="annottext">typ
+</span><a href="#local-6989586621679189310"><span class="hs-identifier hs-var">typ</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-184"></span><span>      </span><span class="annot"><span class="annottext">Hash -&gt; typ -&gt; Synhashed typ
+forall a. Hash -&gt; a -&gt; Synhashed a
+</span><a href="Unison.Merge.Synhashed.html#Synhashed"><span class="hs-identifier hs-var">Synhashed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; typ -&gt; Hash
+</span><a href="#local-6989586621679189299"><span class="hs-identifier hs-var">hashType</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189309"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">typ
+</span><a href="#local-6989586621679189310"><span class="hs-identifier hs-var">typ</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">typ
+</span><a href="#local-6989586621679189310"><span class="hs-identifier hs-var">typ</span></a></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">------------------------------------------------------------------------------------------------------------------------</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- Pretty-print env helpers</span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="annot"><a href="Unison.Merge.Diff.html#deepNamespaceDefinitionsToPpe"><span class="hs-identifier hs-type">deepNamespaceDefinitionsToPpe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Referent</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReference</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnv</span></span><span>
+</span><span id="line-190"></span><span id="deepNamespaceDefinitionsToPpe"><span class="annot"><span class="annottext">deepNamespaceDefinitionsToPpe :: Defns (BiMultimap Referent Name) (BiMultimap Reference Name)
+-&gt; PrettyPrintEnv
+</span><a href="Unison.Merge.Diff.html#deepNamespaceDefinitionsToPpe"><span class="hs-identifier hs-var hs-var">deepNamespaceDefinitionsToPpe</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Defns</span></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679189312"><span class="annot"><span class="annottext">BiMultimap Referent Name
+terms :: BiMultimap Referent Name
+$sel:terms:Defns :: forall terms types. Defns terms types -&gt; terms
+</span><a href="#local-6989586621679189312"><span class="hs-identifier hs-var hs-var">terms</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679189314"><span class="annot"><span class="annottext">BiMultimap Reference Name
+types :: BiMultimap Reference Name
+$sel:types:Defns :: forall terms types. Defns terms types -&gt; types
+</span><a href="#local-6989586621679189314"><span class="hs-identifier hs-var hs-var">types</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">(Referent -&gt; [(HashQualified Name, HashQualified Name)])
+-&gt; (Reference -&gt; [(HashQualified Name, HashQualified Name)])
+-&gt; PrettyPrintEnv
+</span><span class="hs-identifier hs-var">PrettyPrintEnv</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap Referent Name
+-&gt; Referent -&gt; [(HashQualified Name, HashQualified Name)]
+forall ref.
+Ord ref =&gt;
+BiMultimap ref Name
+-&gt; ref -&gt; [(HashQualified Name, HashQualified Name)]
+</span><a href="#local-6989586621679189317"><span class="hs-identifier hs-var">arbitraryName</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap Referent Name
+</span><a href="#local-6989586621679189312"><span class="hs-identifier hs-var">terms</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BiMultimap Reference Name
+-&gt; Reference -&gt; [(HashQualified Name, HashQualified Name)]
+forall ref.
+Ord ref =&gt;
+BiMultimap ref Name
+-&gt; ref -&gt; [(HashQualified Name, HashQualified Name)]
+</span><a href="#local-6989586621679189317"><span class="hs-identifier hs-var">arbitraryName</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap Reference Name
+</span><a href="#local-6989586621679189314"><span class="hs-identifier hs-var">types</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679189089"><span class="annot"><a href="#local-6989586621679189317"><span class="hs-identifier hs-type">arbitraryName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679189089"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BiMultimap</span></span><span> </span><span class="annot"><a href="#local-6989586621679189089"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679189089"><span class="hs-identifier hs-type">ref</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HQ'.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HQ'.HashQualified</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679189317"><span class="annot"><span class="annottext">arbitraryName :: forall ref.
+Ord ref =&gt;
+BiMultimap ref Name
+-&gt; ref -&gt; [(HashQualified Name, HashQualified Name)]
+</span><a href="#local-6989586621679189317"><span class="hs-identifier hs-var hs-var">arbitraryName</span></a></span></span><span> </span><span id="local-6989586621679189320"><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679189320"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621679189321"><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679189321"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-195"></span><span>      </span><span class="annot"><span class="annottext">ref -&gt; BiMultimap ref Name -&gt; Set Name
+forall a b. Ord a =&gt; a -&gt; BiMultimap a b -&gt; Set b
+</span><span class="hs-identifier hs-var">BiMultimap.lookupDom</span></span><span> </span><span class="annot"><span class="annottext">ref
+</span><a href="#local-6989586621679189321"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">BiMultimap ref Name
+</span><a href="#local-6989586621679189320"><span class="hs-identifier hs-var">names</span></a></span><span>
+</span><span id="line-196"></span><span>        </span><span class="annot"><span class="annottext">Set Name -&gt; (Set Name -&gt; Maybe Name) -&gt; Maybe Name
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">Set Name -&gt; Maybe Name
+forall a. Set a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Set.lookupMin</span></span><span>
+</span><span id="line-197"></span><span>        </span><span class="annot"><span class="annottext">Maybe Name
+-&gt; (Maybe Name -&gt; [(HashQualified Name, HashQualified Name)])
+-&gt; [(HashQualified Name, HashQualified Name)]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[(HashQualified Name, HashQualified Name)]
+-&gt; (Name -&gt; [(HashQualified Name, HashQualified Name)])
+-&gt; Maybe Name
+-&gt; [(HashQualified Name, HashQualified Name)]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679189325"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189325"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name -&gt; HashQualified Name
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ'.NameOnly</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189325"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name -&gt; HashQualified Name
+forall n. n -&gt; HashQualified n
+</span><span class="hs-identifier hs-var">HQ'.NameOnly</span></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679189325"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="hs-comment">------------------------------------------------------------------------------------------------------------------------</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- Looking up terms and decls that we expect to be there</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="annot"><a href="Unison.Merge.Diff.html#expectTerm"><span class="hs-identifier hs-type">expectTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TermReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Term</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span>
+</span><span id="line-203"></span><span id="expectTerm"><span class="annot"><span class="annottext">expectTerm :: HasCallStack =&gt;
+TermReferenceId
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Term Symbol Ann
+</span><a href="Unison.Merge.Diff.html#expectTerm"><span class="hs-identifier hs-var hs-var">expectTerm</span></a></span></span><span> </span><span id="local-6989586621679189347"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189347"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679189348"><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann)
+</span><a href="#local-6989586621679189348"><span class="hs-identifier hs-var">termsById</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+-&gt; Map TermReferenceId (Term Symbol Ann) -&gt; Maybe (Term Symbol Ann)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189347"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann)
+</span><a href="#local-6989586621679189348"><span class="hs-identifier hs-var">termsById</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-205"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Term Symbol Ann)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Term Symbol Ann
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><span class="hs-identifier hs-var">reportBug</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;E488229&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;term ref &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189347"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot; not found in map &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann) -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Term Symbol Ann)
+</span><a href="#local-6989586621679189348"><span class="hs-identifier hs-var">termsById</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-206"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679189352"><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621679189352"><span class="hs-identifier hs-var">term</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Term Symbol Ann
+</span><a href="#local-6989586621679189352"><span class="hs-identifier hs-var">term</span></a></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="annot"><a href="Unison.Merge.Diff.html#expectDecl"><span class="hs-identifier hs-type">expectDecl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeReferenceId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Decl</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ann</span></span><span>
+</span><span id="line-209"></span><span id="expectDecl"><span class="annot"><span class="annottext">expectDecl :: HasCallStack =&gt;
+TermReferenceId
+-&gt; Map TermReferenceId (Decl Symbol Ann) -&gt; Decl Symbol Ann
+</span><a href="Unison.Merge.Diff.html#expectDecl"><span class="hs-identifier hs-var hs-var">expectDecl</span></a></span></span><span> </span><span id="local-6989586621679189372"><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189372"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679189373"><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621679189373"><span class="hs-identifier hs-var">declsById</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+-&gt; Map TermReferenceId (Decl Symbol Ann) -&gt; Maybe (Decl Symbol Ann)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189372"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621679189373"><span class="hs-identifier hs-var">declsById</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-211"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Decl Symbol Ann)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Decl Symbol Ann
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+</span><span class="hs-identifier hs-var">reportBug</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;E663160&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;type ref &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">TermReferenceId
+</span><a href="#local-6989586621679189372"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot; not found in map &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann) -&gt; [Char]
+forall a. Show a =&gt; a -&gt; [Char]
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Map TermReferenceId (Decl Symbol Ann)
+</span><a href="#local-6989586621679189373"><span class="hs-identifier hs-var">declsById</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679189374"><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621679189374"><span class="hs-identifier hs-var">decl</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decl Symbol Ann
+</span><a href="#local-6989586621679189374"><span class="hs-identifier hs-var">decl</span></a></span><span>
+</span><span id="line-213"></span></pre></body></html>

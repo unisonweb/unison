@@ -1,0 +1,495 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.X509</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Public keys, certificates and CRLs.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Presents an API similar to &quot;Data.X509.Memory&quot; and &quot;Data.X509.File&quot; but</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- provides support for public-key files and allows to write objects.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Functions related to private keys are available from &quot;Crypto.Store.PKCS8&quot;.</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-16"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.X509</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier">SignedObject</span></a></span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Public keys</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#readPubKeyFile"><span class="hs-identifier">readPubKeyFile</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#readPubKeyFileFromMemory"><span class="hs-identifier">readPubKeyFileFromMemory</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#pemToPubKey"><span class="hs-identifier">pemToPubKey</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#writePubKeyFile"><span class="hs-identifier">writePubKeyFile</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#writePubKeyFileToMemory"><span class="hs-identifier">writePubKeyFileToMemory</span></a></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#pubKeyToPEM"><span class="hs-identifier">pubKeyToPEM</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Signed objects</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#readSignedObject"><span class="hs-identifier">readSignedObject</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#readSignedObjectFromMemory"><span class="hs-identifier">readSignedObjectFromMemory</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#writeSignedObject"><span class="hs-identifier">writeSignedObject</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#writeSignedObjectToMemory"><span class="hs-identifier">writeSignedObjectToMemory</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Reading and writing PEM files</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PEM.html#readPEMs"><span class="hs-identifier">readPEMs</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.PEM.html#writePEMs"><span class="hs-identifier">writePEMs</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.BinaryEncoding</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Encoding</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.X509</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X509</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Crypto.Number.Basic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">numBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.PubKey.RSA</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">RSA</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.PEM.html"><span class="hs-identifier">Crypto.Store.PEM</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Class of signed objects convertible to PEM.</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ASN1Object</span></span><span> </span><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="SignedObject"><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-var">SignedObject</span></a></span></span><span> </span><span id="local-6989586621679163239"><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>    </span><span id="signedObjectName"><span class="annot"><a href="Crypto.Store.X509.html#signedObjectName"><span class="hs-identifier hs-type">signedObjectName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679163243"><span class="annot"><a href="#local-6989586621679163243"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span></span><span>
+</span><span id="line-55"></span><span>    </span><span id="otherObjectNames"><span class="annot"><a href="Crypto.Store.X509.html#otherObjectNames"><span class="hs-identifier hs-type">otherObjectNames</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679163244"><span class="annot"><a href="#local-6989586621679163244"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163239"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.Certificate</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679163383"><span class="annot"><span class="annottext">signedObjectName :: forall (proxy :: * -&gt; *). proxy Certificate -&gt; String
+</span><a href="Crypto.Store.X509.html#signedObjectName"><span class="hs-identifier hs-var hs-var hs-var hs-var">signedObjectName</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy Certificate
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CERTIFICATE&quot;</span></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679163384"><span class="annot"><span class="annottext">otherObjectNames :: forall (proxy :: * -&gt; *). proxy Certificate -&gt; [String]
+</span><a href="Crypto.Store.X509.html#otherObjectNames"><span class="hs-identifier hs-var hs-var hs-var hs-var">otherObjectNames</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy Certificate
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X509 CERTIFICATE&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.CRL</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679163397"><span class="annot"><span class="annottext">signedObjectName :: forall (proxy :: * -&gt; *). proxy CRL -&gt; String
+</span><a href="Crypto.Store.X509.html#signedObjectName"><span class="hs-identifier hs-var hs-var hs-var hs-var">signedObjectName</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy CRL
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X509 CRL&quot;</span></span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679163398"><span class="annot"><span class="annottext">otherObjectNames :: forall (proxy :: * -&gt; *). proxy CRL -&gt; [String]
+</span><a href="Crypto.Store.X509.html#otherObjectNames"><span class="hs-identifier hs-var hs-var hs-var hs-var">otherObjectNames</span></a></span></span><span> </span><span class="annot"><span class="annottext">proxy CRL
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span id="local-6989586621679163251"><span id="local-6989586621679163252"><span class="annot"><a href="Crypto.Store.X509.html#validObjectName"><span class="hs-identifier hs-type">validObjectName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163251"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679163252"><span class="hs-identifier hs-type">proxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163251"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-66"></span><span id="validObjectName"><span class="annot"><span class="annottext">validObjectName :: forall a (proxy :: * -&gt; *).
+SignedObject a =&gt;
+proxy a -&gt; String -&gt; Bool
+</span><a href="Crypto.Store.X509.html#validObjectName"><span class="hs-identifier hs-var hs-var">validObjectName</span></a></span></span><span> </span><span id="local-6989586621679163409"><span class="annot"><span class="annottext">proxy a
+</span><a href="#local-6989586621679163409"><span class="hs-identifier hs-var">prx</span></a></span></span><span> </span><span id="local-6989586621679163410"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163410"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163410"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">proxy a -&gt; String
+forall a (proxy :: * -&gt; *). SignedObject a =&gt; proxy a -&gt; String
+forall (proxy :: * -&gt; *). proxy a -&gt; String
+</span><a href="Crypto.Store.X509.html#signedObjectName"><span class="hs-identifier hs-var">signedObjectName</span></a></span><span> </span><span class="annot"><span class="annottext">proxy a
+</span><a href="#local-6989586621679163409"><span class="hs-identifier hs-var">prx</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163410"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; [String] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">proxy a -&gt; [String]
+forall a (proxy :: * -&gt; *). SignedObject a =&gt; proxy a -&gt; [String]
+forall (proxy :: * -&gt; *). proxy a -&gt; [String]
+</span><a href="Crypto.Store.X509.html#otherObjectNames"><span class="hs-identifier hs-var">otherObjectNames</span></a></span><span> </span><span class="annot"><span class="annottext">proxy a
+</span><a href="#local-6989586621679163409"><span class="hs-identifier hs-var">prx</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- Reading from PEM format</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Read public keys from a PEM file.</span></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Crypto.Store.X509.html#readPubKeyFile"><span class="hs-identifier hs-type">readPubKeyFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span>
+</span><span id="line-74"></span><span id="readPubKeyFile"><span class="annot"><span class="annottext">readPubKeyFile :: String -&gt; IO [PubKey]
+</span><a href="Crypto.Store.X509.html#readPubKeyFile"><span class="hs-identifier hs-var hs-var">readPubKeyFile</span></a></span></span><span> </span><span id="local-6989586621679163414"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163414"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; [PubKey]
+</span><a href="Crypto.Store.X509.html#accumulate"><span class="hs-identifier hs-var">accumulate</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; [PubKey]) -&gt; IO [PEM] -&gt; IO [PubKey]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [PEM]
+</span><a href="Crypto.Store.PEM.html#readPEMs"><span class="hs-identifier hs-var">readPEMs</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163414"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Read public keys from a bytearray in PEM format.</span></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Crypto.Store.X509.html#readPubKeyFileFromMemory"><span class="hs-identifier hs-type">readPubKeyFileFromMemory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span id="readPubKeyFileFromMemory"><span class="annot"><span class="annottext">readPubKeyFileFromMemory :: ByteString -&gt; [PubKey]
+</span><a href="Crypto.Store.X509.html#readPubKeyFileFromMemory"><span class="hs-identifier hs-var hs-var">readPubKeyFileFromMemory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; [PubKey])
+-&gt; ([PEM] -&gt; [PubKey]) -&gt; Either String [PEM] -&gt; [PubKey]
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[PubKey] -&gt; String -&gt; [PubKey]
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; [PubKey]
+</span><a href="Crypto.Store.X509.html#accumulate"><span class="hs-identifier hs-var">accumulate</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String [PEM] -&gt; [PubKey])
+-&gt; (ByteString -&gt; Either String [PEM]) -&gt; ByteString -&gt; [PubKey]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either String [PEM]
+</span><span class="hs-identifier hs-var">pemParseBS</span></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Crypto.Store.X509.html#accumulate"><span class="hs-identifier hs-type">accumulate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span id="accumulate"><span class="annot"><span class="annottext">accumulate :: [PEM] -&gt; [PubKey]
+</span><a href="Crypto.Store.X509.html#accumulate"><span class="hs-identifier hs-var hs-var">accumulate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Maybe PubKey] -&gt; [PubKey]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="annot"><span class="annottext">([Maybe PubKey] -&gt; [PubKey])
+-&gt; ([PEM] -&gt; [Maybe PubKey]) -&gt; [PEM] -&gt; [PubKey]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(PEM -&gt; [Maybe PubKey] -&gt; [Maybe PubKey])
+-&gt; [Maybe PubKey] -&gt; [PEM] -&gt; [Maybe PubKey]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([Maybe PubKey] -&gt; PEM -&gt; [Maybe PubKey])
+-&gt; PEM -&gt; [Maybe PubKey] -&gt; [Maybe PubKey]
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">[Maybe PubKey] -&gt; PEM -&gt; [Maybe PubKey]
+</span><a href="Crypto.Store.X509.html#pemToPubKey"><span class="hs-identifier hs-var">pemToPubKey</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><span class="hs-comment">-- | Read a public key from a 'PEM' element and add it to the accumulator list.</span></span><span>
+</span><span id="line-84"></span><span class="annot"><a href="Crypto.Store.X509.html#pemToPubKey"><span class="hs-identifier hs-type">pemToPubKey</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span>
+</span><span id="line-85"></span><span id="pemToPubKey"><span class="annot"><span class="annottext">pemToPubKey :: [Maybe PubKey] -&gt; PEM -&gt; [Maybe PubKey]
+</span><a href="Crypto.Store.X509.html#pemToPubKey"><span class="hs-identifier hs-var hs-var">pemToPubKey</span></a></span></span><span> </span><span id="local-6989586621679163425"><span class="annot"><span class="annottext">[Maybe PubKey]
+</span><a href="#local-6989586621679163425"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679163426"><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163426"><span class="hs-identifier hs-var">pem</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">BER -&gt; ByteString -&gt; Either ASN1Error [ASN1]
+forall a.
+ASN1Decoding a =&gt;
+a -&gt; ByteString -&gt; Either ASN1Error [ASN1]
+</span><span class="hs-identifier hs-var">decodeASN1'</span></span><span> </span><span class="annot"><span class="annottext">BER
+</span><span class="hs-identifier hs-var">BER</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PEM -&gt; ByteString
+</span><span class="hs-identifier hs-var">pemContent</span></span><span> </span><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163426"><span class="hs-identifier hs-var">pem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-87"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">ASN1Error
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Maybe PubKey]
+</span><a href="#local-6989586621679163425"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679163430"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679163430"><span class="hs-identifier hs-var">asn1</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">([ASN1] -&gt; Either String (PubKey, [ASN1]))
+-&gt; [ASN1] -&gt; Maybe PubKey
+forall {t} {a} {a} {a}. (t -&gt; Either a (a, [a])) -&gt; t -&gt; Maybe a
+</span><a href="#local-6989586621679163431"><span class="hs-identifier hs-var">run</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; [ASN1] -&gt; Either String (PubKey, [ASN1])
+</span><a href="#local-6989586621679163432"><span class="hs-identifier hs-var">getParser</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; [ASN1] -&gt; Either String (PubKey, [ASN1]))
+-&gt; String -&gt; [ASN1] -&gt; Either String (PubKey, [ASN1])
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PEM -&gt; String
+</span><span class="hs-identifier hs-var">pemName</span></span><span> </span><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163426"><span class="hs-identifier hs-var">pem</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679163430"><span class="hs-identifier hs-var">asn1</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe PubKey -&gt; [Maybe PubKey] -&gt; [Maybe PubKey]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Maybe PubKey]
+</span><a href="#local-6989586621679163425"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679163431"><span class="annot"><span class="annottext">run :: (t -&gt; Either a (a, [a])) -&gt; t -&gt; Maybe a
+</span><a href="#local-6989586621679163431"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span id="local-6989586621679163434"><span class="annot"><span class="annottext">t -&gt; Either a (a, [a])
+</span><a href="#local-6989586621679163434"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679163435"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679163435"><span class="hs-identifier hs-var">asn1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">t -&gt; Either a (a, [a])
+</span><a href="#local-6989586621679163434"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679163435"><span class="hs-identifier hs-var">asn1</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-93"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679163436"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679163436"><span class="hs-identifier hs-var">pubKey</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679163436"><span class="hs-identifier hs-var">pubKey</span></a></span><span>
+</span><span id="line-94"></span><span>            </span><span class="annot"><span class="annottext">Either a (a, [a])
+</span><span class="hs-identifier">_</span></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679163432"><span class="annot"><span class="annottext">getParser :: String -&gt; [ASN1] -&gt; Either String (PubKey, [ASN1])
+</span><a href="#local-6989586621679163432"><span class="hs-identifier hs-var hs-var">getParser</span></a></span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PUBLIC KEY&quot;</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; Either String (PubKey, [ASN1])
+forall a. ASN1Object a =&gt; [ASN1] -&gt; Either String (a, [ASN1])
+</span><span class="hs-identifier hs-var">fromASN1</span></span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><a href="#local-6989586621679163432"><span class="hs-identifier hs-var">getParser</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RSA PUBLIC KEY&quot;</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParseASN1 () PubKey -&gt; [ASN1] -&gt; Either String (PubKey, [ASN1])
+forall a. ParseASN1 () a -&gt; [ASN1] -&gt; Either String (a, [ASN1])
+</span><a href="Crypto.Store.ASN1.Parse.html#runParseASN1State"><span class="hs-identifier hs-var">runParseASN1State</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 () PubKey
+</span><a href="#local-6989586621679163443"><span class="hs-identifier hs-var">rsapkParser</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><a href="#local-6989586621679163432"><span class="hs-identifier hs-var">getParser</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span>                      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either String (PubKey, [ASN1])
+-&gt; [ASN1] -&gt; Either String (PubKey, [ASN1])
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Either String (PubKey, [ASN1])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679163443"><span class="annot"><span class="annottext">rsapkParser :: ParseASN1 () PubKey
+</span><a href="#local-6989586621679163443"><span class="hs-identifier hs-var hs-var">rsapkParser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-type">RSAPublicKey</span></a></span><span> </span><span id="local-6989586621679163454"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163454"><span class="hs-identifier hs-var">pub</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PublicKey -&gt; PubKey
+</span><span class="hs-identifier hs-var">X509.PubKeyRSA</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163454"><span class="hs-identifier hs-var">pub</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(RSAPublicKey -&gt; PubKey)
+-&gt; ParseASN1 () RSAPublicKey -&gt; ParseASN1 () PubKey
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 () RSAPublicKey
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><span class="hs-comment">-- | Read signed objects from a PEM file (only one type at a time).</span></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679163304"><span class="annot"><a href="Crypto.Store.X509.html#readSignedObject"><span class="hs-identifier hs-type">readSignedObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163304"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163304"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-104"></span><span id="readSignedObject"><span class="annot"><span class="annottext">readSignedObject :: forall a. SignedObject a =&gt; String -&gt; IO [SignedExact a]
+</span><a href="Crypto.Store.X509.html#readSignedObject"><span class="hs-identifier hs-var hs-var">readSignedObject</span></a></span></span><span> </span><span id="local-6989586621679163460"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163460"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; [SignedExact a]
+forall a. SignedObject a =&gt; [PEM] -&gt; [SignedExact a]
+</span><a href="Crypto.Store.X509.html#accumulate%27"><span class="hs-identifier hs-var">accumulate'</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; [SignedExact a]) -&gt; IO [PEM] -&gt; IO [SignedExact a]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [PEM]
+</span><a href="Crypto.Store.PEM.html#readPEMs"><span class="hs-identifier hs-var">readPEMs</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163460"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | Read signed objects from a bytearray in PEM format (only one type at a</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- time).</span><span>
+</span><span id="line-108"></span><span id="local-6989586621679163308"><span class="annot"><a href="Crypto.Store.X509.html#readSignedObjectFromMemory"><span class="hs-identifier hs-type">readSignedObjectFromMemory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163308"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-109"></span><span>                           </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-110"></span><span>                           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163308"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-111"></span><span id="readSignedObjectFromMemory"><span class="annot"><span class="annottext">readSignedObjectFromMemory :: forall a. SignedObject a =&gt; ByteString -&gt; [SignedExact a]
+</span><a href="Crypto.Store.X509.html#readSignedObjectFromMemory"><span class="hs-identifier hs-var hs-var">readSignedObjectFromMemory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(String -&gt; [SignedExact a])
+-&gt; ([PEM] -&gt; [SignedExact a])
+-&gt; Either String [PEM]
+-&gt; [SignedExact a]
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[SignedExact a] -&gt; String -&gt; [SignedExact a]
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; [SignedExact a]
+forall a. SignedObject a =&gt; [PEM] -&gt; [SignedExact a]
+</span><a href="Crypto.Store.X509.html#accumulate%27"><span class="hs-identifier hs-var">accumulate'</span></a></span><span> </span><span class="annot"><span class="annottext">(Either String [PEM] -&gt; [SignedExact a])
+-&gt; (ByteString -&gt; Either String [PEM])
+-&gt; ByteString
+-&gt; [SignedExact a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either String [PEM]
+</span><span class="hs-identifier hs-var">pemParseBS</span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="annot"><a href="Crypto.Store.X509.html#accumulate%27"><span class="hs-identifier hs-type">accumulate'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679163307"><span class="annot"><a href="#local-6989586621679163307"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163307"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163307"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-114"></span><span id="accumulate%27"><span class="annot"><span class="annottext">accumulate' :: forall a. SignedObject a =&gt; [PEM] -&gt; [SignedExact a]
+</span><a href="Crypto.Store.X509.html#accumulate%27"><span class="hs-identifier hs-var hs-var">accumulate'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(PEM -&gt; [SignedExact a] -&gt; [SignedExact a])
+-&gt; [SignedExact a] -&gt; [PEM] -&gt; [SignedExact a]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">PEM -&gt; [SignedExact a] -&gt; [SignedExact a]
+forall {a}.
+(ASN1Object a, Eq a, Show a) =&gt;
+PEM -&gt; [SignedExact a] -&gt; [SignedExact a]
+</span><a href="#local-6989586621679163472"><span class="hs-identifier hs-var">pemToSigned</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679163473"><span class="annot"><span class="annottext">prx :: Proxy a
+</span><a href="#local-6989586621679163473"><span class="hs-identifier hs-var hs-var">prx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy a
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679163307"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679163472"><span class="annot"><span class="annottext">pemToSigned :: PEM -&gt; [SignedExact a] -&gt; [SignedExact a]
+</span><a href="#local-6989586621679163472"><span class="hs-identifier hs-var hs-var">pemToSigned</span></a></span></span><span> </span><span id="local-6989586621679163485"><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163485"><span class="hs-identifier hs-var">pem</span></a></span></span><span> </span><span id="local-6989586621679163486"><span class="annot"><span class="annottext">[SignedExact a]
+</span><a href="#local-6989586621679163486"><span class="hs-identifier hs-var">acc</span></a></span></span><span>
+</span><span id="line-119"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; String -&gt; Bool
+forall a (proxy :: * -&gt; *).
+SignedObject a =&gt;
+proxy a -&gt; String -&gt; Bool
+</span><a href="Crypto.Store.X509.html#validObjectName"><span class="hs-identifier hs-var">validObjectName</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621679163473"><span class="hs-identifier hs-var">prx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PEM -&gt; String
+</span><span class="hs-identifier hs-var">pemName</span></span><span> </span><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163485"><span class="hs-identifier hs-var">pem</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Either String (SignedExact a)
+forall a.
+(Show a, Eq a, ASN1Object a) =&gt;
+ByteString -&gt; Either String (SignedExact a)
+</span><span class="hs-identifier hs-var">X509.decodeSignedObject</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Either String (SignedExact a))
+-&gt; ByteString -&gt; Either String (SignedExact a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PEM -&gt; ByteString
+</span><span class="hs-identifier hs-var">pemContent</span></span><span> </span><span class="annot"><span class="annottext">PEM
+</span><a href="#local-6989586621679163485"><span class="hs-identifier hs-var">pem</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-121"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SignedExact a]
+</span><a href="#local-6989586621679163486"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-122"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679163488"><span class="annot"><span class="annottext">SignedExact a
+</span><a href="#local-6989586621679163488"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SignedExact a
+</span><a href="#local-6989586621679163488"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">SignedExact a -&gt; [SignedExact a] -&gt; [SignedExact a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[SignedExact a]
+</span><a href="#local-6989586621679163486"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-123"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SignedExact a]
+</span><a href="#local-6989586621679163486"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- Writing to PEM format</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><span class="hs-comment">-- | Write public keys to a PEM file.</span></span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Crypto.Store.X509.html#writePubKeyFile"><span class="hs-identifier hs-type">writePubKeyFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span id="writePubKeyFile"><span class="annot"><span class="annottext">writePubKeyFile :: String -&gt; [PubKey] -&gt; IO ()
+</span><a href="Crypto.Store.X509.html#writePubKeyFile"><span class="hs-identifier hs-var hs-var">writePubKeyFile</span></a></span></span><span> </span><span id="local-6989586621679163489"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163489"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [PEM] -&gt; IO ()
+</span><a href="Crypto.Store.PEM.html#writePEMs"><span class="hs-identifier hs-var">writePEMs</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163489"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; IO ()) -&gt; ([PubKey] -&gt; [PEM]) -&gt; [PubKey] -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(PubKey -&gt; PEM) -&gt; [PubKey] -&gt; [PEM]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">PubKey -&gt; PEM
+</span><a href="Crypto.Store.X509.html#pubKeyToPEM"><span class="hs-identifier hs-var">pubKeyToPEM</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | Write public keys to a bytearray in PEM format.</span></span><span>
+</span><span id="line-133"></span><span class="annot"><a href="Crypto.Store.X509.html#writePubKeyFileToMemory"><span class="hs-identifier hs-type">writePubKeyFileToMemory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-134"></span><span id="writePubKeyFileToMemory"><span class="annot"><span class="annottext">writePubKeyFileToMemory :: [PubKey] -&gt; ByteString
+</span><a href="Crypto.Store.X509.html#writePubKeyFileToMemory"><span class="hs-identifier hs-var hs-var">writePubKeyFileToMemory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; ByteString
+</span><a href="Crypto.Store.PEM.html#pemsWriteBS"><span class="hs-identifier hs-var">pemsWriteBS</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; ByteString)
+-&gt; ([PubKey] -&gt; [PEM]) -&gt; [PubKey] -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(PubKey -&gt; PEM) -&gt; [PubKey] -&gt; [PEM]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">PubKey -&gt; PEM
+</span><a href="Crypto.Store.X509.html#pubKeyToPEM"><span class="hs-identifier hs-var">pubKeyToPEM</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><span class="hs-comment">-- | Generate a PEM for a public key.</span></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Crypto.Store.X509.html#pubKeyToPEM"><span class="hs-identifier hs-type">pubKeyToPEM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.PubKey</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span>
+</span><span id="line-138"></span><span id="pubKeyToPEM"><span class="annot"><span class="annottext">pubKeyToPEM :: PubKey -&gt; PEM
+</span><a href="Crypto.Store.X509.html#pubKeyToPEM"><span class="hs-identifier hs-var hs-var">pubKeyToPEM</span></a></span></span><span> </span><span id="local-6989586621679163491"><span class="annot"><span class="annottext">PubKey
+</span><a href="#local-6989586621679163491"><span class="hs-identifier hs-var">pubKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ByteString -&gt; PEM
+</span><a href="Crypto.Store.X509.html#mkPEM"><span class="hs-identifier hs-var">mkPEM</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PUBLIC KEY&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1PS -&gt; ByteString
+</span><a href="Crypto.Store.ASN1.Generate.html#encodeASN1S"><span class="hs-identifier hs-var">encodeASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1PS -&gt; ByteString) -&gt; ASN1PS -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1PS
+forall e. ASN1Elem e =&gt; [ASN1] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var">gMany</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679163495"><span class="hs-identifier hs-var">asn1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679163495"><span class="annot"><span class="annottext">asn1 :: [ASN1]
+</span><a href="#local-6989586621679163495"><span class="hs-identifier hs-var hs-var">asn1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PubKey -&gt; ASN1S
+forall a. ASN1Object a =&gt; a -&gt; ASN1S
+</span><span class="hs-identifier hs-var">toASN1</span></span><span> </span><span class="annot"><span class="annottext">PubKey
+</span><a href="#local-6989586621679163491"><span class="hs-identifier hs-var">pubKey</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><span class="hs-comment">-- | Write signed objects to a PEM file.</span></span><span>
+</span><span id="line-142"></span><span id="local-6989586621679163322"><span class="annot"><a href="Crypto.Store.X509.html#writeSignedObject"><span class="hs-identifier hs-type">writeSignedObject</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163322"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163322"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-143"></span><span id="writeSignedObject"><span class="annot"><span class="annottext">writeSignedObject :: forall a. SignedObject a =&gt; String -&gt; [SignedExact a] -&gt; IO ()
+</span><a href="Crypto.Store.X509.html#writeSignedObject"><span class="hs-identifier hs-var hs-var">writeSignedObject</span></a></span></span><span> </span><span id="local-6989586621679163500"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163500"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; [PEM] -&gt; IO ()
+</span><a href="Crypto.Store.PEM.html#writePEMs"><span class="hs-identifier hs-var">writePEMs</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163500"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; IO ())
+-&gt; ([SignedExact a] -&gt; [PEM]) -&gt; [SignedExact a] -&gt; IO ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(SignedExact a -&gt; PEM) -&gt; [SignedExact a] -&gt; [PEM]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">SignedExact a -&gt; PEM
+forall a. SignedObject a =&gt; SignedExact a -&gt; PEM
+</span><a href="Crypto.Store.X509.html#signedToPEM"><span class="hs-identifier hs-var">signedToPEM</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="annot"><span class="hs-comment">-- | Write signed objects to a bytearray in PEM format.</span></span><span>
+</span><span id="line-146"></span><span id="local-6989586621679163325"><span class="annot"><a href="Crypto.Store.X509.html#writeSignedObjectToMemory"><span class="hs-identifier hs-type">writeSignedObjectToMemory</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163325"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163325"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span></span><span>
+</span><span id="line-147"></span><span id="writeSignedObjectToMemory"><span class="annot"><span class="annottext">writeSignedObjectToMemory :: forall a. SignedObject a =&gt; [SignedExact a] -&gt; ByteString
+</span><a href="Crypto.Store.X509.html#writeSignedObjectToMemory"><span class="hs-identifier hs-var hs-var">writeSignedObjectToMemory</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PEM] -&gt; ByteString
+</span><a href="Crypto.Store.PEM.html#pemsWriteBS"><span class="hs-identifier hs-var">pemsWriteBS</span></a></span><span> </span><span class="annot"><span class="annottext">([PEM] -&gt; ByteString)
+-&gt; ([SignedExact a] -&gt; [PEM]) -&gt; [SignedExact a] -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(SignedExact a -&gt; PEM) -&gt; [SignedExact a] -&gt; [PEM]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">SignedExact a -&gt; PEM
+forall a. SignedObject a =&gt; SignedExact a -&gt; PEM
+</span><a href="Crypto.Store.X509.html#signedToPEM"><span class="hs-identifier hs-var">signedToPEM</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Crypto.Store.X509.html#signedToPEM"><span class="hs-identifier hs-type">signedToPEM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679163324"><span class="annot"><a href="#local-6989586621679163324"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#SignedObject"><span class="hs-identifier hs-type">SignedObject</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163324"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">X509.SignedExact</span></span><span> </span><span class="annot"><a href="#local-6989586621679163324"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span>
+</span><span id="line-150"></span><span id="signedToPEM"><span class="annot"><span class="annottext">signedToPEM :: forall a. SignedObject a =&gt; SignedExact a -&gt; PEM
+</span><a href="Crypto.Store.X509.html#signedToPEM"><span class="hs-identifier hs-var hs-var">signedToPEM</span></a></span></span><span> </span><span id="local-6989586621679163512"><span class="annot"><span class="annottext">SignedExact a
+</span><a href="#local-6989586621679163512"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ByteString -&gt; PEM
+</span><a href="Crypto.Store.X509.html#mkPEM"><span class="hs-identifier hs-var">mkPEM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; String
+forall a (proxy :: * -&gt; *). SignedObject a =&gt; proxy a -&gt; String
+forall (proxy :: * -&gt; *). proxy a -&gt; String
+</span><a href="Crypto.Store.X509.html#signedObjectName"><span class="hs-identifier hs-var">signedObjectName</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621679163513"><span class="hs-identifier hs-var">prx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SignedExact a -&gt; ByteString
+forall a.
+(Show a, Eq a, ASN1Object a) =&gt;
+SignedExact a -&gt; ByteString
+</span><span class="hs-identifier hs-var">X509.encodeSignedObject</span></span><span> </span><span class="annot"><span class="annottext">SignedExact a
+</span><a href="#local-6989586621679163512"><span class="hs-identifier hs-var">obj</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679163513"><span class="annot"><span class="annottext">prx :: Proxy a
+</span><a href="#local-6989586621679163513"><span class="hs-identifier hs-var hs-var">prx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy a
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679163324"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Crypto.Store.X509.html#mkPEM"><span class="hs-identifier hs-type">mkPEM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span>
+</span><span id="line-154"></span><span id="mkPEM"><span class="annot"><span class="annottext">mkPEM :: String -&gt; ByteString -&gt; PEM
+</span><a href="Crypto.Store.X509.html#mkPEM"><span class="hs-identifier hs-var hs-var">mkPEM</span></a></span></span><span> </span><span id="local-6989586621679163515"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163515"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679163516"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679163516"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PEM</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pemName :: String
+</span><span class="hs-identifier hs-var">pemName</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679163515"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pemHeader :: [(String, ByteString)]
+</span><span class="hs-identifier hs-var">pemHeader</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pemContent :: ByteString
+</span><span class="hs-identifier hs-var">pemContent</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679163516"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- RSA public keys</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">newtype</span><span> </span><span id="RSAPublicKey"><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-var">RSAPublicKey</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RSAPublicKey"><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-var">RSAPublicKey</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RSA.PublicKey</span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679163333"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163333"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163333"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-type">RSAPublicKey</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679163523"><span class="annot"><span class="annottext">asn1s :: RSAPublicKey -&gt; ASN1Stream e
+</span><a href="#local-6989586621679163523"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-type">RSAPublicKey</span></a></span><span> </span><span id="local-6989586621679163525"><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163525"><span class="hs-identifier hs-var">pub</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679163528"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679163529"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>        </span><span id="local-6989586621679163528"><span class="annot"><span class="annottext">n :: ASN1Stream e
+</span><a href="#local-6989586621679163528"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; Integer -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-var">gIntVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PublicKey -&gt; Integer
+</span><span class="hs-identifier hs-var">RSA.public_n</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163525"><span class="hs-identifier hs-var">pub</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>        </span><span id="local-6989586621679163529"><span class="annot"><span class="annottext">e :: ASN1Stream e
+</span><a href="#local-6989586621679163529"><span class="hs-identifier hs-var hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; Integer -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-var">gIntVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PublicKey -&gt; Integer
+</span><span class="hs-identifier hs-var">RSA.public_e</span></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163525"><span class="hs-identifier hs-var">pub</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679163300"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679163300"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679163300"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-type">RSAPublicKey</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679163550"><span class="annot"><span class="annottext">parse :: ParseASN1 e RSAPublicKey
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e RSAPublicKey -&gt; ParseASN1 e RSAPublicKey
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e RSAPublicKey -&gt; ParseASN1 e RSAPublicKey)
+-&gt; ParseASN1 e RSAPublicKey -&gt; ParseASN1 e RSAPublicKey
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">IntVal</span></span><span> </span><span id="local-6989586621679163553"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163553"><span class="hs-identifier hs-var">modulus</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-170"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">IntVal</span></span><span> </span><span id="local-6989586621679163555"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163555"><span class="hs-identifier hs-var">pubexp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-171"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679163556"><span class="annot"><span class="annottext">pub :: PublicKey
+</span><a href="#local-6989586621679163556"><span class="hs-identifier hs-var hs-var">pub</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RSA.PublicKey</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">public_size :: Int
+</span><a href="#local-6989586621679163558"><span class="hs-identifier hs-var">RSA.public_size</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+</span><span class="hs-identifier hs-var">numBytes</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163553"><span class="hs-identifier hs-var">modulus</span></a></span><span>
+</span><span id="line-172"></span><span>                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">public_n :: Integer
+</span><span class="hs-identifier hs-var">RSA.public_n</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163553"><span class="hs-identifier hs-var">modulus</span></a></span><span>
+</span><span id="line-173"></span><span>                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">public_e :: Integer
+</span><span class="hs-identifier hs-var">RSA.public_e</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679163555"><span class="hs-identifier hs-var">pubexp</span></a></span><span>
+</span><span id="line-174"></span><span>                                </span><span class="hs-special">}</span><span>
+</span><span id="line-175"></span><span>        </span><span class="annot"><span class="annottext">RSAPublicKey -&gt; ParseASN1 e RSAPublicKey
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PublicKey -&gt; RSAPublicKey
+</span><a href="Crypto.Store.X509.html#RSAPublicKey"><span class="hs-identifier hs-var">RSAPublicKey</span></a></span><span> </span><span class="annot"><span class="annottext">PublicKey
+</span><a href="#local-6989586621679163556"><span class="hs-identifier hs-var">pub</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span></pre></body></html>

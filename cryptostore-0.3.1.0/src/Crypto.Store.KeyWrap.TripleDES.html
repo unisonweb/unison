@@ -1,0 +1,234 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.KeyWrap.TripleDES</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Triple-DES Key Wrap (&lt;https://tools.ietf.org/html/rfc3217 RFC 3217&gt;)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Should be used with a cipher from module &quot;Crypto.Cipher.TripleDES&quot;.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.KeyWrap.TripleDES</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#wrap"><span class="hs-identifier">wrap</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#unwrap"><span class="hs-identifier">unwrap</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Cipher.Types</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.Error.html"><span class="hs-identifier">Crypto.Store.Error</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html"><span class="hs-identifier">Crypto.Store.Util</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span id="local-6989586621679146139"><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#checksum"><span class="hs-identifier hs-type">checksum</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679146139"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146139"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146139"><span class="hs-identifier hs-type">ba</span></a></span></span><span>
+</span><span id="line-26"></span><span id="checksum"><span class="annot"><span class="annottext">checksum :: forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#checksum"><span class="hs-identifier hs-var hs-var">checksum</span></a></span></span><span> </span><span id="local-6989586621679146212"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146212"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">View (Digest SHA1) -&gt; ba
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">(View (Digest SHA1) -&gt; ba) -&gt; View (Digest SHA1) -&gt; ba
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Digest SHA1 -&gt; Int -&gt; View (Digest SHA1)
+forall bytes. ByteArrayAccess bytes =&gt; bytes -&gt; Int -&gt; View bytes
+</span><span class="hs-identifier hs-var">B.takeView</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SHA1 -&gt; ba -&gt; Digest SHA1
+forall ba alg.
+(ByteArrayAccess ba, HashAlgorithm alg) =&gt;
+alg -&gt; ba -&gt; Digest alg
+</span><span class="hs-identifier hs-var">hashWith</span></span><span> </span><span class="annot"><span class="annottext">SHA1
+</span><span class="hs-identifier hs-var">SHA1</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146212"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#iv4adda22c79e82105"><span class="hs-identifier hs-type">iv4adda22c79e82105</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.Bytes</span></span><span>
+</span><span id="line-29"></span><span id="iv4adda22c79e82105"><span class="annot"><span class="annottext">iv4adda22c79e82105 :: Bytes
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#iv4adda22c79e82105"><span class="hs-identifier hs-var hs-var">iv4adda22c79e82105</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; Bytes
+forall a. ByteArray a =&gt; [Word8] -&gt; a
+</span><span class="hs-identifier hs-var">B.pack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x4a</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xdd</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xa2</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x2c</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x79</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0xe8</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x21</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x05</span></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Wrap a Triple-DES key with the specified Triple-DES cipher.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Input must be 24 bytes.  A fresh IV should be generated randomly for each</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- invocation.</span><span>
+</span><span id="line-35"></span><span id="local-6989586621679146158"><span id="local-6989586621679146160"><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#wrap"><span class="hs-identifier hs-type">wrap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679146158"><span class="hs-identifier hs-type">cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679146160"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>     </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146158"><span class="hs-identifier hs-type">cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IV</span></span><span> </span><span class="annot"><a href="#local-6989586621679146158"><span class="hs-identifier hs-type">cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146160"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679146160"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-37"></span><span id="wrap"><span class="annot"><span class="annottext">wrap :: forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; IV cipher -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#wrap"><span class="hs-identifier hs-var hs-var">wrap</span></a></span></span><span> </span><span id="local-6989586621679146236"><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146236"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679146237"><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146237"><span class="hs-identifier hs-var">iv</span></a></span></span><span> </span><span id="local-6989586621679146238"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146238"><span class="hs-identifier hs-var">cek</span></a></span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146239"><span class="hs-identifier hs-var">inLen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; Either StoreError ba
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146240"><span class="hs-identifier hs-var">wrapped</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError ba
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; StoreError
+</span><a href="Crypto.Store.Error.html#InvalidInput"><span class="hs-identifier hs-var">InvalidInput</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyWrap.TripleDES: invalid length for content encryption key&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679146239"><span class="annot"><span class="annottext">inLen :: Int
+</span><a href="#local-6989586621679146239"><span class="hs-identifier hs-var hs-var">inLen</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146238"><span class="hs-identifier hs-var">cek</span></a></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679146248"><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146248"><span class="hs-identifier hs-var">iv'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; Maybe (IV cipher)
+forall b c. (ByteArrayAccess b, BlockCipher c) =&gt; b -&gt; Maybe (IV c)
+</span><span class="hs-identifier hs-var">makeIV</span></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#iv4adda22c79e82105"><span class="hs-identifier hs-var">iv4adda22c79e82105</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679146258"><span class="annot"><span class="annottext">cekicv :: ba
+</span><a href="#local-6989586621679146258"><span class="hs-identifier hs-var hs-var">cekicv</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba -&gt; ba
+forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146238"><span class="hs-identifier hs-var">cek</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba -&gt; ba
+forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#checksum"><span class="hs-identifier hs-var">checksum</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146238"><span class="hs-identifier hs-var">cek</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621679146269"><span class="annot"><span class="annottext">temp1 :: ba
+</span><a href="#local-6989586621679146269"><span class="hs-identifier hs-var hs-var">temp1</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall ba. ByteArray ba =&gt; cipher -&gt; IV cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">cbcEncrypt</span></span><span> </span><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146236"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146237"><span class="hs-identifier hs-var">iv</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146258"><span class="hs-identifier hs-var">cekicv</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679146283"><span class="annot"><span class="annottext">temp2 :: ba
+</span><a href="#local-6989586621679146283"><span class="hs-identifier hs-var hs-var">temp2</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba -&gt; ba
+forall bs. ByteArray bs =&gt; bs -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">B.append</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IV cipher -&gt; ba
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146237"><span class="hs-identifier hs-var">iv</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146269"><span class="hs-identifier hs-var">temp1</span></a></span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679146291"><span class="annot"><span class="annottext">temp3 :: ba
+</span><a href="#local-6989586621679146291"><span class="hs-identifier hs-var hs-var">temp3</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba
+forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.Util.html#reverseBytes"><span class="hs-identifier hs-var">reverseBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146283"><span class="hs-identifier hs-var">temp2</span></a></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679146240"><span class="annot"><span class="annottext">wrapped :: ba
+</span><a href="#local-6989586621679146240"><span class="hs-identifier hs-var hs-var">wrapped</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall ba. ByteArray ba =&gt; cipher -&gt; IV cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">cbcEncrypt</span></span><span> </span><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146236"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146248"><span class="hs-identifier hs-var">iv'</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146291"><span class="hs-identifier hs-var">temp3</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | Unwrap an encrypted Triple-DES key with the specified Triple-DES cipher.</span></span><span>
+</span><span id="line-51"></span><span id="local-6989586621679146177"><span id="local-6989586621679146178"><span class="annot"><a href="Crypto.Store.KeyWrap.TripleDES.html#unwrap"><span class="hs-identifier hs-type">unwrap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BlockCipher</span></span><span> </span><span class="annot"><a href="#local-6989586621679146177"><span class="hs-identifier hs-type">cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679146178"><span class="hs-identifier hs-type">ba</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>       </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146177"><span class="hs-identifier hs-type">cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146178"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Crypto.Store.Error.html#StoreError"><span class="hs-identifier hs-type">StoreError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679146178"><span class="hs-identifier hs-type">ba</span></a></span></span></span><span>
+</span><span id="line-53"></span><span id="unwrap"><span class="annot"><span class="annottext">unwrap :: forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; ba -&gt; Either StoreError ba
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#unwrap"><span class="hs-identifier hs-var hs-var">unwrap</span></a></span></span><span> </span><span id="local-6989586621679146315"><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146315"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679146316"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146316"><span class="hs-identifier hs-var">wrapped</span></a></span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146317"><span class="hs-identifier hs-var">inLen</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">40</span></span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either StoreError ba
+forall {b}. Either StoreError b
+</span><a href="#local-6989586621679146319"><span class="hs-identifier hs-var">invalid</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba -&gt; Bool
+forall bs1 bs2.
+(ByteArrayAccess bs1, ByteArrayAccess bs2) =&gt;
+bs1 -&gt; bs2 -&gt; Bool
+</span><span class="hs-identifier hs-var">B.constEq</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146321"><span class="hs-identifier hs-var">icv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ba -&gt; ba
+forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#checksum"><span class="hs-identifier hs-var">checksum</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146322"><span class="hs-identifier hs-var">cek</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; Either StoreError ba
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146322"><span class="hs-identifier hs-var">cek</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either StoreError ba
+forall {b}. Either StoreError b
+</span><a href="#local-6989586621679146319"><span class="hs-identifier hs-var">invalid</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679146317"><span class="annot"><span class="annottext">inLen :: Int
+</span><a href="#local-6989586621679146317"><span class="hs-identifier hs-var hs-var">inLen</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146316"><span class="hs-identifier hs-var">wrapped</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679146327"><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146327"><span class="hs-identifier hs-var">iv'</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; Maybe (IV cipher)
+forall b c. (ByteArrayAccess b, BlockCipher c) =&gt; b -&gt; Maybe (IV c)
+</span><span class="hs-identifier hs-var">makeIV</span></span><span> </span><span class="annot"><span class="annottext">Bytes
+</span><a href="Crypto.Store.KeyWrap.TripleDES.html#iv4adda22c79e82105"><span class="hs-identifier hs-var">iv4adda22c79e82105</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679146337"><span class="annot"><span class="annottext">temp3 :: ba
+</span><a href="#local-6989586621679146337"><span class="hs-identifier hs-var hs-var">temp3</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall ba. ByteArray ba =&gt; cipher -&gt; IV cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">cbcDecrypt</span></span><span> </span><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146315"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146327"><span class="hs-identifier hs-var">iv'</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146316"><span class="hs-identifier hs-var">wrapped</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679146346"><span class="annot"><span class="annottext">temp2 :: ba
+</span><a href="#local-6989586621679146346"><span class="hs-identifier hs-var hs-var">temp2</span></a></span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba
+forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.Util.html#reverseBytes"><span class="hs-identifier hs-var">reverseBytes</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146337"><span class="hs-identifier hs-var">temp3</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679146354"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146354"><span class="hs-identifier hs-var">ivBs</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679146355"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146355"><span class="hs-identifier hs-var">temp1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ba -&gt; (ba, ba)
+forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146346"><span class="hs-identifier hs-var">temp2</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679146360"><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146360"><span class="hs-identifier hs-var">iv</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; Maybe (IV cipher)
+forall b c. (ByteArrayAccess b, BlockCipher c) =&gt; b -&gt; Maybe (IV c)
+</span><span class="hs-identifier hs-var">makeIV</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146354"><span class="hs-identifier hs-var">ivBs</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679146370"><span class="annot"><span class="annottext">cekicv :: ba
+</span><a href="#local-6989586621679146370"><span class="hs-identifier hs-var hs-var">cekicv</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall cipher ba.
+(BlockCipher cipher, ByteArray ba) =&gt;
+cipher -&gt; IV cipher -&gt; ba -&gt; ba
+forall ba. ByteArray ba =&gt; cipher -&gt; IV cipher -&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">cbcDecrypt</span></span><span> </span><span class="annot"><span class="annottext">cipher
+</span><a href="#local-6989586621679146315"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">IV cipher
+</span><a href="#local-6989586621679146360"><span class="hs-identifier hs-var">iv</span></a></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146355"><span class="hs-identifier hs-var">temp1</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679146322"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146322"><span class="hs-identifier hs-var">cek</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679146321"><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146321"><span class="hs-identifier hs-var">icv</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ba -&gt; (ba, ba)
+forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; (bs, bs)
+</span><span class="hs-identifier hs-var">B.splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span> </span><span class="annot"><span class="annottext">ba
+</span><a href="#local-6989586621679146370"><span class="hs-identifier hs-var">cekicv</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679146319"><span class="annot"><span class="annottext">invalid :: Either StoreError b
+</span><a href="#local-6989586621679146319"><span class="hs-identifier hs-var hs-var">invalid</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StoreError -&gt; Either StoreError b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">StoreError
+</span><a href="Crypto.Store.Error.html#BadChecksum"><span class="hs-identifier hs-var">BadChecksum</span></a></span><span>
+</span><span id="line-67"></span></pre></body></html>

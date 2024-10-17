@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Merge.DiffOp</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier">DiffOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html"><span class="hs-identifier">Unison.Merge.Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier">Updated</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | A diff operation is one of:</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--   * An add (where nothing was)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--   * A delete (of the thing that was)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--   * An update (from old to new)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">data</span><span> </span><span id="DiffOp"><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp"><span class="hs-identifier hs-var">DiffOp</span></a></span></span><span> </span><span id="local-6989586621679188534"><span class="annot"><a href="#local-6989586621679188534"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DiffOp%27Add"><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp%27Add"><span class="hs-identifier hs-var">DiffOp'Add</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679188534"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DiffOp%27Delete"><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp%27Delete"><span class="hs-identifier hs-var">DiffOp'Delete</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679188534"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DiffOp%27Update"><span class="annot"><a href="Unison.Merge.DiffOp.html#DiffOp%27Update"><span class="hs-identifier hs-var">DiffOp'Update</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-type">Updated</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679188534"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188539"><span id="local-6989586621679188543"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; DiffOp a -&gt; DiffOp b)
+-&gt; (forall a b. a -&gt; DiffOp b -&gt; DiffOp a) -&gt; Functor DiffOp
+forall a b. a -&gt; DiffOp b -&gt; DiffOp a
+forall a b. (a -&gt; b) -&gt; DiffOp a -&gt; DiffOp b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; DiffOp a -&gt; DiffOp b
+fmap :: forall a b. (a -&gt; b) -&gt; DiffOp a -&gt; DiffOp b
+$c&lt;$ :: forall a b. a -&gt; DiffOp b -&gt; DiffOp a
+&lt;$ :: forall a b. a -&gt; DiffOp b -&gt; DiffOp a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679188549"><span id="local-6989586621679188559"><span id="local-6989586621679188563"><span class="annot"><span class="annottext">Int -&gt; DiffOp a -&gt; ShowS
+[DiffOp a] -&gt; ShowS
+DiffOp a -&gt; String
+(Int -&gt; DiffOp a -&gt; ShowS)
+-&gt; (DiffOp a -&gt; String) -&gt; ([DiffOp a] -&gt; ShowS) -&gt; Show (DiffOp a)
+forall a. Show a =&gt; Int -&gt; DiffOp a -&gt; ShowS
+forall a. Show a =&gt; [DiffOp a] -&gt; ShowS
+forall a. Show a =&gt; DiffOp a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; DiffOp a -&gt; ShowS
+showsPrec :: Int -&gt; DiffOp a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; DiffOp a -&gt; String
+show :: DiffOp a -&gt; String
+$cshowList :: forall a. Show a =&gt; [DiffOp a] -&gt; ShowS
+showList :: [DiffOp a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span></pre></body></html>

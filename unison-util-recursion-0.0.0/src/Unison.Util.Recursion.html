@@ -1,0 +1,370 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DefaultSignatures #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE QuantifiedConstraints #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Util.Recursion</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#Algebra"><span class="hs-identifier">Algebra</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier">Recursive</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Util.Recursion.html#cataM"><span class="hs-identifier">cataM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Util.Recursion.html#para"><span class="hs-identifier">para</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier">Fix</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Util.Recursion.html#Cofree%27"><span class="hs-identifier">Cofree'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Arrow</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&amp;&amp;&amp;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Comonad.Cofree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Cofree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(:&lt;)</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;=&lt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">type</span><span> </span><span id="Algebra"><span class="annot"><a href="Unison.Util.Recursion.html#Algebra"><span class="hs-identifier hs-var">Algebra</span></a></span></span><span> </span><span id="local-6989586621679045265"><span class="annot"><a href="#local-6989586621679045265"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679045266"><span class="annot"><a href="#local-6989586621679045266"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679045265"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045266"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045266"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">class</span><span> </span><span id="Recursive"><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier hs-var">Recursive</span></a></span></span><span> </span><span id="local-6989586621679045134"><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679045132"><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>  </span><span id="cata"><span class="annot"><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-type">cata</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679045143"><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Algebra"><span class="hs-identifier hs-type">Algebra</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045143"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045143"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">default</span><span> </span><span id="cata"><span class="annot"><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-type">cata</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679045133"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045133"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045133"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045133"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679045269"><span class="annot"><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-var hs-var">cata</span></a></span><span> </span><span id="local-6989586621679045274"><span class="annot"><span class="annottext">f a -&gt; a
+</span><a href="#local-6989586621679045274"><span class="hs-identifier hs-var">&#966;</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a -&gt; a
+</span><a href="#local-6989586621679045274"><span class="hs-identifier hs-var">&#966;</span></a></span><span> </span><span class="annot"><span class="annottext">(f a -&gt; a) -&gt; (t -&gt; f a) -&gt; t -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(t -&gt; a) -&gt; f t -&gt; f a
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f a -&gt; a) -&gt; t -&gt; a
+forall a. Algebra f a -&gt; t -&gt; a
+forall t (f :: * -&gt; *) a. Recursive t f =&gt; Algebra f a -&gt; t -&gt; a
+</span><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-var">cata</span></a></span><span> </span><span class="annot"><span class="annottext">f a -&gt; a
+</span><a href="#local-6989586621679045274"><span class="hs-identifier hs-var">&#966;</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(f t -&gt; f a) -&gt; (t -&gt; f t) -&gt; t -&gt; f a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; f t
+forall t (f :: * -&gt; *). Recursive t f =&gt; t -&gt; f t
+</span><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-var">project</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span id="project"><span class="annot"><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-type">project</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-keyword">default</span><span> </span><span id="project"><span class="annot"><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-type">project</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679045277"><span class="annot"><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-var hs-var">project</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Algebra f (f t) -&gt; t -&gt; f t
+forall a. Algebra f a -&gt; t -&gt; a
+forall t (f :: * -&gt; *) a. Recursive t f =&gt; Algebra f a -&gt; t -&gt; a
+</span><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-var">cata</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(f t -&gt; t) -&gt; Algebra f (f t)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">f t -&gt; t
+forall t (f :: * -&gt; *). Recursive t f =&gt; f t -&gt; t
+</span><a href="Unison.Util.Recursion.html#embed"><span class="hs-identifier hs-var">embed</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-28"></span><span>  </span><span id="embed"><span class="annot"><a href="Unison.Util.Recursion.html#embed"><span class="hs-identifier hs-type">embed</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679045132"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045134"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-pragma">{-# MINIMAL</span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#embed"><span class="hs-pragma hs-type">embed</span></a></span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">(</span><span class="annot"><a href="Unison.Util.Recursion.html#cata"><span class="hs-pragma hs-type">cata</span></a></span><span> </span><span class="hs-pragma">|</span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#project"><span class="hs-pragma hs-type">project</span></a></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679045145"><span id="local-6989586621679045146"><span id="local-6989586621679045147"><span id="local-6989586621679045148"><span class="annot"><a href="Unison.Util.Recursion.html#cataM"><span class="hs-identifier hs-type">cataM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier hs-type">Recursive</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045145"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045146"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679045146"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679045147"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045146"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045147"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045148"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045145"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045147"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045148"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-32"></span><span id="cataM"><span class="annot"><span class="annottext">cataM :: forall t (f :: * -&gt; *) (m :: * -&gt; *) a.
+(Recursive t f, Traversable f, Monad m) =&gt;
+(f a -&gt; m a) -&gt; t -&gt; m a
+</span><a href="Unison.Util.Recursion.html#cataM"><span class="hs-identifier hs-var hs-var">cataM</span></a></span></span><span> </span><span id="local-6989586621679045292"><span class="annot"><span class="annottext">f a -&gt; m a
+</span><a href="#local-6989586621679045292"><span class="hs-identifier hs-var">&#966;</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Algebra f (m a) -&gt; t -&gt; m a
+forall a. Algebra f a -&gt; t -&gt; a
+forall t (f :: * -&gt; *) a. Recursive t f =&gt; Algebra f a -&gt; t -&gt; a
+</span><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-var">cata</span></a></span><span> </span><span class="annot"><span class="annottext">(Algebra f (m a) -&gt; t -&gt; m a) -&gt; Algebra f (m a) -&gt; t -&gt; m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f a -&gt; m a
+</span><a href="#local-6989586621679045292"><span class="hs-identifier hs-var">&#966;</span></a></span><span> </span><span class="annot"><span class="annottext">(f a -&gt; m a) -&gt; (f (m a) -&gt; m (f a)) -&gt; Algebra f (m a)
+forall (m :: * -&gt; *) b c a.
+Monad m =&gt;
+(b -&gt; m c) -&gt; (a -&gt; m b) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&lt;=&lt;</span></span><span> </span><span class="annot"><span class="annottext">f (m a) -&gt; m (f a)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a.
+(Traversable t, Applicative f) =&gt;
+t (f a) -&gt; f (t a)
+forall (f :: * -&gt; *) a. Applicative f =&gt; f (f a) -&gt; f (f a)
+</span><span class="hs-identifier hs-var">sequenceA</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679045164"><span id="local-6989586621679045165"><span id="local-6989586621679045166"><span class="annot"><a href="Unison.Util.Recursion.html#para"><span class="hs-identifier hs-type">para</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier hs-type">Recursive</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045164"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045165"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679045165"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045165"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045164"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679045166"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045166"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045164"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679045166"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-35"></span><span id="para"><span class="annot"><span class="annottext">para :: forall t (f :: * -&gt; *) a.
+(Recursive t f, Functor f) =&gt;
+(f (t, a) -&gt; a) -&gt; t -&gt; a
+</span><a href="Unison.Util.Recursion.html#para"><span class="hs-identifier hs-var hs-var">para</span></a></span></span><span> </span><span id="local-6989586621679045301"><span class="annot"><span class="annottext">f (t, a) -&gt; a
+</span><a href="#local-6989586621679045301"><span class="hs-identifier hs-var">&#966;</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(t, a) -&gt; a
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((t, a) -&gt; a) -&gt; (t -&gt; (t, a)) -&gt; t -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Algebra f (t, a) -&gt; t -&gt; (t, a)
+forall a. Algebra f a -&gt; t -&gt; a
+forall t (f :: * -&gt; *) a. Recursive t f =&gt; Algebra f a -&gt; t -&gt; a
+</span><a href="Unison.Util.Recursion.html#cata"><span class="hs-identifier hs-var">cata</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f t -&gt; t
+forall t (f :: * -&gt; *). Recursive t f =&gt; f t -&gt; t
+</span><a href="Unison.Util.Recursion.html#embed"><span class="hs-identifier hs-var">embed</span></a></span><span> </span><span class="annot"><span class="annottext">(f t -&gt; t) -&gt; (f (t, a) -&gt; f t) -&gt; f (t, a) -&gt; t
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((t, a) -&gt; t) -&gt; f (t, a) -&gt; f t
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">(t, a) -&gt; t
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">(f (t, a) -&gt; t) -&gt; (f (t, a) -&gt; a) -&gt; Algebra f (t, a)
+forall b c c'. (b -&gt; c) -&gt; (b -&gt; c') -&gt; b -&gt; (c, c')
+forall (a :: * -&gt; * -&gt; *) b c c'.
+Arrow a =&gt;
+a b c -&gt; a b c' -&gt; a b (c, c')
+</span><span class="hs-operator hs-var">&amp;&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">f (t, a) -&gt; a
+</span><a href="#local-6989586621679045301"><span class="hs-identifier hs-var">&#966;</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">newtype</span><span> </span><span id="Fix"><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-var">Fix</span></a></span></span><span> </span><span id="local-6989586621679045198"><span class="annot"><a href="#local-6989586621679045198"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Fix"><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-var">Fix</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045198"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045198"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679045184"><span id="local-6989586621679045307"><span id="local-6989586621679045313"><span id="local-6989586621679045318"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679045183"><span class="annot"><a href="#local-6989586621679045183"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679045183"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045184"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045183"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045184"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span id="local-6989586621679045191"><span id="local-6989586621679045325"><span id="local-6989586621679045330"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679045187"><span class="annot"><a href="#local-6989586621679045187"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679045187"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045191"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045187"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045191"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span id="local-6989586621679045195"><span id="local-6989586621679045343"><span id="local-6989586621679045348"><span id="local-6989586621679045353"><span id="local-6989586621679045358"><span id="local-6989586621679045363"><span id="local-6989586621679045368"><span id="local-6989586621679045373"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045195"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679045194"><span class="annot"><a href="#local-6989586621679045194"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679045194"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679045195"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045194"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045195"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679045197"><span id="local-6989586621679045388"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679045197"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier hs-type">Recursive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045197"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679045197"><span class="hs-identifier hs-type">f</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679045395"><span class="annot"><span class="annottext">embed :: f (Fix f) -&gt; Fix f
+</span><a href="Unison.Util.Recursion.html#embed"><span class="hs-identifier hs-var hs-var hs-var hs-var">embed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f (Fix f) -&gt; Fix f
+forall (f :: * -&gt; *). f (Fix f) -&gt; Fix f
+</span><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-var">Fix</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679045396"><span class="annot"><span class="annottext">project :: Fix f -&gt; f (Fix f)
+</span><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-var hs-var hs-var hs-var">project</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Fix"><span class="hs-identifier hs-type">Fix</span></a></span><span> </span><span id="local-6989586621679045397"><span class="annot"><span class="annottext">f (Fix f)
+</span><a href="#local-6989586621679045397"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f (Fix f)
+</span><a href="#local-6989586621679045397"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="Cofree%27"><span class="annot"><a href="Unison.Util.Recursion.html#Cofree%27"><span class="hs-identifier hs-var">Cofree'</span></a></span></span><span> </span><span id="local-6989586621679045258"><span class="annot"><a href="#local-6989586621679045258"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679045257"><span class="annot"><a href="#local-6989586621679045257"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679045259"><span class="annot"><a href="#local-6989586621679045259"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679045257"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span id="%3A%3C%3C"><span class="annot"><a href="Unison.Util.Recursion.html#%3A%3C%3C"><span class="hs-operator hs-var">:&lt;&lt;</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679045258"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045259"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679045401"><span id="local-6989586621679045407"><span id="local-6989586621679045412"><span id="local-6989586621679045417"><span id="local-6989586621679045420"><span id="local-6989586621679045423"><span id="local-6989586621679045426"><span id="local-6989586621679045429"><span id="local-6989586621679045432"><span id="local-6989586621679045435"><span id="local-6989586621679045438"><span id="local-6989586621679045441"><span id="local-6989586621679045444"><span id="local-6989586621679045449"><span id="local-6989586621679045454"><span id="local-6989586621679045459"><span id="local-6989586621679045464"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Cofree' f a m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Cofree' f a a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Cofree' f a a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a)
+-&gt; (forall a. Cofree' f a a -&gt; [a])
+-&gt; (forall a. Cofree' f a a -&gt; Bool)
+-&gt; (forall a. Cofree' f a a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Cofree' f a a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Cofree' f a a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Cofree' f a a -&gt; a)
+-&gt; (forall a. Num a =&gt; Cofree' f a a -&gt; a)
+-&gt; (forall a. Num a =&gt; Cofree' f a a -&gt; a)
+-&gt; Foldable (Cofree' f a)
+forall a. Eq a =&gt; a -&gt; Cofree' f a a -&gt; Bool
+forall a. Num a =&gt; Cofree' f a a -&gt; a
+forall a. Ord a =&gt; Cofree' f a a -&gt; a
+forall m. Monoid m =&gt; Cofree' f a m -&gt; m
+forall a. Cofree' f a a -&gt; Bool
+forall a. Cofree' f a a -&gt; Int
+forall a. Cofree' f a a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Cofree' f a a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+forall (f :: * -&gt; *) a a.
+(Foldable f, Eq a) =&gt;
+a -&gt; Cofree' f a a -&gt; Bool
+forall (f :: * -&gt; *) a a. (Foldable f, Num a) =&gt; Cofree' f a a -&gt; a
+forall (f :: * -&gt; *) a a. (Foldable f, Ord a) =&gt; Cofree' f a a -&gt; a
+forall (f :: * -&gt; *) a m.
+(Foldable f, Monoid m) =&gt;
+Cofree' f a m -&gt; m
+forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; Bool
+forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; Int
+forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; [a]
+forall (f :: * -&gt; *) a a.
+Foldable f =&gt;
+(a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+forall (f :: * -&gt; *) a m a.
+(Foldable f, Monoid m) =&gt;
+(a -&gt; m) -&gt; Cofree' f a a -&gt; m
+forall (f :: * -&gt; *) a b a.
+Foldable f =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+forall (f :: * -&gt; *) a a b.
+Foldable f =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+$cfold :: forall (f :: * -&gt; *) a m.
+(Foldable f, Monoid m) =&gt;
+Cofree' f a m -&gt; m
+fold :: forall m. Monoid m =&gt; Cofree' f a m -&gt; m
+$cfoldMap :: forall (f :: * -&gt; *) a m a.
+(Foldable f, Monoid m) =&gt;
+(a -&gt; m) -&gt; Cofree' f a a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Cofree' f a a -&gt; m
+$cfoldMap' :: forall (f :: * -&gt; *) a m a.
+(Foldable f, Monoid m) =&gt;
+(a -&gt; m) -&gt; Cofree' f a a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Cofree' f a a -&gt; m
+$cfoldr :: forall (f :: * -&gt; *) a a b.
+Foldable f =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+$cfoldr' :: forall (f :: * -&gt; *) a a b.
+Foldable f =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+$cfoldl :: forall (f :: * -&gt; *) a b a.
+Foldable f =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+$cfoldl' :: forall (f :: * -&gt; *) a b a.
+Foldable f =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Cofree' f a a -&gt; b
+$cfoldr1 :: forall (f :: * -&gt; *) a a.
+Foldable f =&gt;
+(a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+$cfoldl1 :: forall (f :: * -&gt; *) a a.
+Foldable f =&gt;
+(a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Cofree' f a a -&gt; a
+$ctoList :: forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; [a]
+toList :: forall a. Cofree' f a a -&gt; [a]
+$cnull :: forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; Bool
+null :: forall a. Cofree' f a a -&gt; Bool
+$clength :: forall (f :: * -&gt; *) a a. Foldable f =&gt; Cofree' f a a -&gt; Int
+length :: forall a. Cofree' f a a -&gt; Int
+$celem :: forall (f :: * -&gt; *) a a.
+(Foldable f, Eq a) =&gt;
+a -&gt; Cofree' f a a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Cofree' f a a -&gt; Bool
+$cmaximum :: forall (f :: * -&gt; *) a a. (Foldable f, Ord a) =&gt; Cofree' f a a -&gt; a
+maximum :: forall a. Ord a =&gt; Cofree' f a a -&gt; a
+$cminimum :: forall (f :: * -&gt; *) a a. (Foldable f, Ord a) =&gt; Cofree' f a a -&gt; a
+minimum :: forall a. Ord a =&gt; Cofree' f a a -&gt; a
+$csum :: forall (f :: * -&gt; *) a a. (Foldable f, Num a) =&gt; Cofree' f a a -&gt; a
+sum :: forall a. Num a =&gt; Cofree' f a a -&gt; a
+$cproduct :: forall (f :: * -&gt; *) a a. (Foldable f, Num a) =&gt; Cofree' f a a -&gt; a
+product :: forall a. Num a =&gt; Cofree' f a a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679045471"><span id="local-6989586621679045474"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Cofree' f a a -&gt; Cofree' f a b)
+-&gt; (forall a b. a -&gt; Cofree' f a b -&gt; Cofree' f a a)
+-&gt; Functor (Cofree' f a)
+forall a b. a -&gt; Cofree' f a b -&gt; Cofree' f a a
+forall a b. (a -&gt; b) -&gt; Cofree' f a a -&gt; Cofree' f a b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (f :: * -&gt; *) a a b.
+Functor f =&gt;
+a -&gt; Cofree' f a b -&gt; Cofree' f a a
+forall (f :: * -&gt; *) a a b.
+Functor f =&gt;
+(a -&gt; b) -&gt; Cofree' f a a -&gt; Cofree' f a b
+$cfmap :: forall (f :: * -&gt; *) a a b.
+Functor f =&gt;
+(a -&gt; b) -&gt; Cofree' f a a -&gt; Cofree' f a b
+fmap :: forall a b. (a -&gt; b) -&gt; Cofree' f a a -&gt; Cofree' f a b
+$c&lt;$ :: forall (f :: * -&gt; *) a a b.
+Functor f =&gt;
+a -&gt; Cofree' f a b -&gt; Cofree' f a a
+&lt;$ :: forall a b. a -&gt; Cofree' f a b -&gt; Cofree' f a a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679045486"><span id="local-6989586621679045493"><span id="local-6989586621679045499"><span id="local-6989586621679045504"><span class="annot"><span class="annottext">Functor (Cofree' f a)
+Foldable (Cofree' f a)
+(Functor (Cofree' f a), Foldable (Cofree' f a)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Cofree' f a a -&gt; f (Cofree' f a b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Cofree' f a (f a) -&gt; f (Cofree' f a a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Cofree' f a a -&gt; m (Cofree' f a b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    Cofree' f a (m a) -&gt; m (Cofree' f a a))
+-&gt; Traversable (Cofree' f a)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Cofree' f a (m a) -&gt; m (Cofree' f a a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Cofree' f a (f a) -&gt; f (Cofree' f a a)
+forall (f :: * -&gt; *) a. Traversable f =&gt; Functor (Cofree' f a)
+forall (f :: * -&gt; *) a. Traversable f =&gt; Foldable (Cofree' f a)
+forall (f :: * -&gt; *) a (m :: * -&gt; *) a.
+(Traversable f, Monad m) =&gt;
+Cofree' f a (m a) -&gt; m (Cofree' f a a)
+forall (f :: * -&gt; *) a (f :: * -&gt; *) a.
+(Traversable f, Applicative f) =&gt;
+Cofree' f a (f a) -&gt; f (Cofree' f a a)
+forall (f :: * -&gt; *) a (m :: * -&gt; *) a b.
+(Traversable f, Monad m) =&gt;
+(a -&gt; m b) -&gt; Cofree' f a a -&gt; m (Cofree' f a b)
+forall (f :: * -&gt; *) a (f :: * -&gt; *) a b.
+(Traversable f, Applicative f) =&gt;
+(a -&gt; f b) -&gt; Cofree' f a a -&gt; f (Cofree' f a b)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Cofree' f a a -&gt; m (Cofree' f a b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Cofree' f a a -&gt; f (Cofree' f a b)
+$ctraverse :: forall (f :: * -&gt; *) a (f :: * -&gt; *) a b.
+(Traversable f, Applicative f) =&gt;
+(a -&gt; f b) -&gt; Cofree' f a a -&gt; f (Cofree' f a b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Cofree' f a a -&gt; f (Cofree' f a b)
+$csequenceA :: forall (f :: * -&gt; *) a (f :: * -&gt; *) a.
+(Traversable f, Applicative f) =&gt;
+Cofree' f a (f a) -&gt; f (Cofree' f a a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Cofree' f a (f a) -&gt; f (Cofree' f a a)
+$cmapM :: forall (f :: * -&gt; *) a (m :: * -&gt; *) a b.
+(Traversable f, Monad m) =&gt;
+(a -&gt; m b) -&gt; Cofree' f a a -&gt; m (Cofree' f a b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Cofree' f a a -&gt; m (Cofree' f a b)
+$csequence :: forall (f :: * -&gt; *) a (m :: * -&gt; *) a.
+(Traversable f, Monad m) =&gt;
+Cofree' f a (m a) -&gt; m (Cofree' f a a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Cofree' f a (m a) -&gt; m (Cofree' f a a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--  __NB__: `Cofree` from &#8220;free&#8221; is lazy, so this instance is technically partial.</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679045253"><span id="local-6989586621679045254"><span id="local-6989586621679045514"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679045253"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#Recursive"><span class="hs-identifier hs-type">Recursive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cofree</span></span><span> </span><span class="annot"><a href="#local-6989586621679045253"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045254"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Recursion.html#Cofree%27"><span class="hs-identifier hs-type">Cofree'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045253"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679045254"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679045520"><span class="annot"><span class="annottext">embed :: Cofree' f a (Cofree f a) -&gt; Cofree f a
+</span><a href="Unison.Util.Recursion.html#embed"><span class="hs-identifier hs-var hs-var hs-var hs-var">embed</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679045521"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679045521"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><a href="Unison.Util.Recursion.html#%3A%3C%3C"><span class="hs-operator hs-type">:&lt;&lt;</span></a></span><span> </span><span id="local-6989586621679045522"><span class="annot"><span class="annottext">f (Cofree f a)
+</span><a href="#local-6989586621679045522"><span class="hs-identifier hs-var">fco</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679045521"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f (Cofree f a) -&gt; Cofree f a
+forall (f :: * -&gt; *) a. a -&gt; f (Cofree f a) -&gt; Cofree f a
+</span><span class="hs-operator hs-var">:&lt;</span></span><span> </span><span class="annot"><span class="annottext">f (Cofree f a)
+</span><a href="#local-6989586621679045522"><span class="hs-identifier hs-var">fco</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679045523"><span class="annot"><span class="annottext">project :: Cofree f a -&gt; Cofree' f a (Cofree f a)
+</span><a href="Unison.Util.Recursion.html#project"><span class="hs-identifier hs-var hs-var hs-var hs-var">project</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679045524"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679045524"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:&lt;</span></span><span> </span><span id="local-6989586621679045525"><span class="annot"><span class="annottext">f (Cofree f a)
+</span><a href="#local-6989586621679045525"><span class="hs-identifier hs-var">fco</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679045524"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f (Cofree f a) -&gt; Cofree' f a (Cofree f a)
+forall (f :: * -&gt; *) a x. a -&gt; f x -&gt; Cofree' f a x
+</span><a href="Unison.Util.Recursion.html#%3A%3C%3C"><span class="hs-operator hs-var">:&lt;&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">f (Cofree f a)
+</span><a href="#local-6989586621679045525"><span class="hs-identifier hs-var">fco</span></a></span><span>
+</span><span id="line-58"></span></pre></body></html>
