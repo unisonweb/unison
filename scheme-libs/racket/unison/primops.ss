@@ -55,8 +55,4 @@
   (vector->chunked-list (list->vector xs)))
 
 ; occurs in some replacement code for the racket compiler
-(define (unison-FOp-internal.dataTag v)
-  (match v
-    [(unison-data r t fs) t]
-    [else
-      (raise (make-exn:bug "dataTag: not a data type" v))]))
+(define (unison-FOp-internal.dataTag v) (unison-data-tag v))
