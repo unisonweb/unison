@@ -145,6 +145,7 @@ where
 
 import Control.Lens.Cons qualified as Cons
 import Data.Bitraversable (bitraverse)
+import Data.Char (isSpace)
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
@@ -152,7 +153,6 @@ import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Char (isSpace)
 import Data.These (These (..))
 import Network.URI qualified as URI
 import System.Console.Haskeline.Completion (Completion (Completion))
@@ -1091,13 +1091,12 @@ textfind allowLib =
   InputPattern cmdName aliases I.Visible [("token", OnePlus, noCompletionsArg)] msg parse
   where
     (cmdName, aliases, alternate) =
-      if allowLib then
-        ("text.find.all", ["grep.all"], "Use `text.find` to exclude `lib` from search.")
-      else
-        ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
+      if allowLib
+        then ("text.find.all", ["grep.all"], "Use `text.find` to exclude `lib` from search.")
+        else ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
     parse = \case
       [] -> Left (P.text "Please supply at least one token.")
-      words -> pure $ Input.TextFindI allowLib (untokenize $ [ e | Left e <- words ])
+      words -> pure $ Input.TextFindI allowLib (untokenize $ [e | Left e <- words])
     msg =
       P.lines
         [ P.wrap $
@@ -1105,8 +1104,9 @@ textfind allowLib =
               <> " finds terms with literals (text or numeric) containing"
               <> "`token1`, `99`, and `token2`.",
           "",
-          P.wrap $ "Numeric literals must be quoted (ex: \"42\")" <>
-                   "but single words need not be quoted.",
+          P.wrap $
+            "Numeric literals must be quoted (ex: \"42\")"
+              <> "but single words need not be quoted.",
           "",
           P.wrap alternate
         ]
@@ -1117,14 +1117,14 @@ textfind allowLib =
 untokenize :: [String] -> [String]
 untokenize words = go (unwords words)
   where
-  go words = case words of
-    [] -> []
-    '"' : quoted -> takeWhile (/= '"') quoted : go (drop 1 . dropWhile (/= '"') $ quoted)
-    unquoted -> case span ok unquoted of
-      ("", rem) -> go (dropWhile isSpace rem)
-      (tok, rem) -> tok : go (dropWhile isSpace rem)
-      where
-        ok ch = ch /= '"' && not (isSpace ch)
+    go words = case words of
+      [] -> []
+      '"' : quoted -> takeWhile (/= '"') quoted : go (drop 1 . dropWhile (/= '"') $ quoted)
+      unquoted -> case span ok unquoted of
+        ("", rem) -> go (dropWhile isSpace rem)
+        (tok, rem) -> tok : go (dropWhile isSpace rem)
+        where
+          ok ch = ch /= '"' && not (isSpace ch)
 
 sfind :: InputPattern
 sfind =
@@ -2843,7 +2843,8 @@ test =
       parse =
         fmap
           ( \path ->
-              Input.TestI False
+              Input.TestI
+                False
                 Input.TestInput
                   { includeLibNamespace = False,
                     path,
@@ -2866,14 +2867,16 @@ testNative =
       args = [("namespace", Optional, namespaceArg)],
       help =
         P.wrapColumn2
-          [ ("`test.native`",
-             "runs unit tests for the current branch on the native runtime"),
+          [ ( "`test.native`",
+              "runs unit tests for the current branch on the native runtime"
+            ),
             ("`test foo`", "runs unit tests for the current branch defined in namespace `foo` on the native runtime")
           ],
       parse =
         fmap
           ( \path ->
-              Input.TestI True
+              Input.TestI
+                True
                 Input.TestInput
                   { includeLibNamespace = False,
                     path,
@@ -2897,7 +2900,8 @@ testAll =
     "`test.all` runs unit tests for the current branch (including the `lib` namespace)."
     ( const $
         pure $
-          Input.TestI False
+          Input.TestI
+            False
             Input.TestInput
               { includeLibNamespace = True,
                 path = Path.empty,
@@ -2916,7 +2920,8 @@ testAllNative =
     "`test.native.all` runs unit tests for the current branch (including the `lib` namespace) on the native runtime."
     ( const $
         pure $
-          Input.TestI True
+          Input.TestI
+            True
             Input.TestInput
               { includeLibNamespace = True,
                 path = Path.empty,
