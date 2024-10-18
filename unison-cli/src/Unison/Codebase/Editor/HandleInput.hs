@@ -1340,7 +1340,7 @@ doDisplay outputLoc names tm = do
   let useCache = True
       evalTerm tm =
         fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          RuntimeUtils.evalUnisonTermE True suffixifiedPPE useCache (Term.amap (const External) tm)
+          RuntimeUtils.evalUnisonTermE Sandboxed suffixifiedPPE useCache (Term.amap (const External) tm)
       loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
         Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
         Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
@@ -1645,7 +1645,7 @@ displayI outputLoc hq = do
               then SearchTermsNotFound [hq]
               else TermAmbiguous suffixifiedPPE hq results
       let tm = Term.fromReferent External ref
-      tm <- RuntimeUtils.evalUnisonTerm True (PPE.biasTo bias $ suffixifiedPPE) True tm
+      tm <- RuntimeUtils.evalUnisonTerm Sandboxed (PPE.biasTo bias $ suffixifiedPPE) True tm
       doDisplay outputLoc names (Term.unannotate tm)
     Just (toDisplay, unisonFile) -> do
       let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile unisonFile names

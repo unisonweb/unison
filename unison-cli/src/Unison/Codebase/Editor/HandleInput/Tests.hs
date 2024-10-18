@@ -22,6 +22,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Input (TestInput (..))
 import Unison.Codebase.Editor.Output
@@ -214,7 +215,7 @@ runIOTest ppe ref = do
   let a = ABT.annotation tm
       tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
-  tm' <- RuntimeUtils.evalUnisonTerm False ppe False tm
+  tm' <- RuntimeUtils.evalUnisonTerm Permissive ppe False tm
   pure $ partitionTestResults tm'
 
 partitionTestResults :: Term Symbol Ann -> ([Text {- fails -}], [Text {- oks -}])
