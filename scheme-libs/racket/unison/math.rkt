@@ -11,37 +11,6 @@
                   nbit63))
 
 (provide
-  builtin-Float.exp
-  builtin-Float.exp:termlink
-  builtin-Float.log
-  builtin-Float.log:termlink
-  builtin-Float.max
-  builtin-Float.max:termlink
-  builtin-Float.min
-  builtin-Float.min:termlink
-  builtin-Float.sqrt
-  builtin-Float.sqrt:termlink
-  builtin-Float.tan
-  builtin-Float.tan:termlink
-  builtin-Float.tanh
-  builtin-Float.tanh:termlink
-  builtin-Float.logBase
-  builtin-Float.logBase:termlink
-  builtin-Int.*
-  builtin-Int.*:termlink
-  builtin-Int.pow
-  builtin-Int.pow:termlink
-  builtin-Int.trailingZeros
-  builtin-Int.trailingZeros:termlink
-  builtin-Nat.trailingZeros
-  builtin-Nat.trailingZeros:termlink
-  builtin-Int.popCount
-  builtin-Int.popCount:termlink
-  builtin-Nat.popCount
-  builtin-Nat.popCount:termlink
-  builtin-Float.pow
-  builtin-Float.pow:termlink
-
  (prefix-out unison-POp-
              (combine-out
               ABSF
@@ -88,52 +57,7 @@
               SINF
               ITOF)))
 
-(define-unison-builtin
-  (builtin-Float.logBase base num)
-  (log num base))
 (define (LOGB base num) (log num base))
-
-(define-unison-builtin
-  (builtin-Float.exp n) (exp n))
-
-(define-unison-builtin
-  (builtin-Float.log n) (log n))
-
-(define-unison-builtin
-  (builtin-Float.max n m) (max n m))
-
-(define-unison-builtin
-  (builtin-Float.min n m) (min n m))
-
-(define-unison-builtin
-  (builtin-Float.tan n) (tan n))
-
-(define-unison-builtin
-  (builtin-Float.tanh n) (tanh n))
-
-(define-unison-builtin
-  (builtin-Int.* n m) (clamp-integer (* n m)))
-
-(define-unison-builtin
-  (builtin-Int.pow n m) (clamp-integer (expt n m)))
-
-(define-unison-builtin
-  (builtin-Int.trailingZeros n) (TZRO n))
-
-(define-unison-builtin
-  (builtin-Nat.trailingZeros n) (TZRO n))
-
-(define-unison-builtin
-  (builtin-Nat.popCount n) (POPC n))
-
-(define-unison-builtin
-  (builtin-Int.popCount n) (POPC n))
-
-(define-unison-builtin
-  (builtin-Float.pow n m) (expt n m))
-
-(define-unison-builtin
-  (builtin-Float.sqrt x) (sqrt x))
 
 (define (EXPF n) (exp n))
 (define ABSF abs)
