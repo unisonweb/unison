@@ -658,15 +658,15 @@ loop e = do
               let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
               previewResponse sourceName sr uf
             TodoI -> handleTodo
-            TestI testInput -> Tests.handleTest testInput
+            TestI native testInput -> Tests.handleTest native testInput
             ExecuteI main args -> handleRun False main args
             MakeStandaloneI output main ->
               doCompile False False output main
             CompileSchemeI prof output main ->
               doCompile prof True (Text.unpack output) main
             ExecuteSchemeI main args -> handleRun True main args
-            IOTestI main -> Tests.handleIOTest main
-            IOTestAllI -> Tests.handleAllIOTests
+            IOTestI native main -> Tests.handleIOTest native main
+            IOTestAllI native -> Tests.handleAllIOTests native
             -- UpdateBuiltinsI -> do
             --   stepAt updateBuiltins
             --   checkTodo
@@ -975,8 +975,10 @@ inputDescription input =
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
-    IOTestI hq -> pure ("io.test " <> HQ.toText hq)
-    IOTestAllI -> pure "io.test.all"
+    IOTestI native hq -> pure (cmd <> HQ.toText hq)
+      where cmd | native = "io.test.native " | otherwise = "io.test "
+    IOTestAllI native ->
+      pure (if native then "io.test.native.all" else "io.test.all")
     UpdateBuiltinsI -> pure "builtins.update"
     MergeBuiltinsI Nothing -> pure "builtins.merge"
     MergeBuiltinsI (Just path) -> ("builtins.merge " <>) <$> p path

@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
     evalUnisonTermE,
     evalPureUnison,
     displayDecompileErrors,
+    selectRuntime,
     EvalMode (..)
   )
 where
@@ -92,13 +93,15 @@ evalUnisonTerm mode ppe useCache tm =
     Cli.returnEarly (EvaluationFailure err)
 
 evalPureUnison ::
+  Bool ->
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
   Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm =
-  evalUnisonTermE Permissive ppe useCache tm'
+evalPureUnison native ppe useCache tm =
+  evalUnisonTermE mode ppe useCache tm'
   where
+    mode = if native then Native else Permissive
     tm' =
       Term.iff
         a
