@@ -101,7 +101,7 @@
 (define-unison-builtin
   (builtin-ImmutableArray.copyTo! dst doff src soff n)
   (handle-array
-    (vector-copy! dst doff src soff n)
+    (vector-copy! dst doff src soff (+ soff n))
     ref-unit-unit))
 
 (define-unison-builtin (builtin-ImmutableArray.read arr i)
@@ -113,7 +113,7 @@
 (define-unison-builtin
   (builtin-ImmutableByteArray.copyTo! dst doff src soff n)
   (handle-array
-    (bytes-copy! dst doff src soff n)
+    (bytes-copy! dst doff src soff (+ soff n))
     ref-unit-unit))
 
 (define-unison-builtin (builtin-ImmutableByteArray.read16be arr i)
@@ -139,7 +139,7 @@
 
 (define-unison-builtin (builtin-MutableArray.copyTo! dst doff src soff l)
   (handle-array
-    (vector-copy! dst doff src soff l)
+    (vector-copy! dst doff src soff (+ soff l))
     ref-unit-unit))
 
 (define-unison-builtin (builtin-MutableArray.freeze arr i j)
@@ -162,7 +162,7 @@
 (define-unison-builtin
   (builtin-MutableByteArray.copyTo! dst doff src soff l)
   (handle-array
-    (bytes-copy! dst doff src soff l)
+    (bytes-copy! dst doff src soff (+ soff l))
     ref-unit-unit))
 
 (define-unison-builtin (builtin-MutableByteArray.freeze! arr)
@@ -225,5 +225,5 @@
   (define len (min len0 (- (vector-length src) off)))
   (define dst (make-vector len))
 
-  (vector-copy! dst 0 src off len)
+  (vector-copy! dst 0 src off (+ off len))
   (freeze-vector! dst))
