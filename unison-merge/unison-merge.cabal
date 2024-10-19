@@ -25,6 +25,7 @@ library
       Unison.Merge.EitherWay
       Unison.Merge.EitherWayI
       Unison.Merge.FindConflictedAlias
+      Unison.Merge.HumanDiffOp
       Unison.Merge.Libdeps
       Unison.Merge.Mergeblob0
       Unison.Merge.Mergeblob1

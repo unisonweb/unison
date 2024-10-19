@@ -1,19 +1,25 @@
 module Unison.Merge.Mergeblob1
   ( Mergeblob1 (..),
+    hydratedDefnsLabeledDependencies,
     makeMergeblob1,
   )
 where
 
+import Control.Lens
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration.Dependencies qualified as Decl
 import Unison.DeclNameLookup (DeclNameLookup)
+import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
-import Unison.Merge.Diff (nameBasedNamespaceDiff)
+import Unison.Merge.Diff (humanizeDiffs, nameBasedNamespaceDiff)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (LibdepDiffOp, applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames)
 import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
@@ -25,13 +31,20 @@ import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Unconflicts (Unconflicts)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
 
@@ -40,7 +53,8 @@ data Mergeblob1 libdep = Mergeblob1
     declNameLookups :: TwoWay DeclNameLookup,
     defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
-    diffs :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    humanDiffsFromLCA :: TwoWay (DefnsF2 (Map Name) HumanDiffOp Referent TypeReference),
     hydratedDefns ::
       ThreeWay
         ( DefnsF
@@ -54,10 +68,24 @@ data Mergeblob1 libdep = Mergeblob1
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
+-- | Get  a names object for all the hydrated definitions AND their direct dependencies
+hydratedDefnsLabeledDependencies :: (DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)) -> Set LD.LabeledDependency
+hydratedDefnsLabeledDependencies (Defns {terms, types}) =
+  let termDeps :: Set LD.LabeledDependency
+      termDeps = foldOf (folded . beside (to Reference.DerivedId . to LD.TermReference . to Set.singleton) (beside (to Term.labeledDependencies) (to Type.labeledDependencies))) terms
+      typeDeps :: Set LD.LabeledDependency
+      typeDeps =
+        types
+          & foldMap \(typeRefId, typeDecl) ->
+            let typeRef = Reference.DerivedId typeRefId
+             in Decl.labeledDeclDependenciesIncludingSelfAndFieldAccessors typeRef typeDecl
+   in termDeps <> typeDeps
+
 makeMergeblob1 ::
   forall libdep.
   (Eq libdep) =>
   Mergeblob0 libdep ->
+  ThreeWay Names {- Names for _at least_ every reference in 'hydratedDefnDependencies' -} ->
   ThreeWay
     ( DefnsF
         (Map Name)
@@ -65,7 +93,9 @@ makeMergeblob1 ::
         (TypeReferenceId, Decl Symbol Ann)
     ) ->
   Either (EitherWay IncoherentDeclReason) (Mergeblob1 libdep)
-makeMergeblob1 blob hydratedDefns = do
+makeMergeblob1 blob names3 hydratedDefns = do
+  let ppeds3 :: ThreeWay PPED.PrettyPrintEnvDecl
+      ppeds3 = names3 <&> \names -> (PPED.makePPED (PPE.namer names) (PPE.suffixifyByHash names))
   -- Make one big constructor count lookup for all type decls
   let numConstructors =
         Map.empty
@@ -93,10 +123,11 @@ makeMergeblob1 blob hydratedDefns = do
         lenientCheckDeclCoherency blob.nametrees.lca numConstructors
 
   -- Diff LCA->Alice and LCA->Bob
-  let diffs =
+  let (diffsFromLCA, propagatedUpdates) =
         nameBasedNamespaceDiff
           declNameLookups
           lcaDeclNameLookup
+          ppeds3
           blob.defns
           Defns
             { terms =
@@ -110,8 +141,9 @@ makeMergeblob1 blob hydratedDefns = do
             }
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
-  let diff =
-        combineDiffs diffs
+  let diff = combineDiffs diffsFromLCA
+
+  let humanDiffsFromLCA = humanizeDiffs names3 diffsFromLCA propagatedUpdates
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
@@ -132,7 +164,8 @@ makeMergeblob1 blob hydratedDefns = do
         declNameLookups,
         defns = blob.defns,
         diff,
-        diffs,
+        diffsFromLCA,
+        humanDiffsFromLCA,
         hydratedDefns,
         lcaDeclNameLookup,
         libdeps,
