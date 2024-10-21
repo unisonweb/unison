@@ -30,7 +30,7 @@ scratch/main> add
     foo    : Nat
     mytest : [Result]
 
-scratch/main> edit foo bar
+scratch/main> edit.new foo bar
 
   ☝️
   
@@ -39,7 +39,7 @@ scratch/main> edit foo bar
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
-scratch/main> edit mytest
+scratch/main> edit.new mytest
 
   ☝️
   
@@ -62,7 +62,7 @@ test> mytest = [Ok "ok"]
 ```
 
 ``` ucm
-scratch/main> edit missing
+scratch/main> edit.new missing
 
   ⚠️
   
@@ -70,9 +70,9 @@ scratch/main> edit missing
     missing
 
 ```
-# `edit2`
+# `edit`
 
-The `edit2` command adds to the current fold, and takes care not to add definitions that are already in the file.
+The `edit` command adds to the current fold, and takes care not to add definitions that are already in the file.
 
 This stanza does nothing for some reason (transcript runner bug?), so we repeat it twice.
 
@@ -130,7 +130,7 @@ bar = 18
 
 ```
 ``` ucm
-scratch/main> edit2 bar baz
+scratch/main> edit bar baz
 
   ☝️
   

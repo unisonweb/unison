@@ -12,21 +12,21 @@ mytest = [Ok "ok"]
 
 ``` ucm
 scratch/main> add
-scratch/main> edit foo bar
-scratch/main> edit mytest
+scratch/main> edit.new foo bar
+scratch/main> edit.new mytest
 ```
 
 ``` ucm :error
-scratch/main> edit missing
+scratch/main> edit.new missing
 ```
 
 ``` ucm :hide
 scratch/main> project.delete scratch
 ```
 
-# `edit2`
+# `edit`
 
-The `edit2` command adds to the current fold, and takes care not to add definitions that are already in the file.
+The `edit` command adds to the current fold, and takes care not to add definitions that are already in the file.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtin
@@ -56,7 +56,7 @@ bar = 18
 ```
 
 ``` ucm
-scratch/main> edit2 bar baz
+scratch/main> edit bar baz
 ```
 
 ``` ucm :hide

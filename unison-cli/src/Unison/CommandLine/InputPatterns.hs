@@ -2377,27 +2377,24 @@ edit =
       parse =
         maybe
           (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.AboveFold) Input.ShowDefinitionLocal)
+          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.WithinFold) Input.ShowDefinitionLocal)
               . traverse handleHashQualifiedNameArg
           )
           . NE.nonEmpty
     }
 
-edit2 :: InputPattern
-edit2 =
+editNew :: InputPattern
+editNew =
   InputPattern
-    { patternName = "edit2",
+    { patternName = "edit.new",
       aliases = [],
       visibility = I.Visible,
       args = [("definition to edit", OnePlus, definitionQueryArg)],
-      help =
-        P.lines
-          [ "Like `edit`, but adds to the current fold rather than creating a new one."
-          ],
+      help = "Like `edit`, but adds a new fold line below the definitions.",
       parse =
         maybe
           (wrongArgsLength "at least one argument" [])
-          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.WithinFold) Input.ShowDefinitionLocal)
+          ( fmap (Input.ShowDefinitionI (Input.LatestFileLocation Input.AboveFold) Input.ShowDefinitionLocal)
               . traverse handleHashQualifiedNameArg
           )
           . NE.nonEmpty
@@ -3508,8 +3505,8 @@ validInputs =
       docs,
       docsToHtml,
       edit,
-      edit2,
       editNamespace,
+      editNew,
       execute,
       find,
       findIn,
