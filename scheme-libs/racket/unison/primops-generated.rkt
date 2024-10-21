@@ -176,6 +176,13 @@
        (if (null? hints)
          (list def '#:local ln head body)
          (list def '#:local ln '#:hints hints head body)))]
+    [(unison-data _ t (list nm hs bd))
+     #:when (= t ref-schemedefn-defineval:tag)
+     (let-values
+       ([(head) (text->ident nm)]
+        [(def hints) (decode-hints (chunked-list->list hs))]
+        [(body) (decode-term bd)])
+       (list def '#:hints (cons 'value hints) (list head) body))]
     [(unison-data _ t (list nm bd))
      #:when (= t ref-schemedefn-alias:tag)
      (list 'define (text->ident nm) (decode-term bd))]
@@ -684,16 +691,31 @@
        "unison-termlink-derived?"
        tl)]))
 
+; Converts a link->code map into an appropriately sorted list
+; for code generation. It's necessary to topologically sort
+; the code so that values occur after the things they reference.
+(define (codemap->link-order defs)
+  (define input
+    (for/list ([(tl co) defs])
+      (unison-tuple
+        (termlink->reference tl)
+        (unison-code-rep co))))
+
+  (define result (topsort-code-refs (list->chunked-list input)))
+
+  (for/list ([r (in-chunked-list result)])
+    (reference->termlink r)))
+
 ; Given a list of termlink, code pairs, returns multiple lists
 ; of definitions and declarations. The lists are returned as
 ; multiple results, each one containing a particular type of
 ; definition.
 ;
-; This is the version for compiling to intermediate code.
+; This is the version for compiling to runtime code.
 (define (gen-codes:runtime arities defs)
   (for/lists (lndefs lndecs dfns)
-             ([(tl co) defs])
-    (gen-code:runtime arities tl co)))
+             ([tl (codemap->link-order defs)])
+    (gen-code:runtime arities tl (hash-ref defs tl))))
 
 ; Given a list of termlink, code pairs, returns multiple lists
 ; of definitions and declarations. The lists are returned as
@@ -703,8 +725,8 @@
 ; This is the version for compiling to intermediate code.
 (define (gen-codes:intermed arities defs)
   (for/lists (lndefs lndecs codefs codecls dfns)
-             ([(tl co) defs])
-      (gen-code:intermed arities tl co)))
+             ([tl (codemap->link-order defs)])
+      (gen-code:intermed arities tl (hash-ref defs tl))))
 
 (define (flatten ls)
   (cond

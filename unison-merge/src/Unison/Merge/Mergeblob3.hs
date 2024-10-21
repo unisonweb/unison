@@ -19,7 +19,7 @@ import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup, expectConstructorNames)
 import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
-import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnvs)
+import Unison.Merge.PrettyPrintEnv (makePrettyPrintEnv)
 import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay)
@@ -30,6 +30,7 @@ import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Reference (Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -256,13 +257,12 @@ renderConflictsAndDependents ::
   )
 renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents names libdepsNames =
   unzip $
-    ( \declNameLookup (conflicts, dependents) ppe ->
+    ( \declNameLookup (conflicts, dependents) ->
         let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
          in (render conflicts, render dependents)
     )
       <$> declNameLookups
       <*> hydratedConflictsAndDependents
-      <*> makePrettyPrintEnvs names libdepsNames
   where
     hydratedConflictsAndDependents ::
       TwoWay
@@ -278,6 +278,10 @@ renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents 
         <$> hydratedDefns
         <*> conflicts
         <*> dependents
+
+    ppe :: PrettyPrintEnvDecl
+    ppe =
+      makePrettyPrintEnv names libdepsNames
 
 defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
 defnsToNames defns =
