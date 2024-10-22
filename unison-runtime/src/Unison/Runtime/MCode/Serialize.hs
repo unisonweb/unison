@@ -14,10 +14,10 @@ import Data.Bytes.Get
 import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
-import Data.Primitive.PrimArray
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
+import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text

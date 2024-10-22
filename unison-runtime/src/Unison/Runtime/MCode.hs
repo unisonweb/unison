@@ -57,9 +57,6 @@ import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.Functor ((<&>))
 import Data.Map.Strict qualified as M
-import Data.Primitive.ByteArray
-import Data.Primitive.PrimArray
-import Data.Primitive.PrimArray qualified as PA
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
@@ -91,6 +88,8 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.Array
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
