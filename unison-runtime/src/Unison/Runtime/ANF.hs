@@ -696,9 +696,9 @@ pattern ST1 d v m s = ST d [v] [m] s
 -- All variables, both bound and free occurring in a CTE. This is
 -- useful for avoiding both free and bound variables when
 -- freshening.
-cteVars :: Ord v => Cte v -> Set v
+cteVars :: (Ord v) => Cte v -> Set v
 cteVars (ST _ vs _ e) = Set.fromList vs `Set.union` ABTN.freeVars e
-cteVars (LZ v r as) = Set.fromList (either (const id) (:) r $ v:as)
+cteVars (LZ v r as) = Set.fromList (either (const id) (:) r $ v : as)
 
 data ANormalF v e
   = ALet (Direction Word16) [Mem] e e
@@ -1721,7 +1721,7 @@ renameCtx :: (Var v) => v -> v -> Ctx v -> (Ctx v, Bool)
 renameCtx v u (d, ctx) | (ctx, b) <- renameCtes v u ctx = ((d, ctx), b)
 
 -- As above, but without the Direction.
-renameCtes :: Var v => v -> v -> [Cte v] -> ([Cte v], Bool)
+renameCtes :: (Var v) => v -> v -> [Cte v] -> ([Cte v], Bool)
 renameCtes v u = rn []
   where
     swap w
@@ -1744,7 +1744,7 @@ renameCtes v u = rn []
 --
 -- Assumes that the variables being renamed to are not bound by the
 -- context entries, so that it is unnecessary to rename them.
-renamesCtes :: Var v => Map v v -> [Cte v] -> [Cte v]
+renamesCtes :: (Var v) => Map v v -> [Cte v] -> [Cte v]
 renamesCtes rn = map f
   where
     swap w
@@ -1757,10 +1757,10 @@ renamesCtes rn = map f
 -- Calculates the free variables occurring in a context. This
 -- consists of the free variables in the expressions being bound,
 -- but with previously bound variables subtracted.
-freeVarsCtx :: Ord v => Ctx v -> Set v
+freeVarsCtx :: (Ord v) => Ctx v -> Set v
 freeVarsCtx = freeVarsCte . snd
 
-freeVarsCte :: Ord v => [Cte v] -> Set v
+freeVarsCte :: (Ord v) => [Cte v] -> Set v
 freeVarsCte = foldr m Set.empty
   where
     m (ST _ vs _ bn) rest =
@@ -1778,7 +1778,7 @@ freeVarsCte = foldr m Set.empty
 -- Presumably any variables selected by the predicate should be
 -- included in the set, but the set may contain additional variables
 -- to avoid, when freshening.
-freshens :: Var v => (v -> Bool) -> Set v -> [v] -> (Set v, [v])
+freshens :: (Var v) => (v -> Bool) -> Set v -> [v] -> (Set v, [v])
 freshens p avoid0 vs =
   mapAccumL f (Set.union avoid0 (Set.fromList vs)) vs
   where
@@ -1805,7 +1805,7 @@ freshenCtx avoid0 (d, ctx) =
     lavoid =
       foldl (flip $ Set.union . cteVars) avoid0 ctx
 
-    go _     rns fresh [] = (rns, fresh)
+    go _ rns fresh [] = (rns, fresh)
     go avoid rns fresh (bn : bns) = case bn of
       LZ v r as
         | v `Set.member` avoid0,
@@ -1813,7 +1813,7 @@ freshenCtx avoid0 (d, ctx) =
           (fresh, _) <- renameCtes v u fresh,
           avoid <- Set.insert u avoid,
           rns <- Map.alter (Just . fromMaybe u) v rns ->
-          go avoid rns (LZ u r as : fresh) bns
+            go avoid rns (LZ u r as : fresh) bns
       ST d vs ccs expr
         | (avoid, us) <- freshens (`Set.member` avoid0) avoid vs,
           rn <- Map.fromList (filter (uncurry (/=)) $ zip vs us),
@@ -1822,7 +1822,7 @@ freshenCtx avoid0 (d, ctx) =
           -- Note: rns union left-biased, so inner contexts take
           -- priority.
           rns <- Map.union rns rn ->
-          go avoid rns (ST d us ccs expr : fresh) bns
+            go avoid rns (ST d us ccs expr : fresh) bns
       _ -> go avoid rns (bn : fresh) bns
 
 anfBlock :: (Ord v, Var v) => Term v a -> ANFM v (Ctx v, DNormal v)
@@ -1988,12 +1988,11 @@ anfBlock (Let1Named' v b e) =
       let octx = bctx <> directed [ST1 d v BX cb] <> ectx
       pure (octx, ce)
   where
-  fixupBctx bctx ectx (_, ce) =
-    pure $ freshenCtx (Set.union ecfvs efvs) bctx
-    where
-      ecfvs = freeVarsCtx ectx
-      efvs = ABTN.freeVars ce
-
+    fixupBctx bctx ectx (_, ce) =
+      pure $ freshenCtx (Set.union ecfvs efvs) bctx
+      where
+        ecfvs = freeVarsCtx ectx
+        efvs = ABTN.freeVars ce
 anfBlock (Apps' (Blank' b) args) = do
   nm <- fresh
   (actx, cas) <- anfArgs args
