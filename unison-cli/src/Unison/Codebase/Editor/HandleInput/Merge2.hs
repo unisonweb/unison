@@ -318,7 +318,7 @@ doMerge info = do
 
       blob5 <-
         maybeBlob5 & onNothing do
-          Cli.Env {writeSource} <- ask
+          env <- ask
           (_temporaryBranchId, temporaryBranchName) <-
             HandleInput.Branch.createBranch
               info.description
@@ -336,7 +336,7 @@ doMerge info = do
             Cli.getLatestFile <&> \case
               Nothing -> "scratch.u"
               Just (file, _) -> file
-          liftIO $ writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile)
+          liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile) True
           done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
 
       Cli.runTransaction (Codebase.addDefsToCodebase env.codebase blob5.file)
