@@ -922,15 +922,15 @@ buildData ::
   Stack -> Reference -> Tag -> Args -> IO Closure
 buildData !_ !r !t ZArgs = pure $ Enum r t
 buildData !stk !r !t (VArg1 i) = do
-  bv <- bpeekOff stk i
+  bv <- bpeekOffUnsafe stk i
   case bv of
     BlackHole -> do
       uv <- upeekOff stk i
       pure $ DataU1 r t uv
     _ -> pure $ DataB1 r t bv
 buildData !stk !r !t (VArg2 i j) = do
-  b1 <- bpeekOff stk i
-  b2 <- bpeekOff stk j
+  b1 <- bpeekOffUnsafe stk i
+  b2 <- bpeekOffUnsafe stk j
   case (b1, b2) of
     (BlackHole, BlackHole) -> do
       u1 <- upeekOff stk i
@@ -1749,7 +1749,7 @@ yield !env !denv !activeThreads !stk !k = leap denv k
     leap !denv0 (Mark a ps cs k) = do
       let denv = cs <> EC.withoutKeys denv0 ps
           clo = denv0 EC.! EC.findMin ps
-      bpoke stk . DataB1 Rf.effectRef 0 =<< bpeek stk
+      bpokeUnsafe stk . DataB1 Rf.effectRef 0 =<< bpeek stk
       stk <- adjustArgs stk a
       apply env denv activeThreads stk k False (VArg1 0) clo
     leap !denv (Push fsz asz (CIx ref _ _) f nx k) = do

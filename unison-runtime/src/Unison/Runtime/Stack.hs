@@ -65,13 +65,13 @@ module Unison.Runtime.Stack
     dumpAP,
     dumpFP,
     alloc,
-    peek,
     upeek,
     bpeek,
-    peekOff,
     upeekOff,
     bpeekOff,
+    bpeekOffUnsafe,
     bpoke,
+    bpokeUnsafe,
     bpokeOff,
     upoke,
     upokeOff,
@@ -106,6 +106,7 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
+import UnliftIO (evaluate)
 import Prelude hiding (words)
 
 newtype Callback = Hook (Stack -> IO ())
@@ -179,6 +180,7 @@ data GClosure comb
     GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
   | GBlackHole
+  | GBumped
   deriving stock (Show, Functor, Foldable, Traversable)
 
 instance Eq (GClosure comb) where
@@ -360,7 +362,7 @@ bytes n = n * intSize
 
 type Arrs = (UA, BA)
 
-argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
+argOnto :: (HasCallStack) => Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
 argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
   -- Both new cp's should be the same, so we can just return one.
   _cp <- uargOnto srcUstk srcSp dstUstk dstSp args
@@ -369,7 +371,7 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
 
 -- The Caller must ensure that when setting the unboxed stack, the equivalent
 -- boxed stack is zeroed out to BlackHole where necessary.
-uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
+uargOnto :: (HasCallStack) => UA -> Off -> UA -> Off -> Args' -> IO Int
 uargOnto stk sp cop cp0 (Arg1 i) = do
   (x :: Int) <- readByteArray stk (sp - i)
   writeByteArray cop cp x
@@ -497,40 +499,58 @@ alloc = do
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
-peek :: Stack -> IO Elem
-peek stk = do
-  u <- upeek stk
-  b <- bpeek stk
-  pure (u, b)
-{-# INLINE peek #-}
-
-bpeek :: Stack -> IO BElem
+bpeek :: (HasCallStack) => Stack -> IO BElem
 bpeek (Stack _ _ sp _ bstk) = readArray bstk sp
 {-# INLINE bpeek #-}
 
-upeek :: Stack -> IO UElem
-upeek (Stack _ _ sp ustk _) = readByteArray ustk sp
+upeek :: (HasCallStack) => Stack -> IO UElem
+upeek stk@(Stack _ _ sp ustk _) = do
+  assertUnboxed stk 0
+  readByteArray ustk sp
 {-# INLINE upeek #-}
 
-peekOff :: Stack -> Off -> IO Elem
-peekOff stk i = do
-  u <- upeekOff stk i
-  b <- bpeekOff stk i
+peekOff :: (HasCallStack) => Stack -> Off -> IO Elem
+peekOff (Stack _ _ sp ustk bstk) i = do
+  u <- readByteArray ustk (sp - i)
+  b <- readArray bstk (sp - i)
   pure (u, b)
 {-# INLINE peekOff #-}
 
-bpeekOff :: Stack -> Off -> IO BElem
-bpeekOff (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
+assertUnboxed :: (HasCallStack) => Stack -> Off -> IO ()
+assertUnboxed (Stack _ _ sp _ bstk) i = do
+  readArray bstk (sp - i) >>= \case
+    (Closure GBlackHole) -> pure ()
+    _ -> evaluate $ error $ "assertUnboxed failure"
+{-# INLINE assertUnboxed #-}
+
+assertBoxed :: (HasCallStack) => Stack -> Off -> IO ()
+assertBoxed (Stack _ _ sp _ bstk) i = do
+  readArray bstk (sp - i) >>= \case
+    Closure GBlackHole -> evaluate $ error $ "assertBoxed failure"
+    _ -> pure ()
+{-# INLINE assertBoxed #-}
+
+bpeekOff :: (HasCallStack) => Stack -> Off -> IO BElem
+bpeekOff stk@(Stack _ _ sp _ bstk) i = do
+  assertBoxed stk i
+  readArray bstk (sp - i)
 {-# INLINE bpeekOff #-}
 
-upeekOff :: Stack -> Off -> IO UElem
-upeekOff (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
+bpeekOffUnsafe :: (HasCallStack) => Stack -> Off -> IO BElem
+bpeekOffUnsafe (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
+{-# INLINE bpeekOffUnsafe #-}
+
+upeekOff :: (HasCallStack) => Stack -> Off -> IO UElem
+upeekOff stk@(Stack _ _ sp ustk _) i = do
+  assertUnboxed stk i
+  readByteArray ustk (sp - i)
 {-# INLINE upeekOff #-}
 
 -- | Store an unboxed value and null out the boxed stack at that location, both so we know there's no value there,
 -- and so garbage collection can clean up any value that was referenced there.
-upoke :: Stack -> UElem -> IO ()
+upoke :: (HasCallStack) => Stack -> UElem -> IO ()
 upoke stk@(Stack _ _ sp ustk _) u = do
+  assertPokable stk 0
   bpoke stk BlackHole
   writeByteArray ustk sp u
 {-# INLINE upoke #-}
@@ -538,19 +558,34 @@ upoke stk@(Stack _ _ sp ustk _) u = do
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
 -- it's extra work and there's nothing to garbage collect.
-bpoke :: Stack -> BElem -> IO ()
-bpoke (Stack _ _ sp _ bstk) b = writeArray bstk sp b
+bpoke :: (HasCallStack) => Stack -> BElem -> IO ()
+bpoke stk@(Stack _ _ sp _ bstk) b = do
+  assertPokable stk 0
+  writeArray bstk sp b
 {-# INLINE bpoke #-}
 
-upokeOff :: Stack -> Off -> UElem -> IO ()
+bpokeUnsafe :: (HasCallStack) => Stack -> BElem -> IO ()
+bpokeUnsafe (Stack _ _ sp _ bstk) b = writeArray bstk sp b
+{-# INLINE bpokeUnsafe #-}
+
+upokeOff :: (HasCallStack) => Stack -> Off -> UElem -> IO ()
 upokeOff stk i u = do
+  assertPokable stk i
   bpokeOff stk i BlackHole
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOff #-}
 
-bpokeOff :: Stack -> Off -> BElem -> IO ()
-bpokeOff (Stack _ _ sp _ bstk) i b = writeArray bstk (sp - i) b
+bpokeOff :: (HasCallStack) => Stack -> Off -> BElem -> IO ()
+bpokeOff stk@(Stack _ _ sp _ bstk) i b = do
+  assertPokable stk i
+  writeArray bstk (sp - i) b
 {-# INLINE bpokeOff #-}
+
+assertPokable :: (HasCallStack) => Stack -> Off -> IO ()
+assertPokable stk i = do
+  peekOff stk i >>= \case
+    (-42, Closure GBumped) -> pure ()
+    _ -> evaluate $ error $ "assertPokable failure"
 
 -- | Eats up arguments
 grab :: Stack -> SZ -> IO (Seg, Stack)
@@ -597,12 +632,19 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
       | otherwise = 10240
 {-# INLINE ensure #-}
 
-bump :: Stack -> IO Stack
-bump (Stack ap fp sp ustk bstk) = pure $ Stack ap fp (sp + 1) ustk bstk
+bump :: (HasCallStack) => Stack -> IO Stack
+bump (Stack ap fp sp ustk bstk) = do
+  stk@(Stack _ap _fp sp ustk bstk) <- pure $ Stack ap fp (sp + 1) ustk bstk
+  writeByteArray ustk sp (-42 :: Int)
+  writeArray bstk sp (Closure GBumped)
+  pure stk
 {-# INLINE bump #-}
 
-bumpn :: Stack -> SZ -> IO Stack
-bumpn (Stack ap fp sp ustk bstk) n = pure $ Stack ap fp (sp + n) ustk bstk
+bumpn :: (HasCallStack) => Stack -> SZ -> IO Stack
+bumpn stk 0 = pure stk
+bumpn stk n = do
+  stk <- bump stk
+  bumpn stk (n - 1)
 {-# INLINE bumpn #-}
 
 duplicate :: Stack -> IO Stack
