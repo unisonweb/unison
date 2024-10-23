@@ -96,6 +96,7 @@ module Unison.Runtime.Stack
 where
 
 import Control.Monad.Primitive
+import Data.Primitive (sizeOf)
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import Unison.Prelude
@@ -246,7 +247,7 @@ splitData = \case
 ints :: ByteArray -> [Int]
 ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
   where
-    n = sizeofByteArray ba `div` 8
+    n = sizeofByteArray ba `div` intSize
 
 -- | Converts a list of integers representing an unboxed segment back into the
 -- appropriate segment. Segments are stored backwards in the runtime, so this
@@ -348,11 +349,14 @@ type UA = MutableByteArray (PrimState IO)
 
 type BA = MutableArray (PrimState IO) Closure
 
+intSize :: Int
+intSize = sizeOf (0 :: Int)
+
 words :: Int -> Int
-words n = n `div` 8
+words n = n `div` intSize
 
 bytes :: Int -> Int
-bytes n = n * 8
+bytes n = n * intSize
 
 type Arrs = (UA, BA)
 
@@ -666,7 +670,7 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
       cop <- newByteArray $ ssz + upsz + asz
       copyByteArray cop soff useg 0 ssz
       copyMutableByteArray cop 0 ustk (bytes $ ap + 1) upsz
-      for_ margs $ uargOnto ustk sp cop (words poff + upsz - 1)
+      for_ margs $ uargOnto ustk sp cop (words poff + bpsz - 1)
       unsafeFreezeByteArray cop
       where
         ssz = sizeofByteArray useg
@@ -675,9 +679,9 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
           | otherwise = (0, upsz + asz)
         upsz = bytes bpsz
         asz = case margs of
-          Nothing -> 0
-          Just (Arg1 _) -> 8
-          Just (Arg2 _ _) -> 16
+          Nothing -> bytes 0
+          Just (Arg1 _) -> bytes 1
+          Just (Arg2 _ _) -> bytes 2
           Just (ArgN v) -> bytes $ sizeofPrimArray v
           Just (ArgR _ l) -> bytes l
     boxedSeg = do

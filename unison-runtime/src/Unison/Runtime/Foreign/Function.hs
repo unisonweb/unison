@@ -20,8 +20,6 @@ import Data.Atomics (Ticket)
 import Data.Char qualified as Char
 import Data.Foldable (toList)
 import Data.IORef (IORef)
-import Data.Primitive.Array as PA
-import Data.Primitive.ByteArray as PA
 import Data.Sequence qualified as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Word (Word16, Word32, Word64, Word8)
@@ -32,6 +30,7 @@ import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (Code, Value, internalBug)
+import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
