@@ -1904,6 +1904,8 @@ anfBlock (Boolean' b) =
   pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
   pure (mempty, pure $ TLit l)
+anfBlock (Lit' l@(N _)) =
+  pure (mempty, pure $ TLit l)
 anfBlock (Lit' l) =
   pure (mempty, pure $ TBLit l)
 anfBlock (Ref' r) = pure (mempty, (Indirect (), TCom r []))

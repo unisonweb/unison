@@ -331,11 +331,9 @@ unop :: (Var v) => POp -> Reference -> SuperNormal v
 unop pop rf = unop' pop rf rf
 
 unop' :: (Var v) => POp -> Reference -> Reference -> SuperNormal v
-unop' pop rfi rfo =
-  unop0 2 $ \[x0, x, r] ->
-    unbox x0 rfi x
-      . TLetD r UN (TPrm pop [x])
-      $ TCon rfo 0 [r]
+unop' pop _rfi _rfo =
+  unop0 0 $ \[x] ->
+      (TPrm pop [x])
 
 binop :: (Var v) => POp -> Reference -> SuperNormal v
 binop pop rf = binop' pop rf rf rf
@@ -347,12 +345,8 @@ binop' ::
   Reference ->
   Reference ->
   SuperNormal v
-binop' pop rfx rfy rfr =
-  binop0 3 $ \[x0, y0, x, y, r] ->
-    unbox x0 rfx x
-      . unbox y0 rfy y
-      . TLetD r UN (TPrm pop [x, y])
-      $ TCon rfr 0 [r]
+binop' pop _rfx _rfy _rfr =
+  binop0 0 $ \[ x, y] -> TPrm pop [x, y]
 
 cmpop :: (Var v) => POp -> Reference -> SuperNormal v
 cmpop pop rf =

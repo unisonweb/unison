@@ -26,6 +26,7 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
+import Unison.Debug qualified as Debug
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
@@ -64,7 +65,6 @@ import Unison.Util.Text qualified as Util.Text
 import UnliftIO (IORef)
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
-import qualified Unison.Debug as Debug
 
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
@@ -241,6 +241,7 @@ apply0 !callback !env !threadTracker !i = do
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
       Debug.debugM Debug.Temp "Entry Comb" entryComb
+      -- Debug.debugM Debug.Temp "All Combs" cmbs
       apply env denv threadTracker stk (kf k0) True ZArgs $
         PAp entryCix entryComb nullSeg
     -- if it's cached, we can just finish
