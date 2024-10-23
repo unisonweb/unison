@@ -9,6 +9,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Debug qualified as Debug
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -34,7 +35,7 @@ data CompileOpts = COpts
   }
 
 defaultCompileOpts :: CompileOpts
-defaultCompileOpts = COpts { profile = False }
+defaultCompileOpts = COpts {profile = False}
 
 data Runtime v = Runtime
   { terminate :: IO (),
@@ -114,6 +115,7 @@ evaluateWatches code ppe evaluationCache rt tuf = do
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl ppe bigOl'LetRec
+  Debug.debugM Debug.Temp "evaluateWatches: out" out
   case out of
     Right (errs, out) -> do
       let (bindings, results) = case out of

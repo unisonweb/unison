@@ -23,6 +23,7 @@ import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
 import GHC.Conc as STM (unsafeIOToSTM)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.ConstructorReference qualified as CR
@@ -297,6 +298,20 @@ buildLit _ _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
 buildLit _ _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
 buildLit _ _ (MD _) = error "buildLit: double"
 
+debugger :: (Show a) => Stack -> String -> a -> Bool
+debugger stk msg a = unsafePerformIO $ do
+  Debug.debugLogM Debug.Temp (msg ++ ": " ++ show a)
+  dumpStack stk
+  pure False
+
+dumpStack :: Stack -> IO ()
+dumpStack stk@(Stack _ap fp sp _ustk _bstk)
+  | sp - fp <= 0 = Debug.debugLogM Debug.Temp "Stack Empty"
+  | otherwise = do
+      stkResults <- for [0 .. ((sp - fp) - 1)] $ \i -> do
+        peekOff stk i
+      Debug.debugM Debug.Temp "Stack" stkResults
+
 -- | Execute an instruction
 exec ::
   CCache ->
@@ -307,6 +322,8 @@ exec ::
   Reference ->
   MInstr ->
   IO (DEnv, Stack, K)
+exec !_ !_ !_ !stk !_ !_ instr
+  | debugger stk "exec" instr = undefined
 exec !_ !denv !_activeThreads !stk !k _ (Info tx) = do
   info tx stk
   info tx k
@@ -643,6 +660,8 @@ eval ::
   Reference ->
   MSection ->
   IO ()
+eval !_ !_ !_ !stk !_ !_ section
+  | debugger stk "eval" section = undefined
 eval !env !denv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval env denv activeThreads stk k r $ selectTextBranch t df cs
