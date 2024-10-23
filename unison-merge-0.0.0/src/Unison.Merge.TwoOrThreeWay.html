@@ -1,0 +1,187 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Merge.TwoOrThreeWay</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#TwoOrThreeWay"><span class="hs-identifier">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">data</span><span> </span><span id="TwoOrThreeWay"><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span></span><span> </span><span id="local-6989586621679186300"><span class="annot"><a href="#local-6989586621679186300"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TwoOrThreeWay"><span class="annot"><a href="Unison.Merge.TwoOrThreeWay.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Alca%3ATwoOrThreeWay"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; Maybe a
+</span><a href="Unison.Merge.TwoOrThreeWay.html#%24sel%3Alca%3ATwoOrThreeWay"><span class="hs-identifier hs-var hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679186300"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span id="%24sel%3Aalice%3ATwoOrThreeWay"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; a
+</span><a href="Unison.Merge.TwoOrThreeWay.html#%24sel%3Aalice%3ATwoOrThreeWay"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679186300"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span id="%24sel%3Abob%3ATwoOrThreeWay"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; a
+</span><a href="Unison.Merge.TwoOrThreeWay.html#%24sel%3Abob%3ATwoOrThreeWay"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679186300"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679186358"><span id="local-6989586621679186364"><span id="local-6989586621679186372"><span id="local-6989586621679186377"><span id="local-6989586621679186380"><span id="local-6989586621679186383"><span id="local-6989586621679186386"><span id="local-6989586621679186389"><span id="local-6989586621679186392"><span id="local-6989586621679186395"><span id="local-6989586621679186398"><span id="local-6989586621679186400"><span id="local-6989586621679186403"><span id="local-6989586621679186408"><span id="local-6989586621679186413"><span id="local-6989586621679186418"><span id="local-6989586621679186423"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. TwoOrThreeWay a -&gt; [a])
+-&gt; (forall a. TwoOrThreeWay a -&gt; Bool)
+-&gt; (forall a. TwoOrThreeWay a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; Foldable TwoOrThreeWay
+forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+forall a. TwoOrThreeWay a -&gt; Bool
+forall a. TwoOrThreeWay a -&gt; Int
+forall a. TwoOrThreeWay a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+fold :: forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+$ctoList :: forall a. TwoOrThreeWay a -&gt; [a]
+toList :: forall a. TwoOrThreeWay a -&gt; [a]
+$cnull :: forall a. TwoOrThreeWay a -&gt; Bool
+null :: forall a. TwoOrThreeWay a -&gt; Bool
+$clength :: forall a. TwoOrThreeWay a -&gt; Int
+length :: forall a. TwoOrThreeWay a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+maximum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+$cminimum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+minimum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+$csum :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+sum :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+$cproduct :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+product :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679186429"><span id="local-6989586621679186433"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b)
+-&gt; (forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a)
+-&gt; Functor TwoOrThreeWay
+forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+fmap :: forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+$c&lt;$ :: forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+&lt;$ :: forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679186438"><span id="local-6989586621679186440"><span class="annot"><span class="annottext">(forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x)
+-&gt; (forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a)
+-&gt; Generic (TwoOrThreeWay a)
+forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+forall a x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+$cfrom :: forall a x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+from :: forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+$cto :: forall a x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+to :: forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679186448"><span id="local-6989586621679186456"><span id="local-6989586621679186462"><span id="local-6989586621679186467"><span class="annot"><span class="annottext">Functor TwoOrThreeWay
+Foldable TwoOrThreeWay
+(Functor TwoOrThreeWay, Foldable TwoOrThreeWay) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a))
+-&gt; Traversable TwoOrThreeWay
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+$csequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span></pre></body></html>

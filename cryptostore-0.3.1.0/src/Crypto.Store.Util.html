@@ -1,0 +1,199 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.Util</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.Util</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#%26%26%21"><span class="hs-operator">(&amp;&amp;!)</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#reverseBytes"><span class="hs-identifier">reverseBytes</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#constAllEq"><span class="hs-identifier">constAllEq</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#mapLeft"><span class="hs-identifier">mapLeft</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#mapAsWord64LE"><span class="hs-identifier">mapAsWord64LE</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ByteArrayAccess</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Memory.Endian</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><span class="hs-comment">-- | This is a strict version of &amp;&amp;.</span></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Crypto.Store.Util.html#%26%26%21"><span class="hs-operator hs-type">(&amp;&amp;!)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-34"></span><span id="%26%26%21"><span class="annot"><span class="annottext">&amp;&amp;! :: Bool -&gt; Bool -&gt; Bool
+</span><a href="Crypto.Store.Util.html#%26%26%21"><span class="hs-operator hs-var hs-var">(&amp;&amp;!)</span></a></span></span><span> </span><span id="local-6989586621679146059"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679146059"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679146060"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679146060"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Bool
+</span><span class="hs-identifier hs-var">isTrue#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int# -&gt; Int# -&gt; Int#
+</span><span class="hs-identifier hs-var">andI#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Int#
+forall {a}. a -&gt; Int#
+</span><a href="#local-6989586621679146062"><span class="hs-identifier hs-var">getTag#</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679146059"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Int#
+forall {a}. a -&gt; Int#
+</span><a href="#local-6989586621679146062"><span class="hs-identifier hs-var">getTag#</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679146060"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679146062"><span class="annot"><span class="annottext">getTag# :: a -&gt; Int#
+</span><a href="#local-6989586621679146062"><span class="hs-identifier hs-var hs-var">getTag#</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679146063"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679146063"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int#
+forall {a}. a -&gt; Int#
+</span><span class="hs-identifier hs-var">dataToTag#</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679146063"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">infixr</span><span> </span><span class="hs-number">3</span><span> </span><span class="annot"><a href="Crypto.Store.Util.html#%26%26%21"><span class="hs-operator hs-type">&amp;&amp;!</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- | Reverse a bytearray.</span></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679146005"><span class="annot"><a href="Crypto.Store.Util.html#reverseBytes"><span class="hs-identifier hs-type">reverseBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679146005"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146005"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146005"><span class="hs-identifier hs-type">ba</span></a></span></span><span class="hs-cpp">
+#if MIN_VERSION_memory(0,14,18)
+</span><span id="reverseBytes"><span class="annot"><span class="annottext">reverseBytes :: forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><a href="Crypto.Store.Util.html#reverseBytes"><span class="hs-identifier hs-var hs-var">reverseBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ba -&gt; ba
+forall ba. ByteArray ba =&gt; ba -&gt; ba
+</span><span class="hs-identifier hs-var">B.reverse</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">reverseBytes</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">B.pack</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">reverse</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">B.unpack</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | Test if all bytes in a bytearray are equal to the value specified.  Runs in</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- constant time.</span><span>
+</span><span id="line-48"></span><span id="local-6989586621679146008"><span class="annot"><a href="Crypto.Store.Util.html#constAllEq"><span class="hs-identifier hs-type">constAllEq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArrayAccess</span></span><span> </span><span class="annot"><a href="#local-6989586621679146008"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146008"><span class="hs-identifier hs-type">ba</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-49"></span><span id="constAllEq"><span class="annot"><span class="annottext">constAllEq :: forall ba. ByteArrayAccess ba =&gt; Word8 -&gt; ba -&gt; Bool
+</span><a href="Crypto.Store.Util.html#constAllEq"><span class="hs-identifier hs-var hs-var">constAllEq</span></a></span></span><span> </span><span id="local-6989586621679146076"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146076"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; (ba -&gt; Word8) -&gt; ba -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Word8 -&gt; Word8) -&gt; Word8 -&gt; [Word8] -&gt; Word8
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+</span><a href="#local-6989586621679146079"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">([Word8] -&gt; Word8) -&gt; (ba -&gt; [Word8]) -&gt; ba -&gt; Word8
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ba -&gt; [Word8]
+forall a. ByteArrayAccess a =&gt; a -&gt; [Word8]
+</span><span class="hs-identifier hs-var">B.unpack</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679146079"><span class="annot"><span class="annottext">fn :: Word8 -&gt; Word8 -&gt; Word8
+</span><a href="#local-6989586621679146079"><span class="hs-identifier hs-var hs-var">fn</span></a></span></span><span> </span><span id="local-6989586621679146084"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146084"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679146085"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146085"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146084"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">xor</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146076"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679146085"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Map over the left value.</span></span><span>
+</span><span id="line-53"></span><span id="local-6989586621679146021"><span id="local-6989586621679146022"><span id="local-6989586621679146023"><span class="annot"><a href="Crypto.Store.Util.html#mapLeft"><span class="hs-identifier hs-type">mapLeft</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679146021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146022"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679146021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679146023"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679146022"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679146023"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-54"></span><span id="mapLeft"><span class="annot"><span class="annottext">mapLeft :: forall a b c. (a -&gt; b) -&gt; Either a c -&gt; Either b c
+</span><a href="Crypto.Store.Util.html#mapLeft"><span class="hs-identifier hs-var hs-var">mapLeft</span></a></span></span><span> </span><span id="local-6989586621679146088"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679146088"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679146089"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679146089"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Either b c
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679146088"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679146089"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Crypto.Store.Util.html#mapLeft"><span class="hs-identifier hs-var">mapLeft</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679146090"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679146090"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; Either b c
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679146090"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- | Same as 'Data.ByteArray.Mapping.mapAsWord64' but with little-endian words.</span></span><span>
+</span><span id="line-58"></span><span id="local-6989586621679146029"><span class="annot"><a href="Crypto.Store.Util.html#mapAsWord64LE"><span class="hs-identifier hs-type">mapAsWord64LE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679146029"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146029"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679146029"><span class="hs-identifier hs-type">bs</span></a></span></span><span>
+</span><span id="line-59"></span><span id="mapAsWord64LE"><span class="annot"><span class="annottext">mapAsWord64LE :: forall bs. ByteArray bs =&gt; (Word64 -&gt; Word64) -&gt; bs -&gt; bs
+</span><a href="Crypto.Store.Util.html#mapAsWord64LE"><span class="hs-identifier hs-var hs-var">mapAsWord64LE</span></a></span></span><span> </span><span id="local-6989586621679146116"><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679146116"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679146117"><span class="annot"><span class="annottext">bs
+</span><a href="#local-6989586621679146117"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">Int -&gt; (Ptr (LE Word64) -&gt; IO ()) -&gt; bs
+forall a p. ByteArray a =&gt; Int -&gt; (Ptr p -&gt; IO ()) -&gt; a
+</span><span class="hs-identifier hs-var">B.allocAndFreeze</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146119"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (LE Word64) -&gt; IO ()) -&gt; bs)
+-&gt; (Ptr (LE Word64) -&gt; IO ()) -&gt; bs
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679146120"><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146120"><span class="hs-identifier hs-var">dst</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">bs -&gt; (Ptr (LE Word64) -&gt; IO ()) -&gt; IO ()
+forall ba p a. ByteArrayAccess ba =&gt; ba -&gt; (Ptr p -&gt; IO a) -&gt; IO a
+forall p a. bs -&gt; (Ptr p -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">B.withByteArray</span></span><span> </span><span class="annot"><span class="annottext">bs
+</span><a href="#local-6989586621679146117"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (LE Word64) -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr (LE Word64) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679146122"><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146122"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; Ptr (LE Word64) -&gt; Ptr (LE Word64) -&gt; IO ()
+</span><a href="#local-6989586621679146123"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146119"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146120"><span class="hs-identifier hs-var">dst</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146122"><span class="hs-identifier hs-var">src</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>        </span><span id="local-6989586621679146119"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621679146119"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bs -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">bs
+</span><a href="#local-6989586621679146117"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><a href="#local-6989586621679146123"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LE</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">LE</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span id="local-6989586621679146123"><span class="annot"><span class="annottext">loop :: Int -&gt; Ptr (LE Word64) -&gt; Ptr (LE Word64) -&gt; IO ()
+</span><a href="#local-6989586621679146123"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><a href="#local-6989586621679146123"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span id="local-6989586621679146127"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146127"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679146128"><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146128"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679146129"><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146129"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-69"></span><span>            </span><span id="local-6989586621679146130"><span class="annot"><span class="annottext">LE Word64
+</span><a href="#local-6989586621679146130"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64) -&gt; IO (LE Word64)
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146129"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-70"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679146133"><span class="annot"><span class="annottext">r :: Word64
+</span><a href="#local-6989586621679146133"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64
+</span><a href="#local-6989586621679146116"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">LE Word64 -&gt; Word64
+forall a. ByteSwap a =&gt; LE a -&gt; a
+</span><span class="hs-identifier hs-var">fromLE</span></span><span> </span><span class="annot"><span class="annottext">LE Word64
+</span><a href="#local-6989586621679146130"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>            </span><span class="annot"><span class="annottext">Ptr (LE Word64) -&gt; LE Word64 -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">poke</span></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146128"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; LE Word64
+forall a. ByteSwap a =&gt; a -&gt; LE a
+</span><span class="hs-identifier hs-var">toLE</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679146133"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; Ptr (LE Word64) -&gt; Ptr (LE Word64) -&gt; IO ()
+</span><a href="#local-6989586621679146123"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679146127"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146128"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64) -&gt; Int -&gt; Ptr (LE Word64)
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (LE Word64)
+</span><a href="#local-6989586621679146129"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (LE Word64) -&gt; Int -&gt; Ptr (LE Word64)
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span></pre></body></html>

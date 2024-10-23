@@ -1,0 +1,433 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.CMS.Authenticated</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.CMS.Authenticated</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier">AuthenticatedData</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Cipher.Types</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html"><span class="hs-identifier">Crypto.Store.CMS.Algorithms</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html"><span class="hs-identifier">Crypto.Store.CMS.Attribute</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html"><span class="hs-identifier">Crypto.Store.CMS.Enveloped</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html"><span class="hs-identifier">Crypto.Store.CMS.OriginatorInfo</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html"><span class="hs-identifier">Crypto.Store.CMS.Signed</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html"><span class="hs-identifier">Crypto.Store.CMS.Type</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Authenticated content information.</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="AuthenticatedData"><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-var">AuthenticatedData</span></a></span></span><span> </span><span id="local-6989586621679159699"><span class="annot"><a href="#local-6989586621679159699"><span class="hs-identifier hs-type">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AuthenticatedData"><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-var">AuthenticatedData</span></a></span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="adOriginatorInfo"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; OriginatorInfo
+</span><a href="Crypto.Store.CMS.Authenticated.html#adOriginatorInfo"><span class="hs-identifier hs-var hs-var">adOriginatorInfo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Optional information about the originator</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adRecipientInfos"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; [RecipientInfo]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adRecipientInfos"><span class="hs-identifier hs-var hs-var">adRecipientInfos</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Enveloped.html#RecipientInfo"><span class="hs-identifier hs-type">RecipientInfo</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Information for recipients, allowing to authenticate the content</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adMACAlgorithm"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; MACAlgorithm
+</span><a href="Crypto.Store.CMS.Authenticated.html#adMACAlgorithm"><span class="hs-identifier hs-var hs-var">adMACAlgorithm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#MACAlgorithm"><span class="hs-identifier hs-type">MACAlgorithm</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ MAC algorithm</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adDigestAlgorithm"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; Maybe DigestAlgorithm
+</span><a href="Crypto.Store.CMS.Authenticated.html#adDigestAlgorithm"><span class="hs-identifier hs-var hs-var">adDigestAlgorithm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#DigestAlgorithm"><span class="hs-identifier hs-type">DigestAlgorithm</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Optional digest algorithm</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adContentType"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; ContentType
+</span><a href="Crypto.Store.CMS.Authenticated.html#adContentType"><span class="hs-identifier hs-var hs-var">adContentType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html#ContentType"><span class="hs-identifier hs-type">ContentType</span></a></span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Inner content type</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adEncapsulatedContent"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Authenticated.html#adEncapsulatedContent"><span class="hs-identifier hs-var hs-var">adEncapsulatedContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679159699"><span class="hs-identifier hs-type">content</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Encapsulated content</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adAuthAttrs"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adAuthAttrs"><span class="hs-identifier hs-var hs-var">adAuthAttrs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Optional authenticated attributes</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adMAC"><span class="annot"><span class="annottext">forall content.
+AuthenticatedData content -&gt; MessageAuthenticationCode
+</span><a href="Crypto.Store.CMS.Authenticated.html#adMAC"><span class="hs-identifier hs-var hs-var">adMAC</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#MessageAuthenticationCode"><span class="hs-identifier hs-type">MessageAuthenticationCode</span></a></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Message authentication code</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="adUnauthAttrs"><span class="annot"><span class="annottext">forall content. AuthenticatedData content -&gt; [Attribute]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adUnauthAttrs"><span class="hs-identifier hs-var hs-var">adUnauthAttrs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.Attribute.html#Attribute"><span class="hs-identifier hs-type">Attribute</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Optional unauthenticated attributes</span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679159817"><span id="local-6989586621679159839"><span id="local-6989586621679159843"><span class="annot"><span class="annottext">Int -&gt; AuthenticatedData content -&gt; ShowS
+[AuthenticatedData content] -&gt; ShowS
+AuthenticatedData content -&gt; String
+(Int -&gt; AuthenticatedData content -&gt; ShowS)
+-&gt; (AuthenticatedData content -&gt; String)
+-&gt; ([AuthenticatedData content] -&gt; ShowS)
+-&gt; Show (AuthenticatedData content)
+forall content.
+Show content =&gt;
+Int -&gt; AuthenticatedData content -&gt; ShowS
+forall content.
+Show content =&gt;
+[AuthenticatedData content] -&gt; ShowS
+forall content. Show content =&gt; AuthenticatedData content -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall content.
+Show content =&gt;
+Int -&gt; AuthenticatedData content -&gt; ShowS
+showsPrec :: Int -&gt; AuthenticatedData content -&gt; ShowS
+$cshow :: forall content. Show content =&gt; AuthenticatedData content -&gt; String
+show :: AuthenticatedData content -&gt; String
+$cshowList :: forall content.
+Show content =&gt;
+[AuthenticatedData content] -&gt; ShowS
+showList :: [AuthenticatedData content] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679159851"><span id="local-6989586621679159871"><span class="annot"><span class="annottext">AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+(AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool)
+-&gt; (AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool)
+-&gt; Eq (AuthenticatedData content)
+forall content.
+Eq content =&gt;
+AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall content.
+Eq content =&gt;
+AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+== :: AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+$c/= :: forall content.
+Eq content =&gt;
+AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+/= :: AuthenticatedData content -&gt; AuthenticatedData content -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span id="local-6989586621679159883"><span class="annot"><span class="annottext">asn1s :: AuthenticatedData (Encap EncapsulatedContent) -&gt; ASN1Stream ASN1P
+</span><a href="#local-6989586621679159883"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span class="hs-special">{</span><span id="local-6989586621679159885"><span id="local-6989586621679159886"><span id="local-6989586621679159887"><span id="local-6989586621679159888"><span id="local-6989586621679159889"><span id="local-6989586621679159890"><span id="local-6989586621679159891"><span id="local-6989586621679159892"><span id="local-6989586621679159893"><span class="annot"><span class="annottext">[Attribute]
+[RecipientInfo]
+Maybe DigestAlgorithm
+MessageAuthenticationCode
+Encap EncapsulatedContent
+ContentType
+OriginatorInfo
+MACAlgorithm
+adOriginatorInfo :: forall content. AuthenticatedData content -&gt; OriginatorInfo
+adRecipientInfos :: forall content. AuthenticatedData content -&gt; [RecipientInfo]
+adMACAlgorithm :: forall content. AuthenticatedData content -&gt; MACAlgorithm
+adDigestAlgorithm :: forall content. AuthenticatedData content -&gt; Maybe DigestAlgorithm
+adContentType :: forall content. AuthenticatedData content -&gt; ContentType
+adEncapsulatedContent :: forall content. AuthenticatedData content -&gt; content
+adAuthAttrs :: forall content. AuthenticatedData content -&gt; [Attribute]
+adMAC :: forall content.
+AuthenticatedData content -&gt; MessageAuthenticationCode
+adUnauthAttrs :: forall content. AuthenticatedData content -&gt; [Attribute]
+adOriginatorInfo :: OriginatorInfo
+adRecipientInfos :: [RecipientInfo]
+adMACAlgorithm :: MACAlgorithm
+adDigestAlgorithm :: Maybe DigestAlgorithm
+adContentType :: ContentType
+adEncapsulatedContent :: Encap EncapsulatedContent
+adAuthAttrs :: [Attribute]
+adMAC :: MessageAuthenticationCode
+adUnauthAttrs :: [Attribute]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adOriginatorInfo"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159896"><span class="hs-identifier hs-var">ver</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159898"><span class="hs-identifier hs-var">oi</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159899"><span class="hs-identifier hs-var">ris</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159900"><span class="hs-identifier hs-var">alg</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159901"><span class="hs-identifier hs-var">dig</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159902"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159903"><span class="hs-identifier hs-var">aa</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159904"><span class="hs-identifier hs-var">tag</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+</span><a href="#local-6989586621679159905"><span class="hs-identifier hs-var">ua</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>        </span><span id="local-6989586621679159896"><span class="annot"><span class="annottext">ver :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159896"><span class="hs-identifier hs-var hs-var">ver</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; ASN1Stream ASN1P
+forall e. ASN1Elem e =&gt; Integer -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-var">gIntVal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159908"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span id="local-6989586621679159899"><span class="annot"><span class="annottext">ris :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159899"><span class="hs-identifier hs-var hs-var">ris</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[RecipientInfo] -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">[RecipientInfo]
+</span><a href="#local-6989586621679159886"><span class="hs-identifier hs-var">adRecipientInfos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>        </span><span id="local-6989586621679159900"><span class="annot"><span class="annottext">alg :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159900"><span class="hs-identifier hs-var hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; MACAlgorithm -&gt; ASN1Stream ASN1P
+forall e param.
+(ASN1Elem e, AlgorithmId param, OIDable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; param -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#algorithmASN1S"><span class="hs-identifier hs-var">algorithmASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">MACAlgorithm
+</span><a href="#local-6989586621679159887"><span class="hs-identifier hs-var">adMACAlgorithm</span></a></span><span>
+</span><span id="line-64"></span><span>        </span><span id="local-6989586621679159901"><span class="annot"><span class="annottext">dig :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159901"><span class="hs-identifier hs-var hs-var">dig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; Maybe DigestAlgorithm -&gt; ASN1Stream ASN1P
+forall e param.
+(ASN1Elem e, AlgorithmId param, OIDable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; Maybe param -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#algorithmMaybeASN1S"><span class="hs-identifier hs-var">algorithmMaybeASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe DigestAlgorithm
+</span><a href="#local-6989586621679159888"><span class="hs-identifier hs-var">adDigestAlgorithm</span></a></span><span>
+</span><span id="line-65"></span><span>        </span><span id="local-6989586621679159902"><span class="annot"><span class="annottext">ci :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159902"><span class="hs-identifier hs-var hs-var">ci</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; Encap EncapsulatedContent -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ContentType -&gt; Encap EncapsulatedContent -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Signed.html#encapsulatedContentInfoASN1S"><span class="hs-identifier hs-var">encapsulatedContentInfoASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159889"><span class="hs-identifier hs-var">adContentType</span></a></span><span> </span><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679159890"><span class="hs-identifier hs-var">adEncapsulatedContent</span></a></span><span>
+</span><span id="line-66"></span><span>        </span><span id="local-6989586621679159903"><span class="annot"><span class="annottext">aa :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159903"><span class="hs-identifier hs-var hs-var">aa</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; [Attribute] -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; [Attribute] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier hs-var">attributesASN1S</span></a></span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679159891"><span class="hs-identifier hs-var">adAuthAttrs</span></a></span><span>
+</span><span id="line-67"></span><span>        </span><span id="local-6989586621679159904"><span class="annot"><span class="annottext">tag :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159904"><span class="hs-identifier hs-var hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent -&gt; ASN1Stream ASN1P
+forall e. ASN1Elem e =&gt; EncapsulatedContent -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var">gOctetString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MessageAuthenticationCode -&gt; EncapsulatedContent
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">MessageAuthenticationCode
+</span><a href="#local-6989586621679159892"><span class="hs-identifier hs-var">adMAC</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>        </span><span id="local-6989586621679159905"><span class="annot"><span class="annottext">ua :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159905"><span class="hs-identifier hs-var hs-var">ua</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; [Attribute] -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; [Attribute] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Attribute.html#attributesASN1S"><span class="hs-identifier hs-var">attributesASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679159893"><span class="hs-identifier hs-var">adUnauthAttrs</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>        </span><span id="local-6989586621679159898"><span class="annot"><span class="annottext">oi :: ASN1Stream ASN1P
+</span><a href="#local-6989586621679159898"><span class="hs-identifier hs-var hs-var">oi</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+</span><a href="#local-6989586621679159885"><span class="hs-identifier hs-var">adOriginatorInfo</span></a></span><span> </span><span class="annot"><span class="annottext">OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-71"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; OriginatorInfo -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorInfoASN1S"><span class="hs-identifier hs-var">originatorInfoASN1S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+</span><a href="#local-6989586621679159885"><span class="hs-identifier hs-var">adOriginatorInfo</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>        </span><span id="local-6989586621679159908"><span class="annot"><span class="annottext">v :: Integer
+</span><a href="#local-6989586621679159908"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">OriginatorInfo -&gt; Bool
+forall a. HasChoiceOther a =&gt; a -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+</span><a href="#local-6989586621679159885"><span class="hs-identifier hs-var">adOriginatorInfo</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-74"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679160015"><span class="annot"><span class="annottext">parse :: ParseASN1
+  [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+</span><a href="#local-6989586621679160015"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1
+     [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+-&gt; ParseASN1
+     [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1
+   [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+ -&gt; ParseASN1
+      [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent)))
+-&gt; ParseASN1
+     [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+-&gt; ParseASN1
+     [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-79"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">IntVal</span></span><span> </span><span id="local-6989586621679160019"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679160019"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-80"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; ParseASN1 [ASN1Event] () -&gt; ParseASN1 [ASN1Event] ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679160019"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; [Integer] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`notElem`</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">3</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ParseASN1 [ASN1Event] () -&gt; ParseASN1 [ASN1Event] ())
+-&gt; ParseASN1 [ASN1Event] () -&gt; ParseASN1 [ASN1Event] ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-81"></span><span>                </span><span class="annot"><span class="annottext">String -&gt; ParseASN1 [ASN1Event] ()
+forall e a. String -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#throwParseError"><span class="hs-identifier hs-var">throwParseError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;AuthenticatedData: parsed invalid version: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679160019"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>            </span><span id="local-6989586621679160025"><span class="annot"><span class="annottext">OriginatorInfo
+</span><a href="#local-6989586621679160025"><span class="hs-identifier hs-var">oi</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] OriginatorInfo
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOriginatorInfo"><span class="hs-identifier hs-var">parseOriginatorInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] OriginatorInfo
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+forall a.
+ParseASN1 [ASN1Event] a
+-&gt; ParseASN1 [ASN1Event] a -&gt; ParseASN1 [ASN1Event] a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">OriginatorInfo -&gt; ParseASN1 [ASN1Event] OriginatorInfo
+forall a. a -&gt; ParseASN1 [ASN1Event] a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-83"></span><span>            </span><span id="local-6989586621679160028"><span class="annot"><span class="annottext">[RecipientInfo]
+</span><a href="#local-6989586621679160028"><span class="hs-identifier hs-var">ris</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] [RecipientInfo]
+-&gt; ParseASN1 [ASN1Event] [RecipientInfo]
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Set</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] [RecipientInfo]
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-84"></span><span>            </span><span id="local-6989586621679160029"><span class="annot"><span class="annottext">MACAlgorithm
+</span><a href="#local-6989586621679160029"><span class="hs-identifier hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] MACAlgorithm
+forall e param.
+(Monoid e, AlgorithmId param, OIDNameable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e param
+</span><a href="Crypto.Store.CMS.Util.html#parseAlgorithm"><span class="hs-identifier hs-var">parseAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-85"></span><span>            </span><span id="local-6989586621679160031"><span class="annot"><span class="annottext">Maybe DigestAlgorithm
+</span><a href="#local-6989586621679160031"><span class="hs-identifier hs-var">dig</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] (Maybe DigestAlgorithm)
+forall e param.
+(Monoid e, AlgorithmId param, OIDNameable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e (Maybe param)
+</span><a href="Crypto.Store.CMS.Util.html#parseAlgorithmMaybe"><span class="hs-identifier hs-var">parseAlgorithmMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679160033"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679160033"><span class="hs-identifier hs-var">ct</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679160034"><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679160034"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] (ContentType, Encap EncapsulatedContent)
+forall e.
+Monoid e =&gt;
+ParseASN1 e (ContentType, Encap EncapsulatedContent)
+</span><a href="Crypto.Store.CMS.Signed.html#parseEncapsulatedContentInfo"><span class="hs-identifier hs-var">parseEncapsulatedContentInfo</span></a></span><span>
+</span><span id="line-87"></span><span>            </span><span id="local-6989586621679160036"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679160036"><span class="hs-identifier hs-var">aAttrs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] [Attribute]
+forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#parseAttributes"><span class="hs-identifier hs-var">parseAttributes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">OctetString</span></span><span> </span><span id="local-6989586621679160039"><span class="annot"><span class="annottext">EncapsulatedContent
+</span><a href="#local-6989586621679160039"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span id="local-6989586621679160040"><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679160040"><span class="hs-identifier hs-var">uAttrs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] [Attribute]
+forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e [Attribute]
+</span><a href="Crypto.Store.CMS.Attribute.html#parseAttributes"><span class="hs-identifier hs-var">parseAttributes</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>            </span><span class="annot"><span class="annottext">AuthenticatedData (Encap EncapsulatedContent)
+-&gt; ParseASN1
+     [ASN1Event] (AuthenticatedData (Encap EncapsulatedContent))
+forall a. a -&gt; ParseASN1 [ASN1Event] a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Authenticated.html#AuthenticatedData"><span class="hs-identifier hs-type">AuthenticatedData</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">adOriginatorInfo :: OriginatorInfo
+</span><a href="Crypto.Store.CMS.Authenticated.html#adOriginatorInfo"><span class="hs-identifier hs-var">adOriginatorInfo</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OriginatorInfo
+</span><a href="#local-6989586621679160025"><span class="hs-identifier hs-var">oi</span></a></span><span>
+</span><span id="line-91"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adRecipientInfos :: [RecipientInfo]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adRecipientInfos"><span class="hs-identifier hs-var">adRecipientInfos</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[RecipientInfo]
+</span><a href="#local-6989586621679160028"><span class="hs-identifier hs-var">ris</span></a></span><span>
+</span><span id="line-92"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adMACAlgorithm :: MACAlgorithm
+</span><a href="Crypto.Store.CMS.Authenticated.html#adMACAlgorithm"><span class="hs-identifier hs-var">adMACAlgorithm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MACAlgorithm
+</span><a href="#local-6989586621679160029"><span class="hs-identifier hs-var">alg</span></a></span><span>
+</span><span id="line-93"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adDigestAlgorithm :: Maybe DigestAlgorithm
+</span><a href="Crypto.Store.CMS.Authenticated.html#adDigestAlgorithm"><span class="hs-identifier hs-var">adDigestAlgorithm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe DigestAlgorithm
+</span><a href="#local-6989586621679160031"><span class="hs-identifier hs-var">dig</span></a></span><span>
+</span><span id="line-94"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adContentType :: ContentType
+</span><a href="Crypto.Store.CMS.Authenticated.html#adContentType"><span class="hs-identifier hs-var">adContentType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679160033"><span class="hs-identifier hs-var">ct</span></a></span><span>
+</span><span id="line-95"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adEncapsulatedContent :: Encap EncapsulatedContent
+</span><a href="Crypto.Store.CMS.Authenticated.html#adEncapsulatedContent"><span class="hs-identifier hs-var">adEncapsulatedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679160034"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-96"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adAuthAttrs :: [Attribute]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adAuthAttrs"><span class="hs-identifier hs-var">adAuthAttrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679160036"><span class="hs-identifier hs-var">aAttrs</span></a></span><span>
+</span><span id="line-97"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adMAC :: MessageAuthenticationCode
+</span><a href="Crypto.Store.CMS.Authenticated.html#adMAC"><span class="hs-identifier hs-var">adMAC</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; MessageAuthenticationCode
+</span><span class="hs-identifier hs-var">AuthTag</span></span><span> </span><span class="annot"><span class="annottext">(Bytes -&gt; MessageAuthenticationCode)
+-&gt; Bytes -&gt; MessageAuthenticationCode
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent -&gt; Bytes
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent
+</span><a href="#local-6989586621679160039"><span class="hs-identifier hs-var">tag</span></a></span><span>
+</span><span id="line-98"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">adUnauthAttrs :: [Attribute]
+</span><a href="Crypto.Store.CMS.Authenticated.html#adUnauthAttrs"><span class="hs-identifier hs-var">adUnauthAttrs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Attribute]
+</span><a href="#local-6989586621679160040"><span class="hs-identifier hs-var">uAttrs</span></a></span><span>
+</span><span id="line-99"></span><span>                                     </span><span class="hs-special">}</span><span>
+</span><span id="line-100"></span></pre></body></html>

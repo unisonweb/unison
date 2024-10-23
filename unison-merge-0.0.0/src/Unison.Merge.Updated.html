@@ -1,0 +1,58 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Merge.Updated</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier">Updated</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="annot"><span class="hs-comment">-- | An updated thing.</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Updated"><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-var">Updated</span></a></span></span><span> </span><span id="local-6989586621679188474"><span class="annot"><a href="#local-6989586621679188474"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Updated"><span class="annot"><a href="Unison.Merge.Updated.html#Updated"><span class="hs-identifier hs-var">Updated</span></a></span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aold%3AUpdated"><span class="annot"><span class="annottext">forall a. Updated a -&gt; a
+</span><a href="Unison.Merge.Updated.html#%24sel%3Aold%3AUpdated"><span class="hs-identifier hs-var hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188474"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span id="%24sel%3Anew%3AUpdated"><span class="annot"><span class="annottext">forall a. Updated a -&gt; a
+</span><a href="Unison.Merge.Updated.html#%24sel%3Anew%3AUpdated"><span class="hs-identifier hs-var hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679188474"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679188496"><span id="local-6989586621679188498"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Updated a -&gt; Updated b)
+-&gt; (forall a b. a -&gt; Updated b -&gt; Updated a) -&gt; Functor Updated
+forall a b. a -&gt; Updated b -&gt; Updated a
+forall a b. (a -&gt; b) -&gt; Updated a -&gt; Updated b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; Updated a -&gt; Updated b
+fmap :: forall a b. (a -&gt; b) -&gt; Updated a -&gt; Updated b
+$c&lt;$ :: forall a b. a -&gt; Updated b -&gt; Updated a
+&lt;$ :: forall a b. a -&gt; Updated b -&gt; Updated a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679188502"><span id="local-6989586621679188504"><span class="annot"><span class="annottext">(forall x. Updated a -&gt; Rep (Updated a) x)
+-&gt; (forall x. Rep (Updated a) x -&gt; Updated a)
+-&gt; Generic (Updated a)
+forall x. Rep (Updated a) x -&gt; Updated a
+forall x. Updated a -&gt; Rep (Updated a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (Updated a) x -&gt; Updated a
+forall a x. Updated a -&gt; Rep (Updated a) x
+$cfrom :: forall a x. Updated a -&gt; Rep (Updated a) x
+from :: forall x. Updated a -&gt; Rep (Updated a) x
+$cto :: forall a x. Rep (Updated a) x -&gt; Updated a
+to :: forall x. Rep (Updated a) x -&gt; Updated a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679188509"><span id="local-6989586621679188515"><span id="local-6989586621679188519"><span class="annot"><span class="annottext">Int -&gt; Updated a -&gt; ShowS
+[Updated a] -&gt; ShowS
+Updated a -&gt; String
+(Int -&gt; Updated a -&gt; ShowS)
+-&gt; (Updated a -&gt; String)
+-&gt; ([Updated a] -&gt; ShowS)
+-&gt; Show (Updated a)
+forall a. Show a =&gt; Int -&gt; Updated a -&gt; ShowS
+forall a. Show a =&gt; [Updated a] -&gt; ShowS
+forall a. Show a =&gt; Updated a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Updated a -&gt; ShowS
+showsPrec :: Int -&gt; Updated a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; Updated a -&gt; String
+show :: Updated a -&gt; String
+$cshowList :: forall a. Show a =&gt; [Updated a] -&gt; ShowS
+showList :: [Updated a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span></pre></body></html>

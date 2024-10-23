@@ -1,0 +1,332 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.CMS.Digested</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE ExistentialQuantification #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.CMS.Digested</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier">DigestedData</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Crypto.Hash</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MD5</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html"><span class="hs-identifier">Crypto.Store.CMS.Algorithms</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html"><span class="hs-identifier">Crypto.Store.CMS.Signed</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html"><span class="hs-identifier">Crypto.Store.CMS.Type</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="annot"><span class="hs-comment">-- | Digested content information.</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="DigestedData"><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-var">DigestedData</span></a></span></span><span> </span><span id="local-6989586621679159436"><span class="annot"><a href="#local-6989586621679159436"><span class="hs-identifier hs-type">content</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679159524"><span class="annot"><a href="#local-6989586621679159524"><span class="hs-identifier hs-type">hashAlg</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HashAlgorithm</span></span><span> </span><span class="annot"><a href="#local-6989586621679159524"><span class="hs-identifier hs-type">hashAlg</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="DigestedData"><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-var">DigestedData</span></a></span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="ddDigestAlgorithm"><span class="annot"><span class="annottext">()
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigestAlgorithm"><span class="hs-identifier hs-var hs-var">ddDigestAlgorithm</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#DigestProxy"><span class="hs-identifier hs-type">DigestProxy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159524"><span class="hs-identifier hs-type">hashAlg</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Digest algorithm</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="ddContentType"><span class="annot"><span class="annottext">forall content. DigestedData content -&gt; ContentType
+</span><a href="Crypto.Store.CMS.Digested.html#ddContentType"><span class="hs-identifier hs-var hs-var">ddContentType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Type.html#ContentType"><span class="hs-identifier hs-type">ContentType</span></a></span><span>                 </span><span class="annot"><span class="hs-comment">-- ^ Inner content type</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="ddEncapsulatedContent"><span class="annot"><span class="annottext">forall content. DigestedData content -&gt; content
+</span><a href="Crypto.Store.CMS.Digested.html#ddEncapsulatedContent"><span class="hs-identifier hs-var hs-var">ddEncapsulatedContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679159436"><span class="hs-identifier hs-type">content</span></a></span><span>             </span><span class="annot"><span class="hs-comment">-- ^ Encapsulated content</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="ddDigest"><span class="annot"><span class="annottext">()
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigest"><span class="hs-identifier hs-var hs-var">ddDigest</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Digest</span></span><span> </span><span class="annot"><a href="#local-6989586621679159524"><span class="hs-identifier hs-type">hashAlg</span></a></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Digest value</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679159447"><span id="local-6989586621679159535"><span id="local-6989586621679159539"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679159447"><span class="hs-identifier hs-type">content</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159447"><span class="hs-identifier hs-type">content</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679159542"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; DigestedData content -&gt; ShowS
+</span><a href="#local-6989586621679159542"><span class="hs-identifier hs-var hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679159544"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159544"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span class="hs-special">{</span><span id="local-6989586621679159557"><span id="local-6989586621679159558"><span id="local-6989586621679159559"><span id="local-6989586621679159560"><span class="annot"><span class="annottext">content
+Digest hashAlg
+ContentType
+DigestProxy hashAlg
+ddDigestAlgorithm :: ()
+ddContentType :: forall content. DigestedData content -&gt; ContentType
+ddEncapsulatedContent :: forall content. DigestedData content -&gt; content
+ddDigest :: ()
+ddDigestAlgorithm :: DigestProxy hashAlg
+ddContentType :: ContentType
+ddEncapsulatedContent :: content
+ddDigest :: Digest hashAlg
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigestAlgorithm"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679159544"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DigestedData &quot;</span></span><span>
+</span><span id="line-42"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;{ ddDigestAlgorithm = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159557"><span class="hs-identifier hs-var">ddDigestAlgorithm</span></a></span><span>
+</span><span id="line-43"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;, ddContentType = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159558"><span class="hs-identifier hs-var">ddContentType</span></a></span><span>
+</span><span id="line-44"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;, ddEncapsulatedContent = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">content -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679159559"><span class="hs-identifier hs-var">ddEncapsulatedContent</span></a></span><span>
+</span><span id="line-45"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;, ddDigest = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg -&gt; ShowS
+forall a. Show a =&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">shows</span></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159560"><span class="hs-identifier hs-var">ddDigest</span></a></span><span>
+</span><span id="line-46"></span><span>            </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; }&quot;</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679159463"><span id="local-6989586621679159569"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679159463"><span class="hs-identifier hs-type">content</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159463"><span class="hs-identifier hs-type">content</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span id="local-6989586621679159574"><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159574"><span class="hs-identifier hs-var">a1</span></a></span></span><span> </span><span id="local-6989586621679159575"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159575"><span class="hs-identifier hs-var">t1</span></a></span></span><span> </span><span id="local-6989586621679159576"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679159576"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span id="local-6989586621679159577"><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159577"><span class="hs-identifier hs-var">d1</span></a></span></span><span> </span><span id="local-6989586621679159578"><span class="annot"><span class="annottext">== :: DigestedData content -&gt; DigestedData content -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span id="local-6989586621679159590"><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159590"><span class="hs-identifier hs-var">a2</span></a></span></span><span> </span><span id="local-6989586621679159591"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159591"><span class="hs-identifier hs-var">t2</span></a></span></span><span> </span><span id="local-6989586621679159592"><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679159592"><span class="hs-identifier hs-var">e2</span></a></span></span><span> </span><span id="local-6989586621679159593"><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159593"><span class="hs-identifier hs-var">d2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><span class="annottext">DigestProxy hashAlg -&gt; DigestAlgorithm
+forall hashAlg.
+HashAlgorithm hashAlg =&gt;
+DigestProxy hashAlg -&gt; DigestAlgorithm
+</span><a href="Crypto.Store.CMS.Algorithms.html#DigestAlgorithm"><span class="hs-identifier hs-var">DigestAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159574"><span class="hs-identifier hs-var">a1</span></a></span><span> </span><span class="annot"><span class="annottext">DigestAlgorithm -&gt; DigestAlgorithm -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg -&gt; DigestAlgorithm
+forall hashAlg.
+HashAlgorithm hashAlg =&gt;
+DigestProxy hashAlg -&gt; DigestAlgorithm
+</span><a href="Crypto.Store.CMS.Algorithms.html#DigestAlgorithm"><span class="hs-identifier hs-var">DigestAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159590"><span class="hs-identifier hs-var">a2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159577"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg -&gt; Digest hashAlg -&gt; Bool
+forall bs1 bs2.
+(ByteArrayAccess bs1, ByteArrayAccess bs2) =&gt;
+bs1 -&gt; bs2 -&gt; Bool
+</span><span class="hs-operator hs-var">`B.eq`</span></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159593"><span class="hs-identifier hs-var">d2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159575"><span class="hs-identifier hs-var">t1</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; ContentType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159591"><span class="hs-identifier hs-var">t2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679159576"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">content -&gt; content -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">content
+</span><a href="#local-6989586621679159592"><span class="hs-identifier hs-var">e2</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679159480"><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159480"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159480"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679159601"><span class="annot"><span class="annottext">asn1s :: DigestedData (Encap EncapsulatedContent) -&gt; ASN1Stream e
+</span><a href="#local-6989586621679159601"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span class="hs-special">{</span><span id="local-6989586621679159605"><span id="local-6989586621679159606"><span id="local-6989586621679159607"><span id="local-6989586621679159608"><span class="annot"><span class="annottext">Digest hashAlg
+Encap EncapsulatedContent
+ContentType
+DigestProxy hashAlg
+ddDigestAlgorithm :: ()
+ddContentType :: forall content. DigestedData content -&gt; ContentType
+ddEncapsulatedContent :: forall content. DigestedData content -&gt; content
+ddDigest :: ()
+ddDigestAlgorithm :: DigestProxy hashAlg
+ddContentType :: ContentType
+ddEncapsulatedContent :: Encap EncapsulatedContent
+ddDigest :: Digest hashAlg
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigestAlgorithm"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679159611"><span class="hs-identifier hs-var">ver</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679159612"><span class="hs-identifier hs-var">alg</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679159613"><span class="hs-identifier hs-var">ci</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679159614"><span class="hs-identifier hs-var">dig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>        </span><span id="local-6989586621679159619"><span class="annot"><span class="annottext">v :: Integer
+</span><a href="#local-6989586621679159619"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159606"><span class="hs-identifier hs-var">ddContentType</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; ContentType -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="Crypto.Store.CMS.Type.html#DataType"><span class="hs-identifier hs-var">DataType</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-57"></span><span>        </span><span id="local-6989586621679159622"><span class="annot"><span class="annottext">d :: DigestAlgorithm
+</span><a href="#local-6989586621679159622"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg -&gt; DigestAlgorithm
+forall hashAlg.
+HashAlgorithm hashAlg =&gt;
+DigestProxy hashAlg -&gt; DigestAlgorithm
+</span><a href="Crypto.Store.CMS.Algorithms.html#DigestAlgorithm"><span class="hs-identifier hs-var">DigestAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159605"><span class="hs-identifier hs-var">ddDigestAlgorithm</span></a></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>        </span><span id="local-6989586621679159611"><span class="annot"><span class="annottext">ver :: ASN1Stream e
+</span><a href="#local-6989586621679159611"><span class="hs-identifier hs-var hs-var">ver</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; Integer -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gIntVal"><span class="hs-identifier hs-var">gIntVal</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159619"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-60"></span><span>        </span><span id="local-6989586621679159612"><span class="annot"><span class="annottext">alg :: ASN1Stream e
+</span><a href="#local-6989586621679159612"><span class="hs-identifier hs-var hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; DigestAlgorithm -&gt; ASN1Stream e
+forall e param.
+(ASN1Elem e, AlgorithmId param, OIDable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; param -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#algorithmASN1S"><span class="hs-identifier hs-var">algorithmASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">DigestAlgorithm
+</span><a href="#local-6989586621679159622"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span id="local-6989586621679159613"><span class="annot"><span class="annottext">ci :: ASN1Stream e
+</span><a href="#local-6989586621679159613"><span class="hs-identifier hs-var hs-var">ci</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType -&gt; Encap EncapsulatedContent -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ContentType -&gt; Encap EncapsulatedContent -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Signed.html#encapsulatedContentInfoASN1S"><span class="hs-identifier hs-var">encapsulatedContentInfoASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159606"><span class="hs-identifier hs-var">ddContentType</span></a></span><span> </span><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679159607"><span class="hs-identifier hs-var">ddEncapsulatedContent</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span id="local-6989586621679159614"><span class="annot"><span class="annottext">dig :: ASN1Stream e
+</span><a href="#local-6989586621679159614"><span class="hs-identifier hs-var hs-var">dig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; EncapsulatedContent -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOctetString"><span class="hs-identifier hs-var">gOctetString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Digest hashAlg -&gt; EncapsulatedContent
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">B.convert</span></span><span> </span><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159608"><span class="hs-identifier hs-var">ddDigest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679159501"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679159501"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679159501"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.Type.html#Encap"><span class="hs-identifier hs-type">Encap</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Signed.html#EncapsulatedContent"><span class="hs-identifier hs-type">EncapsulatedContent</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679159673"><span class="annot"><span class="annottext">parse :: ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+</span><a href="#local-6989586621679159673"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+-&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+ -&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent)))
+-&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+-&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">IntVal</span></span><span> </span><span id="local-6989586621679159677"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159677"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-68"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; ParseASN1 e () -&gt; ParseASN1 e ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159677"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159677"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e () -&gt; ParseASN1 e ())
+-&gt; ParseASN1 e () -&gt; ParseASN1 e ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-69"></span><span>                </span><span class="annot"><span class="annottext">String -&gt; ParseASN1 e ()
+forall e a. String -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#throwParseError"><span class="hs-identifier hs-var">throwParseError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DigestedData: parsed invalid version: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679159677"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>            </span><span id="local-6989586621679159683"><span class="annot"><span class="annottext">DigestAlgorithm
+</span><a href="#local-6989586621679159683"><span class="hs-identifier hs-var">alg</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e DigestAlgorithm
+forall e param.
+(Monoid e, AlgorithmId param, OIDNameable (AlgorithmType param)) =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e param
+</span><a href="Crypto.Store.CMS.Util.html#parseAlgorithm"><span class="hs-identifier hs-var">parseAlgorithm</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-71"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679159685"><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159685"><span class="hs-identifier hs-var">ct</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679159686"><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679159686"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e (ContentType, Encap EncapsulatedContent)
+forall e.
+Monoid e =&gt;
+ParseASN1 e (ContentType, Encap EncapsulatedContent)
+</span><a href="Crypto.Store.CMS.Signed.html#parseEncapsulatedContentInfo"><span class="hs-identifier hs-var">parseEncapsulatedContentInfo</span></a></span><span>
+</span><span id="line-72"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">OctetString</span></span><span> </span><span id="local-6989586621679159689"><span class="annot"><span class="annottext">EncapsulatedContent
+</span><a href="#local-6989586621679159689"><span class="hs-identifier hs-var">digValue</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-73"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DigestAlgorithm
+</span><a href="#local-6989586621679159683"><span class="hs-identifier hs-var">alg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-74"></span><span>                </span><span class="annot"><a href="Crypto.Store.CMS.Algorithms.html#DigestAlgorithm"><span class="hs-identifier hs-type">DigestAlgorithm</span></a></span><span> </span><span id="local-6989586621679159696"><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159696"><span class="hs-identifier hs-var">digAlg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-75"></span><span>                    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent -&gt; Maybe (Digest hashAlg)
+forall a ba.
+(HashAlgorithm a, ByteArrayAccess ba) =&gt;
+ba -&gt; Maybe (Digest a)
+</span><span class="hs-identifier hs-var">digestFromByteString</span></span><span> </span><span class="annot"><span class="annottext">EncapsulatedContent
+</span><a href="#local-6989586621679159689"><span class="hs-identifier hs-var">digValue</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-76"></span><span>                        </span><span class="annot"><span class="annottext">Maybe (Digest hashAlg)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+forall e a. String -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#throwParseError"><span class="hs-identifier hs-var">throwParseError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;DigestedData: parsed invalid digest&quot;</span></span><span>
+</span><span id="line-77"></span><span>                        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679159698"><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159698"><span class="hs-identifier hs-var">d</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-78"></span><span>                            </span><span class="annot"><span class="annottext">DigestedData (Encap EncapsulatedContent)
+-&gt; ParseASN1 e (DigestedData (Encap EncapsulatedContent))
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Digested.html#DigestedData"><span class="hs-identifier hs-type">DigestedData</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">ddDigestAlgorithm :: DigestProxy hashAlg
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigestAlgorithm"><span class="hs-identifier hs-var">ddDigestAlgorithm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DigestProxy hashAlg
+</span><a href="#local-6989586621679159696"><span class="hs-identifier hs-var">digAlg</span></a></span><span>
+</span><span id="line-79"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ddContentType :: ContentType
+</span><a href="Crypto.Store.CMS.Digested.html#ddContentType"><span class="hs-identifier hs-var">ddContentType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContentType
+</span><a href="#local-6989586621679159685"><span class="hs-identifier hs-var">ct</span></a></span><span>
+</span><span id="line-80"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ddEncapsulatedContent :: Encap EncapsulatedContent
+</span><a href="Crypto.Store.CMS.Digested.html#ddEncapsulatedContent"><span class="hs-identifier hs-var">ddEncapsulatedContent</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Encap EncapsulatedContent
+</span><a href="#local-6989586621679159686"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-81"></span><span>                                                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ddDigest :: Digest hashAlg
+</span><a href="Crypto.Store.CMS.Digested.html#ddDigest"><span class="hs-identifier hs-var">ddDigest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Digest hashAlg
+</span><a href="#local-6989586621679159698"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-82"></span><span>                                                </span><span class="hs-special">}</span><span>
+</span><span id="line-83"></span></pre></body></html>

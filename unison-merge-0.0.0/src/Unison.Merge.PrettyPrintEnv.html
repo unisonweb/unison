@@ -1,0 +1,43 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Unison.Merge.PrettyPrintEnv</span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.PrettyPrintEnv.html#makePrettyPrintEnv"><span class="hs-identifier">makePrettyPrintEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Merge.TwoWay.html"><span class="hs-identifier">Unison.Merge.TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.TwoWay.html#TwoWay"><span class="hs-identifier">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Names</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Names</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnv.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPE</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrettyPrintEnvDecl</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.PrettyPrintEnvDecl.Names</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">PPED</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Create a PPE that uses Alice's names whenever possible, falling back to Bob's names only when Alice doesn't have any.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- This results in a file that &quot;looks familiar&quot; to Alice (the one merging in Bob's changes), and avoids superfluous</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- textual conflicts that would arise from preferring Bob's names for Bob's code (where his names differ).</span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Unison.Merge.PrettyPrintEnv.html#makePrettyPrintEnv"><span class="hs-identifier hs-type">makePrettyPrintEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Merge.TwoWay.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Names</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PrettyPrintEnvDecl</span></span><span>
+</span><span id="line-18"></span><span id="makePrettyPrintEnv"><span class="annot"><span class="annottext">makePrettyPrintEnv :: TwoWay Names -&gt; Names -&gt; PrettyPrintEnvDecl
+</span><a href="Unison.Merge.PrettyPrintEnv.html#makePrettyPrintEnv"><span class="hs-identifier hs-var hs-var">makePrettyPrintEnv</span></a></span></span><span> </span><span id="local-6989586621679187529"><span class="annot"><span class="annottext">TwoWay Names
+</span><a href="#local-6989586621679187529"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621679187530"><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679187530"><span class="hs-identifier hs-var">libdepsNames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><span class="annottext">Namer -&gt; Suffixifier -&gt; PrettyPrintEnvDecl
+</span><span class="hs-identifier hs-var">PPED.makePPED</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Namer
+</span><span class="hs-identifier hs-var">PPE.namer</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Names -&gt; Names -&gt; Names
+</span><span class="hs-identifier hs-var">Names.preferring</span></span><span> </span><span class="annot"><span class="annottext">TwoWay Names
+</span><a href="#local-6989586621679187529"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">alice</span><span> </span><span class="annot"><span class="annottext">TwoWay Names
+</span><a href="#local-6989586621679187529"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-operator">.</span><span class="hs-identifier">bob</span><span> </span><span class="annot"><span class="annottext">Names -&gt; Names -&gt; Names
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679187530"><span class="hs-identifier hs-var">libdepsNames</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Suffixifier
+</span><a href="#local-6989586621679187534"><span class="hs-identifier hs-var">suffixifier</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>    </span><span id="local-6989586621679187534"><span class="annot"><span class="annottext">suffixifier :: Suffixifier
+</span><a href="#local-6989586621679187534"><span class="hs-identifier hs-var hs-var">suffixifier</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Names -&gt; Suffixifier
+</span><span class="hs-identifier hs-var">PPE.suffixifyByName</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TwoWay Names -&gt; Names
+forall m. Monoid m =&gt; TwoWay m -&gt; m
+forall (t :: * -&gt; *) m. (Foldable t, Monoid m) =&gt; t m -&gt; m
+</span><span class="hs-identifier hs-var">fold</span></span><span> </span><span class="annot"><span class="annottext">TwoWay Names
+</span><a href="#local-6989586621679187529"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="annot"><span class="annottext">Names -&gt; Names -&gt; Names
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Names
+</span><a href="#local-6989586621679187530"><span class="hs-identifier hs-var">libdepsNames</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span></pre></body></html>

@@ -1,0 +1,668 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Module      : Crypto.Store.CMS.OriginatorInfo</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Maintainer  : Olivier Ch&#233;ron &lt;olivier.cheron@gmail.com&gt;</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Crypto.Store.CMS.OriginatorInfo</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier">OriginatorInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier">CertificateChoice</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier">OtherCertificateFormat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier">RevocationInfoChoice</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier">OtherRevocationInfoFormat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorInfoASN1S"><span class="hs-identifier">originatorInfoASN1S</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOriginatorInfo"><span class="hs-identifier">parseOriginatorInfo</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier">hasChoiceOther</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ASN1.Types</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.X509</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html"><span class="hs-identifier">Crypto.Store.ASN1.Generate</span></a></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html"><span class="hs-identifier">Crypto.Store.ASN1.Parse</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html"><span class="hs-identifier">Crypto.Store.CMS.Util</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><span class="hs-comment">-- | Data types where choice &quot;other&quot; is available.</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">class</span><span> </span><span id="HasChoiceOther"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-var">HasChoiceOther</span></a></span></span><span> </span><span id="local-6989586621679145039"><span class="annot"><a href="#local-6989586621679145039"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- | Return true when choice &quot;other&quot; is selected.</span><span>
+</span><span id="line-37"></span><span>    </span><span id="hasChoiceOther"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-type">hasChoiceOther</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679145039"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679145040"><span id="local-6989586621679145041"><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-type">HasChoiceOther</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145040"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679145041"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-type">HasChoiceOther</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679145041"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145040"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679145157"><span class="annot"><span class="annottext">hasChoiceOther :: f a -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var hs-var hs-var hs-var">hasChoiceOther</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; f a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+forall a. HasChoiceOther a =&gt; a -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Information about the originator of the content info, to be used when</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- a key management algorithm requires this information.</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="OriginatorInfo"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-var">OriginatorInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OriginatorInfo"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-var">OriginatorInfo</span></a></span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="originatorCerts"><span class="annot"><span class="annottext">OriginatorInfo -&gt; [CertificateChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCerts"><span class="hs-identifier hs-var hs-var">originatorCerts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier hs-type">CertificateChoice</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The collection of certificates</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="originatorCRLs"><span class="annot"><span class="annottext">OriginatorInfo -&gt; [RevocationInfoChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCRLs"><span class="hs-identifier hs-var hs-var">originatorCRLs</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier hs-type">RevocationInfoChoice</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-48"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The collection of CRLs</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145163"><span id="local-6989586621679145172"><span id="local-6989586621679145176"><span class="annot"><span class="annottext">Int -&gt; OriginatorInfo -&gt; ShowS
+[OriginatorInfo] -&gt; ShowS
+OriginatorInfo -&gt; String
+(Int -&gt; OriginatorInfo -&gt; ShowS)
+-&gt; (OriginatorInfo -&gt; String)
+-&gt; ([OriginatorInfo] -&gt; ShowS)
+-&gt; Show OriginatorInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; OriginatorInfo -&gt; ShowS
+showsPrec :: Int -&gt; OriginatorInfo -&gt; ShowS
+$cshow :: OriginatorInfo -&gt; String
+show :: OriginatorInfo -&gt; String
+$cshowList :: [OriginatorInfo] -&gt; ShowS
+showList :: [OriginatorInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145182"><span id="local-6989586621679145189"><span class="annot"><span class="annottext">OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+(OriginatorInfo -&gt; OriginatorInfo -&gt; Bool)
+-&gt; (OriginatorInfo -&gt; OriginatorInfo -&gt; Bool) -&gt; Eq OriginatorInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+== :: OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+$c/= :: OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+/= :: OriginatorInfo -&gt; OriginatorInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679145197"><span id="local-6989586621679145201"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span id="local-6989586621679145209"><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145209"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679145210"><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145210"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679145211"><span class="annot"><span class="annottext">&lt;&gt; :: OriginatorInfo -&gt; OriginatorInfo -&gt; OriginatorInfo
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span id="local-6989586621679145212"><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145212"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679145213"><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145213"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CertificateChoice] -&gt; [RevocationInfoChoice] -&gt; OriginatorInfo
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-var">OriginatorInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145209"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">[CertificateChoice] -&gt; [CertificateChoice] -&gt; [CertificateChoice]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145212"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145210"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+-&gt; [RevocationInfoChoice] -&gt; [RevocationInfoChoice]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145213"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679145219"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679145223"><span class="annot"><span class="annottext">mempty :: OriginatorInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CertificateChoice] -&gt; [RevocationInfoChoice] -&gt; OriginatorInfo
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-var">OriginatorInfo</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679145225"><span class="annot"><span class="annottext">mappend :: OriginatorInfo -&gt; OriginatorInfo -&gt; OriginatorInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">mappend</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OriginatorInfo -&gt; OriginatorInfo -&gt; OriginatorInfo
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-type">HasChoiceOther</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679145234"><span class="annot"><span class="annottext">hasChoiceOther :: OriginatorInfo -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var hs-var hs-var hs-var">hasChoiceOther</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span class="hs-special">{</span><span id="local-6989586621679145235"><span id="local-6989586621679145236"><span class="annot"><span class="annottext">[RevocationInfoChoice]
+[CertificateChoice]
+originatorCerts :: OriginatorInfo -&gt; [CertificateChoice]
+originatorCRLs :: OriginatorInfo -&gt; [RevocationInfoChoice]
+originatorCerts :: [CertificateChoice]
+originatorCRLs :: [RevocationInfoChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCerts"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">[CertificateChoice] -&gt; Bool
+forall a. HasChoiceOther a =&gt; a -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span> </span><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145235"><span class="hs-identifier hs-var">originatorCerts</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice] -&gt; Bool
+forall a. HasChoiceOther a =&gt; a -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145236"><span class="hs-identifier hs-var">originatorCRLs</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679145241"><span class="annot"><span class="annottext">asn1s :: OriginatorInfo -&gt; ASN1Stream ASN1P
+</span><a href="#local-6989586621679145241"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; OriginatorInfo -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorInfoASN1S"><span class="hs-identifier hs-var">originatorInfoASN1S</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621679145249"><span class="annot"><span class="annottext">parse :: ParseASN1 [ASN1Event] OriginatorInfo
+</span><a href="#local-6989586621679145249"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] OriginatorInfo
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOriginatorInfo"><span class="hs-identifier hs-var">parseOriginatorInfo</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Sequence</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Generate ASN.1 with the specified constructed type for the originator</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- information.</span><span>
+</span><span id="line-71"></span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorInfoASN1S"><span class="hs-identifier hs-type">originatorInfoASN1S</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1PS"><span class="hs-identifier hs-type">ASN1PS</span></a></span><span>
+</span><span id="line-72"></span><span id="originatorInfoASN1S"><span class="annot"><span class="annottext">originatorInfoASN1S :: ASN1ConstructionType -&gt; OriginatorInfo -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorInfoASN1S"><span class="hs-identifier hs-var hs-var">originatorInfoASN1S</span></a></span></span><span> </span><span id="local-6989586621679145252"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145252"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span class="hs-special">{</span><span id="local-6989586621679145253"><span id="local-6989586621679145254"><span class="annot"><span class="annottext">[RevocationInfoChoice]
+[CertificateChoice]
+originatorCerts :: OriginatorInfo -&gt; [CertificateChoice]
+originatorCRLs :: OriginatorInfo -&gt; [RevocationInfoChoice]
+originatorCerts :: [CertificateChoice]
+originatorCRLs :: [RevocationInfoChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCerts"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145252"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">(ASN1Stream ASN1P -&gt; ASN1Stream ASN1P)
+-&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [CertificateChoice] -&gt; ASN1Stream ASN1P
+forall {t :: * -&gt; *} {e} {a}.
+(Foldable t, ASN1Elem e, ProduceASN1Object e (t a)) =&gt;
+Int -&gt; t a -&gt; [e] -&gt; [e]
+</span><a href="#local-6989586621679145256"><span class="hs-identifier hs-var">gen</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145253"><span class="hs-identifier hs-var">originatorCerts</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream ASN1P -&gt; ASN1Stream ASN1P -&gt; ASN1Stream ASN1P
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [RevocationInfoChoice] -&gt; ASN1Stream ASN1P
+forall {t :: * -&gt; *} {e} {a}.
+(Foldable t, ASN1Elem e, ProduceASN1Object e (t a)) =&gt;
+Int -&gt; t a -&gt; [e] -&gt; [e]
+</span><a href="#local-6989586621679145256"><span class="hs-identifier hs-var">gen</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145254"><span class="hs-identifier hs-var">originatorCRLs</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679145256"><span class="annot"><span class="annottext">gen :: Int -&gt; t a -&gt; [e] -&gt; [e]
+</span><a href="#local-6989586621679145256"><span class="hs-identifier hs-var hs-var">gen</span></a></span></span><span> </span><span id="local-6989586621679145264"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679145264"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span id="local-6989586621679145265"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679145265"><span class="hs-identifier hs-var">list</span></a></span></span><span>
+</span><span id="line-76"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">t a -&gt; Bool
+forall a. t a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679145265"><span class="hs-identifier hs-var">list</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[e] -&gt; [e]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-77"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ([e] -&gt; [e]) -&gt; [e] -&gt; [e]
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679145264"><span class="hs-identifier hs-var">tag</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t a -&gt; [e] -&gt; [e]
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679145265"><span class="hs-identifier hs-var">list</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- | Parse originator information with the specified constructed type.</span></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOriginatorInfo"><span class="hs-identifier hs-type">parseOriginatorInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span>
+</span><span id="line-81"></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span>
+</span><span id="line-82"></span><span id="parseOriginatorInfo"><span class="annot"><span class="annottext">parseOriginatorInfo :: ASN1ConstructionType -&gt; ParseASN1 [ASN1Event] OriginatorInfo
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOriginatorInfo"><span class="hs-identifier hs-var hs-var">parseOriginatorInfo</span></a></span></span><span> </span><span id="local-6989586621679145270"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145270"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145270"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 [ASN1Event] OriginatorInfo
+ -&gt; ParseASN1 [ASN1Event] OriginatorInfo)
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+-&gt; ParseASN1 [ASN1Event] OriginatorInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679145272"><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145272"><span class="hs-identifier hs-var">certs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ParseASN1 [ASN1Event] [CertificateChoice]
+forall {e} {a}. ParseASN1Object e a =&gt; Int -&gt; ParseASN1 e [a]
+</span><a href="#local-6989586621679145273"><span class="hs-identifier hs-var">parseOptList</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679145274"><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145274"><span class="hs-identifier hs-var">crls</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ParseASN1 [ASN1Event] [RevocationInfoChoice]
+forall {e} {a}. ParseASN1Object e a =&gt; Int -&gt; ParseASN1 e [a]
+</span><a href="#local-6989586621679145273"><span class="hs-identifier hs-var">parseOptList</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-85"></span><span>    </span><span class="annot"><span class="annottext">OriginatorInfo -&gt; ParseASN1 [ASN1Event] OriginatorInfo
+forall a. a -&gt; ParseASN1 [ASN1Event] a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OriginatorInfo"><span class="hs-identifier hs-type">OriginatorInfo</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">originatorCerts :: [CertificateChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCerts"><span class="hs-identifier hs-var">originatorCerts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[CertificateChoice]
+</span><a href="#local-6989586621679145272"><span class="hs-identifier hs-var">certs</span></a></span><span>
+</span><span id="line-86"></span><span>                          </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">originatorCRLs :: [RevocationInfoChoice]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#originatorCRLs"><span class="hs-identifier hs-var">originatorCRLs</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[RevocationInfoChoice]
+</span><a href="#local-6989586621679145274"><span class="hs-identifier hs-var">crls</span></a></span><span>
+</span><span id="line-87"></span><span>                          </span><span class="hs-special">}</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679145273"><span class="annot"><span class="annottext">parseOptList :: Int -&gt; ParseASN1 e [a]
+</span><a href="#local-6989586621679145273"><span class="hs-identifier hs-var hs-var">parseOptList</span></a></span></span><span> </span><span id="local-6989586621679145289"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679145289"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a] -&gt; [a]
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(Maybe [a] -&gt; [a]) -&gt; ParseASN1 e (Maybe [a]) -&gt; ParseASN1 e [a]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ParseASN1 e [a] -&gt; ParseASN1 e (Maybe [a])
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e (Maybe a)
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainerMaybe"><span class="hs-identifier hs-var">onNextContainerMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679145289"><span class="hs-identifier hs-var">tag</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e [a]
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Union type related to certificate formats.</span></span><span>
+</span><span id="line-93"></span><span class="hs-keyword">data</span><span> </span><span id="CertificateChoice"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier hs-var">CertificateChoice</span></a></span></span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="CertificateCertificate"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateCertificate"><span class="hs-identifier hs-var">CertificateCertificate</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SignedCertificate</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ X.509 certificate</span></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="CertificateOther"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateOther"><span class="hs-identifier hs-var">CertificateOther</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-type">OtherCertificateFormat</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Other format</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145295"><span id="local-6989586621679145306"><span id="local-6989586621679145309"><span class="annot"><span class="annottext">Int -&gt; CertificateChoice -&gt; ShowS
+[CertificateChoice] -&gt; ShowS
+CertificateChoice -&gt; String
+(Int -&gt; CertificateChoice -&gt; ShowS)
+-&gt; (CertificateChoice -&gt; String)
+-&gt; ([CertificateChoice] -&gt; ShowS)
+-&gt; Show CertificateChoice
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CertificateChoice -&gt; ShowS
+showsPrec :: Int -&gt; CertificateChoice -&gt; ShowS
+$cshow :: CertificateChoice -&gt; String
+show :: CertificateChoice -&gt; String
+$cshowList :: [CertificateChoice] -&gt; ShowS
+showList :: [CertificateChoice] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145315"><span id="local-6989586621679145324"><span class="annot"><span class="annottext">CertificateChoice -&gt; CertificateChoice -&gt; Bool
+(CertificateChoice -&gt; CertificateChoice -&gt; Bool)
+-&gt; (CertificateChoice -&gt; CertificateChoice -&gt; Bool)
+-&gt; Eq CertificateChoice
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CertificateChoice -&gt; CertificateChoice -&gt; Bool
+== :: CertificateChoice -&gt; CertificateChoice -&gt; Bool
+$c/= :: CertificateChoice -&gt; CertificateChoice -&gt; Bool
+/= :: CertificateChoice -&gt; CertificateChoice -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-type">HasChoiceOther</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier hs-type">CertificateChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679145327"><span class="annot"><span class="annottext">hasChoiceOther :: CertificateChoice -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var hs-var hs-var hs-var">hasChoiceOther</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateOther"><span class="hs-identifier hs-type">CertificateOther</span></a></span><span> </span><span class="annot"><span class="annottext">OtherCertificateFormat
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span> </span><span class="annot"><span class="annottext">CertificateChoice
+</span><span class="hs-identifier">_</span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier hs-type">CertificateChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679145335"><span class="annot"><span class="annottext">asn1s :: CertificateChoice -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateCertificate"><span class="hs-identifier hs-type">CertificateCertificate</span></a></span><span> </span><span id="local-6989586621679145336"><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679145336"><span class="hs-identifier hs-var">cert</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedCertificate -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">SignedCertificate
+</span><a href="#local-6989586621679145336"><span class="hs-identifier hs-var">cert</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateOther"><span class="hs-identifier hs-type">CertificateOther</span></a></span><span> </span><span id="local-6989586621679145337"><span class="annot"><span class="annottext">OtherCertificateFormat
+</span><a href="#local-6989586621679145337"><span class="hs-identifier hs-var">other</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; OtherCertificateFormat -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; OtherCertificateFormat -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertificateFormatASN1PS"><span class="hs-identifier hs-var">otherCertificateFormatASN1PS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OtherCertificateFormat
+</span><a href="#local-6989586621679145337"><span class="hs-identifier hs-var">other</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateChoice"><span class="hs-identifier hs-type">CertificateChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679145344"><span class="annot"><span class="annottext">parse :: ParseASN1 [ASN1Event] CertificateChoice
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] CertificateChoice
+</span><a href="#local-6989586621679145345"><span class="hs-identifier hs-var">parseMain</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] CertificateChoice
+-&gt; ParseASN1 [ASN1Event] CertificateChoice
+-&gt; ParseASN1 [ASN1Event] CertificateChoice
+forall a.
+ParseASN1 [ASN1Event] a
+-&gt; ParseASN1 [ASN1Event] a -&gt; ParseASN1 [ASN1Event] a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] CertificateChoice
+</span><a href="#local-6989586621679145347"><span class="hs-identifier hs-var">parseOther</span></a></span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679145345"><span class="annot"><span class="annottext">parseMain :: ParseASN1 [ASN1Event] CertificateChoice
+</span><a href="#local-6989586621679145345"><span class="hs-identifier hs-var hs-var">parseMain</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedCertificate -&gt; CertificateChoice
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateCertificate"><span class="hs-identifier hs-var">CertificateCertificate</span></a></span><span> </span><span class="annot"><span class="annottext">(SignedCertificate -&gt; CertificateChoice)
+-&gt; ParseASN1 [ASN1Event] SignedCertificate
+-&gt; ParseASN1 [ASN1Event] CertificateChoice
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] SignedCertificate
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-110"></span><span>            </span><span id="local-6989586621679145347"><span class="annot"><span class="annottext">parseOther :: ParseASN1 [ASN1Event] CertificateChoice
+</span><a href="#local-6989586621679145347"><span class="hs-identifier hs-var hs-var">parseOther</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OtherCertificateFormat -&gt; CertificateChoice
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#CertificateOther"><span class="hs-identifier hs-var">CertificateOther</span></a></span><span> </span><span class="annot"><span class="annottext">(OtherCertificateFormat -&gt; CertificateChoice)
+-&gt; ParseASN1 [ASN1Event] OtherCertificateFormat
+-&gt; ParseASN1 [ASN1Event] CertificateChoice
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-111"></span><span>                </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] OtherCertificateFormat
+forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e OtherCertificateFormat
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherCertificateFormat"><span class="hs-identifier hs-var">parseOtherCertificateFormat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="annot"><span class="hs-comment">-- | Union type related to revocation info formats.</span></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">data</span><span> </span><span id="RevocationInfoChoice"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier hs-var">RevocationInfoChoice</span></a></span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="RevocationInfoCRL"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoCRL"><span class="hs-identifier hs-var">RevocationInfoCRL</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SignedCRL</span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ A CRL, ARL, Delta CRL, or an ACRL</span></span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="RevocationInfoOther"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoOther"><span class="hs-identifier hs-var">RevocationInfoOther</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-type">OtherRevocationInfoFormat</span></a></span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Other format</span></span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145363"><span id="local-6989586621679145373"><span id="local-6989586621679145376"><span class="annot"><span class="annottext">Int -&gt; RevocationInfoChoice -&gt; ShowS
+[RevocationInfoChoice] -&gt; ShowS
+RevocationInfoChoice -&gt; String
+(Int -&gt; RevocationInfoChoice -&gt; ShowS)
+-&gt; (RevocationInfoChoice -&gt; String)
+-&gt; ([RevocationInfoChoice] -&gt; ShowS)
+-&gt; Show RevocationInfoChoice
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RevocationInfoChoice -&gt; ShowS
+showsPrec :: Int -&gt; RevocationInfoChoice -&gt; ShowS
+$cshow :: RevocationInfoChoice -&gt; String
+show :: RevocationInfoChoice -&gt; String
+$cshowList :: [RevocationInfoChoice] -&gt; ShowS
+showList :: [RevocationInfoChoice] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145382"><span id="local-6989586621679145390"><span class="annot"><span class="annottext">RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool
+(RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool)
+-&gt; (RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool)
+-&gt; Eq RevocationInfoChoice
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool
+== :: RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool
+$c/= :: RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool
+/= :: RevocationInfoChoice -&gt; RevocationInfoChoice -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#HasChoiceOther"><span class="hs-identifier hs-type">HasChoiceOther</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier hs-type">RevocationInfoChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679145393"><span class="annot"><span class="annottext">hasChoiceOther :: RevocationInfoChoice -&gt; Bool
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var hs-var hs-var hs-var">hasChoiceOther</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoOther"><span class="hs-identifier hs-type">RevocationInfoOther</span></a></span><span> </span><span class="annot"><span class="annottext">OtherRevocationInfoFormat
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#hasChoiceOther"><span class="hs-identifier hs-var">hasChoiceOther</span></a></span><span> </span><span class="annot"><span class="annottext">RevocationInfoChoice
+</span><span class="hs-identifier">_</span></span><span>                       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ProduceASN1Object"><span class="hs-identifier hs-type">ProduceASN1Object</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1P"><span class="hs-identifier hs-type">ASN1P</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier hs-type">RevocationInfoChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679145400"><span class="annot"><span class="annottext">asn1s :: RevocationInfoChoice -&gt; ASN1Stream ASN1P
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var hs-var hs-var hs-var">asn1s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoCRL"><span class="hs-identifier hs-type">RevocationInfoCRL</span></a></span><span> </span><span id="local-6989586621679145401"><span class="annot"><span class="annottext">SignedCRL
+</span><a href="#local-6989586621679145401"><span class="hs-identifier hs-var">crl</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedCRL -&gt; ASN1Stream ASN1P
+forall e obj. ProduceASN1Object e obj =&gt; obj -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="annot"><span class="annottext">SignedCRL
+</span><a href="#local-6989586621679145401"><span class="hs-identifier hs-var">crl</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#asn1s"><span class="hs-identifier hs-var">asn1s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoOther"><span class="hs-identifier hs-type">RevocationInfoOther</span></a></span><span> </span><span id="local-6989586621679145402"><span class="annot"><span class="annottext">OtherRevocationInfoFormat
+</span><a href="#local-6989586621679145402"><span class="hs-identifier hs-var">other</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; OtherRevocationInfoFormat -&gt; ASN1Stream ASN1P
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; OtherRevocationInfoFormat -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevocationInfoFormatASN1PS"><span class="hs-identifier hs-var">otherRevocationInfoFormatASN1PS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">OtherRevocationInfoFormat
+</span><a href="#local-6989586621679145402"><span class="hs-identifier hs-var">other</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.Util.html#ParseASN1Object"><span class="hs-identifier hs-type">ParseASN1Object</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1Event</span></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoChoice"><span class="hs-identifier hs-type">RevocationInfoChoice</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679145408"><span class="annot"><span class="annottext">parse :: ParseASN1 [ASN1Event] RevocationInfoChoice
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var hs-var hs-var hs-var">parse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] RevocationInfoChoice
+</span><a href="#local-6989586621679145409"><span class="hs-identifier hs-var">parseMain</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] RevocationInfoChoice
+-&gt; ParseASN1 [ASN1Event] RevocationInfoChoice
+-&gt; ParseASN1 [ASN1Event] RevocationInfoChoice
+forall a.
+ParseASN1 [ASN1Event] a
+-&gt; ParseASN1 [ASN1Event] a -&gt; ParseASN1 [ASN1Event] a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] RevocationInfoChoice
+</span><a href="#local-6989586621679145410"><span class="hs-identifier hs-var">parseOther</span></a></span><span>
+</span><span id="line-132"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679145409"><span class="annot"><span class="annottext">parseMain :: ParseASN1 [ASN1Event] RevocationInfoChoice
+</span><a href="#local-6989586621679145409"><span class="hs-identifier hs-var hs-var">parseMain</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SignedCRL -&gt; RevocationInfoChoice
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoCRL"><span class="hs-identifier hs-var">RevocationInfoCRL</span></a></span><span> </span><span class="annot"><span class="annottext">(SignedCRL -&gt; RevocationInfoChoice)
+-&gt; ParseASN1 [ASN1Event] SignedCRL
+-&gt; ParseASN1 [ASN1Event] RevocationInfoChoice
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ParseASN1 [ASN1Event] SignedCRL
+forall e obj. ParseASN1Object e obj =&gt; ParseASN1 e obj
+</span><a href="Crypto.Store.CMS.Util.html#parse"><span class="hs-identifier hs-var">parse</span></a></span><span>
+</span><span id="line-133"></span><span>            </span><span id="local-6989586621679145410"><span class="annot"><span class="annottext">parseOther :: ParseASN1 [ASN1Event] RevocationInfoChoice
+</span><a href="#local-6989586621679145410"><span class="hs-identifier hs-var hs-var">parseOther</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OtherRevocationInfoFormat -&gt; RevocationInfoChoice
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#RevocationInfoOther"><span class="hs-identifier hs-var">RevocationInfoOther</span></a></span><span> </span><span class="annot"><span class="annottext">(OtherRevocationInfoFormat -&gt; RevocationInfoChoice)
+-&gt; ParseASN1 [ASN1Event] OtherRevocationInfoFormat
+-&gt; ParseASN1 [ASN1Event] RevocationInfoChoice
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-134"></span><span>                </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 [ASN1Event] OtherRevocationInfoFormat
+forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e OtherRevocationInfoFormat
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherRevocationInfoFormat"><span class="hs-identifier hs-var">parseOtherRevocationInfoFormat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Class -&gt; Int -&gt; ASN1ConstructionType
+</span><span class="hs-identifier hs-var">Container</span></span><span> </span><span class="annot"><span class="annottext">ASN1Class
+</span><span class="hs-identifier hs-var">Context</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><span class="hs-comment">-- | Certificate information in a format not supported natively.</span></span><span>
+</span><span id="line-137"></span><span class="hs-keyword">data</span><span> </span><span id="OtherCertificateFormat"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-var">OtherCertificateFormat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OtherCertificateFormat"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-var">OtherCertificateFormat</span></a></span></span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="otherCertFormat"><span class="annot"><span class="annottext">OtherCertificateFormat -&gt; OID
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertFormat"><span class="hs-identifier hs-var hs-var">otherCertFormat</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Format identifier</span></span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="otherCertValues"><span class="annot"><span class="annottext">OtherCertificateFormat -&gt; [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertValues"><span class="hs-identifier hs-var hs-var">otherCertValues</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ ASN.1 values using this format</span></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145426"><span id="local-6989586621679145433"><span id="local-6989586621679145436"><span class="annot"><span class="annottext">Int -&gt; OtherCertificateFormat -&gt; ShowS
+[OtherCertificateFormat] -&gt; ShowS
+OtherCertificateFormat -&gt; String
+(Int -&gt; OtherCertificateFormat -&gt; ShowS)
+-&gt; (OtherCertificateFormat -&gt; String)
+-&gt; ([OtherCertificateFormat] -&gt; ShowS)
+-&gt; Show OtherCertificateFormat
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; OtherCertificateFormat -&gt; ShowS
+showsPrec :: Int -&gt; OtherCertificateFormat -&gt; ShowS
+$cshow :: OtherCertificateFormat -&gt; String
+show :: OtherCertificateFormat -&gt; String
+$cshowList :: [OtherCertificateFormat] -&gt; ShowS
+showList :: [OtherCertificateFormat] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145441"><span id="local-6989586621679145447"><span class="annot"><span class="annottext">OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool
+(OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool)
+-&gt; (OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool)
+-&gt; Eq OtherCertificateFormat
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool
+== :: OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool
+$c/= :: OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool
+/= :: OtherCertificateFormat -&gt; OtherCertificateFormat -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span id="local-6989586621679145099"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertificateFormatASN1PS"><span class="hs-identifier hs-type">otherCertificateFormatASN1PS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145099"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-144"></span><span>                             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span>
+</span><span id="line-145"></span><span>                             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-type">OtherCertificateFormat</span></a></span><span>
+</span><span id="line-146"></span><span>                             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145099"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-147"></span><span id="otherCertificateFormatASN1PS"><span class="annot"><span class="annottext">otherCertificateFormatASN1PS :: forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; OtherCertificateFormat -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertificateFormatASN1PS"><span class="hs-identifier hs-var hs-var">otherCertificateFormatASN1PS</span></a></span></span><span> </span><span id="local-6989586621679145453"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145453"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-type">OtherCertificateFormat</span></a></span><span class="hs-special">{</span><span id="local-6989586621679145454"><span id="local-6989586621679145455"><span class="annot"><span class="annottext">OID
+[ASN1]
+otherCertFormat :: OtherCertificateFormat -&gt; OID
+otherCertValues :: OtherCertificateFormat -&gt; [ASN1]
+otherCertFormat :: OID
+otherCertValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertFormat"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145453"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679145456"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679145457"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679145456"><span class="annot"><span class="annottext">f :: ASN1Stream e
+</span><a href="#local-6989586621679145456"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var">gOID</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145454"><span class="hs-identifier hs-var">otherCertFormat</span></a></span><span>
+</span><span id="line-150"></span><span>        </span><span id="local-6989586621679145457"><span class="annot"><span class="annottext">v :: ASN1Stream e
+</span><a href="#local-6989586621679145457"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; [ASN1] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var">gMany</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145455"><span class="hs-identifier hs-var">otherCertValues</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span id="local-6989586621679145105"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherCertificateFormat"><span class="hs-identifier hs-type">parseOtherCertificateFormat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679145105"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-153"></span><span>                            </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span>
+</span><span id="line-154"></span><span>                            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145105"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-type">OtherCertificateFormat</span></a></span></span><span>
+</span><span id="line-155"></span><span id="parseOtherCertificateFormat"><span class="annot"><span class="annottext">parseOtherCertificateFormat :: forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e OtherCertificateFormat
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherCertificateFormat"><span class="hs-identifier hs-var hs-var">parseOtherCertificateFormat</span></a></span></span><span> </span><span id="local-6989586621679145471"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145471"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e OtherCertificateFormat
+-&gt; ParseASN1 e OtherCertificateFormat
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145471"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e OtherCertificateFormat
+ -&gt; ParseASN1 e OtherCertificateFormat)
+-&gt; ParseASN1 e OtherCertificateFormat
+-&gt; ParseASN1 e OtherCertificateFormat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span id="local-6989586621679145473"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145473"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679145475"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145475"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1 -&gt; ParseASN1 e [ASN1]
+forall e a. ParseASN1 e a -&gt; ParseASN1 e [a]
+</span><a href="Crypto.Store.ASN1.Parse.html#getMany"><span class="hs-identifier hs-var">getMany</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><span class="annottext">OtherCertificateFormat -&gt; ParseASN1 e OtherCertificateFormat
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherCertificateFormat"><span class="hs-identifier hs-type">OtherCertificateFormat</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">otherCertFormat :: OID
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertFormat"><span class="hs-identifier hs-var">otherCertFormat</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145473"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-159"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">otherCertValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherCertValues"><span class="hs-identifier hs-var">otherCertValues</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145475"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">-- | Revocation information in a format not supported natively.</span></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">data</span><span> </span><span id="OtherRevocationInfoFormat"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-var">OtherRevocationInfoFormat</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OtherRevocationInfoFormat"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-var">OtherRevocationInfoFormat</span></a></span></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="otherRevInfoFormat"><span class="annot"><span class="annottext">OtherRevocationInfoFormat -&gt; OID
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevInfoFormat"><span class="hs-identifier hs-var hs-var">otherRevInfoFormat</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Format identifier</span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="otherRevInfoValues"><span class="annot"><span class="annottext">OtherRevocationInfoFormat -&gt; [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevInfoValues"><span class="hs-identifier hs-var hs-var">otherRevInfoValues</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ASN1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="hs-comment">-- ^ ASN.1 values using this format</span></span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679145481"><span id="local-6989586621679145488"><span id="local-6989586621679145491"><span class="annot"><span class="annottext">Int -&gt; OtherRevocationInfoFormat -&gt; ShowS
+[OtherRevocationInfoFormat] -&gt; ShowS
+OtherRevocationInfoFormat -&gt; String
+(Int -&gt; OtherRevocationInfoFormat -&gt; ShowS)
+-&gt; (OtherRevocationInfoFormat -&gt; String)
+-&gt; ([OtherRevocationInfoFormat] -&gt; ShowS)
+-&gt; Show OtherRevocationInfoFormat
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; OtherRevocationInfoFormat -&gt; ShowS
+showsPrec :: Int -&gt; OtherRevocationInfoFormat -&gt; ShowS
+$cshow :: OtherRevocationInfoFormat -&gt; String
+show :: OtherRevocationInfoFormat -&gt; String
+$cshowList :: [OtherRevocationInfoFormat] -&gt; ShowS
+showList :: [OtherRevocationInfoFormat] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span id="local-6989586621679145494"><span id="local-6989586621679145500"><span class="annot"><span class="annottext">OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool
+(OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool)
+-&gt; (OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool)
+-&gt; Eq OtherRevocationInfoFormat
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool
+== :: OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool
+$c/= :: OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool
+/= :: OtherRevocationInfoFormat -&gt; OtherRevocationInfoFormat -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679145109"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevocationInfoFormatASN1PS"><span class="hs-identifier hs-type">otherRevocationInfoFormatASN1PS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Elem"><span class="hs-identifier hs-type">ASN1Elem</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145109"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-169"></span><span>                                </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span>
+</span><span id="line-170"></span><span>                                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-type">OtherRevocationInfoFormat</span></a></span><span>
+</span><span id="line-171"></span><span>                                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Generate.html#ASN1Stream"><span class="hs-identifier hs-type">ASN1Stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145109"><span class="hs-identifier hs-type">e</span></a></span></span><span>
+</span><span id="line-172"></span><span id="otherRevocationInfoFormatASN1PS"><span class="annot"><span class="annottext">otherRevocationInfoFormatASN1PS :: forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; OtherRevocationInfoFormat -&gt; ASN1Stream e
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevocationInfoFormatASN1PS"><span class="hs-identifier hs-var hs-var">otherRevocationInfoFormatASN1PS</span></a></span></span><span> </span><span id="local-6989586621679145504"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145504"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-type">OtherRevocationInfoFormat</span></a></span><span class="hs-special">{</span><span id="local-6989586621679145505"><span id="local-6989586621679145506"><span class="annot"><span class="annottext">OID
+[ASN1]
+otherRevInfoFormat :: OtherRevocationInfoFormat -&gt; OID
+otherRevInfoValues :: OtherRevocationInfoFormat -&gt; [ASN1]
+otherRevInfoFormat :: OID
+otherRevInfoValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevInfoFormat"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><span class="annottext">ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall e.
+ASN1Elem e =&gt;
+ASN1ConstructionType -&gt; ASN1Stream e -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#asn1Container"><span class="hs-identifier hs-var">asn1Container</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145504"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679145507"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e -&gt; ASN1Stream e -&gt; ASN1Stream e
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ASN1Stream e
+</span><a href="#local-6989586621679145508"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679145507"><span class="annot"><span class="annottext">f :: ASN1Stream e
+</span><a href="#local-6989586621679145507"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; OID -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gOID"><span class="hs-identifier hs-var">gOID</span></a></span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145505"><span class="hs-identifier hs-var">otherRevInfoFormat</span></a></span><span>
+</span><span id="line-175"></span><span>        </span><span id="local-6989586621679145508"><span class="annot"><span class="annottext">v :: ASN1Stream e
+</span><a href="#local-6989586621679145508"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1] -&gt; ASN1Stream e
+forall e. ASN1Elem e =&gt; [ASN1] -&gt; ASN1Stream e
+</span><a href="Crypto.Store.ASN1.Generate.html#gMany"><span class="hs-identifier hs-var">gMany</span></a></span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145506"><span class="hs-identifier hs-var">otherRevInfoValues</span></a></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span id="local-6989586621679145110"><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherRevocationInfoFormat"><span class="hs-identifier hs-type">parseOtherRevocationInfoFormat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679145110"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-178"></span><span>                               </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ASN1ConstructionType</span></span><span>
+</span><span id="line-179"></span><span>                               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Store.ASN1.Parse.html#ParseASN1"><span class="hs-identifier hs-type">ParseASN1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679145110"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-type">OtherRevocationInfoFormat</span></a></span></span><span>
+</span><span id="line-180"></span><span id="parseOtherRevocationInfoFormat"><span class="annot"><span class="annottext">parseOtherRevocationInfoFormat :: forall e.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e OtherRevocationInfoFormat
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#parseOtherRevocationInfoFormat"><span class="hs-identifier hs-var hs-var">parseOtherRevocationInfoFormat</span></a></span></span><span> </span><span id="local-6989586621679145519"><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145519"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+-&gt; ParseASN1 e OtherRevocationInfoFormat
+-&gt; ParseASN1 e OtherRevocationInfoFormat
+forall e a.
+Monoid e =&gt;
+ASN1ConstructionType -&gt; ParseASN1 e a -&gt; ParseASN1 e a
+</span><a href="Crypto.Store.ASN1.Parse.html#onNextContainer"><span class="hs-identifier hs-var">onNextContainer</span></a></span><span> </span><span class="annot"><span class="annottext">ASN1ConstructionType
+</span><a href="#local-6989586621679145519"><span class="hs-identifier hs-var">ty</span></a></span><span> </span><span class="annot"><span class="annottext">(ParseASN1 e OtherRevocationInfoFormat
+ -&gt; ParseASN1 e OtherRevocationInfoFormat)
+-&gt; ParseASN1 e OtherRevocationInfoFormat
+-&gt; ParseASN1 e OtherRevocationInfoFormat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">OID</span></span><span> </span><span id="local-6989586621679145520"><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145520"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-182"></span><span>    </span><span id="local-6989586621679145521"><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145521"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1 -&gt; ParseASN1 e [ASN1]
+forall e a. ParseASN1 e a -&gt; ParseASN1 e [a]
+</span><a href="Crypto.Store.ASN1.Parse.html#getMany"><span class="hs-identifier hs-var">getMany</span></a></span><span> </span><span class="annot"><span class="annottext">ParseASN1 e ASN1
+forall e. Monoid e =&gt; ParseASN1 e ASN1
+</span><a href="Crypto.Store.ASN1.Parse.html#getNext"><span class="hs-identifier hs-var">getNext</span></a></span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><span class="annottext">OtherRevocationInfoFormat -&gt; ParseASN1 e OtherRevocationInfoFormat
+forall a. a -&gt; ParseASN1 e a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Crypto.Store.CMS.OriginatorInfo.html#OtherRevocationInfoFormat"><span class="hs-identifier hs-type">OtherRevocationInfoFormat</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">otherRevInfoFormat :: OID
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevInfoFormat"><span class="hs-identifier hs-var">otherRevInfoFormat</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OID
+</span><a href="#local-6989586621679145520"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-184"></span><span>                                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">otherRevInfoValues :: [ASN1]
+</span><a href="Crypto.Store.CMS.OriginatorInfo.html#otherRevInfoValues"><span class="hs-identifier hs-var">otherRevInfoValues</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[ASN1]
+</span><a href="#local-6989586621679145521"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-185"></span></pre></body></html>
