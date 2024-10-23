@@ -670,7 +670,7 @@ augSeg mode (Stack ap fp sp ustk bstk) (useg, bseg) margs = do
       cop <- newByteArray $ ssz + upsz + asz
       copyByteArray cop soff useg 0 ssz
       copyMutableByteArray cop 0 ustk (bytes $ ap + 1) upsz
-      for_ margs $ uargOnto ustk sp cop (words poff + upsz - 1)
+      for_ margs $ uargOnto ustk sp cop (words poff + bpsz - 1)
       unsafeFreezeByteArray cop
       where
         ssz = sizeofByteArray useg
