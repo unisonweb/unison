@@ -159,7 +159,7 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
   unisonFiles <- newIORef Map.empty
   out <- newIORef mempty
   hidden <- newIORef Shown
-  allowErrors <- newIORef False
+  allowErrors <- newIORef Success
   hasErrors <- newIORef False
   mStanza <- newIORef Nothing
   traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` (Just <$> [1 :: Int ..]))
@@ -265,18 +265,25 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
                           Left msg -> do
                             liftIO $ writeIORef hasErrors True
                             liftIO (readIORef allowErrors) >>= \case
-                              True -> do
-                                liftIO (output . Pretty.toPlain terminalWidth $ ("\n" <> msg <> "\n"))
+                              Success -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
+                              Incorrect ->
+                                liftIO . dieWithMsg . Pretty.toPlain terminalWidth $
+                                  "The stanza above previously had an incorrect successful result, but now fails with"
+                                    <> "\n"
+                                    <> Pretty.border 2 msg
+                                    <> "\n"
+                                    <> "if this is the expected result, replace `:incorrect` with `:error`, otherwise "
+                                    <> "change `:incorrect` to `:failure`."
+                              _ -> do
+                                liftIO . output . Pretty.toPlain terminalWidth $ "\n" <> msg <> "\n"
                                 awaitInput
-                              False -> do
-                                liftIO (dieWithMsg $ Pretty.toPlain terminalWidth msg)
                           -- No input received from this line, try again.
                           Right Nothing -> awaitInput
                           Right (Just (_expandedArgs, input)) -> pure $ Right input
           Nothing -> do
             liftIO (dieUnexpectedSuccess)
             liftIO (writeIORef hidden Shown)
-            liftIO (writeIORef allowErrors False)
+            liftIO (writeIORef allowErrors Success)
             maybeStanza <- atomically (Q.tryDequeue inputQueue)
             _ <- liftIO (writeIORef mStanza maybeStanza)
             case maybeStanza of
@@ -365,10 +372,10 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
         output rendered
-        when (Output.isFailure o) $
-          if errOk
-            then writeIORef hasErrors True
-            else dieWithMsg rendered
+        when (Output.isFailure o) case errOk of
+          Success -> dieWithMsg rendered
+          Incorrect -> dieWithMsg rendered
+          _ -> writeIORef hasErrors True
 
       printNumbered :: Output.NumberedOutput -> IO Output.NumberedArgs
       printNumbered o = do
@@ -376,10 +383,10 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
         errOk <- readIORef allowErrors
         let rendered = Pretty.toPlain terminalWidth (Pretty.border 2 msg)
         output rendered
-        when (Output.isNumberedFailure o) $
-          if errOk
-            then writeIORef hasErrors True
-            else dieWithMsg rendered
+        when (Output.isNumberedFailure o) case errOk of
+          Success -> dieWithMsg rendered
+          Incorrect -> dieWithMsg rendered
+          _ -> writeIORef hasErrors True
         pure numberedArgs
 
       -- Looks at the current stanza and decides if it is contained in the
@@ -404,10 +411,16 @@ run isTest verbosity dir stanzas codebase runtime sbRuntime nRuntime ucmVersion 
       dieUnexpectedSuccess = do
         errOk <- readIORef allowErrors
         hasErr <- readIORef hasErrors
-        when (errOk && not hasErr) $ do
-          output "\n```\n\n"
-          appendFailingStanza
-          transcriptFailure out "The transcript was expecting an error in the stanza above, but did not encounter one."
+        case (errOk, hasErr) of
+          (Error, False) -> do
+            output "\n```\n\n"
+            appendFailingStanza
+            transcriptFailure out "The transcript was expecting an error in the stanza above, but did not encounter one."
+          (Failure, False) -> do
+            output "\n```\n\n"
+            appendFailingStanza
+            transcriptFailure out "The stanza above is now passing! Please remove `:failure` from it."
+          (_, _) -> pure ()
 
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 

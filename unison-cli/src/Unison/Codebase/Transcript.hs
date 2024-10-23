@@ -2,7 +2,7 @@
 
 -- | The data model for Unison transcripts.
 module Unison.Codebase.Transcript
-  ( ExpectingError,
+  ( Result (..),
     ScratchFileName,
     Hidden (..),
     UcmLine (..),
@@ -19,7 +19,7 @@ import Unison.Core.Project (ProjectBranchName, ProjectName)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch)
 
-type ExpectingError = Bool
+data Result = Success | Incorrect | Error | Failure
 
 type ScratchFileName = Text
 
@@ -45,6 +45,6 @@ pattern CMarkCodeBlock pos info body = CMark.Node pos (CMark.CODE_BLOCK info bod
 type Stanza = Either CMark.Node ProcessedBlock
 
 data ProcessedBlock
-  = Ucm Hidden ExpectingError [UcmLine]
-  | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
+  = Ucm Hidden Result [UcmLine]
+  | Unison Hidden Result (Maybe ScratchFileName) Text
   | API [APIRequest]
