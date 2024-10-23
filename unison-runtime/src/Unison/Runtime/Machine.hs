@@ -64,6 +64,7 @@ import Unison.Util.Text qualified as Util.Text
 import UnliftIO (IORef)
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
+import qualified Unison.Debug as Debug
 
 -- | A ref storing every currently active thread.
 -- This is helpful for cleaning up orphaned threads when the main process
@@ -239,6 +240,7 @@ apply0 !callback !env !threadTracker !i = do
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
+      Debug.debugM Debug.Temp "Entry Comb" entryComb
       apply env denv threadTracker stk (kf k0) True ZArgs $
         PAp entryCix entryComb nullSeg
     -- if it's cached, we can just finish
