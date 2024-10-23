@@ -358,7 +358,7 @@ bytes n = n * 8
 
 type Arrs = (UA, BA)
 
-argOnto :: Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
+argOnto :: (HasCallStack) => Arrs -> Off -> Arrs -> Off -> Args' -> IO Int
 argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
   -- Both new cp's should be the same, so we can just return one.
   _cp <- uargOnto srcUstk srcSp dstUstk dstSp args
@@ -367,7 +367,7 @@ argOnto (srcUstk, srcBstk) srcSp (dstUstk, dstBstk) dstSp args = do
 
 -- The Caller must ensure that when setting the unboxed stack, the equivalent
 -- boxed stack is zeroed out to BlackHole where necessary.
-uargOnto :: UA -> Off -> UA -> Off -> Args' -> IO Int
+uargOnto :: (HasCallStack) => UA -> Off -> UA -> Off -> Args' -> IO Int
 uargOnto stk sp cop cp0 (Arg1 i) = do
   (x :: Int) <- readByteArray stk (sp - i)
   writeByteArray cop cp x
