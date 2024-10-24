@@ -94,7 +94,6 @@ import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
-import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
@@ -113,6 +112,7 @@ import Unison.Pattern qualified as P
 import Unison.Prelude
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
 import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (List, Ref, Text, float, fresh, resolve)
 import Unison.Type qualified as Ty
@@ -124,7 +124,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-import Prelude qualified
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -707,77 +706,6 @@ data ANormalF v e
   | AVar v
   deriving (Show, Eq)
 
--- Types representing components that will go into the runtime tag of
--- a data type value. RTags correspond to references, while CTags
--- correspond to constructors.
-newtype RTag = RTag Word64
-  deriving stock (Eq, Ord, Show, Read)
-  deriving newtype (EC.EnumKey)
-
-newtype CTag = CTag Word16
-  deriving stock (Eq, Ord, Show, Read)
-  deriving newtype (EC.EnumKey)
-
--- | A combined tag, which is a packed representation of an RTag and a CTag
-newtype PackedTag = PackedTag Word64
-  deriving stock (Eq, Ord, Show, Read)
-  deriving newtype (EC.EnumKey)
-
-class Tag t where rawTag :: t -> Word64
-
-instance Tag RTag where rawTag (RTag w) = w
-
-instance Tag CTag where rawTag (CTag w) = fromIntegral w
-
-packTags :: RTag -> CTag -> PackedTag
-packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
-  where
-    ri = rt `shiftL` 16
-    ci = fromIntegral ct
-
-unpackTags :: PackedTag -> (RTag, CTag)
-unpackTags (PackedTag w) = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
-
--- Masks a packed tag to extract just the constructor tag portion
-maskTags :: PackedTag -> Word64
-maskTags (PackedTag w) = (w .&. 0xFFFF)
-
-ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
-ensureRTag s n x
-  | n > 0xFFFFFFFFFFFF =
-      internalBug $ s ++ "@RTag: too large: " ++ show n
-  | otherwise = x
-
-ensureCTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
-ensureCTag s n x
-  | n > 0xFFFF =
-      internalBug $ s ++ "@CTag: too large: " ++ show n
-  | otherwise = x
-
-instance Enum RTag where
-  toEnum i = ensureRTag "toEnum" i . RTag $ toEnum i
-  fromEnum (RTag w) = fromEnum w
-
-instance Enum CTag where
-  toEnum i = ensureCTag "toEnum" i . CTag $ toEnum i
-  fromEnum (CTag w) = fromEnum w
-
-instance Num RTag where
-  fromInteger i = ensureRTag "fromInteger" i . RTag $ fromInteger i
-  (+) = internalBug "RTag: +"
-  (*) = internalBug "RTag: *"
-  abs = internalBug "RTag: abs"
-  signum = internalBug "RTag: signum"
-  negate = internalBug "RTag: negate"
-
-instance Num CTag where
-  fromInteger i = ensureCTag "fromInteger" i . CTag $ fromInteger i
-  (+) = internalBug "CTag: +"
-  (*) = internalBug "CTag: *"
-  abs = internalBug "CTag: abs"
-  signum = internalBug "CTag: signum"
-  negate = internalBug "CTag: negate"
-
 instance Functor (ANormalF v) where
   fmap _ (AVar v) = AVar v
   fmap _ (ALit l) = ALit l
@@ -1296,8 +1224,8 @@ data Lit
   | F Double
   | T Util.Text.Text
   | C Char
-  | LM Referent
-  | LY Reference
+  | LM Referent -- Term Link
+  | LY Reference -- Type Link
   deriving (Show, Eq)
 
 litRef :: Lit -> Reference

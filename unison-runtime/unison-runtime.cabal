@@ -49,6 +49,7 @@ library
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
+      Unison.Runtime.TypeTags
       Unison.Runtime.Vector
   hs-source-dirs:
       src

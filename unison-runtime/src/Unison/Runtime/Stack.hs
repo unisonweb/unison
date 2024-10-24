@@ -25,7 +25,8 @@ module Unison.Runtime.Stack
         DataG,
         Captured,
         Foreign,
-        BlackHole
+        BlackHole,
+        UnboxedTypeTag
       ),
     IxClosure,
     Callback (..),
@@ -38,6 +39,8 @@ module Unison.Runtime.Stack
     Seg,
     USeg,
     BSeg,
+    SegList,
+    TypedUnboxed (..),
     traceK,
     frameDataSize,
     marshalToForeign,
@@ -52,6 +55,8 @@ module Unison.Runtime.Stack
     peekOffN,
     pokeN,
     pokeOffN,
+    pokeI,
+    pokeOffI,
     peekBi,
     peekOffBi,
     pokeBi,
@@ -75,6 +80,8 @@ module Unison.Runtime.Stack
     bpokeOff,
     upoke,
     upokeOff,
+    pokeTU,
+    pokeOffTU,
     bump,
     bumpn,
     grab,
@@ -104,6 +111,7 @@ import Unison.Runtime.ANF (PackedTag)
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
+import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (words)
@@ -168,16 +176,18 @@ data GClosure comb
       {-# UNPACK #-} !(GCombInfo comb)
       {-# UNPACK #-} !Seg -- args
   | GEnum !Reference !PackedTag
-  | GDataU1 !Reference !PackedTag !Int
-  | GDataU2 !Reference !PackedTag !Int !Int
+  | GDataU1 !Reference !PackedTag !TypedUnboxed
+  | GDataU2 !Reference !PackedTag !TypedUnboxed !TypedUnboxed
   | GDataB1 !Reference !PackedTag !(GClosure comb)
   | GDataB2 !Reference !PackedTag !(GClosure comb) !(GClosure comb)
-  | GDataUB !Reference !PackedTag !Int !(GClosure comb)
-  | GDataBU !Reference !PackedTag !(GClosure comb) !Int
+  | GDataUB !Reference !PackedTag !TypedUnboxed !(GClosure comb)
+  | GDataBU !Reference !PackedTag !(GClosure comb) !TypedUnboxed
   | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
   | -- code cont, arg size, u/b data stacks
     GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
+  | -- The type tag for the value in the corresponding unboxed stack slot.
+    GUnboxedTypeTag !PackedTag
   | GBlackHole
   deriving stock (Show, Functor, Foldable, Traversable)
 
@@ -220,6 +230,8 @@ pattern Foreign x = Closure (GForeign x)
 
 pattern BlackHole = Closure GBlackHole
 
+pattern UnboxedTypeTag t = Closure (GUnboxedTypeTag t)
+
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
   where
@@ -240,14 +252,6 @@ splitData = \case
   (DataBU r t b u) -> Just (r, t, [Right b, Left u])
   (DataG r t seg) -> Just (r, t, segToList seg)
   _ -> Nothing
-
--- | Converts an unboxed segment to a list of integers for a more interchangeable
--- representation. The segments are stored in backwards order, so this reverses
--- the contents.
-ints :: ByteArray -> [Int]
-ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
-  where
-    n = sizeofByteArray ba `div` 8
 
 -- | Converts a list of integers representing an unboxed segment back into the
 -- appropriate segment. Segments are stored backwards in the runtime, so this
@@ -291,7 +295,14 @@ pattern DataC rf ct segs <-
   where
     DataC rf ct segs = formData rf ct segs
 
-type SegList = [Either Int Closure]
+-- | An unboxed value with an accompanying tag indicating its type.
+data TypedUnboxed = TypedUnboxed !Int !PackedTag
+  deriving (Show, Eq, Ord)
+
+splitTaggedUnboxed :: TypedUnboxed -> (Int, Closure)
+splitTaggedUnboxed (TypedUnboxed i t) = (i, UnboxedTypeTag t)
+
+type SegList = [Either TypedUnboxed Closure]
 
 pattern PApV :: CombIx -> RCombInfo Closure -> SegList -> Closure
 pattern PApV cix rcomb segs <-
@@ -311,22 +322,28 @@ segToList (u, b) =
   zipWith combine (ints u) (bsegToList b)
   where
     combine i c = case c of
-      BlackHole -> Left i
+      UnboxedTypeTag t -> Left $ TypedUnboxed i t
       _ -> Right c
+
+-- | Converts an unboxed segment to a list of integers for a more interchangeable
+-- representation. The segments are stored in backwards order, so this reverses
+-- the contents.
+ints :: ByteArray -> [Int]
+ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
+  where
+    n = sizeofByteArray ba `div` 8
 
 -- | Converts from the list representation of a segment to the efficient stack form. Segments are stored backwards,
 -- so this reverses the contents.
 segFromList :: SegList -> Seg
-segFromList xs = (useg u, bseg b)
-  where
-    u =
-      xs <&> \case
-        Left i -> i
-        Right _ -> 0
-    b =
-      xs <&> \case
-        Left _ -> BlackHole
-        Right c -> c
+segFromList xs =
+  xs
+    <&> ( \case
+            Left tu -> splitTaggedUnboxed tu
+            Right c -> (0, c)
+        )
+    & unzip
+    & \(us, bs) -> (useg us, bseg bs)
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole #-}
 
@@ -477,6 +494,8 @@ instance Show Stack where
 
 type UElem = Int
 
+type TypedUElem = (Int, Closure {- This closure should always be a UnboxedTypeTag -})
+
 type USeg = ByteArray
 
 type BElem = Closure
@@ -526,11 +545,15 @@ upeekOff (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 
 -- | Store an unboxed value and null out the boxed stack at that location, both so we know there's no value there,
 -- and so garbage collection can clean up any value that was referenced there.
-upoke :: Stack -> UElem -> IO ()
-upoke stk@(Stack _ _ sp ustk _) u = do
-  bpoke stk BlackHole
+upoke :: Stack -> TypedUElem -> IO ()
+upoke !stk@(Stack _ _ sp ustk _) !(u, t) = do
+  bpoke stk t
   writeByteArray ustk sp u
 {-# INLINE upoke #-}
+
+pokeTU :: Stack -> TypedUnboxed -> IO ()
+pokeTU stk !(TypedUnboxed u t) = upoke stk (u, UnboxedTypeTag t)
+{-# INLINE pokeTU #-}
 
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
@@ -539,11 +562,15 @@ bpoke :: Stack -> BElem -> IO ()
 bpoke (Stack _ _ sp _ bstk) b = writeArray bstk sp b
 {-# INLINE bpoke #-}
 
-upokeOff :: Stack -> Off -> UElem -> IO ()
-upokeOff stk i u = do
-  bpokeOff stk i BlackHole
+upokeOff :: Stack -> Off -> TypedUElem -> IO ()
+upokeOff stk i (u, t) = do
+  bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOff #-}
+
+pokeOffTU :: Stack -> Off -> TypedUnboxed -> IO ()
+pokeOffTU stk i (TypedUnboxed u t) = upokeOff stk i (u, UnboxedTypeTag t)
+{-# INLINE pokeOffTU #-}
 
 bpokeOff :: Stack -> Off -> BElem -> IO ()
 bpokeOff (Stack _ _ sp _ bstk) i b = writeArray bstk (sp - i) b
@@ -748,27 +775,40 @@ peekOffD (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
 
 pokeN :: Stack -> Word64 -> IO ()
 pokeN stk@(Stack _ _ sp ustk _) n = do
-  bpoke stk BlackHole
+  bpoke stk (UnboxedTypeTag TT.natTag)
   writeByteArray ustk sp n
 {-# INLINE pokeN #-}
 
 pokeD :: Stack -> Double -> IO ()
 pokeD stk@(Stack _ _ sp ustk _) d = do
-  bpoke stk BlackHole
+  bpoke stk (UnboxedTypeTag TT.floatTag)
   writeByteArray ustk sp d
 {-# INLINE pokeD #-}
 
+-- | Note: This is for poking an unboxed value that has the UNISON type 'int', not just any unboxed data.
+pokeI :: Stack -> Int -> IO ()
+pokeI stk@(Stack _ _ sp ustk _) i = do
+  bpoke stk (UnboxedTypeTag TT.intTag)
+  writeByteArray ustk sp i
+{-# INLINE pokeI #-}
+
 pokeOffN :: Stack -> Int -> Word64 -> IO ()
 pokeOffN stk@(Stack _ _ sp ustk _) i n = do
-  bpokeOff stk i BlackHole
+  bpokeOff stk i (UnboxedTypeTag TT.natTag)
   writeByteArray ustk (sp - i) n
 {-# INLINE pokeOffN #-}
 
 pokeOffD :: Stack -> Int -> Double -> IO ()
 pokeOffD stk@(Stack _ _ sp ustk _) i d = do
-  bpokeOff stk i BlackHole
+  bpokeOff stk i (UnboxedTypeTag TT.floatTag)
   writeByteArray ustk (sp - i) d
 {-# INLINE pokeOffD #-}
+
+pokeOffI :: Stack -> Int -> Int -> IO ()
+pokeOffI stk@(Stack _ _ sp ustk _) i n = do
+  bpokeOff stk i (UnboxedTypeTag TT.intTag)
+  writeByteArray ustk (sp - i) n
+{-# INLINE pokeOffI #-}
 
 pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
 pokeBi stk x = bpoke stk (Foreign $ wrapBuiltin x)

@@ -429,8 +429,8 @@ data MLit
   = MI !Int
   | MD !Double
   | MT !Text
-  | MM !Referent
-  | MY !Reference
+  | MM !Referent -- Term Link
+  | MY !Reference -- Type Link
   deriving (Show, Eq, Ord)
 
 type Instr = GInstr CombIx
