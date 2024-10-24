@@ -11,6 +11,7 @@ module Unison.Runtime.TypeTags
     intTag,
     charTag,
     unitTag,
+    bufferModeTag,
     leftTag,
     rightTag,
   )
@@ -21,6 +22,7 @@ import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
 import GHC.Stack (CallStack, callStack)
+import U.Codebase.Reference (Reference)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
@@ -111,39 +113,22 @@ instance Num CTag where
   negate = internalBug "CTag: negate"
 
 floatTag :: PackedTag
-floatTag
-  | Just n <- Map.lookup Ty.floatRef builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      packTags rt 0
-  | otherwise = error "internal error: floatTag"
+floatTag = mkSimpleTag "floatTag" Ty.floatRef
 
 natTag :: PackedTag
-natTag
-  | Just n <- Map.lookup Ty.natRef builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      packTags rt 0
-  | otherwise = error "internal error: natTag"
+natTag = mkSimpleTag "natTag" Ty.natRef
 
 intTag :: PackedTag
-intTag
-  | Just n <- Map.lookup Ty.intRef builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      packTags rt 0
-  | otherwise = error "internal error: intTag"
+intTag = mkSimpleTag "intTag" Ty.intRef
 
 charTag :: PackedTag
-charTag
-  | Just n <- Map.lookup Ty.charRef builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      packTags rt 0
-  | otherwise = error "internal error: charTag"
+charTag = mkSimpleTag "charTag" Ty.charRef
 
 unitTag :: PackedTag
-unitTag
-  | Just n <- Map.lookup Ty.unitRef builtinTypeNumbering,
-    rt <- toEnum (fromIntegral n) =
-      packTags rt 0
-  | otherwise = error "internal error: unitTag"
+unitTag = mkSimpleTag "unitTag" Ty.unitRef
+
+bufferModeTag :: PackedTag
+bufferModeTag = mkSimpleTag "bufferModeTag" Ty.bufferModeRef
 
 leftTag, rightTag :: PackedTag
 (leftTag, rightTag)
@@ -153,3 +138,11 @@ leftTag, rightTag :: PackedTag
     rt <- toEnum (fromIntegral Ty.eitherRightId) =
       (packTags et lt, packTags et rt)
   | otherwise = error "internal error: either tags"
+
+-- | Construct a tag for a single-constructor builtin type
+mkSimpleTag :: String -> Reference -> PackedTag
+mkSimpleTag msg r
+  | Just n <- Map.lookup r builtinTypeNumbering,
+    rt <- toEnum (fromIntegral n) =
+      packTags rt 0
+  | otherwise = internalBug $ "internal error: " <> msg

@@ -51,6 +51,12 @@ module Unison.Runtime.Stack
     peekOffD,
     pokeD,
     pokeOffD,
+    pokeC,
+    pokeTag,
+    peekTag,
+    peekTagOff,
+    peekI,
+    peekOffI,
     peekN,
     peekOffN,
     pokeN,
@@ -80,6 +86,8 @@ module Unison.Runtime.Stack
     bpokeOff,
     upoke,
     upokeOff,
+    upokeT,
+    upokeTOff,
     pokeTU,
     pokeOffTU,
     bump,
@@ -103,6 +111,7 @@ module Unison.Runtime.Stack
 where
 
 import Control.Monad.Primitive
+import Data.Char qualified as Char
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import Unison.Prelude
@@ -520,6 +529,14 @@ peek stk = do
   pure (u, b)
 {-# INLINE peek #-}
 
+peekI :: Stack -> IO Int
+peekI (Stack _ _ sp ustk _) = readByteArray ustk sp
+{-# INLINE peekI #-}
+
+peekOffI :: Stack -> Off -> IO Int
+peekOffI (Stack _ _ sp ustk _) i = readByteArray ustk (sp - i)
+{-# INLINE peekOffI #-}
+
 bpeek :: Stack -> IO BElem
 bpeek (Stack _ _ sp _ bstk) = readArray bstk sp
 {-# INLINE bpeek #-}
@@ -551,9 +568,32 @@ upoke !stk@(Stack _ _ sp ustk _) !(u, t) = do
   writeByteArray ustk sp u
 {-# INLINE upoke #-}
 
+upokeT :: Stack -> UElem -> PackedTag -> IO ()
+upokeT !stk@(Stack _ _ sp ustk _) !u !t = do
+  bpoke stk (UnboxedTypeTag t)
+  writeByteArray ustk sp u
+{-# INLINE upokeT #-}
+
 pokeTU :: Stack -> TypedUnboxed -> IO ()
 pokeTU stk !(TypedUnboxed u t) = upoke stk (u, UnboxedTypeTag t)
 {-# INLINE pokeTU #-}
+
+-- | Store an unboxed tag to later match on.
+-- Often used to indicate the constructor of a data type that's been unpacked onto the stack,
+-- or some tag we're about to branch on.
+pokeTag :: Stack -> Int -> IO ()
+pokeTag =
+  -- For now we just use ints, but maybe should have a separate type for tags so we can detect if we're leaking them.
+  pokeI
+{-# INLINE pokeTag #-}
+
+peekTag :: Stack -> IO Int
+peekTag = peekI
+{-# INLINE peekTag #-}
+
+peekTagOff :: Stack -> Off -> IO Int
+peekTagOff = peekOffI
+{-# INLINE peekTagOff #-}
 
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
@@ -567,6 +607,12 @@ upokeOff stk i (u, t) = do
   bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOff #-}
+
+upokeTOff :: Stack -> Off -> UElem -> PackedTag -> IO ()
+upokeTOff stk i u t = do
+  bpokeOff stk i (UnboxedTypeTag t)
+  writeByteArray (ustk stk) (sp stk - i) u
+{-# INLINE upokeTOff #-}
 
 pokeOffTU :: Stack -> Off -> TypedUnboxed -> IO ()
 pokeOffTU stk i (TypedUnboxed u t) = upokeOff stk i (u, UnboxedTypeTag t)
@@ -784,6 +830,12 @@ pokeD stk@(Stack _ _ sp ustk _) d = do
   bpoke stk (UnboxedTypeTag TT.floatTag)
   writeByteArray ustk sp d
 {-# INLINE pokeD #-}
+
+pokeC :: Stack -> Char -> IO ()
+pokeC stk@(Stack _ _ sp ustk _) c = do
+  bpoke stk (UnboxedTypeTag TT.charTag)
+  writeByteArray ustk sp (Char.ord c)
+{-# INLINE pokeC #-}
 
 -- | Note: This is for poking an unboxed value that has the UNISON type 'int', not just any unboxed data.
 pokeI :: Stack -> Int -> IO ()

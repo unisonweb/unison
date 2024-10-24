@@ -24,7 +24,6 @@ import Data.Primitive.Array as PA
 import Data.Primitive.ByteArray as PA
 import Data.Sequence qualified as Sq
 import Data.Time.Clock.POSIX (POSIXTime)
-import Data.Word (Word16, Word32, Word64, Word8)
 import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Socket (Socket)
 import Network.UDP (UDPSocket)
@@ -36,6 +35,7 @@ import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type
   ( iarrayRef,
     ibytearrayRef,
@@ -88,38 +88,44 @@ mkForeign ev = FF readArgs writeForeign ev
           internalBug
             "mkForeign: too many arguments for foreign function"
 
+-- newtype UnisonInt = UnisonInt Int
+
+-- newtype UnisonNat = UnisonNat Word64
+
+-- newtype UnisonDouble = UnisonDouble Double
+
 instance ForeignConvention Int where
   readForeign (i : args) stk = (args,) <$> upeekOff stk i
   readForeign [] _ = foreignCCError "Int"
   writeForeign stk i = do
     stk <- bump stk
-    stk <$ upoke stk i
+    stk <$ pokeI stk i
 
-instance ForeignConvention Word64 where
-  readForeign (i : args) stk = (args,) <$> peekOffN stk i
-  readForeign [] _ = foreignCCError "Word64"
-  writeForeign stk n = do
-    stk <- bump stk
-    stk <$ pokeN stk n
+-- instance ForeignConvention Word64 where
+--   readForeign (i : args) stk = (args,) <$> peekOffN stk i
+--   readForeign [] _ = foreignCCError "Word64"
+--   writeForeign stk n = do
+--     stk <- bump stk
+--     stk <$ pokeN stk n
 
-instance ForeignConvention Word8 where
-  readForeign = readForeignAs (fromIntegral :: Word64 -> Word8)
-  writeForeign = writeForeignAs (fromIntegral :: Word8 -> Word64)
+-- instance ForeignConvention Word8 where
+--   readForeign = readForeignAs (fromIntegral :: Word64 -> Word8)
+--   writeForeign = writeForeignAs (fromIntegral :: Word8 -> Word64)
 
-instance ForeignConvention Word16 where
-  readForeign = readForeignAs (fromIntegral :: Word64 -> Word16)
-  writeForeign = writeForeignAs (fromIntegral :: Word16 -> Word64)
+-- instance ForeignConvention Word16 where
+--   readForeign = readForeignAs (fromIntegral :: Word64 -> Word16)
+--   writeForeign = writeForeignAs (fromIntegral :: Word16 -> Word64)
 
-instance ForeignConvention Word32 where
-  readForeign = readForeignAs (fromIntegral :: Word64 -> Word32)
-  writeForeign = writeForeignAs (fromIntegral :: Word32 -> Word64)
+-- instance ForeignConvention Word32 where
+--   readForeign = readForeignAs (fromIntegral :: Word64 -> Word32)
+--   writeForeign = writeForeignAs (fromIntegral :: Word32 -> Word64)
 
 instance ForeignConvention Char where
   readForeign (i : args) stk = (args,) . Char.chr <$> upeekOff stk i
   readForeign [] _ = foreignCCError "Char"
   writeForeign stk ch = do
     stk <- bump stk
-    stk <$ upoke stk (Char.ord ch)
+    stk <$ pokeC stk ch
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
@@ -168,18 +174,18 @@ instance (ForeignConvention a) => ForeignConvention (Maybe a) where
 
   writeForeign stk Nothing = do
     stk <- bump stk
-    stk <$ upoke stk 0
+    stk <$ pokeTag stk 0
   writeForeign stk (Just x) = do
     stk <- writeForeign stk x
     stk <- bump stk
-    stk <$ upoke stk 1
+    stk <$ pokeTag stk 1
 
 instance
   (ForeignConvention a, ForeignConvention b) =>
   ForeignConvention (Either a b)
   where
   readForeign (i : args) stk =
-    upeekOff stk i >>= \case
+    peekTagOff stk i >>= \case
       0 -> readForeignAs Left args stk
       1 -> readForeignAs Right args stk
       _ -> foreignCCError "Either"
@@ -188,11 +194,11 @@ instance
   writeForeign stk (Left a) = do
     stk <- writeForeign stk a
     stk <- bump stk
-    stk <$ upoke stk 0
+    stk <$ pokeTag stk 0
   writeForeign stk (Right b) = do
     stk <- writeForeign stk b
     stk <- bump stk
-    stk <$ upoke stk 1
+    stk <$ pokeTag stk 1
 
 ioeDecode :: Int -> IOErrorType
 ioeDecode 0 = AlreadyExists
@@ -419,13 +425,13 @@ instance ForeignConvention BufferMode where
   writeForeign stk bm =
     bump stk >>= \stk ->
       case bm of
-        NoBuffering -> stk <$ upoke stk no'buf
-        LineBuffering -> stk <$ upoke stk line'buf
-        BlockBuffering Nothing -> stk <$ upoke stk block'buf
+        NoBuffering -> stk <$ upokeT stk no'buf TT.bufferModeTag
+        LineBuffering -> stk <$ upokeT stk line'buf TT.bufferModeTag
+        BlockBuffering Nothing -> stk <$ upokeT stk block'buf TT.bufferModeTag
         BlockBuffering (Just n) -> do
-          upoke stk n
+          pokeI stk n
           stk <- bump stk
-          stk <$ upoke stk sblock'buf
+          stk <$ upokeT stk sblock'buf TT.bufferModeTag
 
 -- In reality this fixes the type to be 'RClosure', but allows us to defer
 -- the typechecker a bit and avoid a bunch of annoying type annotations.
