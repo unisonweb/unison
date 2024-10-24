@@ -40,6 +40,7 @@ import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
     CompileExn (..),
+    PackedTag,
     SuperGroup,
     codeGroup,
     foldGroup,
@@ -291,7 +292,7 @@ unitValue = Enum Rf.unitRef unitTag
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
-buildLit :: Reference -> Word64 -> MLit -> Closure
+buildLit :: Reference -> PackedTag -> MLit -> Closure
 buildLit rf tt (MI i) = DataU1 rf tt i
 buildLit _ _ (MT t) = Foreign (Wrap Rf.textRef t)
 buildLit _ _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
@@ -2408,42 +2409,42 @@ compareAsNat i j = compare ni nj
     ni = fromIntegral i
     nj = fromIntegral j
 
-floatTag :: Word64
+floatTag :: PackedTag
 floatTag
   | Just n <- M.lookup Rf.floatRef builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: floatTag"
 
-natTag :: Word64
+natTag :: PackedTag
 natTag
   | Just n <- M.lookup Rf.natRef builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: natTag"
 
-intTag :: Word64
+intTag :: PackedTag
 intTag
   | Just n <- M.lookup Rf.intRef builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: intTag"
 
-charTag :: Word64
+charTag :: PackedTag
 charTag
   | Just n <- M.lookup Rf.charRef builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: charTag"
 
-unitTag :: Word64
+unitTag :: PackedTag
 unitTag
   | Just n <- M.lookup Rf.unitRef builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt 0
   | otherwise = error "internal error: unitTag"
 
-leftTag, rightTag :: Word64
+leftTag, rightTag :: PackedTag
 (leftTag, rightTag)
   | Just n <- M.lookup Rf.eitherRef builtinTypeNumbering,
     et <- toEnum (fromIntegral n),

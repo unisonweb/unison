@@ -73,6 +73,7 @@ import Unison.Runtime.ANF
     Direction (..),
     Func (..),
     Mem (..),
+    PackedTag (..),
     SuperGroup (..),
     SuperNormal (..),
     internalBug,
@@ -481,12 +482,12 @@ data GInstr comb
     -- on the stack.
     Pack
       !Reference -- data type reference
-      !Word64 -- tag
+      !PackedTag -- tag
       !Args -- arguments to pack
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Push a particular value directly onto the boxed stack
-    BLit !Reference !Word64 {- packed type tag for the ref -} !MLit
+    BLit !Reference !PackedTag !MLit
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
   | -- Put a delimiter on the continuation
@@ -1468,7 +1469,7 @@ emitBLit l = case l of
   _ -> BLit lRef builtinTypeTag (litToMLit l)
   where
     lRef = ANF.litRef l
-    builtinTypeTag :: Word64
+    builtinTypeTag :: PackedTag
     builtinTypeTag =
       case M.lookup (ANF.litRef l) builtinTypeNumbering of
         Nothing -> error "emitBLit: unknown builtin type reference"
@@ -1558,7 +1559,7 @@ sectionTypes (RMatch _ pu br) =
 sectionTypes _ = []
 
 instrTypes :: GInstr comb -> [Word64]
-instrTypes (Pack _ w _) = [w `shiftR` 16]
+instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
 instrTypes (Reset ws) = setToList ws
 instrTypes (Capture w) = [w]
 instrTypes (SetDyn w _) = [w]

@@ -473,25 +473,25 @@ checkCacheability cl ctx (r, sg) =
   getTermType codebaseRef >>= \case
     -- A term's result is cacheable iff it has no arrows in its type,
     -- this is sufficient since top-level definitions can't have effects without a delay.
-    Just typ | not (Rec.cata hasArrows typ) ->
-      pure (r, CodeRep sg Cacheable)
+    Just typ
+      | not (Rec.cata hasArrows typ) ->
+          pure (r, CodeRep sg Cacheable)
     _ -> pure (r, CodeRep sg Uncacheable)
   where
-  codebaseRef = backmapRef ctx r
-  getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
-  getTermType = \case
-    (RF.DerivedId i) ->
-      getTypeOfTerm cl i >>= \case
-        Just t -> pure $ Just t
-        Nothing -> pure Nothing
-    RF.Builtin {} -> pure $ Nothing
-  hasArrows :: Type.TypeF v a Bool -> Bool
-  hasArrows abt = case ABT.out' abt of
-    (ABT.Tm f) -> case f of
-      Type.Arrow _ _ -> True
-      other -> or other
-    t -> or t
-
+    codebaseRef = backmapRef ctx r
+    getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
+    getTermType = \case
+      (RF.DerivedId i) ->
+        getTypeOfTerm cl i >>= \case
+          Just t -> pure $ Just t
+          Nothing -> pure Nothing
+      RF.Builtin {} -> pure $ Nothing
+    hasArrows :: Type.TypeF v a Bool -> Bool
+    hasArrows abt = case ABT.out' abt of
+      (ABT.Tm f) -> case f of
+        Type.Arrow _ _ -> True
+        other -> or other
+      t -> or t
 
 compileValue :: Reference -> [(Reference, Code)] -> Value
 compileValue base =
@@ -1056,7 +1056,7 @@ executeMainComb ::
   CCache ->
   IO (Either (Pretty ColorText) ())
 executeMainComb init cc = do
-  rSection <- resolveSection cc $ Ins (Pack RF.unitRef 0 ZArgs) $ Call True init init (VArg1 0)
+  rSection <- resolveSection cc $ Ins (Pack RF.unitRef (PackedTag 0) ZArgs) $ Call True init init (VArg1 0)
   result <-
     UnliftIO.try . eval0 cc Nothing $ rSection
   case result of

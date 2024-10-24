@@ -52,6 +52,7 @@ module Unison.Runtime.ANF
     ANormal,
     RTag,
     CTag,
+    PackedTag (..),
     Tag (..),
     GroupRef (..),
     Code (..),
@@ -717,24 +718,29 @@ newtype CTag = CTag Word16
   deriving stock (Eq, Ord, Show, Read)
   deriving newtype (EC.EnumKey)
 
+-- | A combined tag, which is a packed representation of an RTag and a CTag
+newtype PackedTag = PackedTag Word64
+  deriving stock (Eq, Ord, Show, Read)
+  deriving newtype (EC.EnumKey)
+
 class Tag t where rawTag :: t -> Word64
 
 instance Tag RTag where rawTag (RTag w) = w
 
 instance Tag CTag where rawTag (CTag w) = fromIntegral w
 
-packTags :: RTag -> CTag -> Word64
-packTags (RTag rt) (CTag ct) = ri .|. ci
+packTags :: RTag -> CTag -> PackedTag
+packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
   where
     ri = rt `shiftL` 16
     ci = fromIntegral ct
 
-unpackTags :: Word64 -> (RTag, CTag)
-unpackTags w = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+unpackTags :: PackedTag -> (RTag, CTag)
+unpackTags (PackedTag w) = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
 
 -- Masks a packed tag to extract just the constructor tag portion
-maskTags :: Word64 -> Word64
-maskTags w = w .&. 0xFFFF
+maskTags :: PackedTag -> Word64
+maskTags (PackedTag w) = (w .&. 0xFFFF)
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x

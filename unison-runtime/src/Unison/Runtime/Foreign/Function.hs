@@ -31,7 +31,7 @@ import Network.UDP (UDPSocket)
 import System.IO (BufferMode (..), Handle, IOMode, SeekMode)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (Code, Value, internalBug)
+import Unison.Runtime.ANF (Code, PackedTag (..), Value, internalBug)
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
@@ -503,10 +503,10 @@ toUnisonPair ::
 toUnisonPair (x, y) =
   DataC
     Ty.pairRef
-    0
-    [Right $ wr x, Right $ DataC Ty.pairRef 0 [Right $ wr y, Right $ un]]
+    (PackedTag 0)
+    [Right $ wr x, Right $ DataC Ty.pairRef (PackedTag 0) [Right $ wr y, Right $ un]]
   where
-    un = DataC Ty.unitRef 0 []
+    un = DataC Ty.unitRef (PackedTag 0) []
     wr z = Foreign $ wrapBuiltin z
 
 unwrapForeignClosure :: Closure -> a

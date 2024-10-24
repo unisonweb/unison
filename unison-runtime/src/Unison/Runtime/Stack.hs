@@ -100,6 +100,7 @@ import Data.Word
 import GHC.Exts as L (IsList (..))
 import Unison.Prelude
 import Unison.Reference (Reference)
+import Unison.Runtime.ANF (PackedTag)
 import Unison.Runtime.Array
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
@@ -166,14 +167,14 @@ data GClosure comb
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
       {-# UNPACK #-} !Seg -- args
-  | GEnum !Reference !Word64
-  | GDataU1 !Reference !Word64 {- <- packed type tag -} !Int
-  | GDataU2 !Reference !Word64 {- <- packed type tag -} !Int !Int
-  | GDataB1 !Reference !Word64 {- <- packed type tag -} !(GClosure comb)
-  | GDataB2 !Reference !Word64 {- <- packed type tag -} !(GClosure comb) !(GClosure comb)
-  | GDataUB !Reference !Word64 {- <- packed type tag -} !Int !(GClosure comb)
-  | GDataBU !Reference !Word64 {- <- packed type tag -} !(GClosure comb) !Int
-  | GDataG !Reference !Word64 {- <- packed type tag -} {-# UNPACK #-} !Seg
+  | GEnum !Reference !PackedTag
+  | GDataU1 !Reference !PackedTag !Int
+  | GDataU2 !Reference !PackedTag !Int !Int
+  | GDataB1 !Reference !PackedTag !(GClosure comb)
+  | GDataB2 !Reference !PackedTag !(GClosure comb) !(GClosure comb)
+  | GDataUB !Reference !PackedTag !Int !(GClosure comb)
+  | GDataBU !Reference !PackedTag !(GClosure comb) !Int
+  | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
   | -- code cont, arg size, u/b data stacks
     GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
@@ -228,7 +229,7 @@ traceK begin = dedup (begin, 1)
       | otherwise = p : dedup (r, 1) k
     dedup p _ = [p]
 
-splitData :: Closure -> Maybe (Reference, Word64, SegList)
+splitData :: Closure -> Maybe (Reference, PackedTag, SegList)
 splitData = \case
   (Enum r t) -> Just (r, t, [])
   (DataU1 r t i) -> Just (r, t, [Left i])
@@ -265,7 +266,7 @@ bsegToList = reverse . L.toList
 bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
-formData :: Reference -> Word64 -> SegList -> Closure
+formData :: Reference -> PackedTag -> SegList -> Closure
 formData r t [] = Enum r t
 formData r t [Left i] = DataU1 r t i
 formData r t [Left i, Left j] = DataU2 r t i j
@@ -284,7 +285,7 @@ frameDataSize = go 0
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
 
-pattern DataC :: Reference -> Word64 -> SegList -> Closure
+pattern DataC :: Reference -> PackedTag -> SegList -> Closure
 pattern DataC rf ct segs <-
   (splitData -> Just (rf, ct, segs))
   where

@@ -2295,10 +2295,10 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
     handleIOE (Right a) = Right a
 
 unitValue :: Closure
-unitValue = Closure.Enum Ty.unitRef 0
+unitValue = Closure.Enum Ty.unitRef (PackedTag 0)
 
 natValue :: Word64 -> Closure
-natValue w =  Closure.DataU1 Ty.natRef 0 (fromIntegral w)
+natValue w =  Closure.DataU1 Ty.natRef (PackedTag 0) (fromIntegral w)
 
 mkForeignTls ::
   forall a r.

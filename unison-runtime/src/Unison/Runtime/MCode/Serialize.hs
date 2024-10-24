@@ -18,6 +18,7 @@ import Data.Primitive.PrimArray
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
+import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
@@ -31,6 +32,12 @@ instance Tag CombT where
   word2tag 0 = pure LamT
   word2tag 1 = pure CachedClosureT
   word2tag n = unknownTag "CombT" n
+
+putPackedTag :: (MonadPut m) => PackedTag -> m ()
+putPackedTag (PackedTag w) = pWord w
+
+getPackedTag :: (MonadGet m) => m PackedTag
+getPackedTag = PackedTag <$> gWord
 
 putComb :: (MonadPut m) => (clos -> m ()) -> GComb clos comb -> m ()
 putComb pClos = \case
@@ -205,9 +212,9 @@ putInstr = \case
   (Capture w) -> putTag CaptureT *> pWord w
   (Name r a) -> putTag NameT *> putRef r *> putArgs a
   (Info s) -> putTag InfoT *> serialize s
-  (Pack r w a) -> putTag PackT *> putReference r *> pWord w *> putArgs a
+  (Pack r w a) -> putTag PackT *> putReference r *> putPackedTag w *> putArgs a
   (Lit l) -> putTag LitT *> putLit l
-  (BLit r tt l) -> putTag BLitT *> putReference r *> putNat tt *> putLit l
+  (BLit r tt l) -> putTag BLitT *> putReference r *> putPackedTag tt *> putLit l
   (Print i) -> putTag PrintT *> pInt i
   (Reset s) -> putTag ResetT *> putEnumSet pWord s
   (Fork i) -> putTag ForkT *> pInt i
@@ -227,9 +234,9 @@ getInstr =
     CaptureT -> Capture <$> gWord
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> deserialize
-    PackT -> Pack <$> getReference <*> gWord <*> getArgs
+    PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
     LitT -> Lit <$> getLit
-    BLitT -> BLit <$> getReference <*> getNat <*> getLit
+    BLitT -> BLit <$> getReference <*> getPackedTag <*> getLit
     PrintT -> Print <$> gInt
     ResetT -> Reset <$> getEnumSet gWord
     ForkT -> Fork <$> gInt
