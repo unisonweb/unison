@@ -294,7 +294,9 @@ lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
 
 buildLit :: Reference -> PackedTag -> MLit -> Closure
-buildLit rf tt (MI i) = DataU1 rf tt (TypedUnboxed i tt)
+buildLit _ _ (MI i) = IntClosure i
+buildLit _ _ (MN n) = NatClosure n
+buildLit _ _ (MC c) = CharClosure c
 buildLit _ _ (MT t) = Foreign (Wrap Rf.textRef t)
 buildLit _ _ (MM r) = Foreign (Wrap Rf.termLinkRef r)
 buildLit _ _ (MY r) = Foreign (Wrap Rf.typeLinkRef r)
@@ -356,7 +358,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 MISS i)
             _ -> error "exec:BPrim1:MISS: Expected Ref"
       m <- readTVarIO (intermed env)
       stk <- bump stk
-      if (link `M.member` m) then upoke stk 1 else upoke stk 0
+      pokeTag stk $ if (link `M.member` m) then 1 else 0
       pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
@@ -377,7 +379,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 CVLD i)
       codeValidate (second codeGroup <$> news) env >>= \case
         Nothing -> do
           stk <- bump stk
-          upoke stk 0
+          pokeTag stk 0
           pure (denv, stk, k)
         Just (Failure ref msg clo) -> do
           stk <- bumpn stk 3
@@ -385,7 +387,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 CVLD i)
           pokeOffBi stk 1 msg
           bpokeOff stk 2 clo
           stk <- bump stk
-          upoke stk 1
+          pokeTag stk 1
           pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 LKUP i)
   | sandboxed env = die "attempted to use sandboxed operation: lookup"
@@ -404,8 +406,8 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LKUP i)
             Just sn <- EC.lookup w numberedTermLookup -> do
               pokeBi stk (CodeRep (ANF.Rec [] sn) Uncacheable)
               stk <- bump stk
-              stk <$ upoke stk 1
-          | otherwise -> stk <$ upoke stk 0
+              stk <$ pokeTag stk 1
+          | otherwise -> stk <$ pokeTag stk 0
         Just sg -> do
           let ch
                 | Just n <- M.lookup link rfn,
@@ -414,7 +416,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LKUP i)
                 | otherwise = Uncacheable
           pokeBi stk (CodeRep sg ch)
           stk <- bump stk
-          stk <$ upoke stk 1
+          stk <$ pokeTag stk 1
       pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (BPrim1 TLTT i) = do
   clink <- bpeekOff stk i
@@ -435,10 +437,10 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 LOAD i)
           pokeOffS stk 1 $
             Sq.fromList $
               Foreign . Wrap Rf.termLinkRef . Ref <$> miss
-          upoke stk 0
+          pokeTag stk 0
         Right x -> do
           bpokeOff stk 1 x
-          upoke stk 1
+          pokeTag stk 1
       pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
@@ -453,15 +455,15 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim1 DBTX i)
       clo <- bpeekOff stk i
       stk <- bump stk
       stk <- case tracer env False clo of
-        NoTrace -> stk <$ upoke stk 0
+        NoTrace -> stk <$ pokeTag stk 0
         MsgTrace _ _ tx -> do
           pokeBi stk (Util.Text.pack tx)
           stk <- bump stk
-          stk <$ upoke stk 1
+          stk <$ pokeTag stk 1
         SimpleTrace tx -> do
           pokeBi stk (Util.Text.pack tx)
           stk <- bump stk
-          stk <$ upoke stk 2
+          stk <$ pokeTag stk 2
       pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim1 SDBL i)
   | sandboxed env =
@@ -480,7 +482,7 @@ exec !env !denv !_activeThreads !stk !k _ (BPrim2 SDBX i j) = do
   l <- decodeSandboxArgument s
   b <- checkSandboxing env l c
   stk <- bump stk
-  upoke stk $ if b then 1 else 0
+  pokeBool stk $ b
   pure (denv, stk, k)
 exec !env !denv !_activeThreads !stk !k _ (BPrim2 SDBV i j)
   | sandboxed env =
@@ -497,7 +499,7 @@ exec !_ !denv !_activeThreads !stk !k _ (BPrim2 EQLU i j) = do
   x <- bpeekOff stk i
   y <- bpeekOff stk j
   stk <- bump stk
-  upoke stk $ if universalEq (==) x y then 1 else 0
+  pokeBool stk $ universalEq (==) x y
   pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (BPrim2 CMPU i j) = do
   x <- bpeekOff stk i
@@ -1577,7 +1579,7 @@ bprim2 !stk EQLU i j = do
   x <- bpeekOff stk i
   y <- bpeekOff stk j
   stk <- bump stk
-  upoke stk $ if universalEq (==) x y then 1 else 0
+  pokeBool stk $ universalEq (==) x y
   pure stk
 bprim2 !stk IXOT i j = do
   x <- peekOffBi stk i
@@ -1585,11 +1587,11 @@ bprim2 !stk IXOT i j = do
   case Util.Text.indexOf x y of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just i -> do
       stk <- bumpn stk 2
-      upoke stk 1
+      pokeTag stk 1
       pokeOffN stk 1 i
       pure stk
 bprim2 !stk IXOB i j = do
@@ -1598,11 +1600,11 @@ bprim2 !stk IXOB i j = do
   case By.indexOf x y of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just i -> do
       stk <- bumpn stk 2
-      upoke stk 1
+      pokeTag stk 1
       pokeOffN stk 1 i
       pure stk
 bprim2 !stk DRPT i j = do
@@ -1634,19 +1636,19 @@ bprim2 !stk EQLT i j = do
   x <- peekOffBi @Util.Text.Text stk i
   y <- peekOffBi stk j
   stk <- bump stk
-  upoke stk $ if x == y then 1 else 0
+  pokeBool stk $ x == y
   pure stk
 bprim2 !stk LEQT i j = do
   x <- peekOffBi @Util.Text.Text stk i
   y <- peekOffBi stk j
   stk <- bump stk
-  upoke stk $ if x <= y then 1 else 0
+  pokeBool stk $ x <= y
   pure stk
 bprim2 !stk LEST i j = do
   x <- peekOffBi @Util.Text.Text stk i
   y <- peekOffBi stk j
   stk <- bump stk
-  upoke stk $ if x < y then 1 else 0
+  pokeBool stk $ x < y
   pure stk
 bprim2 !stk DRPS i j = do
   n <- upeekOff stk i
@@ -1692,13 +1694,13 @@ bprim2 !stk IDXS i j = do
   case Sq.lookup n s of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just x -> do
       stk <- bump stk
       bpoke stk x
       stk <- bump stk
-      upoke stk 1
+      pokeTag stk 1
       pure stk
 bprim2 !stk SPLL i j = do
   n <- upeekOff stk i
@@ -1706,7 +1708,7 @@ bprim2 !stk SPLL i j = do
   if Sq.length s < n
     then do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     else do
       stk <- bumpn stk 2
@@ -1714,7 +1716,7 @@ bprim2 !stk SPLL i j = do
       pokeOffS stk 1 r
       pokeS stk l
       stk <- bump stk
-      upoke stk 1
+      pokeTag stk 1
       pure stk
 bprim2 !stk SPLR i j = do
   n <- upeekOff stk i
@@ -1722,7 +1724,7 @@ bprim2 !stk SPLR i j = do
   if Sq.length s < n
     then do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     else do
       stk <- bumpn stk 2
@@ -1730,7 +1732,7 @@ bprim2 !stk SPLR i j = do
       pokeOffS stk 1 r
       pokeS stk l
       stk <- bump stk
-      upoke stk 1
+      pokeTag stk 1
       pure stk
 bprim2 !stk TAKB i j = do
   n <- upeekOff stk i
@@ -1753,11 +1755,11 @@ bprim2 !stk IDXB i j = do
   b <- peekOffBi stk j
   stk <- bump stk
   stk <- case By.at n b of
-    Nothing -> stk <$ upoke stk 0
+    Nothing -> stk <$ pokeTag stk 0
     Just x -> do
-      upoke stk $ fromIntegral x
+      pokeByte stk x
       stk <- bump stk
-      stk <$ upoke stk 1
+      stk <$ pokeTag stk 1
   pure stk
 bprim2 !stk CATB i j = do
   l <- peekOffBi stk i
@@ -1784,7 +1786,7 @@ yield !env !denv !activeThreads !stk !k = leap denv k
     leap !denv0 (Mark a ps cs k) = do
       let denv = cs <> EC.withoutKeys denv0 ps
           clo = denv0 EC.! EC.findMin ps
-      bpoke stk . DataB1 Rf.effectRef 0 =<< bpeek stk
+      bpoke stk . DataB1 Rf.effectRef (PackedTag 0) =<< bpeek stk
       stk <- adjustArgs stk a
       apply env denv activeThreads stk k False (VArg1 0) clo
     leap !denv (Push fsz asz (CIx ref _ _) f nx k) = do
@@ -2167,12 +2169,12 @@ reflectValue rty = goV
 
     goV :: Closure -> IO ANF.Value
     goV (PApV cix _rComb args) =
-      ANF.Partial (goIx cix) <$> traverse (bitraverse (pure . fromIntegral) goV) args
+      ANF.Partial (goIx cix) <$> traverse (bitraverse (pure . typedUnboxedToUnboxedValue) goV) args
     goV (DataC _ t [Left w]) = ANF.BLit <$> reflectUData t w
     goV (DataC r t segs) =
-      ANF.Data r (maskTags t) <$> traverse (bitraverse (pure . fromIntegral) goV) segs
+      ANF.Data r (maskTags t) <$> traverse (bitraverse (pure . typedUnboxedToUnboxedValue) goV) segs
     goV (CapV k _ segs) =
-      ANF.Cont <$> traverse (bitraverse (pure . fromIntegral) goV) segs <*> goK k
+      ANF.Cont <$> traverse (bitraverse (pure . typedUnboxedToUnboxedValue) goV) segs <*> goK k
     goV (Foreign f) = ANF.BLit <$> goF f
     goV BlackHole = die $ err "black hole"
 
@@ -2222,6 +2224,9 @@ reflectValue rty = goV
     intToDouble :: Int -> Double
     intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
+    typedUnboxedToUnboxedValue :: TypedUnboxed -> ANF.UnboxedValue
+    typedUnboxedToUnboxedValue (TypedUnboxed v t) = ANF.UnboxedValue (fromIntegral v) t
+
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do
   erc <-
@@ -2260,7 +2265,7 @@ reifyValue0 (combs, rty, rtm) = goV
 
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> PApV cix rcomb <$> traverse (bitraverse (pure . fromIntegral) goV) vs
+        (cix, RComb (Comb rcomb)) -> PApV cix rcomb <$> traverse (bitraverse (pure . unboxedValueToTypedUnboxed) goV) vs
         (_, RComb (CachedClosure _ clo))
           | [] <- vs -> pure clo
           | otherwise -> die . err $ msg
@@ -2268,8 +2273,8 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      DataC r t <$> traverse (bitraverse (pure . fromIntegral) goV) vs
-    goV (ANF.Cont vs k) = cv <$> goK k <*> traverse (bitraverse (pure . fromIntegral) goV) vs
+      DataC r t <$> traverse (bitraverse (pure . unboxedValueToTypedUnboxed) goV) vs
+    goV (ANF.Cont vs k) = cv <$> goK k <*> traverse (bitraverse (pure . unboxedValueToTypedUnboxed) goV) vs
       where
         cv k s = CapV k a s
           where
@@ -2314,6 +2319,9 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntClosure (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleClosure d
     goL (ANF.Arr a) = Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+
+    unboxedValueToTypedUnboxed :: ANF.UnboxedValue -> TypedUnboxed
+    unboxedValueToTypedUnboxed (ANF.UnboxedValue v t) = (TypedUnboxed (fromIntegral v) t)
 
 -- Universal comparison functions
 

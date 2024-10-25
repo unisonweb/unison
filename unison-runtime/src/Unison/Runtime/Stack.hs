@@ -69,6 +69,7 @@ module Unison.Runtime.Stack
     pokeOffN,
     pokeI,
     pokeOffI,
+    pokeByte,
     peekBi,
     peekOffBi,
     pokeBi,
@@ -903,6 +904,12 @@ pokeI stk@(Stack _ _ sp ustk _) i = do
   bpoke stk (UnboxedTypeTag TT.intTag)
   writeByteArray ustk sp i
 {-# INLINE pokeI #-}
+
+pokeByte :: Stack -> Word8 -> IO ()
+pokeByte stk b = do
+  -- NOTE: currently we just store bytes as ints, but we should have a separate type runtime type tag for them.
+  pokeI stk (fromIntegral b)
+{-# INLINE pokeByte #-}
 
 pokeOffN :: Stack -> Int -> Word64 -> IO ()
 pokeOffN stk@(Stack _ _ sp ustk _) i n = do

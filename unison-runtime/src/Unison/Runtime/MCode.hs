@@ -489,6 +489,8 @@ data GInstr comb
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Push a particular value directly onto the boxed stack
+    -- TODO: We don't actually need the ref/packed tag here,
+    -- we can always infer them from the constructor of MLit.
     BLit !Reference !PackedTag !MLit
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
