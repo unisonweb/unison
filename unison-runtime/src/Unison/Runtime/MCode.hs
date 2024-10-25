@@ -427,6 +427,8 @@ data BPrim2
 
 data MLit
   = MI !Int
+  | MN !Word64
+  | MC !Char
   | MD !Double
   | MT !Text
   | MM !Referent -- Term Link
@@ -1449,9 +1451,9 @@ emitSumCase rns grpr grpn rec ctx v (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (sumCtx ctx v $ zip vs ccs) bo
 
 litToMLit :: ANF.Lit -> MLit
-litToMLit (ANF.I i) = MI $ fromIntegral i
-litToMLit (ANF.N n) = MI $ fromIntegral n
-litToMLit (ANF.C c) = MI $ fromEnum c
+litToMLit (ANF.I i) = MI (fromIntegral i)
+litToMLit (ANF.N n) = MN n
+litToMLit (ANF.C c) = MC c
 litToMLit (ANF.F d) = MD d
 litToMLit (ANF.T t) = MT t
 litToMLit (ANF.LM r) = MM r

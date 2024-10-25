@@ -15,6 +15,7 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
+import Data.Primitive.ByteArray qualified as BA
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
@@ -39,7 +40,7 @@ import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
     CompileExn (..),
-    PackedTag,
+    PackedTag (..),
     SuperGroup,
     codeGroup,
     foldGroup,
@@ -541,7 +542,15 @@ exec !_ !denv !_activeThreads !stk !k _ (Print i) = do
   pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (Lit (MI n)) = do
   stk <- bump stk
-  upoke stk n
+  pokeI stk n
+  pure (denv, stk, k)
+exec !_ !denv !_activeThreads !stk !k _ (Lit (MC c)) = do
+  stk <- bump stk
+  pokeC stk c
+  pure (denv, stk, k)
+exec !_ !denv !_activeThreads !stk !k _ (Lit (MN n)) = do
+  stk <- bump stk
+  pokeN stk n
   pure (denv, stk, k)
 exec !_ !denv !_activeThreads !stk !k _ (Lit (MD d)) = do
   stk <- bump stk
@@ -611,14 +620,14 @@ encodeExn stk exc = do
   case exc of
     Right () -> do
       stk <- bump stk
-      stk <$ upoke stk 1
+      stk <$ pokeTag stk 1
     Left exn -> do
       -- If we hit an exception, we have one unused slot on the stack
       -- from where the result _would_ have been placed.
       -- So here we bump one less than it looks like we should, and re-use
       -- that slot.
       stk <- bumpn stk 3
-      upoke stk 0
+      pokeTag stk 0
       bpokeOff stk 1 $ Foreign (Wrap Rf.typeLinkRef link)
       pokeOffBi stk 2 msg
       stk <$ bpokeOff stk 3 extra
@@ -644,7 +653,7 @@ encodeExn stk exc = do
           | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 numValue :: Maybe Reference -> Closure -> IO Word64
-numValue _ (DataU1 _ _ i) = pure (fromIntegral i)
+numValue _ (DataU1 _ _ i) = pure (fromIntegral $ getTUInt i)
 numValue mr clo =
   die $
     "numValue: bad closure: "
@@ -678,7 +687,7 @@ eval !env !denv !activeThreads !stk !k r (NMatch mr i br) = do
   eval env denv activeThreads stk k r $ selectBranch n br
 eval !env !denv !activeThreads !stk !k r (RMatch i pu br) = do
   (t, stk) <- dumpDataNoTag Nothing stk =<< bpeekOff stk i
-  if t == 0
+  if t == PackedTag 0
     then eval env denv activeThreads stk k r pu
     else case ANF.unpackTags t of
       (ANF.rawTag -> e, ANF.rawTag -> t)
@@ -992,12 +1001,12 @@ dumpDataNoTag ::
 dumpDataNoTag !_ !stk (Enum _ t) = pure (t, stk)
 dumpDataNoTag !_ !stk (DataU1 _ t x) = do
   stk <- bump stk
-  upoke stk x
+  pokeTU stk x
   pure (t, stk)
 dumpDataNoTag !_ !stk (DataU2 _ t x y) = do
   stk <- bumpn stk 2
-  upokeOff stk 1 y
-  upoke stk x
+  pokeOffTU stk 1 y
+  pokeTU stk x
   pure (t, stk)
 dumpDataNoTag !_ !stk (DataB1 _ t x) = do
   stk <- bump stk
@@ -1010,13 +1019,13 @@ dumpDataNoTag !_ !stk (DataB2 _ t x y) = do
   pure (t, stk)
 dumpDataNoTag !_ !stk (DataUB _ t x y) = do
   stk <- bumpn stk 2
-  upoke stk x
+  pokeTU stk x
   bpokeOff stk 1 y
   pure (t, stk)
 dumpDataNoTag !_ !stk (DataBU _ t x y) = do
   stk <- bumpn stk 2
   bpoke stk x
-  upokeOff stk 1 y
+  pokeOffTU stk 1 y
   pure (t, stk)
 dumpDataNoTag !_ !stk (DataG _ t seg) = do
   stk <- dumpSeg stk seg S
@@ -1089,22 +1098,22 @@ uprim1 !stk ABSF !i = do
 uprim1 !stk CEIL !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  upoke stk (ceiling d)
+  pokeI stk (ceiling d)
   pure stk
 uprim1 !stk FLOR !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  upoke stk (floor d)
+  pokeI stk (floor d)
   pure stk
 uprim1 !stk TRNF !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  upoke stk (truncate d)
+  pokeI stk (truncate d)
   pure stk
 uprim1 !stk RNDF !i = do
   d <- peekOffD stk i
   stk <- bump stk
-  upoke stk (round d)
+  pokeI stk (round d)
   pure stk
 uprim1 !stk EXPF !i = do
   d <- peekOffD stk i
@@ -1272,19 +1281,19 @@ uprim2 !stk EQLI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk $ if m == n then 1 else 0
+  pokeBool stk $ m == n
   pure stk
 uprim2 !stk LEQI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk $ if m <= n then 1 else 0
+  pokeBool stk $ m <= n
   pure stk
 uprim2 !stk LEQN !i !j = do
   m <- peekOffN stk i
   n <- peekOffN stk j
   stk <- bump stk
-  upoke stk $ if m <= n then 1 else 0
+  pokeBool stk $ m <= n
   pure stk
 uprim2 !stk DIVN !i !j = do
   m <- peekOffN stk i
@@ -1350,13 +1359,13 @@ uprim2 !stk EQLF !i !j = do
   x <- peekOffD stk i
   y <- peekOffD stk j
   stk <- bump stk
-  upoke stk (if x == y then 1 else 0)
+  pokeBool stk $ x == y
   pure stk
 uprim2 !stk LEQF !i !j = do
   x <- peekOffD stk i
   y <- peekOffD stk j
   stk <- bump stk
-  upoke stk (if x <= y then 1 else 0)
+  pokeBool stk $ x <= y
   pure stk
 uprim2 !stk ATN2 !i !j = do
   x <- peekOffD stk i
@@ -1418,25 +1427,25 @@ bprim1 !stk USNC i =
   peekOffBi stk i >>= \t -> case Util.Text.unsnoc t of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just (t, c) -> do
       stk <- bumpn stk 3
       pokeOffC stk 2 $ c -- char value
       pokeOffBi stk 1 t -- remaining text
-      upoke stk 1 -- 'Just' tag
+      pokeTag stk 1 -- 'Just' tag
       pure stk
 bprim1 !stk UCNS i =
   peekOffBi stk i >>= \t -> case Util.Text.uncons t of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just (c, t) -> do
       stk <- bumpn stk 3
       pokeOffBi stk 2 t -- remaining text
       pokeOffC stk 1 $ c -- char value
-      upoke stk 1 -- 'Just' tag
+      pokeTag stk 1 -- 'Just' tag
       pure stk
 bprim1 !stk TTOI i =
   peekOffBi stk i >>= \t -> case readm $ Util.Text.unpack t of
@@ -1444,12 +1453,12 @@ bprim1 !stk TTOI i =
       | fromIntegral (minBound :: Int) <= n,
         n <= fromIntegral (maxBound :: Int) -> do
           stk <- bumpn stk 2
-          upoke stk 1
-          upokeOff stk 1 (fromInteger n)
+          pokeTag stk 1
+          pokeOffI stk 1 (fromInteger n)
           pure stk
     _ -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
   where
     readm ('+' : s) = readMaybe s
@@ -1460,47 +1469,47 @@ bprim1 !stk TTON i =
       | 0 <= n,
         n <= fromIntegral (maxBound :: Word) -> do
           stk <- bumpn stk 2
-          upoke stk 1
+          pokeTag stk 1
           pokeOffN stk 1 (fromInteger n)
           pure stk
     _ -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
 bprim1 !stk TTOF i =
   peekOffBi stk i >>= \t -> case readMaybe $ Util.Text.unpack t of
     Nothing -> do
       stk <- bump stk
-      upoke stk 0
+      pokeTag stk 0
       pure stk
     Just f -> do
       stk <- bumpn stk 2
-      upoke stk 1
+      pokeTag stk 1
       pokeOffD stk 1 f
       pure stk
 bprim1 !stk VWLS i =
   peekOffS stk i >>= \case
     Sq.Empty -> do
       stk <- bump stk
-      upoke stk 0 -- 'Empty' tag
+      pokeTag stk 0 -- 'Empty' tag
       pure stk
     x Sq.:<| xs -> do
       stk <- bumpn stk 3
       pokeOffS stk 2 xs -- remaining seq
       bpokeOff stk 1 x -- head
-      upoke stk 1 -- ':<|' tag
+      pokeTag stk 1 -- ':<|' tag
       pure stk
 bprim1 !stk VWRS i =
   peekOffS stk i >>= \case
     Sq.Empty -> do
       stk <- bump stk
-      upoke stk 0 -- 'Empty' tag
+      pokeTag stk 0 -- 'Empty' tag
       pure stk
     xs Sq.:|> x -> do
       stk <- bumpn stk 3
       bpokeOff stk 2 x -- last
       pokeOffS stk 1 xs -- remaining seq
-      upoke stk 1 -- ':|>' tag
+      pokeTag stk 1 -- ':|>' tag
       pure stk
 bprim1 !stk PAKT i = do
   s <- peekOffS stk i
@@ -2201,14 +2210,17 @@ reflectValue rty = goV
           ANF.Arr <$> traverse goV a
       | otherwise = die $ err $ "foreign value: " <> (show f)
 
-    reflectUData :: PackedTag -> Int -> IO ANF.BLit
-    reflectUData t v
+    reflectUData :: PackedTag -> TypedUnboxed -> IO ANF.BLit
+    reflectUData t (TypedUnboxed v _t)
       | t == TT.natTag = pure $ ANF.Pos (fromIntegral v)
       | t == TT.charTag = pure $ ANF.Char (toEnum v)
       | t == TT.intTag, v >= 0 = pure $ ANF.Pos (fromIntegral v)
       | t == TT.intTag, v < 0 = pure $ ANF.Neg (fromIntegral (-v))
       | t == TT.floatTag = pure $ ANF.Float (intToDouble v)
       | otherwise = die . err $ "unboxed data: " <> show (t, v)
+
+    intToDouble :: Int -> Double
+    intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
 reifyValue cc val = do

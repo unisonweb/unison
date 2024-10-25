@@ -57,6 +57,7 @@ module Unison.Runtime.Stack
     pokeOffD,
     pokeC,
     pokeOffC,
+    pokeBool,
     pokeTag,
     peekTag,
     peekTagOff,
@@ -247,6 +248,10 @@ pattern Foreign x = Closure (GForeign x)
 pattern BlackHole = Closure GBlackHole
 
 pattern UnboxedTypeTag t = Closure (GUnboxedTypeTag t)
+
+{-# COMPLETE PAp, Enum, DataU1, DataU2, DataB1, DataB2, DataUB, DataBU, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
+
+{-# COMPLETE DataC, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
 
 traceK :: Reference -> K -> [(Reference, Int)]
 traceK begin = dedup (begin, 1)
@@ -642,6 +647,13 @@ peekTag = peekI
 peekTagOff :: Stack -> Off -> IO Int
 peekTagOff = peekOffI
 {-# INLINE peekTagOff #-}
+
+pokeBool :: Stack -> Bool -> IO ()
+pokeBool stk b =
+  -- Currently this is implemented as a tag, which is branched on to put a packed bool constructor on the stack, but
+  -- we'll want to change it to have its own unboxed type tag eventually.
+  pokeTag stk $ if b then 1 else 0
+{-# INLINE pokeBool #-}
 
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
