@@ -26,7 +26,11 @@ module Unison.Runtime.Stack
         Captured,
         Foreign,
         BlackHole,
-        UnboxedTypeTag
+        UnboxedTypeTag,
+        CharClosure,
+        NatClosure,
+        DoubleClosure,
+        IntClosure
       ),
     IxClosure,
     Callback (..),
@@ -52,6 +56,7 @@ module Unison.Runtime.Stack
     pokeD,
     pokeOffD,
     pokeC,
+    pokeOffC,
     pokeTag,
     peekTag,
     peekTagOff,
@@ -87,7 +92,8 @@ module Unison.Runtime.Stack
     upoke,
     upokeOff,
     upokeT,
-    upokeTOff,
+    upokeOffT,
+    unsafePokeIasN,
     pokeTU,
     pokeOffTU,
     bump,
@@ -112,6 +118,7 @@ where
 
 import Control.Monad.Primitive
 import Data.Char qualified as Char
+import Data.Primitive.ByteArray qualified as BA
 import Data.Word
 import GHC.Exts as L (IsList (..))
 import Unison.Prelude
@@ -305,8 +312,41 @@ pattern DataC rf ct segs <-
     DataC rf ct segs = formData rf ct segs
 
 -- | An unboxed value with an accompanying tag indicating its type.
-data TypedUnboxed = TypedUnboxed !Int !PackedTag
+data TypedUnboxed = TypedUnboxed {getTUInt :: !Int, getTUTag :: !PackedTag}
   deriving (Show, Eq, Ord)
+
+pattern CharClosure :: Char -> Closure
+pattern CharClosure c <- (unpackUnboxedClosure TT.charTag -> Just (Char.chr -> c))
+  where
+    CharClosure c = DataU1 Ty.charRef TT.charTag (TypedUnboxed (Char.ord c) TT.charTag)
+
+pattern NatClosure :: Word64 -> Closure
+pattern NatClosure n <- (unpackUnboxedClosure TT.natTag -> Just (toEnum -> n))
+  where
+    NatClosure n = DataU1 Ty.natRef TT.natTag (TypedUnboxed (fromEnum n) TT.natTag)
+
+pattern DoubleClosure :: Double -> Closure
+pattern DoubleClosure d <- (unpackUnboxedClosure TT.floatTag -> Just (intToDouble -> d))
+  where
+    DoubleClosure d = DataU1 Ty.floatRef TT.floatTag (TypedUnboxed (doubleToInt d) TT.floatTag)
+
+pattern IntClosure :: Int -> Closure
+pattern IntClosure i <- (unpackUnboxedClosure TT.intTag -> Just i)
+  where
+    IntClosure i = DataU1 Ty.intRef TT.intTag (TypedUnboxed i TT.intTag)
+
+doubleToInt :: Double -> Int
+doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
+
+intToDouble :: Int -> Double
+intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
+
+unpackUnboxedClosure :: PackedTag -> Closure -> Maybe Int
+unpackUnboxedClosure expectedTag = \case
+  DataU1 _ref tag (TypedUnboxed i _)
+    | tag == expectedTag -> Just i
+  _ -> Nothing
+{-# INLINE unpackUnboxedClosure #-}
 
 splitTaggedUnboxed :: TypedUnboxed -> (Int, Closure)
 splitTaggedUnboxed (TypedUnboxed i t) = (i, UnboxedTypeTag t)
@@ -574,6 +614,14 @@ upokeT !stk@(Stack _ _ sp ustk _) !u !t = do
   writeByteArray ustk sp u
 {-# INLINE upokeT #-}
 
+-- | Sometimes we get back an int from a foreign call which we want to use as a Nat.
+-- If we know it's positive and smaller than 2^63 then we can safely store the Int directly as a Nat without
+-- checks.
+unsafePokeIasN :: Stack -> Int -> IO ()
+unsafePokeIasN stk n = do
+  upokeT stk n TT.natTag
+{-# INLINE unsafePokeIasN #-}
+
 pokeTU :: Stack -> TypedUnboxed -> IO ()
 pokeTU stk !(TypedUnboxed u t) = upoke stk (u, UnboxedTypeTag t)
 {-# INLINE pokeTU #-}
@@ -608,11 +656,11 @@ upokeOff stk i (u, t) = do
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOff #-}
 
-upokeTOff :: Stack -> Off -> UElem -> PackedTag -> IO ()
-upokeTOff stk i u t = do
+upokeOffT :: Stack -> Off -> UElem -> PackedTag -> IO ()
+upokeOffT stk i u t = do
   bpokeOff stk i (UnboxedTypeTag t)
   writeByteArray (ustk stk) (sp stk - i) u
-{-# INLINE upokeTOff #-}
+{-# INLINE upokeOffT #-}
 
 pokeOffTU :: Stack -> Off -> TypedUnboxed -> IO ()
 pokeOffTU stk i (TypedUnboxed u t) = upokeOff stk i (u, UnboxedTypeTag t)
@@ -861,6 +909,11 @@ pokeOffI stk@(Stack _ _ sp ustk _) i n = do
   bpokeOff stk i (UnboxedTypeTag TT.intTag)
   writeByteArray ustk (sp - i) n
 {-# INLINE pokeOffI #-}
+
+pokeOffC :: Stack -> Int -> Char -> IO ()
+pokeOffC stk i c = do
+  upokeOffT stk i (Char.ord c) TT.charTag
+{-# INLINE pokeOffC #-}
 
 pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
 pokeBi stk x = bpoke stk (Foreign $ wrapBuiltin x)

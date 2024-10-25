@@ -15,7 +15,6 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Bits
 import Data.Map.Strict qualified as M
 import Data.Ord (comparing)
-import Data.Primitive.ByteArray qualified as BA
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
@@ -1065,22 +1064,22 @@ uprim1 :: Stack -> UPrim1 -> Int -> IO Stack
 uprim1 !stk DECI !i = do
   m <- upeekOff stk i
   stk <- bump stk
-  upoke stk (m - 1)
+  pokeI stk (m - 1)
   pure stk
 uprim1 !stk INCI !i = do
   m <- upeekOff stk i
   stk <- bump stk
-  upoke stk (m + 1)
+  pokeI stk (m + 1)
   pure stk
 uprim1 !stk NEGI !i = do
   m <- upeekOff stk i
   stk <- bump stk
-  upoke stk (-m)
+  pokeI stk (-m)
   pure stk
 uprim1 !stk SGNI !i = do
   m <- upeekOff stk i
   stk <- bump stk
-  upoke stk (signum m)
+  pokeI stk (signum m)
   pure stk
 uprim1 !stk ABSF !i = do
   d <- peekOffD stk i
@@ -1195,17 +1194,17 @@ uprim1 !stk NTOF !i = do
 uprim1 !stk LZRO !i = do
   n <- peekOffN stk i
   stk <- bump stk
-  upoke stk (countLeadingZeros n)
+  unsafePokeIasN stk (countLeadingZeros n)
   pure stk
 uprim1 !stk TZRO !i = do
   n <- peekOffN stk i
   stk <- bump stk
-  upoke stk (countTrailingZeros n)
+  unsafePokeIasN stk (countTrailingZeros n)
   pure stk
 uprim1 !stk POPC !i = do
   n <- peekOffN stk i
   stk <- bump stk
-  upoke stk (popCount n)
+  unsafePokeIasN stk (popCount n)
   pure stk
 uprim1 !stk COMN !i = do
   n <- peekOffN stk i
@@ -1219,43 +1218,43 @@ uprim2 !stk ADDI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m + n)
+  pokeI stk (m + n)
   pure stk
 uprim2 !stk SUBI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m - n)
+  pokeI stk (m - n)
   pure stk
 uprim2 !stk MULI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m * n)
+  pokeI stk (m * n)
   pure stk
 uprim2 !stk DIVI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m `div` n)
+  pokeI stk (m `div` n)
   pure stk
 uprim2 !stk MODI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m `mod` n)
+  pokeI stk (m `mod` n)
   pure stk
 uprim2 !stk SHLI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m `shiftL` n)
+  pokeI stk (m `shiftL` n)
   pure stk
 uprim2 !stk SHRI !i !j = do
   m <- upeekOff stk i
   n <- upeekOff stk j
   stk <- bump stk
-  upoke stk (m `shiftR` n)
+  pokeI stk (m `shiftR` n)
   pure stk
 uprim2 !stk SHRN !i !j = do
   m <- peekOffN stk i
@@ -1267,7 +1266,7 @@ uprim2 !stk POWI !i !j = do
   m <- upeekOff stk i
   n <- peekOffN stk j
   stk <- bump stk
-  upoke stk (m ^ n)
+  pokeI stk (m ^ n)
   pure stk
 uprim2 !stk EQLI !i !j = do
   m <- upeekOff stk i
@@ -1393,12 +1392,12 @@ bprim1 ::
 bprim1 !stk SIZT i = do
   t <- peekOffBi stk i
   stk <- bump stk
-  upoke stk $ Util.Text.size t
+  unsafePokeIasN stk $ Util.Text.size t
   pure stk
 bprim1 !stk SIZS i = do
   s <- peekOffS stk i
   stk <- bump stk
-  upoke stk $ Sq.length s
+  unsafePokeIasN stk $ Sq.length s
   pure stk
 bprim1 !stk ITOT i = do
   n <- upeekOff stk i
@@ -1423,7 +1422,7 @@ bprim1 !stk USNC i =
       pure stk
     Just (t, c) -> do
       stk <- bumpn stk 3
-      upokeOff stk 2 $ fromEnum c -- char value
+      pokeOffC stk 2 $ c -- char value
       pokeOffBi stk 1 t -- remaining text
       upoke stk 1 -- 'Just' tag
       pure stk
@@ -1436,7 +1435,7 @@ bprim1 !stk UCNS i =
     Just (c, t) -> do
       stk <- bumpn stk 3
       pokeOffBi stk 2 t -- remaining text
-      upokeOff stk 1 $ fromEnum c -- char value
+      pokeOffC stk 1 $ c -- char value
       upoke stk 1 -- 'Just' tag
       pure stk
 bprim1 !stk TTOI i =
@@ -1509,14 +1508,15 @@ bprim1 !stk PAKT i = do
   pokeBi stk . Util.Text.pack . toList $ clo2char <$> s
   pure stk
   where
-    clo2char (DataU1 _ t i) | t == TT.charTag = toEnum i
+    clo2char :: Closure -> Char
+    clo2char (CharClosure c) = c
     clo2char c = error $ "pack text: non-character closure: " ++ show c
 bprim1 !stk UPKT i = do
   t <- peekOffBi stk i
   stk <- bump stk
   pokeS stk
     . Sq.fromList
-    . fmap (DataU1 Rf.charRef TT.charTag . fromEnum)
+    . fmap CharClosure
     . Util.Text.unpack
     $ t
   pure stk
@@ -1526,18 +1526,20 @@ bprim1 !stk PAKB i = do
   pokeBi stk . By.fromWord8s . fmap clo2w8 $ toList s
   pure stk
   where
-    clo2w8 (DataU1 _ t n) | t == TT.natTag = toEnum n
+    -- TODO: Should we have a tag for bytes specifically?
+    clo2w8 :: Closure -> Word8
+    clo2w8 (NatClosure n) = toEnum . fromEnum $ n
     clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
 bprim1 !stk UPKB i = do
   b <- peekOffBi stk i
   stk <- bump stk
-  pokeS stk . Sq.fromList . fmap (DataU1 Rf.natRef TT.natTag . fromEnum) $
+  pokeS stk . Sq.fromList . fmap (NatClosure . toEnum @Word64 . fromEnum @Word8) $
     By.toWord8s b
   pure stk
 bprim1 !stk SIZB i = do
   b <- peekOffBi stk i
   stk <- bump stk
-  upoke stk $ By.size b
+  unsafePokeIasN stk $ By.size b
   pure stk
 bprim1 !stk FLTB i = do
   b <- peekOffBi stk i
@@ -2295,20 +2297,11 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Quote v) = pure . Foreign $ Wrap Rf.valueRef v
     goL (ANF.Code g) = pure . Foreign $ Wrap Rf.codeRef g
     goL (ANF.BArr a) = pure . Foreign $ Wrap Rf.ibytearrayRef a
-    goL (ANF.Char c) = pure $ DataU1 Rf.charRef TT.charTag (fromEnum c)
-    goL (ANF.Pos w) =
-      pure $ DataU1 Rf.natRef TT.natTag (fromIntegral w)
-    goL (ANF.Neg w) =
-      pure $ DataU1 Rf.intRef TT.intTag (-fromIntegral w)
-    goL (ANF.Float d) =
-      pure $ DataU1 Rf.floatRef TT.floatTag (doubleToInt d)
+    goL (ANF.Char c) = pure $ CharClosure c
+    goL (ANF.Pos w) = pure $ NatClosure w
+    goL (ANF.Neg w) = pure $ IntClosure (negate (fromIntegral w :: Int))
+    goL (ANF.Float d) = pure $ DoubleClosure d
     goL (ANF.Arr a) = Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-
-doubleToInt :: Double -> Int
-doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
-
-intToDouble :: Int -> Double
-intToDouble w = indexByteArray (BA.byteArrayFromList [w]) 0
 
 -- Universal comparison functions
 
@@ -2419,34 +2412,35 @@ universalCompare frn = cmpc False
   where
     cmpl cm l r =
       compare (length l) (length r) <> fold (zipWith cm l r)
-    cmpc _ (DataC _ ct1 [Left i]) (DataC _ ct2 [Left j])
-      | ct1 == TT.floatTag, ct2 == TT.floatTag = compareAsFloat i j
-      | ct1 == TT.natTag, ct2 == TT.natTag = compareAsNat i j
-      | ct1 == TT.intTag, ct2 == TT.natTag = compare i j
-      | ct1 == TT.natTag, ct2 == TT.intTag = compare i j
-    cmpc tyEq (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) =
-      (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
-        <> compare (maskTags ct1) (maskTags ct2)
-        -- when comparing corresponding `Any` values, which have
-        -- existentials inside check that type references match
-        <> cmpValList (tyEq || rf1 == Rf.anyRef) vs1 vs2
-    cmpc tyEq (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
-      compare cix1 cix2
-        <> cmpValList tyEq segs1 segs2
-    cmpc _ (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
-      compare k1 k2
-        <> compare a1 a2
-        <> cmpValList True vs1 vs2
-    cmpc tyEq (Foreign fl) (Foreign fr)
-      | Just sl <- maybeUnwrapForeign Rf.listRef fl,
-        Just sr <- maybeUnwrapForeign Rf.listRef fr =
-          fold (Sq.zipWith (cmpc tyEq) sl sr)
-            <> compare (length sl) (length sr)
-      | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
-        Just ar <- maybeUnwrapForeign Rf.iarrayRef fr =
-          arrayCmp (cmpc tyEq) al ar
-      | otherwise = frn fl fr
-    cmpc _ c d = comparing closureNum c d
+    cmpc tyEq = \cases
+      (DataC _ ct1 [Left (TypedUnboxed i _)]) (DataC _ ct2 [Left (TypedUnboxed j _)])
+        | ct1 == TT.floatTag, ct2 == TT.floatTag -> compareAsFloat i j
+        | ct1 == TT.natTag, ct2 == TT.natTag -> compareAsNat i j
+        | ct1 == TT.intTag, ct2 == TT.natTag -> compare i j
+        | ct1 == TT.natTag, ct2 == TT.intTag -> compare i j
+      (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
+        (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
+          <> compare (maskTags ct1) (maskTags ct2)
+          -- when comparing corresponding `Any` values, which have
+          -- existentials inside check that type references match
+          <> cmpValList (tyEq || rf1 == Rf.anyRef) vs1 vs2
+      (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
+        compare cix1 cix2
+          <> cmpValList tyEq segs1 segs2
+      (CapV k1 a1 vs1) (CapV k2 a2 vs2) ->
+        compare k1 k2
+          <> compare a1 a2
+          <> cmpValList True vs1 vs2
+      (Foreign fl) (Foreign fr)
+        | Just sl <- maybeUnwrapForeign Rf.listRef fl,
+          Just sr <- maybeUnwrapForeign Rf.listRef fr ->
+            fold (Sq.zipWith (cmpc tyEq) sl sr)
+              <> compare (length sl) (length sr)
+        | Just al <- maybeUnwrapForeign Rf.iarrayRef fl,
+          Just ar <- maybeUnwrapForeign Rf.iarrayRef fr ->
+            arrayCmp (cmpc tyEq) al ar
+        | otherwise -> frn fl fr
+      c d -> comparing closureNum c d
     -- Written this way to maintain back-compat with the
     -- old val lists which were separated by unboxed/boxed.
     cmpValList tyEq vs1 vs2 =
