@@ -252,7 +252,6 @@ library
     , servant-conduit
     , stm
     , stm-chans
-    , stm-conduit
     , temporary
     , text
     , text-ansi
