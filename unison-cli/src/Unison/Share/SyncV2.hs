@@ -263,7 +263,7 @@ syncSortedStream ::
   StreamM ()
 syncSortedStream shouldValidate codebase numEntities stream = ExceptT do
   withSortedStreamProgress (fromIntegral <$> numEntities) \(downloadCount, doneDownloading, unpackCount, doneUnpacking, saveCount) -> runExceptT do
-    (downloaderSink, downloaderSource) <- parallelSinkAndSource 10
+    (downloaderSink, downloaderSource) <- parallelBatchedSinkAndSource 1000
     (unpackerSink, unpackerSource) <- parallelSinkAndSource 10
     let handler :: Stream (Vector (Hash32, TempEntity)) o
         handler = C.mapM_C \entityBatch -> do
@@ -271,8 +271,7 @@ syncSortedStream shouldValidate codebase numEntities stream = ExceptT do
           saveCount (length entityBatch)
     let downloadC =
           stream
-            C..| CL.chunksOf batchSize
-            C..| C.iterM (downloadCount <<< length)
+            C..| C.iterM (const $ downloadCount 1)
             C..| (downloaderSink *> lift doneDownloading)
     let saverC =
           downloaderSource
@@ -722,3 +721,32 @@ parallelSinkAndSource bufferSize = do
             C.yield chunk
             source
   pure (sink, source)
+
+parallelBatchedSinkAndSource :: (MonadIO m) => Int -> m (ConduitT i void1 m (), ConduitT void2 [i] m ())
+parallelBatchedSinkAndSource bufferSize = do
+  q <- liftIO $ STM.newTBMQueueIO bufferSize
+  let sink = do
+        C.await >>= \case
+          Nothing -> STM.atomically $ STM.closeTBMQueue q
+          Just chunk -> do
+            STM.atomically $ STM.writeTBMQueue q chunk
+            sink
+  let source = do
+        flushTBMQueue q >>= \case
+          Nothing -> pure ()
+          Just chunk -> do
+            C.yield chunk
+            source
+  pure (sink, source)
+
+-- | Get all currently available items from a TBMQueue.
+flushTBMQueue :: (MonadIO m) => STM.TBMQueue a -> m (Maybe [a])
+flushTBMQueue q = liftIO $ STM.atomically $ do
+  STM.readTBMQueue q >>= \case
+    Nothing -> pure Nothing
+    Just x -> do
+      xs <- many $ do
+        STM.readTBMQueue q >>= \case
+          Nothing -> empty
+          Just x -> pure x
+      pure $ Just (x : xs)
