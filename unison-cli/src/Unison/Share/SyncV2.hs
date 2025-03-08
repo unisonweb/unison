@@ -12,7 +12,6 @@ where
 import Codec.Serialise qualified as CBOR
 import Conduit (ConduitT)
 import Conduit qualified as C
-import Control.Category ((<<<))
 import Control.Concurrent.STM.TBMQueue qualified as STM
 import Control.Lens
 import Control.Monad.Except
@@ -81,13 +80,6 @@ type SyncErr = SyncError SyncV2.PullError
 
 -- The base monad we use within the conduit pipeline.
 type StreamM = (ExceptT SyncErr (C.ResourceT IO))
-
--- | The number of entities to process in a single transaction.
---
--- SQLite transactions have some fixed overhead, so setting this too low can really slow things down,
--- but going too high here means we may be waiting on the network to get a full batch when we could be starting work.
-batchSize :: Int
-batchSize = 5000
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main methods
@@ -249,6 +241,13 @@ syncUnsortedStream shouldValidate codebase numEntities stream = ExceptT $ do
         Sqlite.unsafeIO $ countC 1
         pure r
   where
+    -- The number of entities to process in a single transaction.
+    --
+    -- SQLite transactions have some fixed overhead, so setting this too low can really slow things down,
+    -- but going too high here means we may be waiting on the network to get a full batch when we could be starting work.
+    batchSize :: Int
+    batchSize = 5000
+
     validateBatch :: Stream (Vector (Hash32, TempEntity)) (Vector (Hash32, TempEntity))
     validateBatch = C.iterM \entities -> do
       when shouldValidate (mapExceptT lift $ batchValidateEntities entities)
@@ -262,21 +261,19 @@ syncSortedStream ::
   Stream () SyncV2.EntityChunk ->
   StreamM ()
 syncSortedStream shouldValidate codebase numEntities stream = ExceptT do
-  withSortedStreamProgress (fromIntegral <$> numEntities) \(downloadCount, doneDownloading, unpackCount, doneUnpacking, saveCount) -> runExceptT do
-    (downloaderSink, downloaderSource) <- parallelBatchedSinkAndSource 1000
-    (unpackerSink, unpackerSource) <- parallelSinkAndSource 10
+  withSortedStreamProgress (fromIntegral <$> numEntities) \(unpackCount, doneUnpacking, saveCount) -> runExceptT do
+    (downloaderSink, downloaderSource) <- parallelSinkAndSource (3 * batchSize) -- Allow downloading up to triple our current batch size in advance
+    (unpackerSink, unpackerSource) <- parallelSinkAndSource 5 -- Buffer of up to 5 batches.
     let handler :: Stream (Vector (Hash32, TempEntity)) o
         handler = C.mapM_C \entityBatch -> do
           validateAndSave shouldValidate codebase entityBatch
           saveCount (length entityBatch)
-    let downloadC =
-          stream
-            C..| C.iterM (const $ downloadCount 1)
-            C..| (downloaderSink *> lift doneDownloading)
+    let downloadC = stream C..| downloaderSink
     let saverC =
           downloaderSource
+            C..| CL.chunksOf batchSize
             C..| unpackChunks codebase
-            C..| C.iterM (unpackCount <<< length)
+            C..| C.iterM (unpackCount . length)
             C..| (unpackerSink *> lift doneUnpacking)
     let handlerC =
           unpackerSource
@@ -288,6 +285,8 @@ syncSortedStream shouldValidate codebase numEntities stream = ExceptT do
       b <- Async.conc . runExceptT $ C.runConduit saverC
       c <- Async.conc . runExceptT $ C.runConduit handlerC
       pure (a >> b >> c)
+  where
+    batchSize = 1000
 
 -- | Topologically sort entities based on their dependencies, returning a list in dependency-first order.
 sortDependencyFirst :: (Foldable f, Functor f) => f (Hash32, TempEntity) -> [(Hash32, TempEntity)]
@@ -671,10 +670,8 @@ withEntityLoadingCallback action = do
   let msg n = "\n  📦 Unpacked  " <> tShow n <> " entities...\n\n"
   counterProgress msg action
 
-withSortedStreamProgress :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> ((Int -> m (), m (), Int -> m (), m (), Int -> m ()) -> n a) -> n a
+withSortedStreamProgress :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> ((Int -> m (), m (), Int -> m ()) -> n a) -> n a
 withSortedStreamProgress total action = do
-  downloadedVar <- IO.newTVarIO (0 :: Int)
-  doneDownloadingVar <- IO.newTVarIO False
   unpackedVar <- IO.newTVarIO (0 :: Int)
   doneUnpackingVar <- IO.newTVarIO False
   savedVar <- IO.newTVarIO (0 :: Int)
@@ -682,23 +679,18 @@ withSortedStreamProgress total action = do
     Console.Regions.displayConsoleRegions do
       Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
         Console.Regions.setConsoleRegion region do
-          downloaded <- IO.readTVar downloadedVar
-          doneDownloading <- IO.readTVar doneDownloadingVar
           unpacked <- IO.readTVar unpackedVar
           doneUnpacking <- IO.readTVar doneUnpackingVar
           saved <- IO.readTVar savedVar
           pure $
             Text.unlines
               [ "",
-                "  ⬇️ Downloaded: " <> tShow downloaded <> maybe "" (\total -> " / " <> tShow total) total <> Monoid.whenM doneDownloading " 🏁",
-                "  📦 Unpacked:   " <> tShow unpacked <> Monoid.whenM doneUnpacking " 🏁",
+                "  ⬇️ Downloaded: " <> tShow unpacked <> maybe "" (\total -> " / " <> tShow total) total <> Monoid.whenM doneUnpacking " 🏁",
                 "  💾 Saved:      " <> tShow saved
               ]
         toIO $
           action $
-            ( \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (+ i)),
-              do liftIO $ IO.atomically (IO.writeTVar doneDownloadingVar True),
-              \i -> do liftIO $ IO.atomically (IO.modifyTVar' unpackedVar (+ i)),
+            ( \i -> do liftIO $ IO.atomically (IO.modifyTVar' unpackedVar (+ i)),
               do liftIO $ IO.atomically (IO.writeTVar doneUnpackingVar True),
               \i -> do liftIO $ IO.atomically (IO.modifyTVar' savedVar (+ i))
             )
@@ -721,32 +713,3 @@ parallelSinkAndSource bufferSize = do
             C.yield chunk
             source
   pure (sink, source)
-
-parallelBatchedSinkAndSource :: (MonadIO m) => Int -> m (ConduitT i void1 m (), ConduitT void2 [i] m ())
-parallelBatchedSinkAndSource bufferSize = do
-  q <- liftIO $ STM.newTBMQueueIO bufferSize
-  let sink = do
-        C.await >>= \case
-          Nothing -> STM.atomically $ STM.closeTBMQueue q
-          Just chunk -> do
-            STM.atomically $ STM.writeTBMQueue q chunk
-            sink
-  let source = do
-        flushTBMQueue q >>= \case
-          Nothing -> pure ()
-          Just chunk -> do
-            C.yield chunk
-            source
-  pure (sink, source)
-
--- | Get all currently available items from a TBMQueue.
-flushTBMQueue :: (MonadIO m) => STM.TBMQueue a -> m (Maybe [a])
-flushTBMQueue q = liftIO $ STM.atomically $ do
-  STM.readTBMQueue q >>= \case
-    Nothing -> pure Nothing
-    Just x -> do
-      xs <- many $ do
-        STM.readTBMQueue q >>= \case
-          Nothing -> empty
-          Just x -> pure x
-      pure $ Just (x : xs)
