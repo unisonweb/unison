@@ -36,7 +36,7 @@ import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith3)
 
 data Mergeblob2 libdep = Mergeblob2
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
@@ -75,7 +75,7 @@ makeMergeblob2 blob = do
         identifyCoreDependencies
           (ThreeWay.forgetLca blob.defns)
           (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
-          (Unconflicts.soloDeletedNames blob.unconflicts <> Unconflicts.soloUpdatedNames blob.unconflicts)
+          blob.unconflicts
 
   pure
     Mergeblob2
@@ -95,20 +95,30 @@ makeMergeblob2 blob = do
 identifyCoreDependencies ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
-  TwoWay (DefnsF Set Name Name) ->
+  DefnsF Unconflicts Referent TypeReference ->
   TwoWay (DefnsF Set TermReference TypeReference)
-identifyCoreDependencies defns conflicts soloUpdatesAndDeletes = do
+identifyCoreDependencies defns conflicts unconflicts = do
+  let soloDeletedNames = Unconflicts.soloDeletedNames unconflicts
+      soloUpdatedNames = Unconflicts.soloUpdatedNames unconflicts
   fold
-    [ -- One source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
+    [ -- One source of dependencies: One's own updates. This is required even though it may seem as though one's already
+      -- propagated that update. Consider if Alice updates X and adds a new transitive dependent Z (where Z calls Y
+      -- calls X). We want X as an Alice core dependency, not just a B one, so that any update to Y can ultimately
+      -- propagate again to Z.
       --
-      -- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
-      -- anything), no matter what its hash is.
-      defnsReferences
-        <$> ( zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
-                <$> TwoWay.swap soloUpdatesAndDeletes
-                <*> defns
-            ),
-      -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
+      -- Second source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
+      -- (This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
+      -- anything), no matter what its hash is.)
+      let f :: (Ord ref) => Set Name -> Set Name -> BiMultimap ref Name -> BiMultimap ref Name
+          f myUpdates theirDeletesAndUpdates =
+            BiMultimap.restrictRan (Set.union myUpdates theirDeletesAndUpdates)
+       in defnsReferences
+            <$> ( zipDefnsWith3 f f
+                    <$> soloUpdatedNames
+                    <*> TwoWay.swap (soloDeletedNames <> soloUpdatedNames)
+                    <*> defns
+                ),
+      -- Third source of dependencies: Alice's own conflicted things, and ditto for Bob.
       --
       -- An example: suppose Alice has foo#alice and Bob has foo#bob, so foo is conflicted. Furthermore, suppose
       -- Alice has bar#bar that depends on foo#alice.
