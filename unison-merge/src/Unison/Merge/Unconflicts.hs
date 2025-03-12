@@ -4,6 +4,7 @@ module Unison.Merge.Unconflicts
     apply,
     soloDeletedNames,
     soloUpdatedNames,
+    bothUpdatedNames,
   )
 where
 
@@ -61,3 +62,11 @@ soloUpdatedNames =
     f :: Unconflicts v -> TwoWay (Set Name)
     f =
       fmap Map.keysSet . TwoWayI.forgetBoth . view #updates
+
+bothUpdatedNames :: DefnsF Unconflicts term typ -> DefnsF Set Name Name
+bothUpdatedNames =
+  bimap f f
+  where
+    f :: Unconflicts v -> Set Name
+    f unconflicts =
+      Map.keysSet unconflicts.updates.both

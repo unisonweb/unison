@@ -20,7 +20,7 @@ import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.Unconflicts (Unconflicts)
+import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -36,7 +36,7 @@ import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith3)
+import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith4)
 
 data Mergeblob2 libdep = Mergeblob2
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
@@ -98,24 +98,24 @@ identifyCoreDependencies ::
   DefnsF Unconflicts Referent TypeReference ->
   TwoWay (DefnsF Set TermReference TypeReference)
 identifyCoreDependencies defns conflicts unconflicts = do
-  let soloDeletedNames = Unconflicts.soloDeletedNames unconflicts
-      soloUpdatedNames = Unconflicts.soloUpdatedNames unconflicts
+  let soloUpdatedNames = Unconflicts.soloUpdatedNames unconflicts
   fold
-    [ -- One source of dependencies: One's own updates. This is required even though it may seem as though one's already
-      -- propagated that update. Consider if Alice updates X and adds a new transitive dependent Z (where Z calls Y
-      -- calls X). We want X as an Alice core dependency, not just a B one, so that any update to Y can ultimately
-      -- propagate again to Z.
+    [ -- One source of dependencies: One's own updates (including those that the other party also happened to make).
+      -- This is required even though it may seem as though one's already propagated that update. Consider if Alice
+      -- updates X and adds a new transitive dependent Z (where Z calls Y calls X). We want X as an Alice core
+      -- dependency, not just a B one, so that any update to Y can ultimately propagate again to Z.
       --
       -- Second source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
       -- (This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
       -- anything), no matter what its hash is.)
-      let f :: (Ord ref) => Set Name -> Set Name -> BiMultimap ref Name -> BiMultimap ref Name
-          f myUpdates theirDeletesAndUpdates =
-            BiMultimap.restrictRan (Set.union myUpdates theirDeletesAndUpdates)
+      let f :: (Ord ref) => Set Name -> Set Name -> Set Name -> BiMultimap ref Name -> BiMultimap ref Name
+          f myUpdates bothUpdates theirDeletesAndUpdates =
+            BiMultimap.restrictRan (Set.unions [myUpdates, bothUpdates, theirDeletesAndUpdates])
        in defnsReferences
-            <$> ( zipDefnsWith3 f f
+            <$> ( zipDefnsWith4 f f
                     <$> soloUpdatedNames
-                    <*> TwoWay.swap (soloDeletedNames <> soloUpdatedNames)
+                    <*> TwoWay.bothWays (Unconflicts.bothUpdatedNames unconflicts)
+                    <*> TwoWay.swap (Unconflicts.soloDeletedNames unconflicts <> soloUpdatedNames)
                     <*> defns
                 ),
       -- Third source of dependencies: Alice's own conflicted things, and ditto for Bob.
