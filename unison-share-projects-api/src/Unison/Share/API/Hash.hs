@@ -72,7 +72,8 @@ instance ToJSON HashJWTClaims where
   toJSON (HashJWTClaims hash userId) =
     object
       [ "h" .= hash,
-        "u" .= userId
+        "u" .= userId,
+        "t" .= hashJWTType
       ]
 
 instance FromJSON HashJWTClaims where
