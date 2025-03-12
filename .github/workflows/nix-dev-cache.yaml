@@ -1,15 +1,16 @@
 name: Nix development cache
 
 on:
+  push:
+    branches:
+      # Cache trunk, to keep recent builds in the cache for development.
+      - trunk
+    tags:
+      # Cache releases, so they can be pinned in the cache for downstream consumers of Unison.
+      - 'release/**'
+  # Allow manual caching of branches. This is particularly useful when upgrading the Nix tooling, as we can test the PR
+  # and ensure that the cache is populated before merging into trunk.
   workflow_dispatch:
-  # # Build on every pull request (and new PR commit)
-  # pull_request:
-  # # Build on new pushes to trunk (E.g. Merge commits)
-  # # Without the branch filter, each commit on a branch with a PR is triggered twice.
-  # # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
-  # push:
-  #   branches:
-  #     - trunk
 
 jobs:
   nix:
