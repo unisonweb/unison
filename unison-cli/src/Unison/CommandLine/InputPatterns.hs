@@ -2128,7 +2128,7 @@ syncToFile =
   InputPattern
     { patternName = "sync.to-file",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       params =
         Parameters [("file-path", filePathArg)] $
           Optional [("branch", projectAndBranchNamesArg suggestionsConfig)] Nothing,
@@ -2160,7 +2160,7 @@ syncFromFile =
   InputPattern
     { patternName = "sync.from-file",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       params =
         Parameters [("file-path", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
           Optional [] Nothing,
@@ -2188,7 +2188,7 @@ syncFromCodebase =
   InputPattern
     { patternName = "sync.from-codebase",
       aliases = [],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       params =
         Parameters
           [ ("codebase-location", filePathArg),
