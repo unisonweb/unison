@@ -4,6 +4,10 @@ __General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs a
 
 _Disclaimer_ If you have trouble getting started, please get in touch via [Discord](https://unison-lang.org/discord) so we can help.  If you have any fixes to the process, please send us a PR!
 
+## Development Dependencies
+
+If you are having trouble with a build, please ensure that your tooling matches the versions we expect. Some build mechanisms will guarantee this to some extent (e.g., the Nix build, or [the Haskell extension for VS Code](https://marketplace.visualstudio.com/items?itemName=haskell.haskell)), but you can see versions listed in [our version file](./nix/versions.nix) (some of which is inherited from [this repo’s VS Code settings](./.vscode/settings.json)).
+
 ## Running Unison
 
 To get cracking with Unison:

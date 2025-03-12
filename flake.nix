@@ -26,16 +26,7 @@
       "aarch64-darwin"
     ]
     (system: let
-      ## It’s much easier to read from a JSON file than to have JSON import from some other file, so we extract some
-      ## configuration from the VS Code settings to avoid duplication.
-      vscodeSettings = nixpkgs-release.lib.importJSON ./.vscode/settings.json;
-      versions =
-        vscodeSettings."haskell.toolchain"
-        ## There are some things we want to pin that the VS Code Haskell extension doesn’t let us control.
-        // {
-        hpack = "0.35.2";
-        ormolu = "0.7.2.0";
-      };
+      versions = import ./nix/versions.nix {inherit (nixpkgs-haskellNix) lib;};
       pkgs = import nixpkgs-haskellNix {
         inherit system;
         inherit (haskellNix) config;
