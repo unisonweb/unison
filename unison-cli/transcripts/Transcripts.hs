@@ -187,7 +187,7 @@ test config = do
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"
-  for failures $ \(filepath, msg) -> io $ do
+  for_ failures $ \(filepath, msg) -> io $ do
     Text.putStrLn $ Text.replicate 80 "="
     Text.putStrLn $ "🚨 " <> Text.pack filepath <> ": "
     Text.putStrLn msg
