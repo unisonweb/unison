@@ -160,8 +160,8 @@ lspDoInitialize vfsVar codebase runtime scope signal lspContext _initMsg = do
             ..
           }
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
-  Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar signal)
+  _ <- Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
+  _ <- Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar signal)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically
