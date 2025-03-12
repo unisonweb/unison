@@ -98,11 +98,9 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
                 Set.NonEmpty.toSet names
             | otherwise = Set.empty
 
-      -- FIXME update comment
-      --
-      -- Filter it down by identify the unconflicted dependents we need to pull into the Unison file (either first for
-      -- typechecking, if there aren't conflicts, or else for manual conflict resolution without a typechecking step, if
-      -- there are)
+      -- Filter it down by identifying the unconflicted dependents we need to pull into the Unison file (either first
+      -- for typechecking, if there aren't conflicts, or else for manual conflict resolution without a typechecking
+      -- step, if there are)
       dependents :: TwoWay (DefnsF Set Name Name)
       dependents =
         mergeDependents conflictsNames blob.unconflicts allDependentsNames
@@ -148,9 +146,7 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
                 bob = renderedConflicts.bob,
                 lca = renderedLcaConflicts
               }
-              <&> \conflicts -> makePrettySoloUnisonFile conflicts renderedDependents,
-          debugAllDependentsNames = allDependentsNames,
-          debugDependents = dependents
+              <&> \conflicts -> makePrettySoloUnisonFile conflicts renderedDependents
         }
 
 mergeDependents ::
