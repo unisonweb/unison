@@ -68,7 +68,8 @@ import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
-import Unison.Runtime.Foreign.Function (foreignCall)
+import Unison.Runtime.Foreign.Function
+  (foreignCall, functionReplacements, pseudoConstructors)
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.MCode
@@ -1113,11 +1114,15 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        inlinfo = ANF.buildInlineMap int <> builtinInlineInfo
+        inlinfo =
+          ANF.buildInlineMap (fmap replace int) <> builtinInlineInfo
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
+        replace = ANF.replaceConstructors pseudoConstructors
+                . ANF.replaceFunctions functionReplacements
+        optimize = ANF.inline inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) =
-          (n, emitCombs rns r n $ ANF.inline inlinfo g)
+          (n, emitCombs rns r n $ optimize g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =
