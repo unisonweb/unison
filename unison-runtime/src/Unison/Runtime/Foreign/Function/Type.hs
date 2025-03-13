@@ -254,6 +254,11 @@ data ForeignFunc
   | Char_Class_letter
   | Char_Class_is
   | Text_patterns_char
+  | Map_tip
+  | Map_bin
+  | Map_insert
+  | Map_lookup
+  | Map_fromList
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -504,3 +509,8 @@ foreignFuncBuiltinName = \case
   Char_Class_letter -> "Char.Class.letter"
   Char_Class_is -> "Char.Class.is"
   Text_patterns_char -> "Text.patterns.char"
+  Map_tip -> "Map.Tip"
+  Map_bin -> "Map.Bin"
+  Map_insert -> "Map.insert"
+  Map_lookup -> "Map.lookup"
+  Map_fromList -> "Map.fromList"

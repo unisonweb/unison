@@ -8,6 +8,8 @@ module Unison.Runtime.Foreign.Function
   , foreignCall
   , readsAtError
   , foreignConventionError
+  , pseudoConstructors
+  , functionReplacements
   ) where
 
 import Control.Concurrent (ThreadId)
@@ -35,6 +37,8 @@ import Data.ByteString.Lazy qualified as L
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IP (IP)
+import Data.Map.Strict qualified as Map
+import Data.Map.Strict.Internal qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
@@ -148,7 +152,8 @@ import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
-import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
+import Unison.Runtime.Foreign.Function.Type
+  (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -858,6 +863,15 @@ foreignCallHelper = \case
   Char_Class_is -> mkForeign $ \(cl, c) -> evaluate $ TPat.charPatternPred cl c
   Text_patterns_char -> mkForeign $ \c ->
     let v = TPat.cpattern (TPat.Char c) in pure v
+  Map_tip -> mkForeign $ \() -> pure Map.empty
+  Map_bin -> mkForeign $ \(sz :: Word64, k :: Val, v :: Val, l, r) ->
+    pure (Map.Bin (fromIntegral sz) k v l r)
+  Map_insert -> mkForeign $ \(k :: Val, v :: Val, m :: Map Val Val) ->
+    evaluate $ Map.insert k v m
+  Map_lookup -> mkForeign $ \(k :: Val, v :: Map Val Val) ->
+    evaluate $ Map.lookup k v
+  Map_fromList -> mkForeign $ \(l :: [(Val, Val)]) ->
+    evaluate $ Map.fromList l
   where
     chop = reverse . dropWhile isPathSeparator . reverse
 
@@ -1928,3 +1942,34 @@ instance {-# overlappable #-} (BuiltinForeign b) => ForeignConvention b where
   encodeVal = encodeBuiltin
   readAtIndex = readBuiltinAt
   writeBack = writeBuiltin
+
+pseudoConstructors :: Map Reference (Map TT.CTag ForeignFunc)
+pseudoConstructors =
+  Map.singleton Ty.mapRef $
+    Map.fromList
+      [ (fromIntegral Ty.mapTip, Map_tip)
+      , (fromIntegral Ty.mapBin, Map_bin)
+      ]
+
+functionReplacements :: Map Reference Reference
+functionReplacements = Map.fromList . fmap process $
+  [ ( "02lgrt6n4ht03e5pmk127hcjnko058esqpte472hptuqi3uhuccn8"
+    , Map_insert
+    )
+  , ( "03s3hfajms1ln62r31apmq91dr3m8ghrcfdct26e1hi4h3oi72254"
+    , Map_lookup
+    )
+  , ( "0348sts0809kciom30dsfb67s9dgri9d1aub8ei622ni9nk59h8ic"
+    , Map_fromList
+    )
+  ]
+  where
+  -- Note: using index 0 right now. Generalize if ever replacing
+  -- part of a mutually recursive group.
+  process (str, ff) = case derivedBase32Hex str 0 of
+    Nothing -> error $ "Could not create reference for " ++ sname
+    Just r -> (r, Builtin name)
+    where
+      name = foreignFuncBuiltinName ff
+      sname = Data.Text.unpack name
+

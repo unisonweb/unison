@@ -1276,6 +1276,11 @@ declareForeigns = do
   declareForeign Untracked 2 Char_Class_is
   declareForeign Untracked 1 Text_patterns_char
 
+  declareForeign Untracked 3 Map_insert
+  declareForeign Untracked 2 Map_lookup
+  declareForeign Untracked 1 Map_fromList
+
+
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =
   execState declareForeigns mempty
