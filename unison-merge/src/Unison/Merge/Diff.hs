@@ -112,9 +112,12 @@ diffHashedNamespaceDefns old new =
       Map.merge
         (Map.mapMissing (\_ -> DiffOp2'Delete))
         (Map.mapMissing (\_ -> DiffOp2'Add))
-        ( let f old new
-                | Synhashed.value old == Synhashed.value new = Nothing
-                | otherwise = Just (DiffOp2'Update Updated {old, new} (old == new))
+        ( let f old new = do
+                let equalSynhashes = old == new
+                -- Drop things that haven't changed
+                when equalSynhashes do
+                  guard (Synhashed.value old /= Synhashed.value new)
+                Just (DiffOp2'Update Updated {old, new} equalSynhashes)
            in Map.zipWithMaybeMatched \_ -> f
         )
 
