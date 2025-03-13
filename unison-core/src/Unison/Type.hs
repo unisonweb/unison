@@ -362,6 +362,9 @@ anyRef = Reference.Builtin "Any"
 timeSpecRef :: TypeReference
 timeSpecRef = Reference.Builtin "TimeSpec"
 
+hmapRef :: TypeReference
+hmapRef = Reference.Builtin "Map"
+
 any :: (Ord v) => a -> Type v a
 any a = ref a anyRef
 
