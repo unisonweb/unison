@@ -40,6 +40,7 @@ import Unison.Runtime.Stack
     Val (..),
     pattern DataC,
     pattern PApV,
+    inflateMap,
   )
 import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
@@ -65,6 +66,7 @@ import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
     booleanRef,
+    hmapRef,
     iarrayRef,
     ibytearrayRef,
     listRef,
@@ -228,6 +230,8 @@ decompileForeign backref topTerms f
           (decompileBytes . By.fromWord8s $ byteArrayToList a)
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
+  | Just m <- maybeUnwrapForeign hmapRef f =
+      decompile backref topTerms . BoxedVal $ inflateMap m
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text
   where
