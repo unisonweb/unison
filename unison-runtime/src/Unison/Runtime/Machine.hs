@@ -34,6 +34,7 @@ import Data.Atomics qualified as Atomic
 import Data.List qualified as List
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
+import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
@@ -877,6 +878,13 @@ dataBranch mrf stk (Test1 u cu df) = \case
   DataG _ t seg
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | u == Rf.mapTip -> pure (cu, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch mrf stk (Test2 u cu v cv df) = \case
   Enum _ t
@@ -905,6 +913,15 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | maskTags t == v -> (cv,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+          | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | u == Rf.mapTip -> pure (cu, stk)
+          | v == Rf.mapTip -> pure (cv, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch mrf stk (TestW df bs) = \case
   Enum _ t
@@ -925,10 +942,30 @@ dataBranch mrf stk (TestW df bs) = \case
     | Just ca <- EC.lookup (maskTags t) bs ->
       (ca,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | Just ca <- EC.lookup Rf.mapBin bs ->
+              (ca,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | Just ca <- EC.lookup Rf.mapTip bs ->
+              pure (ca, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
 {-# inline dataBranch #-}
+
+dumpBin :: Int -> Val -> Val -> Map Val Val -> Map Val Val -> Stack -> IO Stack
+dumpBin sz k e l r stk = do
+  stk <- bumpn stk 5
+  unsafePokeIasN stk sz
+  pokeOff stk 1 k
+  pokeOff stk 2 e
+  pokeOffBi stk 3 l
+  pokeOffBi stk 4 r
+  pure stk
+{-# inline dumpBin #-}
 
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
 dataBranchClosureError mrf clo =
