@@ -1263,7 +1263,10 @@ reflectValue rty = goV
             ANF.Data r (maskTags t) <$> traverse goV segs
           (CapV k _ segs) ->
             ANF.Cont <$> traverse goV segs <*> goK k
-          (Foreign f) -> ANF.BLit <$> goF f
+          (Foreign f)
+            | Just m <- maybeUnwrapForeign Rf.hmapRef f ->
+                goV . BoxedVal $ inflateMap m
+            | otherwise -> ANF.BLit <$> goF f
           BlackHole -> die $ err "black hole"
           UnboxedTypeTag {} -> die $ err $ "unknown unboxed value" <> show val
 
@@ -1348,7 +1351,7 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . DataC r t <$> traverse goV vs
+      boxedVal . replaceData r . DataC r t <$> traverse goV vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- traverse goV vs
@@ -1401,6 +1404,11 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
 
+    -- Replaces reified data with a builtin value if appropriate.
+    replaceData r c
+      | r == Rf.mapRef, Just m <- deflateMap c =
+          Foreign $ Wrap Rf.hmapRef m
+      | otherwise = c
 {- ORMOLU_DISABLE -}
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always
