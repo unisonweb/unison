@@ -342,7 +342,6 @@ withCodebaseEntityStream ::
 withCodebaseEntityStream conn rootHash mayBranchRef callback = do
   entities <- liftIO $ withEntityLoadingCallback $ \counter -> do
     Sqlite.runTransaction conn (depsForCausal rootHash counter)
-  liftIO $ Text.hPutStrLn IO.stderr $ "Finished loading entities, writing sync-file."
   let totalEntities = fromIntegral $ Map.size entities
   let initialChunk =
         SyncV2.InitialC
