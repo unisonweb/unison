@@ -2135,7 +2135,7 @@ syncToFile =
       help =
         ( P.wrapColumn2
             [ ( makeExample syncToFile ["./branch.usync"],
-                "saves the current branch to the file `foo.u`."
+                "saves the current branch to the file `branch.usync`."
               ),
               ( makeExample syncToFile ["./main.usync", "/main"],
                 "saves the main branch to the file `main.usync`."
@@ -2167,7 +2167,7 @@ syncFromFile =
       help =
         ( P.wrapColumn2
             [ ( makeExample syncFromFile ["./feature.usync", "/feature"],
-                "Sets the /feature branch to the contents of the file `main.usync`."
+                "Set or create the /feature branch to the branch stored in the sync file at `feature.usync`."
               )
             ]
         ),
@@ -2199,7 +2199,7 @@ syncFromCodebase =
       help =
         ( P.wrapColumn2
             [ ( makeExample syncFromCodebase ["./codebase", "srcProject/main", "destProject/main"],
-                "Imports srcProject/main from the specified codebase, then sets destProject/main to the imported branch."
+                "Imports the srcProject/main branch from the specified codebase, then sets destProject/main to that branch, creating it if it doesn't already exist."
               )
             ]
         ),
