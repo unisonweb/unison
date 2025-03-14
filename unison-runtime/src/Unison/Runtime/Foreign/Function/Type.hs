@@ -259,6 +259,9 @@ data ForeignFunc
   | Map_insert
   | Map_lookup
   | Map_fromList
+  | Map_eq
+  | List_range
+  | List_sort
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -514,3 +517,6 @@ foreignFuncBuiltinName = \case
   Map_insert -> "Map.insert"
   Map_lookup -> "Map.lookup"
   Map_fromList -> "Map.fromList"
+  Map_eq -> "Map.=="
+  List_range -> "List.range"
+  List_sort -> "List.sort"

@@ -872,6 +872,15 @@ foreignCallHelper = \case
     evaluate $ Map.lookup k v
   Map_fromList -> mkForeign $ \(l :: [(Val, Val)]) ->
     evaluate $ Map.fromList l
+  Map_eq -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
+    pure $ l == r
+  List_range -> mkForeign $ \(m :: Word64, n :: Word64) ->
+    let sz | m < n = fromIntegral $ n - m
+           | otherwise = 0
+        mk i = NatVal $ m + fromIntegral i
+        force s = foldl (\u x -> x `seq` u) s s
+     in evaluate . force $ Sq.fromFunction sz mk
+  List_sort -> mkForeign $ \(l :: Seq Val) -> pure $ Sq.unstableSort l
   where
     chop = reverse . dropWhile isPathSeparator . reverse
 
@@ -1961,6 +1970,15 @@ functionReplacements = Map.fromList . fmap process $
     )
   , ( "0348sts0809kciom30dsfb67s9dgri9d1aub8ei622ni9nk59h8ic"
     , Map_fromList
+    )
+  , ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk"
+    , Map_eq
+    )
+  , ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22"
+    , List_range
+    )
+  , ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km"
+    , List_sort
     )
   ]
   where

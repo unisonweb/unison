@@ -1276,9 +1276,13 @@ declareForeigns = do
   declareForeign Untracked 2 Char_Class_is
   declareForeign Untracked 1 Text_patterns_char
 
+  -- replacements
   declareForeign Untracked 3 Map_insert
   declareForeign Untracked 2 Map_lookup
   declareForeign Untracked 1 Map_fromList
+  declareForeign Untracked 2 Map_eq
+  declareForeign Untracked 2 List_range
+  declareForeign Untracked 1 List_sort
 
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
