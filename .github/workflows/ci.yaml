@@ -40,14 +40,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Get changed files
-        uses: tj-actions/changed-files@v44
-        with:
-          # globs copied from default settings for run-ormolu
-          files: |
-            **/*.hs
-            **/*.hs-boot
-          separator: "\n"
+      # - name: Get changed files
+      #   uses:
+      #   with:
+      #     # globs copied from default settings for run-ormolu
+      #     files: |
+      #       **/*.hs
+      #       **/*.hs-boot
+      #     separator: "\n"
       - uses: haskell-actions/run-ormolu@v15
         with:
           version: ${{ env.ormolu_version }}
