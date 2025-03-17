@@ -153,10 +153,8 @@ syncFromCodeserver ::
   SyncV2.BranchRef ->
   -- | The hash to download.
   Share.HashJWT ->
-  -- | Callback that's given a number of entities we just downloaded.
-  (Int -> IO ()) ->
   Cli (Either (SyncError SyncV2.PullError) ())
-syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt _downloadedCallback = do
+syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
   Cli.Env {authHTTPClient, codebase} <- ask
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
@@ -661,7 +659,7 @@ withStreamProgressCallback total action = do
 -- | Track how many entities have been saved.
 withEntitySavingCallback :: (MonadUnliftIO m) => Maybe Int -> ((Int -> m ()) -> m a) -> m a
 withEntitySavingCallback total action = do
-  let msg n = "\n  💾 Saved  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " new entities...\n\n"
+  let msg n = "\n  💾 Imported  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " new entities...\n\n"
   counterProgress msg action
 
 -- | Track how many entities have been loaded.
@@ -685,8 +683,8 @@ withSortedStreamProgress total action = do
           pure $
             Text.unlines
               [ "",
-                "  ⬇️ Downloaded: " <> tShow unpacked <> maybe "" (\total -> " / " <> tShow total) total <> Monoid.whenM doneUnpacking " 🏁",
-                "  💾 Saved:      " <> tShow saved
+                "  📩 Downloaded: " <> tShow unpacked <> maybe "" (\total -> " / " <> tShow total) total <> Monoid.whenM doneUnpacking " 🏁",
+                "  💾   Imported: " <> tShow saved
               ]
         toIO $
           action $
