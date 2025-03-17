@@ -1351,7 +1351,7 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . replaceData r . DataC r t <$> traverse goV vs
+      boxedVal . formDataReplaced r t <$> traverse goV vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- traverse goV vs
@@ -1403,12 +1403,6 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-
-    -- Replaces reified data with a builtin value if appropriate.
-    replaceData r c
-      | r == Rf.mapRef, Just m <- deflateMap c =
-          Foreign $ Wrap Rf.hmapRef m
-      | otherwise = c
 {- ORMOLU_DISABLE -}
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always

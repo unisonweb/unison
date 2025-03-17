@@ -23,6 +23,7 @@ module Unison.Runtime.Stack
         UnboxedTypeTag
       ),
     closureTag,
+    formDataReplaced,
     unitClosure,
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
@@ -417,6 +418,23 @@ formData r t [] = Enum r t
 formData r t [v1] = Data1 r t v1
 formData r t [v1, v2] = Data2 r t v1 v2
 formData r t segList = DataG r t (segFromList segList)
+
+-- Build a data type, but apply replacements
+formDataReplaced :: Reference -> PackedTag -> SegList -> Closure
+formDataReplaced r t l
+  | t == TT.mapTipTag = case l of
+      [] -> tipClosure
+      _ -> error "formDataReplaced: bad `Map`"
+  | t == TT.mapBinTag = case l of
+      [NatVal sz, k, v, BoxedVal (Foreign l), BoxedVal (Foreign r)]
+        | Just ul <- maybeUnwrapForeign Ty.hmapRef l,
+          Just ur <- maybeUnwrapForeign Ty.hmapRef r ->
+            Foreign . Wrap Ty.hmapRef $ Bin (fromIntegral sz) k v ul ur
+      _ -> error "formDataReplaced: bad `Map`"
+  | otherwise = formData r t l
+
+tipClosure :: Closure
+tipClosure = Foreign $ Wrap Ty.hmapRef Tip
 
 frameDataSize :: K -> Int
 frameDataSize = go 0
