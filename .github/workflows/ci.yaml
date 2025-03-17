@@ -39,23 +39,23 @@ jobs:
   ormolu:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      # - name: Get changed files
-      #   uses:
-      #   with:
-      #     # globs copied from default settings for run-ormolu
-      #     files: |
-      #       **/*.hs
-      #       **/*.hs-boot
-      #     separator: "\n"
-      - uses: haskell-actions/run-ormolu@v15
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Get changed files
+        uses: tj-actions/changed-files@2d756ea4c53f7f6b397767d8723b3a10a9f35bf2 # v44
+        with:
+          # globs copied from default settings for run-ormolu
+          files: |
+            **/*.hs
+            **/*.hs-boot
+          separator: "\n"
+      - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
         with:
           version: ${{ env.ormolu_version }}
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        # Only try to commit formatting changes if we're running within the repo containing the PR,
+        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79
+        # v5
         # and not on a protected branch.
         # The job doesn't have permission to push back to contributor forks on contributor PRs.
         if: |
@@ -78,7 +78,7 @@ jobs:
           - windows-2019
           # - windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: tweak environment
         id: tweak-environment
@@ -96,7 +96,7 @@ jobs:
 
       - name: cache ucm binaries
         id: cache-ucm-binaries
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.ucm_local_bin}}
           key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integrationtests/IntegrationTests/*')}}
@@ -195,7 +195,7 @@ jobs:
         run: echo | stack ghci
 
       - name: save ucm artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: unison-${{ matrix.os }}
           path: ${{ env.ucm }}
@@ -225,7 +225,7 @@ jobs:
           - windows-2019
           # - windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: tweak environment
         run: |
           transcript_test_results="${RUNNER_TEMP//\\//}/${transcript_test_results}"
@@ -244,12 +244,12 @@ jobs:
 
       - name: cache transcript test results
         id: cache-transcript-test-results
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.transcript_test_results}}
           key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u') }}
       - name: restore binaries
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
@@ -308,7 +308,7 @@ jobs:
           # - windows-2019
           # - windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: tweak environment
         run: |
           interpreter_test_results="${RUNNER_TEMP//\\//}/${interpreter_test_results}"
@@ -328,20 +328,20 @@ jobs:
         run: echo "runtime_tests_causalhash=$(scripts/get-share-hash.sh ${{env.runtime_tests_version}})" >> $GITHUB_ENV
       - name: cache interpreter test results
         id: cache-interpreter-test-results
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.interpreter_test_results}}
           key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
       - name: cache testing codebase
         id: cache-testing-codebase
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.runtime_tests_codebase }}
           key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
           restore-keys: runtime-tests-codebase-
       - name: restore binaries
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
@@ -374,14 +374,14 @@ jobs:
           echo "jit_src_scheme=${{ runner.temp }}/${{ env.jit_src_scheme }}" >> $GITHUB_ENV
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
       - name: download scheme-libs
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           sparse-checkout: |
             scripts/get-share-hash.sh
             scheme-libs
       - name: look up hash for jit source generator
         run: echo "jit_causalhash=$(scripts/get-share-hash.sh ${{env.jit_version}})" >> $GITHUB_ENV
-      - uses: actions/cache@v4
+      - uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         name: cache auto-generated jit source
         id: cache-generated-source
         with:
@@ -389,7 +389,7 @@ jobs:
           key: jit_generated_src_scheme-jit_${{env.jit_version}}-${{env.jit_causalhash}}
       - name: create transcript
         if: steps.cache-generated-source.outputs.cache-hit != 'true'
-        uses: DamianReeves/write-file-action@v1.3
+        uses: DamianReeves/write-file-action@6929a9a6d1807689191dcc8bbe62b54d70a32b42 # v1.3
         with:
           path: ${{ runner.temp }}/setup-jit.md
           write-mode: overwrite
@@ -406,7 +406,7 @@ jobs:
             ```
       - name: download ucm artifact
         if: steps.cache-generated-source.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-${{ env.jit_generator_os }}
           path: ${{ runner.temp }}
@@ -426,7 +426,7 @@ jobs:
           cp -R "${{ env.jit_generated_src_scheme }}"/* ${{ env.jit_src_scheme }}
       - name: save jit source
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: jit-source
           path: ${{ env.jit_src_scheme }}/**
