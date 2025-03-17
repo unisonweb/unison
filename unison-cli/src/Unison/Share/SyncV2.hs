@@ -107,7 +107,7 @@ syncToFile codebase rootHash mayBranchRef destFilePath = do
   liftIO $ Codebase.withConnection codebase \conn -> do
     C.runResourceT $
       withCodebaseEntityStream conn rootHash mayBranchRef \mayTotal stream -> do
-        withStreamProgressCallback (Just mayTotal) \countC -> runExceptT do
+        syncToFileProgress (Just mayTotal) \countC -> runExceptT do
           C.runConduit $
             stream
               C..| countC
@@ -126,12 +126,12 @@ syncFromFile shouldValidate syncFilePath = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Cli.runTransaction Q.clearTempEntityTables
-  liftIO $ withStreamProgress \progressCounters -> do
+  liftIO $ withStreamProgress False \progressCounters -> do
     runExceptT do
       mapExceptT liftIO $ Timing.time "File Sync" $ do
         header <- mapExceptT C.runResourceT $ do
           let stream = C.sourceFile syncFilePath C..| C.ungzip C..| decodeUnframedEntities
-          (header, rest) <- initializeStream stream
+          (header, rest) <- initializeStream (setTotal progressCounters) stream
           streamIntoCodebase progressCounters shouldValidate codebase header rest
           pure header
         afterSyncChecks codebase (SyncV2.rootCausalHash header)
@@ -149,9 +149,9 @@ syncFromCodebase shouldValidate srcConn destCodebase causalHash = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Sqlite.runTransaction srcConn Q.clearTempEntityTables
-  withStreamProgress \progressCounters -> do
+  withStreamProgress False \progressCounters -> do
     liftIO . C.runResourceT . runExceptT $ withCodebaseEntityStream srcConn causalHash Nothing \_total entityStream -> do
-      (header, rest) <- initializeStream entityStream
+      (header, rest) <- initializeStream (setTotal progressCounters) entityStream
       streamIntoCodebase progressCounters shouldValidate destCodebase header rest
       mapExceptT liftIO (afterSyncChecks destCodebase (causalHashToHash32 causalHash))
 
@@ -175,9 +175,10 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
     ExceptT $ do
       (Cli.runTransaction (Q.entityLocation hash)) >>= \case
         Just Q.EntityInMainStorage -> pure $ Right ()
-        _ -> liftIO $ withStreamProgress \progressCallbacks -> do
+        _ -> liftIO $ withStreamProgress True \progressCallbacks -> do
           Timing.time "Entity Download" $ do
             liftIO . C.runResourceT . runExceptT $ httpStreamEntities
+              (setTotal progressCallbacks)
               authHTTPClient
               unisonShareUrl
               SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
@@ -525,12 +526,13 @@ handleClientError clientEnv err =
 
 -- | Stream entities from the codeserver.
 httpStreamEntities ::
+  (Int -> IO ()) ->
   Auth.AuthenticatedHttpClient ->
   Servant.BaseUrl ->
   SyncV2.DownloadEntitiesRequest ->
   (SyncV2.StreamInitInfo -> Stream () SyncV2.EntityChunk -> StreamM ()) ->
   StreamM ()
-httpStreamEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req callback = do
+httpStreamEntities setTotal (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req callback = do
   let clientEnv =
         (Servant.mkClientEnv httpClient unisonShareUrl)
           { Servant.makeClientRequest = \url request ->
@@ -542,12 +544,12 @@ httpStreamEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req 
                     }
           }
   (downloadEntitiesStreamClientM req) & withConduit clientEnv \stream -> do
-    (init, entityStream) <- initializeStream stream
+    (init, entityStream) <- initializeStream setTotal stream
     callback init entityStream
 
 -- | Peel the header off the stream and parse the remaining entity chunks into EntityChunks
-initializeStream :: Stream () SyncV2.DownloadEntitiesChunk -> StreamM (SyncV2.StreamInitInfo, Stream () SyncV2.EntityChunk)
-initializeStream stream = do
+initializeStream :: (Int -> IO ()) -> Stream () SyncV2.DownloadEntitiesChunk -> StreamM (SyncV2.StreamInitInfo, Stream () SyncV2.EntityChunk)
+initializeStream setTotal stream = do
   (streamRemainder, init) <- stream C.$$+ C.headC
   case init of
     Nothing -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorMissingInitialChunk
@@ -555,6 +557,7 @@ initializeStream stream = do
       case chunk of
         SyncV2.InitialC info -> do
           let entityStream = C.unsealConduitT streamRemainder C..| C.mapM parseEntity
+          for (SyncV2.numEntities info) \t -> liftIO $ setTotal (fromIntegral t)
           pure $ (info, entityStream)
         SyncV2.EntityC _ -> do
           throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorMissingInitialChunk
@@ -661,21 +664,21 @@ counterProgress msgBuilder action = do
           liftIO $ IO.atomically (IO.modifyTVar' counterVar (+ i))
 
 -- | Track how many entities have been downloaded using a counter stream.
-withStreamProgressCallback :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> (ConduitT i i m () -> n a) -> n a
-withStreamProgressCallback total action = do
-  let msg n = "\n  📦 Unpacked  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " entities...\n\n"
+syncToFileProgress :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> (ConduitT i i m () -> n a) -> n a
+syncToFileProgress total action = do
+  let msg n = "\n  Exported  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " entities 📦 \n\n"
   let action' f = action (C.iterM \_i -> f 1)
   counterProgress msg action'
 
 -- | Track how many entities have been loaded.
 withEntityLoadingCallback :: (MonadUnliftIO m) => ((Int -> m ()) -> m a) -> m a
 withEntityLoadingCallback action = do
-  let msg n = "\n  📦 Unpacked  " <> tShow n <> " entities...\n\n"
+  let msg n = "\n  Loading entities from codebase: " <> tShow n <> " 📦\n\n"
   counterProgress msg action
 
-withStreamProgress :: (MonadUnliftIO n) => (ProgressCallbacks -> n a) -> n a
-withStreamProgress action = do
-  downloadedVar <- IO.newTVarIO Nothing
+withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
+withStreamProgress hasDownload action = do
+  downloadedVar <- IO.newTVarIO 0
   doneUnpackingVar <- IO.newTVarIO False
   savedVar <- IO.newTVarIO (0 :: Int)
   totalVar <- IO.newTVarIO Nothing
@@ -689,15 +692,14 @@ withStreamProgress action = do
           total <- IO.readTVar totalVar
           pure $
             Text.unlines
-              [ "",
-                "  📩 Downloaded: " <> tShow downloaded <> maybe "" (\total -> " / " <> tShow total) total <> Monoid.whenM doneUnpacking " 🏁",
-                "  💾   Imported: " <> tShow saved
+              [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> " 📩" <> Monoid.whenM doneUnpacking " 🏁",
+                "    Imported: " <> tShow @Int saved <> " 💾"
               ]
         toIO $
           action $
             ProgressCallbacks
               { setTotal = \total -> do liftIO $ IO.atomically (IO.writeTVar totalVar (Just total)),
-                downloadCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (Just . maybe i (+ i))),
+                downloadCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (+ i)),
                 doneDownloading = do liftIO $ IO.atomically (IO.writeTVar doneUnpackingVar True),
                 importCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' savedVar (+ i))
               }
