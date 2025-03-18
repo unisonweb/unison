@@ -692,8 +692,8 @@ withStreamProgress hasDownload action = do
           total <- IO.readTVar totalVar
           pure $
             Text.unlines
-              [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> " 📩" <> Monoid.whenM doneUnpacking " 🏁",
-                "    Imported: " <> tShow @Int saved <> " 💾"
+              [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> Monoid.whenM doneUnpacking " 🏁",
+                "    Imported: " <> tShow @Int saved
               ]
         toIO $
           action $
