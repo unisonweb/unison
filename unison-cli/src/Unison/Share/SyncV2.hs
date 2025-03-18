@@ -30,7 +30,6 @@ import Data.Graph qualified as Graph
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
-import Data.Text.IO qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import Data.Vector (Vector)
