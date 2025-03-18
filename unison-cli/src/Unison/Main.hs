@@ -95,8 +95,8 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
 import Unison.Version (Version)
 import Unison.Version qualified as Version
-import UnliftIO.Directory (getHomeDirectory)
 import UnliftIO qualified as UnliftIO
+import UnliftIO.Directory (getHomeDirectory)
 
 type Runtimes =
   (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
@@ -440,6 +440,10 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
               output <-
                 either
                   ( uncurry ($>) . first (PT.putPrettyLn . P.callout "❓" . P.lines) . \case
+                      Transcript.PortBindingFailure ->
+                        ( [P.indentN 2 $ "The codebase server failed to start because the chosen port was already in use."],
+                          "Port binding failure"
+                        )
                       Transcript.ParseError err ->
                         let msg = MP.errorBundlePretty err
                          in ( [ P.indentN 2 $
