@@ -16,6 +16,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
@@ -37,8 +38,10 @@ openUI path' = do
   Cli.Env {serverBaseUrl} <- ask
   defnPath <- Cli.resolvePath' path'
   pp <- Cli.getCurrentProjectPath
-  whenJust serverBaseUrl \url -> do
-    openUIForProject url pp (defnPath ^. PP.absPath_)
+  case serverBaseUrl of
+    Just url -> openUIForProject url pp (defnPath ^. PP.absPath_)
+    Nothing -> do
+      Cli.respond UCMServerNotRunning
 
 openUIForProject :: Server.BaseUrl -> PP.ProjectPath -> Path.Absolute -> Cli ()
 openUIForProject url pp@(PP.ProjectPath project projectBranch perspective) defnPath = do

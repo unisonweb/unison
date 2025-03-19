@@ -15,6 +15,8 @@ import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.IO.Exception (ioe_errno)
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
@@ -26,11 +28,9 @@ import Language.LSP.Server
 import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
-import System.IO (hPutStrLn)
 import Unison.Codebase
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Debug qualified as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import Unison.LSP.CodeLens (codeLensHandler)
@@ -94,11 +94,9 @@ spawnLsp lspFormattingConfig codebase runtime signal =
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              Text.hPutStrLn UnliftIO.stderr $ "Note: Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
-          Debug.debugM Debug.LSP "LSP Exception" ioerr
-          Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
-          putStrLn "LSP server failed to start."
+          Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects
@@ -109,7 +107,7 @@ spawnLsp lspFormattingConfig codebase runtime signal =
       lookupEnv "UNISON_LSP_ENABLED" >>= \case
         Just (fmap toLower -> "false") -> pure ()
         Just (fmap toLower -> "true") -> runServer
-        Just x -> hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> x
+        Just x -> Text.hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> Text.pack x
         Nothing -> when (not onWindows) runServer
 
 serverDefinition ::
