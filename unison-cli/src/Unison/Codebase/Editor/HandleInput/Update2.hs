@@ -51,7 +51,6 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
-import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
