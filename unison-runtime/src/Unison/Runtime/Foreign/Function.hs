@@ -1963,7 +1963,7 @@ pseudoConstructors =
 
 functionReplacementList :: [(Data.Text.Text, ForeignFunc)]
 functionReplacementList =
-  [ ( "02lgrt6n4ht03e5pmk127hcjnko058esqpte472hptuqi3uhuccn8"
+  [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e"
     , Map_insert
     )
   , ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s"
