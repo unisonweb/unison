@@ -14,7 +14,7 @@ jobs:
         os:
           - macos-13
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: unisonweb/actions/stack/cache/restore@main
         with:
           # take cache from the ci job, read-only
@@ -42,6 +42,6 @@ jobs:
         run: |
           stack exec unison transcript unison-src/transcripts-manual/docs.to-html.md
       - name: save transcript changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5
         with:
           commit_message: rerun transcripts (reminder to rerun CI!)

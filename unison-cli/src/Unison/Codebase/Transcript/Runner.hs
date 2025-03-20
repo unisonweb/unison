@@ -103,11 +103,13 @@ withRunner isTest verbosity ucmVersion nrtp action =
         Server.defaultCodebaseServerOpts
         runtime
         codebase
-        \baseUrl ->
-          either
-            (pure . Left . ParseError)
-            (run isTest verbosity codebaseDir codebase runtime sbRuntime nRuntime ucmVersion $ tShow baseUrl)
-            $ Transcript.stanzas transcriptName transcriptSrc
+        \case
+          Nothing -> pure $ Left PortBindingFailure
+          Just baseUrl ->
+            either
+              (pure . Left . ParseError)
+              (run isTest verbosity codebaseDir codebase runtime sbRuntime nRuntime ucmVersion $ tShow @Server.BaseUrl baseUrl)
+              $ Transcript.stanzas transcriptName transcriptSrc
   where
     withRuntimes ::
       FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
@@ -548,5 +550,6 @@ fixedBug out body = do
 data Error
   = ParseError (P.ParseErrorBundle Text Void)
   | RunFailure (Seq Stanza)
+  | PortBindingFailure
   deriving stock (Show)
   deriving anyclass (Exception)

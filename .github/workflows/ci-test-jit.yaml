@@ -51,7 +51,7 @@ jobs:
           echo "jit_dist_rel_exe=$jit_dist_rel_exe" >> $GITHUB_ENV
           echo "ucm=$ucm" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           sparse-checkout: |
             .github
@@ -60,7 +60,7 @@ jobs:
             unison-src/transcripts-using-base/serialized-cases/case-00.v4.ser
 
       - name: download jit binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}
@@ -71,13 +71,13 @@ jobs:
 
       - name: cache jit test results
         id: cache-jit-test-results
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.jit_test_results}}
           key: jit-test-results.dist-exe_${{ hashFiles(env.jit_dist_rel_exe) }}.tests_${{ env.runtime_tests_causalhash }}.yaml_${{ hashFiles('**/ci-test-jit.yaml') }}
 
       - name: install libb2 (linux)
-        uses: awalsh128/cache-apt-pkgs-action@5902b33ae29014e6ca012c5d8025d4346556bd40 #v1.4.3
+        uses: awalsh128/cache-apt-pkgs-action@5902b33ae29014e6ca012c5d8025d4346556bd40 # v1.4.3
         if: runner.os == 'Linux' && steps.cache-jit-test-results.outputs.cache-hit != 'true'
         with:
           packages: libb2-1
@@ -86,7 +86,7 @@ jobs:
       - name: cache testing codebase
         id: cache-testing-codebase
         if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.runtime_tests_codebase }}
           key: runtime-tests-codebase-${{ matrix.os }}-${{env.runtime_tests_causalhash}}
@@ -94,7 +94,7 @@ jobs:
 
       - name: download ucm
         if: steps.cache-jit-test-results.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-${{ matrix.os }}
           path: ${{ runner.temp }}

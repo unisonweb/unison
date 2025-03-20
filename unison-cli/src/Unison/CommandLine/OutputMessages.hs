@@ -2302,6 +2302,7 @@ notifyUser dir = \case
           "The codebase is at schema version " <> P.shown currentSV <> " but UCM requires schema version " <> P.shown requiredSV <> ".",
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
+  UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

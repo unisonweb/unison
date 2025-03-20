@@ -95,6 +95,7 @@ import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
 import Unison.Version (Version)
 import Unison.Version qualified as Version
+import UnliftIO qualified as UnliftIO
 import UnliftIO.Directory (getHomeDirectory)
 
 type Runtimes =
@@ -135,6 +136,11 @@ main version = do
               ]
             else []
         ]
+  -- This makes our error messages more safe w/r to concurrency. Without it sometimes the
+  -- error messaging from the UCM server and LSP server (both running in separate threads) get
+  -- interleaved.
+  -- https://hackage.haskell.org/package/base-4.21.0.0/docs/GHC-IO-Handle.html#v:hPutStr
+  UnliftIO.hSetBuffering UnliftIO.stderr UnliftIO.LineBuffering
 
   withCP65001 . runInUnboundThread . Ki.scoped $ \scope -> do
     interruptHandler <- defaultInterruptHandler
@@ -318,18 +324,19 @@ main version = do
               -- Windows when we move to GHC 9.*
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
-              Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \baseUrl -> do
+              Server.startServer (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \mayBaseUrl -> do
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of
                       Headless -> do
-                        PT.putPrettyLn $
-                          P.lines
-                            [ "I've started the Codebase API server at",
-                              P.text $ Server.urlFor Server.Api baseUrl,
-                              "and the Codebase UI at",
-                              P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main")) Path.Root Nothing) baseUrl
-                            ]
+                        whenJust mayBaseUrl \baseUrl -> do
+                          PT.putPrettyLn $
+                            P.lines
+                              [ "I've started the Codebase API server at",
+                                P.text $ Server.urlFor Server.Api baseUrl,
+                                "and the Codebase UI at",
+                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main")) Path.Root Nothing) baseUrl
+                              ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "
                             <> P.shown GHC.Conc.numCapabilities
@@ -349,7 +356,7 @@ main version = do
                           nRuntime
                           theCodebase
                           []
-                          (Just baseUrl)
+                          mayBaseUrl
                           (PP.toIds startingProjectPath)
                           initRes
                           lspCheckForChanges
@@ -433,6 +440,10 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
               output <-
                 either
                   ( uncurry ($>) . first (PT.putPrettyLn . P.callout "❓" . P.lines) . \case
+                      Transcript.PortBindingFailure ->
+                        ( [P.indentN 2 $ "The codebase server failed to start because the chosen port was already in use."],
+                          "Port binding failure"
+                        )
                       Transcript.ParseError err ->
                         let msg = MP.errorBundlePretty err
                          in ( [ P.indentN 2 $

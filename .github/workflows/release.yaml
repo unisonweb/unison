@@ -32,7 +32,7 @@ jobs:
         run: mkdir /tmp/ucm
 
       - name: "download artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           path: /tmp/ucm
 
