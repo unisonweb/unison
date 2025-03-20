@@ -22,7 +22,7 @@ import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.DeclPrinter (AccessorName)
+import Unison.Syntax.DeclPrinter (AccessorName, RenderUniqueTypeGuids (..))
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
@@ -43,10 +43,10 @@ renderDefnsForUnisonFile ::
   (Var v, Monoid a) =>
   DeclNameLookup ->
   PrettyPrintEnvDecl ->
-  DeclPrinter.RenderUniqueTypeGuids ->
+  Set Name ->
   DefnsF (Map Name) (Term v a, Type v a) (TypeReferenceId, Decl v a) ->
   DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
-renderDefnsForUnisonFile declNameLookup ppe guid defns =
+renderDefnsForUnisonFile declNameLookup ppe needsGuid defns =
   let (types, accessorNames) = Writer.runWriter (Map.traverseWithKey renderType defns.types)
    in Defns
         { terms = Map.mapMaybeWithKey (renderTerm accessorNames) defns.terms,
@@ -61,7 +61,7 @@ renderDefnsForUnisonFile declNameLookup ppe guid defns =
           -- we just delete all term names out and add back the constructors...
           -- probably no need to wipe out the suffixified side but we do it anyway
           (setPpedToConstructorNames declNameLookup name ref ppe)
-          guid
+          (if Set.member name needsGuid then RenderUniqueTypeGuids'Yes else RenderUniqueTypeGuids'No)
           (Reference.fromId ref)
           (HQ.NameOnly name)
           typ

@@ -152,7 +152,7 @@ handleUpdate2 = do
                           ( renderDefnsForUnisonFile
                               declNameLookup
                               ppe
-                              DeclPrinter.RenderUniqueTypeGuids'No
+                              Set.empty
                               (over (#terms . mapped) snd hydratedDependents)
                           )
 

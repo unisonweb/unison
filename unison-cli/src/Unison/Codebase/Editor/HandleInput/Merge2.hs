@@ -384,6 +384,9 @@ doMerge info = do
         let stageOneBranch =
               defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
 
+        let stageTwoBranch =
+              defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps
+
         let parents =
               causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
 
@@ -395,7 +398,7 @@ doMerge info = do
                 info.description
                 ( HandleInput.Branch.CreateFrom'NamespaceWithParent
                     info.alice.projectAndBranch.branch
-                    (Branch.mergeNode stageOneBranch parents.alice parents.bob)
+                    (Branch.mergeNode stageTwoBranch parents.alice parents.bob)
                 )
                 info.alice.projectAndBranch.project
                 (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
