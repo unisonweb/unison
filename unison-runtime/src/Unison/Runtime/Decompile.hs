@@ -174,14 +174,14 @@ decompile backref topTerms = \case
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"
-      | Builtin nm <- rf ->
-          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
       | Just t <- topTerms rt k ->
           Term.etaReduceEtaVars . substitute t
             <$> traverse (decompile backref topTerms) vs
       | k > 0,
         Just _ <- topTerms rt 0 ->
           err (UnkLocal rf k) $ bug "<Unknown>"
+      | Builtin nm <- rf ->
+          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
       | otherwise -> err (UnkComb rf) $ ref () rf
     (PAp (CIx rf _ _) _ _) ->
       err (BadPAp rf) $ bug "<Unknown>"
