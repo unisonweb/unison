@@ -32,7 +32,6 @@ import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import Data.Vector (Vector)
@@ -45,6 +44,7 @@ import Servant.Conduit ()
 import Servant.Types.SourceT qualified as Servant
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.DbId (CausalHashId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -120,7 +120,7 @@ syncFromFile ::
   Bool ->
   -- | Location of the sync-file
   FilePath ->
-  Cli (Either (SyncError SyncV2.PullError) CausalHash)
+  Cli (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
 syncFromFile shouldValidate syncFilePath = do
   Cli.Env {codebase} <- ask
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
@@ -134,8 +134,8 @@ syncFromFile shouldValidate syncFilePath = do
           (header, rest) <- initializeStream (setTotal progressCounters) stream
           streamIntoCodebase progressCounters shouldValidate codebase header rest
           pure header
-        afterSyncChecks codebase (SyncV2.rootCausalHash header)
-        pure . hash32ToCausalHash $ SyncV2.rootCausalHash header
+        chId <- afterSyncChecks codebase (SyncV2.rootCausalHash header)
+        pure (hash32ToCausalHash $ SyncV2.rootCausalHash header, chId)
 
 syncFromCodebase ::
   Bool ->
@@ -144,7 +144,7 @@ syncFromCodebase ::
   (Codebase.Codebase IO v a) ->
   -- | The hash to sync.
   CausalHash ->
-  IO (Either (SyncError SyncV2.PullError) ())
+  IO (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
 syncFromCodebase shouldValidate srcConn destCodebase causalHash = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
@@ -153,7 +153,8 @@ syncFromCodebase shouldValidate srcConn destCodebase causalHash = do
     liftIO . C.runResourceT . runExceptT $ withCodebaseEntityStream srcConn causalHash Nothing \_total entityStream -> do
       (header, rest) <- initializeStream (setTotal progressCounters) entityStream
       streamIntoCodebase progressCounters shouldValidate destCodebase header rest
-      mapExceptT liftIO (afterSyncChecks destCodebase (causalHashToHash32 causalHash))
+      chId <- mapExceptT liftIO (afterSyncChecks destCodebase (causalHashToHash32 causalHash))
+      pure (hash32ToCausalHash $ SyncV2.rootCausalHash header, chId)
 
 syncFromCodeserver ::
   Bool ->
@@ -163,7 +164,7 @@ syncFromCodeserver ::
   SyncV2.BranchRef ->
   -- | The hash to download.
   Share.HashJWT ->
-  Cli (Either (SyncError SyncV2.PullError) ())
+  Cli (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
 syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
   Cli.Env {authHTTPClient, codebase} <- ask
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
@@ -185,7 +186,8 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
               \header stream -> do
                 whenJust (SyncV2.numEntities header) (liftIO . setTotal progressCallbacks . fromIntegral)
                 streamIntoCodebase progressCallbacks shouldValidate codebase header stream
-    mapExceptT liftIO (afterSyncChecks codebase hash)
+    chId <- mapExceptT liftIO (afterSyncChecks codebase hash)
+    pure (hash32ToCausalHash hash, chId)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Helpers
@@ -345,19 +347,21 @@ streamIntoCodebase progressCounters shouldValidate codebase SyncV2.StreamInitInf
     SyncV2.Unsorted -> syncUnsortedStream progressCounters shouldValidate codebase stream
 
 -- | A sanity-check to verify that the hash we expected to import from the stream was successfully loaded into the codebase.
-afterSyncChecks :: Codebase.Codebase IO v a -> Hash32 -> ExceptT (SyncError SyncV2.PullError) IO ()
+afterSyncChecks :: Codebase.Codebase IO v a -> Hash32 -> ExceptT (SyncError SyncV2.PullError) IO CausalHashId
 afterSyncChecks codebase hash = do
-  lift (didCausalSuccessfullyImport codebase hash) >>= \case
-    False -> do
-      throwError (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
-    True -> pure ()
+  chId <-
+    lift (didCausalSuccessfullyImport codebase hash) >>= \case
+      Nothing -> do
+        throwError (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
+      Just chId -> pure chId
   void $ liftIO (Codebase.withConnection codebase Sqlite.vacuum)
+  pure chId
   where
     -- Verify that the expected hash made it into main storage.
-    didCausalSuccessfullyImport :: Codebase.Codebase IO v a -> Hash32 -> IO Bool
+    didCausalSuccessfullyImport :: Codebase.Codebase IO v a -> Hash32 -> IO (Maybe (CausalHashId))
     didCausalSuccessfullyImport codebase hash = do
       let expectedHash = hash32ToCausalHash hash
-      isJust <$> (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
+      fmap fst <$> (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
 
 -- | Load and stream entities for a given causal hash from a codebase into a stream.
 withCodebaseEntityStream ::
@@ -371,7 +375,6 @@ withCodebaseEntityStream ::
 withCodebaseEntityStream conn rootHash mayBranchRef callback = do
   entities <- liftIO $ withEntityLoadingCallback $ \counter -> do
     Sqlite.runTransaction conn (depsForCausal rootHash counter)
-  liftIO $ Text.hPutStrLn IO.stderr $ "Finished loading entities, writing sync-file."
   let totalEntities = fromIntegral $ Map.size entities
   let initialChunk =
         SyncV2.InitialC
