@@ -10,6 +10,7 @@ module Unison.Runtime.Foreign.Function
   , foreignConventionError
   , pseudoConstructors
   , functionReplacements
+  , functionUnreplacements
   ) where
 
 import Control.Concurrent (ThreadId)
@@ -1960,15 +1961,15 @@ pseudoConstructors =
       , (fromIntegral Ty.mapBin, Map_bin)
       ]
 
-functionReplacements :: Map Reference Reference
-functionReplacements = Map.fromList . fmap process $
+functionReplacementList :: [(Data.Text.Text, ForeignFunc)]
+functionReplacementList =
   [ ( "02lgrt6n4ht03e5pmk127hcjnko058esqpte472hptuqi3uhuccn8"
     , Map_insert
     )
-  , ( "03s3hfajms1ln62r31apmq91dr3m8ghrcfdct26e1hi4h3oi72254"
+  , ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s"
     , Map_lookup
     )
-  , ( "0348sts0809kciom30dsfb67s9dgri9d1aub8ei622ni9nk59h8ic"
+  , ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du"
     , Map_fromList
     )
   , ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk"
@@ -1981,13 +1982,23 @@ functionReplacements = Map.fromList . fmap process $
     , List_sort
     )
   ]
-  where
-  -- Note: using index 0 right now. Generalize if ever replacing
-  -- part of a mutually recursive group.
-  process (str, ff) = case derivedBase32Hex str 0 of
-    Nothing -> error $ "Could not create reference for " ++ sname
-    Just r -> (r, Builtin name)
-    where
-      name = foreignFuncBuiltinName ff
-      sname = Data.Text.unpack name
 
+functionReplacements :: Map Reference Reference
+functionReplacements =
+  Map.fromList $ fmap process functionReplacementList
+
+functionUnreplacements :: Map Reference Reference
+functionUnreplacements =
+  Map.fromList . fmap (swap . process) $ functionReplacementList
+  where
+    swap (x, y) = (y, x)
+
+-- Note: using index 0 right now. Generalize if ever replacing
+-- part of a mutually recursive group.
+process :: (Data.Text.Text, ForeignFunc) -> (Reference, Reference)
+process (str, ff) = case derivedBase32Hex str 0 of
+  Nothing -> error $ "Could not create reference for " ++ sname
+  Just r -> (r, Builtin name)
+  where
+    name = foreignFuncBuiltinName ff
+    sname = Data.Text.unpack name

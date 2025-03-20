@@ -69,7 +69,11 @@ import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
-  (foreignCall, functionReplacements, pseudoConstructors)
+  ( foreignCall,
+    functionReplacements,
+    functionUnreplacements,
+    pseudoConstructors,
+  )
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.MCode
@@ -1242,7 +1246,9 @@ reflectValue rty = goV
       | otherwise =
           die $ err "unknown type reference"
 
-    goIx (CIx r _ i) = ANF.GR r i
+    goIx (CIx r0 _ i) = ANF.GR r i
+      where
+        r = M.findWithDefault r0 r0 functionUnreplacements
 
     goV :: Val -> IO ANF.Value
     goV = \case
@@ -1335,10 +1341,12 @@ reifyValue0 (combs, rty, rtm) = goV
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
     goIx :: ANF.GroupRef -> IO (CombIx, MComb)
-    goIx (ANF.GR r i) =
+    goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
+      where
+        r = M.findWithDefault r0 r0 functionReplacements
 
     goV :: ANF.Value -> IO Val
     goV (ANF.Partial gr vs) =
