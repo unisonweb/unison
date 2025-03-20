@@ -15,6 +15,7 @@ testIt = do
 
 mapTests = do [!testIt]
 
+> Map.get 1
 ```
 
 ``` ucm :added-by-ucm
@@ -29,6 +30,22 @@ mapTests = do [!testIt]
       mapTests : '{IO} [Result]
       testIt   : '{IO} Result
       theMap   : Map Nat Nat
+
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    14 | > Map.get 1
+           ⧩
+           cases
+             Tip -> None
+             Bin _ kx x l r ->
+               match compare 1 kx with
+                 -1 -> Map.get 1 l
+                 +1 -> Map.get 1 r
+                 +0 -> Some x
+                 _ ->
+                   bug
+                     "impossible: Universal.compare returns {-1,0,+1}"
 ```
 
 ``` ucm

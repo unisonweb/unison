@@ -16,6 +16,7 @@ testIt = do
 
 mapTests = do [!testIt]
 
+> Map.get 1
 ```
 
 ``` ucm
