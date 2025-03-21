@@ -4,8 +4,6 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import Control.Concurrent qualified as Concurrent
-import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
@@ -15,10 +13,12 @@ import Data.List.NonEmpty qualified as NEL
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import GHC.IO qualified as IO
 import Ki qualified
 import System.Console.Haskeline (Settings (autoAddHistory))
 import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.History qualified as Line
+import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
 import Unison.Auth.CredentialManager (newCredentialManager)
@@ -54,7 +54,6 @@ import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
-import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
 import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
@@ -148,147 +147,159 @@ main ::
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = Ki.scoped \scope -> do
-  _ <- Ki.fork scope do
-    -- Pre-load the project root in the background so it'll be ready when a command needs it.
-    projectRoot <- Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch
-    -- Start forcing thunks in a background thread.
-    UnliftIO.concurrently_
-      (UnliftIO.evaluate projectRoot)
-      (UnliftIO.evaluate IOSource.typecheckedFile) -- IOSource takes a while to compile, we should start compiling it on startup
-  let initialState = Cli.loopState0 ppIds
-  eventQueue <- Q.newIO
-  initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
-  pageOutput <- newIORef True
-  cancelFileSystemWatch <-
-    case shouldWatchFiles of
-      ShouldNotWatchFiles -> pure (pure ())
-      ShouldWatchFiles -> do
-        (cancel, watcher) <- Watch.watchDirectory dir allow
-        t <- Concurrent.forkIO . forever $ do
-          (filePath, text) <- watcher
-          atomically . Q.enqueue eventQueue $ UnisonFileChanged (Text.pack filePath) text
-        pure (cancel >> Concurrent.killThread t)
+main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
+  -- we don't like FSNotify's debouncing (it seems to drop later events)
+  -- so we will be doing our own instead
+  let config = FSNotify.defaultConfig
+  FSNotify.withManagerConf config \mgr -> do
+    Ki.scoped \scope -> do
+      -- Pre-load the project root in the background so it'll be ready when a command needs it.
+      _ <- Ki.fork scope (Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch)
+      -- IOSource takes a while to compile, we should start compiling it on startup
+      _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
+      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event (automatically
+      -- first tossing all that have accumulated since the last call)
+      awaitFileEvent <-
+        Watch.watchDirectory
+          scope
+          mgr
+          dir
+          -- We could elect to not spawn a file-watching thread at all if --no-file-watch is passed to ucm, but that
+          -- is an extremely uncommon option, this isn't super inefficient, and this makes the types simpler.
+          case shouldWatchFiles of
+            ShouldNotWatchFiles -> const False
+            ShouldWatchFiles -> allow
 
-  credentialManager <- newCredentialManager
-  let tokenProvider = AuthN.newTokenProvider credentialManager
-  authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
-  initialEcho <- hGetEcho stdin
-  let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
-  let getInput :: Cli.LoopState -> IO Input
-      getInput loopState = do
-        currentEcho <- hGetEcho stdin
-        liftIO $ restoreEcho currentEcho
-        let PP.ProjectAndBranch projId branchId = PP.toProjectAndBranch $ NonEmpty.head loopState.projectPathStack
-        let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
-        pp <- loopStateProjectPath codebase loopState
-        getUserInput
-          codebase
-          authHTTPClient
-          pp
-          getProjectRoot
-          (loopState ^. #numberedArgs)
-  let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-      loadSourceFile fname =
-        if allow $ Text.unpack fname
-          then
-            let handle :: IOException -> IO Cli.LoadSourceResult
-                handle e =
-                  case e of
-                    _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                    _ -> return Cli.LoadError
-                go = do
-                  contents <- readUtf8 $ Text.unpack fname
-                  return $ Cli.LoadSuccess contents
-             in catch go handle
-          else return Cli.InvalidSourceNameError
-  let notify :: Output -> IO ()
-      notify =
-        notifyUser dir
-          >=> ( \o ->
-                  ifM
-                    (readIORef pageOutput)
-                    (putPrettyNonempty o)
-                    (putPrettyLnUnpaged o)
-              )
+      let initialState = Cli.loopState0 ppIds
+      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
+      pageOutput <- newIORef True
 
-  let cleanup :: IO ()
-      cleanup = cancelFileSystemWatch
-      awaitInput :: Cli.LoopState -> IO (Either Event Input)
-      awaitInput loopState = do
-        -- use up buffered input before consulting external events
-        readIORef initialInputsRef >>= \case
-          h : t -> writeIORef initialInputsRef t >> pure h
-          [] ->
-            -- Race the user input and file watch.
-            Async.race (atomically $ Q.peek eventQueue) (getInput loopState) >>= \case
-              Left _ -> do
-                let e = Left <$> atomically (Q.dequeue eventQueue)
-                writeIORef pageOutput False
-                e
-              x -> do
-                writeIORef pageOutput True
-                pure x
+      credentialManager <- newCredentialManager
+      let tokenProvider = AuthN.newTokenProvider credentialManager
+      authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
+      initialEcho <- hGetEcho stdin
+      let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
+      let getInput :: Cli.LoopState -> IO Input
+          getInput loopState = do
+            currentEcho <- hGetEcho stdin
+            liftIO $ restoreEcho currentEcho
+            let PP.ProjectAndBranch projId branchId = PP.toProjectAndBranch $ NonEmpty.head loopState.projectPathStack
+            let getProjectRoot = liftIO $ Codebase.expectProjectBranchRoot codebase projId branchId
+            pp <- loopStateProjectPath codebase loopState
+            getUserInput
+              codebase
+              authHTTPClient
+              pp
+              getProjectRoot
+              (loopState ^. #numberedArgs)
+      let loadSourceFile :: Text -> IO Cli.LoadSourceResult
+          loadSourceFile fname =
+            if allow $ Text.unpack fname
+              then
+                let handle :: IOException -> IO Cli.LoadSourceResult
+                    handle e =
+                      case e of
+                        _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+                        _ -> return Cli.LoadError
+                    go = do
+                      contents <- readUtf8 $ Text.unpack fname
+                      return $ Cli.LoadSuccess contents
+                 in catch go handle
+              else return Cli.InvalidSourceNameError
+      let notify :: Output -> IO ()
+          notify =
+            notifyUser dir
+              >=> ( \o ->
+                      ifM
+                        (readIORef pageOutput)
+                        (putPrettyNonempty o)
+                        (putPrettyLnUnpaged o)
+                  )
 
-  let writeSource :: Text -> Text -> Bool -> IO ()
-      writeSource fp contents addFold = do
-        path <- Directory.canonicalizePath (Text.unpack fp)
-        prependUtf8
-          path
-          if addFold
-            then contents <> "\n\n---- Anything below this line is ignored by Unison.\n\n"
-            else contents <> "\n\n"
+      let cleanup :: IO ()
+          cleanup = pure ()
+          awaitInput :: Cli.LoopState -> IO (Either Event Input)
+          awaitInput loopState = do
+            -- use up buffered input before consulting external events
+            readIORef initialInputsRef >>= \case
+              h : t -> writeIORef initialInputsRef t >> pure h
+              [] -> do
+                -- Race the user input and file watch.
+                action <-
+                  Ki.scoped \scope -> do
+                    fileEventThread <- Ki.fork scope awaitFileEvent
+                    userInputThread <- Ki.fork scope (getInput loopState)
+                    (atomically . asum)
+                      [ do
+                          (file, contents) <- Ki.await fileEventThread
+                          pure do
+                            writeIORef pageOutput False
+                            pure (Left (UnisonFileChanged (Text.pack file) contents)),
+                        do
+                          input <- Ki.await userInputThread
+                          pure (pure (Right input))
+                      ]
+                action
 
-  let env =
-        Cli.Env
-          { authHTTPClient,
-            codebase,
-            credentialManager,
-            loadSource = loadSourceFile,
-            lspCheckForChanges,
-            writeSource,
-            generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-            notify,
-            notifyNumbered = \o ->
-              let (p, args) = notifyNumbered o
-               in putPrettyNonempty p $> args,
-            runtime,
-            sandboxedRuntime = sbRuntime,
-            nativeRuntime = nRuntime,
-            serverBaseUrl,
-            ucmVersion,
-            isTranscriptTest = False
-          }
+      let writeSource :: Text -> Text -> Bool -> IO ()
+          writeSource fp contents addFold = do
+            path <- Directory.canonicalizePath (Text.unpack fp)
+            prependUtf8
+              path
+              if addFold
+                then contents <> "\n\n---- Anything below this line is ignored by Unison.\n\n"
+                else contents <> "\n\n"
 
-  (onInterrupt, waitForInterrupt) <- buildInterruptHandler
+      let env =
+            Cli.Env
+              { authHTTPClient,
+                codebase,
+                credentialManager,
+                loadSource = loadSourceFile,
+                lspCheckForChanges,
+                writeSource,
+                generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
+                notify,
+                notifyNumbered = \o ->
+                  let (p, args) = notifyNumbered o
+                   in putPrettyNonempty p $> args,
+                runtime,
+                sandboxedRuntime = sbRuntime,
+                nativeRuntime = nRuntime,
+                serverBaseUrl,
+                ucmVersion,
+                isTranscriptTest = False
+              }
 
-  mask \restore -> do
-    -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
-    let loop0 :: Cli.LoopState -> IO ()
-        loop0 s0 = do
-          let step = do
-                input <- awaitInput s0
-                (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
-                let sNext = case input of
-                      Left _ -> resultState
-                      Right inp -> resultState & #lastInput ?~ inp
-                pure (result, sNext)
-          UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
-            -- SIGINT
-            Left () -> do
-              hPutStrLn stderr "\nAborted."
-              loop0 s0
-            -- Exception during command execution
-            Right (Left e) -> do
-              Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
-              loop0 s0
-            Right (Right (result, s1)) -> do
-              case result of
-                Cli.Success () -> loop0 s1
-                Cli.Continue -> loop0 s1
-                Cli.HaltRepl -> pure ()
+      (onInterrupt, waitForInterrupt) <- buildInterruptHandler
 
-    withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
+      mask \restore -> do
+        -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
+        let loop0 :: Cli.LoopState -> IO ()
+            loop0 s0 = do
+              let step = do
+                    input <- awaitInput s0
+                    (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                    let sNext = case input of
+                          Left _ -> resultState
+                          Right inp -> resultState & #lastInput ?~ inp
+                    pure (result, sNext)
+              UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+                -- SIGINT
+                Left () -> do
+                  hPutStrLn stderr "\nAborted."
+                  loop0 s0
+                -- Exception during command execution
+                Right (Left e) -> do
+                  Text.hPutStrLn stderr ("Encountered exception:\n" <> Text.pack (displayException e))
+                  loop0 s0
+                Right (Right (result, s1)) -> do
+                  case result of
+                    Cli.Success () -> loop0 s1
+                    Cli.Continue -> loop0 s1
+                    Cli.HaltRepl -> pure ()
+
+        withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
