@@ -79,6 +79,8 @@ module Unison.Runtime.ANF
     groupTermLinks,
     buildInlineMap,
     inline,
+    replaceConstructors,
+    replaceFunctions,
     foldGroup,
     foldGroupLinks,
     overGroup,
@@ -684,6 +686,36 @@ inline inls (Rec bs entry) = Rec (fmap go0 <$> bs) (go0 entry)
         TApp f pre <- ABTN.renames rn body =
           Just $ TApp f (pre ++ post)
       | otherwise = Nothing
+
+replaceConstructors ::
+  (Var v) =>
+  Map Reference (Map CTag ForeignFunc) ->
+  SuperGroup v ->
+  SuperGroup v
+replaceConstructors reps (Rec bs entry) =
+  Rec (fmap go0 <$> bs) (go0 entry)
+  where
+    go0 (Lambda ccs body) = Lambda ccs $ ABTN.visitPure f body
+
+    f (TApp (FCon r c) as) = do
+      cs <- Map.lookup r reps
+      ff <- Map.lookup c cs
+      pure $ TApp (FPrim (Right ff)) as
+    f _ = Nothing
+
+replaceFunctions ::
+  (Var v) =>
+  Map Reference Reference ->
+  SuperGroup v ->
+  SuperGroup v
+replaceFunctions reps (Rec bs entry) =
+  Rec (fmap go0 <$> bs) (go0 entry)
+  where
+    go0 (Lambda ccs body) = Lambda ccs $ ABTN.visitPure f body
+
+    f (TApp (FComb r) as) =
+      Map.lookup r reps <&> \r -> TApp (FComb r) as
+    f _ = Nothing
 
 addDefaultCases :: (Var v) => (Monoid a) => Text -> Term v a -> Term v a
 addDefaultCases = ABT.visitPure . defaultCaseVisitor

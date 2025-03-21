@@ -34,6 +34,7 @@ import Data.Atomics qualified as Atomic
 import Data.List qualified as List
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
+import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
@@ -67,7 +68,12 @@ import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
-import Unison.Runtime.Foreign.Function (foreignCall)
+import Unison.Runtime.Foreign.Function
+  ( foreignCall,
+    functionReplacements,
+    functionUnreplacements,
+    pseudoConstructors,
+  )
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.MCode
@@ -877,6 +883,13 @@ dataBranch mrf stk (Test1 u cu df) = \case
   DataG _ t seg
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | u == Rf.mapTip -> pure (cu, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch mrf stk (Test2 u cu v cv df) = \case
   Enum _ t
@@ -905,6 +918,15 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | maskTags t == v -> (cv,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+          | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | u == Rf.mapTip -> pure (cu, stk)
+          | v == Rf.mapTip -> pure (cv, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch mrf stk (TestW df bs) = \case
   Enum _ t
@@ -925,10 +947,30 @@ dataBranch mrf stk (TestW df bs) = \case
     | Just ca <- EC.lookup (maskTags t) bs ->
       (ca,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
+  Foreign f
+    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
+        M.Bin sz k e l r
+          | Just ca <- EC.lookup Rf.mapBin bs ->
+              (ca,) <$> dumpBin sz k e l r stk
+        M.Tip
+          | Just ca <- EC.lookup Rf.mapTip bs ->
+              pure (ca, stk)
+        _ -> pure (df, stk)
   clo -> dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
 {-# inline dataBranch #-}
+
+dumpBin :: Int -> Val -> Val -> Map Val Val -> Map Val Val -> Stack -> IO Stack
+dumpBin sz k e l r stk = do
+  stk <- bumpn stk 5
+  unsafePokeIasN stk sz
+  pokeOff stk 1 k
+  pokeOff stk 2 e
+  pokeOffBi stk 3 l
+  pokeOffBi stk 4 r
+  pure stk
+{-# inline dumpBin #-}
 
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
 dataBranchClosureError mrf clo =
@@ -1076,11 +1118,15 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        inlinfo = ANF.buildInlineMap int <> builtinInlineInfo
+        inlinfo =
+          ANF.buildInlineMap (fmap replace int) <> builtinInlineInfo
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
+        replace = ANF.replaceConstructors pseudoConstructors
+                . ANF.replaceFunctions functionReplacements
+        optimize = ANF.inline inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) =
-          (n, emitCombs rns r n $ ANF.inline inlinfo g)
+          (n, emitCombs rns r n $ optimize g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =
@@ -1200,7 +1246,9 @@ reflectValue rty = goV
       | otherwise =
           die $ err "unknown type reference"
 
-    goIx (CIx r _ i) = ANF.GR r i
+    goIx (CIx r0 _ i) = ANF.GR r i
+      where
+        r = M.findWithDefault r0 r0 functionUnreplacements
 
     goV :: Val -> IO ANF.Value
     goV = \case
@@ -1221,7 +1269,10 @@ reflectValue rty = goV
             ANF.Data r (maskTags t) <$> traverse goV segs
           (CapV k _ segs) ->
             ANF.Cont <$> traverse goV segs <*> goK k
-          (Foreign f) -> ANF.BLit <$> goF f
+          (Foreign f)
+            | Just m <- maybeUnwrapForeign Rf.hmapRef f ->
+                goV . BoxedVal $ inflateMap m
+            | otherwise -> ANF.BLit <$> goF f
           BlackHole -> die $ err "black hole"
           UnboxedTypeTag {} -> die $ err $ "unknown unboxed value" <> show val
 
@@ -1290,10 +1341,12 @@ reifyValue0 (combs, rty, rtm) = goV
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
     goIx :: ANF.GroupRef -> IO (CombIx, MComb)
-    goIx (ANF.GR r i) =
+    goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
+      where
+        r = M.findWithDefault r0 r0 functionReplacements
 
     goV :: ANF.Value -> IO Val
     goV (ANF.Partial gr vs) =
@@ -1306,7 +1359,7 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . DataC r t <$> traverse goV vs
+      boxedVal . formDataReplaced r t <$> traverse goV vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- traverse goV vs
@@ -1358,7 +1411,6 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-
 {- ORMOLU_DISABLE -}
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always
