@@ -4,7 +4,7 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import Control.Exception (catch, displayException, finally, mask)
+import Control.Exception (catch, displayException, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
@@ -216,9 +216,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
                         (putPrettyLnUnpaged o)
                   )
 
-      let cleanup :: IO ()
-          cleanup = pure ()
-          awaitInput :: Cli.LoopState -> IO (Either Event Input)
+      let awaitInput :: Cli.LoopState -> IO (Either Event Input)
           awaitInput loopState = do
             -- use up buffered input before consulting external events
             readIORef initialInputsRef >>= \case
@@ -299,7 +297,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
                     Cli.Continue -> loop0 s1
                     Cli.HaltRepl -> pure ()
 
-        withInterruptHandler onInterrupt (loop0 initialState `finally` cleanup)
+        withInterruptHandler onInterrupt (loop0 initialState)
 
 -- | Installs a posix interrupt handler for catching SIGINT.
 -- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
