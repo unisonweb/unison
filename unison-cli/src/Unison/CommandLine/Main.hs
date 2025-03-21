@@ -4,6 +4,7 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
+import Control.Concurrent qualified as Concurrent
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (catch, displayException, finally, mask)
 import Control.Lens ((?~))
@@ -31,11 +32,12 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
-import Unison.Codebase.Editor.Input (Event, Input (..))
+import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPatterns qualified as IP
@@ -158,9 +160,16 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
   eventQueue <- Q.newIO
   initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
   pageOutput <- newIORef True
-  cancelFileSystemWatch <- case shouldWatchFiles of
-    ShouldNotWatchFiles -> pure (pure ())
-    ShouldWatchFiles -> watchFileSystem eventQueue dir
+  cancelFileSystemWatch <-
+    case shouldWatchFiles of
+      ShouldNotWatchFiles -> pure (pure ())
+      ShouldWatchFiles -> do
+        (cancel, watcher) <- Watch.watchDirectory dir allow
+        t <- Concurrent.forkIO . forever $ do
+          (filePath, text) <- watcher
+          atomically . Q.enqueue eventQueue $ UnisonFileChanged (Text.pack filePath) text
+        pure (cancel >> Concurrent.killThread t)
+
   credentialManager <- newCredentialManager
   let tokenProvider = AuthN.newTokenProvider credentialManager
   authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
