@@ -27,7 +27,6 @@ library:
     - aeson >= 2.0.0.0
     - aeson-pretty
     - ansi-terminal
-    - async
     - bytestring
     - cmark
     - co-log-core
