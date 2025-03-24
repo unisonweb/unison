@@ -1,5 +1,4 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Share.SyncV2
   ( syncFromFile,

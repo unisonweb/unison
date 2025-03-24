@@ -160,14 +160,14 @@ library
   hs-source-dirs:
       src
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -188,10 +188,13 @@ library
       OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall
   build-depends:
@@ -295,14 +298,14 @@ executable transcripts
   hs-source-dirs:
       transcripts
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -323,10 +326,13 @@ executable transcripts
       OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
@@ -356,14 +362,14 @@ test-suite cli-tests
   hs-source-dirs:
       tests
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -384,10 +390,13 @@ test-suite cli-tests
       OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall
   build-depends:

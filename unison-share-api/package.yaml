@@ -92,11 +92,13 @@ ghc-options:
   -Wall
 
 default-extensions:
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveAnyClass
   - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
@@ -105,14 +107,15 @@ default-extensions:
   - FlexibleInstances
   - GADTs
   - GeneralizedNewtypeDeriving
-  - KindSignatures
   - ImportQualifiedPost
+  - KindSignatures
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedStrings
   - PatternSynonyms
+  - QuasiQuotes
   - RankNTypes
   - ScopedTypeVariables
   - StandaloneDeriving
@@ -120,5 +123,3 @@ default-extensions:
   - TypeApplications
   - TypeOperators
   - ViewPatterns
-  - ImportQualifiedPost
-  - QuasiQuotes
