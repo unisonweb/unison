@@ -14,6 +14,7 @@ module Unison.Names
     filterBySHs,
     filterTypes,
     fromReferenceIds,
+    fromUnconflicted,
     fromUnconflictedReferenceIds,
     map,
     makeAbsolute,
@@ -117,6 +118,13 @@ fromReferenceIds defns =
   Names
     { terms = Relation.mapRan Referent.fromTermReferenceId defns.terms,
       types = Relation.mapRan Reference.fromId defns.types
+    }
+
+fromUnconflicted :: DefnsF (Map Name) Referent TypeReference -> Names
+fromUnconflicted defns =
+  Names
+    { terms = Relation.fromMap defns.terms,
+      types = Relation.fromMap defns.types
     }
 
 -- | Construct a 'Names' from unconflicted reference ids.

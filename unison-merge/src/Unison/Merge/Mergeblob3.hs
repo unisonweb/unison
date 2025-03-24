@@ -7,7 +7,9 @@ where
 import Control.Lens (mapped)
 import Data.Align (align)
 import Data.Bifoldable (bifoldMap)
+import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
@@ -19,11 +21,13 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.DeclNameLookup qualified as DeclNameLookup
+import Unison.Merge.EitherWay (EitherWay)
+import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
-import Unison.Merge.TwoWay (TwoWay)
+import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.Unconflicts (Unconflicts)
 import Unison.Merge.Unconflicts qualified as Unconflicts
@@ -43,12 +47,10 @@ import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith, zipDefnsWith3, zipDefnsWith4)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation qualified as Relation
 import Prelude hiding (unzip)
 
 data Mergeblob3 = Mergeblob3
@@ -68,41 +70,49 @@ makeMergeblob3 ::
   Names ->
   TwoWay Text ->
   Mergeblob3
-makeMergeblob3 blob dependents0 libdeps lcaLibdeps authors =
-  let conflictsNames :: TwoWay (DefnsF Set Name Name)
+makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
+  let -- Project out just the name->ref mapping of defns, since we need it a few times
+      defnsByName :: ThreeWay (DefnsF (Map Name) Referent TypeReference)
+      defnsByName =
+        bimap BiMultimap.range BiMultimap.range <$> blob.defns
+
+      conflictsNames :: TwoWay (DefnsF Set Name Name)
       conflictsNames =
         bimap Map.keysSet Map.keysSet <$> blob.conflicts
 
-      -- Identify the unconflicted dependents we need to pull into the Unison file (either first for typechecking, if
-      -- there aren't conflicts, or else for manual conflict resolution without a typechecking step, if there are)
+      -- Compute the set of dependents names
+      allDependentsNames :: TwoWay (DefnsF Set Name Name)
+      allDependentsNames =
+        zipDefnsWith
+          (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
+          (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
+          <$> ThreeWay.forgetLca blob.defns
+          <*> dependentsIds
+        where
+          f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
+          f deps defn0 names
+            | Just defn <- Referent.toTermReferenceId defn0,
+              Set.member defn deps =
+                Set.NonEmpty.toSet names
+            | otherwise = Set.empty
+          g :: Set TypeReferenceId -> TypeReference -> NESet Name -> Set Name
+          g deps defn0 names
+            | ReferenceDerived defn <- defn0,
+              Set.member defn deps =
+                Set.NonEmpty.toSet names
+            | otherwise = Set.empty
+
+      -- Filter it down by identifying the unconflicted dependents we need to pull into the Unison file (either first
+      -- for typechecking, if there aren't conflicts, or else for manual conflict resolution without a typechecking
+      -- step, if there are)
       dependents :: TwoWay (DefnsF Set Name Name)
       dependents =
-        filterDependents
-          conflictsNames
-          blob.soloUpdatesAndDeletes
-          ( let f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
-                f deps defn0 names
-                  | Just defn <- Referent.toTermReferenceId defn0,
-                    Set.member defn deps =
-                      Set.NonEmpty.toSet names
-                  | otherwise = Set.empty
-                g :: Set TypeReferenceId -> TypeReference -> NESet Name -> Set Name
-                g deps defn0 names
-                  | ReferenceDerived defn <- defn0,
-                    Set.member defn deps =
-                      Set.NonEmpty.toSet names
-                  | otherwise = Set.empty
-             in zipDefnsWith
-                  (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
-                  (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
-                  <$> ThreeWay.forgetLca blob.defns
-                  <*> dependents0
-          )
+        mergeDependents conflictsNames blob.unconflicts allDependentsNames
 
       ppe :: PrettyPrintEnvDecl
       ppe =
         makePrettyPrintEnv
-          (defnsToNames <$> blob.defns)
+          (Names.fromUnconflicted <$> defnsByName)
           libdeps
           lcaLibdeps
 
@@ -125,21 +135,9 @@ makeMergeblob3 blob dependents0 libdeps lcaLibdeps authors =
           ppe
    in Mergeblob3
         { libdeps,
-          stageOne =
-            makeStageOne
-              blob.declNameLookups
-              conflictsNames
-              blob.unconflicts
-              dependents
-              (bimap BiMultimap.range BiMultimap.range blob.defns.lca),
+          stageOne = makeStageOne blob.declNameLookups conflictsNames blob.unconflicts dependents defnsByName.lca,
+          stageTwo = makeStageTwo blob.declNameLookups conflictsNames blob.unconflicts dependents defnsByName,
           uniqueTypeGuids = makeUniqueTypeGuids (ThreeWay.forgetLca blob.hydratedDefns),
-          stageTwo =
-            makeStageTwo
-              blob.declNameLookups
-              conflictsNames
-              blob.unconflicts
-              dependents
-              (bimap BiMultimap.range BiMultimap.range <$> blob.defns),
           unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents,
           unparsedSoloFiles =
             ThreeWay
@@ -150,43 +148,75 @@ makeMergeblob3 blob dependents0 libdeps lcaLibdeps authors =
               <&> \conflicts -> makePrettySoloUnisonFile conflicts renderedDependents
         }
 
-filterDependents ::
-  (Ord name) =>
-  TwoWay (DefnsF Set name name) ->
-  TwoWay (DefnsF Set name name) ->
-  TwoWay (DefnsF Set name name) ->
-  TwoWay (DefnsF Set name name)
-filterDependents conflicts soloUpdatesAndDeletes dependents0 =
-  -- There is some subset of Alice's dependents (and ditto for Bob of course) that we don't ultimately want/need to put
-  -- into the scratch file: those for which any of the following are true:
-  --
-  --   1. It is Alice-conflicted (since we only want to return *unconflicted* things).
-  --   2. It was deleted by Bob.
-  --   3. It was updated by Bob and not updated by Alice.
-  let dependents1 =
-        zipDefnsWith Set.difference Set.difference
-          <$> dependents0
-          <*> (conflicts <> TwoWay.swap soloUpdatesAndDeletes)
+mergeDependents ::
+  forall term typ.
+  TwoWay (DefnsF Set Name Name) ->
+  DefnsF Unconflicts typ term ->
+  TwoWay (DefnsF Set Name Name) ->
+  TwoWay (DefnsF Set Name Name)
+mergeDependents conflicts unconflicts dependents =
+  let merge = zipDefnsWith4 mergeDependentsV mergeDependentsV
+      split = bitraverse splitV splitV
+   in split $
+        merge
+          (TwoWay.sequenceDefns conflicts)
+          (TwoWay.sequenceDefns (Unconflicts.soloDeletedNames unconflicts))
+          (TwoWay.sequenceDefns (Unconflicts.soloUpdatedNames unconflicts))
+          (TwoWay.sequenceDefns (bimap (Map.fromSet (const ())) (Map.fromSet (const ())) <$> dependents))
+  where
+    splitV :: Map Name (EitherWay ()) -> TwoWay (Set Name)
+    splitV =
+      Map.foldlWithKey'
+        ( \acc name -> \case
+            EitherWay.Alice () -> let !alice = Set.insert name acc.alice in TwoWay {alice, bob = acc.bob}
+            EitherWay.Bob () -> let !bob = Set.insert name acc.bob in TwoWay {alice = acc.alice, bob}
+        )
+        (TwoWay Set.empty Set.empty)
 
-      -- Of the remaining dependents, it's still possible that the maps are not disjoint. But whenever the same name key
-      -- exists in Alice's and Bob's dependents, the value will either be equal (by Unison hash)...
-      --
-      --   { alice = { terms = {"foo" => #alice} } }
-      --   { bob   = { terms = {"foo" => #alice} } }
-      --
-      -- ...or synhash-equal (i.e. the term or type received different auto-propagated updates)...
-      --
-      --   { alice = { terms = {"foo" => #alice} } }
-      --   { bob   = { terms = {"foo" => #bob}   } }
-      --
-      -- So, we can arbitrarily keep Alice's, because they will render the same.
-      --
-      --   { alice = { terms = {"foo" => #alice} } }
-      --   { bob   = { terms = {}                } }
-      dependents2 =
-        dependents1 & over #bob \bob ->
-          zipDefnsWith Set.difference Set.difference bob dependents1.alice
-   in dependents2
+-- Merge Alice and Bob dependents together.
+--
+-- For an Alice dependent,
+--
+--   1. If it's Alice-conflicted, drop it (since we only want to return *unconflicted* dependents).
+--   2. Otherwise, if Bob deleted it, drop it.
+--   3. Otherwise, if Bob updated it, use Bob's version.
+--   4. Otherwise, either Alice updated it (so use her version) or neither party updated it (so it's synhash-equal, and
+--      we can therefore arbitrarily use Alice's).
+mergeDependentsV ::
+  forall name.
+  (Ord name) =>
+  TwoWay (Set name) ->
+  TwoWay (Set name) ->
+  TwoWay (Set name) ->
+  TwoWay (Map name ()) ->
+  Map name (EitherWay ())
+mergeDependentsV conflicts deletes updates =
+  TwoWay.twoWay $
+    Map.merge
+      (Map.mapMaybeMissing onlyAlice)
+      (Map.mapMaybeMissing onlyBob)
+      (Map.zipWithMaybeMatched aliceAndBob)
+  where
+    onlyAlice :: name -> () -> Maybe (EitherWay ())
+    onlyAlice name ()
+      | Set.member name conflicts.alice = Nothing
+      | Set.member name deletes.bob = Nothing
+      | Set.member name updates.bob = Just (EitherWay.Bob ())
+      | otherwise = Just (EitherWay.Alice ())
+
+    onlyBob :: name -> () -> Maybe (EitherWay ())
+    onlyBob name ()
+      | Set.member name conflicts.bob = Nothing
+      | Set.member name deletes.alice = Nothing
+      | Set.member name updates.alice = Just (EitherWay.Alice ())
+      | otherwise = Just (EitherWay.Bob ())
+
+    aliceAndBob :: name -> () -> () -> Maybe (EitherWay ())
+    aliceAndBob name () ()
+      | Set.member name conflicts.alice = Nothing
+      | Set.member name conflicts.bob = Nothing
+      | Set.member name updates.bob = Just (EitherWay.Bob ())
+      | otherwise = Just (EitherWay.Alice ())
 
 makeStageOne ::
   TwoWay DeclNameLookup ->
@@ -238,8 +268,10 @@ makeStageTwo declNameLookups conflicts unconflicts dependents defns =
         (zipDefnsWith Map.restrictKeys Map.restrictKeys <$> ThreeWay.forgetLca defns <*> dependents)
 
 makeStageTwoV :: Map Name v -> Map Name v -> Unconflicts v -> Map Name v -> Map Name v
-makeStageTwoV lca dependents unconflicts conflicts =
-  Map.unionWith const conflicts (Unconflicts.apply unconflicts (Map.unionWith const dependents lca))
+makeStageTwoV lcaDefns dependents unconflicts conflicts =
+  Map.unionWith const dependents lcaDefns
+    & Unconflicts.apply unconflicts
+    & Map.unionWith const conflicts
 
 -- Given just named term/type reference ids, fill out all names that occupy the term and type namespaces. This is simply
 -- the given names plus all of the types' constructors.
@@ -287,8 +319,8 @@ renderConflictsAndDependents ::
 renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents ppe =
   unzip $
     ( \declNameLookup (conflicts, dependents) ->
-        let render = renderDefnsForUnisonFile declNameLookup ppe . over (#terms . mapped) snd
-         in (render conflicts, render dependents)
+        let render needsGuid = renderDefnsForUnisonFile declNameLookup ppe needsGuid . over (#terms . mapped) snd
+         in (render uniqueTypeConflictsWithDifferentGuids conflicts, render Set.empty dependents)
     )
       <$> declNameLookups
       <*> hydratedConflictsAndDependents
@@ -308,6 +340,29 @@ renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents 
         <*> conflicts
         <*> dependents
 
+    uniqueTypeConflictsWithDifferentGuids :: Set Name
+    uniqueTypeConflictsWithDifferentGuids =
+      TwoWay.twoWay
+        ( \(aliceConflicts, _) (bobConflicts, _) ->
+            getConst
+              ( Map.mergeA
+                  Map.dropMissing
+                  Map.dropMissing
+                  ( Map.zipWithAMatched
+                      \name (_, decl1) (_, decl2) ->
+                        Const
+                          case ( DataDeclaration.modifier (DataDeclaration.asDataDecl decl1),
+                                 DataDeclaration.modifier (DataDeclaration.asDataDecl decl2)
+                               ) of
+                            (DataDeclaration.Unique guid1, DataDeclaration.Unique guid2) | guid1 /= guid2 -> Set.singleton name
+                            _ -> Set.empty
+                  )
+                  aliceConflicts.types
+                  bobConflicts.types
+              )
+        )
+        hydratedConflictsAndDependents
+
 renderLcaConflicts ::
   PartialDeclNameLookup ->
   DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann) ->
@@ -316,7 +371,11 @@ renderLcaConflicts ::
   DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
 renderLcaConflicts partialDeclNameLookup hydratedDefns conflicts ppe =
   let hydratedConflicts = zipDefnsWith Map.restrictKeys Map.restrictKeys hydratedDefns (fold conflicts)
-   in renderDefnsForUnisonFile declNameLookup ppe (over (#terms . mapped) snd hydratedConflicts)
+   in renderDefnsForUnisonFile
+        declNameLookup
+        ppe
+        Set.empty
+        (over (#terms . mapped) snd hydratedConflicts)
   where
     -- We allow the LCA of a merge to have missing constructor names, yet we do need to render *something* in a file
     -- for a mergetool (if one is configured). So, we make the partial decl name lookup total by making bogus
@@ -384,13 +443,6 @@ makePrettyPrintEnv names libdepsNames lcaLibdeps =
         )
     )
     (PPE.suffixifyByName (fold names <> libdepsNames))
-
-defnsToNames :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
-defnsToNames defns =
-  Names
-    { terms = Relation.fromMap (BiMultimap.range defns.terms),
-      types = Relation.fromMap (BiMultimap.range defns.types)
-    }
 
 makePrettyUnisonFile ::
   TwoWay Text ->

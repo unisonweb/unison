@@ -65,7 +65,7 @@ handleDeleteNamespace input insistence = \case
     let description = commandName <> " " <> into @Text (Path.descend parentPathAbs childName)
     -- We have to modify the parent in order to also wipe out the history at the
     -- child.
-    Cli.updateAt description parentPathAbs (Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty)
+    _ <- Cli.updateAt description parentPathAbs (Branch.modifyAt (Path.singleton childName) \_ -> Branch.empty)
     afterDelete
   where
     commandName :: Text

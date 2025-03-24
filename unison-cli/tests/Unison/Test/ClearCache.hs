@@ -18,27 +18,29 @@ test = scope "clearWatchCache" $
     let listWatches = io $ Ucm.lowLevel c \c ->
           Codebase.runTransaction c (Codebase.watches WatchKind.RegularWatch)
 
-    io $
-      Ucm.runTranscript
-        c
-        [i|
-      ``` ucm
-      scratch/main> alias.term ##Nat.+ +
-      ```
-      ``` unison
-      > 1 + 1
-      ```
-    |]
+    _ <-
+      io $
+        Ucm.runTranscript
+          c
+          [i|
+            ``` ucm
+            scratch/main> alias.term ##Nat.+ +
+            ```
+            ``` unison
+            > 1 + 1
+            ```
+          |]
 
     expectNotEqual [] =<< listWatches
 
-    io $
-      Ucm.runTranscript
-        c
-        [i|
-      ``` ucm
-      scratch/main> debug.clear-cache
-      ```
-    |]
+    _ <-
+      io $
+        Ucm.runTranscript
+          c
+          [i|
+            ``` ucm
+            scratch/main> debug.clear-cache
+            ```
+          |]
 
     expectEqual [] =<< listWatches
