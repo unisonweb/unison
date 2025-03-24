@@ -159,16 +159,19 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
       -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event (automatically
       -- first tossing all that have accumulated since the last call)
-      awaitFileEvent <-
-        Watch.watchDirectory
-          scope
-          mgr
-          dir
-          -- We could elect to not spawn a file-watching thread at all if --no-file-watch is passed to ucm, but that
-          -- is an extremely uncommon option, this isn't super inefficient, and this makes the types simpler.
-          case shouldWatchFiles of
-            ShouldNotWatchFiles -> const False
-            ShouldWatchFiles -> allow
+      awaitFileEvent <- do
+        (fmap . fmap)
+          (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
+          ( Watch.watchDirectory
+              scope
+              mgr
+              dir
+              -- We could elect to not spawn a file-watching thread at all if --no-file-watch is passed to ucm, but that
+              -- is an extremely uncommon option, this isn't super inefficient, and this makes the types simpler.
+              case shouldWatchFiles of
+                ShouldNotWatchFiles -> const False
+                ShouldWatchFiles -> allow
+          )
 
       let initialState = Cli.loopState0 ppIds
       initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
@@ -229,10 +232,10 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
                     userInputThread <- Ki.fork scope (getInput loopState)
                     (atomically . asum)
                       [ do
-                          (file, contents) <- Ki.await fileEventThread
+                          event <- Ki.await fileEventThread
                           pure do
                             writeIORef pageOutput False
-                            pure (Left (UnisonFileChanged (Text.pack file) contents)),
+                            pure (Left event),
                         do
                           input <- Ki.await userInputThread
                           pure (pure (Right input))
@@ -275,9 +278,58 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
         -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
         let loop0 :: Cli.LoopState -> IO ()
             loop0 s0 = do
-              let step = do
+              let stepInput :: Either Event Input -> IO (Cli.ReturnType (), Cli.LoopState)
+                  stepInput input =
+                    Cli.runCli env s0 (HandleInput.loop input)
+
+              -- We want to handle file-change events in a way that allow interruption by other file-change events for
+              -- the same file. The idea here is that, if we're (say) typechecking a big file any edits made in the
+              -- meantime should cause the typecheck to be canceled and started anew.
+              --
+              -- This does raise the question: what do we do with both of the following, which we could receive while
+              -- handling a file-change event?
+              --
+              --   1. File-change events for a different .u file than the one we're processing.
+              --   2. User input (i.e. they're typing stuff into the prompt against the flow of typechecking output).
+              --
+              -- Our answers:
+              --
+              --   1. Throw these away.
+              --   2. Don't even try to read these, so they'll buffer and be handled later.
+              --
+              -- This simplifies the implementation and avoids doing weird stuff like handling file-change events that
+              -- were made against a arbitrarily different loop state than the one resulting from the handling of the
+              -- first file-change event. Users are unlikely to even notice these details, as while one file is
+              -- typechecking, they are not likely to be trying to input things into the prompt nor trying to typecheck
+              -- a different file.
+              let stepEvent :: Event -> IO (Cli.ReturnType (), Cli.LoopState)
+                  stepEvent event@(UnisonFileChanged file contents) =
+                    Ki.scoped \scope -> do
+                      handleEventThread <- Ki.fork scope (stepInput (Left event))
+                      fileEventThread <-
+                        Ki.fork scope do
+                          let loop =
+                                awaitFileEvent >>= \case
+                                  event2@(UnisonFileChanged file2 contents2)
+                                    | file2 == file && contents /= contents2 -> pure event2
+                                  _ -> loop
+                          loop
+                      (join . atomically . asum)
+                        [ do
+                            result <- Ki.await handleEventThread
+                            pure (pure result),
+                          do
+                            event2 <- Ki.await fileEventThread
+                            pure (stepEvent event2)
+                        ]
+
+              let step :: IO (Cli.ReturnType (), Cli.LoopState)
+                  step = do
                     input <- awaitInput s0
-                    (!result, resultState) <- Cli.runCli env s0 (HandleInput.loop input)
+                    (!result, resultState) <-
+                      case input of
+                        Left event -> stepEvent event
+                        Right _ -> stepInput input
                     let sNext = case input of
                           Left _ -> resultState
                           Right inp -> resultState & #lastInput ?~ inp
