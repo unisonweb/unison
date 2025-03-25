@@ -303,25 +303,27 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
               -- typechecking, they are not likely to be trying to input things into the prompt nor trying to typecheck
               -- a different file.
               let stepEvent :: Event -> IO (Cli.ReturnType (), Cli.LoopState)
-                  stepEvent event@(UnisonFileChanged file contents) =
-                    Ki.scoped \scope -> do
-                      handleEventThread <- Ki.fork scope (stepInput (Left event))
-                      fileEventThread <-
-                        Ki.fork scope do
-                          let loop =
-                                awaitFileEvent >>= \case
-                                  event2@(UnisonFileChanged file2 contents2)
-                                    | file2 == file && contents /= contents2 -> pure event2
-                                  _ -> loop
-                          loop
-                      (join . atomically . asum)
-                        [ do
-                            result <- Ki.await handleEventThread
-                            pure (pure result),
-                          do
-                            event2 <- Ki.await fileEventThread
-                            pure (stepEvent event2)
-                        ]
+                  stepEvent event@(UnisonFileChanged file contents) = do
+                    action <-
+                      Ki.scoped \scope -> do
+                        handleEventThread <- Ki.fork scope (stepInput (Left event))
+                        fileEventThread <-
+                          Ki.fork scope do
+                            let loop =
+                                  awaitFileEvent >>= \case
+                                    event2@(UnisonFileChanged file2 contents2)
+                                      | file2 == file && contents /= contents2 -> pure event2
+                                    _ -> loop
+                            loop
+                        (atomically . asum)
+                          [ do
+                              result <- Ki.await handleEventThread
+                              pure (pure result),
+                            do
+                              event2 <- Ki.await fileEventThread
+                              pure (stepEvent event2)
+                          ]
+                    action
 
               let step :: IO (Cli.ReturnType (), Cli.LoopState)
                   step = do
