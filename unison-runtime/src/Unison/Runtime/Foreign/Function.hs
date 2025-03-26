@@ -1953,6 +1953,97 @@ instance {-# overlappable #-} (BuiltinForeign b) => ForeignConvention b where
   readAtIndex = readBuiltinAt
   writeBack = writeBuiltin
 
+-- Replacing Functions/Data Types
+--
+-- Below are mappings that replace unison definitions with direct
+-- implementations in the interpreter. It is possible both to
+-- replace data types and to replace functions with custom
+-- implementations.
+--
+-- For data types, they will presumably be replaced by analogous
+-- builtin types represented as wrapped 'foreign' values. For
+-- instance, below the unison Map is replaced with Maps from the
+-- containers library. To do this, the following steps are
+-- necessary:
+--
+--   1. Create a builtin reference for the foreign type. See e.g.
+--      `hmapRef` from the Map example. Note that it is _not_
+--      necessary to add these to e.g. `Unison.Builtin`, because
+--      they are not intended to be visible to unison users, just
+--      implementation details.
+--   2. Create new foreign function cases corresponding to the
+--      unison type's constructors. These should take the same
+--      arguments and produce the builtin value. Adding the cases
+--      to the ForeignFunc type will trigger errors where you need
+--      to supply implementations and such.
+--   3. Add these foreign functions to the `pseudoConstructors`
+--      mapping below. This maps the unison reference of the type
+--      to be replaced to a mapping from its constructor tags to
+--      their replacements. You may need to add the unison type
+--      definition to the `Unison.Builtin.Decls` module to arrange
+--      for this.
+--   4. In the `dataBranch` function in `Unison.Runtime.Machine`,
+--      add cases that make the wrapped builtin value behave like a
+--      data type.
+--   5. In `formDataReplaced` in `Unison.Runtime.Stack`, add cases
+--      for building the builtin type when reifying the unison
+--      data.
+--   6. In `reflectValue` in `Unison.Runtime.Machine`, add a case
+--      that reflects the builtin values as values of the original
+--      unison type. These last two steps ensure that sending
+--      values between machines doesn't need to know anything about
+--      replacements.
+--   7. Implement `universalCompare` and `universalEq` cases for
+--      the builtin values.
+--   8. Add a case in `Unison.Runtime.Decompile` to decompile the
+--      builtin values as the original unison values.
+--
+-- With these steps done, the unison data type will be implemented
+-- with the builtin values behind the scenes. In my testing, this
+-- didn't seem to perform much worse than the unison data types
+-- when running unison code, so this can be done without slowing
+-- down pure unison functions much.
+--
+--
+-- To replace unison _functions_, follow these steps:
+--
+--   1. Create a new foreign function case for the function you
+--      want to replace. It is _not_ necessary to add to
+--      `Unison.Builtin`, because they shouldn't be visible to the
+--      user. Adding the case will give errors where it's necessary
+--      for you to add implementations and such.
+--   2. Add `declareForeign` statements in `Unison.Runtime.Builtin`
+--      for your new foreign functions. These do not cause the
+--      functions to be visible to users, but they make the runtime
+--      aware of them.
+--   3. Add your foreign function to the `functionReplacementList`
+--      below. This requires that you find the _runtime hash_ of
+--      the function you want to replace, in base32hex. You can
+--      find this information using the @unison/internal library,
+--      by calling:
+--
+--        Reference.toText (Reference.fromTermLink! (termLink ...))
+--
+-- Note: in the last step, pay special attention to the reference.
+-- If it is _not_ just a string of base32 letters/numbers, and
+-- instead ends with something like `.N`, then the reference is
+-- part of a mutually recursive binding group, and it is not the
+-- primary member of the group. The code below assumes that all
+-- replacements _are_ the primary member of the group, so the code
+-- needs to be augmented if this is ever not the case. Contact Dan
+-- if you run into this.
+--
+-- With these steps done, any calls to the unison function should
+-- instead execute the builtin, hopefully with significantly
+-- improved performance.
+--
+-- It is not necessarily the case that all types involved need to
+-- be replaced to replace a function. It should be possible to
+-- replace a function by acting directly on the unison
+-- representation of the arguments. This would involve taking `Val`
+-- arguments to the foreign function and matching on the `Closure`
+-- cases and so on. This might not be pleasant, however.
+
 pseudoConstructors :: Map Reference (Map TT.CTag ForeignFunc)
 pseudoConstructors =
   Map.singleton Ty.mapRef $
