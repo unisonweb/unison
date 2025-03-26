@@ -43,9 +43,9 @@ tracePretty ppe True tm = trace (toANSI 50 $ pretty ppe tm) tm
 
 tracePrettyGroup ::
   (Var v) =>
-  Word64 ->
+  String ->
   Bool ->
   SuperGroup v ->
   SuperGroup v
 tracePrettyGroup _ False g = g
-tracePrettyGroup w True g = trace (prettyGroup (show w) g "") g
+tracePrettyGroup w True g = trace (prettyGroup w g "") g

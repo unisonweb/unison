@@ -115,12 +115,14 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude
-import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
+import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
+import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.NamePrinter (prettyShortHash)
 import Unison.Term hiding (List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
@@ -2470,7 +2472,7 @@ prettyANF m ind tm =
         . prettyBranches (ind + 1) bs
     TShift r v bo ->
       showString "shift["
-        . shows r
+        . showsShort r
         . showString "]"
         . prettyVars [v]
         . showString "."
@@ -2488,34 +2490,38 @@ prettySpace False _ = showString " "
 prettySpace True ind = showString "\n" . indent ind
 
 prettyLZF :: (Var v) => Either Reference v -> ShowS
-prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
+prettyLZF (Left w) = showString "ENV(" . showsShort w . showString ") "
 prettyLZF (Right v) = pvar v . showString " "
 
 prettyRefs :: [Reference] -> ShowS
 prettyRefs [] = showString "{}"
 prettyRefs (r : rs) =
   showString "{"
-    . shows r
+    . showsShort r
     . foldr (\t r -> shows t . showString "," . r) id rs
     . showString "}"
 
 prettyFunc :: (Var v) => Func v -> ShowS
 prettyFunc (FVar v) = pvar v . showString " "
 prettyFunc (FCont v) = pvar v . showString " "
-prettyFunc (FComb w) = showString "ENV(" . shows w . showString ")"
+prettyFunc (FComb w) = showString "ENV(" . showsShort w . showString ")"
 prettyFunc (FCon r t) =
   showString "CON("
-    . shows r
+    . showsShort r
     . showString ","
     . shows t
     . showString ")"
 prettyFunc (FReq r t) =
   showString "REQ("
-    . shows r
+    . showsShort r
     . showString ","
     . shows t
     . showString ")"
 prettyFunc (FPrim op) = either shows shows op . showString " "
+
+showsShort :: Reference -> ShowS
+showsShort =
+  showString . Pretty.toPlainUnbroken . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches :: (Var v) => Int -> Branched (ANormal v) -> ShowS
 prettyBranches ind bs = case bs of
@@ -2540,7 +2546,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
+      (prettyCase ind (showString "REQ(0,0)") df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr
@@ -2555,7 +2561,7 @@ prettyBranches ind bs = case bs of
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
-        . shows r
+        . showsShort r
         . showString ","
         . shows c
         . showString ")"
@@ -2567,5 +2573,5 @@ prettyCase ind sc (ABTN.TAbss vs e) r =
     . sc
     . prettyVars vs
     . showString " ->"
-    . prettyANF False (ind + 1) e
+    . prettyANF True (ind + 1) e
     . r
