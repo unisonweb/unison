@@ -93,7 +93,11 @@ forkDirWatcherThread scope mgr dir allow = do
   -- a thread that spawns *that* thread, then waits forever. The purpose here is to simply leverage `ki` exception
   -- propagation machinery to ensure that the `fsnotify` thread is properly cleaned up.
   Ki.forkWith_ scope Ki.defaultThreadOptions {Ki.maskingState = MaskedUninterruptible} do
-    stopListening <- FSNotify.watchDir mgr dir (const True) handler <|> pure (pure ())
+    -- The goal here is to prevent spawning this background watching thread before installing an exception handler that
+    -- guarantees it's killed. Unfortunately the fsnotify API doesn't seem to make that possible (hence the first
+    -- `unsafeUnmask` here), since we do need the thread *it* spawns to be killable, and (at least as of version
+    -- 0.4.2.0) they don't take care to guarantee that; it just inherits the masking state.
+    stopListening <- unsafeUnmask (FSNotify.watchDir mgr dir (const True) handler) <|> pure (pure ())
     unsafeUnmask (forever (threadDelay maxBound)) `finally` stopListening
 
   pure queue
