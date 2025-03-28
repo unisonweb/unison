@@ -10,11 +10,9 @@ module Unison.CommandLine
     parseInput,
     prompt,
     reportParseFailure,
-    watchFileSystem,
   )
 where
 
-import Control.Concurrent (forkIO, killThread)
 import Control.Lens hiding (aside)
 import Control.Monad.Except
 import Control.Monad.Trans.Except
@@ -31,11 +29,10 @@ import Text.Regex.TDFA ((=~))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Editor.Input (Event (..), Input (..))
+import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs)
 import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Helpers (warn)
@@ -46,8 +43,6 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
-import Unison.Util.TQueue qualified as Q
-import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
 allow :: FilePath -> Bool
@@ -55,14 +50,6 @@ allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
   not (".#" `isPrefixOf` takeFileName p)
     && (isSuffixOf ".u" p || isSuffixOf ".uu" p)
-
-watchFileSystem :: Q.TQueue Event -> FilePath -> IO (IO ())
-watchFileSystem q dir = do
-  (cancel, watcher) <- Watch.watchDirectory dir allow
-  t <- forkIO . forever $ do
-    (filePath, text) <- watcher
-    atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
-  pure (cancel >> killThread t)
 
 data ExpansionFailure
   = TooManyArguments (NonEmpty InputPattern.Argument)
