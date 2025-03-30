@@ -15,20 +15,39 @@ The Unison language
 Overview
 --------
 
-[Unison](https://unisonweb.org) is a modern, statically-typed purely functional language with the ability to describe entire distributed systems using a single program. Here's an example of a distributed map-reduce implementation:
+[Unison](https://unison-lang.org) is a statically-typed functional language with type inference, an effect system, and advanced tooling. It is based around [a big idea of content-addressed code](https://www.unison-lang.org/learn/the-big-idea/), in which function are identified by a hash of their implementation rather than by name, and code is stored as its AST in a database. This provides a number of benefits:
+
+* No builds. Unison has perfect incremental compilation, with a shared compilation cache that is part of the codebase format. Despite the strong static typing, you are almost never waiting for code to compile.
+* Instant, non-breaking renaming of definitions. 
+* Perfect caching of tests, only rerunning determinstic tests if dependencies changed.
+* Semantically-aware version control, avoiding spurious merge conflicts from things like order of imports, whitespace or code formatting differences, and so on.
+
+Unison can be used like any other general-purpose language, or you can use it in conjunction with [Unison Cloud](https://unison.cloud) for building distributed systems.
+
+Here is some sample code:
+
 
 ```Haskell
--- comments start with `--`
-mapReduce loc fn ifEmpty reduce data = match split data with
-  Empty          -> ifEmpty
-  One a          -> fn a
-  Two left right ->
-    fl = forkAt loc '(mapReduce loc fn ifEmpty reduce !left)
-    fr = forkAt loc '(mapReduce loc fn ifEmpty reduce !right)
-    reduce (await fl) (await fr)
+-- A comment!
+-- Function signatures appear before the definition
+factorial : Nat -> Nat
+factorial n = product (range 0 (n + 1))
+
+-- Signatures can left off; they will be inferred
+List.map f as =
+  go acc rem = match rem with
+    [] -> acc
+    a +: as -> go (acc :+ f a) as
+  go [] as
+
+> List.map (x -> x * 10) (range 0 10)
+= [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+
+> List.map factorial [1,2,3,4]
+= [1, 2, 6, 24]
 ```
 
-This function can be either simulated locally (possibly with faults injected for testing purposes), or run atop a distributed pool of compute. See [this article](https://www.unison-lang.org/articles/distributed-datasets/) for more in-depth coverage of how to build distributed computing libraries like this.
+Functions arguments are separated by spaces instead of parens and commas. Loops are written using recursion (above the helper function `go` defines a loop). The language supports pattern matching via `match <expr> with <cases>`, which works for lists and also user-defined data types.
 
 Other resources:
 
