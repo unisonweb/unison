@@ -23,6 +23,7 @@ module Unison.Runtime.Stack
         UnboxedTypeTag
       ),
     closureTag,
+    formDataReplaced,
     unitClosure,
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
@@ -152,15 +153,26 @@ module Unison.Runtime.Stack
     charTypeTag,
     floatTypeTag,
     hasNoAllocations,
+    universalEq,
+    universalCompare,
+
+    -- pseudo data stuff
+    inflateMap,
+    deflateMap,
   )
 where
 
 import Control.Exception (throw, throwIO)
 import Control.Monad.Primitive
+import Data.Bits (clearBit)
 import Data.Char qualified as Char
+import Data.Functor.Classes (Eq1 (..), Ord1 (..))
 import Data.IORef (IORef)
+import Data.Map.Strict.Internal (Map (..))
+import Data.Ord (comparing)
 import Data.Primitive (sizeOf)
 import Data.Primitive.ByteArray qualified as BA
+import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Word
 import GHC.Base
@@ -170,13 +182,14 @@ import Test.Inspection qualified as TI
 import Unison.Builtin.Decls as Ty
 import Unison.Prelude
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag)
-import Unison.Runtime.Array
+import Unison.Runtime.ANF (PackedTag, maskTags)
+import Unison.Runtime.Array as PA
 import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (words)
 
 {- ORMOLU_DISABLE -}
@@ -405,6 +418,23 @@ formData r t [] = Enum r t
 formData r t [v1] = Data1 r t v1
 formData r t [v1, v2] = Data2 r t v1 v2
 formData r t segList = DataG r t (segFromList segList)
+
+-- Build a data type, but apply replacements
+formDataReplaced :: Reference -> PackedTag -> SegList -> Closure
+formDataReplaced r t l
+  | t == TT.mapTipTag = case l of
+      [] -> tipClosure
+      _ -> error "formDataReplaced: bad `Map`"
+  | t == TT.mapBinTag = case l of
+      [NatVal sz, k, v, BoxedVal (Foreign l), BoxedVal (Foreign r)]
+        | Just ul <- maybeUnwrapForeign Ty.hmapRef l,
+          Just ur <- maybeUnwrapForeign Ty.hmapRef r ->
+            Foreign . Wrap Ty.hmapRef $ Bin (fromIntegral sz) k v ul ur
+      _ -> error "formDataReplaced: bad `Map`"
+  | otherwise = formData r t l
+
+tipClosure :: Closure
+tipClosure = Foreign $ Wrap Ty.hmapRef Tip
 
 frameDataSize :: K -> Int
 frameDataSize = go 0
@@ -728,6 +758,12 @@ data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
   -- unboxed side is garbage and should not be compared.
   -- See universalEq.
   deriving (Show)
+
+instance Eq Val where
+  (==) = universalEq (==)
+
+instance Ord Val where
+  compare = universalCompare compare
 
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
@@ -1317,3 +1353,270 @@ hasNoAllocations n = TI.mkObligation n TI.NoAllocation
 unitClosure :: Closure
 unitClosure = Enum Ty.unitRef TT.unitTag
 {-# NOINLINE unitClosure #-}
+
+
+-- Universal comparison functions
+
+closureNum :: Closure -> Int
+closureNum PAp {} = 0
+closureNum DataC {} = 1
+closureNum Captured {} = 2
+closureNum Foreign {} = 3
+closureNum UnboxedTypeTag {} = 4
+closureNum BlackHole {} = 5
+
+universalEq ::
+  (Foreign -> Foreign -> Bool) ->
+  Val ->
+  Val ->
+  Bool
+universalEq frn = eqVal
+  where
+    eql :: (a -> b -> Bool) -> [a] -> [b] -> Bool
+    eql cm l r = length l == length r && and (zipWith cm l r)
+    eqVal :: Val -> Val -> Bool
+    eqVal (UnboxedVal v1 t1) (UnboxedVal v2 t2) = matchUnboxedTypes t1 t2 && v1 == v2
+    eqVal (BoxedVal x) (BoxedVal y) = eqc x y
+    eqVal _ _ = False
+    eqc :: Closure -> Closure -> Bool
+    eqc (DataC _ ct1 [w1]) (DataC _ ct2 [w2]) =
+      matchTags ct1 ct2 && eqVal w1 w2
+    eqc (DataC _ ct1 vs1) (DataC _ ct2 vs2) =
+      ct1 == ct2
+        && eqValList vs1 vs2
+    eqc (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
+      cix1 == cix2
+        && eqValList segs1 segs2
+    eqc (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
+      eqK k1 k2
+        && a1 == a2
+        && eqValList vs1 vs2
+    eqc (Foreign fl) (Foreign fr)
+      | Just al <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fl,
+        Just ar <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fr =
+          arrayEq eqVal al ar
+      | Just sl <- maybeUnwrapForeign @(Seq Val) Ty.listRef fl,
+        Just sr <- maybeUnwrapForeign @(Seq Val) Ty.listRef fr =
+          length sl == length sr && and (Sq.zipWith eqVal sl sr)
+      | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
+        Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr =
+          mapEq eqVal eqVal ml mr
+      | otherwise = frn fl fr
+    eqc c d = closureNum c == closureNum d
+
+    eqValList :: [Val] -> [Val] -> Bool
+    eqValList vs1 vs2 = eql eqVal vs1 vs2
+
+    eqK :: K -> K -> Bool
+    eqK KE KE = True
+    eqK (CB cb) (CB cb') = cb == cb'
+    eqK (Mark a ps m k) (Mark a' ps' m' k') =
+      a == a' && ps == ps' && liftEq eqVal m m' && eqK k k'
+    eqK (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') =
+      f == f' && a == a' && ci == ci' && eqK k k'
+    eqK _ _ = False
+
+-- IEEE floating point layout is such that comparison as integers
+-- somewhat works. Positive floating values map to positive integers
+-- and negatives map to negatives. The corner cases are:
+--
+--   1. If both numbers are negative, ordering is flipped.
+--   2. There is both +0 and -0, with -0 being represented as the
+--      minimum signed integer.
+--   3. NaN does weird things.
+--
+-- So, the strategy here is to compare normally if one argument is
+-- positive, since positive numbers compare normally to others.
+-- Otherwise, the sign bit is cleared and the numbers are compared
+-- backwards. Clearing the sign bit maps -0 to +0 and maps a negative
+-- number to its absolute value (including infinities). The multiple
+-- NaN values are just handled according to bit patterns, rather than
+-- IEEE specified behavior.
+--
+-- Transitivity is somewhat non-obvious for this implementation.
+--
+--   if i <= j and j <= k
+--     if j > 0 then k > 0, so all 3 comparisons use `compare`
+--     if k > 0 then k > i, since i <= j <= 0
+--     if all 3 are <= 0, all 3 comparisons use the alternate
+--       comparison, which is transitive via `compare`
+compareAsFloat :: Int -> Int -> Ordering
+compareAsFloat i j
+  | i > 0 || j > 0 = compare i j
+  | otherwise = compare (clear j) (clear i)
+  where
+    clear k = clearBit k 64
+
+universalCompare ::
+  (Foreign -> Foreign -> Ordering) ->
+  Val ->
+  Val ->
+  Ordering
+universalCompare frn = cmpVal False
+  where
+    cmpVal :: Bool -> Val -> Val -> Ordering
+    cmpVal tyEq = \cases
+      (BoxedVal c1) (BoxedVal c2) -> cmpc tyEq c1 c2
+      (UnboxedVal {}) (BoxedVal {}) -> LT
+      (BoxedVal {}) (UnboxedVal {}) -> GT
+      (NatVal i) (NatVal j) -> compare i j
+      (UnboxedVal v1 t1) (UnboxedVal v2 t2) -> cmpUnboxed tyEq (t1, v1) (t2, v2)
+    cmpl :: (a -> b -> Ordering) -> [a] -> [b] -> Ordering
+    cmpl cm l r =
+      compare (length l) (length r) <> fold (zipWith cm l r)
+    cmpc :: Bool -> Closure -> Closure -> Ordering
+    cmpc tyEq = \cases
+      (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
+        (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
+          <> compare (maskTags ct1) (maskTags ct2)
+          -- when comparing corresponding `Any` values, which have
+          -- existentials inside check that type references match
+          <> cmpValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
+      (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
+        compare cix1 cix2
+          <> cmpValList tyEq segs1 segs2
+      (CapV k1 a1 vs1) (CapV k2 a2 vs2) ->
+        cmpK tyEq k1 k2
+          <> compare a1 a2
+          <> cmpValList True vs1 vs2
+      (Foreign fl) (Foreign fr)
+        | Just sl <- maybeUnwrapForeign @(Seq Val) Ty.listRef fl,
+          Just sr <- maybeUnwrapForeign @(Seq Val) Ty.listRef fr ->
+            fold (Sq.zipWith (cmpVal tyEq) sl sr)
+              <> compare (length sl) (length sr)
+        | Just al <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fl,
+          Just ar <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fr ->
+            arrayCmp (cmpVal tyEq) al ar
+        | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
+          Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr ->
+            mapCmp (cmpVal tyEq) (cmpVal tyEq) ml mr
+        | otherwise -> frn fl fr
+      (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
+      (BlackHole) (BlackHole) -> EQ
+      c d -> comparing closureNum c d
+
+    cmpUnboxed :: Bool -> (UnboxedTypeTag, Int) -> (UnboxedTypeTag, Int) -> Ordering
+    cmpUnboxed tyEq = \cases
+      -- Need to cast to Nat or else maxNat == -1 and it flips comparisons of large Nats.
+      -- TODO: Investigate whether bit-twiddling is faster than using Haskell's fromIntegral.
+      (IntTag, n1) (IntTag, n2) -> compare n1 n2
+      (NatTag, n1) (NatTag, n2) -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+      (NatTag, n1) (IntTag, n2)
+        | n2 < 0 -> GT
+        | otherwise -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+      (IntTag, n1) (NatTag, n2)
+        | n1 < 0 -> LT
+        | otherwise -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+      (FloatTag, n1) (FloatTag, n2) -> compareAsFloat n1 n2
+      (t1, v1) (t2, v2) ->
+        Monoid.whenM tyEq (compare t1 t2)
+          <> compare v1 v2
+
+    cmpValList :: Bool -> [Val] -> [Val] -> Ordering
+    cmpValList tyEq vs1 vs2 = cmpl (cmpVal tyEq) vs1 vs2
+
+    cmpK :: Bool -> K -> K -> Ordering
+    cmpK tyEq = \cases
+      KE KE -> EQ
+      (CB cb) (CB cb') -> compare cb cb'
+      (Mark a ps m k) (Mark a' ps' m' k') ->
+        compare a a'
+          <> compare ps ps'
+          <> liftCompare (cmpVal tyEq) m m'
+          <> cmpK tyEq k k'
+      (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') ->
+        compare f f'
+          <> compare a a'
+          <> compare ci ci'
+          <> cmpK tyEq k k'
+      KE _ -> LT
+      _ KE -> GT
+      (CB {}) _ -> LT
+      _ (CB {}) -> GT
+      (Mark {}) _ -> LT
+      _ (Mark {}) -> GT
+
+arrayCmp ::
+  (a -> a -> Ordering) ->
+  PA.Array a ->
+  PA.Array a ->
+  Ordering
+arrayCmp cmpVal l r =
+  comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)
+  where
+    go i
+      | i < 0 = EQ
+      | otherwise = cmpVal (PA.indexArray l i) (PA.indexArray r i) <> go (i - 1)
+
+arrayEq :: (a -> a -> Bool) -> PA.Array a -> PA.Array a -> Bool
+arrayEq eqc l r
+  | PA.sizeofArray l /= PA.sizeofArray r = False
+  | otherwise = go (PA.sizeofArray l - 1)
+  where
+    go i
+      | i < 0 = True
+      | otherwise = eqc (PA.indexArray l i) (PA.indexArray r i) && go (i - 1)
+
+-- Note: these are not the same as the Data.Map Eq/Ord instances,
+-- because the automatic derivations in unison doesn't consider
+-- equivalent maps to be the same. It just checks the exact
+-- data structure.
+mapEq :: (k -> k -> Bool) -> (v -> v -> Bool) -> Map k v -> Map k v -> Bool
+mapEq _ _ Tip Tip = True
+mapEq ek ev (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
+  and [ szl == szr
+      , ek kl kr
+      , ev vl vr
+      , mapEq ek ev ll lr
+      , mapEq ek ev rl rr
+      ]
+mapEq _ _ _ _ = False
+
+mapCmp ::
+  (k -> k -> Ordering) ->
+  (v -> v -> Ordering) ->
+  Map k v -> Map k v -> Ordering
+mapCmp _  _  Tip Tip = EQ
+mapCmp ck cv (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
+  fold [ compare szl szr
+       , ck kl kr
+       , cv vl vr
+       , mapCmp ck cv ll lr
+       , mapCmp ck cv rl rr
+       ]
+mapCmp _ _ Tip Bin{} = compare mapTip mapBin
+mapCmp _ _ Bin{} Tip = compare mapBin mapTip
+
+-- serialization doesn't necessarily preserve Int tags, so be
+-- more accepting for those.
+matchTags :: PackedTag -> PackedTag -> Bool
+matchTags ct1 ct2 =
+  ct1 == ct2
+    || (ct1 == TT.intTag && ct2 == TT.natTag)
+    || (ct1 == TT.natTag && ct2 == TT.intTag)
+
+-- serialization doesn't necessarily preserve Int tags, so be
+-- more accepting for those.
+matchUnboxedTypes :: UnboxedTypeTag -> UnboxedTypeTag -> Bool
+matchUnboxedTypes ct1 ct2 =
+  ct1 == ct2
+    || (ct1 == IntTag && ct2 == NatTag)
+    || (ct1 == NatTag && ct2 == IntTag)
+
+-- Turn the pseudo data version of maps back into the closure that
+-- it represents as a unison type.
+inflateMap :: Map Val Val -> Closure
+inflateMap Tip = Enum mapRef TT.mapTipTag
+inflateMap (Bin sz k v l r) =
+  DataC mapRef TT.mapBinTag
+    [NatVal $ fromIntegral sz, k, v, BoxedVal $ inflateMap l, BoxedVal $ inflateMap r]
+
+-- Reverses the above conversion, turning a unison data
+-- representation of a map back into a Haskell map.
+deflateMap :: Closure -> Maybe (Map Val Val)
+deflateMap (Enum _ t)
+  | t == TT.mapTipTag = Just Tip
+deflateMap (DataC _ t [NatVal sz, k, v, BoxedVal l, BoxedVal r])
+  | t == TT.mapBinTag =
+      Bin (fromIntegral sz) k v <$> deflateMap l <*> deflateMap r
+deflateMap _ = Nothing

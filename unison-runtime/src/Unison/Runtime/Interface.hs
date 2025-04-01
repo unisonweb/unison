@@ -106,6 +106,7 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
+import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
@@ -872,6 +873,8 @@ backReferenceTm ::
   Maybe (Term Symbol)
 backReferenceTm ws frs irs dcm c i = do
   r <- EC.lookup c ws
+  -- backmap from function replacements
+  r <- pure $ Map.findWithDefault r r functionUnreplacements
   -- backmap intermediate ref to floated ref
   r <- Map.lookup r (backmap irs)
   -- backmap floated ref to original ref

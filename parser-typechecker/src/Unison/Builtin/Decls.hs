@@ -118,6 +118,10 @@ seqViewEmpty, seqViewElem :: ConstructorId
 noneId = Maybe.fromJust $ constructorId optionalRef "Optional.None"
 someId = Maybe.fromJust $ constructorId optionalRef "Optional.Some"
 
+mapTip, mapBin :: ConstructorId
+mapTip = Maybe.fromJust $ constructorId mapRef "Map.Tip"
+mapBin = Maybe.fromJust $ constructorId mapRef "Map.Bin"
+
 isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
 
 isTestConstructorId = Maybe.fromJust $ constructorId isTestRef "IsTest.IsTest"
@@ -247,6 +251,9 @@ unRewriteSignature _ = Nothing
 rewritesRef :: Reference
 rewritesRef = lookupDeclRef "Rewrites"
 
+mapRef :: Reference
+mapRef = lookupDeclRef "Map"
+
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
 
@@ -301,7 +308,8 @@ builtinDataDecls = rs1 ++ rs
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteSignature", rewriteType),
           (v "RewriteCase", rewriteCase),
-          (v "Rewrites", rewrites)
+          (v "Rewrites", rewrites),
+          (v "Map", map)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -310,6 +318,7 @@ builtinDataDecls = rs1 ++ rs
       _ -> error "builtinDataDecls: Expected a single linkRef"
     v = Var.named
     var name = Type.var () (v name)
+    infixr 7 `arr`
     arr = Type.arrow'
     -- see note on `hashDecls` above for why ctor must be called `Unit.Unit`.
     unit = DataDeclaration Structural () [] [((), v "Unit.Unit", var "Unit")]
@@ -603,6 +612,21 @@ builtinDataDecls = rs1 ++ rs
         []
         [ ((), v "Link.Term", Type.termLink () `arr` var "Link"),
           ((), v "Link.Type", Type.typeLink () `arr` var "Link")
+        ]
+    map =
+      DataDeclaration
+        (Unique "s9drbo3urtmpecjn6ivkj5mn0vr11gfn")
+        ()
+        [v "k", v "v"]
+        let forke = Type.foralls () [v "k", v "v"]
+            k = var "k"
+            e = var "v"
+            mapke = Type.apps' (var "Map") [k, e] in
+        [ ( (),
+            v "Map.Bin",
+            forke $ Type.nat () `arr` k `arr` e `arr` mapke `arr` mapke `arr` mapke
+          ),
+          ((), v "Map.Tip", forke mapke)
         ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]

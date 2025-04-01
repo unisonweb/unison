@@ -27,7 +27,6 @@ library:
     - aeson >= 2.0.0.0
     - aeson-pretty
     - ansi-terminal
-    - async
     - bytestring
     - cmark
     - co-log-core
@@ -37,6 +36,7 @@ library:
     - containers >= 0.6.3
     - conduit
     - conduit-extra
+    - stm-chans
     - cryptonite
     - either
     - errors
@@ -149,14 +149,14 @@ executables:
       - unliftio
 
 default-extensions:
-  - ApplicativeDo
   - BangPatterns
   - BlockArguments
+  - DataKinds
   - DeriveAnyClass
-  - DeriveFunctor
   - DeriveFoldable
-  - DeriveTraversable
+  - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
@@ -177,8 +177,11 @@ default-extensions:
   - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
+  - PolyKinds
+  - QuasiQuotes
   - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - TypeOperators
   - ViewPatterns

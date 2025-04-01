@@ -8,6 +8,7 @@ where
 
 import Control.Monad.Reader
 import Data.UUID.V4 qualified as UUID
+import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
@@ -32,6 +33,7 @@ data CreateFrom
   = CreateFrom'NamespaceWithParent Sqlite.ProjectBranch (Branch IO)
   | CreateFrom'ParentBranch Sqlite.ProjectBranch
   | CreateFrom'Namespace (Branch IO)
+  | CreateFrom'CausalHash CausalHash
   | CreateFrom'Nothingness
 
 -- | Create a new project branch from an existing project branch or namespace.
@@ -117,6 +119,10 @@ createBranch description createFrom project getNewBranchName = do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
         let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
         pure (parentBranchId, newBranchCausalHashId)
+    CreateFrom'CausalHash causalHash -> do
+      Cli.runTransaction $ do
+        causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+        pure (Nothing, causalHashId)
     CreateFrom'Namespace branch -> do
       liftIO $ Codebase.putBranch codebase branch
       Cli.runTransaction $ do

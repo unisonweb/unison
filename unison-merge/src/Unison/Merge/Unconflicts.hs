@@ -2,7 +2,9 @@ module Unison.Merge.Unconflicts
   ( Unconflicts (..),
     empty,
     apply,
-    soloUpdatesAndDeletes,
+    soloDeletedNames,
+    soloUpdatedNames,
+    bothUpdatedNames,
   )
 where
 
@@ -45,22 +47,26 @@ apply unconflicts =
     applyDeletes =
       (`Map.withoutKeys` foldMap Map.keysSet unconflicts.deletes)
 
-soloUpdatesAndDeletes :: DefnsF Unconflicts term typ -> TwoWay (DefnsF Set Name Name)
-soloUpdatesAndDeletes unconflicts =
-  unconflictedSoloDeletedNames <> unconflictedSoloUpdatedNames
-  where
-    unconflictedSoloDeletedNames :: TwoWay (DefnsF Set Name Name)
-    unconflictedSoloDeletedNames =
-      bitraverse soloDeletedNames soloDeletedNames unconflicts
-
-    unconflictedSoloUpdatedNames :: TwoWay (DefnsF Set Name Name)
-    unconflictedSoloUpdatedNames =
-      bitraverse soloUpdatedNames soloUpdatedNames unconflicts
-
-soloDeletedNames :: Unconflicts v -> TwoWay (Set Name)
+soloDeletedNames :: DefnsF Unconflicts term typ -> TwoWay (DefnsF Set Name Name)
 soloDeletedNames =
-  fmap Map.keysSet . TwoWayI.forgetBoth . view #deletes
+  bitraverse f f
+  where
+    f :: Unconflicts v -> TwoWay (Set Name)
+    f =
+      fmap Map.keysSet . TwoWayI.forgetBoth . view #deletes
 
-soloUpdatedNames :: Unconflicts v -> TwoWay (Set Name)
+soloUpdatedNames :: DefnsF Unconflicts term typ -> TwoWay (DefnsF Set Name Name)
 soloUpdatedNames =
-  fmap Map.keysSet . TwoWayI.forgetBoth . view #updates
+  bitraverse f f
+  where
+    f :: Unconflicts v -> TwoWay (Set Name)
+    f =
+      fmap Map.keysSet . TwoWayI.forgetBoth . view #updates
+
+bothUpdatedNames :: DefnsF Unconflicts term typ -> DefnsF Set Name Name
+bothUpdatedNames =
+  bimap f f
+  where
+    f :: Unconflicts v -> Set Name
+    f unconflicts =
+      Map.keysSet unconflicts.updates.both
