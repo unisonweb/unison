@@ -148,7 +148,12 @@ handleUpdate2 = do
                     let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
                      in makePrettyUnisonFile
                           (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
-                          (renderDefnsForUnisonFile declNameLookup ppe (over (#terms . mapped) snd hydratedDependents))
+                          ( renderDefnsForUnisonFile
+                              declNameLookup
+                              ppe
+                              Set.empty
+                              (over (#terms . mapped) snd hydratedDependents)
+                          )
 
               parsingEnv <- Cli.makeParsingEnv pp namesIncludingLibdeps
 

@@ -1543,10 +1543,10 @@ Foo.Bar : Nat
 Foo.Bar = 17
 
 -- scratch/alice
-type Foo = Alice Nat
+unique[q9d1rl3aatgsa0cndefhert8i6ps1ol7] type Foo = Alice Nat
 
 -- scratch/bob
-type Foo = Bar Nat Nat
+unique[kluar3l6itvegkkqpfs6kfkuvcafpi82] type Foo = Bar Nat Nat
 
 ```
 
@@ -1754,11 +1754,11 @@ scratch/alice> merge bob
 
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
-type Foo
+unique[o01s0262qu1ks4ssh1cmhg9ccquqohp0] type Foo
   = Bar
 
 -- scratch/bob
-type Foo
+unique[oq0v4am69v0kagaiup424s24fktd08mj] type Foo
   = Bar
 
 -- The definitions below are not conflicted, but they each depend on one or more

@@ -1,5 +1,4 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Share.SyncV2
   ( syncFromFile,
@@ -12,6 +11,7 @@ where
 import Codec.Serialise qualified as CBOR
 import Conduit (ConduitT)
 import Conduit qualified as C
+import Control.Concurrent.STM.TBMQueue qualified as STM
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
@@ -30,7 +30,7 @@ import Data.Graph qualified as Graph
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
-import Data.Text.IO qualified as Text
+import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Encoding qualified as Text.Lazy
 import Data.Vector (Vector)
@@ -43,6 +43,7 @@ import Servant.Conduit ()
 import Servant.Types.SourceT qualified as Servant
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.DbId (CausalHashId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -65,9 +66,12 @@ import Unison.SyncV2.API (Routes (downloadEntitiesStream))
 import Unison.SyncV2.API qualified as SyncV2
 import Unison.SyncV2.Types (CBORBytes, CBORStream, DependencyType (..))
 import Unison.SyncV2.Types qualified as SyncV2
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Timing qualified as Timing
 import UnliftIO qualified as IO
+import UnliftIO.Async qualified as Async
+import UnliftIO.STM qualified as STM
 
 type Stream i o = ConduitT i o StreamM ()
 
@@ -76,12 +80,13 @@ type SyncErr = SyncError SyncV2.PullError
 -- The base monad we use within the conduit pipeline.
 type StreamM = (ExceptT SyncErr (C.ResourceT IO))
 
--- | The number of entities to process in a single transaction.
---
--- SQLite transactions have some fixed overhead, so setting this too low can really slow things down,
--- but going too high here means we may be waiting on the network to get a full batch when we could be starting work.
-batchSize :: Int
-batchSize = 5000
+data ProgressCallbacks
+  = ProgressCallbacks
+  { setTotal :: Int -> IO (),
+    downloadCounter :: Int -> IO (),
+    doneDownloading :: IO (),
+    importCounter :: Int -> IO ()
+  }
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main methods
@@ -101,7 +106,7 @@ syncToFile codebase rootHash mayBranchRef destFilePath = do
   liftIO $ Codebase.withConnection codebase \conn -> do
     C.runResourceT $
       withCodebaseEntityStream conn rootHash mayBranchRef \mayTotal stream -> do
-        withStreamProgressCallback (Just mayTotal) \countC -> runExceptT do
+        syncToFileProgress (Just mayTotal) \countC -> runExceptT do
           C.runConduit $
             stream
               C..| countC
@@ -114,21 +119,22 @@ syncFromFile ::
   Bool ->
   -- | Location of the sync-file
   FilePath ->
-  Cli (Either (SyncError SyncV2.PullError) CausalHash)
+  Cli (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
 syncFromFile shouldValidate syncFilePath = do
   Cli.Env {codebase} <- ask
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Cli.runTransaction Q.clearTempEntityTables
-  runExceptT do
-    mapExceptT liftIO $ Timing.time "File Sync" $ do
-      header <- mapExceptT C.runResourceT $ do
-        let stream = C.sourceFile syncFilePath C..| C.ungzip C..| decodeUnframedEntities
-        (header, rest) <- initializeStream stream
-        streamIntoCodebase shouldValidate codebase header rest
-        pure header
-      afterSyncChecks codebase (SyncV2.rootCausalHash header)
-      pure . hash32ToCausalHash $ SyncV2.rootCausalHash header
+  liftIO $ withStreamProgress False \progressCounters -> do
+    runExceptT do
+      mapExceptT liftIO $ Timing.time "File Sync" $ do
+        header <- mapExceptT C.runResourceT $ do
+          let stream = C.sourceFile syncFilePath C..| C.ungzip C..| decodeUnframedEntities
+          (header, rest) <- initializeStream (setTotal progressCounters) stream
+          streamIntoCodebase progressCounters shouldValidate codebase header rest
+          pure header
+        chId <- afterSyncChecks codebase (SyncV2.rootCausalHash header)
+        pure (hash32ToCausalHash $ SyncV2.rootCausalHash header, chId)
 
 syncFromCodebase ::
   Bool ->
@@ -137,15 +143,17 @@ syncFromCodebase ::
   (Codebase.Codebase IO v a) ->
   -- | The hash to sync.
   CausalHash ->
-  IO (Either (SyncError SyncV2.PullError) ())
+  IO (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
 syncFromCodebase shouldValidate srcConn destCodebase causalHash = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Sqlite.runTransaction srcConn Q.clearTempEntityTables
-  liftIO . C.runResourceT . runExceptT $ withCodebaseEntityStream srcConn causalHash Nothing \_total entityStream -> do
-    (header, rest) <- initializeStream entityStream
-    streamIntoCodebase shouldValidate destCodebase header rest
-    mapExceptT liftIO (afterSyncChecks destCodebase (causalHashToHash32 causalHash))
+  withStreamProgress False \progressCounters -> do
+    liftIO . C.runResourceT . runExceptT $ withCodebaseEntityStream srcConn causalHash Nothing \_total entityStream -> do
+      (header, rest) <- initializeStream (setTotal progressCounters) entityStream
+      streamIntoCodebase progressCounters shouldValidate destCodebase header rest
+      chId <- mapExceptT liftIO (afterSyncChecks destCodebase (causalHashToHash32 causalHash))
+      pure (hash32ToCausalHash $ SyncV2.rootCausalHash header, chId)
 
 syncFromCodeserver ::
   Bool ->
@@ -155,10 +163,8 @@ syncFromCodeserver ::
   SyncV2.BranchRef ->
   -- | The hash to download.
   Share.HashJWT ->
-  -- | Callback that's given a number of entities we just downloaded.
-  (Int -> IO ()) ->
-  Cli (Either (SyncError SyncV2.PullError) ())
-syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt _downloadedCallback = do
+  Cli (Either (SyncError SyncV2.PullError) (CausalHash, CausalHashId))
+syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
   Cli.Env {authHTTPClient, codebase} <- ask
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
@@ -169,15 +175,18 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt _downloadedCa
     ExceptT $ do
       (Cli.runTransaction (Q.entityLocation hash)) >>= \case
         Just Q.EntityInMainStorage -> pure $ Right ()
-        _ -> do
+        _ -> liftIO $ withStreamProgress True \progressCallbacks -> do
           Timing.time "Entity Download" $ do
             liftIO . C.runResourceT . runExceptT $ httpStreamEntities
+              (setTotal progressCallbacks)
               authHTTPClient
               unisonShareUrl
               SyncV2.DownloadEntitiesRequest {branchRef, causalHash = hashJwt, knownHashes}
               \header stream -> do
-                streamIntoCodebase shouldValidate codebase header stream
-    mapExceptT liftIO (afterSyncChecks codebase hash)
+                whenJust (SyncV2.numEntities header) (liftIO . setTotal progressCallbacks . fromIntegral)
+                streamIntoCodebase progressCallbacks shouldValidate codebase header stream
+    chId <- mapExceptT liftIO (afterSyncChecks codebase hash)
+    pure (hash32ToCausalHash hash, chId)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Helpers
@@ -220,26 +229,36 @@ batchValidateEntities entities = do
 
 -- | Syncs a stream which could send entities in any order.
 syncUnsortedStream ::
+  ProgressCallbacks ->
   Bool ->
   (Codebase.Codebase IO v a) ->
   Stream () SyncV2.EntityChunk ->
   StreamM ()
-syncUnsortedStream shouldValidate codebase stream = do
+syncUnsortedStream (ProgressCallbacks {setTotal, downloadCounter, doneDownloading, importCounter}) shouldValidate codebase stream = do
   allEntities <-
     C.runConduit $
       stream
+        C..| C.iterM (\_ -> liftIO $ downloadCounter 1)
         C..| CL.chunksOf batchSize
         C..| unpackChunks codebase
         C..| validateBatch
         C..| C.concat
         C..| C.sinkVector @Vector
+  liftIO doneDownloading
+  liftIO $ setTotal (Vector.length allEntities)
   let sortedEntities = sortDependencyFirst allEntities
-  liftIO $ withEntitySavingCallback (Just $ Vector.length allEntities) \countC -> do
-    Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do
-      r <- Q.saveTempEntityInMain v2HashHandle hash entity
-      Sqlite.unsafeIO $ countC 1
-      pure r
+  liftIO $ Codebase.runTransaction codebase $ for_ sortedEntities \(hash, entity) -> do
+    r <- Q.saveTempEntityInMain v2HashHandle hash entity
+    Sqlite.unsafeIO $ importCounter 1
+    pure r
   where
+    -- The number of entities to process in a single transaction.
+    --
+    -- SQLite transactions have some fixed overhead, so setting this too low can really slow things down,
+    -- but going too high here means we may be waiting on the network to get a full batch when we could be starting work.
+    batchSize :: Int
+    batchSize = 5000
+
     validateBatch :: Stream (Vector (Hash32, TempEntity)) (Vector (Hash32, TempEntity))
     validateBatch = C.iterM \entities -> do
       when shouldValidate (mapExceptT lift $ batchValidateEntities entities)
@@ -247,19 +266,37 @@ syncUnsortedStream shouldValidate codebase stream = do
 -- | Syncs a stream which sends entities which are already sorted in dependency order.
 -- This allows us to stream them directly into the codebase as they're received.
 syncSortedStream ::
+  ProgressCallbacks ->
   Bool ->
   (Codebase.Codebase IO v a) ->
   Stream () SyncV2.EntityChunk ->
   StreamM ()
-syncSortedStream shouldValidate codebase stream = do
+syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCounter}) shouldValidate codebase stream = do
+  (downloaderSink, downloaderSource) <- parallelSinkAndSource (3 * batchSize) -- Allow downloading up to triple our current batch size in advance
+  (unpackerSink, unpackerSource) <- parallelSinkAndSource 5 -- Buffer of up to 5 batches.
   let handler :: Stream (Vector (Hash32, TempEntity)) o
       handler = C.mapM_C \entityBatch -> do
         validateAndSave shouldValidate codebase entityBatch
-  C.runConduit $
-    stream
-      C..| CL.chunksOf batchSize
-      C..| unpackChunks codebase
-      C..| handler
+        liftIO $ importCounter (length entityBatch)
+  let downloadC = stream C..| downloaderSink
+  let saverC =
+        downloaderSource
+          C..| CL.chunksOf batchSize
+          C..| unpackChunks codebase
+          C..| C.iterM (liftIO . downloadCounter . length)
+          C..| (unpackerSink *> liftIO doneDownloading)
+  let handlerC =
+        unpackerSource
+          C..| handler
+
+  -- Run the three conduits concurrently, and wait for them all to finish, fail if any of them fail.
+  ExceptT . Async.runConc $ do
+    a <- Async.conc . runExceptT $ C.runConduit downloadC
+    b <- Async.conc . runExceptT $ C.runConduit saverC
+    c <- Async.conc . runExceptT $ C.runConduit handlerC
+    pure (a >> b >> c)
+  where
+    batchSize = 1000
 
 -- | Topologically sort entities based on their dependencies, returning a list in dependency-first order.
 sortDependencyFirst :: (Foldable f, Functor f) => f (Hash32, TempEntity) -> [(Hash32, TempEntity)]
@@ -292,38 +329,38 @@ unpackChunks codebase = C.mapM \xs -> ExceptT . lift . Codebase.runTransactionEx
 
 -- | Stream entities from one codebase into another.
 streamIntoCodebase ::
+  ProgressCallbacks ->
   -- | Whether to validate entities as they're imported.
   Bool ->
   Codebase.Codebase IO v a ->
   SyncV2.StreamInitInfo ->
   Stream () SyncV2.EntityChunk ->
   StreamM ()
-streamIntoCodebase shouldValidate codebase SyncV2.StreamInitInfo {version, entitySorting, numEntities = numEntities} stream = ExceptT do
-  withStreamProgressCallback (fromIntegral <$> numEntities) \countC -> runExceptT do
-    -- Add a counter to the stream to track how many entities we've processed.
-    let stream' = stream C..| countC
-    case version of
-      (SyncV2.Version 1) -> pure ()
-      v -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorUnsupportedVersion v
+streamIntoCodebase progressCounters shouldValidate codebase SyncV2.StreamInitInfo {version, entitySorting} stream = do
+  case version of
+    (SyncV2.Version 1) -> pure ()
+    v -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorUnsupportedVersion v
 
-    case entitySorting of
-      SyncV2.DependenciesFirst -> syncSortedStream shouldValidate codebase stream'
-      SyncV2.Unsorted -> syncUnsortedStream shouldValidate codebase stream'
+  case entitySorting of
+    SyncV2.DependenciesFirst -> syncSortedStream progressCounters shouldValidate codebase stream
+    SyncV2.Unsorted -> syncUnsortedStream progressCounters shouldValidate codebase stream
 
 -- | A sanity-check to verify that the hash we expected to import from the stream was successfully loaded into the codebase.
-afterSyncChecks :: Codebase.Codebase IO v a -> Hash32 -> ExceptT (SyncError SyncV2.PullError) IO ()
+afterSyncChecks :: Codebase.Codebase IO v a -> Hash32 -> ExceptT (SyncError SyncV2.PullError) IO CausalHashId
 afterSyncChecks codebase hash = do
-  lift (didCausalSuccessfullyImport codebase hash) >>= \case
-    False -> do
-      throwError (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
-    True -> pure ()
+  chId <-
+    lift (didCausalSuccessfullyImport codebase hash) >>= \case
+      Nothing -> do
+        throwError (SyncError (SyncV2.PullError'Sync . SyncV2.SyncErrorExpectedResultNotInMain . hash32ToCausalHash $ hash))
+      Just chId -> pure chId
   void $ liftIO (Codebase.withConnection codebase Sqlite.vacuum)
+  pure chId
   where
     -- Verify that the expected hash made it into main storage.
-    didCausalSuccessfullyImport :: Codebase.Codebase IO v a -> Hash32 -> IO Bool
+    didCausalSuccessfullyImport :: Codebase.Codebase IO v a -> Hash32 -> IO (Maybe (CausalHashId))
     didCausalSuccessfullyImport codebase hash = do
       let expectedHash = hash32ToCausalHash hash
-      isJust <$> (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
+      fmap fst <$> (Codebase.runTransaction codebase $ Q.loadCausalByCausalHash expectedHash)
 
 -- | Load and stream entities for a given causal hash from a codebase into a stream.
 withCodebaseEntityStream ::
@@ -337,7 +374,6 @@ withCodebaseEntityStream ::
 withCodebaseEntityStream conn rootHash mayBranchRef callback = do
   entities <- liftIO $ withEntityLoadingCallback $ \counter -> do
     Sqlite.runTransaction conn (depsForCausal rootHash counter)
-  liftIO $ Text.hPutStrLn IO.stderr $ "Finished loading entities, writing sync-file."
   let totalEntities = fromIntegral $ Map.size entities
   let initialChunk =
         SyncV2.InitialC
@@ -492,12 +528,13 @@ handleClientError clientEnv err =
 
 -- | Stream entities from the codeserver.
 httpStreamEntities ::
+  (Int -> IO ()) ->
   Auth.AuthenticatedHttpClient ->
   Servant.BaseUrl ->
   SyncV2.DownloadEntitiesRequest ->
   (SyncV2.StreamInitInfo -> Stream () SyncV2.EntityChunk -> StreamM ()) ->
   StreamM ()
-httpStreamEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req callback = do
+httpStreamEntities setTotal (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req callback = do
   let clientEnv =
         (Servant.mkClientEnv httpClient unisonShareUrl)
           { Servant.makeClientRequest = \url request ->
@@ -509,12 +546,12 @@ httpStreamEntities (Auth.AuthenticatedHttpClient httpClient) unisonShareUrl req 
                     }
           }
   (downloadEntitiesStreamClientM req) & withConduit clientEnv \stream -> do
-    (init, entityStream) <- initializeStream stream
+    (init, entityStream) <- initializeStream setTotal stream
     callback init entityStream
 
 -- | Peel the header off the stream and parse the remaining entity chunks into EntityChunks
-initializeStream :: Stream () SyncV2.DownloadEntitiesChunk -> StreamM (SyncV2.StreamInitInfo, Stream () SyncV2.EntityChunk)
-initializeStream stream = do
+initializeStream :: (Int -> IO ()) -> Stream () SyncV2.DownloadEntitiesChunk -> StreamM (SyncV2.StreamInitInfo, Stream () SyncV2.EntityChunk)
+initializeStream setTotal stream = do
   (streamRemainder, init) <- stream C.$$+ C.headC
   case init of
     Nothing -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorMissingInitialChunk
@@ -522,6 +559,7 @@ initializeStream stream = do
       case chunk of
         SyncV2.InitialC info -> do
           let entityStream = C.unsealConduitT streamRemainder C..| C.mapM parseEntity
+          for (SyncV2.numEntities info) \t -> liftIO $ setTotal (fromIntegral t)
           pure $ (info, entityStream)
         SyncV2.EntityC _ -> do
           throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorMissingInitialChunk
@@ -628,20 +666,61 @@ counterProgress msgBuilder action = do
           liftIO $ IO.atomically (IO.modifyTVar' counterVar (+ i))
 
 -- | Track how many entities have been downloaded using a counter stream.
-withStreamProgressCallback :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> (ConduitT i i m () -> n a) -> n a
-withStreamProgressCallback total action = do
-  let msg n = "\n  📦 Unpacked  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " entities...\n\n"
+syncToFileProgress :: (MonadIO m, MonadUnliftIO n) => Maybe Int -> (ConduitT i i m () -> n a) -> n a
+syncToFileProgress total action = do
+  let msg n = "\n  Exported  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " entities 📦 \n\n"
   let action' f = action (C.iterM \_i -> f 1)
   counterProgress msg action'
-
--- | Track how many entities have been saved.
-withEntitySavingCallback :: (MonadUnliftIO m) => Maybe Int -> ((Int -> m ()) -> m a) -> m a
-withEntitySavingCallback total action = do
-  let msg n = "\n  💾 Saved  " <> tShow n <> maybe "" (\total -> " / " <> tShow total) total <> " new entities...\n\n"
-  counterProgress msg action
 
 -- | Track how many entities have been loaded.
 withEntityLoadingCallback :: (MonadUnliftIO m) => ((Int -> m ()) -> m a) -> m a
 withEntityLoadingCallback action = do
-  let msg n = "\n  📦 Unpacked  " <> tShow n <> " entities...\n\n"
+  let msg n = "\n  Loading entities from codebase: " <> tShow n <> " 📦\n\n"
   counterProgress msg action
+
+withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
+withStreamProgress hasDownload action = do
+  downloadedVar <- IO.newTVarIO 0
+  doneUnpackingVar <- IO.newTVarIO False
+  savedVar <- IO.newTVarIO (0 :: Int)
+  totalVar <- IO.newTVarIO Nothing
+  IO.withRunInIO \toIO -> do
+    Console.Regions.displayConsoleRegions do
+      Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+        Console.Regions.setConsoleRegion region do
+          downloaded <- IO.readTVar downloadedVar
+          doneUnpacking <- IO.readTVar doneUnpackingVar
+          saved <- IO.readTVar savedVar
+          total <- IO.readTVar totalVar
+          pure $
+            Text.unlines
+              [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> Monoid.whenM doneUnpacking " 🏁",
+                "    Imported: " <> tShow @Int saved
+              ]
+        toIO $
+          action $
+            ProgressCallbacks
+              { setTotal = \total -> do liftIO $ IO.atomically (IO.writeTVar totalVar (Just total)),
+                downloadCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (+ i)),
+                doneDownloading = do liftIO $ IO.atomically (IO.writeTVar doneUnpackingVar True),
+                importCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' savedVar (+ i))
+              }
+
+-- * Conduit helpers
+
+parallelSinkAndSource :: (MonadIO m) => Int -> m (ConduitT i void1 m (), ConduitT void2 i m ())
+parallelSinkAndSource bufferSize = do
+  q <- liftIO $ STM.newTBMQueueIO bufferSize
+  let sink = do
+        C.await >>= \case
+          Nothing -> STM.atomically $ STM.closeTBMQueue q
+          Just chunk -> do
+            STM.atomically $ STM.writeTBMQueue q chunk
+            sink
+  let source = do
+        STM.atomically (STM.readTBMQueue q) >>= \case
+          Nothing -> pure ()
+          Just chunk -> do
+            C.yield chunk
+            source
+  pure (sink, source)

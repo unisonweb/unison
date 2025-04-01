@@ -465,6 +465,7 @@ data Output
   | SyncPullError (Sync.SyncError SyncV2.PullError)
   | SyncFromCodebaseMissingProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | OpenCodebaseError CodebasePath OpenCodebaseError
+  | UCMServerNotRunning
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -709,6 +710,7 @@ isFailure o = case o of
   SyncPullError {} -> True
   SyncFromCodebaseMissingProjectBranch {} -> True
   OpenCodebaseError {} -> True
+  UCMServerNotRunning -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

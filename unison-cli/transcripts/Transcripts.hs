@@ -74,6 +74,12 @@ testBuilder expectFailure replaceOriginal recordFailure runtimePath inputDir out
       (filePath, Left err) -> do
         let outputFile = outputDir </> outputFileForTranscript filePath
         case err of
+          Transcript.PortBindingFailure -> do
+            let errMsg = "Failed to bind codebase server to the default port when running transcripts in " <> filePath
+            io . writeUtf8 outputFile $ Text.pack errMsg
+            when (not expectFailure) $ do
+              io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
+              crash errMsg
           Transcript.ParseError errors -> do
             let bundle = MP.errorBundlePretty errors
                 errMsg = "Error parsing " <> filePath <> ": " <> bundle
@@ -187,7 +193,7 @@ test config = do
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"
-  for failures $ \(filepath, msg) -> io $ do
+  for_ failures $ \(filepath, msg) -> io $ do
     Text.putStrLn $ Text.replicate 80 "="
     Text.putStrLn $ "🚨 " <> Text.pack filepath <> ": "
     Text.putStrLn msg

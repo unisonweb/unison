@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -57,11 +57,13 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      BangPatterns
       BlockArguments
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -70,14 +72,15 @@ library
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
-      KindSignatures
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
       NumericUnderscores
       OverloadedStrings
       PatternSynonyms
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
@@ -85,13 +88,10 @@ library
       TypeApplications
       TypeOperators
       ViewPatterns
-      ImportQualifiedPost
-      QuasiQuotes
   ghc-options: -Wall
   build-depends:
       Diff
     , aeson >=2.0.0.0
-    , async
     , base
     , binary
     , bytes
@@ -156,11 +156,13 @@ test-suite unison-share-api-tests
   hs-source-dirs:
       tests
   default-extensions:
+      BangPatterns
       BlockArguments
       ConstraintKinds
       DeriveAnyClass
       DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -169,14 +171,15 @@ test-suite unison-share-api-tests
       FlexibleInstances
       GADTs
       GeneralizedNewtypeDeriving
-      KindSignatures
       ImportQualifiedPost
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
       NumericUnderscores
       OverloadedStrings
       PatternSynonyms
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
@@ -184,8 +187,6 @@ test-suite unison-share-api-tests
       TypeApplications
       TypeOperators
       ViewPatterns
-      ImportQualifiedPost
-      QuasiQuotes
   ghc-options: -Wall
   build-depends:
       base

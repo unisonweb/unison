@@ -461,3 +461,16 @@ saveTestCase name ver f i =
   saveSelfContained (f, i) sfile
   writeFile ofile (toUtf8 output)
   writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
+
+unique[s9drbo3urtmpecjn6ivkj5mn0vr11gfn] type Map k v =
+  Tip | Bin Nat k v (Map k v) (Map k v)
+
+Map.get : k -> Map k v -> Optional v
+Map.get k = cases
+  Tip -> None
+  Bin _ kx x l r ->
+    match compare k kx with
+      -1 -> Map.get k l
+      +1 -> Map.get k r
+      +0 -> Some x
+      _ -> bug "impossible: Universal.compare returns {-1,0,+1}"

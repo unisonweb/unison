@@ -17,7 +17,7 @@ test =
           io do
             Cli.runCli dummyEnv dummyLoopState do
               Cli.label \goto -> do
-                Cli.label \_ -> do
+                Cli.label @() \_ -> do
                   Cli.setNumberedArgs [SA.Name $ Name.unsafeParseText "foo"]
                   goto (1 :: Int)
                 pure 2

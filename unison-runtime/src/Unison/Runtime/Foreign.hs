@@ -24,6 +24,7 @@ import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
 import Data.Atomics qualified as Atomic
 import Data.IORef (IORef)
+import Data.Map.Strict (Map)
 import Data.Tagged (Tagged (..))
 import Data.X509 qualified as X509
 import Network.Socket (Socket)
@@ -357,6 +358,15 @@ instance BuiltinForeign CPattern where
 instance BuiltinForeign CharPattern where
   foreignName = Tagged "CharPattern"
   foreignRef = Tagged Ty.charClassRef
+
+-- Note: this doesn't do any recursive conversion of keys/values,
+-- so any use of it needs to be an exact match for the map that was
+-- originally placed in the box. The current intention is for use
+-- at `Map Val Val`, but `Val` is in a module further along the
+-- dependency graph.
+instance BuiltinForeign (Map k v) where
+  foreignName = Tagged "Map"
+  foreignRef = Tagged Ty.hmapRef
 
 wrapBuiltin :: forall f. (BuiltinForeign f) => f -> Foreign
 wrapBuiltin x = Wrap r x

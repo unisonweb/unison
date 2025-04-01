@@ -77,10 +77,9 @@ downloadProjectBranchFromShare useSquashed branch =
             Cli.respond (Output.DownloadedEntities numDownloaded)
         SyncV2 -> do
           let branchRef = SyncV2.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
-          let downloadedCallback = \_ -> pure ()
           let shouldValidate = not $ Codeserver.isCustomCodeserver Codeserver.defaultCodeserver
-          result <- SyncV2.syncFromCodeserver shouldValidate Share.hardCodedBaseUrl branchRef causalHashJwt downloadedCallback
-          result & onLeft \err0 -> do
+          result <- SyncV2.syncFromCodeserver shouldValidate Share.hardCodedBaseUrl branchRef causalHashJwt
+          void result & onLeft \err0 -> do
             done case err0 of
               Share.SyncError pullErr ->
                 Output.ShareErrorPullV2 pullErr

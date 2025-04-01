@@ -15,12 +15,14 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
+import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Data.Algorithm.Diff qualified as Diff
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.These (These (..))
@@ -91,6 +93,7 @@ import Unison.Project
     Semver (..),
     classifyProjectBranchName,
   )
+import Unison.Reference (TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -103,6 +106,8 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
+import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
@@ -310,12 +315,16 @@ doMerge info = do
 
         liftIO (debugFunctions.debugPartitionedDiff blob2.conflicts blob2.unconflicts)
 
+        liftIO (debugFunctions.debugCoreDependencies (ThreeWay.forgetLca blob2.defns) blob2.coreDependencies)
+
         respondRegion (Output.Literal "Loading dependents of changes...")
 
         dependents0 <-
           Cli.runTransaction $
             for ((,) <$> ThreeWay.forgetLca blob2.defns <*> blob2.coreDependencies) \(defns, deps) ->
               getNamespaceDependentsOf3 defns deps
+
+        liftIO (debugFunctions.debugInitialDependents (ThreeWay.forgetLca blob2.defns) dependents0)
 
         respondRegion (Output.Literal "Loading and merging library dependencies...")
 
@@ -372,6 +381,12 @@ doMerge info = do
                   Left _typecheckErr -> Nothing
                   Right blob5 -> Just blob5
 
+        let stageOneBranch =
+              defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
+
+        let stageTwoBranch =
+              defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps
+
         let parents =
               causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
 
@@ -383,11 +398,7 @@ doMerge info = do
                 info.description
                 ( HandleInput.Branch.CreateFrom'NamespaceWithParent
                     info.alice.projectAndBranch.branch
-                    ( Branch.mergeNode
-                        (defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps)
-                        parents.alice
-                        parents.bob
-                    )
+                    (Branch.mergeNode stageTwoBranch parents.alice parents.bob)
                 )
                 info.alice.projectAndBranch.project
                 (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
@@ -458,10 +469,7 @@ doMerge info = do
           info.description
           ( \_aliceBranch ->
               Branch.mergeNode
-                ( Branch.batchUpdates
-                    (typecheckedUnisonFileToBranchAdds blob5.file)
-                    (defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps)
-                )
+                (Branch.batchUpdates (typecheckedUnisonFileToBranchAdds blob5.file) stageOneBranch)
                 parents.alice
                 parents.bob
           )
@@ -527,11 +535,11 @@ loadLibdeps branches = do
 
 hasDefnsInLib :: (Applicative m) => V2.Branch m -> m Bool
 hasDefnsInLib branch = do
-  libdeps <-
-    case Map.lookup NameSegment.libSegment branch.children of
+  ( case Map.lookup NameSegment.libSegment branch.children of
       Nothing -> pure V2.Branch.empty
       Just libdeps -> libdeps.value
-  pure (not (Map.null libdeps.terms) || not (Map.null libdeps.types))
+    )
+    <&> \libdeps -> not (Map.null libdeps.terms) || not (Map.null libdeps.types)
 
 ------------------------------------------------------------------------------------------------------------------------
 --
@@ -713,9 +721,17 @@ makeMergedFileContents sourceAndTarget aliceContents bobContents =
 
 data DebugFunctions = DebugFunctions
   { debugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO (),
+    debugCoreDependencies ::
+      Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      Merge.TwoWay (DefnsF Set TermReference TypeReference) ->
+      IO (),
     debugDiffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference) -> IO (),
     debugCombinedDiff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference -> IO (),
     debugHumanDiffs :: Merge.TwoWay (DefnsF2 (Map Name) Merge.HumanDiffOp Referent TypeReference) -> IO (),
+    debugInitialDependents ::
+      Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+      Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
+      IO (),
     debugPartitionedDiff ::
       Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Merge.Unconflicts Referent TypeReference ->
@@ -726,15 +742,17 @@ realDebugFunctions :: DebugFunctions
 realDebugFunctions =
   DebugFunctions
     { debugCausals = realDebugCausals,
+      debugCoreDependencies = realDebugCoreDependencies,
       debugDiffs = realDebugDiffs,
       debugCombinedDiff = realDebugCombinedDiff,
       debugHumanDiffs = realDebugHumanDiffs,
+      debugInitialDependents = realDebugInitialDependents,
       debugPartitionedDiff = realDebugPartitionedDiff
     }
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
 
 realDebugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
 realDebugCausals causals = do
@@ -761,20 +779,24 @@ realDebugDiffs diffs = do
 
     renderThings :: (ref -> Text) -> Map Name (Merge.DiffOp (Merge.Synhashed ref)) -> IO ()
     renderThings label things =
-      for_ (Map.toList things) \(name, op) ->
-        let go color action x =
-              color $
-                action
-                  <> " "
-                  <> Text.italic (label (Synhashed.value x))
-                  <> " "
-                  <> Name.toText name
-                  <> " #"
-                  <> Hash.toBase32HexText (Synhashed.hash x)
-         in Text.putStrLn case op of
-              Merge.DiffOp'Add x -> go Text.green "+" x
-              Merge.DiffOp'Delete x -> go Text.red "-" x
-              Merge.DiffOp'Update x -> go Text.yellow "%" x.new
+      things
+        & Map.toList
+        & over (mapped . _1) Name.toText
+        & sortAlphabeticallyOn fst
+        & traverse_ \(name, op) ->
+          let go color action x =
+                color $
+                  action
+                    <> " "
+                    <> Text.italic (label (Synhashed.value x))
+                    <> " "
+                    <> name
+                    <> " #"
+                    <> Hash.toBase32HexText (Synhashed.hash x)
+           in Text.putStrLn case op of
+                Merge.DiffOp'Add x -> go Text.green "+" x
+                Merge.DiffOp'Delete x -> go Text.red "-" x
+                Merge.DiffOp'Update x -> go Text.yellow "%" x.new
 
 realDebugHumanDiffs :: Merge.TwoWay (DefnsF2 (Map Name) Merge.HumanDiffOp Referent TypeReference) -> IO ()
 realDebugHumanDiffs diffs = do
@@ -865,59 +887,145 @@ realDebugCombinedDiff diff = do
   where
     renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name (Merge.CombinedDiffOp ref) -> IO ()
     renderThings label renderRef things =
-      for_ (Map.toList things) \(name, op) ->
-        Text.putStrLn case op of
-          Merge.CombinedDiffOp'Add who ->
-            Text.green $
-              "+ "
-                <> Text.italic (label (EitherWayI.value who))
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> renderRef (EitherWayI.value who)
-                <> " ("
-                <> renderWho who
-                <> ")"
-          Merge.CombinedDiffOp'Delete who ->
-            Text.red $
-              "- "
-                <> Text.italic (label (EitherWayI.value who))
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> renderRef (EitherWayI.value who)
-                <> " ("
-                <> renderWho who
-                <> ")"
-          Merge.CombinedDiffOp'Update who ->
-            Text.yellow $
-              "% "
-                <> Text.italic (label (EitherWayI.value who).new)
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> renderRef (EitherWayI.value who).new
-                <> " ("
-                <> renderWho who
-                <> ")"
-          Merge.CombinedDiffOp'Conflict ref ->
-            Text.magenta $
-              "! "
-                <> Text.italic (label ref.alice)
-                <> "/"
-                <> Text.italic (label ref.bob)
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> renderRef ref.alice
-                <> "/"
-                <> renderRef ref.bob
+      things
+        & Map.toList
+        & over (mapped . _1) Name.toText
+        & sortAlphabeticallyOn fst
+        & traverse_ \(name, op) ->
+          Text.putStrLn case op of
+            Merge.CombinedDiffOp'Add who ->
+              Text.green $
+                "+ "
+                  <> Text.italic (label (EitherWayI.value who))
+                  <> " "
+                  <> name
+                  <> " "
+                  <> renderRef (EitherWayI.value who)
+                  <> " ("
+                  <> renderWho who
+                  <> ")"
+            Merge.CombinedDiffOp'Delete who ->
+              Text.red $
+                "- "
+                  <> Text.italic (label (EitherWayI.value who))
+                  <> " "
+                  <> name
+                  <> " "
+                  <> renderRef (EitherWayI.value who)
+                  <> " ("
+                  <> renderWho who
+                  <> ")"
+            Merge.CombinedDiffOp'Update who ->
+              Text.yellow $
+                "% "
+                  <> Text.italic (label (EitherWayI.value who).new)
+                  <> " "
+                  <> name
+                  <> " "
+                  <> renderRef (EitherWayI.value who).new
+                  <> " ("
+                  <> renderWho who
+                  <> ")"
+            Merge.CombinedDiffOp'Conflict ref ->
+              Text.magenta $
+                "! "
+                  <> Text.italic (label ref.alice)
+                  <> "/"
+                  <> Text.italic (label ref.bob)
+                  <> " "
+                  <> name
+                  <> " "
+                  <> renderRef ref.alice
+                  <> "/"
+                  <> renderRef ref.bob
 
     renderWho :: Merge.EitherWayI v -> Text
     renderWho = \case
       Merge.OnlyAlice _ -> "Alice"
       Merge.OnlyBob _ -> "Bob"
       Merge.AliceAndBob _ -> "Alice and Bob"
+
+realDebugCoreDependencies ::
+  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (DefnsF Set TermReference TypeReference) ->
+  IO ()
+realDebugCoreDependencies defns dependencies = do
+  Text.putStrLn (Text.bold "\n=== Alice core dependencies ===")
+  renderDependencies defns.alice dependencies.alice
+
+  Text.putStrLn (Text.bold "\n=== Bob core dependencies ===")
+  renderDependencies defns.bob dependencies.bob
+  where
+    renderDependencies ::
+      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      DefnsF Set TermReference TypeReference ->
+      IO ()
+    renderDependencies defns dependencies = do
+      dependencies.terms
+        & Set.toList
+        & map (\dep -> (dep, termNames dep))
+        & sortAlphabeticallyOn snd
+        & traverse_ \(dep, names) ->
+          Text.putStrLn (Text.italic "term" <> " " <> names <> Reference.toText dep)
+      dependencies.types
+        & Set.toList
+        & map (\dep -> (dep, typeNames dep))
+        & sortAlphabeticallyOn snd
+        & traverse_ \(dep, names) ->
+          Text.putStrLn (Text.italic "type" <> " " <> names <> Reference.toText dep)
+      where
+        termNames :: TermReference -> Text
+        termNames ref =
+          foldMap
+            (\name -> Name.toText name <> " ")
+            (BiMultimap.lookupDom (Referent.fromTermReference ref) defns.terms)
+
+        typeNames :: TypeReference -> Text
+        typeNames ref =
+          foldMap
+            (\name -> Name.toText name <> " ")
+            (BiMultimap.lookupDom ref defns.types)
+
+realDebugInitialDependents ::
+  Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
+  Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
+  IO ()
+realDebugInitialDependents defns dependents = do
+  Text.putStrLn (Text.bold "\n=== Alice initial dependents ===")
+  renderDependents defns.alice dependents.alice
+
+  Text.putStrLn (Text.bold "\n=== Bob initial dependents ===")
+  renderDependents defns.bob dependents.bob
+  where
+    renderDependents ::
+      Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+      DefnsF Set TermReferenceId TypeReferenceId ->
+      IO ()
+    renderDependents defns dependents = do
+      dependents.terms
+        & Set.toList
+        & map (\dep -> (dep, termNames dep))
+        & sortAlphabeticallyOn snd
+        & traverse_ \(dep, names) ->
+          Text.putStrLn (Text.italic "term" <> " " <> names <> Reference.idToText dep)
+      dependents.types
+        & Set.toList
+        & map (\dep -> (dep, typeNames dep))
+        & sortAlphabeticallyOn snd
+        & traverse_ \(dep, names) ->
+          Text.putStrLn (Text.italic "type" <> " " <> names <> Reference.idToText dep)
+      where
+        termNames :: TermReferenceId -> Text
+        termNames ref =
+          foldMap
+            (\name -> Name.toText name <> " ")
+            (BiMultimap.lookupDom (Referent.fromTermReferenceId ref) defns.terms)
+
+        typeNames :: TypeReferenceId -> Text
+        typeNames ref =
+          foldMap
+            (\name -> Name.toText name <> " ")
+            (BiMultimap.lookupDom (Reference.fromId ref) defns.types)
 
 realDebugPartitionedDiff ::
   Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
@@ -958,18 +1066,22 @@ realDebugPartitionedDiff conflicts unconflicts = do
   where
     renderConflicts :: Text -> Map Name Reference.Id -> Merge.EitherWay () -> IO ()
     renderConflicts label conflicts who =
-      for_ (Map.toList conflicts) \(name, ref) ->
-        Text.putStrLn $
-          Text.magenta $
-            "! "
-              <> Text.italic label
-              <> " "
-              <> Name.toText name
-              <> " "
-              <> Reference.idToText ref
-              <> " ("
-              <> (case who of Merge.Alice () -> "Alice"; Merge.Bob () -> "Bob")
-              <> ")"
+      conflicts
+        & Map.toList
+        & over (mapped . _1) Name.toText
+        & sortAlphabeticallyOn fst
+        & traverse_ \(name, ref) ->
+          Text.putStrLn $
+            Text.magenta $
+              "! "
+                <> Text.italic label
+                <> " "
+                <> name
+                <> " "
+                <> Reference.idToText ref
+                <> " ("
+                <> (case who of Merge.Alice () -> "Alice"; Merge.Bob () -> "Bob")
+                <> ")"
 
     renderUnconflicts ::
       (Text -> Text) ->
@@ -979,18 +1091,22 @@ realDebugPartitionedDiff conflicts unconflicts = do
       Map Name ref ->
       IO ()
     renderUnconflicts color action label renderRef unconflicts =
-      for_ (Map.toList unconflicts) \(name, ref) ->
-        Text.putStrLn $
-          color $
-            action
-              <> " "
-              <> Text.italic (label ref)
-              <> " "
-              <> Name.toText name
-              <> " "
-              <> renderRef ref
+      unconflicts
+        & Map.toList
+        & over (mapped . _1) Name.toText
+        & sortAlphabeticallyOn fst
+        & traverse_ \(name, ref) ->
+          Text.putStrLn $
+            color $
+              action
+                <> " "
+                <> Text.italic (label ref)
+                <> " "
+                <> name
+                <> " "
+                <> renderRef ref
 
 referentLabel :: Referent -> Text
 referentLabel ref
-  | Referent'.isConstructor ref = "constructor"
+  | Referent'.isConstructor ref = "ctor"
   | otherwise = "term"

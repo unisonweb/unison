@@ -39,6 +39,8 @@ module Unison.Runtime.TypeTags
     pureEffectTag,
     seqViewElemTag,
     seqViewEmptyTag,
+    mapTipTag,
+    mapBinTag,
   )
 where
 
@@ -239,6 +241,15 @@ seqViewEmptyTag, seqViewElemTag :: PackedTag
         [ Ty.seqViewEmpty,
           Ty.seqViewElem ] = (emt, elt)
   | otherwise = error "internal error: seq view tags"
+
+mapTipTag, mapBinTag :: PackedTag
+(mapTipTag, mapBinTag)
+  | [mtt, mbt] <-
+      mkTags "map tags" Ty.mapRef
+        [ Ty.mapTip,
+          Ty.mapBin
+        ] = (mtt, mbt)
+  | otherwise = error "internal error: map tags"
 
 -- | A tag we use to represent the 'pure' effect case.
 pureEffectTag :: PackedTag

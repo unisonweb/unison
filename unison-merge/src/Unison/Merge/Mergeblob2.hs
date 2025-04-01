@@ -20,7 +20,7 @@ import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.Unconflicts (Unconflicts)
+import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
@@ -36,7 +36,7 @@ import Unison.Type (Type)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith4)
 
 data Mergeblob2 libdep = Mergeblob2
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
@@ -54,7 +54,6 @@ data Mergeblob2 libdep = Mergeblob2
     lcaDeclNameLookup :: PartialDeclNameLookup,
     lcaLibdeps :: Map NameSegment libdep,
     libdeps :: Map NameSegment libdep,
-    soloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
@@ -71,16 +70,12 @@ makeMergeblob2 blob = do
 
   conflicts <- narrowConflictsToNonBuiltins blob.conflicts & mapLeft Mergeblob2Error'ConflictedBuiltin
 
-  let soloUpdatesAndDeletes :: TwoWay (DefnsF Set Name Name)
-      soloUpdatesAndDeletes =
-        Unconflicts.soloUpdatesAndDeletes blob.unconflicts
-
   let coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference)
       coreDependencies =
         identifyCoreDependencies
           (ThreeWay.forgetLca blob.defns)
           (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
-          soloUpdatesAndDeletes
+          blob.unconflicts
 
   pure
     Mergeblob2
@@ -94,27 +89,36 @@ makeMergeblob2 blob = do
         lcaDeclNameLookup = blob.lcaDeclNameLookup,
         lcaLibdeps = blob.lcaLibdeps,
         libdeps = blob.libdeps,
-        soloUpdatesAndDeletes,
         unconflicts = blob.unconflicts
       }
 
 identifyCoreDependencies ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
-  TwoWay (DefnsF Set Name Name) ->
+  DefnsF Unconflicts Referent TypeReference ->
   TwoWay (DefnsF Set TermReference TypeReference)
-identifyCoreDependencies defns conflicts soloUpdatesAndDeletes = do
+identifyCoreDependencies defns conflicts unconflicts = do
+  let soloUpdatedNames = Unconflicts.soloUpdatedNames unconflicts
   fold
-    [ -- One source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
+    [ -- One source of dependencies: One's own updates (including those that the other party also happened to make).
+      -- This is required even though it may seem as though one's already propagated that update. Consider if Alice
+      -- updates X and adds a new transitive dependent Z (where Z calls Y calls X). We want X as an Alice core
+      -- dependency, not just a B one, so that any update to Y can ultimately propagate again to Z.
       --
-      -- This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
-      -- anything), no matter what its hash is.
-      defnsReferences
-        <$> ( zipDefnsWith BiMultimap.restrictRan BiMultimap.restrictRan
-                <$> TwoWay.swap soloUpdatesAndDeletes
-                <*> defns
-            ),
-      -- The other source of dependencies: Alice's own conflicted things, and ditto for Bob.
+      -- Second source of dependencies: Alice's versions of Bob's unconflicted deletes and updates, and vice-versa.
+      -- (This is name-based: if Bob updates the *name* "foo", then we go find the thing that Alice calls "foo" (if
+      -- anything), no matter what its hash is.)
+      let f :: (Ord ref) => Set Name -> Set Name -> Set Name -> BiMultimap ref Name -> BiMultimap ref Name
+          f myUpdates bothUpdates theirDeletesAndUpdates =
+            BiMultimap.restrictRan (Set.unions [myUpdates, bothUpdates, theirDeletesAndUpdates])
+       in defnsReferences
+            <$> ( zipDefnsWith4 f f
+                    <$> soloUpdatedNames
+                    <*> TwoWay.bothWays (Unconflicts.bothUpdatedNames unconflicts)
+                    <*> TwoWay.swap (Unconflicts.soloDeletedNames unconflicts <> soloUpdatedNames)
+                    <*> defns
+                ),
+      -- Third source of dependencies: Alice's own conflicted things, and ditto for Bob.
       --
       -- An example: suppose Alice has foo#alice and Bob has foo#bob, so foo is conflicted. Furthermore, suppose
       -- Alice has bar#bar that depends on foo#alice.

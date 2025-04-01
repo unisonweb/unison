@@ -40,6 +40,7 @@ import Unison.Runtime.Stack
     Val (..),
     pattern DataC,
     pattern PApV,
+    inflateMap,
   )
 import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
@@ -65,6 +66,7 @@ import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
     booleanRef,
+    hmapRef,
     iarrayRef,
     ibytearrayRef,
     listRef,
@@ -172,14 +174,14 @@ decompile backref topTerms = \case
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"
-      | Builtin nm <- rf ->
-          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
       | Just t <- topTerms rt k ->
           Term.etaReduceEtaVars . substitute t
             <$> traverse (decompile backref topTerms) vs
       | k > 0,
         Just _ <- topTerms rt 0 ->
           err (UnkLocal rf k) $ bug "<Unknown>"
+      | Builtin nm <- rf ->
+          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
       | otherwise -> err (UnkComb rf) $ ref () rf
     (PAp (CIx rf _ _) _ _) ->
       err (BadPAp rf) $ bug "<Unknown>"
@@ -228,6 +230,8 @@ decompileForeign backref topTerms f
           (decompileBytes . By.fromWord8s $ byteArrayToList a)
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
+  | Just m <- maybeUnwrapForeign hmapRef f =
+      decompile backref topTerms . BoxedVal $ inflateMap m
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text
   where

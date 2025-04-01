@@ -784,6 +784,42 @@ scratch/main> help
   `switch /bar`     switches to the branch `bar` in the current
                     project
 
+  sync.from-codebase
+  `sync.from-codebase ./codebase srcProject/main destProject/main`  Imports
+                                                                    the
+                                                                    srcProject/main
+                                                                    branch
+                                                                    from
+                                                                    the
+                                                                    specified
+                                                                    codebase,
+                                                                    then
+                                                                    sets
+                                                                    destProject/main
+                                                                    to
+                                                                    that
+                                                                    branch,
+                                                                    creating
+                                                                    it
+                                                                    if
+                                                                    it
+                                                                    doesn't
+                                                                    already
+                                                                    exist.
+
+  sync.from-file
+  `sync.from-file ./feature.usync /feature`  Set or create the
+                                             /feature branch to
+                                             the branch stored
+                                             in the sync file at
+                                             `feature.usync`.
+
+  sync.to-file
+  `sync.to-file ./branch.usync`      saves the current branch to
+                                     the file `branch.usync`.
+  `sync.to-file ./main.usync /main`  saves the main branch to
+                                     the file `main.usync`.
+
   test
   `test`      runs unit tests for the current branch
   `test foo`  runs unit tests for the current branch defined in

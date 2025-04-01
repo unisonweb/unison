@@ -6,7 +6,6 @@
 module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
-import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Monad.Reader
 import Control.Monad.Trans.Except
@@ -21,6 +20,7 @@ import Data.OpenApi.Lens qualified as OpenApi
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
 import Network.HTTP.Types (HeaderName)
@@ -81,6 +81,7 @@ import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
+import System.IO.Error qualified as IOError
 import U.Codebase.Branch qualified as V2
 import U.Codebase.Causal qualified as Causal
 import U.Codebase.HashTags (CausalHash)
@@ -122,6 +123,8 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Pretty qualified as Pretty
+import UnliftIO qualified
+import UnliftIO.Async qualified as Async
 
 -- HTML content type
 data HTML = HTML
@@ -449,7 +452,7 @@ startServer ::
   CodebaseServerOpts ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  (BaseUrl -> IO a) ->
+  (Maybe BaseUrl -> IO a) ->
   IO a
 startServer env opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
@@ -471,13 +474,28 @@ startServer env opts rt codebase onStart = do
     withPort settings baseUrl app' p = do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
-      result <-
-        race
-          (runSettings settings' app')
-          (waitFor started *> onStart (baseUrl p))
-      case result of
-        Left () -> throwIO $ ErrorCall "Server exited unexpectedly!"
-        Right x -> pure x
+      let runServer = do
+            UnliftIO.try (runSettings settings' app') >>= \case
+              Left ioerror | IOError.isAlreadyInUseError ioerror -> do
+                Text.hPutStrLn UnliftIO.stderr $
+                  Text.unlines
+                    [ "Note: Port "
+                        <> Text.pack (show p)
+                        <> " is already bound by another process or another UCM. The UCM server will not be started."
+                    ]
+              Left e -> do
+                Text.hPutStrLn UnliftIO.stderr $
+                  Text.unlines
+                    [ "UCM server failure: " <> Text.pack (show e),
+                      "The UCM server will not be restarted."
+                    ]
+              Right _ -> do
+                throwIO $ ErrorCall "The UCM server exited unexpectedly, it will not be restarted."
+      Async.withAsync runServer \serverHandle -> do
+        -- Wait until either the server has started or the server has failed to start, then proceed with the callback, passing the base URL if the server started, and Nothing otherwise.
+        UnliftIO.race (UnliftIO.wait serverHandle) (waitFor started) >>= \case
+          Left _ -> onStart Nothing
+          Right _ -> onStart (Just $ baseUrl p)
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = do
