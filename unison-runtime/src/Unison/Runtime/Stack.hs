@@ -155,7 +155,6 @@ module Unison.Runtime.Stack
     hasNoAllocations,
     universalEq,
     universalCompare,
-
     -- pseudo data stuff
     inflateMap,
     deflateMap,
@@ -394,7 +393,7 @@ closureTag (Data2 _ t _ _) = t
 closureTag (DataG _ t _) = t
 closureTag c =
   throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
-{-# inline closureTag #-}
+{-# INLINE closureTag #-}
 
 -- | Converts a list of integers representing an unboxed segment back into the
 -- appropriate segment. Segments are stored backwards in the runtime, so this
@@ -565,7 +564,7 @@ data RuntimePanic = Panic String (Maybe Val)
 
 instance Exception RuntimePanic
 
-marshalUnwrapForeignIO :: HasCallStack => Closure -> IO a
+marshalUnwrapForeignIO :: (HasCallStack) => Closure -> IO a
 marshalUnwrapForeignIO (Foreign x) = pure $ unwrapForeign x
 marshalUnwrapForeignIO c =
   throwIO $ Panic "marshalUnwrapForeignIO: unhandled closure" (Just v)
@@ -744,7 +743,7 @@ estackIOToIOX (IO f) = \s -> case f s of
 
 exStackIOToIO :: IOEXStack -> IO (Bool, Stack)
 exStackIOToIO f = IO $ \s -> case f s of
-  (# s , b, x #) -> (# s, (b, packXStack x) #)
+  (# s, b, x #) -> (# s, (b, packXStack x) #)
 
 instance Show Stack where
   show (Stack ap fp sp _ _) =
@@ -1354,7 +1353,6 @@ unitClosure :: Closure
 unitClosure = Enum Ty.unitRef TT.unitTag
 {-# NOINLINE unitClosure #-}
 
-
 -- Universal comparison functions
 
 closureNum :: Closure -> Int
@@ -1564,28 +1562,32 @@ arrayEq eqc l r
 mapEq :: (k -> k -> Bool) -> (v -> v -> Bool) -> Map k v -> Map k v -> Bool
 mapEq _ _ Tip Tip = True
 mapEq ek ev (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
-  and [ szl == szr
-      , ek kl kr
-      , ev vl vr
-      , mapEq ek ev ll lr
-      , mapEq ek ev rl rr
-      ]
+  and
+    [ szl == szr,
+      ek kl kr,
+      ev vl vr,
+      mapEq ek ev ll lr,
+      mapEq ek ev rl rr
+    ]
 mapEq _ _ _ _ = False
 
 mapCmp ::
   (k -> k -> Ordering) ->
   (v -> v -> Ordering) ->
-  Map k v -> Map k v -> Ordering
-mapCmp _  _  Tip Tip = EQ
+  Map k v ->
+  Map k v ->
+  Ordering
+mapCmp _ _ Tip Tip = EQ
 mapCmp ck cv (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
-  fold [ compare szl szr
-       , ck kl kr
-       , cv vl vr
-       , mapCmp ck cv ll lr
-       , mapCmp ck cv rl rr
-       ]
-mapCmp _ _ Tip Bin{} = compare mapTip mapBin
-mapCmp _ _ Bin{} Tip = compare mapBin mapTip
+  fold
+    [ compare szl szr,
+      ck kl kr,
+      cv vl vr,
+      mapCmp ck cv ll lr,
+      mapCmp ck cv rl rr
+    ]
+mapCmp _ _ Tip Bin {} = compare mapTip mapBin
+mapCmp _ _ Bin {} Tip = compare mapBin mapTip
 
 -- serialization doesn't necessarily preserve Int tags, so be
 -- more accepting for those.
@@ -1608,7 +1610,9 @@ matchUnboxedTypes ct1 ct2 =
 inflateMap :: Map Val Val -> Closure
 inflateMap Tip = Enum mapRef TT.mapTipTag
 inflateMap (Bin sz k v l r) =
-  DataC mapRef TT.mapBinTag
+  DataC
+    mapRef
+    TT.mapBinTag
     [NatVal $ fromIntegral sz, k, v, BoxedVal $ inflateMap l, BoxedVal $ inflateMap r]
 
 -- Reverses the above conversion, turning a unison data

@@ -4,14 +4,15 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Runtime.Foreign.Function
-  ( ForeignConvention (..)
-  , foreignCall
-  , readsAtError
-  , foreignConventionError
-  , pseudoConstructors
-  , functionReplacements
-  , functionUnreplacements
-  ) where
+  ( ForeignConvention (..),
+    foreignCall,
+    readsAtError,
+    foreignConventionError,
+    pseudoConstructors,
+    functionReplacements,
+    functionUnreplacements,
+  )
+where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent as SYS
@@ -154,7 +155,9 @@ import Unison.Runtime.Exception
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function.Type
-  (ForeignFunc (..), foreignFuncBuiltinName)
+  ( ForeignFunc (..),
+    foreignFuncBuiltinName,
+  )
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -876,8 +879,9 @@ foreignCallHelper = \case
   Map_eq -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
     pure $ l == r
   List_range -> mkForeign $ \(m :: Word64, n :: Word64) ->
-    let sz | m < n = fromIntegral $ n - m
-           | otherwise = 0
+    let sz
+          | m < n = fromIntegral $ n - m
+          | otherwise = 0
         mk i = NatVal $ m + fromIntegral i
         force s = foldl (\u x -> x `seq` u) s s
      in evaluate . force $ Sq.fromFunction sz mk
@@ -935,7 +939,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
     handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
     handleIOE (Right a) = Right a
 
-{-# inline mkForeignExn #-}
+{-# INLINE mkForeignExn #-}
 mkForeignExn ::
   (ForeignConvention a, ForeignConvention e, ForeignConvention r) =>
   (a -> IO (Either (F.Failure e) r)) ->
@@ -1390,7 +1394,9 @@ foreignConventionError ty v = throwIO $ Panic msg (Just v)
 instance
   ( ForeignConvention a,
     ForeignConvention b
-  ) => ForeignConvention (Either a b) where
+  ) =>
+  ForeignConvention (Either a b)
+  where
   decodeVal (BoxedVal (Data1 _ t v))
     | t == TT.leftTag = Left <$> decodeVal v
     | otherwise = Right <$> decodeVal v
@@ -1401,18 +1407,19 @@ instance
   encodeVal (Right y) =
     BoxedVal . Data1 Ty.eitherRef TT.rightTag $ encodeVal y
 
-  readAtIndex stk i = bpeekOff stk i >>= \case
-    Data1 _ t v
-      | t == TT.leftTag -> Left <$> decodeVal v
-      | otherwise -> Right <$> decodeVal v
-    c -> foreignConventionError "Either" (BoxedVal c)
+  readAtIndex stk i =
+    bpeekOff stk i >>= \case
+      Data1 _ t v
+        | t == TT.leftTag -> Left <$> decodeVal v
+        | otherwise -> Right <$> decodeVal v
+      c -> foreignConventionError "Either" (BoxedVal c)
 
   writeBack stk (Left x) =
     bpoke stk . Data1 Ty.eitherRef TT.leftTag $ encodeVal x
   writeBack stk (Right y) =
     bpoke stk . Data1 Ty.eitherRef TT.rightTag $ encodeVal y
 
-instance ForeignConvention a => ForeignConvention (Maybe a) where
+instance (ForeignConvention a) => ForeignConvention (Maybe a) where
   decodeVal (BoxedVal (Enum _ _)) = pure Nothing
   decodeVal (BoxedVal (Data1 _ _ v)) = Just <$> decodeVal v
   decodeVal v = foreignConventionError "Maybe" v
@@ -1420,10 +1427,11 @@ instance ForeignConvention a => ForeignConvention (Maybe a) where
   encodeVal Nothing = noneVal
   encodeVal (Just v) = someVal (encodeVal v)
 
-  readAtIndex stk i = bpeekOff stk i >>= \case
-    Data1 _ _ v -> Just <$> decodeVal v
-    Enum _ _ -> pure Nothing
-    c -> foreignConventionError "Maybe" (BoxedVal c)
+  readAtIndex stk i =
+    bpeekOff stk i >>= \case
+      Data1 _ _ v -> Just <$> decodeVal v
+      Enum _ _ -> pure Nothing
+      c -> foreignConventionError "Maybe" (BoxedVal c)
 
   writeBack stk Nothing = bpoke stk noneClo
   writeBack stk (Just v) = bpoke stk (someClo (encodeVal v))
@@ -1526,25 +1534,29 @@ decodeTup2 (Tup2C x y) = (,) <$> decodeVal x <*> decodeVal y
 decodeTup2 c = foreignConventionError "Pair" (BoxedVal c)
 
 encodeTup2 :: (ForeignConvention a, ForeignConvention b) => (a, b) -> Closure
-encodeTup2 (x,y) = Tup2C (encodeVal x) (encodeVal y)
+encodeTup2 (x, y) = Tup2C (encodeVal x) (encodeVal y)
 
 instance
   ( ForeignConvention a,
     ForeignConvention b
-  ) => ForeignConvention (a, b) where
+  ) =>
+  ForeignConvention (a, b)
+  where
   decodeVal (BoxedVal v) = decodeTup2 v
   decodeVal v = foreignConventionError "Pair" v
   encodeVal p = BoxedVal $ encodeTup2 p
 
   readsAt stk (VArg2 i j) =
-    (,) <$> readAtIndex stk i
-        <*> readAtIndex stk j
+    (,)
+      <$> readAtIndex stk i
+      <*> readAtIndex stk j
   readsAt _ as = readsAtError "two arguments" as
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup2
   writeBack stk p = bpoke stk $ encodeTup2 p
 
 pattern Tup3C x y z = ConsC x (Tup2V y z)
+
 pattern Tup3V x y z = BoxedVal (Tup3C x y z)
 
 decodeTup3 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c) => Closure -> IO (a, b, c)
@@ -1553,27 +1565,31 @@ decodeTup3 (Tup3C x y z) =
 decodeTup3 c = foreignConventionError "Triple" (BoxedVal c)
 
 encodeTup3 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c) => (a, b, c) -> Closure
-encodeTup3 (x,y,z) = Tup3C (encodeVal x) (encodeVal y) (encodeVal z)
+encodeTup3 (x, y, z) = Tup3C (encodeVal x) (encodeVal y) (encodeVal z)
 
 instance
   ( ForeignConvention a,
     ForeignConvention b,
     ForeignConvention c
-  ) => ForeignConvention (a, b, c) where
+  ) =>
+  ForeignConvention (a, b, c)
+  where
   decodeVal (BoxedVal v) = decodeTup3 v
   decodeVal v = foreignConventionError "Triple" v
   encodeVal p = BoxedVal $ encodeTup3 p
 
   readsAt stk (VArgN v) =
-    (,,) <$> readAtIndex stk (PA.indexPrimArray v 0)
-         <*> readAtIndex stk (PA.indexPrimArray v 1)
-         <*> readAtIndex stk (PA.indexPrimArray v 2)
+    (,,)
+      <$> readAtIndex stk (PA.indexPrimArray v 0)
+      <*> readAtIndex stk (PA.indexPrimArray v 1)
+      <*> readAtIndex stk (PA.indexPrimArray v 2)
   readsAt _ as = readsAtError "three arguments" as
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup3
   writeBack stk p = bpoke stk $ encodeTup3 p
 
 pattern Tup4C w x y z = ConsC w (Tup3V x y z)
+
 pattern Tup4V w x y z = BoxedVal (Tup4C w x y z)
 
 decodeTup4 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d) => Closure -> IO (a, b, c, d)
@@ -1582,7 +1598,7 @@ decodeTup4 (Tup4C w x y z) =
 decodeTup4 c = foreignConventionError "Quadruple" (BoxedVal c)
 
 encodeTup4 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d) => (a, b, c, d) -> Closure
-encodeTup4 (w,x,y,z) =
+encodeTup4 (w, x, y, z) =
   Tup4C (encodeVal w) (encodeVal x) (encodeVal y) (encodeVal z)
 
 instance
@@ -1590,17 +1606,20 @@ instance
     ForeignConvention b,
     ForeignConvention c,
     ForeignConvention d
-  ) => ForeignConvention (a, b, c, d) where
+  ) =>
+  ForeignConvention (a, b, c, d)
+  where
   decodeVal (BoxedVal v) = decodeTup4 v
   decodeVal v = foreignConventionError "Quadruple" v
 
   encodeVal p = BoxedVal $ encodeTup4 p
 
   readsAt stk (VArgN v) =
-    (,,,) <$> readAtIndex stk (PA.indexPrimArray v 0)
-          <*> readAtIndex stk (PA.indexPrimArray v 1)
-          <*> readAtIndex stk (PA.indexPrimArray v 2)
-          <*> readAtIndex stk (PA.indexPrimArray v 3)
+    (,,,)
+      <$> readAtIndex stk (PA.indexPrimArray v 0)
+      <*> readAtIndex stk (PA.indexPrimArray v 1)
+      <*> readAtIndex stk (PA.indexPrimArray v 2)
+      <*> readAtIndex stk (PA.indexPrimArray v 3)
   readsAt _ as = readsAtError "four arguments" as
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup4
@@ -1614,7 +1633,7 @@ decodeTup5 (Tup5C v w x y z) =
 decodeTup5 c = foreignConventionError "Quintuple" (BoxedVal c)
 
 encodeTup5 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d, ForeignConvention e) => (a, b, c, d, e) -> Closure
-encodeTup5 (v,w,x,y,z) =
+encodeTup5 (v, w, x, y, z) =
   Tup5C (encodeVal v) (encodeVal w) (encodeVal x) (encodeVal y) (encodeVal z)
 
 instance
@@ -1632,18 +1651,18 @@ instance
   encodeVal = BoxedVal . encodeTup5
 
   readsAt stk (VArgN v) =
-    (,,,,) <$> readAtIndex stk (PA.indexPrimArray v 0)
-           <*> readAtIndex stk (PA.indexPrimArray v 1)
-           <*> readAtIndex stk (PA.indexPrimArray v 2)
-           <*> readAtIndex stk (PA.indexPrimArray v 3)
-           <*> readAtIndex stk (PA.indexPrimArray v 4)
+    (,,,,)
+      <$> readAtIndex stk (PA.indexPrimArray v 0)
+      <*> readAtIndex stk (PA.indexPrimArray v 1)
+      <*> readAtIndex stk (PA.indexPrimArray v 2)
+      <*> readAtIndex stk (PA.indexPrimArray v 3)
+      <*> readAtIndex stk (PA.indexPrimArray v 4)
   readsAt _ as = readsAtError "five arguments" as
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup5
   writeBack stk p = bpoke stk $ encodeTup5 p
 
-
-decodeFailure :: ForeignConvention a => Closure -> IO (F.Failure a)
+decodeFailure :: (ForeignConvention a) => Closure -> IO (F.Failure a)
 decodeFailure (DataG _ _ (_, args)) =
   F.Failure
     <$> decodeTypeLink (PA.indexArray args 0)
@@ -1651,7 +1670,7 @@ decodeFailure (DataG _ _ (_, args)) =
     <*> decodeAny (PA.indexArray args 2)
 decodeFailure c = foreignConventionError "Failure" (BoxedVal c)
 
-encodeFailure :: ForeignConvention a => F.Failure a -> Closure
+encodeFailure :: (ForeignConvention a) => F.Failure a -> Closure
 encodeFailure (F.Failure r msg v) = DataG Ty.failureRef TT.failureTag payload
   where
     payload = boxedSeg [encodeTypeLink r, encodeText msg, encodeAny v]
@@ -1665,10 +1684,10 @@ decodeTypeLink = marshalUnwrapForeignIO
 encodeTypeLink :: Reference -> Closure
 encodeTypeLink rf = Foreign (Wrap typeLinkRef rf)
 
-encodeAny :: ForeignConvention a => a -> Closure
+encodeAny :: (ForeignConvention a) => a -> Closure
 encodeAny v = Data1 anyRef TT.anyTag (encodeVal v)
 
-decodeAny :: ForeignConvention a => Closure -> IO a
+decodeAny :: (ForeignConvention a) => Closure -> IO a
 decodeAny (Data1 _ _ v) = decodeVal v
 decodeAny c = foreignConventionError "Any" (BoxedVal c)
 
@@ -1678,7 +1697,7 @@ decodeText = marshalUnwrapForeignIO
 encodeText :: Text -> Closure
 encodeText tx = Foreign (Wrap textRef tx)
 
-instance ForeignConvention a => ForeignConvention (F.Failure a) where
+instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   decodeVal (BoxedVal v) = decodeFailure v
   decodeVal v = foreignConventionError "Failure" v
   encodeVal v = BoxedVal $ encodeFailure v
@@ -1693,39 +1712,39 @@ decodeForeignClo ty c = foreignConventionError ty (BoxedVal c)
 encodeForeignClo :: Reference -> a -> Closure
 encodeForeignClo r = Foreign . Wrap r
 
-decodeBuiltin :: forall a. BuiltinForeign a => Val -> IO a
+decodeBuiltin :: forall a. (BuiltinForeign a) => Val -> IO a
 decodeBuiltin v
   | BoxedVal c <- v = decodeForeignClo ty c
   | otherwise = foreignConventionError ty v
   where
     Tagged ty = foreignName :: Tagged a String
 
-encodeBuiltin :: forall a. BuiltinForeign a => a -> Val
+encodeBuiltin :: forall a. (BuiltinForeign a) => a -> Val
 encodeBuiltin = BoxedVal . encodeForeignClo r
   where
     Tagged r = foreignRef :: Tagged a Reference
 
-readBuiltinAt :: forall a. BuiltinForeign a => Stack -> Int -> IO a
+readBuiltinAt :: forall a. (BuiltinForeign a) => Stack -> Int -> IO a
 readBuiltinAt stk i = bpeekOff stk i >>= decodeForeignClo ty
   where
     Tagged ty = foreignName :: Tagged a String
 
-writeBuiltin :: forall a. BuiltinForeign a => Stack -> a -> IO ()
+writeBuiltin :: forall a. (BuiltinForeign a) => Stack -> a -> IO ()
 writeBuiltin stk = bpoke stk . encodeForeignClo r
   where
     Tagged r = foreignRef :: Tagged a Reference
 
-decodeAsBuiltin :: BuiltinForeign t => (t -> a) -> Val -> IO a
+decodeAsBuiltin :: (BuiltinForeign t) => (t -> a) -> Val -> IO a
 decodeAsBuiltin k = fmap k . decodeBuiltin
 
-encodeAsBuiltin :: BuiltinForeign t => (a -> t) -> a -> Val
+encodeAsBuiltin :: (BuiltinForeign t) => (a -> t) -> a -> Val
 encodeAsBuiltin k = encodeBuiltin . k
 
-readAsBuiltin
-  :: BuiltinForeign t => (t -> a) -> Stack -> Int -> IO a
+readAsBuiltin ::
+  (BuiltinForeign t) => (t -> a) -> Stack -> Int -> IO a
 readAsBuiltin k stk i = k <$> readBuiltinAt stk i
 
-writeAsBuiltin :: BuiltinForeign t => (a -> t) -> Stack -> a -> IO ()
+writeAsBuiltin :: (BuiltinForeign t) => (a -> t) -> Stack -> a -> IO ()
 writeAsBuiltin k stk = writeBuiltin stk . k
 
 instance ForeignConvention POSIXTime where
@@ -1874,7 +1893,7 @@ instance ForeignConvention StdHnd where
 --   writeForeign = writeForeignAs (fmap Foreign)
 --
 
-instance {-# overlapping #-} ForeignConvention String where
+instance {-# OVERLAPPING #-} ForeignConvention String where
   decodeVal = decodeAsBuiltin unpack
   encodeVal = encodeAsBuiltin pack
 
@@ -1920,9 +1939,10 @@ instance ForeignConvention Foreign where
   decodeVal v = foreignConventionError "Foreign" v
   encodeVal f = BoxedVal (Foreign f)
 
-  readAtIndex stk i = bpeekOff stk i >>= \case
-    Foreign f -> pure f
-    c -> foreignConventionError "Foreign" (BoxedVal c)
+  readAtIndex stk i =
+    bpeekOff stk i >>= \case
+      Foreign f -> pure f
+      c -> foreignConventionError "Foreign" (BoxedVal c)
   writeBack stk f = bpoke stk (Foreign f)
 
 instance ForeignConvention (Seq Val) where
@@ -1935,7 +1955,7 @@ instance ForeignConvention (Seq Val) where
 
   writeBack = pokeS
 
-instance ForeignConvention a => ForeignConvention [a] where
+instance (ForeignConvention a) => ForeignConvention [a] where
   decodeVal (BoxedVal (Foreign f))
     | (sq :: Sq.Seq Val) <- unwrapForeign f = traverse decodeVal (toList sq)
   decodeVal v = foreignConventionError "List" v
@@ -1947,7 +1967,7 @@ instance ForeignConvention a => ForeignConvention [a] where
 
   writeBack stk sq = pokeS stk . Sq.fromList $ encodeVal <$> sq
 
-instance {-# overlappable #-} (BuiltinForeign b) => ForeignConvention b where
+instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   decodeVal = decodeBuiltin
   encodeVal = encodeBuiltin
   readAtIndex = readBuiltinAt
@@ -2048,29 +2068,29 @@ pseudoConstructors :: Map Reference (Map TT.CTag ForeignFunc)
 pseudoConstructors =
   Map.singleton Ty.mapRef $
     Map.fromList
-      [ (fromIntegral Ty.mapTip, Map_tip)
-      , (fromIntegral Ty.mapBin, Map_bin)
+      [ (fromIntegral Ty.mapTip, Map_tip),
+        (fromIntegral Ty.mapBin, Map_bin)
       ]
 
 functionReplacementList :: [(Data.Text.Text, ForeignFunc)]
 functionReplacementList =
-  [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e"
-    , Map_insert
-    )
-  , ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s"
-    , Map_lookup
-    )
-  , ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du"
-    , Map_fromList
-    )
-  , ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk"
-    , Map_eq
-    )
-  , ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22"
-    , List_range
-    )
-  , ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km"
-    , List_sort
+  [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e",
+      Map_insert
+    ),
+    ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s",
+      Map_lookup
+    ),
+    ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
+      Map_fromList
+    ),
+    ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
+      Map_eq
+    ),
+    ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22",
+      List_range
+    ),
+    ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km",
+      List_sort
     )
   ]
 

@@ -38,9 +38,9 @@ import Unison.Runtime.Stack
     USeq,
     UnboxedTypeTag (..),
     Val (..),
+    inflateMap,
     pattern DataC,
     pattern PApV,
-    inflateMap,
   )
 import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
