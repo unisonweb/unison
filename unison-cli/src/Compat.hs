@@ -8,7 +8,6 @@ import System.Mem.Weak (deRefWeak)
 import Unison.Prelude
 import UnliftIO qualified
 
-{- ORMOLU_DISABLE -}
 #if defined(mingw32_HOST_OS)
 import qualified GHC.ConsoleHandler as WinSig
 #else
@@ -16,13 +15,11 @@ import qualified System.Posix.Signals as Sig
 #endif
 
 onWindows :: Bool
-onWindows =
 #if defined(mingw32_HOST_OS)
-  True
+onWindows = True
 #else
-  False
+onWindows = False
 #endif
-{- ORMOLU_ENABLE -}
 
 -- | Constructs a default interrupt handler which builds an interrupt handler which throws a
 -- UserInterrupt exception to the thread in which the setup was initially called.
@@ -48,15 +45,15 @@ withInterruptHandler handler action = do
   where
     -- Installs the new handler and returns an action to restore the old handlers.
     installNewHandlers :: IO (IO ())
-    installNewHandlers = do
-{- ORMOLU_DISABLE -}
 #if defined(mingw32_HOST_OS)
+    installNewHandlers = do
       let sig_handler WinSig.ControlC = handler
           sig_handler WinSig.Break    = handler
           sig_handler _               = return ()
       oldHandler <- WinSig.installHandler (WinSig.Catch sig_handler)
       pure (void $ WinSig.installHandler oldHandler)
 #else
+    installNewHandlers = do
       oldQuitHandler <- Sig.installHandler Sig.sigQUIT  (Sig.Catch handler) Nothing
       oldInterruptHandler <- Sig.installHandler Sig.sigINT   (Sig.Catch handler) Nothing
       pure do
@@ -65,4 +62,3 @@ withInterruptHandler handler action = do
 #endif
     restoreOldHandlers :: IO () -> IO ()
     restoreOldHandlers restore = restore
-{- ORMOLU_ENABLE -}

@@ -1,25 +1,24 @@
-
 module Unison.Runtime.Machine.Primops where
 
-import Control.Exception
 import Control.Concurrent.STM as STM
+import Control.Exception
 import Data.Atomics qualified as Atomic
 import Data.Bits
-import Data.Map.Strict qualified as M
 import Data.IORef (IORef)
 import Data.IORef qualified as IORef
+import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Word
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
-import Unison.Referent (Referent, pattern Ref, toShortHash)
-import Unison.Runtime.ANF (Value, Code, codeGroup)
+import Unison.Referent (Referent, toShortHash, pattern Ref)
+import Unison.Runtime.ANF (Code, Value, codeGroup)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.Machine.Types
 import Unison.Runtime.MCode
+import Unison.Runtime.Machine.Types
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH
@@ -29,14 +28,16 @@ import Unison.Util.Bytes qualified as By
 import Unison.Util.Text as UText
 
 prim1wrap ::
-  ForeignConvention x =>
+  (ForeignConvention x) =>
   (Stack -> x -> IO ()) ->
-  Stack -> Int -> IO Stack
+  Stack ->
+  Int ->
+  IO Stack
 prim1wrap f stk i = do
   x <- readAtIndex stk i
   stk <- bump stk
   stk <$ f stk x
-{-# inline prim1wrap #-}
+{-# INLINE prim1wrap #-}
 
 prim1 :: CCache -> Stack -> Prim1 -> Int -> IO Stack
 prim1 !_env !stk DECI !i = prim1wrap deci stk i
@@ -96,32 +97,33 @@ prim1 !_env !stk REFR i = prim1wrap refr stk i
 prim1 !_env !stk REFN i = prim1wrap refn stk i
 prim1 !env !stk RRFC i = prim1wrap (rrfc env) stk i
 prim1 !_env !stk TIKR i = prim1wrap tikr stk i
-
 prim1 !env !stk MISS i = prim1wrap (miss env) stk i
 prim1 !env !stk SDBL i = prim1wrap (sdbl env) stk i
 prim1 !env !stk LKUP i = prim1wrap (lkup env) stk i
 prim1 !env !stk CVLD i = prim1wrap (cvld env) stk i
 prim1 !_env !stk TLTT i = prim1wrap tltt stk i
 prim1 !env !stk DBTX i = prim1wrap (dbtx env) stk i
-
 -- handled elsewhere
 prim1 !_env !stk CACH _ = pure stk
 prim1 !_env !stk LOAD _ = pure stk
 prim1 !_env !stk VALU _ = pure stk
-{-# inline prim1 #-}
+{-# INLINE prim1 #-}
 
 -- Wrap an implementation to act on an index on two indices
 prim2wrap2 ::
-  ForeignConvention x =>
-  ForeignConvention y =>
+  (ForeignConvention x) =>
+  (ForeignConvention y) =>
   (Stack -> x -> y -> IO ()) ->
-  Stack -> Int -> Int -> IO Stack
+  Stack ->
+  Int ->
+  Int ->
+  IO Stack
 prim2wrap2 f stk i j = do
   x <- readAtIndex stk i
   y <- readAtIndex stk j
   stk <- bump stk
   stk <$ f stk x y
-{-# inline prim2wrap2 #-}
+{-# INLINE prim2wrap2 #-}
 
 -- Primops applied to two stack indices
 primxx :: CCache -> Stack -> Prim2 -> Int -> Int -> IO Stack
@@ -140,7 +142,6 @@ primxx _env stk XORI i j = prim2wrap2 xori stk i j
 primxx _env stk SHLI i j = prim2wrap2 shli stk i j
 primxx _env stk SHRI i j = prim2wrap2 shri stk i j
 primxx _env stk POWI i j = prim2wrap2 powi stk i j
-
 primxx _env stk ADDN i j = prim2wrap2 addn stk i j
 primxx _env stk SUBN i j = prim2wrap2 subn stk i j
 primxx _env stk MULN i j = prim2wrap2 muln stk i j
@@ -157,7 +158,6 @@ primxx _env stk ANDN i j = prim2wrap2 andn stk i j
 primxx _env stk IORN i j = prim2wrap2 iorn stk i j
 primxx _env stk XORN i j = prim2wrap2 xorn stk i j
 primxx _env stk DRPN i j = prim2wrap2 drpn stk i j
-
 primxx _env stk EQLF i j = prim2wrap2 eqlf stk i j
 primxx _env stk NEQF i j = prim2wrap2 neqf stk i j
 primxx _env stk LEQF i j = prim2wrap2 leqf stk i j
@@ -199,14 +199,12 @@ primxx _env stk REFW i j = prim2wrap2 refw stk i j
 primxx _env stk CAST i j = prim2wrap2 cast stk i j
 primxx _env stk ANDB i j = prim2wrap2 andb stk i j
 primxx _env stk IORB i j = prim2wrap2 iorb stk i j
-
 primxx env stk SDBV i j = prim2wrap2 (sdbv env) stk i j
 primxx env stk SDBX i j = prim2wrap2 (sdbx env) stk i j
-
 -- handled elsewhere
 primxx _env stk THRO _ _ = pure stk
 primxx _env stk TRCE _ _ = pure stk
-{-# inline primxx #-}
+{-# INLINE primxx #-}
 
 termLinkVal :: Referent -> Val
 termLinkVal = BoxedVal . Foreign . Wrap Rf.termLinkRef
@@ -344,15 +342,15 @@ ftot stk f = pokeBi stk . UText.pack $ show f
 
 usnc :: Stack -> Text -> IO ()
 usnc stk t = writeBack stk (UText.unsnoc t)
-{-# inline usnc #-}
+{-# INLINE usnc #-}
 
 ucns :: Stack -> Text -> IO ()
 ucns stk t = writeBack stk (UText.uncons t)
-{-# inline ucns #-}
+{-# INLINE ucns #-}
 
 readIntegral :: (Bounded n, Integral n) => String -> Maybe n
 readIntegral s = clamp =<< readMaybe s
-{-# inline readIntegral #-}
+{-# INLINE readIntegral #-}
 
 clamp :: forall n. (Bounded n, Integral n) => Integer -> Maybe n
 clamp i
@@ -361,7 +359,7 @@ clamp i
   where
     minb = fromIntegral (minBound :: n)
     maxb = fromIntegral (maxBound :: n)
-{-# inline clamp #-}
+{-# INLINE clamp #-}
 
 ttoi :: Stack -> Text -> IO ()
 ttoi stk t = writeBack stk (readi $ UText.unpack t)
@@ -369,11 +367,11 @@ ttoi stk t = writeBack stk (readi $ UText.unpack t)
     readi :: String -> Maybe Int
     readi ('+' : s) = readIntegral s
     readi s = readIntegral s
-{-# inline ttoi #-}
+{-# INLINE ttoi #-}
 
 tton :: Stack -> Text -> IO ()
 tton stk t = writeBack stk (readIntegral @Word64 $ UText.unpack t)
-{-# inline tton #-}
+{-# INLINE tton #-}
 
 ttof :: Stack -> Text -> IO ()
 ttof stk t = writeBack stk (readd $ UText.unpack t)
@@ -387,7 +385,7 @@ vwls stk s = writeBack stk result
     result = case s of
       Sq.Empty -> SeqViewEmpty
       x Sq.:<| xs -> SeqViewElem x xs
-{-# inline vwls #-}
+{-# INLINE vwls #-}
 
 vwrs :: Stack -> USeq -> IO ()
 vwrs stk s = writeBack stk result
@@ -395,7 +393,7 @@ vwrs stk s = writeBack stk result
     result = case s of
       Sq.Empty -> SeqViewEmpty
       xs Sq.:|> x -> SeqViewElem xs x
-{-# inline vwrs #-}
+{-# INLINE vwrs #-}
 
 pakt :: Stack -> USeq -> IO ()
 pakt stk s = pokeBi stk . UText.pack . toList $ val2char <$> s
@@ -468,11 +466,11 @@ miss env stk tl
         m <- readTVarIO (intermed env)
         pokeBool stk (link `M.member` m)
       _ -> die "exec:prim1:MISS: expected Ref"
-{-# inline miss #-}
+{-# INLINE miss #-}
 
 sdbl :: CCache -> Stack -> Referent -> IO ()
 sdbl env stk tl = writeBack stk =<< sandboxList env tl
-{-# inline sdbl #-}
+{-# INLINE sdbl #-}
 
 sandboxList :: CCache -> Referent -> IO [Reference]
 sandboxList cc (Ref r) = do
@@ -484,7 +482,7 @@ lkup :: CCache -> Stack -> Referent -> IO ()
 lkup env stk tl
   | sandboxed env = die "attempted to use sandboxed operation: lookup"
   | otherwise = writeBack stk =<< lookupCode env tl
-{-# inline lkup #-}
+{-# INLINE lkup #-}
 
 cvld :: CCache -> Stack -> [(Referent, Code)] -> IO ()
 cvld env stk news
@@ -494,12 +492,12 @@ cvld env stk news
   where
     extract (Ref r, code) = pure (r, codeGroup code)
     extract _ = die "Prim1:CVLD: Con reference"
-{-# inline cvld #-}
+{-# INLINE cvld #-}
 
 tltt :: Stack -> Referent -> IO ()
 tltt stk r =
   pokeBi stk . UText.fromText . SH.toText $ toShortHash r
-{-# inline tltt #-}
+{-# INLINE tltt #-}
 
 dbtx :: CCache -> Stack -> Val -> IO ()
 dbtx env stk val
@@ -511,183 +509,183 @@ dbtx env stk val
       NoTrace -> Nothing
       MsgTrace _ _ tx -> Just . Left $ UText.pack tx
       SimpleTrace tx -> Just . Right $ UText.pack tx
-{-# inline dbtx #-}
+{-# INLINE dbtx #-}
 
 addi :: Stack -> Int -> Int -> IO ()
 addi stk m n = pokeI stk (m + n)
-{-# inline addi #-}
+{-# INLINE addi #-}
 
 subi :: Stack -> Int -> Int -> IO ()
 subi stk m n = pokeI stk (m - n)
-{-# inline subi #-}
+{-# INLINE subi #-}
 
 muli :: Stack -> Int -> Int -> IO ()
 muli stk m n = pokeI stk (m * n)
-{-# inline muli #-}
+{-# INLINE muli #-}
 
 divi :: Stack -> Int -> Int -> IO ()
 divi stk m n = pokeI stk (m `div` n)
-{-# inline divi #-}
+{-# INLINE divi #-}
 
 modi :: Stack -> Int -> Int -> IO ()
 modi stk m n = pokeI stk (m `mod` n)
-{-# inline modi #-}
+{-# INLINE modi #-}
 
 eqli :: Stack -> Int -> Int -> IO ()
 eqli stk m n = pokeBool stk (m == n)
-{-# inline eqli #-}
+{-# INLINE eqli #-}
 
 neqi :: Stack -> Int -> Int -> IO ()
 neqi stk m n = pokeBool stk (m /= n)
-{-# inline neqi #-}
+{-# INLINE neqi #-}
 
 leqi :: Stack -> Int -> Int -> IO ()
 leqi stk m n = pokeBool stk (m <= n)
-{-# inline leqi #-}
+{-# INLINE leqi #-}
 
 lesi :: Stack -> Int -> Int -> IO ()
 lesi stk m n = pokeBool stk (m < n)
-{-# inline lesi #-}
+{-# INLINE lesi #-}
 
 andi :: Stack -> Int -> Int -> IO ()
 andi stk m n = pokeI stk (m .&. n)
-{-# inline andi #-}
+{-# INLINE andi #-}
 
 iori :: Stack -> Int -> Int -> IO ()
 iori stk m n = pokeI stk (m .|. n)
-{-# inline iori #-}
+{-# INLINE iori #-}
 
 xori :: Stack -> Int -> Int -> IO ()
 xori stk m n = pokeI stk (m `xor` n)
-{-# inline xori #-}
+{-# INLINE xori #-}
 
 shli :: Stack -> Int -> Int -> IO ()
 shli stk m n = pokeI stk (m `shiftL` n)
-{-# inline shli #-}
+{-# INLINE shli #-}
 
 shri :: Stack -> Int -> Int -> IO ()
 shri stk m n = pokeI stk (m `shiftR` n)
-{-# inline shri #-}
+{-# INLINE shri #-}
 
 powi :: Stack -> Int -> Word64 -> IO ()
 powi stk m n = pokeI stk (m ^ n)
-{-# inline powi #-}
+{-# INLINE powi #-}
 
 addn :: Stack -> Word64 -> Word64 -> IO ()
 addn stk m n = pokeN stk (m + n)
-{-# inline addn #-}
+{-# INLINE addn #-}
 
 subn :: Stack -> Word64 -> Word64 -> IO ()
 subn stk m n = pokeI stk . fromIntegral $ m - n
-{-# inline subn #-}
+{-# INLINE subn #-}
 
 muln :: Stack -> Word64 -> Word64 -> IO ()
 muln stk m n = pokeN stk (m * n)
-{-# inline muln #-}
+{-# INLINE muln #-}
 
 divn :: Stack -> Word64 -> Word64 -> IO ()
 divn stk m n = pokeN stk (m `div` n)
-{-# inline divn #-}
+{-# INLINE divn #-}
 
 modn :: Stack -> Word64 -> Word64 -> IO ()
 modn stk m n = pokeN stk (m `mod` n)
-{-# inline modn #-}
+{-# INLINE modn #-}
 
 shln :: Stack -> Word64 -> Int -> IO ()
 shln stk m n = pokeN stk (m `shiftL` n)
-{-# inline shln #-}
+{-# INLINE shln #-}
 
 shrn :: Stack -> Word64 -> Int -> IO ()
 shrn stk m n = pokeN stk (m `shiftR` n)
-{-# inline shrn #-}
+{-# INLINE shrn #-}
 
 pown :: Stack -> Word64 -> Word64 -> IO ()
 pown stk m n = pokeN stk (m ^ n)
-{-# inline pown #-}
+{-# INLINE pown #-}
 
 eqln :: Stack -> Word64 -> Word64 -> IO ()
 eqln stk m n = pokeBool stk (m == n)
-{-# inline eqln #-}
+{-# INLINE eqln #-}
 
 neqn :: Stack -> Word64 -> Word64 -> IO ()
 neqn stk m n = pokeBool stk (m /= n)
-{-# inline neqn #-}
+{-# INLINE neqn #-}
 
 leqn :: Stack -> Word64 -> Word64 -> IO ()
 leqn stk m n = pokeBool stk (m <= n)
-{-# inline leqn #-}
+{-# INLINE leqn #-}
 
 lesn :: Stack -> Word64 -> Word64 -> IO ()
 lesn stk m n = pokeBool stk (m < n)
-{-# inline lesn #-}
+{-# INLINE lesn #-}
 
 andn :: Stack -> Word64 -> Word64 -> IO ()
 andn stk m n = pokeN stk (m .&. n)
-{-# inline andn #-}
+{-# INLINE andn #-}
 
 iorn :: Stack -> Word64 -> Word64 -> IO ()
 iorn stk m n = pokeN stk (m .|. n)
-{-# inline iorn #-}
+{-# INLINE iorn #-}
 
 xorn :: Stack -> Word64 -> Word64 -> IO ()
 xorn stk m n = pokeN stk (m `xor` n)
-{-# inline xorn #-}
+{-# INLINE xorn #-}
 
 drpn :: Stack -> Word64 -> Word64 -> IO ()
 drpn stk m n = pokeN stk $ if n >= m then 0 else m - n
-{-# inline drpn #-}
+{-# INLINE drpn #-}
 
 eqlf :: Stack -> Double -> Double -> IO ()
 eqlf stk x y = pokeBool stk (x == y)
-{-# inline eqlf #-}
+{-# INLINE eqlf #-}
 
 neqf :: Stack -> Double -> Double -> IO ()
 neqf stk x y = pokeBool stk (x /= y)
-{-# inline neqf #-}
+{-# INLINE neqf #-}
 
 leqf :: Stack -> Double -> Double -> IO ()
 leqf stk x y = pokeBool stk (x <= y)
-{-# inline leqf #-}
+{-# INLINE leqf #-}
 
 lesf :: Stack -> Double -> Double -> IO ()
 lesf stk x y = pokeBool stk (x < y)
-{-# inline lesf #-}
+{-# INLINE lesf #-}
 
 addf :: Stack -> Double -> Double -> IO ()
 addf stk x y = pokeD stk (x + y)
-{-# inline addf #-}
+{-# INLINE addf #-}
 
 subf :: Stack -> Double -> Double -> IO ()
 subf stk x y = pokeD stk (x - y)
-{-# inline subf #-}
+{-# INLINE subf #-}
 
 mulf :: Stack -> Double -> Double -> IO ()
 mulf stk x y = pokeD stk (x * y)
-{-# inline mulf #-}
+{-# INLINE mulf #-}
 
 divf :: Stack -> Double -> Double -> IO ()
 divf stk x y = pokeD stk (x / y)
-{-# inline divf #-}
+{-# INLINE divf #-}
 
 atn2 :: Stack -> Double -> Double -> IO ()
 atn2 stk x y = pokeD stk (atan2 x y)
-{-# inline atn2 #-}
+{-# INLINE atn2 #-}
 
 powf :: Stack -> Double -> Double -> IO ()
 powf stk x y = pokeD stk (x ** y)
-{-# inline powf #-}
+{-# INLINE powf #-}
 
 logb :: Stack -> Double -> Double -> IO ()
 logb stk x y = pokeD stk (logBase x y)
-{-# inline logb #-}
+{-# INLINE logb #-}
 
 maxf :: Stack -> Double -> Double -> IO ()
 maxf stk x y = pokeD stk (max x y)
-{-# inline maxf #-}
+{-# INLINE maxf #-}
 
 minf :: Stack -> Double -> Double -> IO ()
 minf stk x y = pokeD stk (min x y)
-{-# inline minf #-}
+{-# INLINE minf #-}
 
 drpt :: Stack -> Int -> Text -> IO ()
 drpt stk n t0 = pokeBi stk t
@@ -696,7 +694,8 @@ drpt stk n t0 = pokeBi stk t
     -- signed integer. As an approximation, just return the empty
     -- string, as a string larger than this would require an absurd
     -- amount of memory.
-    t | n < 0 = UText.empty
+    t
+      | n < 0 = UText.empty
       | otherwise = UText.drop n t0
 
 takt :: Stack -> Int -> Text -> IO ()
@@ -706,44 +705,45 @@ takt stk n t0 = pokeBi stk t
     -- signed integer. As an approximation, we just return the
     -- original string, because it's unlikely such a large string
     -- exists.
-    t | n < 0 = t0
+    t
+      | n < 0 = t0
       | otherwise = UText.take n t0
 
 catt :: Stack -> Text -> Text -> IO ()
 catt stk x y = pokeBi stk (x <> y :: UText.Text)
-{-# inline catt #-}
+{-# INLINE catt #-}
 
 ixot :: Stack -> Text -> Text -> IO ()
 ixot stk x y = writeBack stk $ UText.indexOf x y
-{-# inline ixot #-}
+{-# INLINE ixot #-}
 
 eqlt :: Stack -> Text -> Text -> IO ()
 eqlt stk x y = pokeBool stk $ x == y
-{-# inline eqlt #-}
+{-# INLINE eqlt #-}
 
 leqt :: Stack -> Text -> Text -> IO ()
 leqt stk x y = pokeBool stk $ x <= y
-{-# inline leqt #-}
+{-# INLINE leqt #-}
 
 lest :: Stack -> Text -> Text -> IO ()
 lest stk x y = pokeBool stk $ x < y
-{-# inline lest #-}
+{-# INLINE lest #-}
 
 eqlu :: Stack -> Val -> Val -> IO ()
 eqlu stk x y = pokeBool stk $ universalEq (==) x y
-{-# inline eqlu #-}
+{-# INLINE eqlu #-}
 
 cmpu :: Stack -> Val -> Val -> IO ()
 cmpu stk x y = pokeI stk . pred . fromEnum $ universalCompare compare x y
-{-# inline cmpu #-}
+{-# INLINE cmpu #-}
 
 lequ :: Stack -> Val -> Val -> IO ()
 lequ stk x y = pokeBool stk $ universalCompare compare x y /= GT
-{-# inline lequ #-}
+{-# INLINE lequ #-}
 
 lesu :: Stack -> Val -> Val -> IO ()
 lesu stk x y = pokeBool stk $ universalCompare compare x y == LT
-{-# inline lesu #-}
+{-# INLINE lesu #-}
 
 -- Note: if n < 0, then the Nat argument was larger than the largest
 -- signed integer. Seq actually doesn't handle this well, despite it
@@ -751,30 +751,31 @@ lesu stk x y = pokeBool stk $ universalCompare compare x y == LT
 -- approximate by yielding the empty sequence.
 drps :: Stack -> Int -> USeq -> IO ()
 drps stk n s = pokeS stk $ if n < 0 then Sq.empty else Sq.drop n s
-{-# inline drps #-}
+{-# INLINE drps #-}
 
 taks :: Stack -> Int -> USeq -> IO ()
 taks stk n s = pokeS stk $ if n < 0 then s else Sq.take n s
-{-# inline taks #-}
+{-# INLINE taks #-}
 
 cons :: Stack -> Val -> USeq -> IO ()
 cons stk x s = pokeS stk $ x Sq.<| s
-{-# inline cons #-}
+{-# INLINE cons #-}
 
 snoc :: Stack -> USeq -> Val -> IO ()
 snoc stk s x = pokeS stk $ s Sq.|> x
-{-# inline snoc #-}
+{-# INLINE snoc #-}
 
 idxs :: Stack -> Int -> USeq -> IO ()
 idxs stk n s = writeBack stk $ Sq.lookup n s
-{-# inline idxs #-}
+{-# INLINE idxs #-}
 
 data SeqView a b = SeqViewEmpty | SeqViewElem a b
 
 decodeSeqView ::
-  ForeignConvention a =>
-  ForeignConvention b =>
-  Closure -> IO (SeqView a b)
+  (ForeignConvention a) =>
+  (ForeignConvention b) =>
+  Closure ->
+  IO (SeqView a b)
 decodeSeqView (Enum _ t)
   | t == Ty.seqViewEmptyTag = pure SeqViewEmpty
 decodeSeqView (Data2 _ t x y)
@@ -785,17 +786,21 @@ seqViewE :: Closure
 seqViewE = Enum Ty.seqViewRef Ty.seqViewEmptyTag
 
 encodeSeqView ::
-  ForeignConvention a =>
-  ForeignConvention b =>
-  SeqView a b -> Closure
+  (ForeignConvention a) =>
+  (ForeignConvention b) =>
+  SeqView a b ->
+  Closure
 encodeSeqView SeqViewEmpty = seqViewE
 encodeSeqView (SeqViewElem x y) =
   Data2 Ty.seqViewRef Ty.seqViewElemTag (encodeVal x) (encodeVal y)
-{-# inline encodeSeqView #-}
+{-# INLINE encodeSeqView #-}
 
-instance ( ForeignConvention a
-         , ForeignConvention b
-         ) => ForeignConvention (SeqView a b) where
+instance
+  ( ForeignConvention a,
+    ForeignConvention b
+  ) =>
+  ForeignConvention (SeqView a b)
+  where
   readAtIndex stk i = decodeSeqView =<< bpeekOff stk i
 
   decodeVal (BoxedVal c) = decodeSeqView c
@@ -807,65 +812,67 @@ instance ( ForeignConvention a
   encodeVal = BoxedVal . encodeSeqView
 
   writeBack stk v = bpoke stk $ encodeSeqView v
-  {-# inline writeBack #-}
+  {-# INLINE writeBack #-}
 
 spll :: Stack -> Int -> USeq -> IO ()
 spll stk n s = writeBack stk result
   where
-    result | Sq.length s < n = SeqViewEmpty
-           | (l, r) <- Sq.splitAt n s = SeqViewElem l r
-{-# inline spll #-}
+    result
+      | Sq.length s < n = SeqViewEmpty
+      | (l, r) <- Sq.splitAt n s = SeqViewElem l r
+{-# INLINE spll #-}
 
 splr :: Stack -> Int -> USeq -> IO ()
 splr stk n s = writeBack stk result
   where
-    result | Sq.length s < n = SeqViewEmpty
-           | (l, r) <- Sq.splitAt (Sq.length s - n) s = SeqViewElem l r
-{-# inline splr #-}
+    result
+      | Sq.length s < n = SeqViewEmpty
+      | (l, r) <- Sq.splitAt (Sq.length s - n) s = SeqViewElem l r
+{-# INLINE splr #-}
 
 cats :: Stack -> USeq -> USeq -> IO ()
 cats stk x y = pokeS stk $ x Sq.>< y
-{-# inline cats #-}
+{-# INLINE cats #-}
 
 -- If n < 0, the Nat argument was larger than the maximum signed
 -- integer. Building a value this large would reuire an absurd
 -- amount of memory, so just assume n is larger.
 takb :: Stack -> Int -> Bytes -> IO ()
 takb stk n b = pokeBi stk $ if n < 0 then b else By.take n b
-{-# inline takb #-}
+{-# INLINE takb #-}
 
 -- See above for n < 0
 drpb :: Stack -> Int -> Bytes -> IO ()
 drpb stk n b = pokeBi stk $ if n < 0 then By.empty else By.drop n b
-{-# inline drpb #-}
+{-# INLINE drpb #-}
 
 idxb :: Stack -> Int -> Bytes -> IO ()
 idxb stk n b = writeBack stk $ By.at n b
-{-# inline idxb #-}
+{-# INLINE idxb #-}
 
 catb :: Stack -> Bytes -> Bytes -> IO ()
 catb stk l r = writeBack stk $ l <> r
-{-# inline catb #-}
+{-# INLINE catb #-}
 
 ixob :: Stack -> Bytes -> Bytes -> IO ()
 ixob stk l r = writeBack stk $ By.indexOf l r
-{-# inline ixob #-}
+{-# INLINE ixob #-}
 
 refw :: Stack -> IORef Val -> Val -> IO ()
 refw stk ref v = IORef.writeIORef ref v *> bpoke stk unitClosure
-{-# inline refw #-}
+{-# INLINE refw #-}
 
 cast :: Stack -> Int -> Int -> IO ()
 cast stk n tag = poke stk $ UnboxedVal n (unboxedTypeTagFromInt tag)
-{-# inline cast #-}
+{-# INLINE cast #-}
 
 andb :: Stack -> Bool -> Bool -> IO ()
 andb stk x y = pokeBool stk $ x && y
-{-# inline andb #-}
+{-# INLINE andb #-}
 
 iorb :: Stack -> Bool -> Bool -> IO ()
 iorb stk x y = pokeBool stk $ x || y
-{-# inline iorb #-}
+{-# INLINE iorb #-}
 
 sdbv :: CCache -> Stack -> [Referent] -> Value -> IO ()
 sdbv env stk allowed0 v
@@ -873,12 +880,11 @@ sdbv env stk allowed0 v
       die "attempted to use sandboxed operation: Value.validateSandboxed"
   | otherwise = checkValueSandboxing env allowed v >>= writeBack stk
   where
-    allowed = allowed0 >>= \case (Ref r) -> [r] ; _ -> []
-{-# inline sdbv #-}
+    allowed = allowed0 >>= \case (Ref r) -> [r]; _ -> []
+{-# INLINE sdbv #-}
 
 sdbx :: CCache -> Stack -> [Referent] -> Closure -> IO ()
 sdbx env stk allowed0 c = checkSandboxing env allowed c >>= pokeBool stk
   where
-    allowed = allowed0 >>= \case (Ref r) -> [r] ; _ -> []
-{-# inline sdbx #-}
-
+    allowed = allowed0 >>= \case (Ref r) -> [r]; _ -> []
+{-# INLINE sdbx #-}

@@ -902,9 +902,10 @@ declareForeign ::
   FDecl Symbol ()
 declareForeign sand arity func = declareForeignWrap sand wrap func
   where
-  -- Special case: turn 0-arg foreigns into unit-accepting functions
-  wrap | 0 == arity = unitDirect
-       | otherwise = argNDirect arity
+    -- Special case: turn 0-arg foreigns into unit-accepting functions
+    wrap
+      | 0 == arity = unitDirect
+      | otherwise = argNDirect arity
 
 unitValue :: Val
 unitValue = BoxedVal $ Closure.Enum Ty.unitRef TT.unitTag
@@ -1283,7 +1284,6 @@ declareForeigns = do
   declareForeign Untracked 2 Map_eq
   declareForeign Untracked 2 List_range
   declareForeign Untracked 1 List_sort
-
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =
