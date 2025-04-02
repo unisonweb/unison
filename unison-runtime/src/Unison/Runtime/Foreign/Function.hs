@@ -2100,6 +2100,30 @@ functionReplacementList =
     ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
       Map_fromList
     ),
+    ( "01qqpul0ttlgjhr5i2gtmdr2uarns2hbtnjpipmk1575ipkrlug42",
+      Map_union
+    ),
+    ( "00c363e340il8q0fai6peiv3586o931nojj98qfek09hg1tjkm9ma",
+      Map_intersect
+    ),
+    ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
+      Map_toList
+    ),
+    ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
+      Multimap_fromList
+    ),
+    ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
+      Set_fromList
+    ),
+    ( "03362vaalqq28lcrmmsjhha637is312j01jme3juj980ugd93up28",
+      Set_union
+    ),
+    ( "01lm6ejo31na1ti6u85bv0klliefll7q0c0da2qnefvcrq1l8rlqe",
+      Set_intersect
+    ),
+    ( "01p7ot36tg62na408mnk1psve6rc7fog30gv6n7thkrv6t3na2gdm",
+      Set_toList
+    ),
     ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
       Map_eq
     ),

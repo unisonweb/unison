@@ -1282,8 +1282,16 @@ declareForeigns = do
   declareForeign Untracked 2 Map_lookup
   declareForeign Untracked 1 Map_fromList
   declareForeign Untracked 2 Map_eq
+  declareForeign Untracked 2 Map_union
+  declareForeign Untracked 2 Map_intersect
+  declareForeign Untracked 1 Map_toList
   declareForeign Untracked 2 List_range
   declareForeign Untracked 1 List_sort
+  declareForeign Untracked 1 Multimap_fromList
+  declareForeign Untracked 1 Set_fromList
+  declareForeign Untracked 2 Set_union
+  declareForeign Untracked 2 Set_intersect
+  declareForeign Untracked 1 Set_toList
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =
