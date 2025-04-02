@@ -191,7 +191,6 @@ import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (words)
 
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
 
@@ -228,7 +227,6 @@ pokeSentinelOff (Stack _ _ sp ustk bstk) off = do
 -- Don't track callstacks in production, it's expensive
 type DebugCallStack = (() :: Constraint)
 #endif
-{- ORMOLU_ENABLE -}
 
 newtype Callback = Hook (XStack -> IO ())
 
@@ -287,7 +285,6 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
-{- ORMOLU_DISABLE -}
 data GClosure comb
   = GPAp
       !CombIx
@@ -309,7 +306,6 @@ data GClosure comb
   | GUnboxedSentinel
 #endif
   deriving stock (Show, Functor, Foldable, Traversable)
-{- ORMOLU_ENABLE -}
 
 -- Singleton black hole value to avoid allocation.
 blackHole :: Closure
@@ -806,7 +802,6 @@ alloc = do
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
-{- ORMOLU_DISABLE -}
 peek :: DebugCallStack => Stack -> IO Val
 peek stk@(Stack _ _ sp ustk _) = do
   -- Can't use upeek here because in stack-check mode it will assert that the stack slot is unboxed.
@@ -1175,8 +1170,6 @@ peekOffC _stk@(Stack _ _ sp ustk _) i = do
 #endif
   Char.chr <$> readByteArray ustk (sp - i)
 {-# INLINE peekOffC #-}
-
-{- ORMOLU_ENABLE -}
 
 pokeN :: Stack -> Word64 -> IO ()
 pokeN stk@(Stack _ _ sp ustk _) n = do

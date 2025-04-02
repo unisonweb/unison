@@ -88,7 +88,6 @@ import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 import Unison.Debug qualified as Debug
 import System.IO.Unsafe (unsafePerformIO)
@@ -97,7 +96,6 @@ import System.IO.Unsafe (unsafePerformIO)
 #ifdef OPT_CHECK
 import Test.Inspection qualified as TI
 #endif
-{- ORMOLU_ENABLE -}
 
 info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -195,7 +193,6 @@ litToVal = \case
   MD d -> DoubleVal d
 {-# INLINE litToVal #-}
 
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 debugger :: (Show a) => Stack -> String -> a -> Bool
 debugger stk msg a = unsafePerformIO $ do
@@ -214,7 +211,6 @@ dumpStack stk@(Stack ap fp sp _ustk _bstk)
         peekOff stk (i + (sp - fp))
       Debug.debugM Debug.Interpreter "Stack args 👇:" stkArgs
 #endif
-{- ORMOLU_ENABLE -}
 
 -- | Execute an instruction
 exec ::
@@ -226,12 +222,10 @@ exec ::
   Reference ->
   MInstr ->
   IO (Bool, DEnv, Stack, K)
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 exec _ !_ !_ !stk !_ !_ instr
   | debugger stk "exec" instr = undefined
 #endif
-{- ORMOLU_ENABLE -}
 exec _ !denv !_activeThreads !stk !k _ (Info tx) = do
   info tx stk
   info tx k
@@ -425,12 +419,10 @@ eval ::
   Reference ->
   MSection ->
   IO ()
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 eval _ !_ !_ !stk !_ !_ section
   | debugger stk "eval" section = undefined
 #endif
-{- ORMOLU_ENABLE -}
 eval env !denv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval env denv activeThreads stk k r $ selectTextBranch t df cs
@@ -591,12 +583,10 @@ apply ::
   Args ->
   Val ->
   IO ()
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 apply _env !_denv !_activeThreads !stk !_k !_ck !args !val
   | debugger stk "apply" (args, val) = undefined
 #endif
-{- ORMOLU_ENABLE -}
 apply env !denv !activeThreads !stk !k !ck !args !val =
   case val of
     BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
@@ -1414,7 +1404,6 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-{- ORMOLU_DISABLE -}
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always
 -- trigger the worker/wrapper optimization and unbox it fully, and if it fails to do so, we want to
@@ -1442,4 +1431,3 @@ reifyValue0 (combs, rty, rtm) = goV
 -- Best of luck!
 TI.inspect $ 'eval0 `TI.hasNoType` ''Stack
 #endif
-{- ORMOLU_ENABLE -}
